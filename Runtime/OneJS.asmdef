@@ -1,0 +1,19 @@
+{
+    "name": "OneJS",
+    "rootNamespace": "",
+    "references": [
+        "GUID:c64e7cb9aca7c0a4d94321ced1aeb914",
+        "GUID:776d03a35f1b52c4a9aed9f56d7b4229",
+        "GUID:d8b63aba1907145bea998dd612889d6b",
+        "GUID:90fe9074c28df03418afd58e84ed1ffe"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

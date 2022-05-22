@@ -1,0 +1,147 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &6661873769672997507
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6661873769672997517}
+  - component: {fileID: 6661873769672997516}
+  - component: {fileID: 6661873769672997519}
+  - component: {fileID: 6661873769672997518}
+  - component: {fileID: 6661873769672997505}
+  - component: {fileID: 6661873769672997504}
+  m_Layer: 0
+  m_Name: ScriptEngine
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6661873769672997517
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6661873769672997507}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 2
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &6661873769672997516
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6661873769672997507}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 19102, guid: 0000000000000000e000000000000000, type: 0}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_PanelSettings: {fileID: 11400000, guid: abed3154d13c278439212bc1603d54c2, type: 2}
+  m_ParentUI: {fileID: 0}
+  sourceAsset: {fileID: 9197481963319205126, guid: da6275ccc85492e468c37f133ded0a52, type: 3}
+  m_SortingOrder: 0
+--- !u!114 &6661873769672997519
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6661873769672997507}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 33737086b85733c409415fa7b52f7749, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &6661873769672997518
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6661873769672997507}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 11a2f63a40845224388196ec8d0d73a9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _assemblies:
+  - UnityEngine.CoreModule
+  - UnityEngine.PhysicsModule
+  - UnityEngine.UIElementsModule
+  - UnityEngine.IMGUIModule
+  - UnityEngine.TextRenderingModule
+  - Unity.Mathematics
+  - OneJS
+  _extensions:
+  - OneJS.Extensions.GameObjectExts
+  - OneJS.Extensions.ComponentExts
+  - OneJS.Extensions.ColorExts
+  - OneJS.Extensions.VisualElementExts
+  - UnityEngine.UIElements.PointerCaptureHelper
+  _namespaces:
+  - namespace: System.Collections.Generic
+    module: System/Collections/Generic
+  - namespace: UnityEngine
+    module: UnityEngine
+  - namespace: UnityEngine.UIElements
+    module: UnityEngine/UIElements
+  - namespace: OneJS.Utils
+    module: OneJS/Utils
+  _staticClasses:
+  - staticClass: Unity.Mathematics.math
+    module: math
+  _objects: []
+  _preloadedScripts: []
+  _scriptLibZip: {fileID: 4900000, guid: 46d508c959f3f5248b9f101a41b65173, type: 3}
+  _addonsZip: {fileID: 4900000, guid: 58f74fb9fe145c04d938ca90db492cf3, type: 3}
+  _tsconfig: {fileID: 4900000, guid: f5908381548dc074ba0aa40312094370, type: 3}
+  _vscodeSettings: {fileID: 4900000, guid: 670f3870b20ddcc48a34d76d6f2c8f89, type: 3}
+  _styleSheets: []
+  _allowReflection: 0
+  _allowGetType: 0
+  _memoryLimit: 0
+  _timeout: 0
+  _recursionDepth: 0
+--- !u!114 &6661873769672997505
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6661873769672997507}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d31e7a8c09f336b4cbbb597fdcf69a40, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _runOnStart: 1
+  _entryScript: index.js
+  _watchFilter: '*.js'
+  _netSync: 0
+  _port: 9050
+--- !u!114 &6661873769672997504
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6661873769672997507}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 76fee72d799744f69ca2651ce865224d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _clearGameObjects: 1
+  _clearLogs: 1

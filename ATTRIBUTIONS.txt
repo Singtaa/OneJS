@@ -1,0 +1,15 @@
+﻿OneJS uses the following open source projects:
+
+Jint (BSD-2-Clause)
+Jint.CommonJS (MIT)
+Esprima.Net (BSD-3-Clause)
+SharpZipLib (MIT)
+LiteNetLib (MIT)
+NaughtyAttributes (MIT)
+Preact (MIT)
+Lodash (MIT)
+TweenJS (MIT)
+
+All LICENSE files are found in each respectively project folders (or next to their dlls).
+
+An image by Sharan Vijayagopal on Pixabay is used in the sample.

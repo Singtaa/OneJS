@@ -1,0 +1,11 @@
+{
+    "name": "com.dragonground.onejs",
+    "version": "1.0.0",
+    "displayName": "OneJS",
+    "description": "OneJS is a Javascript Engine specifically designed for Unity. It is ligthweight, performant, pure C# based, has first-class Typescript support, and works everywhere.",
+    "unity": "2020.3",
+    "documentationUrl": "https://onejs.com/",
+    "dependencies": {
+        "com.unity.mathematics": "1.2.6"
+    }
+}

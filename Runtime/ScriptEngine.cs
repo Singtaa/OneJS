@@ -1,0 +1,442 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using ICSharpCode.SharpZipLib.GZip;
+using ICSharpCode.SharpZipLib.Tar;
+using Jint;
+using Jint.CommonJS;
+using Jint.Runtime.Interop;
+using NaughtyAttributes;
+using OneJS.Dom;
+using OneJS.Engine;
+using OneJS.Engine.JSGlobals;
+using OneJS.Utils;
+using UnityEngine;
+using UnityEngine.UIElements;
+using Debug = UnityEngine.Debug;
+
+namespace OneJS {
+    [Serializable]
+    public class NamespaceModulePair {
+        public string @namespace;
+        public string module;
+
+        public NamespaceModulePair(string ns, string m) {
+            this.@namespace = ns;
+            this.module = m;
+        }
+    }
+
+    [Serializable]
+    public class StaticClassModulePair {
+        public string staticClass;
+        public string module;
+
+        public StaticClassModulePair(string sc, string m) {
+            this.staticClass = sc;
+            this.module = m;
+        }
+    }
+
+    [Serializable]
+    public class ObjectModulePair {
+        public UnityEngine.MonoBehaviour obj;
+        public string module;
+
+        public ObjectModulePair(UnityEngine.MonoBehaviour obj, string m) {
+            this.obj = obj;
+            this.module = m;
+        }
+    }
+
+    [RequireComponent(typeof(UIDocument), typeof(CoroutineUtil))]
+    public class ScriptEngine : MonoBehaviour {
+        public Jint.Engine JintEngine => _engine;
+        public ModuleLoadingEngine ModuleEngine => _cjsEngine;
+        public Dom.Dom DocumentBody => _document.body;
+
+        public event Action OnPostInit;
+        public event Action OnReload;
+
+        [Foldout("INTEROP")] [Tooltip("Include any assembly you'd want to access from Javascript.")] [SerializeField]
+        string[] _assemblies = new[] {
+            "UnityEngine.CoreModule", "UnityEngine.PhysicsModule", "UnityEngine.UIElementsModule",
+            "UnityEngine.IMGUIModule", "UnityEngine.TextRenderingModule",
+            "Unity.Mathematics", "OneJS"
+        };
+
+        [Foldout("INTEROP")]
+        [Tooltip("Extensions need to be explicitly added to the script engine. OneJS also provide some default ones.")]
+        [SerializeField]
+        string[] _extensions = new[] {
+            "OneJS.Extensions.GameObjectExts",
+            "OneJS.Extensions.ComponentExts",
+            "OneJS.Extensions.ColorExts",
+            "OneJS.Extensions.VisualElementExts",
+            "UnityEngine.UIElements.PointerCaptureHelper"
+        };
+
+        [Foldout("INTEROP")]
+        [Tooltip("C# Namespace to JS Module mapping.")]
+        [PairMapping("namespace", "module")]
+        [SerializeField]
+        NamespaceModulePair[] _namespaces = new[] {
+            new NamespaceModulePair("System.Collections.Generic", "System/Collections/Generic"),
+            new NamespaceModulePair("UnityEngine", "UnityEngine"),
+            new NamespaceModulePair("UnityEngine.UIElements", "UnityEngine/UIElements"),
+            new NamespaceModulePair("OneJS.Utils", "OneJS/Utils"),
+        };
+
+        [Foldout("INTEROP")]
+        [Tooltip("Static Class to JS Module mapping.")]
+        [PairMapping("staticClass", "module")]
+        [SerializeField]
+        StaticClassModulePair[] _staticClasses = new[]
+            { new StaticClassModulePair("Unity.Mathematics.math", "math") };
+
+        [Foldout("INTEROP")] [Tooltip("Object to JS Module mapping.")] [PairMapping("obj", "module")] [SerializeField]
+        ObjectModulePair[] _objects = new ObjectModulePair[]
+            { };
+
+        [Foldout("INTEROP")] [Tooltip("Scripts that you want to load before everything else")] [SerializeField]
+        List<string> _preloadedScripts = new List<string>();
+
+        [Foldout("ASSETS")]
+        [Tooltip("This is the compressed archive that OneJS uses to fill your " +
+                 "ScriptLib folder if one isn't found under Application.persistentDataPath.")]
+        [Label("ScriptLib Zip")]
+        [SerializeField]
+        TextAsset _scriptLibZip;
+
+        [Foldout("ASSETS")]
+        [Tooltip("This is the compressed archive that OneJS uses to fill your " +
+                 "Addons folder if one isn't found under Application.persistentDataPath.")]
+        [Label("ScriptLib Zip")]
+        [SerializeField]
+        TextAsset _addonsZip;
+
+        [Foldout("ASSETS")]
+        [Tooltip("Default tsconfig.json. If one isn't found under Application.persistentDataPath, " +
+                 "this is the template that will be copied over.")]
+        [Label("TS Config")]
+        [SerializeField]
+        TextAsset _tsconfig;
+
+        [Foldout("ASSETS")]
+        [Tooltip("Default vscode settings.json. If one isn't found under {Application.persistentDataPath}/.vscode, " +
+                 "this is the template that will be copied over.")]
+        [Label("VSCode Settings")]
+        [SerializeField]
+        TextAsset _vscodeSettings;
+
+        [Foldout("ASSETS")]
+        [Tooltip("Inculde here any global USS you'd need. OneJS also provides a default one.")]
+        [SerializeField]
+        StyleSheet[] _styleSheets;
+
+        [Foldout("SECURITY")] [Tooltip("Allow access to System.Reflection from Javascript")] [SerializeField]
+        bool _allowReflection;
+        [Foldout("SECURITY")] [Tooltip("Allow access to .GetType() from Javascript")] [SerializeField]
+        bool _allowGetType;
+        [Foldout("SECURITY")] [Tooltip("Memory Limit in MB. Set to 0 for no limit.")] [SerializeField] int _memoryLimit;
+        [Foldout("SECURITY")]
+        [Tooltip("How long a script can execute in milliseconds. Set to 0 for no limit.")]
+        [SerializeField]
+        int _timeout;
+        [Foldout("SECURITY")]
+        [Tooltip("Limit depth of calls to prevent deep recursion calls. Set to 0 for no limit.")]
+        [SerializeField]
+        int _recursionDepth;
+
+        [Foldout("MISC")]
+        [Tooltip("This is helpful when you need to update an outdated ScriptLib folder on a mobile device.")]
+        [SerializeField] [Label("Extract ScriptLib on Start")] bool _extractScriptLibOnStart = false;
+        [Foldout("MISC")]
+        [Tooltip("This is helpful when you need to update an outdated Addons folder on a mobile device.")]
+        [SerializeField] [Label("Extract Addons on Start")] bool _extractAddonsOnStart = false;
+
+        UIDocument _uiDocument;
+        Document _document;
+        ModuleLoadingEngine _cjsEngine;
+        Jint.Engine _engine;
+
+        List<Action> _engineReloadJSHandlers = new List<Action>();
+
+
+        public void Awake() {
+            _uiDocument = GetComponent<UIDocument>();
+            _document = new Document(_uiDocument.rootVisualElement, this);
+            _styleSheets.ToList().ForEach(s => _uiDocument.rootVisualElement.styleSheets.Add(s));
+            CheckAndSetScriptLibEtAl();
+            InitEngine();
+        }
+
+        public void RunScript(string scriptPath) {
+            var path = Path.Combine(Application.persistentDataPath, scriptPath);
+            if (!File.Exists(path)) {
+                Debug.LogError($"Script Path ({path}) doesn't exist.");
+                return;
+            }
+            RunModule(scriptPath);
+        }
+
+        /// <summary>
+        /// Engine will reload first then runs the script.
+        /// Use this if you want to run the script with a brand new Engine.
+        /// </summary>
+        /// <param name="scriptPath">Relative to Application.persistentDataPath</param>
+        public void ReloadAndRunScript(string scriptPath) {
+            var path = Path.Combine(Application.persistentDataPath, scriptPath);
+            if (!File.Exists(path)) {
+                Debug.LogError($"Script Path ({path}) doesn't exist.");
+                return;
+            }
+            OnReload?.Invoke();
+            CleanUp();
+            InitEngine();
+            RunModule(scriptPath);
+        }
+
+        public void RegisterReloadHandler(Action handler) {
+            OnReload += handler;
+            _engineReloadJSHandlers.Add(handler);
+        }
+
+        /// <summary>
+        /// WARNING: This will replace the existing ScriptLib folder with the default one
+        /// </summary>
+        public void ExtractScriptLib() {
+            var path = Path.Combine(Application.persistentDataPath, "ScriptLib");
+            if (Directory.Exists(path)) {
+                var di = new DirectoryInfo(path);
+                foreach (FileInfo file in di.EnumerateFiles()) {
+                    file.Delete();
+                }
+                foreach (DirectoryInfo dir in di.EnumerateDirectories()) {
+                    if (dir.Name != ".git")
+                        dir.Delete(true);
+                }
+            }
+
+            Stream inStream = new MemoryStream(_scriptLibZip.bytes);
+            Stream gzipStream = new GZipInputStream(inStream);
+
+            TarArchive tarArchive = TarArchive.CreateInputTarArchive(gzipStream);
+            tarArchive.ExtractContents(Application.persistentDataPath);
+            tarArchive.Close();
+            gzipStream.Close();
+            inStream.Close();
+            Debug.Log($"ScriptLib Zip extracted. ({path})");
+        }
+
+        /// <summary>
+        /// WARNING: This will replace the existing Addons folder with the default one
+        /// </summary>
+        public void ExtractAddons() {
+            var path = Path.Combine(Application.persistentDataPath, "Addons");
+            if (Directory.Exists(path)) {
+                var di = new DirectoryInfo(path);
+                foreach (FileInfo file in di.EnumerateFiles()) {
+                    file.Delete();
+                }
+                foreach (DirectoryInfo dir in di.EnumerateDirectories()) {
+                    if (dir.Name != ".git")
+                        dir.Delete(true);
+                }
+            }
+
+            Stream inStream = new MemoryStream(_addonsZip.bytes);
+            Stream gzipStream = new GZipInputStream(inStream);
+
+            TarArchive tarArchive = TarArchive.CreateInputTarArchive(gzipStream);
+            tarArchive.ExtractContents(Application.persistentDataPath);
+            tarArchive.Close();
+            gzipStream.Close();
+            inStream.Close();
+            Debug.Log($"Addons Zip extracted. ({path})");
+        }
+
+        void CleanUp() {
+            _engineReloadJSHandlers.ForEach((a) => { OnReload -= a; });
+            _engineReloadJSHandlers.Clear();
+
+            SetTimeout.Reset();
+            RequestAnimationFrame.Reset();
+        }
+
+        void InitEngine() {
+            _engine = new Jint.Engine(opts => {
+                    opts.AllowClr(_assemblies.Select((a) => {
+                        try {
+                            return Assembly.Load(a);
+                        } catch (Exception e) {
+                            throw new Exception(
+                                $"ScriptEngine could not load assembly \"{a}\". Please check your string(s) in the `assemblies` array.");
+                        }
+                    }).ToArray());
+                    _extensions.ToList().ForEach((e) => {
+                        var type = AssemblyFinder.FindType(e);
+                        if (type == null)
+                            throw new Exception(
+                                $"ScriptEngine could not load extension \"{e}\". Please check your string(s) in the `extensions` array.");
+                        opts.AddExtensionMethods(type);
+                    });
+
+                    opts.AllowOperatorOverloading();
+                    if (_allowReflection) opts.Interop.AllowSystemReflection = true;
+                    if (_allowGetType) opts.Interop.AllowGetType = true;
+                    if (_memoryLimit > 0) opts.LimitMemory(_memoryLimit * 1000000);
+                    if (_timeout > 0) opts.TimeoutInterval(TimeSpan.FromMilliseconds(_timeout));
+                    if (_recursionDepth > 0) opts.LimitRecursion(_recursionDepth);
+                }
+            );
+            _cjsEngine = _engine.CommonJS();
+
+            SetupGlobals();
+
+            foreach (var nsmp in _namespaces) {
+                _cjsEngine = _cjsEngine.RegisterInternalModule(nsmp.module,
+                    new NamespaceReference(_engine, nsmp.@namespace));
+            }
+            foreach (var scmp in _staticClasses) {
+                var type = AssemblyFinder.FindType(scmp.staticClass);
+                if (type == null)
+                    throw new Exception(
+                        $"ScriptEngine could not load static class \"{scmp.staticClass}\". Please check your string(s) in the `Static Classes` array.");
+                _cjsEngine = _cjsEngine.RegisterInternalModule(scmp.module, type);
+            }
+            foreach (var omp in _objects) {
+                _cjsEngine = _cjsEngine.RegisterInternalModule(omp.module, omp.obj);
+            }
+
+            _uiDocument.rootVisualElement.Clear();
+            _engine.SetValue("document", _document);
+            OnPostInit?.Invoke();
+        }
+
+        void SetupGlobals() {
+            _engine.SetValue("self", _engine.GetValue("globalThis"));
+            _engine.SetValue("window", _engine.GetValue("globalThis"));
+
+            var globalFuncTypes = this.GetType().Assembly.GetTypes()
+                .Where(t => t.IsVisible && t.FullName.StartsWith("OneJS.Engine.JSGlobals")).ToList();
+            globalFuncTypes.ForEach(t => {
+                var flags = BindingFlags.Public | BindingFlags.Static;
+                var mi = t.GetMethod("Setup", flags);
+                mi.Invoke(null, new object[] { this });
+            });
+        }
+
+        void RunModule(string scriptPath) {
+            var preloadsPath = Path.Combine(Application.persistentDataPath, "ScriptLib/onejs/preloads");
+            if (Directory.Exists(preloadsPath)) {
+                var files = Directory.GetFiles(preloadsPath,
+                    "*.js", SearchOption.AllDirectories).ToList();
+                files.ForEach(f => _cjsEngine.RunMain(Path.GetRelativePath(Application.persistentDataPath, f)));
+                _preloadedScripts.ForEach(p => _cjsEngine.RunMain(p));
+            }
+            _cjsEngine.RunMain(scriptPath);
+        }
+
+        void CheckAndSetScriptLibEtAl() {
+            /*
+             * Note this needs to be done during runtime. So don't use any Editor Utils.
+             */
+            if (_extractScriptLibOnStart) {
+                ExtractScriptLib();
+            }
+            if (_extractAddonsOnStart) {
+                ExtractAddons();
+            }
+
+            var indexjsPath = Path.Combine(Application.persistentDataPath, "index.js");
+            var scriptLibPath = Path.Combine(Application.persistentDataPath, "ScriptLib");
+            var addonsPath = Path.Combine(Application.persistentDataPath, "Addons");
+            var tsconfigPath = Path.Combine(Application.persistentDataPath, "tsconfig.json");
+            var vscodeSettingsPath = Path.Combine(Application.persistentDataPath, ".vscode/settings.json");
+
+            var indexjsFound = File.Exists(indexjsPath);
+            var scriptLibFound = Directory.Exists(scriptLibPath);
+            var addonsFound = Directory.Exists(addonsPath);
+            var tsconfigFound = File.Exists(tsconfigPath);
+            var vscodeSettingsFound = File.Exists(vscodeSettingsPath);
+
+            if (!indexjsFound) {
+                File.WriteAllText(indexjsPath, "log(\"[index.js]: OneJS is good to go.\")");
+                Debug.Log("index.js wasn't found. So a default one was created.");
+            }
+
+            if (!scriptLibFound) {
+                Stream inStream = new MemoryStream(_scriptLibZip.bytes);
+                Stream gzipStream = new GZipInputStream(inStream);
+
+                TarArchive tarArchive = TarArchive.CreateInputTarArchive(gzipStream);
+                tarArchive.ExtractContents(Application.persistentDataPath);
+                tarArchive.Close();
+                gzipStream.Close();
+                inStream.Close();
+                Debug.Log("ScriptLib Folder wasn't found. So a default one was created (from ScriptLib Zip).");
+            }
+
+            if (!addonsFound) {
+                Stream inStream = new MemoryStream(_addonsZip.bytes);
+                Stream gzipStream = new GZipInputStream(inStream);
+
+                TarArchive tarArchive = TarArchive.CreateInputTarArchive(gzipStream);
+                tarArchive.ExtractContents(Application.persistentDataPath);
+                tarArchive.Close();
+                gzipStream.Close();
+                inStream.Close();
+                Debug.Log("Addons Folder wasn't found. So a default one was created (from Addons Zip).");
+            }
+
+            if (!tsconfigFound) {
+                File.WriteAllText(tsconfigPath, _tsconfig.text);
+                Debug.Log("tsconfig.json wasn't found. So a default one was created.");
+            }
+
+            if (!vscodeSettingsFound) {
+                var dirPath = Path.Combine(Application.persistentDataPath, ".vscode");
+                if (!Directory.Exists(dirPath)) {
+                    Directory.CreateDirectory(dirPath);
+                }
+                File.WriteAllText(vscodeSettingsPath, _vscodeSettings.text);
+                Debug.Log(".vscode/settings.json wasn't found. So a default one was created.");
+            }
+        }
+
+#if UNITY_EDITOR
+        [Button()]
+        void OpenPersistantDataFolder() {
+            Process.Start(Application.persistentDataPath);
+        }
+
+        [ContextMenu("Extract ScriptLib")]
+        void ExtractScriptLibFolder() {
+            if (!UnityEditor.EditorUtility.DisplayDialog("Are you sure?",
+                "WARNING! This will overwrite the ScriptLib folder under Application.persistentDataPath.\n\n" +
+                "Consider backing up the existing ScriptLib folder if you need to keep any changes.",
+                "Confirm", "Cancel"))
+                return;
+
+            ExtractScriptLib();
+        }
+
+
+        [ContextMenu("Extract Addons")]
+        void ExtractAddonsFolder() {
+            if (!UnityEditor.EditorUtility.DisplayDialog("Are you sure?",
+                "WARNING! This will overwrite the Addons folder under Application.persistentDataPath.\n\n" +
+                "Consider backing up the existing Addons folder if you need to keep any changes.",
+                "Confirm", "Cancel"))
+                return;
+
+            ExtractAddons();
+        }
+
+#endif
+    }
+}

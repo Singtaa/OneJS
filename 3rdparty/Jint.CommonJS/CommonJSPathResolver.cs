@@ -1,0 +1,64 @@
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using UnityEngine;
+
+namespace Jint.CommonJS {
+    public class CommonJSPathResolver : IModuleResolver {
+        private readonly IEnumerable<string> extensionHandlers;
+
+        public CommonJSPathResolver(IEnumerable<string> extensionHandlers) {
+            this.extensionHandlers = extensionHandlers;
+        }
+
+        public string ResolvePath(string moduleId, Module parent) {
+            // if (!moduleId.StartsWith("."))
+            // {
+            //     throw new Exception($"Module path {moduleId} is not valid.  Internal modules are not supported at this time.");
+            // }
+
+            // var cwd = parent.filePath != null ? Path.GetDirectoryName(parent.filePath) : Environment.CurrentDirectory;
+            var cwd = parent.filePath != null
+                ? Path.GetDirectoryName(parent.filePath)
+                : Application.persistentDataPath;
+            var path = Path.GetFullPath(Path.Combine(cwd, moduleId));
+
+            if (!moduleId.StartsWith(".")) {
+                path = Path.Combine(Application.persistentDataPath, moduleId);
+            }
+
+            /*
+             * - Try direct file in case an extension is provided
+             * - if directory, return directory/index
+             */
+            var pathMappings = new[] { "ScriptLib/3rdparty/", "ScriptLib/", "Addons/", "" };
+            var found = false;
+            foreach (var pm in pathMappings) {
+                if (!moduleId.StartsWith("."))
+                    path = Path.Combine(Application.persistentDataPath, pm + moduleId);
+
+                if (Directory.Exists(path)) {
+                    path = Path.Combine(path, "index");
+                }
+
+                if (!File.Exists(path)) {
+                    foreach (var tryExtension in extensionHandlers.Where(i => i != "default")) {
+                        string innerCandidate = path + tryExtension;
+                        if (File.Exists(innerCandidate)) {
+                            found = true;
+                            path = innerCandidate;
+                            break;
+                        }
+                    }
+                } else {
+                    found = true;
+                }
+                if (found)
+                    break;
+            }
+            if (!found)
+                throw new FileNotFoundException($"Module {path} could not be resolved.");
+            return path;
+        }
+    }
+}
