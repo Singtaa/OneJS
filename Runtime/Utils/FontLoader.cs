@@ -5,14 +5,18 @@ using UnityEngine.UIElements;
 namespace OneJS.Utils {
     public class FontLoader {
         public static Font Load(string path) {
-            // TODO more path handling
-            var font = new Font(Path.Combine(Application.persistentDataPath, path));
+            path = Path.IsPathRooted(path)
+                ? path
+                : Path.GetFullPath(Path.Combine(Application.persistentDataPath, path));
+            var font = new Font(path);
             return font;
         }
 
         public static FontDefinition LoadDefinition(string path) {
-            // TODO more path handling
-            var font = new Font(Path.Combine(Application.persistentDataPath, path));
+            path = Path.IsPathRooted(path)
+                ? path
+                : Path.GetFullPath(Path.Combine(Application.persistentDataPath, path));
+            var font = new Font(path);
             return FontDefinition.FromFont(font);
         }
     }

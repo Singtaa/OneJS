@@ -200,6 +200,10 @@ namespace OneJS {
             RunModule(scriptPath);
         }
 
+        /// <summary>
+        /// This is a helper func for subscribing to the ScriptEngine.OnReload event.
+        /// Will automatically take care of the cleaning up during engine reload. 
+        /// </summary>
         public void RegisterReloadHandler(Action handler) {
             OnReload += handler;
             _engineReloadJSHandlers.Add(handler);

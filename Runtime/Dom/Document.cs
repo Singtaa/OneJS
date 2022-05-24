@@ -65,7 +65,7 @@ namespace OneJS.Dom {
 
         public static object createStyleList(object v, Type type) {
             Type listType = typeof(List<>).MakeGenericType(type);
-            Type myParameterizedSomeClass = typeof(StyleList<>).MakeGenericType(listType);
+            Type myParameterizedSomeClass = typeof(StyleList<>).MakeGenericType(type);
             ConstructorInfo constr = myParameterizedSomeClass.GetConstructor(new[] { listType });
             object instance = constr.Invoke(new object[] { v });
             return instance;
