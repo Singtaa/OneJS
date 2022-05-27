@@ -39,7 +39,6 @@ namespace OneJS.Engine {
         public void Poll() {
             lock (_obj) {
                 if (_detectedPaths.Length > 0) {
-                    Debug.Log(_detectedPaths.Length);
                     OnChangeDetected?.Invoke(_detectedPaths);
                     _detectedPaths = new string[] { };
                 }
@@ -49,9 +48,7 @@ namespace OneJS.Engine {
         void WatchLoop() {
             while (true) {
                 Thread.Sleep(Interval);
-                lock (_obj) {
-                    CheckForChanges();
-                }
+                CheckForChanges();
             }
         }
 
@@ -69,7 +66,9 @@ namespace OneJS.Engine {
                     _fileHashDict[path] = dt;
                 }
             }
-            _detectedPaths = res.ToArray();
+            lock (_obj) {
+                _detectedPaths = res.ToArray();
+            }
         }
 
         Dictionary<string, DateTime> GetFileHashDict() {
