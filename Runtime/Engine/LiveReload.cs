@@ -35,7 +35,6 @@ namespace OneJS.Engine {
         [SerializeField] string _entryScript = "index.js";
         [SerializeField] string _watchFilter = "*.js";
 
-        
 
         // Net Sync is disabled for this initial version of OneJS. Will come in the very next update.
         [Tooltip("Allows Live Reload to work across devices (i.e. edit code on PC, live reload on mobile device." + "")]
@@ -47,12 +46,11 @@ namespace OneJS.Engine {
         [SerializeField] [ShowIf("_netSync")] int _port = 9050;
 
         ScriptEngine _scriptEngine;
-        FileSystemWatcher _watcher;
+        // FileSystemWatcher _watcher;
         string _workingDir;
 
-        bool _fileChanged;
-        Dictionary<string, string> _fileHashDict = new Dictionary<string, string>();
-        HashSet<string> _potentialChangedFilePaths = new HashSet<string>();
+        CustomWatcher _watcher;
+        string[] _changedFilePaths;
 
         NetManager _net;
         ClientListener _client;
@@ -71,9 +69,7 @@ namespace OneJS.Engine {
         }
 
         void Start() {
-            _tick++;
             if (_netSync) {
-                InitFileHashDict();
                 if (IsServer) {
                     // Running as Server
                     _server = new ServerListener();
@@ -85,7 +81,7 @@ namespace OneJS.Engine {
                     _client = new ClientListener(_port);
                     _net = new NetManager(_client) { UnconnectedMessagesEnabled = true };
                     _client.NetManager = _net;
-                    _client.OnFileChanged += () => { _fileChanged = true; };
+                    _client.OnFileChanged += () => { RunScript(); };
                     _net.Start();
                 }
                 print("Net Sync On");
@@ -98,96 +94,48 @@ namespace OneJS.Engine {
         void OnEnable() {
             if (_netSync && IsClient)
                 return;
-            _watcher = new FileSystemWatcher(Application.persistentDataPath);
-            _watcher.NotifyFilter = NotifyFilters.CreationTime | NotifyFilters.DirectoryName | NotifyFilters.FileName |
-                                    NotifyFilters.LastWrite | NotifyFilters.LastAccess | NotifyFilters.Attributes |
-                                    NotifyFilters.Size | NotifyFilters.Security;
-            _watcher.IncludeSubdirectories = true;
-            _watcher.EnableRaisingEvents = true;
-            _watcher.Filter = _watchFilter;
-            _watcher.Changed += OnWatchEvent;
-            _watcher.Deleted += OnWatchEvent;
-            _watcher.Created += OnWatchEvent;
-            _watcher.Renamed += OnWatchEvent;
+            _watcher = new CustomWatcher(Application.persistentDataPath, _watchFilter);
+            _watcher.OnChangeDetected += OnFileChangeDetected;
+            _watcher.Start();
             Debug.Log($"Live Reload On");
         }
 
         void OnDisable() {
             if (_netSync && IsClient)
                 return;
-            _watcher.Dispose();
+            _watcher.Stop();
         }
 
         void Update() {
+            _tick++;
+            _watcher.Poll();
             if (_netSync) {
                 _net.PollEvents();
                 if (IsClient) {
                     _client.BroadcastForServer();
-                } else if (IsServer) {
-                    if (_potentialChangedFilePaths.Count > 0) {
-                        NetDataWriter writer = new NetDataWriter();
-                        writer.Put("LIVE_RELOAD_NET_SYNC");
-                        writer.Put(_tick);
-                        writer.Put("UPDATE_FILES");
-                        writer.Put(_potentialChangedFilePaths.Count);
-                        foreach (var p in _potentialChangedFilePaths.ToArray()) {
-                            // Note the slashes. On Android, different slashes will be treated as different paths. (Very hard to debug)
-                            writer.Put(Path.GetRelativePath(_workingDir, p).Replace(@"\", @"/"));
-                            writer.Put(File.ReadAllText(p));
-                        }
-                        _server.SendToAllClients(writer);
-                        _potentialChangedFilePaths.Clear();
-                    }
                 }
-            }
-            if (_fileChanged) {
-                _fileChanged = false;
-                _scriptEngine.ReloadAndRunScript(_entryScript);
             }
         }
 
-        /// <summary>
-        /// NOTE: Mono's implementation of FileSystemEventArgs.FullPath is bugged
-        /// It's not really returning the fullpath for nested files 
-        /// </summary>
-        void OnWatchEvent(object sender, FileSystemEventArgs e) {
-            if (!e.Name.EndsWith(".js"))
-                return;
-            _fileChanged = true;
+        void RunScript() {
+            _scriptEngine.ReloadAndRunScript(_entryScript);
+        }
+
+        void OnFileChangeDetected(string[] paths) {
             if (_netSync && IsServer) {
-                var paths = GetPotentialFilePaths(e.Name);
+                NetDataWriter writer = new NetDataWriter();
+                writer.Put("LIVE_RELOAD_NET_SYNC");
+                writer.Put(_tick);
+                writer.Put("UPDATE_FILES");
+                writer.Put(paths.Length);
                 foreach (var p in paths) {
-                    if (!_potentialChangedFilePaths.Contains(p))
-                        _potentialChangedFilePaths.Add(p);
+                    // Note the slashes. On Android, different slashes will be treated as different paths. (Very hard to debug)
+                    writer.Put(Path.GetRelativePath(_workingDir, p).Replace(@"\", @"/"));
+                    writer.Put(File.ReadAllText(p));
                 }
+                _server.SendToAllClients(writer);
             }
-        }
-
-        void InitFileHashDict() {
-            var files = Directory.GetFiles(Application.persistentDataPath, "*.js", SearchOption.AllDirectories);
-            foreach (var path in files) {
-                _fileHashDict.Add(path, GetMD5(path));
-            }
-        }
-
-        string[] GetPotentialFilePaths(string filename) {
-            List<string> res = new List<string>();
-            var files = Directory.GetFiles(_workingDir, "*.js", SearchOption.AllDirectories);
-            var potentialPaths = files.Where(f => f.EndsWith(filename)).ToArray();
-
-            foreach (var path in potentialPaths) {
-                if (_fileHashDict.ContainsKey(path)) {
-                    var newHash = GetMD5(path);
-                    if (newHash == _fileHashDict[path])
-                        continue;
-                    res.Add(path);
-                    _fileHashDict[path] = newHash;
-                } else {
-                    res.Add(path);
-                    _fileHashDict.Add(path, GetMD5(path));
-                }
-            }
-            return res.ToArray();
+            RunScript();
         }
 
         public string GetMD5(string filepath) {
