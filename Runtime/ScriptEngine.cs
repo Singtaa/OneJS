@@ -136,18 +136,18 @@ namespace OneJS {
         TextAsset _scriptLibZip;
 
         [Foldout("MISC")]
-        [Tooltip("Default vscode settings.json. If one isn't found under {Application.persistentDataPath}/.vscode, " +
-                 "this is the template that will be copied over.")]
-        [Label("VSCode Settings")]
-        [SerializeField]
-        TextAsset _vscodeSettings;
-
-        [Foldout("MISC")]
         [Tooltip("This is the compressed archive that OneJS uses to fill your " +
                  "Addons folder if one isn't found under Application.persistentDataPath.")]
         [Label("ScriptLib Zip")]
         [SerializeField]
         TextAsset _addonsZip;
+
+        [Foldout("MISC")]
+        [Tooltip("Default vscode settings.json. If one isn't found under {Application.persistentDataPath}/.vscode, " +
+                 "this is the template that will be copied over.")]
+        [Label("VSCode Settings")]
+        [SerializeField]
+        TextAsset _vscodeSettings;
 
         [Foldout("MISC")]
         [Tooltip("Default tsconfig.json. If one isn't found under Application.persistentDataPath, " +
@@ -158,14 +158,9 @@ namespace OneJS {
 
         [Foldout("MISC")]
         [Tooltip(
-            "WARNING: This will replace your current ScriptLibFolder with a new one! Your current ScriptLib folder will be Deleted!" +
-            " This is helpful when you need to update an outdated ScriptLib folder on a mobile device.")]
-        [SerializeField] [Label("Extract ScriptLib on Start")] bool _extractScriptLibOnStart = false;
-        [Foldout("MISC")]
-        [Tooltip(
-            "WARNING: This will replace your Addons folder with a default one! Your current Addons folder will be Deleted!" +
-            " This is helpful when you need to flush an outdated Addons folder on a mobile device.")]
-        [SerializeField] [Label("Extract Addons on Start")] bool _extractAddonsOnStart = false;
+            "Reset ScriptLib folder on every Game Start. Useful for updating the ScriptLib folder after upgrading" +
+            " OneJS, or updating a stale ScriptLib folder on your mobile device.")]
+        [SerializeField] [Label("Extract ScriptLib on Start")] bool _extractScriptLibOnStart = true;
 
         UIDocument _uiDocument;
         Document _document;
@@ -382,9 +377,9 @@ namespace OneJS {
             if (_extractScriptLibOnStart) {
                 ExtractScriptLib();
             }
-            if (_extractAddonsOnStart) {
-                ExtractAddons();
-            }
+            // if (_extractAddonsOnStart) {
+            //     ExtractAddons();
+            // }
 
             var indexjsPath = Path.Combine(Application.persistentDataPath, "index.js");
             var scriptLibPath = Path.Combine(Application.persistentDataPath, "ScriptLib");
