@@ -106,6 +106,10 @@ namespace OneJS.Engine {
             _watcher.Stop();
         }
 
+        // void OnApplicationPause(bool pauseStatus) {
+        //     
+        // }
+
         void Update() {
             _tick++;
             _watcher.Poll();

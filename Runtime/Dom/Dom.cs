@@ -58,7 +58,6 @@ namespace OneJS.Dom {
             set { __listeners = value; }
         }
 
-
         Document _document;
         VisualElement _ve;
         Dom _parentNode;
@@ -153,12 +152,11 @@ namespace OneJS.Dom {
         public void setAttribute(string name, object val) {
             if (name == "class" || name == "className") {
                 _ve.ClearClassList();
-                var parts = (val.ToString()).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var unprocessedClassStr = _document.scriptEngine.ProcessClassStr(val.ToString(), this);
+                var parts = (unprocessedClassStr).Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 foreach (var part in parts) {
                     _ve.AddToClassList(part);
                 }
-                // } else if (name == "picking-mode") {
-                //     _ve.pickingMode = (val.ToString()).ToLower() == "ignore" ? PickingMode.Ignore : PickingMode.Position;
             } else {
                 name = name.Replace("-", "");
                 var flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase;

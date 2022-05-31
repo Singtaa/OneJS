@@ -36,8 +36,9 @@ namespace NaughtyAttributes.Editor
 
         private static void DrawPropertyField_Layout(Rect rect, SerializedProperty property, GUIContent label, bool includeChildren)
         {
-            // skipping the label as it'll mess up tooltips
-            EditorGUILayout.PropertyField(property, includeChildren);
+            // Taking care of label bug: vector/array can have a label, but a regular field 
+            // can't because it'll mess up the tooltip
+            EditorGUILayout.PropertyField(property, property.type == "vector" ? label : null, includeChildren);
         }
 
         private static void PropertyField_Implementation(Rect rect, SerializedProperty property, bool includeChildren, PropertyFieldFunction propertyFieldFunction)
@@ -68,8 +69,9 @@ namespace NaughtyAttributes.Editor
                 bool enabled = PropertyUtility.IsEnabled(property);
 
                 using (new EditorGUI.DisabledScope(disabled: !enabled)) {
-                    // PropertyUtility.GetLabel(property)
-                    propertyFieldFunction.Invoke(rect, property, null, includeChildren);
+                    // Taking care of label bug: vector/array can have a label, but a regular field 
+                    // can't because it'll mess up the tooltip
+                    propertyFieldFunction.Invoke(rect, property, property.type == "vector" ? PropertyUtility.GetLabel(property) : null, includeChildren);
                 }
 
                 // Call OnValueChanged callbacks

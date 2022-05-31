@@ -56,7 +56,9 @@ namespace OneJS {
     public class ScriptEngine : MonoBehaviour {
         public Jint.Engine JintEngine => _engine;
         public ModuleLoadingEngine ModuleEngine => _cjsEngine;
+        public Dom.Document Document => _document;
         public Dom.Dom DocumentBody => _document.body;
+        public int[] Breakpoints => _breakpoints;
 
         public event Action OnPostInit;
         public event Action OnReload;
@@ -104,38 +106,13 @@ namespace OneJS {
         [Foldout("INTEROP")] [Tooltip("Scripts that you want to load before everything else")] [SerializeField]
         List<string> _preloadedScripts = new List<string>();
 
-        [Foldout("ASSETS")]
-        [Tooltip("This is the compressed archive that OneJS uses to fill your " +
-                 "ScriptLib folder if one isn't found under Application.persistentDataPath.")]
-        [Label("ScriptLib Zip")]
-        [SerializeField]
-        TextAsset _scriptLibZip;
-
-        [Foldout("ASSETS")]
-        [Tooltip("This is the compressed archive that OneJS uses to fill your " +
-                 "Addons folder if one isn't found under Application.persistentDataPath.")]
-        [Label("ScriptLib Zip")]
-        [SerializeField]
-        TextAsset _addonsZip;
-
-        [Foldout("ASSETS")]
-        [Tooltip("Default tsconfig.json. If one isn't found under Application.persistentDataPath, " +
-                 "this is the template that will be copied over.")]
-        [Label("TS Config")]
-        [SerializeField]
-        TextAsset _tsconfig;
-
-        [Foldout("ASSETS")]
-        [Tooltip("Default vscode settings.json. If one isn't found under {Application.persistentDataPath}/.vscode, " +
-                 "this is the template that will be copied over.")]
-        [Label("VSCode Settings")]
-        [SerializeField]
-        TextAsset _vscodeSettings;
-
-        [Foldout("ASSETS")]
+        [Foldout("STYLING")]
         [Tooltip("Inculde here any global USS you'd need. OneJS also provides a default one.")]
-        [SerializeField]
-        StyleSheet[] _styleSheets;
+        [SerializeField] StyleSheet[] _styleSheets;
+
+        [Foldout("STYLING")]
+        [Tooltip("Screen breakpoints for responsive design.")]
+        [SerializeField] int[] _breakpoints = new[] { 640, 768, 1024, 1280, 1536 };
 
         [Foldout("SECURITY")] [Tooltip("Allow access to System.Reflection from Javascript")] [SerializeField]
         bool _allowReflection;
@@ -152,10 +129,42 @@ namespace OneJS {
         int _recursionDepth;
 
         [Foldout("MISC")]
-        [Tooltip("This is helpful when you need to update an outdated ScriptLib folder on a mobile device.")]
+        [Tooltip("This is the compressed archive that OneJS uses to fill your " +
+                 "ScriptLib folder if one isn't found under Application.persistentDataPath.")]
+        [Label("ScriptLib Zip")]
+        [SerializeField]
+        TextAsset _scriptLibZip;
+
+        [Foldout("MISC")]
+        [Tooltip("Default vscode settings.json. If one isn't found under {Application.persistentDataPath}/.vscode, " +
+                 "this is the template that will be copied over.")]
+        [Label("VSCode Settings")]
+        [SerializeField]
+        TextAsset _vscodeSettings;
+
+        [Foldout("MISC")]
+        [Tooltip("This is the compressed archive that OneJS uses to fill your " +
+                 "Addons folder if one isn't found under Application.persistentDataPath.")]
+        [Label("ScriptLib Zip")]
+        [SerializeField]
+        TextAsset _addonsZip;
+
+        [Foldout("MISC")]
+        [Tooltip("Default tsconfig.json. If one isn't found under Application.persistentDataPath, " +
+                 "this is the template that will be copied over.")]
+        [Label("TS Config")]
+        [SerializeField]
+        TextAsset _tsconfig;
+
+        [Foldout("MISC")]
+        [Tooltip(
+            "WARNING: This will replace your current ScriptLibFolder with a new one! Your current ScriptLib folder will be Deleted!" +
+            " This is helpful when you need to update an outdated ScriptLib folder on a mobile device.")]
         [SerializeField] [Label("Extract ScriptLib on Start")] bool _extractScriptLibOnStart = false;
         [Foldout("MISC")]
-        [Tooltip("This is helpful when you need to update an outdated Addons folder on a mobile device.")]
+        [Tooltip(
+            "WARNING: This will replace your Addons folder with a default one! Your current Addons folder will be Deleted!" +
+            " This is helpful when you need to flush an outdated Addons folder on a mobile device.")]
         [SerializeField] [Label("Extract Addons on Start")] bool _extractAddonsOnStart = false;
 
         UIDocument _uiDocument;
@@ -164,10 +173,12 @@ namespace OneJS {
         Jint.Engine _engine;
 
         List<Action> _engineReloadJSHandlers = new List<Action>();
-
+        List<IClassStrProcessor> _classStrProcessors = new List<IClassStrProcessor>();
 
         public void Awake() {
             _uiDocument = GetComponent<UIDocument>();
+            _uiDocument.rootVisualElement.style.width = new StyleLength(new Length(100, LengthUnit.Percent));
+            _uiDocument.rootVisualElement.style.height = new StyleLength(new Length(100, LengthUnit.Percent));
             _document = new Document(_uiDocument.rootVisualElement, this);
             _styleSheets.ToList().ForEach(s => _uiDocument.rootVisualElement.styleSheets.Add(s));
             CheckAndSetScriptLibEtAl();
@@ -207,6 +218,25 @@ namespace OneJS {
         public void RegisterReloadHandler(Action handler) {
             OnReload += handler;
             _engineReloadJSHandlers.Add(handler);
+        }
+
+        /// <summary>
+        /// Apply all class string processors. 
+        /// </summary>
+        /// <param name="classString">String of class names</param>
+        /// <param name="dom">The Dom that is setting the class attribute right now</param>
+        public string ProcessClassStr(string classString, Dom.Dom dom) {
+            foreach (var processor in _classStrProcessors) {
+                classString = processor.ProcessClassStr(classString, dom);
+            }
+            return classString;
+        }
+
+        /// <summary>
+        /// Add a processor for handling class names settings/changes
+        /// </summary>
+        public void RegisterClassStrProcessor(IClassStrProcessor processor) {
+            _classStrProcessors.Add(processor);
         }
 
         /// <summary>

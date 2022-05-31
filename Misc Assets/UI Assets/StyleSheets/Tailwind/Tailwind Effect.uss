@@ -1,0 +1,61 @@
+/* Opacity */
+
+.opacity-0, .hover_c_opacity-0:hover, .active_c_opacity-0:active, .inactive_c_opacity-0:inactive, .focus_c_opacity-0:focus, .disabled_c_opacity-0:disabled, .enabled_c_opacity-0:enabled, .checked_c_opacity-0:checked {
+    opacity: 0;
+}
+
+.opacity-5, .hover_c_opacity-5:hover, .active_c_opacity-5:active, .inactive_c_opacity-5:inactive, .focus_c_opacity-5:focus, .disabled_c_opacity-5:disabled, .enabled_c_opacity-5:enabled, .checked_c_opacity-5:checked {
+    opacity: 0.05;
+}
+
+.opacity-10, .hover_c_opacity-10:hover, .active_c_opacity-10:active, .inactive_c_opacity-10:inactive, .focus_c_opacity-10:focus, .disabled_c_opacity-10:disabled, .enabled_c_opacity-10:enabled, .checked_c_opacity-10:checked {
+    opacity: 0.1;
+}
+
+.opacity-20, .hover_c_opacity-20:hover, .active_c_opacity-20:active, .inactive_c_opacity-20:inactive, .focus_c_opacity-20:focus, .disabled_c_opacity-20:disabled, .enabled_c_opacity-20:enabled, .checked_c_opacity-20:checked {
+    opacity: 0.2;
+}
+
+.opacity-25, .hover_c_opacity-25:hover, .active_c_opacity-25:active, .inactive_c_opacity-25:inactive, .focus_c_opacity-25:focus, .disabled_c_opacity-25:disabled, .enabled_c_opacity-25:enabled, .checked_c_opacity-25:checked {
+    opacity: 0.25;
+}
+
+.opacity-30, .hover_c_opacity-30:hover, .active_c_opacity-30:active, .inactive_c_opacity-30:inactive, .focus_c_opacity-30:focus, .disabled_c_opacity-30:disabled, .enabled_c_opacity-30:enabled, .checked_c_opacity-30:checked {
+    opacity: 0.3;
+}
+
+.opacity-40, .hover_c_opacity-40:hover, .active_c_opacity-40:active, .inactive_c_opacity-40:inactive, .focus_c_opacity-40:focus, .disabled_c_opacity-40:disabled, .enabled_c_opacity-40:enabled, .checked_c_opacity-40:checked {
+    opacity: 0.4;
+}
+
+.opacity-50, .hover_c_opacity-50:hover, .active_c_opacity-50:active, .inactive_c_opacity-50:inactive, .focus_c_opacity-50:focus, .disabled_c_opacity-50:disabled, .enabled_c_opacity-50:enabled, .checked_c_opacity-50:checked {
+    opacity: 0.5;
+}
+
+.opacity-60, .hover_c_opacity-60:hover, .active_c_opacity-60:active, .inactive_c_opacity-60:inactive, .focus_c_opacity-60:focus, .disabled_c_opacity-60:disabled, .enabled_c_opacity-60:enabled, .checked_c_opacity-60:checked {
+    opacity: 0.6;
+}
+
+.opacity-70, .hover_c_opacity-70:hover, .active_c_opacity-70:active, .inactive_c_opacity-70:inactive, .focus_c_opacity-70:focus, .disabled_c_opacity-70:disabled, .enabled_c_opacity-70:enabled, .checked_c_opacity-70:checked {
+    opacity: 0.7;
+}
+
+.opacity-75, .hover_c_opacity-75:hover, .active_c_opacity-75:active, .inactive_c_opacity-75:inactive, .focus_c_opacity-75:focus, .disabled_c_opacity-75:disabled, .enabled_c_opacity-75:enabled, .checked_c_opacity-75:checked {
+    opacity: 0.75;
+}
+
+.opacity-80, .hover_c_opacity-80:hover, .active_c_opacity-80:active, .inactive_c_opacity-80:inactive, .focus_c_opacity-80:focus, .disabled_c_opacity-80:disabled, .enabled_c_opacity-80:enabled, .checked_c_opacity-80:checked {
+    opacity: 0.8;
+}
+
+.opacity-90, .hover_c_opacity-90:hover, .active_c_opacity-90:active, .inactive_c_opacity-90:inactive, .focus_c_opacity-90:focus, .disabled_c_opacity-90:disabled, .enabled_c_opacity-90:enabled, .checked_c_opacity-90:checked {
+    opacity: 0.9;
+}
+
+.opacity-95, .hover_c_opacity-95:hover, .active_c_opacity-95:active, .inactive_c_opacity-95:inactive, .focus_c_opacity-95:focus, .disabled_c_opacity-95:disabled, .enabled_c_opacity-95:enabled, .checked_c_opacity-95:checked {
+    opacity: 0.95;
+}
+
+.opacity-100, .hover_c_opacity-100:hover, .active_c_opacity-100:active, .inactive_c_opacity-100:inactive, .focus_c_opacity-100:focus, .disabled_c_opacity-100:disabled, .enabled_c_opacity-100:enabled, .checked_c_opacity-100:checked {
+    opacity: 1;
+}

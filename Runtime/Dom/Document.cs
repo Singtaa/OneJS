@@ -32,10 +32,6 @@ namespace OneJS.Dom {
             if (type != null && type.IsSubclassOf(typeof(VisualElement))) {
                 return new Dom(Activator.CreateInstance(type) as VisualElement, this);
             }
-            // switch (tagName) {
-            //     case "button":
-            //         return new dom(new Button(), this);
-            // }
             return new Dom(new VisualElement(), this);
         }
 

@@ -1,0 +1,395 @@
+/* Flex Basis */
+
+.basis-0, .hover_c_basis-0:hover, .active_c_basis-0:active, .inactive_c_basis-0:inactive, .focus_c_basis-0:focus, .disabled_c_basis-0:disabled, .enabled_c_basis-0:enabled, .checked_c_basis-0:checked {
+    flex-basis: 0px;
+}
+
+.basis-1, .hover_c_basis-1:hover, .active_c_basis-1:active, .inactive_c_basis-1:inactive, .focus_c_basis-1:focus, .disabled_c_basis-1:disabled, .enabled_c_basis-1:enabled, .checked_c_basis-1:checked {
+    flex-basis: 4px;
+}
+
+.basis-2, .hover_c_basis-2:hover, .active_c_basis-2:active, .inactive_c_basis-2:inactive, .focus_c_basis-2:focus, .disabled_c_basis-2:disabled, .enabled_c_basis-2:enabled, .checked_c_basis-2:checked {
+    flex-basis: 8px;
+}
+
+.basis-3, .hover_c_basis-3:hover, .active_c_basis-3:active, .inactive_c_basis-3:inactive, .focus_c_basis-3:focus, .disabled_c_basis-3:disabled, .enabled_c_basis-3:enabled, .checked_c_basis-3:checked {
+    flex-basis: 12px;
+}
+
+.basis-4, .hover_c_basis-4:hover, .active_c_basis-4:active, .inactive_c_basis-4:inactive, .focus_c_basis-4:focus, .disabled_c_basis-4:disabled, .enabled_c_basis-4:enabled, .checked_c_basis-4:checked {
+    flex-basis: 16px;
+}
+
+.basis-5, .hover_c_basis-5:hover, .active_c_basis-5:active, .inactive_c_basis-5:inactive, .focus_c_basis-5:focus, .disabled_c_basis-5:disabled, .enabled_c_basis-5:enabled, .checked_c_basis-5:checked {
+    flex-basis: 20px;
+}
+
+.basis-6, .hover_c_basis-6:hover, .active_c_basis-6:active, .inactive_c_basis-6:inactive, .focus_c_basis-6:focus, .disabled_c_basis-6:disabled, .enabled_c_basis-6:enabled, .checked_c_basis-6:checked {
+    flex-basis: 24px;
+}
+
+.basis-7, .hover_c_basis-7:hover, .active_c_basis-7:active, .inactive_c_basis-7:inactive, .focus_c_basis-7:focus, .disabled_c_basis-7:disabled, .enabled_c_basis-7:enabled, .checked_c_basis-7:checked {
+    flex-basis: 28px;
+}
+
+.basis-8, .hover_c_basis-8:hover, .active_c_basis-8:active, .inactive_c_basis-8:inactive, .focus_c_basis-8:focus, .disabled_c_basis-8:disabled, .enabled_c_basis-8:enabled, .checked_c_basis-8:checked {
+    flex-basis: 32px;
+}
+
+.basis-9, .hover_c_basis-9:hover, .active_c_basis-9:active, .inactive_c_basis-9:inactive, .focus_c_basis-9:focus, .disabled_c_basis-9:disabled, .enabled_c_basis-9:enabled, .checked_c_basis-9:checked {
+    flex-basis: 36px;
+}
+
+.basis-10, .hover_c_basis-10:hover, .active_c_basis-10:active, .inactive_c_basis-10:inactive, .focus_c_basis-10:focus, .disabled_c_basis-10:disabled, .enabled_c_basis-10:enabled, .checked_c_basis-10:checked {
+    flex-basis: 40px;
+}
+
+.basis-11, .hover_c_basis-11:hover, .active_c_basis-11:active, .inactive_c_basis-11:inactive, .focus_c_basis-11:focus, .disabled_c_basis-11:disabled, .enabled_c_basis-11:enabled, .checked_c_basis-11:checked {
+    flex-basis: 44px;
+}
+
+.basis-12, .hover_c_basis-12:hover, .active_c_basis-12:active, .inactive_c_basis-12:inactive, .focus_c_basis-12:focus, .disabled_c_basis-12:disabled, .enabled_c_basis-12:enabled, .checked_c_basis-12:checked {
+    flex-basis: 48px;
+}
+
+.basis-14, .hover_c_basis-14:hover, .active_c_basis-14:active, .inactive_c_basis-14:inactive, .focus_c_basis-14:focus, .disabled_c_basis-14:disabled, .enabled_c_basis-14:enabled, .checked_c_basis-14:checked {
+    flex-basis: 56px;
+}
+
+.basis-16, .hover_c_basis-16:hover, .active_c_basis-16:active, .inactive_c_basis-16:inactive, .focus_c_basis-16:focus, .disabled_c_basis-16:disabled, .enabled_c_basis-16:enabled, .checked_c_basis-16:checked {
+    flex-basis: 64px;
+}
+
+.basis-20, .hover_c_basis-20:hover, .active_c_basis-20:active, .inactive_c_basis-20:inactive, .focus_c_basis-20:focus, .disabled_c_basis-20:disabled, .enabled_c_basis-20:enabled, .checked_c_basis-20:checked {
+    flex-basis: 80px;
+}
+
+.basis-24, .hover_c_basis-24:hover, .active_c_basis-24:active, .inactive_c_basis-24:inactive, .focus_c_basis-24:focus, .disabled_c_basis-24:disabled, .enabled_c_basis-24:enabled, .checked_c_basis-24:checked {
+    flex-basis: 96px;
+}
+
+.basis-28, .hover_c_basis-28:hover, .active_c_basis-28:active, .inactive_c_basis-28:inactive, .focus_c_basis-28:focus, .disabled_c_basis-28:disabled, .enabled_c_basis-28:enabled, .checked_c_basis-28:checked {
+    flex-basis: 112px;
+}
+
+.basis-32, .hover_c_basis-32:hover, .active_c_basis-32:active, .inactive_c_basis-32:inactive, .focus_c_basis-32:focus, .disabled_c_basis-32:disabled, .enabled_c_basis-32:enabled, .checked_c_basis-32:checked {
+    flex-basis: 128px;
+}
+
+.basis-36, .hover_c_basis-36:hover, .active_c_basis-36:active, .inactive_c_basis-36:inactive, .focus_c_basis-36:focus, .disabled_c_basis-36:disabled, .enabled_c_basis-36:enabled, .checked_c_basis-36:checked {
+    flex-basis: 144px;
+}
+
+.basis-40, .hover_c_basis-40:hover, .active_c_basis-40:active, .inactive_c_basis-40:inactive, .focus_c_basis-40:focus, .disabled_c_basis-40:disabled, .enabled_c_basis-40:enabled, .checked_c_basis-40:checked {
+    flex-basis: 160px;
+}
+
+.basis-44, .hover_c_basis-44:hover, .active_c_basis-44:active, .inactive_c_basis-44:inactive, .focus_c_basis-44:focus, .disabled_c_basis-44:disabled, .enabled_c_basis-44:enabled, .checked_c_basis-44:checked {
+    flex-basis: 176px;
+}
+
+.basis-48, .hover_c_basis-48:hover, .active_c_basis-48:active, .inactive_c_basis-48:inactive, .focus_c_basis-48:focus, .disabled_c_basis-48:disabled, .enabled_c_basis-48:enabled, .checked_c_basis-48:checked {
+    flex-basis: 192px;
+}
+
+.basis-52, .hover_c_basis-52:hover, .active_c_basis-52:active, .inactive_c_basis-52:inactive, .focus_c_basis-52:focus, .disabled_c_basis-52:disabled, .enabled_c_basis-52:enabled, .checked_c_basis-52:checked {
+    flex-basis: 208px;
+}
+
+.basis-56, .hover_c_basis-56:hover, .active_c_basis-56:active, .inactive_c_basis-56:inactive, .focus_c_basis-56:focus, .disabled_c_basis-56:disabled, .enabled_c_basis-56:enabled, .checked_c_basis-56:checked {
+    flex-basis: 224px;
+}
+
+.basis-60, .hover_c_basis-60:hover, .active_c_basis-60:active, .inactive_c_basis-60:inactive, .focus_c_basis-60:focus, .disabled_c_basis-60:disabled, .enabled_c_basis-60:enabled, .checked_c_basis-60:checked {
+    flex-basis: 240px;
+}
+
+.basis-64, .hover_c_basis-64:hover, .active_c_basis-64:active, .inactive_c_basis-64:inactive, .focus_c_basis-64:focus, .disabled_c_basis-64:disabled, .enabled_c_basis-64:enabled, .checked_c_basis-64:checked {
+    flex-basis: 256px;
+}
+
+.basis-72, .hover_c_basis-72:hover, .active_c_basis-72:active, .inactive_c_basis-72:inactive, .focus_c_basis-72:focus, .disabled_c_basis-72:disabled, .enabled_c_basis-72:enabled, .checked_c_basis-72:checked {
+    flex-basis: 288px;
+}
+
+.basis-80, .hover_c_basis-80:hover, .active_c_basis-80:active, .inactive_c_basis-80:inactive, .focus_c_basis-80:focus, .disabled_c_basis-80:disabled, .enabled_c_basis-80:enabled, .checked_c_basis-80:checked {
+    flex-basis: 320px;
+}
+
+.basis-96, .hover_c_basis-96:hover, .active_c_basis-96:active, .inactive_c_basis-96:inactive, .focus_c_basis-96:focus, .disabled_c_basis-96:disabled, .enabled_c_basis-96:enabled, .checked_c_basis-96:checked {
+    flex-basis: 384px;
+}
+
+.basis-auto, .hover_c_basis-auto:hover, .active_c_basis-auto:active, .inactive_c_basis-auto:inactive, .focus_c_basis-auto:focus, .disabled_c_basis-auto:disabled, .enabled_c_basis-auto:enabled, .checked_c_basis-auto:checked {
+    flex-basis: auto;
+}
+
+.basis-px, .hover_c_basis-px:hover, .active_c_basis-px:active, .inactive_c_basis-px:inactive, .focus_c_basis-px:focus, .disabled_c_basis-px:disabled, .enabled_c_basis-px:enabled, .checked_c_basis-px:checked {
+    flex-basis: 1px;
+}
+
+.basis-0dot5, .hover_c_basis-0dot5:hover, .active_c_basis-0dot5:active, .inactive_c_basis-0dot5:inactive, .focus_c_basis-0dot5:focus, .disabled_c_basis-0dot5:disabled, .enabled_c_basis-0dot5:enabled, .checked_c_basis-0dot5:checked {
+    flex-basis: 2px;
+}
+
+.basis-1dot5, .hover_c_basis-1dot5:hover, .active_c_basis-1dot5:active, .inactive_c_basis-1dot5:inactive, .focus_c_basis-1dot5:focus, .disabled_c_basis-1dot5:disabled, .enabled_c_basis-1dot5:enabled, .checked_c_basis-1dot5:checked {
+    flex-basis: 6px;
+}
+
+.basis-2dot5, .hover_c_basis-2dot5:hover, .active_c_basis-2dot5:active, .inactive_c_basis-2dot5:inactive, .focus_c_basis-2dot5:focus, .disabled_c_basis-2dot5:disabled, .enabled_c_basis-2dot5:enabled, .checked_c_basis-2dot5:checked {
+    flex-basis: 10px;
+}
+
+.basis-3dot5, .hover_c_basis-3dot5:hover, .active_c_basis-3dot5:active, .inactive_c_basis-3dot5:inactive, .focus_c_basis-3dot5:focus, .disabled_c_basis-3dot5:disabled, .enabled_c_basis-3dot5:enabled, .checked_c_basis-3dot5:checked {
+    flex-basis: 14px;
+}
+
+.basis-1slash2, .hover_c_basis-1slash2:hover, .active_c_basis-1slash2:active, .inactive_c_basis-1slash2:inactive, .focus_c_basis-1slash2:focus, .disabled_c_basis-1slash2:disabled, .enabled_c_basis-1slash2:enabled, .checked_c_basis-1slash2:checked {
+    flex-basis: 50%;
+}
+
+.basis-1slash3, .hover_c_basis-1slash3:hover, .active_c_basis-1slash3:active, .inactive_c_basis-1slash3:inactive, .focus_c_basis-1slash3:focus, .disabled_c_basis-1slash3:disabled, .enabled_c_basis-1slash3:enabled, .checked_c_basis-1slash3:checked {
+    flex-basis: 33.333333%;
+}
+
+.basis-2slash3, .hover_c_basis-2slash3:hover, .active_c_basis-2slash3:active, .inactive_c_basis-2slash3:inactive, .focus_c_basis-2slash3:focus, .disabled_c_basis-2slash3:disabled, .enabled_c_basis-2slash3:enabled, .checked_c_basis-2slash3:checked {
+    flex-basis: 66.666667%;
+}
+
+.basis-1slash4, .hover_c_basis-1slash4:hover, .active_c_basis-1slash4:active, .inactive_c_basis-1slash4:inactive, .focus_c_basis-1slash4:focus, .disabled_c_basis-1slash4:disabled, .enabled_c_basis-1slash4:enabled, .checked_c_basis-1slash4:checked {
+    flex-basis: 25%;
+}
+
+.basis-2slash4, .hover_c_basis-2slash4:hover, .active_c_basis-2slash4:active, .inactive_c_basis-2slash4:inactive, .focus_c_basis-2slash4:focus, .disabled_c_basis-2slash4:disabled, .enabled_c_basis-2slash4:enabled, .checked_c_basis-2slash4:checked {
+    flex-basis: 50%;
+}
+
+.basis-3slash4, .hover_c_basis-3slash4:hover, .active_c_basis-3slash4:active, .inactive_c_basis-3slash4:inactive, .focus_c_basis-3slash4:focus, .disabled_c_basis-3slash4:disabled, .enabled_c_basis-3slash4:enabled, .checked_c_basis-3slash4:checked {
+    flex-basis: 75%;
+}
+
+.basis-1slash5, .hover_c_basis-1slash5:hover, .active_c_basis-1slash5:active, .inactive_c_basis-1slash5:inactive, .focus_c_basis-1slash5:focus, .disabled_c_basis-1slash5:disabled, .enabled_c_basis-1slash5:enabled, .checked_c_basis-1slash5:checked {
+    flex-basis: 20%;
+}
+
+.basis-2slash5, .hover_c_basis-2slash5:hover, .active_c_basis-2slash5:active, .inactive_c_basis-2slash5:inactive, .focus_c_basis-2slash5:focus, .disabled_c_basis-2slash5:disabled, .enabled_c_basis-2slash5:enabled, .checked_c_basis-2slash5:checked {
+    flex-basis: 40%;
+}
+
+.basis-3slash5, .hover_c_basis-3slash5:hover, .active_c_basis-3slash5:active, .inactive_c_basis-3slash5:inactive, .focus_c_basis-3slash5:focus, .disabled_c_basis-3slash5:disabled, .enabled_c_basis-3slash5:enabled, .checked_c_basis-3slash5:checked {
+    flex-basis: 60%;
+}
+
+.basis-4slash5, .hover_c_basis-4slash5:hover, .active_c_basis-4slash5:active, .inactive_c_basis-4slash5:inactive, .focus_c_basis-4slash5:focus, .disabled_c_basis-4slash5:disabled, .enabled_c_basis-4slash5:enabled, .checked_c_basis-4slash5:checked {
+    flex-basis: 80%;
+}
+
+.basis-1slash6, .hover_c_basis-1slash6:hover, .active_c_basis-1slash6:active, .inactive_c_basis-1slash6:inactive, .focus_c_basis-1slash6:focus, .disabled_c_basis-1slash6:disabled, .enabled_c_basis-1slash6:enabled, .checked_c_basis-1slash6:checked {
+    flex-basis: 16.666667%;
+}
+
+.basis-2slash6, .hover_c_basis-2slash6:hover, .active_c_basis-2slash6:active, .inactive_c_basis-2slash6:inactive, .focus_c_basis-2slash6:focus, .disabled_c_basis-2slash6:disabled, .enabled_c_basis-2slash6:enabled, .checked_c_basis-2slash6:checked {
+    flex-basis: 33.333333%;
+}
+
+.basis-3slash6, .hover_c_basis-3slash6:hover, .active_c_basis-3slash6:active, .inactive_c_basis-3slash6:inactive, .focus_c_basis-3slash6:focus, .disabled_c_basis-3slash6:disabled, .enabled_c_basis-3slash6:enabled, .checked_c_basis-3slash6:checked {
+    flex-basis: 50%;
+}
+
+.basis-4slash6, .hover_c_basis-4slash6:hover, .active_c_basis-4slash6:active, .inactive_c_basis-4slash6:inactive, .focus_c_basis-4slash6:focus, .disabled_c_basis-4slash6:disabled, .enabled_c_basis-4slash6:enabled, .checked_c_basis-4slash6:checked {
+    flex-basis: 66.666667%;
+}
+
+.basis-5slash6, .hover_c_basis-5slash6:hover, .active_c_basis-5slash6:active, .inactive_c_basis-5slash6:inactive, .focus_c_basis-5slash6:focus, .disabled_c_basis-5slash6:disabled, .enabled_c_basis-5slash6:enabled, .checked_c_basis-5slash6:checked {
+    flex-basis: 83.333333%;
+}
+
+.basis-1slash12, .hover_c_basis-1slash12:hover, .active_c_basis-1slash12:active, .inactive_c_basis-1slash12:inactive, .focus_c_basis-1slash12:focus, .disabled_c_basis-1slash12:disabled, .enabled_c_basis-1slash12:enabled, .checked_c_basis-1slash12:checked {
+    flex-basis: 8.333333%;
+}
+
+.basis-2slash12, .hover_c_basis-2slash12:hover, .active_c_basis-2slash12:active, .inactive_c_basis-2slash12:inactive, .focus_c_basis-2slash12:focus, .disabled_c_basis-2slash12:disabled, .enabled_c_basis-2slash12:enabled, .checked_c_basis-2slash12:checked {
+    flex-basis: 16.666667%;
+}
+
+.basis-3slash12, .hover_c_basis-3slash12:hover, .active_c_basis-3slash12:active, .inactive_c_basis-3slash12:inactive, .focus_c_basis-3slash12:focus, .disabled_c_basis-3slash12:disabled, .enabled_c_basis-3slash12:enabled, .checked_c_basis-3slash12:checked {
+    flex-basis: 25%;
+}
+
+.basis-4slash12, .hover_c_basis-4slash12:hover, .active_c_basis-4slash12:active, .inactive_c_basis-4slash12:inactive, .focus_c_basis-4slash12:focus, .disabled_c_basis-4slash12:disabled, .enabled_c_basis-4slash12:enabled, .checked_c_basis-4slash12:checked {
+    flex-basis: 33.333333%;
+}
+
+.basis-5slash12, .hover_c_basis-5slash12:hover, .active_c_basis-5slash12:active, .inactive_c_basis-5slash12:inactive, .focus_c_basis-5slash12:focus, .disabled_c_basis-5slash12:disabled, .enabled_c_basis-5slash12:enabled, .checked_c_basis-5slash12:checked {
+    flex-basis: 41.666667%;
+}
+
+.basis-6slash12, .hover_c_basis-6slash12:hover, .active_c_basis-6slash12:active, .inactive_c_basis-6slash12:inactive, .focus_c_basis-6slash12:focus, .disabled_c_basis-6slash12:disabled, .enabled_c_basis-6slash12:enabled, .checked_c_basis-6slash12:checked {
+    flex-basis: 50%;
+}
+
+.basis-7slash12, .hover_c_basis-7slash12:hover, .active_c_basis-7slash12:active, .inactive_c_basis-7slash12:inactive, .focus_c_basis-7slash12:focus, .disabled_c_basis-7slash12:disabled, .enabled_c_basis-7slash12:enabled, .checked_c_basis-7slash12:checked {
+    flex-basis: 58.333333%;
+}
+
+.basis-8slash12, .hover_c_basis-8slash12:hover, .active_c_basis-8slash12:active, .inactive_c_basis-8slash12:inactive, .focus_c_basis-8slash12:focus, .disabled_c_basis-8slash12:disabled, .enabled_c_basis-8slash12:enabled, .checked_c_basis-8slash12:checked {
+    flex-basis: 66.666667%;
+}
+
+.basis-9slash12, .hover_c_basis-9slash12:hover, .active_c_basis-9slash12:active, .inactive_c_basis-9slash12:inactive, .focus_c_basis-9slash12:focus, .disabled_c_basis-9slash12:disabled, .enabled_c_basis-9slash12:enabled, .checked_c_basis-9slash12:checked {
+    flex-basis: 75%;
+}
+
+.basis-10slash12, .hover_c_basis-10slash12:hover, .active_c_basis-10slash12:active, .inactive_c_basis-10slash12:inactive, .focus_c_basis-10slash12:focus, .disabled_c_basis-10slash12:disabled, .enabled_c_basis-10slash12:enabled, .checked_c_basis-10slash12:checked {
+    flex-basis: 83.333333%;
+}
+
+.basis-11slash12, .hover_c_basis-11slash12:hover, .active_c_basis-11slash12:active, .inactive_c_basis-11slash12:inactive, .focus_c_basis-11slash12:focus, .disabled_c_basis-11slash12:disabled, .enabled_c_basis-11slash12:enabled, .checked_c_basis-11slash12:checked {
+    flex-basis: 91.666667%;
+}
+
+.basis-full, .hover_c_basis-full:hover, .active_c_basis-full:active, .inactive_c_basis-full:inactive, .focus_c_basis-full:focus, .disabled_c_basis-full:disabled, .enabled_c_basis-full:enabled, .checked_c_basis-full:checked {
+    flex-basis: 100%;
+}
+
+/* Flex Direction */
+
+.flex-row, .hover_c_flex-row:hover, .active_c_flex-row:active, .inactive_c_flex-row:inactive, .focus_c_flex-row:focus, .disabled_c_flex-row:disabled, .enabled_c_flex-row:enabled, .checked_c_flex-row:checked {
+    flex-direction: row;
+}
+
+.flex-row-reverse, .hover_c_flex-row-reverse:hover, .active_c_flex-row-reverse:active, .inactive_c_flex-row-reverse:inactive, .focus_c_flex-row-reverse:focus, .disabled_c_flex-row-reverse:disabled, .enabled_c_flex-row-reverse:enabled, .checked_c_flex-row-reverse:checked {
+    flex-direction: row-reverse;
+}
+
+.flex-col, .hover_c_flex-col:hover, .active_c_flex-col:active, .inactive_c_flex-col:inactive, .focus_c_flex-col:focus, .disabled_c_flex-col:disabled, .enabled_c_flex-col:enabled, .checked_c_flex-col:checked {
+    flex-direction: column;
+}
+
+.flex-col-reverse, .hover_c_flex-col-reverse:hover, .active_c_flex-col-reverse:active, .inactive_c_flex-col-reverse:inactive, .focus_c_flex-col-reverse:focus, .disabled_c_flex-col-reverse:disabled, .enabled_c_flex-col-reverse:enabled, .checked_c_flex-col-reverse:checked {
+    flex-direction: column-reverse;
+}
+
+/* Flex Wrap */
+
+.flex-wrap, .hover_c_flex-wrap:hover, .active_c_flex-wrap:active, .inactive_c_flex-wrap:inactive, .focus_c_flex-wrap:focus, .disabled_c_flex-wrap:disabled, .enabled_c_flex-wrap:enabled, .checked_c_flex-wrap:checked {
+    flex-wrap: wrap;
+}
+
+.flex-wrap-reverse, .hover_c_flex-wrap-reverse:hover, .active_c_flex-wrap-reverse:active, .inactive_c_flex-wrap-reverse:inactive, .focus_c_flex-wrap-reverse:focus, .disabled_c_flex-wrap-reverse:disabled, .enabled_c_flex-wrap-reverse:enabled, .checked_c_flex-wrap-reverse:checked {
+    flex-wrap: wrap-reverse;
+}
+
+.flex-nowrap, .hover_c_flex-nowrap:hover, .active_c_flex-nowrap:active, .inactive_c_flex-nowrap:inactive, .focus_c_flex-nowrap:focus, .disabled_c_flex-nowrap:disabled, .enabled_c_flex-nowrap:enabled, .checked_c_flex-nowrap:checked {
+    flex-wrap: nowrap;
+}
+
+/* Flex */
+
+.flex-1, .hover_c_flex-1:hover, .active_c_flex-1:active, .inactive_c_flex-1:inactive, .focus_c_flex-1:focus, .disabled_c_flex-1:disabled, .enabled_c_flex-1:enabled, .checked_c_flex-1:checked {
+    flex: 1 1 0%;
+}
+
+.flex-auto, .hover_c_flex-auto:hover, .active_c_flex-auto:active, .inactive_c_flex-auto:inactive, .focus_c_flex-auto:focus, .disabled_c_flex-auto:disabled, .enabled_c_flex-auto:enabled, .checked_c_flex-auto:checked {
+    flex: 1 1 auto;
+}
+
+.flex-initial, .hover_c_flex-initial:hover, .active_c_flex-initial:active, .inactive_c_flex-initial:inactive, .focus_c_flex-initial:focus, .disabled_c_flex-initial:disabled, .enabled_c_flex-initial:enabled, .checked_c_flex-initial:checked {
+    flex: 0 1 auto;
+}
+
+.flex-none, .hover_c_flex-none:hover, .active_c_flex-none:active, .inactive_c_flex-none:inactive, .focus_c_flex-none:focus, .disabled_c_flex-none:disabled, .enabled_c_flex-none:enabled, .checked_c_flex-none:checked {
+    flex: none;
+}
+
+/* Flex Grow */
+
+.grow, .hover_c_grow:hover, .active_c_grow:active, .inactive_c_grow:inactive, .focus_c_grow:focus, .disabled_c_grow:disabled, .enabled_c_grow:enabled, .checked_c_grow:checked {
+    flex-grow: 1;
+}
+
+.grow-0, .hover_c_grow-0:hover, .active_c_grow-0:active, .inactive_c_grow-0:inactive, .focus_c_grow-0:focus, .disabled_c_grow-0:disabled, .enabled_c_grow-0:enabled, .checked_c_grow-0:checked {
+    flex-grow: 0;
+}
+
+/* Flex Shrink */
+
+.shrink, .hover_c_shrink:hover, .active_c_shrink:active, .inactive_c_shrink:inactive, .focus_c_shrink:focus, .disabled_c_shrink:disabled, .enabled_c_shrink:enabled, .checked_c_shrink:checked {
+    flex-shrink: 1;
+}
+.shrink-0, .hover_c_shrink-0:hover, .active_c_shrink-0:active, .inactive_c_shrink-0:inactive, .focus_c_shrink-0:focus, .disabled_c_shrink-0:disabled, .enabled_c_shrink-0:enabled, .checked_c_shrink-0:checked {
+    flex-shrink: 0;
+}
+
+/* Justify Content */
+
+.justify-start, .hover_c_justify-start:hover, .active_c_justify-start:active, .inactive_c_justify-start:inactive, .focus_c_justify-start:focus, .disabled_c_justify-start:disabled, .enabled_c_justify-start:enabled, .checked_c_justify-start:checked {
+    justify-content: flex-start;
+}
+.justify-end, .hover_c_justify-end:hover, .active_c_justify-end:active, .inactive_c_justify-end:inactive, .focus_c_justify-end:focus, .disabled_c_justify-end:disabled, .enabled_c_justify-end:enabled, .checked_c_justify-end:checked {
+    justify-content: flex-end;
+}
+.justify-center, .hover_c_justify-center:hover, .active_c_justify-center:active, .inactive_c_justify-center:inactive, .focus_c_justify-center:focus, .disabled_c_justify-center:disabled, .enabled_c_justify-center:enabled, .checked_c_justify-center:checked {
+    justify-content: center;
+}
+.justify-between, .hover_c_justify-between:hover, .active_c_justify-between:active, .inactive_c_justify-between:inactive, .focus_c_justify-between:focus, .disabled_c_justify-between:disabled, .enabled_c_justify-between:enabled, .checked_c_justify-between:checked {
+    justify-content: space-between;
+}
+.justify-around, .hover_c_justify-around:hover, .active_c_justify-around:active, .inactive_c_justify-around:inactive, .focus_c_justify-around:focus, .disabled_c_justify-around:disabled, .enabled_c_justify-around:enabled, .checked_c_justify-around:checked {
+    justify-content: space-around;
+}
+
+/* Align Content */
+
+.content-auto, .hover_c_content-auto:hover, .active_c_content-auto:active, .inactive_c_content-auto:inactive, .focus_c_content-auto:focus, .disabled_c_content-auto:disabled, .enabled_c_content-auto:enabled, .checked_c_content-auto:checked {
+    align-content: auto;
+}
+.content-center, .hover_c_content-center:hover, .active_c_content-center:active, .inactive_c_content-center:inactive, .focus_c_content-center:focus, .disabled_c_content-center:disabled, .enabled_c_content-center:enabled, .checked_c_content-center:checked {
+    align-content: center;
+}
+.content-start, .hover_c_content-start:hover, .active_c_content-start:active, .inactive_c_content-start:inactive, .focus_c_content-start:focus, .disabled_c_content-start:disabled, .enabled_c_content-start:enabled, .checked_c_content-start:checked {
+    align-content: flex-start;
+}
+.content-end, .hover_c_content-end:hover, .active_c_content-end:active, .inactive_c_content-end:inactive, .focus_c_content-end:focus, .disabled_c_content-end:disabled, .enabled_c_content-end:enabled, .checked_c_content-end:checked {
+    align-content: flex-end;
+}
+.content-stretch, .hover_c_content-stretch:hover, .active_c_content-stretch:active, .inactive_c_content-stretch:inactive, .focus_c_content-stretch:focus, .disabled_c_content-stretch:disabled, .enabled_c_content-stretch:enabled, .checked_c_content-stretch:checked {
+    align-content: stretch;
+}
+
+/* Align Items */
+
+.items-auto, .hover_c_items-auto:hover, .active_c_items-auto:active, .inactive_c_items-auto:inactive, .focus_c_items-auto:focus, .disabled_c_items-auto:disabled, .enabled_c_items-auto:enabled, .checked_c_items-auto:checked {
+    align-items: auto;
+}
+.items-start, .hover_c_items-start:hover, .active_c_items-start:active, .inactive_c_items-start:inactive, .focus_c_items-start:focus, .disabled_c_items-start:disabled, .enabled_c_items-start:enabled, .checked_c_items-start:checked {
+    align-items: flex-start;
+}
+.items-end, .hover_c_items-end:hover, .active_c_items-end:active, .inactive_c_items-end:inactive, .focus_c_items-end:focus, .disabled_c_items-end:disabled, .enabled_c_items-end:enabled, .checked_c_items-end:checked {
+    align-items: flex-end;
+}
+.items-center, .hover_c_items-center:hover, .active_c_items-center:active, .inactive_c_items-center:inactive, .focus_c_items-center:focus, .disabled_c_items-center:disabled, .enabled_c_items-center:enabled, .checked_c_items-center:checked {
+    align-items: center;
+}
+.items-stretch, .hover_c_items-stretch:hover, .active_c_items-stretch:active, .inactive_c_items-stretch:inactive, .focus_c_items-stretch:focus, .disabled_c_items-stretch:disabled, .enabled_c_items-stretch:enabled, .checked_c_items-stretch:checked {
+    align-items: stretch;
+}
+
+/* Align Self */
+
+.self-auto, .hover_c_self-auto:hover, .active_c_self-auto:active, .inactive_c_self-auto:inactive, .focus_c_self-auto:focus, .disabled_c_self-auto:disabled, .enabled_c_self-auto:enabled, .checked_c_self-auto:checked {
+    align-self: auto;
+}
+.self-start, .hover_c_self-start:hover, .active_c_self-start:active, .inactive_c_self-start:inactive, .focus_c_self-start:focus, .disabled_c_self-start:disabled, .enabled_c_self-start:enabled, .checked_c_self-start:checked {
+    align-self: flex-start;
+}
+.self-end, .hover_c_self-end:hover, .active_c_self-end:active, .inactive_c_self-end:inactive, .focus_c_self-end:focus, .disabled_c_self-end:disabled, .enabled_c_self-end:enabled, .checked_c_self-end:checked {
+    align-self: flex-end;
+}
+.self-center, .hover_c_self-center:hover, .active_c_self-center:active, .inactive_c_self-center:inactive, .focus_c_self-center:focus, .disabled_c_self-center:disabled, .enabled_c_self-center:enabled, .checked_c_self-center:checked {
+    align-self: center;
+}
+.self-stretch, .hover_c_self-stretch:hover, .active_c_self-stretch:active, .inactive_c_self-stretch:inactive, .focus_c_self-stretch:focus, .disabled_c_self-stretch:disabled, .enabled_c_self-stretch:enabled, .checked_c_self-stretch:checked {
+    align-self: stretch;
+}
+

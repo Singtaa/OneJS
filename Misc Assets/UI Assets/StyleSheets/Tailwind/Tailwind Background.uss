@@ -1,0 +1,907 @@
+/* Background Color */
+
+.bg-transparent, .hover_c_bg-transparent:hover, .active_c_bg-transparent:active, .inactive_c_bg-transparent:inactive, .focus_c_bg-transparent:focus, .disabled_c_bg-transparent:disabled, .enabled_c_bg-transparent:enabled, .checked_c_bg-transparent:checked {
+    background-color: rgba(0 0 0 0);
+}
+
+.bg-black, .hover_c_bg-black:hover, .active_c_bg-black:active, .inactive_c_bg-black:inactive, .focus_c_bg-black:focus, .disabled_c_bg-black:disabled, .enabled_c_bg-black:enabled, .checked_c_bg-black:checked {
+    background-color: rgb(0 0 0);
+}
+
+.bg-white, .hover_c_bg-white:hover, .active_c_bg-white:active, .inactive_c_bg-white:inactive, .focus_c_bg-white:focus, .disabled_c_bg-white:disabled, .enabled_c_bg-white:enabled, .checked_c_bg-white:checked {
+    background-color: rgb(255 255 255);
+}
+
+.bg-slate-50, .hover_c_bg-slate-50:hover, .active_c_bg-slate-50:active, .inactive_c_bg-slate-50:inactive, .focus_c_bg-slate-50:focus, .disabled_c_bg-slate-50:disabled, .enabled_c_bg-slate-50:enabled, .checked_c_bg-slate-50:checked {
+    background-color: rgb(248 250 252);
+}
+
+.bg-slate-100, .hover_c_bg-slate-100:hover, .active_c_bg-slate-100:active, .inactive_c_bg-slate-100:inactive, .focus_c_bg-slate-100:focus, .disabled_c_bg-slate-100:disabled, .enabled_c_bg-slate-100:enabled, .checked_c_bg-slate-100:checked {
+    background-color: rgb(241 245 249);
+}
+
+.bg-slate-200, .hover_c_bg-slate-200:hover, .active_c_bg-slate-200:active, .inactive_c_bg-slate-200:inactive, .focus_c_bg-slate-200:focus, .disabled_c_bg-slate-200:disabled, .enabled_c_bg-slate-200:enabled, .checked_c_bg-slate-200:checked {
+    background-color: rgb(226 232 240);
+}
+
+.bg-slate-300, .hover_c_bg-slate-300:hover, .active_c_bg-slate-300:active, .inactive_c_bg-slate-300:inactive, .focus_c_bg-slate-300:focus, .disabled_c_bg-slate-300:disabled, .enabled_c_bg-slate-300:enabled, .checked_c_bg-slate-300:checked {
+    background-color: rgb(203 213 225);
+}
+
+.bg-slate-400, .hover_c_bg-slate-400:hover, .active_c_bg-slate-400:active, .inactive_c_bg-slate-400:inactive, .focus_c_bg-slate-400:focus, .disabled_c_bg-slate-400:disabled, .enabled_c_bg-slate-400:enabled, .checked_c_bg-slate-400:checked {
+    background-color: rgb(148 163 184);
+}
+
+.bg-slate-500, .hover_c_bg-slate-500:hover, .active_c_bg-slate-500:active, .inactive_c_bg-slate-500:inactive, .focus_c_bg-slate-500:focus, .disabled_c_bg-slate-500:disabled, .enabled_c_bg-slate-500:enabled, .checked_c_bg-slate-500:checked {
+    background-color: rgb(100 116 139);
+}
+
+.bg-slate-600, .hover_c_bg-slate-600:hover, .active_c_bg-slate-600:active, .inactive_c_bg-slate-600:inactive, .focus_c_bg-slate-600:focus, .disabled_c_bg-slate-600:disabled, .enabled_c_bg-slate-600:enabled, .checked_c_bg-slate-600:checked {
+    background-color: rgb(71 85 105);
+}
+
+.bg-slate-700, .hover_c_bg-slate-700:hover, .active_c_bg-slate-700:active, .inactive_c_bg-slate-700:inactive, .focus_c_bg-slate-700:focus, .disabled_c_bg-slate-700:disabled, .enabled_c_bg-slate-700:enabled, .checked_c_bg-slate-700:checked {
+    background-color: rgb(51 65 85);
+}
+
+.bg-slate-800, .hover_c_bg-slate-800:hover, .active_c_bg-slate-800:active, .inactive_c_bg-slate-800:inactive, .focus_c_bg-slate-800:focus, .disabled_c_bg-slate-800:disabled, .enabled_c_bg-slate-800:enabled, .checked_c_bg-slate-800:checked {
+    background-color: rgb(30 41 59);
+}
+
+.bg-slate-900, .hover_c_bg-slate-900:hover, .active_c_bg-slate-900:active, .inactive_c_bg-slate-900:inactive, .focus_c_bg-slate-900:focus, .disabled_c_bg-slate-900:disabled, .enabled_c_bg-slate-900:enabled, .checked_c_bg-slate-900:checked {
+    background-color: rgb(15 23 42);
+}
+
+.bg-gray-50, .hover_c_bg-gray-50:hover, .active_c_bg-gray-50:active, .inactive_c_bg-gray-50:inactive, .focus_c_bg-gray-50:focus, .disabled_c_bg-gray-50:disabled, .enabled_c_bg-gray-50:enabled, .checked_c_bg-gray-50:checked {
+    background-color: rgb(249 250 251);
+}
+
+.bg-gray-100, .hover_c_bg-gray-100:hover, .active_c_bg-gray-100:active, .inactive_c_bg-gray-100:inactive, .focus_c_bg-gray-100:focus, .disabled_c_bg-gray-100:disabled, .enabled_c_bg-gray-100:enabled, .checked_c_bg-gray-100:checked {
+    background-color: rgb(243 244 246);
+}
+
+.bg-gray-200, .hover_c_bg-gray-200:hover, .active_c_bg-gray-200:active, .inactive_c_bg-gray-200:inactive, .focus_c_bg-gray-200:focus, .disabled_c_bg-gray-200:disabled, .enabled_c_bg-gray-200:enabled, .checked_c_bg-gray-200:checked {
+    background-color: rgb(229 231 235);
+}
+
+.bg-gray-300, .hover_c_bg-gray-300:hover, .active_c_bg-gray-300:active, .inactive_c_bg-gray-300:inactive, .focus_c_bg-gray-300:focus, .disabled_c_bg-gray-300:disabled, .enabled_c_bg-gray-300:enabled, .checked_c_bg-gray-300:checked {
+    background-color: rgb(209 213 219);
+}
+
+.bg-gray-400, .hover_c_bg-gray-400:hover, .active_c_bg-gray-400:active, .inactive_c_bg-gray-400:inactive, .focus_c_bg-gray-400:focus, .disabled_c_bg-gray-400:disabled, .enabled_c_bg-gray-400:enabled, .checked_c_bg-gray-400:checked {
+    background-color: rgb(156 163 175);
+}
+
+.bg-gray-500, .hover_c_bg-gray-500:hover, .active_c_bg-gray-500:active, .inactive_c_bg-gray-500:inactive, .focus_c_bg-gray-500:focus, .disabled_c_bg-gray-500:disabled, .enabled_c_bg-gray-500:enabled, .checked_c_bg-gray-500:checked {
+    background-color: rgb(107 114 128);
+}
+
+.bg-gray-600, .hover_c_bg-gray-600:hover, .active_c_bg-gray-600:active, .inactive_c_bg-gray-600:inactive, .focus_c_bg-gray-600:focus, .disabled_c_bg-gray-600:disabled, .enabled_c_bg-gray-600:enabled, .checked_c_bg-gray-600:checked {
+    background-color: rgb(75 85 99);
+}
+
+.bg-gray-700, .hover_c_bg-gray-700:hover, .active_c_bg-gray-700:active, .inactive_c_bg-gray-700:inactive, .focus_c_bg-gray-700:focus, .disabled_c_bg-gray-700:disabled, .enabled_c_bg-gray-700:enabled, .checked_c_bg-gray-700:checked {
+    background-color: rgb(55 65 81);
+}
+
+.bg-gray-800, .hover_c_bg-gray-800:hover, .active_c_bg-gray-800:active, .inactive_c_bg-gray-800:inactive, .focus_c_bg-gray-800:focus, .disabled_c_bg-gray-800:disabled, .enabled_c_bg-gray-800:enabled, .checked_c_bg-gray-800:checked {
+    background-color: rgb(31 41 55);
+}
+
+.bg-gray-900, .hover_c_bg-gray-900:hover, .active_c_bg-gray-900:active, .inactive_c_bg-gray-900:inactive, .focus_c_bg-gray-900:focus, .disabled_c_bg-gray-900:disabled, .enabled_c_bg-gray-900:enabled, .checked_c_bg-gray-900:checked {
+    background-color: rgb(17 24 39);
+}
+
+.bg-zinc-50, .hover_c_bg-zinc-50:hover, .active_c_bg-zinc-50:active, .inactive_c_bg-zinc-50:inactive, .focus_c_bg-zinc-50:focus, .disabled_c_bg-zinc-50:disabled, .enabled_c_bg-zinc-50:enabled, .checked_c_bg-zinc-50:checked {
+    background-color: rgb(250 250 250);
+}
+
+.bg-zinc-100, .hover_c_bg-zinc-100:hover, .active_c_bg-zinc-100:active, .inactive_c_bg-zinc-100:inactive, .focus_c_bg-zinc-100:focus, .disabled_c_bg-zinc-100:disabled, .enabled_c_bg-zinc-100:enabled, .checked_c_bg-zinc-100:checked {
+    background-color: rgb(244 244 245);
+}
+
+.bg-zinc-200, .hover_c_bg-zinc-200:hover, .active_c_bg-zinc-200:active, .inactive_c_bg-zinc-200:inactive, .focus_c_bg-zinc-200:focus, .disabled_c_bg-zinc-200:disabled, .enabled_c_bg-zinc-200:enabled, .checked_c_bg-zinc-200:checked {
+    background-color: rgb(228 228 231);
+}
+
+.bg-zinc-300, .hover_c_bg-zinc-300:hover, .active_c_bg-zinc-300:active, .inactive_c_bg-zinc-300:inactive, .focus_c_bg-zinc-300:focus, .disabled_c_bg-zinc-300:disabled, .enabled_c_bg-zinc-300:enabled, .checked_c_bg-zinc-300:checked {
+    background-color: rgb(212 212 216);
+}
+
+.bg-zinc-400, .hover_c_bg-zinc-400:hover, .active_c_bg-zinc-400:active, .inactive_c_bg-zinc-400:inactive, .focus_c_bg-zinc-400:focus, .disabled_c_bg-zinc-400:disabled, .enabled_c_bg-zinc-400:enabled, .checked_c_bg-zinc-400:checked {
+    background-color: rgb(161 161 170);
+}
+
+.bg-zinc-500, .hover_c_bg-zinc-500:hover, .active_c_bg-zinc-500:active, .inactive_c_bg-zinc-500:inactive, .focus_c_bg-zinc-500:focus, .disabled_c_bg-zinc-500:disabled, .enabled_c_bg-zinc-500:enabled, .checked_c_bg-zinc-500:checked {
+    background-color: rgb(113 113 122);
+}
+
+.bg-zinc-600, .hover_c_bg-zinc-600:hover, .active_c_bg-zinc-600:active, .inactive_c_bg-zinc-600:inactive, .focus_c_bg-zinc-600:focus, .disabled_c_bg-zinc-600:disabled, .enabled_c_bg-zinc-600:enabled, .checked_c_bg-zinc-600:checked {
+    background-color: rgb(82 82 91);
+}
+
+.bg-zinc-700, .hover_c_bg-zinc-700:hover, .active_c_bg-zinc-700:active, .inactive_c_bg-zinc-700:inactive, .focus_c_bg-zinc-700:focus, .disabled_c_bg-zinc-700:disabled, .enabled_c_bg-zinc-700:enabled, .checked_c_bg-zinc-700:checked {
+    background-color: rgb(63 63 70);
+}
+
+.bg-zinc-800, .hover_c_bg-zinc-800:hover, .active_c_bg-zinc-800:active, .inactive_c_bg-zinc-800:inactive, .focus_c_bg-zinc-800:focus, .disabled_c_bg-zinc-800:disabled, .enabled_c_bg-zinc-800:enabled, .checked_c_bg-zinc-800:checked {
+    background-color: rgb(39 39 42);
+}
+
+.bg-zinc-900, .hover_c_bg-zinc-900:hover, .active_c_bg-zinc-900:active, .inactive_c_bg-zinc-900:inactive, .focus_c_bg-zinc-900:focus, .disabled_c_bg-zinc-900:disabled, .enabled_c_bg-zinc-900:enabled, .checked_c_bg-zinc-900:checked {
+    background-color: rgb(24 24 27);
+}
+
+.bg-neutral-50, .hover_c_bg-neutral-50:hover, .active_c_bg-neutral-50:active, .inactive_c_bg-neutral-50:inactive, .focus_c_bg-neutral-50:focus, .disabled_c_bg-neutral-50:disabled, .enabled_c_bg-neutral-50:enabled, .checked_c_bg-neutral-50:checked {
+    background-color: rgb(250 250 250);
+}
+
+.bg-neutral-100, .hover_c_bg-neutral-100:hover, .active_c_bg-neutral-100:active, .inactive_c_bg-neutral-100:inactive, .focus_c_bg-neutral-100:focus, .disabled_c_bg-neutral-100:disabled, .enabled_c_bg-neutral-100:enabled, .checked_c_bg-neutral-100:checked {
+    background-color: rgb(245 245 245);
+}
+
+.bg-neutral-200, .hover_c_bg-neutral-200:hover, .active_c_bg-neutral-200:active, .inactive_c_bg-neutral-200:inactive, .focus_c_bg-neutral-200:focus, .disabled_c_bg-neutral-200:disabled, .enabled_c_bg-neutral-200:enabled, .checked_c_bg-neutral-200:checked {
+    background-color: rgb(229 229 229);
+}
+
+.bg-neutral-300, .hover_c_bg-neutral-300:hover, .active_c_bg-neutral-300:active, .inactive_c_bg-neutral-300:inactive, .focus_c_bg-neutral-300:focus, .disabled_c_bg-neutral-300:disabled, .enabled_c_bg-neutral-300:enabled, .checked_c_bg-neutral-300:checked {
+    background-color: rgb(212 212 212);
+}
+
+.bg-neutral-400, .hover_c_bg-neutral-400:hover, .active_c_bg-neutral-400:active, .inactive_c_bg-neutral-400:inactive, .focus_c_bg-neutral-400:focus, .disabled_c_bg-neutral-400:disabled, .enabled_c_bg-neutral-400:enabled, .checked_c_bg-neutral-400:checked {
+    background-color: rgb(163 163 163);
+}
+
+.bg-neutral-500, .hover_c_bg-neutral-500:hover, .active_c_bg-neutral-500:active, .inactive_c_bg-neutral-500:inactive, .focus_c_bg-neutral-500:focus, .disabled_c_bg-neutral-500:disabled, .enabled_c_bg-neutral-500:enabled, .checked_c_bg-neutral-500:checked {
+    background-color: rgb(115 115 115);
+}
+
+.bg-neutral-600, .hover_c_bg-neutral-600:hover, .active_c_bg-neutral-600:active, .inactive_c_bg-neutral-600:inactive, .focus_c_bg-neutral-600:focus, .disabled_c_bg-neutral-600:disabled, .enabled_c_bg-neutral-600:enabled, .checked_c_bg-neutral-600:checked {
+    background-color: rgb(82 82 82);
+}
+
+.bg-neutral-700, .hover_c_bg-neutral-700:hover, .active_c_bg-neutral-700:active, .inactive_c_bg-neutral-700:inactive, .focus_c_bg-neutral-700:focus, .disabled_c_bg-neutral-700:disabled, .enabled_c_bg-neutral-700:enabled, .checked_c_bg-neutral-700:checked {
+    background-color: rgb(64 64 64);
+}
+
+.bg-neutral-800, .hover_c_bg-neutral-800:hover, .active_c_bg-neutral-800:active, .inactive_c_bg-neutral-800:inactive, .focus_c_bg-neutral-800:focus, .disabled_c_bg-neutral-800:disabled, .enabled_c_bg-neutral-800:enabled, .checked_c_bg-neutral-800:checked {
+    background-color: rgb(38 38 38);
+}
+
+.bg-neutral-900, .hover_c_bg-neutral-900:hover, .active_c_bg-neutral-900:active, .inactive_c_bg-neutral-900:inactive, .focus_c_bg-neutral-900:focus, .disabled_c_bg-neutral-900:disabled, .enabled_c_bg-neutral-900:enabled, .checked_c_bg-neutral-900:checked {
+    background-color: rgb(23 23 23);
+}
+
+.bg-stone-50, .hover_c_bg-stone-50:hover, .active_c_bg-stone-50:active, .inactive_c_bg-stone-50:inactive, .focus_c_bg-stone-50:focus, .disabled_c_bg-stone-50:disabled, .enabled_c_bg-stone-50:enabled, .checked_c_bg-stone-50:checked {
+    background-color: rgb(250 250 249);
+}
+
+.bg-stone-100, .hover_c_bg-stone-100:hover, .active_c_bg-stone-100:active, .inactive_c_bg-stone-100:inactive, .focus_c_bg-stone-100:focus, .disabled_c_bg-stone-100:disabled, .enabled_c_bg-stone-100:enabled, .checked_c_bg-stone-100:checked {
+    background-color: rgb(245 245 244);
+}
+
+.bg-stone-200, .hover_c_bg-stone-200:hover, .active_c_bg-stone-200:active, .inactive_c_bg-stone-200:inactive, .focus_c_bg-stone-200:focus, .disabled_c_bg-stone-200:disabled, .enabled_c_bg-stone-200:enabled, .checked_c_bg-stone-200:checked {
+    background-color: rgb(231 229 228);
+}
+
+.bg-stone-300, .hover_c_bg-stone-300:hover, .active_c_bg-stone-300:active, .inactive_c_bg-stone-300:inactive, .focus_c_bg-stone-300:focus, .disabled_c_bg-stone-300:disabled, .enabled_c_bg-stone-300:enabled, .checked_c_bg-stone-300:checked {
+    background-color: rgb(214 211 209);
+}
+
+.bg-stone-400, .hover_c_bg-stone-400:hover, .active_c_bg-stone-400:active, .inactive_c_bg-stone-400:inactive, .focus_c_bg-stone-400:focus, .disabled_c_bg-stone-400:disabled, .enabled_c_bg-stone-400:enabled, .checked_c_bg-stone-400:checked {
+    background-color: rgb(168 162 158);
+}
+
+.bg-stone-500, .hover_c_bg-stone-500:hover, .active_c_bg-stone-500:active, .inactive_c_bg-stone-500:inactive, .focus_c_bg-stone-500:focus, .disabled_c_bg-stone-500:disabled, .enabled_c_bg-stone-500:enabled, .checked_c_bg-stone-500:checked {
+    background-color: rgb(120 113 108);
+}
+
+.bg-stone-600, .hover_c_bg-stone-600:hover, .active_c_bg-stone-600:active, .inactive_c_bg-stone-600:inactive, .focus_c_bg-stone-600:focus, .disabled_c_bg-stone-600:disabled, .enabled_c_bg-stone-600:enabled, .checked_c_bg-stone-600:checked {
+    background-color: rgb(87 83 78);
+}
+
+.bg-stone-700, .hover_c_bg-stone-700:hover, .active_c_bg-stone-700:active, .inactive_c_bg-stone-700:inactive, .focus_c_bg-stone-700:focus, .disabled_c_bg-stone-700:disabled, .enabled_c_bg-stone-700:enabled, .checked_c_bg-stone-700:checked {
+    background-color: rgb(68 64 60);
+}
+
+.bg-stone-800, .hover_c_bg-stone-800:hover, .active_c_bg-stone-800:active, .inactive_c_bg-stone-800:inactive, .focus_c_bg-stone-800:focus, .disabled_c_bg-stone-800:disabled, .enabled_c_bg-stone-800:enabled, .checked_c_bg-stone-800:checked {
+    background-color: rgb(41 37 36);
+}
+
+.bg-stone-900, .hover_c_bg-stone-900:hover, .active_c_bg-stone-900:active, .inactive_c_bg-stone-900:inactive, .focus_c_bg-stone-900:focus, .disabled_c_bg-stone-900:disabled, .enabled_c_bg-stone-900:enabled, .checked_c_bg-stone-900:checked {
+    background-color: rgb(28 25 23);
+}
+
+.bg-red-50, .hover_c_bg-red-50:hover, .active_c_bg-red-50:active, .inactive_c_bg-red-50:inactive, .focus_c_bg-red-50:focus, .disabled_c_bg-red-50:disabled, .enabled_c_bg-red-50:enabled, .checked_c_bg-red-50:checked {
+    background-color: rgb(254 242 242);
+}
+
+.bg-red-100, .hover_c_bg-red-100:hover, .active_c_bg-red-100:active, .inactive_c_bg-red-100:inactive, .focus_c_bg-red-100:focus, .disabled_c_bg-red-100:disabled, .enabled_c_bg-red-100:enabled, .checked_c_bg-red-100:checked {
+    background-color: rgb(254 226 226);
+}
+
+.bg-red-200, .hover_c_bg-red-200:hover, .active_c_bg-red-200:active, .inactive_c_bg-red-200:inactive, .focus_c_bg-red-200:focus, .disabled_c_bg-red-200:disabled, .enabled_c_bg-red-200:enabled, .checked_c_bg-red-200:checked {
+    background-color: rgb(254 202 202);
+}
+
+.bg-red-300, .hover_c_bg-red-300:hover, .active_c_bg-red-300:active, .inactive_c_bg-red-300:inactive, .focus_c_bg-red-300:focus, .disabled_c_bg-red-300:disabled, .enabled_c_bg-red-300:enabled, .checked_c_bg-red-300:checked {
+    background-color: rgb(252 165 165);
+}
+
+.bg-red-400, .hover_c_bg-red-400:hover, .active_c_bg-red-400:active, .inactive_c_bg-red-400:inactive, .focus_c_bg-red-400:focus, .disabled_c_bg-red-400:disabled, .enabled_c_bg-red-400:enabled, .checked_c_bg-red-400:checked {
+    background-color: rgb(248 113 113);
+}
+
+.bg-red-500, .hover_c_bg-red-500:hover, .active_c_bg-red-500:active, .inactive_c_bg-red-500:inactive, .focus_c_bg-red-500:focus, .disabled_c_bg-red-500:disabled, .enabled_c_bg-red-500:enabled, .checked_c_bg-red-500:checked {
+    background-color: rgb(239 68 68);
+}
+
+.bg-red-600, .hover_c_bg-red-600:hover, .active_c_bg-red-600:active, .inactive_c_bg-red-600:inactive, .focus_c_bg-red-600:focus, .disabled_c_bg-red-600:disabled, .enabled_c_bg-red-600:enabled, .checked_c_bg-red-600:checked {
+    background-color: rgb(220 38 38);
+}
+
+.bg-red-700, .hover_c_bg-red-700:hover, .active_c_bg-red-700:active, .inactive_c_bg-red-700:inactive, .focus_c_bg-red-700:focus, .disabled_c_bg-red-700:disabled, .enabled_c_bg-red-700:enabled, .checked_c_bg-red-700:checked {
+    background-color: rgb(185 28 28);
+}
+
+.bg-red-800, .hover_c_bg-red-800:hover, .active_c_bg-red-800:active, .inactive_c_bg-red-800:inactive, .focus_c_bg-red-800:focus, .disabled_c_bg-red-800:disabled, .enabled_c_bg-red-800:enabled, .checked_c_bg-red-800:checked {
+    background-color: rgb(153 27 27);
+}
+
+.bg-red-900, .hover_c_bg-red-900:hover, .active_c_bg-red-900:active, .inactive_c_bg-red-900:inactive, .focus_c_bg-red-900:focus, .disabled_c_bg-red-900:disabled, .enabled_c_bg-red-900:enabled, .checked_c_bg-red-900:checked {
+    background-color: rgb(127 29 29);
+}
+
+.bg-orange-50, .hover_c_bg-orange-50:hover, .active_c_bg-orange-50:active, .inactive_c_bg-orange-50:inactive, .focus_c_bg-orange-50:focus, .disabled_c_bg-orange-50:disabled, .enabled_c_bg-orange-50:enabled, .checked_c_bg-orange-50:checked {
+    background-color: rgb(255 247 237);
+}
+
+.bg-orange-100, .hover_c_bg-orange-100:hover, .active_c_bg-orange-100:active, .inactive_c_bg-orange-100:inactive, .focus_c_bg-orange-100:focus, .disabled_c_bg-orange-100:disabled, .enabled_c_bg-orange-100:enabled, .checked_c_bg-orange-100:checked {
+    background-color: rgb(255 237 213);
+}
+
+.bg-orange-200, .hover_c_bg-orange-200:hover, .active_c_bg-orange-200:active, .inactive_c_bg-orange-200:inactive, .focus_c_bg-orange-200:focus, .disabled_c_bg-orange-200:disabled, .enabled_c_bg-orange-200:enabled, .checked_c_bg-orange-200:checked {
+    background-color: rgb(254 215 170);
+}
+
+.bg-orange-300, .hover_c_bg-orange-300:hover, .active_c_bg-orange-300:active, .inactive_c_bg-orange-300:inactive, .focus_c_bg-orange-300:focus, .disabled_c_bg-orange-300:disabled, .enabled_c_bg-orange-300:enabled, .checked_c_bg-orange-300:checked {
+    background-color: rgb(253 186 116);
+}
+
+.bg-orange-400, .hover_c_bg-orange-400:hover, .active_c_bg-orange-400:active, .inactive_c_bg-orange-400:inactive, .focus_c_bg-orange-400:focus, .disabled_c_bg-orange-400:disabled, .enabled_c_bg-orange-400:enabled, .checked_c_bg-orange-400:checked {
+    background-color: rgb(251 146 60);
+}
+
+.bg-orange-500, .hover_c_bg-orange-500:hover, .active_c_bg-orange-500:active, .inactive_c_bg-orange-500:inactive, .focus_c_bg-orange-500:focus, .disabled_c_bg-orange-500:disabled, .enabled_c_bg-orange-500:enabled, .checked_c_bg-orange-500:checked {
+    background-color: rgb(249 115 22);
+}
+
+.bg-orange-600, .hover_c_bg-orange-600:hover, .active_c_bg-orange-600:active, .inactive_c_bg-orange-600:inactive, .focus_c_bg-orange-600:focus, .disabled_c_bg-orange-600:disabled, .enabled_c_bg-orange-600:enabled, .checked_c_bg-orange-600:checked {
+    background-color: rgb(234 88 12);
+}
+
+.bg-orange-700, .hover_c_bg-orange-700:hover, .active_c_bg-orange-700:active, .inactive_c_bg-orange-700:inactive, .focus_c_bg-orange-700:focus, .disabled_c_bg-orange-700:disabled, .enabled_c_bg-orange-700:enabled, .checked_c_bg-orange-700:checked {
+    background-color: rgb(194 65 12);
+}
+
+.bg-orange-800, .hover_c_bg-orange-800:hover, .active_c_bg-orange-800:active, .inactive_c_bg-orange-800:inactive, .focus_c_bg-orange-800:focus, .disabled_c_bg-orange-800:disabled, .enabled_c_bg-orange-800:enabled, .checked_c_bg-orange-800:checked {
+    background-color: rgb(154 52 18);
+}
+
+.bg-orange-900, .hover_c_bg-orange-900:hover, .active_c_bg-orange-900:active, .inactive_c_bg-orange-900:inactive, .focus_c_bg-orange-900:focus, .disabled_c_bg-orange-900:disabled, .enabled_c_bg-orange-900:enabled, .checked_c_bg-orange-900:checked {
+    background-color: rgb(124 45 18);
+}
+
+.bg-amber-50, .hover_c_bg-amber-50:hover, .active_c_bg-amber-50:active, .inactive_c_bg-amber-50:inactive, .focus_c_bg-amber-50:focus, .disabled_c_bg-amber-50:disabled, .enabled_c_bg-amber-50:enabled, .checked_c_bg-amber-50:checked {
+    background-color: rgb(255 251 235);
+}
+
+.bg-amber-100, .hover_c_bg-amber-100:hover, .active_c_bg-amber-100:active, .inactive_c_bg-amber-100:inactive, .focus_c_bg-amber-100:focus, .disabled_c_bg-amber-100:disabled, .enabled_c_bg-amber-100:enabled, .checked_c_bg-amber-100:checked {
+    background-color: rgb(254 243 199);
+}
+
+.bg-amber-200, .hover_c_bg-amber-200:hover, .active_c_bg-amber-200:active, .inactive_c_bg-amber-200:inactive, .focus_c_bg-amber-200:focus, .disabled_c_bg-amber-200:disabled, .enabled_c_bg-amber-200:enabled, .checked_c_bg-amber-200:checked {
+    background-color: rgb(253 230 138);
+}
+
+.bg-amber-300, .hover_c_bg-amber-300:hover, .active_c_bg-amber-300:active, .inactive_c_bg-amber-300:inactive, .focus_c_bg-amber-300:focus, .disabled_c_bg-amber-300:disabled, .enabled_c_bg-amber-300:enabled, .checked_c_bg-amber-300:checked {
+    background-color: rgb(252 211 77);
+}
+
+.bg-amber-400, .hover_c_bg-amber-400:hover, .active_c_bg-amber-400:active, .inactive_c_bg-amber-400:inactive, .focus_c_bg-amber-400:focus, .disabled_c_bg-amber-400:disabled, .enabled_c_bg-amber-400:enabled, .checked_c_bg-amber-400:checked {
+    background-color: rgb(251 191 36);
+}
+
+.bg-amber-500, .hover_c_bg-amber-500:hover, .active_c_bg-amber-500:active, .inactive_c_bg-amber-500:inactive, .focus_c_bg-amber-500:focus, .disabled_c_bg-amber-500:disabled, .enabled_c_bg-amber-500:enabled, .checked_c_bg-amber-500:checked {
+    background-color: rgb(245 158 11);
+}
+
+.bg-amber-600, .hover_c_bg-amber-600:hover, .active_c_bg-amber-600:active, .inactive_c_bg-amber-600:inactive, .focus_c_bg-amber-600:focus, .disabled_c_bg-amber-600:disabled, .enabled_c_bg-amber-600:enabled, .checked_c_bg-amber-600:checked {
+    background-color: rgb(217 119 6);
+}
+
+.bg-amber-700, .hover_c_bg-amber-700:hover, .active_c_bg-amber-700:active, .inactive_c_bg-amber-700:inactive, .focus_c_bg-amber-700:focus, .disabled_c_bg-amber-700:disabled, .enabled_c_bg-amber-700:enabled, .checked_c_bg-amber-700:checked {
+    background-color: rgb(180 83 9);
+}
+
+.bg-amber-800, .hover_c_bg-amber-800:hover, .active_c_bg-amber-800:active, .inactive_c_bg-amber-800:inactive, .focus_c_bg-amber-800:focus, .disabled_c_bg-amber-800:disabled, .enabled_c_bg-amber-800:enabled, .checked_c_bg-amber-800:checked {
+    background-color: rgb(146 64 14);
+}
+
+.bg-amber-900, .hover_c_bg-amber-900:hover, .active_c_bg-amber-900:active, .inactive_c_bg-amber-900:inactive, .focus_c_bg-amber-900:focus, .disabled_c_bg-amber-900:disabled, .enabled_c_bg-amber-900:enabled, .checked_c_bg-amber-900:checked {
+    background-color: rgb(120 53 15);
+}
+
+.bg-yellow-50, .hover_c_bg-yellow-50:hover, .active_c_bg-yellow-50:active, .inactive_c_bg-yellow-50:inactive, .focus_c_bg-yellow-50:focus, .disabled_c_bg-yellow-50:disabled, .enabled_c_bg-yellow-50:enabled, .checked_c_bg-yellow-50:checked {
+    background-color: rgb(254 252 232);
+}
+
+.bg-yellow-100, .hover_c_bg-yellow-100:hover, .active_c_bg-yellow-100:active, .inactive_c_bg-yellow-100:inactive, .focus_c_bg-yellow-100:focus, .disabled_c_bg-yellow-100:disabled, .enabled_c_bg-yellow-100:enabled, .checked_c_bg-yellow-100:checked {
+    background-color: rgb(254 249 195);
+}
+
+.bg-yellow-200, .hover_c_bg-yellow-200:hover, .active_c_bg-yellow-200:active, .inactive_c_bg-yellow-200:inactive, .focus_c_bg-yellow-200:focus, .disabled_c_bg-yellow-200:disabled, .enabled_c_bg-yellow-200:enabled, .checked_c_bg-yellow-200:checked {
+    background-color: rgb(254 240 138);
+}
+
+.bg-yellow-300, .hover_c_bg-yellow-300:hover, .active_c_bg-yellow-300:active, .inactive_c_bg-yellow-300:inactive, .focus_c_bg-yellow-300:focus, .disabled_c_bg-yellow-300:disabled, .enabled_c_bg-yellow-300:enabled, .checked_c_bg-yellow-300:checked {
+    background-color: rgb(253 224 71);
+}
+
+.bg-yellow-400, .hover_c_bg-yellow-400:hover, .active_c_bg-yellow-400:active, .inactive_c_bg-yellow-400:inactive, .focus_c_bg-yellow-400:focus, .disabled_c_bg-yellow-400:disabled, .enabled_c_bg-yellow-400:enabled, .checked_c_bg-yellow-400:checked {
+    background-color: rgb(250 204 21);
+}
+
+.bg-yellow-500, .hover_c_bg-yellow-500:hover, .active_c_bg-yellow-500:active, .inactive_c_bg-yellow-500:inactive, .focus_c_bg-yellow-500:focus, .disabled_c_bg-yellow-500:disabled, .enabled_c_bg-yellow-500:enabled, .checked_c_bg-yellow-500:checked {
+    background-color: rgb(234 179 8);
+}
+
+.bg-yellow-600, .hover_c_bg-yellow-600:hover, .active_c_bg-yellow-600:active, .inactive_c_bg-yellow-600:inactive, .focus_c_bg-yellow-600:focus, .disabled_c_bg-yellow-600:disabled, .enabled_c_bg-yellow-600:enabled, .checked_c_bg-yellow-600:checked {
+    background-color: rgb(202 138 4);
+}
+
+.bg-yellow-700, .hover_c_bg-yellow-700:hover, .active_c_bg-yellow-700:active, .inactive_c_bg-yellow-700:inactive, .focus_c_bg-yellow-700:focus, .disabled_c_bg-yellow-700:disabled, .enabled_c_bg-yellow-700:enabled, .checked_c_bg-yellow-700:checked {
+    background-color: rgb(161 98 7);
+}
+
+.bg-yellow-800, .hover_c_bg-yellow-800:hover, .active_c_bg-yellow-800:active, .inactive_c_bg-yellow-800:inactive, .focus_c_bg-yellow-800:focus, .disabled_c_bg-yellow-800:disabled, .enabled_c_bg-yellow-800:enabled, .checked_c_bg-yellow-800:checked {
+    background-color: rgb(133 77 14);
+}
+
+.bg-yellow-900, .hover_c_bg-yellow-900:hover, .active_c_bg-yellow-900:active, .inactive_c_bg-yellow-900:inactive, .focus_c_bg-yellow-900:focus, .disabled_c_bg-yellow-900:disabled, .enabled_c_bg-yellow-900:enabled, .checked_c_bg-yellow-900:checked {
+    background-color: rgb(113 63 18);
+}
+
+.bg-lime-50, .hover_c_bg-lime-50:hover, .active_c_bg-lime-50:active, .inactive_c_bg-lime-50:inactive, .focus_c_bg-lime-50:focus, .disabled_c_bg-lime-50:disabled, .enabled_c_bg-lime-50:enabled, .checked_c_bg-lime-50:checked {
+    background-color: rgb(247 254 231);
+}
+
+.bg-lime-100, .hover_c_bg-lime-100:hover, .active_c_bg-lime-100:active, .inactive_c_bg-lime-100:inactive, .focus_c_bg-lime-100:focus, .disabled_c_bg-lime-100:disabled, .enabled_c_bg-lime-100:enabled, .checked_c_bg-lime-100:checked {
+    background-color: rgb(236 252 203);
+}
+
+.bg-lime-200, .hover_c_bg-lime-200:hover, .active_c_bg-lime-200:active, .inactive_c_bg-lime-200:inactive, .focus_c_bg-lime-200:focus, .disabled_c_bg-lime-200:disabled, .enabled_c_bg-lime-200:enabled, .checked_c_bg-lime-200:checked {
+    background-color: rgb(217 249 157);
+}
+
+.bg-lime-300, .hover_c_bg-lime-300:hover, .active_c_bg-lime-300:active, .inactive_c_bg-lime-300:inactive, .focus_c_bg-lime-300:focus, .disabled_c_bg-lime-300:disabled, .enabled_c_bg-lime-300:enabled, .checked_c_bg-lime-300:checked {
+    background-color: rgb(190 242 100);
+}
+
+.bg-lime-400, .hover_c_bg-lime-400:hover, .active_c_bg-lime-400:active, .inactive_c_bg-lime-400:inactive, .focus_c_bg-lime-400:focus, .disabled_c_bg-lime-400:disabled, .enabled_c_bg-lime-400:enabled, .checked_c_bg-lime-400:checked {
+    background-color: rgb(163 230 53);
+}
+
+.bg-lime-500, .hover_c_bg-lime-500:hover, .active_c_bg-lime-500:active, .inactive_c_bg-lime-500:inactive, .focus_c_bg-lime-500:focus, .disabled_c_bg-lime-500:disabled, .enabled_c_bg-lime-500:enabled, .checked_c_bg-lime-500:checked {
+    background-color: rgb(132 204 22);
+}
+
+.bg-lime-600, .hover_c_bg-lime-600:hover, .active_c_bg-lime-600:active, .inactive_c_bg-lime-600:inactive, .focus_c_bg-lime-600:focus, .disabled_c_bg-lime-600:disabled, .enabled_c_bg-lime-600:enabled, .checked_c_bg-lime-600:checked {
+    background-color: rgb(101 163 13);
+}
+
+.bg-lime-700, .hover_c_bg-lime-700:hover, .active_c_bg-lime-700:active, .inactive_c_bg-lime-700:inactive, .focus_c_bg-lime-700:focus, .disabled_c_bg-lime-700:disabled, .enabled_c_bg-lime-700:enabled, .checked_c_bg-lime-700:checked {
+    background-color: rgb(77 124 15);
+}
+
+.bg-lime-800, .hover_c_bg-lime-800:hover, .active_c_bg-lime-800:active, .inactive_c_bg-lime-800:inactive, .focus_c_bg-lime-800:focus, .disabled_c_bg-lime-800:disabled, .enabled_c_bg-lime-800:enabled, .checked_c_bg-lime-800:checked {
+    background-color: rgb(63 98 18);
+}
+
+.bg-lime-900, .hover_c_bg-lime-900:hover, .active_c_bg-lime-900:active, .inactive_c_bg-lime-900:inactive, .focus_c_bg-lime-900:focus, .disabled_c_bg-lime-900:disabled, .enabled_c_bg-lime-900:enabled, .checked_c_bg-lime-900:checked {
+    background-color: rgb(54 83 20);
+}
+
+.bg-green-50, .hover_c_bg-green-50:hover, .active_c_bg-green-50:active, .inactive_c_bg-green-50:inactive, .focus_c_bg-green-50:focus, .disabled_c_bg-green-50:disabled, .enabled_c_bg-green-50:enabled, .checked_c_bg-green-50:checked {
+    background-color: rgb(240 253 244);
+}
+
+.bg-green-100, .hover_c_bg-green-100:hover, .active_c_bg-green-100:active, .inactive_c_bg-green-100:inactive, .focus_c_bg-green-100:focus, .disabled_c_bg-green-100:disabled, .enabled_c_bg-green-100:enabled, .checked_c_bg-green-100:checked {
+    background-color: rgb(220 252 231);
+}
+
+.bg-green-200, .hover_c_bg-green-200:hover, .active_c_bg-green-200:active, .inactive_c_bg-green-200:inactive, .focus_c_bg-green-200:focus, .disabled_c_bg-green-200:disabled, .enabled_c_bg-green-200:enabled, .checked_c_bg-green-200:checked {
+    background-color: rgb(187 247 208);
+}
+
+.bg-green-300, .hover_c_bg-green-300:hover, .active_c_bg-green-300:active, .inactive_c_bg-green-300:inactive, .focus_c_bg-green-300:focus, .disabled_c_bg-green-300:disabled, .enabled_c_bg-green-300:enabled, .checked_c_bg-green-300:checked {
+    background-color: rgb(134 239 172);
+}
+
+.bg-green-400, .hover_c_bg-green-400:hover, .active_c_bg-green-400:active, .inactive_c_bg-green-400:inactive, .focus_c_bg-green-400:focus, .disabled_c_bg-green-400:disabled, .enabled_c_bg-green-400:enabled, .checked_c_bg-green-400:checked {
+    background-color: rgb(74 222 128);
+}
+
+.bg-green-500, .hover_c_bg-green-500:hover, .active_c_bg-green-500:active, .inactive_c_bg-green-500:inactive, .focus_c_bg-green-500:focus, .disabled_c_bg-green-500:disabled, .enabled_c_bg-green-500:enabled, .checked_c_bg-green-500:checked {
+    background-color: rgb(34 197 94);
+}
+
+.bg-green-600, .hover_c_bg-green-600:hover, .active_c_bg-green-600:active, .inactive_c_bg-green-600:inactive, .focus_c_bg-green-600:focus, .disabled_c_bg-green-600:disabled, .enabled_c_bg-green-600:enabled, .checked_c_bg-green-600:checked {
+    background-color: rgb(22 163 74);
+}
+
+.bg-green-700, .hover_c_bg-green-700:hover, .active_c_bg-green-700:active, .inactive_c_bg-green-700:inactive, .focus_c_bg-green-700:focus, .disabled_c_bg-green-700:disabled, .enabled_c_bg-green-700:enabled, .checked_c_bg-green-700:checked {
+    background-color: rgb(21 128 61);
+}
+
+.bg-green-800, .hover_c_bg-green-800:hover, .active_c_bg-green-800:active, .inactive_c_bg-green-800:inactive, .focus_c_bg-green-800:focus, .disabled_c_bg-green-800:disabled, .enabled_c_bg-green-800:enabled, .checked_c_bg-green-800:checked {
+    background-color: rgb(22 101 52);
+}
+
+.bg-green-900, .hover_c_bg-green-900:hover, .active_c_bg-green-900:active, .inactive_c_bg-green-900:inactive, .focus_c_bg-green-900:focus, .disabled_c_bg-green-900:disabled, .enabled_c_bg-green-900:enabled, .checked_c_bg-green-900:checked {
+    background-color: rgb(20 83 45);
+}
+
+.bg-emerald-50, .hover_c_bg-emerald-50:hover, .active_c_bg-emerald-50:active, .inactive_c_bg-emerald-50:inactive, .focus_c_bg-emerald-50:focus, .disabled_c_bg-emerald-50:disabled, .enabled_c_bg-emerald-50:enabled, .checked_c_bg-emerald-50:checked {
+    background-color: rgb(236 253 245);
+}
+
+.bg-emerald-100, .hover_c_bg-emerald-100:hover, .active_c_bg-emerald-100:active, .inactive_c_bg-emerald-100:inactive, .focus_c_bg-emerald-100:focus, .disabled_c_bg-emerald-100:disabled, .enabled_c_bg-emerald-100:enabled, .checked_c_bg-emerald-100:checked {
+    background-color: rgb(209 250 229);
+}
+
+.bg-emerald-200, .hover_c_bg-emerald-200:hover, .active_c_bg-emerald-200:active, .inactive_c_bg-emerald-200:inactive, .focus_c_bg-emerald-200:focus, .disabled_c_bg-emerald-200:disabled, .enabled_c_bg-emerald-200:enabled, .checked_c_bg-emerald-200:checked {
+    background-color: rgb(167 243 208);
+}
+
+.bg-emerald-300, .hover_c_bg-emerald-300:hover, .active_c_bg-emerald-300:active, .inactive_c_bg-emerald-300:inactive, .focus_c_bg-emerald-300:focus, .disabled_c_bg-emerald-300:disabled, .enabled_c_bg-emerald-300:enabled, .checked_c_bg-emerald-300:checked {
+    background-color: rgb(110 231 183);
+}
+
+.bg-emerald-400, .hover_c_bg-emerald-400:hover, .active_c_bg-emerald-400:active, .inactive_c_bg-emerald-400:inactive, .focus_c_bg-emerald-400:focus, .disabled_c_bg-emerald-400:disabled, .enabled_c_bg-emerald-400:enabled, .checked_c_bg-emerald-400:checked {
+    background-color: rgb(52 211 153);
+}
+
+.bg-emerald-500, .hover_c_bg-emerald-500:hover, .active_c_bg-emerald-500:active, .inactive_c_bg-emerald-500:inactive, .focus_c_bg-emerald-500:focus, .disabled_c_bg-emerald-500:disabled, .enabled_c_bg-emerald-500:enabled, .checked_c_bg-emerald-500:checked {
+    background-color: rgb(16 185 129);
+}
+
+.bg-emerald-600, .hover_c_bg-emerald-600:hover, .active_c_bg-emerald-600:active, .inactive_c_bg-emerald-600:inactive, .focus_c_bg-emerald-600:focus, .disabled_c_bg-emerald-600:disabled, .enabled_c_bg-emerald-600:enabled, .checked_c_bg-emerald-600:checked {
+    background-color: rgb(5 150 105);
+}
+
+.bg-emerald-700, .hover_c_bg-emerald-700:hover, .active_c_bg-emerald-700:active, .inactive_c_bg-emerald-700:inactive, .focus_c_bg-emerald-700:focus, .disabled_c_bg-emerald-700:disabled, .enabled_c_bg-emerald-700:enabled, .checked_c_bg-emerald-700:checked {
+    background-color: rgb(4 120 87);
+}
+
+.bg-emerald-800, .hover_c_bg-emerald-800:hover, .active_c_bg-emerald-800:active, .inactive_c_bg-emerald-800:inactive, .focus_c_bg-emerald-800:focus, .disabled_c_bg-emerald-800:disabled, .enabled_c_bg-emerald-800:enabled, .checked_c_bg-emerald-800:checked {
+    background-color: rgb(6 95 70);
+}
+
+.bg-emerald-900, .hover_c_bg-emerald-900:hover, .active_c_bg-emerald-900:active, .inactive_c_bg-emerald-900:inactive, .focus_c_bg-emerald-900:focus, .disabled_c_bg-emerald-900:disabled, .enabled_c_bg-emerald-900:enabled, .checked_c_bg-emerald-900:checked {
+    background-color: rgb(6 78 59);
+}
+
+.bg-teal-50, .hover_c_bg-teal-50:hover, .active_c_bg-teal-50:active, .inactive_c_bg-teal-50:inactive, .focus_c_bg-teal-50:focus, .disabled_c_bg-teal-50:disabled, .enabled_c_bg-teal-50:enabled, .checked_c_bg-teal-50:checked {
+    background-color: rgb(240 253 250);
+}
+
+.bg-teal-100, .hover_c_bg-teal-100:hover, .active_c_bg-teal-100:active, .inactive_c_bg-teal-100:inactive, .focus_c_bg-teal-100:focus, .disabled_c_bg-teal-100:disabled, .enabled_c_bg-teal-100:enabled, .checked_c_bg-teal-100:checked {
+    background-color: rgb(204 251 241);
+}
+
+.bg-teal-200, .hover_c_bg-teal-200:hover, .active_c_bg-teal-200:active, .inactive_c_bg-teal-200:inactive, .focus_c_bg-teal-200:focus, .disabled_c_bg-teal-200:disabled, .enabled_c_bg-teal-200:enabled, .checked_c_bg-teal-200:checked {
+    background-color: rgb(153 246 228);
+}
+
+.bg-teal-300, .hover_c_bg-teal-300:hover, .active_c_bg-teal-300:active, .inactive_c_bg-teal-300:inactive, .focus_c_bg-teal-300:focus, .disabled_c_bg-teal-300:disabled, .enabled_c_bg-teal-300:enabled, .checked_c_bg-teal-300:checked {
+    background-color: rgb(94 234 212);
+}
+
+.bg-teal-400, .hover_c_bg-teal-400:hover, .active_c_bg-teal-400:active, .inactive_c_bg-teal-400:inactive, .focus_c_bg-teal-400:focus, .disabled_c_bg-teal-400:disabled, .enabled_c_bg-teal-400:enabled, .checked_c_bg-teal-400:checked {
+    background-color: rgb(45 212 191);
+}
+
+.bg-teal-500, .hover_c_bg-teal-500:hover, .active_c_bg-teal-500:active, .inactive_c_bg-teal-500:inactive, .focus_c_bg-teal-500:focus, .disabled_c_bg-teal-500:disabled, .enabled_c_bg-teal-500:enabled, .checked_c_bg-teal-500:checked {
+    background-color: rgb(20 184 166);
+}
+
+.bg-teal-600, .hover_c_bg-teal-600:hover, .active_c_bg-teal-600:active, .inactive_c_bg-teal-600:inactive, .focus_c_bg-teal-600:focus, .disabled_c_bg-teal-600:disabled, .enabled_c_bg-teal-600:enabled, .checked_c_bg-teal-600:checked {
+    background-color: rgb(13 148 136);
+}
+
+.bg-teal-700, .hover_c_bg-teal-700:hover, .active_c_bg-teal-700:active, .inactive_c_bg-teal-700:inactive, .focus_c_bg-teal-700:focus, .disabled_c_bg-teal-700:disabled, .enabled_c_bg-teal-700:enabled, .checked_c_bg-teal-700:checked {
+    background-color: rgb(15 118 110);
+}
+
+.bg-teal-800, .hover_c_bg-teal-800:hover, .active_c_bg-teal-800:active, .inactive_c_bg-teal-800:inactive, .focus_c_bg-teal-800:focus, .disabled_c_bg-teal-800:disabled, .enabled_c_bg-teal-800:enabled, .checked_c_bg-teal-800:checked {
+    background-color: rgb(17 94 89);
+}
+
+.bg-teal-900, .hover_c_bg-teal-900:hover, .active_c_bg-teal-900:active, .inactive_c_bg-teal-900:inactive, .focus_c_bg-teal-900:focus, .disabled_c_bg-teal-900:disabled, .enabled_c_bg-teal-900:enabled, .checked_c_bg-teal-900:checked {
+    background-color: rgb(19 78 74);
+}
+
+.bg-cyan-50, .hover_c_bg-cyan-50:hover, .active_c_bg-cyan-50:active, .inactive_c_bg-cyan-50:inactive, .focus_c_bg-cyan-50:focus, .disabled_c_bg-cyan-50:disabled, .enabled_c_bg-cyan-50:enabled, .checked_c_bg-cyan-50:checked {
+    background-color: rgb(236 254 255);
+}
+
+.bg-cyan-100, .hover_c_bg-cyan-100:hover, .active_c_bg-cyan-100:active, .inactive_c_bg-cyan-100:inactive, .focus_c_bg-cyan-100:focus, .disabled_c_bg-cyan-100:disabled, .enabled_c_bg-cyan-100:enabled, .checked_c_bg-cyan-100:checked {
+    background-color: rgb(207 250 254);
+}
+
+.bg-cyan-200, .hover_c_bg-cyan-200:hover, .active_c_bg-cyan-200:active, .inactive_c_bg-cyan-200:inactive, .focus_c_bg-cyan-200:focus, .disabled_c_bg-cyan-200:disabled, .enabled_c_bg-cyan-200:enabled, .checked_c_bg-cyan-200:checked {
+    background-color: rgb(165 243 252);
+}
+
+.bg-cyan-300, .hover_c_bg-cyan-300:hover, .active_c_bg-cyan-300:active, .inactive_c_bg-cyan-300:inactive, .focus_c_bg-cyan-300:focus, .disabled_c_bg-cyan-300:disabled, .enabled_c_bg-cyan-300:enabled, .checked_c_bg-cyan-300:checked {
+    background-color: rgb(103 232 249);
+}
+
+.bg-cyan-400, .hover_c_bg-cyan-400:hover, .active_c_bg-cyan-400:active, .inactive_c_bg-cyan-400:inactive, .focus_c_bg-cyan-400:focus, .disabled_c_bg-cyan-400:disabled, .enabled_c_bg-cyan-400:enabled, .checked_c_bg-cyan-400:checked {
+    background-color: rgb(34 211 238);
+}
+
+.bg-cyan-500, .hover_c_bg-cyan-500:hover, .active_c_bg-cyan-500:active, .inactive_c_bg-cyan-500:inactive, .focus_c_bg-cyan-500:focus, .disabled_c_bg-cyan-500:disabled, .enabled_c_bg-cyan-500:enabled, .checked_c_bg-cyan-500:checked {
+    background-color: rgb(6 182 212);
+}
+
+.bg-cyan-600, .hover_c_bg-cyan-600:hover, .active_c_bg-cyan-600:active, .inactive_c_bg-cyan-600:inactive, .focus_c_bg-cyan-600:focus, .disabled_c_bg-cyan-600:disabled, .enabled_c_bg-cyan-600:enabled, .checked_c_bg-cyan-600:checked {
+    background-color: rgb(8 145 178);
+}
+
+.bg-cyan-700, .hover_c_bg-cyan-700:hover, .active_c_bg-cyan-700:active, .inactive_c_bg-cyan-700:inactive, .focus_c_bg-cyan-700:focus, .disabled_c_bg-cyan-700:disabled, .enabled_c_bg-cyan-700:enabled, .checked_c_bg-cyan-700:checked {
+    background-color: rgb(14 116 144);
+}
+
+.bg-cyan-800, .hover_c_bg-cyan-800:hover, .active_c_bg-cyan-800:active, .inactive_c_bg-cyan-800:inactive, .focus_c_bg-cyan-800:focus, .disabled_c_bg-cyan-800:disabled, .enabled_c_bg-cyan-800:enabled, .checked_c_bg-cyan-800:checked {
+    background-color: rgb(21 94 117);
+}
+
+.bg-cyan-900, .hover_c_bg-cyan-900:hover, .active_c_bg-cyan-900:active, .inactive_c_bg-cyan-900:inactive, .focus_c_bg-cyan-900:focus, .disabled_c_bg-cyan-900:disabled, .enabled_c_bg-cyan-900:enabled, .checked_c_bg-cyan-900:checked {
+    background-color: rgb(22 78 99);
+}
+
+.bg-sky-50, .hover_c_bg-sky-50:hover, .active_c_bg-sky-50:active, .inactive_c_bg-sky-50:inactive, .focus_c_bg-sky-50:focus, .disabled_c_bg-sky-50:disabled, .enabled_c_bg-sky-50:enabled, .checked_c_bg-sky-50:checked {
+    background-color: rgb(240 249 255);
+}
+
+.bg-sky-100, .hover_c_bg-sky-100:hover, .active_c_bg-sky-100:active, .inactive_c_bg-sky-100:inactive, .focus_c_bg-sky-100:focus, .disabled_c_bg-sky-100:disabled, .enabled_c_bg-sky-100:enabled, .checked_c_bg-sky-100:checked {
+    background-color: rgb(224 242 254);
+}
+
+.bg-sky-200, .hover_c_bg-sky-200:hover, .active_c_bg-sky-200:active, .inactive_c_bg-sky-200:inactive, .focus_c_bg-sky-200:focus, .disabled_c_bg-sky-200:disabled, .enabled_c_bg-sky-200:enabled, .checked_c_bg-sky-200:checked {
+    background-color: rgb(186 230 253);
+}
+
+.bg-sky-300, .hover_c_bg-sky-300:hover, .active_c_bg-sky-300:active, .inactive_c_bg-sky-300:inactive, .focus_c_bg-sky-300:focus, .disabled_c_bg-sky-300:disabled, .enabled_c_bg-sky-300:enabled, .checked_c_bg-sky-300:checked {
+    background-color: rgb(125 211 252);
+}
+
+.bg-sky-400, .hover_c_bg-sky-400:hover, .active_c_bg-sky-400:active, .inactive_c_bg-sky-400:inactive, .focus_c_bg-sky-400:focus, .disabled_c_bg-sky-400:disabled, .enabled_c_bg-sky-400:enabled, .checked_c_bg-sky-400:checked {
+    background-color: rgb(56 189 248);
+}
+
+.bg-sky-500, .hover_c_bg-sky-500:hover, .active_c_bg-sky-500:active, .inactive_c_bg-sky-500:inactive, .focus_c_bg-sky-500:focus, .disabled_c_bg-sky-500:disabled, .enabled_c_bg-sky-500:enabled, .checked_c_bg-sky-500:checked {
+    background-color: rgb(14 165 233);
+}
+
+.bg-sky-600, .hover_c_bg-sky-600:hover, .active_c_bg-sky-600:active, .inactive_c_bg-sky-600:inactive, .focus_c_bg-sky-600:focus, .disabled_c_bg-sky-600:disabled, .enabled_c_bg-sky-600:enabled, .checked_c_bg-sky-600:checked {
+    background-color: rgb(2 132 199);
+}
+
+.bg-sky-700, .hover_c_bg-sky-700:hover, .active_c_bg-sky-700:active, .inactive_c_bg-sky-700:inactive, .focus_c_bg-sky-700:focus, .disabled_c_bg-sky-700:disabled, .enabled_c_bg-sky-700:enabled, .checked_c_bg-sky-700:checked {
+    background-color: rgb(3 105 161);
+}
+
+.bg-sky-800, .hover_c_bg-sky-800:hover, .active_c_bg-sky-800:active, .inactive_c_bg-sky-800:inactive, .focus_c_bg-sky-800:focus, .disabled_c_bg-sky-800:disabled, .enabled_c_bg-sky-800:enabled, .checked_c_bg-sky-800:checked {
+    background-color: rgb(7 89 133);
+}
+
+.bg-sky-900, .hover_c_bg-sky-900:hover, .active_c_bg-sky-900:active, .inactive_c_bg-sky-900:inactive, .focus_c_bg-sky-900:focus, .disabled_c_bg-sky-900:disabled, .enabled_c_bg-sky-900:enabled, .checked_c_bg-sky-900:checked {
+    background-color: rgb(12 74 110);
+}
+
+.bg-blue-50, .hover_c_bg-blue-50:hover, .active_c_bg-blue-50:active, .inactive_c_bg-blue-50:inactive, .focus_c_bg-blue-50:focus, .disabled_c_bg-blue-50:disabled, .enabled_c_bg-blue-50:enabled, .checked_c_bg-blue-50:checked {
+    background-color: rgb(239 246 255);
+}
+
+.bg-blue-100, .hover_c_bg-blue-100:hover, .active_c_bg-blue-100:active, .inactive_c_bg-blue-100:inactive, .focus_c_bg-blue-100:focus, .disabled_c_bg-blue-100:disabled, .enabled_c_bg-blue-100:enabled, .checked_c_bg-blue-100:checked {
+    background-color: rgb(219 234 254);
+}
+
+.bg-blue-200, .hover_c_bg-blue-200:hover, .active_c_bg-blue-200:active, .inactive_c_bg-blue-200:inactive, .focus_c_bg-blue-200:focus, .disabled_c_bg-blue-200:disabled, .enabled_c_bg-blue-200:enabled, .checked_c_bg-blue-200:checked {
+    background-color: rgb(191 219 254);
+}
+
+.bg-blue-300, .hover_c_bg-blue-300:hover, .active_c_bg-blue-300:active, .inactive_c_bg-blue-300:inactive, .focus_c_bg-blue-300:focus, .disabled_c_bg-blue-300:disabled, .enabled_c_bg-blue-300:enabled, .checked_c_bg-blue-300:checked {
+    background-color: rgb(147 197 253);
+}
+
+.bg-blue-400, .hover_c_bg-blue-400:hover, .active_c_bg-blue-400:active, .inactive_c_bg-blue-400:inactive, .focus_c_bg-blue-400:focus, .disabled_c_bg-blue-400:disabled, .enabled_c_bg-blue-400:enabled, .checked_c_bg-blue-400:checked {
+    background-color: rgb(96 165 250);
+}
+
+.bg-blue-500, .hover_c_bg-blue-500:hover, .active_c_bg-blue-500:active, .inactive_c_bg-blue-500:inactive, .focus_c_bg-blue-500:focus, .disabled_c_bg-blue-500:disabled, .enabled_c_bg-blue-500:enabled, .checked_c_bg-blue-500:checked {
+    background-color: rgb(59 130 246);
+}
+
+.bg-blue-600, .hover_c_bg-blue-600:hover, .active_c_bg-blue-600:active, .inactive_c_bg-blue-600:inactive, .focus_c_bg-blue-600:focus, .disabled_c_bg-blue-600:disabled, .enabled_c_bg-blue-600:enabled, .checked_c_bg-blue-600:checked {
+    background-color: rgb(37 99 235);
+}
+
+.bg-blue-700, .hover_c_bg-blue-700:hover, .active_c_bg-blue-700:active, .inactive_c_bg-blue-700:inactive, .focus_c_bg-blue-700:focus, .disabled_c_bg-blue-700:disabled, .enabled_c_bg-blue-700:enabled, .checked_c_bg-blue-700:checked {
+    background-color: rgb(29 78 216);
+}
+
+.bg-blue-800, .hover_c_bg-blue-800:hover, .active_c_bg-blue-800:active, .inactive_c_bg-blue-800:inactive, .focus_c_bg-blue-800:focus, .disabled_c_bg-blue-800:disabled, .enabled_c_bg-blue-800:enabled, .checked_c_bg-blue-800:checked {
+    background-color: rgb(30 64 175);
+}
+
+.bg-blue-900, .hover_c_bg-blue-900:hover, .active_c_bg-blue-900:active, .inactive_c_bg-blue-900:inactive, .focus_c_bg-blue-900:focus, .disabled_c_bg-blue-900:disabled, .enabled_c_bg-blue-900:enabled, .checked_c_bg-blue-900:checked {
+    background-color: rgb(30 58 138);
+}
+
+.bg-indigo-50, .hover_c_bg-indigo-50:hover, .active_c_bg-indigo-50:active, .inactive_c_bg-indigo-50:inactive, .focus_c_bg-indigo-50:focus, .disabled_c_bg-indigo-50:disabled, .enabled_c_bg-indigo-50:enabled, .checked_c_bg-indigo-50:checked {
+    background-color: rgb(238 242 255);
+}
+
+.bg-indigo-100, .hover_c_bg-indigo-100:hover, .active_c_bg-indigo-100:active, .inactive_c_bg-indigo-100:inactive, .focus_c_bg-indigo-100:focus, .disabled_c_bg-indigo-100:disabled, .enabled_c_bg-indigo-100:enabled, .checked_c_bg-indigo-100:checked {
+    background-color: rgb(224 231 255);
+}
+
+.bg-indigo-200, .hover_c_bg-indigo-200:hover, .active_c_bg-indigo-200:active, .inactive_c_bg-indigo-200:inactive, .focus_c_bg-indigo-200:focus, .disabled_c_bg-indigo-200:disabled, .enabled_c_bg-indigo-200:enabled, .checked_c_bg-indigo-200:checked {
+    background-color: rgb(199 210 254);
+}
+
+.bg-indigo-300, .hover_c_bg-indigo-300:hover, .active_c_bg-indigo-300:active, .inactive_c_bg-indigo-300:inactive, .focus_c_bg-indigo-300:focus, .disabled_c_bg-indigo-300:disabled, .enabled_c_bg-indigo-300:enabled, .checked_c_bg-indigo-300:checked {
+    background-color: rgb(165 180 252);
+}
+
+.bg-indigo-400, .hover_c_bg-indigo-400:hover, .active_c_bg-indigo-400:active, .inactive_c_bg-indigo-400:inactive, .focus_c_bg-indigo-400:focus, .disabled_c_bg-indigo-400:disabled, .enabled_c_bg-indigo-400:enabled, .checked_c_bg-indigo-400:checked {
+    background-color: rgb(129 140 248);
+}
+
+.bg-indigo-500, .hover_c_bg-indigo-500:hover, .active_c_bg-indigo-500:active, .inactive_c_bg-indigo-500:inactive, .focus_c_bg-indigo-500:focus, .disabled_c_bg-indigo-500:disabled, .enabled_c_bg-indigo-500:enabled, .checked_c_bg-indigo-500:checked {
+    background-color: rgb(99 102 241);
+}
+
+.bg-indigo-600, .hover_c_bg-indigo-600:hover, .active_c_bg-indigo-600:active, .inactive_c_bg-indigo-600:inactive, .focus_c_bg-indigo-600:focus, .disabled_c_bg-indigo-600:disabled, .enabled_c_bg-indigo-600:enabled, .checked_c_bg-indigo-600:checked {
+    background-color: rgb(79 70 229);
+}
+
+.bg-indigo-700, .hover_c_bg-indigo-700:hover, .active_c_bg-indigo-700:active, .inactive_c_bg-indigo-700:inactive, .focus_c_bg-indigo-700:focus, .disabled_c_bg-indigo-700:disabled, .enabled_c_bg-indigo-700:enabled, .checked_c_bg-indigo-700:checked {
+    background-color: rgb(67 56 202);
+}
+
+.bg-indigo-800, .hover_c_bg-indigo-800:hover, .active_c_bg-indigo-800:active, .inactive_c_bg-indigo-800:inactive, .focus_c_bg-indigo-800:focus, .disabled_c_bg-indigo-800:disabled, .enabled_c_bg-indigo-800:enabled, .checked_c_bg-indigo-800:checked {
+    background-color: rgb(55 48 163);
+}
+
+.bg-indigo-900, .hover_c_bg-indigo-900:hover, .active_c_bg-indigo-900:active, .inactive_c_bg-indigo-900:inactive, .focus_c_bg-indigo-900:focus, .disabled_c_bg-indigo-900:disabled, .enabled_c_bg-indigo-900:enabled, .checked_c_bg-indigo-900:checked {
+    background-color: rgb(49 46 129);
+}
+
+.bg-violet-50, .hover_c_bg-violet-50:hover, .active_c_bg-violet-50:active, .inactive_c_bg-violet-50:inactive, .focus_c_bg-violet-50:focus, .disabled_c_bg-violet-50:disabled, .enabled_c_bg-violet-50:enabled, .checked_c_bg-violet-50:checked {
+    background-color: rgb(245 243 255);
+}
+
+.bg-violet-100, .hover_c_bg-violet-100:hover, .active_c_bg-violet-100:active, .inactive_c_bg-violet-100:inactive, .focus_c_bg-violet-100:focus, .disabled_c_bg-violet-100:disabled, .enabled_c_bg-violet-100:enabled, .checked_c_bg-violet-100:checked {
+    background-color: rgb(237 233 254);
+}
+
+.bg-violet-200, .hover_c_bg-violet-200:hover, .active_c_bg-violet-200:active, .inactive_c_bg-violet-200:inactive, .focus_c_bg-violet-200:focus, .disabled_c_bg-violet-200:disabled, .enabled_c_bg-violet-200:enabled, .checked_c_bg-violet-200:checked {
+    background-color: rgb(221 214 254);
+}
+
+.bg-violet-300, .hover_c_bg-violet-300:hover, .active_c_bg-violet-300:active, .inactive_c_bg-violet-300:inactive, .focus_c_bg-violet-300:focus, .disabled_c_bg-violet-300:disabled, .enabled_c_bg-violet-300:enabled, .checked_c_bg-violet-300:checked {
+    background-color: rgb(196 181 253);
+}
+
+.bg-violet-400, .hover_c_bg-violet-400:hover, .active_c_bg-violet-400:active, .inactive_c_bg-violet-400:inactive, .focus_c_bg-violet-400:focus, .disabled_c_bg-violet-400:disabled, .enabled_c_bg-violet-400:enabled, .checked_c_bg-violet-400:checked {
+    background-color: rgb(167 139 250);
+}
+
+.bg-violet-500, .hover_c_bg-violet-500:hover, .active_c_bg-violet-500:active, .inactive_c_bg-violet-500:inactive, .focus_c_bg-violet-500:focus, .disabled_c_bg-violet-500:disabled, .enabled_c_bg-violet-500:enabled, .checked_c_bg-violet-500:checked {
+    background-color: rgb(139 92 246);
+}
+
+.bg-violet-600, .hover_c_bg-violet-600:hover, .active_c_bg-violet-600:active, .inactive_c_bg-violet-600:inactive, .focus_c_bg-violet-600:focus, .disabled_c_bg-violet-600:disabled, .enabled_c_bg-violet-600:enabled, .checked_c_bg-violet-600:checked {
+    background-color: rgb(124 58 237);
+}
+
+.bg-violet-700, .hover_c_bg-violet-700:hover, .active_c_bg-violet-700:active, .inactive_c_bg-violet-700:inactive, .focus_c_bg-violet-700:focus, .disabled_c_bg-violet-700:disabled, .enabled_c_bg-violet-700:enabled, .checked_c_bg-violet-700:checked {
+    background-color: rgb(109 40 217);
+}
+
+.bg-violet-800, .hover_c_bg-violet-800:hover, .active_c_bg-violet-800:active, .inactive_c_bg-violet-800:inactive, .focus_c_bg-violet-800:focus, .disabled_c_bg-violet-800:disabled, .enabled_c_bg-violet-800:enabled, .checked_c_bg-violet-800:checked {
+    background-color: rgb(91 33 182);
+}
+
+.bg-violet-900, .hover_c_bg-violet-900:hover, .active_c_bg-violet-900:active, .inactive_c_bg-violet-900:inactive, .focus_c_bg-violet-900:focus, .disabled_c_bg-violet-900:disabled, .enabled_c_bg-violet-900:enabled, .checked_c_bg-violet-900:checked {
+    background-color: rgb(76 29 149);
+}
+
+.bg-purple-50, .hover_c_bg-purple-50:hover, .active_c_bg-purple-50:active, .inactive_c_bg-purple-50:inactive, .focus_c_bg-purple-50:focus, .disabled_c_bg-purple-50:disabled, .enabled_c_bg-purple-50:enabled, .checked_c_bg-purple-50:checked {
+    background-color: rgb(250 245 255);
+}
+
+.bg-purple-100, .hover_c_bg-purple-100:hover, .active_c_bg-purple-100:active, .inactive_c_bg-purple-100:inactive, .focus_c_bg-purple-100:focus, .disabled_c_bg-purple-100:disabled, .enabled_c_bg-purple-100:enabled, .checked_c_bg-purple-100:checked {
+    background-color: rgb(243 232 255);
+}
+
+.bg-purple-200, .hover_c_bg-purple-200:hover, .active_c_bg-purple-200:active, .inactive_c_bg-purple-200:inactive, .focus_c_bg-purple-200:focus, .disabled_c_bg-purple-200:disabled, .enabled_c_bg-purple-200:enabled, .checked_c_bg-purple-200:checked {
+    background-color: rgb(233 213 255);
+}
+
+.bg-purple-300, .hover_c_bg-purple-300:hover, .active_c_bg-purple-300:active, .inactive_c_bg-purple-300:inactive, .focus_c_bg-purple-300:focus, .disabled_c_bg-purple-300:disabled, .enabled_c_bg-purple-300:enabled, .checked_c_bg-purple-300:checked {
+    background-color: rgb(216 180 254);
+}
+
+.bg-purple-400, .hover_c_bg-purple-400:hover, .active_c_bg-purple-400:active, .inactive_c_bg-purple-400:inactive, .focus_c_bg-purple-400:focus, .disabled_c_bg-purple-400:disabled, .enabled_c_bg-purple-400:enabled, .checked_c_bg-purple-400:checked {
+    background-color: rgb(192 132 252);
+}
+
+.bg-purple-500, .hover_c_bg-purple-500:hover, .active_c_bg-purple-500:active, .inactive_c_bg-purple-500:inactive, .focus_c_bg-purple-500:focus, .disabled_c_bg-purple-500:disabled, .enabled_c_bg-purple-500:enabled, .checked_c_bg-purple-500:checked {
+    background-color: rgb(168 85 247);
+}
+
+.bg-purple-600, .hover_c_bg-purple-600:hover, .active_c_bg-purple-600:active, .inactive_c_bg-purple-600:inactive, .focus_c_bg-purple-600:focus, .disabled_c_bg-purple-600:disabled, .enabled_c_bg-purple-600:enabled, .checked_c_bg-purple-600:checked {
+    background-color: rgb(147 51 234);
+}
+
+.bg-purple-700, .hover_c_bg-purple-700:hover, .active_c_bg-purple-700:active, .inactive_c_bg-purple-700:inactive, .focus_c_bg-purple-700:focus, .disabled_c_bg-purple-700:disabled, .enabled_c_bg-purple-700:enabled, .checked_c_bg-purple-700:checked {
+    background-color: rgb(126 34 206);
+}
+
+.bg-purple-800, .hover_c_bg-purple-800:hover, .active_c_bg-purple-800:active, .inactive_c_bg-purple-800:inactive, .focus_c_bg-purple-800:focus, .disabled_c_bg-purple-800:disabled, .enabled_c_bg-purple-800:enabled, .checked_c_bg-purple-800:checked {
+    background-color: rgb(107 33 168);
+}
+
+.bg-purple-900, .hover_c_bg-purple-900:hover, .active_c_bg-purple-900:active, .inactive_c_bg-purple-900:inactive, .focus_c_bg-purple-900:focus, .disabled_c_bg-purple-900:disabled, .enabled_c_bg-purple-900:enabled, .checked_c_bg-purple-900:checked {
+    background-color: rgb(88 28 135);
+}
+
+.bg-fuchsia-50, .hover_c_bg-fuchsia-50:hover, .active_c_bg-fuchsia-50:active, .inactive_c_bg-fuchsia-50:inactive, .focus_c_bg-fuchsia-50:focus, .disabled_c_bg-fuchsia-50:disabled, .enabled_c_bg-fuchsia-50:enabled, .checked_c_bg-fuchsia-50:checked {
+    background-color: rgb(253 244 255);
+}
+
+.bg-fuchsia-100, .hover_c_bg-fuchsia-100:hover, .active_c_bg-fuchsia-100:active, .inactive_c_bg-fuchsia-100:inactive, .focus_c_bg-fuchsia-100:focus, .disabled_c_bg-fuchsia-100:disabled, .enabled_c_bg-fuchsia-100:enabled, .checked_c_bg-fuchsia-100:checked {
+    background-color: rgb(250 232 255);
+}
+
+.bg-fuchsia-200, .hover_c_bg-fuchsia-200:hover, .active_c_bg-fuchsia-200:active, .inactive_c_bg-fuchsia-200:inactive, .focus_c_bg-fuchsia-200:focus, .disabled_c_bg-fuchsia-200:disabled, .enabled_c_bg-fuchsia-200:enabled, .checked_c_bg-fuchsia-200:checked {
+    background-color: rgb(245 208 254);
+}
+
+.bg-fuchsia-300, .hover_c_bg-fuchsia-300:hover, .active_c_bg-fuchsia-300:active, .inactive_c_bg-fuchsia-300:inactive, .focus_c_bg-fuchsia-300:focus, .disabled_c_bg-fuchsia-300:disabled, .enabled_c_bg-fuchsia-300:enabled, .checked_c_bg-fuchsia-300:checked {
+    background-color: rgb(240 171 252);
+}
+
+.bg-fuchsia-400, .hover_c_bg-fuchsia-400:hover, .active_c_bg-fuchsia-400:active, .inactive_c_bg-fuchsia-400:inactive, .focus_c_bg-fuchsia-400:focus, .disabled_c_bg-fuchsia-400:disabled, .enabled_c_bg-fuchsia-400:enabled, .checked_c_bg-fuchsia-400:checked {
+    background-color: rgb(232 121 249);
+}
+
+.bg-fuchsia-500, .hover_c_bg-fuchsia-500:hover, .active_c_bg-fuchsia-500:active, .inactive_c_bg-fuchsia-500:inactive, .focus_c_bg-fuchsia-500:focus, .disabled_c_bg-fuchsia-500:disabled, .enabled_c_bg-fuchsia-500:enabled, .checked_c_bg-fuchsia-500:checked {
+    background-color: rgb(217 70 239);
+}
+
+.bg-fuchsia-600, .hover_c_bg-fuchsia-600:hover, .active_c_bg-fuchsia-600:active, .inactive_c_bg-fuchsia-600:inactive, .focus_c_bg-fuchsia-600:focus, .disabled_c_bg-fuchsia-600:disabled, .enabled_c_bg-fuchsia-600:enabled, .checked_c_bg-fuchsia-600:checked {
+    background-color: rgb(192 38 211);
+}
+
+.bg-fuchsia-700, .hover_c_bg-fuchsia-700:hover, .active_c_bg-fuchsia-700:active, .inactive_c_bg-fuchsia-700:inactive, .focus_c_bg-fuchsia-700:focus, .disabled_c_bg-fuchsia-700:disabled, .enabled_c_bg-fuchsia-700:enabled, .checked_c_bg-fuchsia-700:checked {
+    background-color: rgb(162 28 175);
+}
+
+.bg-fuchsia-800, .hover_c_bg-fuchsia-800:hover, .active_c_bg-fuchsia-800:active, .inactive_c_bg-fuchsia-800:inactive, .focus_c_bg-fuchsia-800:focus, .disabled_c_bg-fuchsia-800:disabled, .enabled_c_bg-fuchsia-800:enabled, .checked_c_bg-fuchsia-800:checked {
+    background-color: rgb(134 25 143);
+}
+
+.bg-fuchsia-900, .hover_c_bg-fuchsia-900:hover, .active_c_bg-fuchsia-900:active, .inactive_c_bg-fuchsia-900:inactive, .focus_c_bg-fuchsia-900:focus, .disabled_c_bg-fuchsia-900:disabled, .enabled_c_bg-fuchsia-900:enabled, .checked_c_bg-fuchsia-900:checked {
+    background-color: rgb(112 26 117);
+}
+
+.bg-pink-50, .hover_c_bg-pink-50:hover, .active_c_bg-pink-50:active, .inactive_c_bg-pink-50:inactive, .focus_c_bg-pink-50:focus, .disabled_c_bg-pink-50:disabled, .enabled_c_bg-pink-50:enabled, .checked_c_bg-pink-50:checked {
+    background-color: rgb(253 242 248);
+}
+
+.bg-pink-100, .hover_c_bg-pink-100:hover, .active_c_bg-pink-100:active, .inactive_c_bg-pink-100:inactive, .focus_c_bg-pink-100:focus, .disabled_c_bg-pink-100:disabled, .enabled_c_bg-pink-100:enabled, .checked_c_bg-pink-100:checked {
+    background-color: rgb(252 231 243);
+}
+
+.bg-pink-200, .hover_c_bg-pink-200:hover, .active_c_bg-pink-200:active, .inactive_c_bg-pink-200:inactive, .focus_c_bg-pink-200:focus, .disabled_c_bg-pink-200:disabled, .enabled_c_bg-pink-200:enabled, .checked_c_bg-pink-200:checked {
+    background-color: rgb(251 207 232);
+}
+
+.bg-pink-300, .hover_c_bg-pink-300:hover, .active_c_bg-pink-300:active, .inactive_c_bg-pink-300:inactive, .focus_c_bg-pink-300:focus, .disabled_c_bg-pink-300:disabled, .enabled_c_bg-pink-300:enabled, .checked_c_bg-pink-300:checked {
+    background-color: rgb(249 168 212);
+}
+
+.bg-pink-400, .hover_c_bg-pink-400:hover, .active_c_bg-pink-400:active, .inactive_c_bg-pink-400:inactive, .focus_c_bg-pink-400:focus, .disabled_c_bg-pink-400:disabled, .enabled_c_bg-pink-400:enabled, .checked_c_bg-pink-400:checked {
+    background-color: rgb(244 114 182);
+}
+
+.bg-pink-500, .hover_c_bg-pink-500:hover, .active_c_bg-pink-500:active, .inactive_c_bg-pink-500:inactive, .focus_c_bg-pink-500:focus, .disabled_c_bg-pink-500:disabled, .enabled_c_bg-pink-500:enabled, .checked_c_bg-pink-500:checked {
+    background-color: rgb(236 72 153);
+}
+
+.bg-pink-600, .hover_c_bg-pink-600:hover, .active_c_bg-pink-600:active, .inactive_c_bg-pink-600:inactive, .focus_c_bg-pink-600:focus, .disabled_c_bg-pink-600:disabled, .enabled_c_bg-pink-600:enabled, .checked_c_bg-pink-600:checked {
+    background-color: rgb(219 39 119);
+}
+
+.bg-pink-700, .hover_c_bg-pink-700:hover, .active_c_bg-pink-700:active, .inactive_c_bg-pink-700:inactive, .focus_c_bg-pink-700:focus, .disabled_c_bg-pink-700:disabled, .enabled_c_bg-pink-700:enabled, .checked_c_bg-pink-700:checked {
+    background-color: rgb(190 24 93);
+}
+
+.bg-pink-800, .hover_c_bg-pink-800:hover, .active_c_bg-pink-800:active, .inactive_c_bg-pink-800:inactive, .focus_c_bg-pink-800:focus, .disabled_c_bg-pink-800:disabled, .enabled_c_bg-pink-800:enabled, .checked_c_bg-pink-800:checked {
+    background-color: rgb(157 23 77);
+}
+
+.bg-pink-900, .hover_c_bg-pink-900:hover, .active_c_bg-pink-900:active, .inactive_c_bg-pink-900:inactive, .focus_c_bg-pink-900:focus, .disabled_c_bg-pink-900:disabled, .enabled_c_bg-pink-900:enabled, .checked_c_bg-pink-900:checked {
+    background-color: rgb(131 24 67);
+}
+
+.bg-rose-50, .hover_c_bg-rose-50:hover, .active_c_bg-rose-50:active, .inactive_c_bg-rose-50:inactive, .focus_c_bg-rose-50:focus, .disabled_c_bg-rose-50:disabled, .enabled_c_bg-rose-50:enabled, .checked_c_bg-rose-50:checked {
+    background-color: rgb(255 241 242);
+}
+
+.bg-rose-100, .hover_c_bg-rose-100:hover, .active_c_bg-rose-100:active, .inactive_c_bg-rose-100:inactive, .focus_c_bg-rose-100:focus, .disabled_c_bg-rose-100:disabled, .enabled_c_bg-rose-100:enabled, .checked_c_bg-rose-100:checked {
+    background-color: rgb(255 228 230);
+}
+
+.bg-rose-200, .hover_c_bg-rose-200:hover, .active_c_bg-rose-200:active, .inactive_c_bg-rose-200:inactive, .focus_c_bg-rose-200:focus, .disabled_c_bg-rose-200:disabled, .enabled_c_bg-rose-200:enabled, .checked_c_bg-rose-200:checked {
+    background-color: rgb(254 205 211);
+}
+
+.bg-rose-300, .hover_c_bg-rose-300:hover, .active_c_bg-rose-300:active, .inactive_c_bg-rose-300:inactive, .focus_c_bg-rose-300:focus, .disabled_c_bg-rose-300:disabled, .enabled_c_bg-rose-300:enabled, .checked_c_bg-rose-300:checked {
+    background-color: rgb(253 164 175);
+}
+
+.bg-rose-400, .hover_c_bg-rose-400:hover, .active_c_bg-rose-400:active, .inactive_c_bg-rose-400:inactive, .focus_c_bg-rose-400:focus, .disabled_c_bg-rose-400:disabled, .enabled_c_bg-rose-400:enabled, .checked_c_bg-rose-400:checked {
+    background-color: rgb(251 113 133);
+}
+
+.bg-rose-500, .hover_c_bg-rose-500:hover, .active_c_bg-rose-500:active, .inactive_c_bg-rose-500:inactive, .focus_c_bg-rose-500:focus, .disabled_c_bg-rose-500:disabled, .enabled_c_bg-rose-500:enabled, .checked_c_bg-rose-500:checked {
+    background-color: rgb(244 63 94);
+}
+
+.bg-rose-600, .hover_c_bg-rose-600:hover, .active_c_bg-rose-600:active, .inactive_c_bg-rose-600:inactive, .focus_c_bg-rose-600:focus, .disabled_c_bg-rose-600:disabled, .enabled_c_bg-rose-600:enabled, .checked_c_bg-rose-600:checked {
+    background-color: rgb(225 29 72);
+}
+
+.bg-rose-700, .hover_c_bg-rose-700:hover, .active_c_bg-rose-700:active, .inactive_c_bg-rose-700:inactive, .focus_c_bg-rose-700:focus, .disabled_c_bg-rose-700:disabled, .enabled_c_bg-rose-700:enabled, .checked_c_bg-rose-700:checked {
+    background-color: rgb(190 18 60);
+}
+
+.bg-rose-800, .hover_c_bg-rose-800:hover, .active_c_bg-rose-800:active, .inactive_c_bg-rose-800:inactive, .focus_c_bg-rose-800:focus, .disabled_c_bg-rose-800:disabled, .enabled_c_bg-rose-800:enabled, .checked_c_bg-rose-800:checked {
+    background-color: rgb(159 18 57);
+}
+
+.bg-rose-900, .hover_c_bg-rose-900:hover, .active_c_bg-rose-900:active, .inactive_c_bg-rose-900:inactive, .focus_c_bg-rose-900:focus, .disabled_c_bg-rose-900:disabled, .enabled_c_bg-rose-900:enabled, .checked_c_bg-rose-900:checked {
+    background-color: rgb(136 19 55);
+}
+
+/* Unity Specific */
+
+.bg-crop, .hover_c_bg-crop:hover, .active_c_bg-crop:active, .inactive_c_bg-crop:inactive, .focus_c_bg-crop:focus, .disabled_c_bg-crop:disabled, .enabled_c_bg-crop:enabled, .checked_c_bg-crop:checked {
+    -unity-background-scale-mode: scale-and-crop;
+}
+
+.bg-fit, .hover_c_bg-fit:hover, .active_c_bg-fit:active, .inactive_c_bg-fit:inactive, .focus_c_bg-fit:focus, .disabled_c_bg-fit:disabled, .enabled_c_bg-fit:enabled, .checked_c_bg-fit:checked {
+    -unity-background-scale-mode: scale-to-fit;
+}
+
+.bg-fill, .hover_c_bg-fill:hover, .active_c_bg-fill:active, .inactive_c_bg-fill:inactive, .focus_c_bg-fill:focus, .disabled_c_bg-fill:disabled, .enabled_c_bg-fill:enabled, .checked_c_bg-fill:checked {
+    -unity-background-scale-mode: stretch-to-fill;
+}

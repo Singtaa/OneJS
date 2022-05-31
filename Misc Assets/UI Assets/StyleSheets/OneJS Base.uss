@@ -1,0 +1,17 @@
+VisualElement {
+}
+
+
+Button {
+    margin: 0;
+    flex-direction: row;
+    justify-content: center;
+}
+
+Button:hover {
+    background-color: palegreen;
+}
+
+.foo {
+    background-color: aqua;
+}

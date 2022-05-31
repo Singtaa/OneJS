@@ -1,0 +1,998 @@
+/* Font Size */
+
+.text-xs, .hover_c_text-xs:hover, .active_c_text-xs:active, .inactive_c_text-xs:inactive, .focus_c_text-xs:focus, .disabled_c_text-xs:disabled, .enabled_c_text-xs:enabled, .checked_c_text-xs:checked {
+    font-size: 12px;
+    /*line-height: 16px;*/
+}
+
+.text-sm, .hover_c_text-sm:hover, .active_c_text-sm:active, .inactive_c_text-sm:inactive, .focus_c_text-sm:focus, .disabled_c_text-sm:disabled, .enabled_c_text-sm:enabled, .checked_c_text-sm:checked {
+    font-size: 14px;
+    /*line-height: 20px;*/
+}
+
+.text-base, .hover_c_text-base:hover, .active_c_text-base:active, .inactive_c_text-base:inactive, .focus_c_text-base:focus, .disabled_c_text-base:disabled, .enabled_c_text-base:enabled, .checked_c_text-base:checked {
+    font-size: 16px;
+    /*line-height: 24px;*/
+}
+
+.text-lg, .hover_c_text-lg:hover, .active_c_text-lg:active, .inactive_c_text-lg:inactive, .focus_c_text-lg:focus, .disabled_c_text-lg:disabled, .enabled_c_text-lg:enabled, .checked_c_text-lg:checked {
+    font-size: 18px;
+    /*line-height: 28px;*/
+}
+
+.text-xl, .hover_c_text-xl:hover, .active_c_text-xl:active, .inactive_c_text-xl:inactive, .focus_c_text-xl:focus, .disabled_c_text-xl:disabled, .enabled_c_text-xl:enabled, .checked_c_text-xl:checked {
+    font-size: 20px;
+    /*line-height: 28px;*/
+}
+
+.text-2xl, .hover_c_text-2xl:hover, .active_c_text-2xl:active, .inactive_c_text-2xl:inactive, .focus_c_text-2xl:focus, .disabled_c_text-2xl:disabled, .enabled_c_text-2xl:enabled, .checked_c_text-2xl:checked {
+    font-size: 24px;
+    /*line-height: 32px;*/
+}
+
+.text-3xl, .hover_c_text-3xl:hover, .active_c_text-3xl:active, .inactive_c_text-3xl:inactive, .focus_c_text-3xl:focus, .disabled_c_text-3xl:disabled, .enabled_c_text-3xl:enabled, .checked_c_text-3xl:checked {
+    font-size: 30px;
+    /*line-height: 36px;*/
+}
+
+.text-4xl, .hover_c_text-4xl:hover, .active_c_text-4xl:active, .inactive_c_text-4xl:inactive, .focus_c_text-4xl:focus, .disabled_c_text-4xl:disabled, .enabled_c_text-4xl:enabled, .checked_c_text-4xl:checked {
+    font-size: 36px;
+    /*line-height: 40px;*/
+}
+
+.text-5xl, .hover_c_text-5xl:hover, .active_c_text-5xl:active, .inactive_c_text-5xl:inactive, .focus_c_text-5xl:focus, .disabled_c_text-5xl:disabled, .enabled_c_text-5xl:enabled, .checked_c_text-5xl:checked {
+    font-size: 48px;
+    /*line-height: 1;*/
+}
+
+.text-6xl, .hover_c_text-6xl:hover, .active_c_text-6xl:active, .inactive_c_text-6xl:inactive, .focus_c_text-6xl:focus, .disabled_c_text-6xl:disabled, .enabled_c_text-6xl:enabled, .checked_c_text-6xl:checked {
+    font-size: 60px;
+    /*line-height: 1;*/
+}
+
+.text-7xl, .hover_c_text-7xl:hover, .active_c_text-7xl:active, .inactive_c_text-7xl:inactive, .focus_c_text-7xl:focus, .disabled_c_text-7xl:disabled, .enabled_c_text-7xl:enabled, .checked_c_text-7xl:checked {
+    font-size: 72px;
+    /*line-height: 1;*/
+}
+
+.text-8xl, .hover_c_text-8xl:hover, .active_c_text-8xl:active, .inactive_c_text-8xl:inactive, .focus_c_text-8xl:focus, .disabled_c_text-8xl:disabled, .enabled_c_text-8xl:enabled, .checked_c_text-8xl:checked {
+    font-size: 96px;
+    /*line-height: 1;*/
+}
+
+.text-9xl, .hover_c_text-9xl:hover, .active_c_text-9xl:active, .inactive_c_text-9xl:inactive, .focus_c_text-9xl:focus, .disabled_c_text-9xl:disabled, .enabled_c_text-9xl:enabled, .checked_c_text-9xl:checked {
+    font-size: 128px;
+    /*line-height: 1;*/
+}
+
+/* Style & Weight */
+
+.italic, .hover_c_italic:hover, .active_c_italic:active, .inactive_c_italic:inactive, .focus_c_italic:focus, .disabled_c_italic:disabled, .enabled_c_italic:enabled, .checked_c_italic:checked {
+    -unity-font-style: italic;
+}
+
+.not-italic, .hover_c_not-italic:hover, .active_c_not-italic:active, .inactive_c_not-italic:inactive, .focus_c_not-italic:focus, .disabled_c_not-italic:disabled, .enabled_c_not-italic:enabled, .checked_c_not-italic:checked {
+    -unity-font-style: normal;
+}
+
+.bold, .hover_c_bold:hover, .active_c_bold:active, .inactive_c_bold:inactive, .focus_c_bold:focus, .disabled_c_bold:disabled, .enabled_c_bold:enabled, .checked_c_bold:checked {
+    -unity-font-style: bold;
+}
+
+/* Text Alignment */
+
+.text-left, .hover_c_text-left:hover, .active_c_text-left:active, .inactive_c_text-left:inactive, .focus_c_text-left:focus, .disabled_c_text-left:disabled, .enabled_c_text-left:enabled, .checked_c_text-left:checked {
+    -unity-text-align: middle-left;
+}
+
+.text-center, .hover_c_text-center:hover, .active_c_text-center:active, .inactive_c_text-center:inactive, .focus_c_text-center:focus, .disabled_c_text-center:disabled, .enabled_c_text-center:enabled, .checked_c_text-center:checked {
+    -unity-text-align: middle-center;
+}
+
+.text-right, .hover_c_text-right:hover, .active_c_text-right:active, .inactive_c_text-right:inactive, .focus_c_text-right:focus, .disabled_c_text-right:disabled, .enabled_c_text-right:enabled, .checked_c_text-right:checked {
+    -unity-text-align: middle-right;
+}
+
+/* Text Color */
+
+.text-transparent, .hover_c_text-transparent:hover, .active_c_text-transparent:active, .inactive_c_text-transparent:inactive, .focus_c_text-transparent:focus, .disabled_c_text-transparent:disabled, .enabled_c_text-transparent:enabled, .checked_c_text-transparent:checked {
+    color: rgba(0 0 0 0);
+}
+
+.text-black, .hover_c_text-black:hover, .active_c_text-black:active, .inactive_c_text-black:inactive, .focus_c_text-black:focus, .disabled_c_text-black:disabled, .enabled_c_text-black:enabled, .checked_c_text-black:checked {
+    color: rgb(0 0 0);
+}
+
+.text-white, .hover_c_text-white:hover, .active_c_text-white:active, .inactive_c_text-white:inactive, .focus_c_text-white:focus, .disabled_c_text-white:disabled, .enabled_c_text-white:enabled, .checked_c_text-white:checked {
+    color: rgb(255 255 255);
+}
+
+.text-slate-50, .hover_c_text-slate-50:hover, .active_c_text-slate-50:active, .inactive_c_text-slate-50:inactive, .focus_c_text-slate-50:focus, .disabled_c_text-slate-50:disabled, .enabled_c_text-slate-50:enabled, .checked_c_text-slate-50:checked {
+    color: rgb(248 250 252);
+}
+
+.text-slate-100, .hover_c_text-slate-100:hover, .active_c_text-slate-100:active, .inactive_c_text-slate-100:inactive, .focus_c_text-slate-100:focus, .disabled_c_text-slate-100:disabled, .enabled_c_text-slate-100:enabled, .checked_c_text-slate-100:checked {
+    color: rgb(241 245 249);
+}
+
+.text-slate-200, .hover_c_text-slate-200:hover, .active_c_text-slate-200:active, .inactive_c_text-slate-200:inactive, .focus_c_text-slate-200:focus, .disabled_c_text-slate-200:disabled, .enabled_c_text-slate-200:enabled, .checked_c_text-slate-200:checked {
+    color: rgb(226 232 240);
+}
+
+.text-slate-300, .hover_c_text-slate-300:hover, .active_c_text-slate-300:active, .inactive_c_text-slate-300:inactive, .focus_c_text-slate-300:focus, .disabled_c_text-slate-300:disabled, .enabled_c_text-slate-300:enabled, .checked_c_text-slate-300:checked {
+    color: rgb(203 213 225);
+}
+
+.text-slate-400, .hover_c_text-slate-400:hover, .active_c_text-slate-400:active, .inactive_c_text-slate-400:inactive, .focus_c_text-slate-400:focus, .disabled_c_text-slate-400:disabled, .enabled_c_text-slate-400:enabled, .checked_c_text-slate-400:checked {
+    color: rgb(148 163 184);
+}
+
+.text-slate-500, .hover_c_text-slate-500:hover, .active_c_text-slate-500:active, .inactive_c_text-slate-500:inactive, .focus_c_text-slate-500:focus, .disabled_c_text-slate-500:disabled, .enabled_c_text-slate-500:enabled, .checked_c_text-slate-500:checked {
+    color: rgb(100 116 139);
+}
+
+.text-slate-600, .hover_c_text-slate-600:hover, .active_c_text-slate-600:active, .inactive_c_text-slate-600:inactive, .focus_c_text-slate-600:focus, .disabled_c_text-slate-600:disabled, .enabled_c_text-slate-600:enabled, .checked_c_text-slate-600:checked {
+    color: rgb(71 85 105);
+}
+
+.text-slate-700, .hover_c_text-slate-700:hover, .active_c_text-slate-700:active, .inactive_c_text-slate-700:inactive, .focus_c_text-slate-700:focus, .disabled_c_text-slate-700:disabled, .enabled_c_text-slate-700:enabled, .checked_c_text-slate-700:checked {
+    color: rgb(51 65 85);
+}
+
+.text-slate-800, .hover_c_text-slate-800:hover, .active_c_text-slate-800:active, .inactive_c_text-slate-800:inactive, .focus_c_text-slate-800:focus, .disabled_c_text-slate-800:disabled, .enabled_c_text-slate-800:enabled, .checked_c_text-slate-800:checked {
+    color: rgb(30 41 59);
+}
+
+.text-slate-900, .hover_c_text-slate-900:hover, .active_c_text-slate-900:active, .inactive_c_text-slate-900:inactive, .focus_c_text-slate-900:focus, .disabled_c_text-slate-900:disabled, .enabled_c_text-slate-900:enabled, .checked_c_text-slate-900:checked {
+    color: rgb(15 23 42);
+}
+
+.text-gray-50, .hover_c_text-gray-50:hover, .active_c_text-gray-50:active, .inactive_c_text-gray-50:inactive, .focus_c_text-gray-50:focus, .disabled_c_text-gray-50:disabled, .enabled_c_text-gray-50:enabled, .checked_c_text-gray-50:checked {
+    color: rgb(249 250 251);
+}
+
+.text-gray-100, .hover_c_text-gray-100:hover, .active_c_text-gray-100:active, .inactive_c_text-gray-100:inactive, .focus_c_text-gray-100:focus, .disabled_c_text-gray-100:disabled, .enabled_c_text-gray-100:enabled, .checked_c_text-gray-100:checked {
+    color: rgb(243 244 246);
+}
+
+.text-gray-200, .hover_c_text-gray-200:hover, .active_c_text-gray-200:active, .inactive_c_text-gray-200:inactive, .focus_c_text-gray-200:focus, .disabled_c_text-gray-200:disabled, .enabled_c_text-gray-200:enabled, .checked_c_text-gray-200:checked {
+    color: rgb(229 231 235);
+}
+
+.text-gray-300, .hover_c_text-gray-300:hover, .active_c_text-gray-300:active, .inactive_c_text-gray-300:inactive, .focus_c_text-gray-300:focus, .disabled_c_text-gray-300:disabled, .enabled_c_text-gray-300:enabled, .checked_c_text-gray-300:checked {
+    color: rgb(209 213 219);
+}
+
+.text-gray-400, .hover_c_text-gray-400:hover, .active_c_text-gray-400:active, .inactive_c_text-gray-400:inactive, .focus_c_text-gray-400:focus, .disabled_c_text-gray-400:disabled, .enabled_c_text-gray-400:enabled, .checked_c_text-gray-400:checked {
+    color: rgb(156 163 175);
+}
+
+.text-gray-500, .hover_c_text-gray-500:hover, .active_c_text-gray-500:active, .inactive_c_text-gray-500:inactive, .focus_c_text-gray-500:focus, .disabled_c_text-gray-500:disabled, .enabled_c_text-gray-500:enabled, .checked_c_text-gray-500:checked {
+    color: rgb(107 114 128);
+}
+
+.text-gray-600, .hover_c_text-gray-600:hover, .active_c_text-gray-600:active, .inactive_c_text-gray-600:inactive, .focus_c_text-gray-600:focus, .disabled_c_text-gray-600:disabled, .enabled_c_text-gray-600:enabled, .checked_c_text-gray-600:checked {
+    color: rgb(75 85 99);
+}
+
+.text-gray-700, .hover_c_text-gray-700:hover, .active_c_text-gray-700:active, .inactive_c_text-gray-700:inactive, .focus_c_text-gray-700:focus, .disabled_c_text-gray-700:disabled, .enabled_c_text-gray-700:enabled, .checked_c_text-gray-700:checked {
+    color: rgb(55 65 81);
+}
+
+.text-gray-800, .hover_c_text-gray-800:hover, .active_c_text-gray-800:active, .inactive_c_text-gray-800:inactive, .focus_c_text-gray-800:focus, .disabled_c_text-gray-800:disabled, .enabled_c_text-gray-800:enabled, .checked_c_text-gray-800:checked {
+    color: rgb(31 41 55);
+}
+
+.text-gray-900, .hover_c_text-gray-900:hover, .active_c_text-gray-900:active, .inactive_c_text-gray-900:inactive, .focus_c_text-gray-900:focus, .disabled_c_text-gray-900:disabled, .enabled_c_text-gray-900:enabled, .checked_c_text-gray-900:checked {
+    color: rgb(17 24 39);
+}
+
+.text-zinc-50, .hover_c_text-zinc-50:hover, .active_c_text-zinc-50:active, .inactive_c_text-zinc-50:inactive, .focus_c_text-zinc-50:focus, .disabled_c_text-zinc-50:disabled, .enabled_c_text-zinc-50:enabled, .checked_c_text-zinc-50:checked {
+    color: rgb(250 250 250);
+}
+
+.text-zinc-100, .hover_c_text-zinc-100:hover, .active_c_text-zinc-100:active, .inactive_c_text-zinc-100:inactive, .focus_c_text-zinc-100:focus, .disabled_c_text-zinc-100:disabled, .enabled_c_text-zinc-100:enabled, .checked_c_text-zinc-100:checked {
+    color: rgb(244 244 245);
+}
+
+.text-zinc-200, .hover_c_text-zinc-200:hover, .active_c_text-zinc-200:active, .inactive_c_text-zinc-200:inactive, .focus_c_text-zinc-200:focus, .disabled_c_text-zinc-200:disabled, .enabled_c_text-zinc-200:enabled, .checked_c_text-zinc-200:checked {
+    color: rgb(228 228 231);
+}
+
+.text-zinc-300, .hover_c_text-zinc-300:hover, .active_c_text-zinc-300:active, .inactive_c_text-zinc-300:inactive, .focus_c_text-zinc-300:focus, .disabled_c_text-zinc-300:disabled, .enabled_c_text-zinc-300:enabled, .checked_c_text-zinc-300:checked {
+    color: rgb(212 212 216);
+}
+
+.text-zinc-400, .hover_c_text-zinc-400:hover, .active_c_text-zinc-400:active, .inactive_c_text-zinc-400:inactive, .focus_c_text-zinc-400:focus, .disabled_c_text-zinc-400:disabled, .enabled_c_text-zinc-400:enabled, .checked_c_text-zinc-400:checked {
+    color: rgb(161 161 170);
+}
+
+.text-zinc-500, .hover_c_text-zinc-500:hover, .active_c_text-zinc-500:active, .inactive_c_text-zinc-500:inactive, .focus_c_text-zinc-500:focus, .disabled_c_text-zinc-500:disabled, .enabled_c_text-zinc-500:enabled, .checked_c_text-zinc-500:checked {
+    color: rgb(113 113 122);
+}
+
+.text-zinc-600, .hover_c_text-zinc-600:hover, .active_c_text-zinc-600:active, .inactive_c_text-zinc-600:inactive, .focus_c_text-zinc-600:focus, .disabled_c_text-zinc-600:disabled, .enabled_c_text-zinc-600:enabled, .checked_c_text-zinc-600:checked {
+    color: rgb(82 82 91);
+}
+
+.text-zinc-700, .hover_c_text-zinc-700:hover, .active_c_text-zinc-700:active, .inactive_c_text-zinc-700:inactive, .focus_c_text-zinc-700:focus, .disabled_c_text-zinc-700:disabled, .enabled_c_text-zinc-700:enabled, .checked_c_text-zinc-700:checked {
+    color: rgb(63 63 70);
+}
+
+.text-zinc-800, .hover_c_text-zinc-800:hover, .active_c_text-zinc-800:active, .inactive_c_text-zinc-800:inactive, .focus_c_text-zinc-800:focus, .disabled_c_text-zinc-800:disabled, .enabled_c_text-zinc-800:enabled, .checked_c_text-zinc-800:checked {
+    color: rgb(39 39 42);
+}
+
+.text-zinc-900, .hover_c_text-zinc-900:hover, .active_c_text-zinc-900:active, .inactive_c_text-zinc-900:inactive, .focus_c_text-zinc-900:focus, .disabled_c_text-zinc-900:disabled, .enabled_c_text-zinc-900:enabled, .checked_c_text-zinc-900:checked {
+    color: rgb(24 24 27);
+}
+
+.text-neutral-50, .hover_c_text-neutral-50:hover, .active_c_text-neutral-50:active, .inactive_c_text-neutral-50:inactive, .focus_c_text-neutral-50:focus, .disabled_c_text-neutral-50:disabled, .enabled_c_text-neutral-50:enabled, .checked_c_text-neutral-50:checked {
+    color: rgb(250 250 250);
+}
+
+.text-neutral-100, .hover_c_text-neutral-100:hover, .active_c_text-neutral-100:active, .inactive_c_text-neutral-100:inactive, .focus_c_text-neutral-100:focus, .disabled_c_text-neutral-100:disabled, .enabled_c_text-neutral-100:enabled, .checked_c_text-neutral-100:checked {
+    color: rgb(245 245 245);
+}
+
+.text-neutral-200, .hover_c_text-neutral-200:hover, .active_c_text-neutral-200:active, .inactive_c_text-neutral-200:inactive, .focus_c_text-neutral-200:focus, .disabled_c_text-neutral-200:disabled, .enabled_c_text-neutral-200:enabled, .checked_c_text-neutral-200:checked {
+    color: rgb(229 229 229);
+}
+
+.text-neutral-300, .hover_c_text-neutral-300:hover, .active_c_text-neutral-300:active, .inactive_c_text-neutral-300:inactive, .focus_c_text-neutral-300:focus, .disabled_c_text-neutral-300:disabled, .enabled_c_text-neutral-300:enabled, .checked_c_text-neutral-300:checked {
+    color: rgb(212 212 212);
+}
+
+.text-neutral-400, .hover_c_text-neutral-400:hover, .active_c_text-neutral-400:active, .inactive_c_text-neutral-400:inactive, .focus_c_text-neutral-400:focus, .disabled_c_text-neutral-400:disabled, .enabled_c_text-neutral-400:enabled, .checked_c_text-neutral-400:checked {
+    color: rgb(163 163 163);
+}
+
+.text-neutral-500, .hover_c_text-neutral-500:hover, .active_c_text-neutral-500:active, .inactive_c_text-neutral-500:inactive, .focus_c_text-neutral-500:focus, .disabled_c_text-neutral-500:disabled, .enabled_c_text-neutral-500:enabled, .checked_c_text-neutral-500:checked {
+    color: rgb(115 115 115);
+}
+
+.text-neutral-600, .hover_c_text-neutral-600:hover, .active_c_text-neutral-600:active, .inactive_c_text-neutral-600:inactive, .focus_c_text-neutral-600:focus, .disabled_c_text-neutral-600:disabled, .enabled_c_text-neutral-600:enabled, .checked_c_text-neutral-600:checked {
+    color: rgb(82 82 82);
+}
+
+.text-neutral-700, .hover_c_text-neutral-700:hover, .active_c_text-neutral-700:active, .inactive_c_text-neutral-700:inactive, .focus_c_text-neutral-700:focus, .disabled_c_text-neutral-700:disabled, .enabled_c_text-neutral-700:enabled, .checked_c_text-neutral-700:checked {
+    color: rgb(64 64 64);
+}
+
+.text-neutral-800, .hover_c_text-neutral-800:hover, .active_c_text-neutral-800:active, .inactive_c_text-neutral-800:inactive, .focus_c_text-neutral-800:focus, .disabled_c_text-neutral-800:disabled, .enabled_c_text-neutral-800:enabled, .checked_c_text-neutral-800:checked {
+    color: rgb(38 38 38);
+}
+
+.text-neutral-900, .hover_c_text-neutral-900:hover, .active_c_text-neutral-900:active, .inactive_c_text-neutral-900:inactive, .focus_c_text-neutral-900:focus, .disabled_c_text-neutral-900:disabled, .enabled_c_text-neutral-900:enabled, .checked_c_text-neutral-900:checked {
+    color: rgb(23 23 23);
+}
+
+.text-stone-50, .hover_c_text-stone-50:hover, .active_c_text-stone-50:active, .inactive_c_text-stone-50:inactive, .focus_c_text-stone-50:focus, .disabled_c_text-stone-50:disabled, .enabled_c_text-stone-50:enabled, .checked_c_text-stone-50:checked {
+    color: rgb(250 250 249);
+}
+
+.text-stone-100, .hover_c_text-stone-100:hover, .active_c_text-stone-100:active, .inactive_c_text-stone-100:inactive, .focus_c_text-stone-100:focus, .disabled_c_text-stone-100:disabled, .enabled_c_text-stone-100:enabled, .checked_c_text-stone-100:checked {
+    color: rgb(245 245 244);
+}
+
+.text-stone-200, .hover_c_text-stone-200:hover, .active_c_text-stone-200:active, .inactive_c_text-stone-200:inactive, .focus_c_text-stone-200:focus, .disabled_c_text-stone-200:disabled, .enabled_c_text-stone-200:enabled, .checked_c_text-stone-200:checked {
+    color: rgb(231 229 228);
+}
+
+.text-stone-300, .hover_c_text-stone-300:hover, .active_c_text-stone-300:active, .inactive_c_text-stone-300:inactive, .focus_c_text-stone-300:focus, .disabled_c_text-stone-300:disabled, .enabled_c_text-stone-300:enabled, .checked_c_text-stone-300:checked {
+    color: rgb(214 211 209);
+}
+
+.text-stone-400, .hover_c_text-stone-400:hover, .active_c_text-stone-400:active, .inactive_c_text-stone-400:inactive, .focus_c_text-stone-400:focus, .disabled_c_text-stone-400:disabled, .enabled_c_text-stone-400:enabled, .checked_c_text-stone-400:checked {
+    color: rgb(168 162 158);
+}
+
+.text-stone-500, .hover_c_text-stone-500:hover, .active_c_text-stone-500:active, .inactive_c_text-stone-500:inactive, .focus_c_text-stone-500:focus, .disabled_c_text-stone-500:disabled, .enabled_c_text-stone-500:enabled, .checked_c_text-stone-500:checked {
+    color: rgb(120 113 108);
+}
+
+.text-stone-600, .hover_c_text-stone-600:hover, .active_c_text-stone-600:active, .inactive_c_text-stone-600:inactive, .focus_c_text-stone-600:focus, .disabled_c_text-stone-600:disabled, .enabled_c_text-stone-600:enabled, .checked_c_text-stone-600:checked {
+    color: rgb(87 83 78);
+}
+
+.text-stone-700, .hover_c_text-stone-700:hover, .active_c_text-stone-700:active, .inactive_c_text-stone-700:inactive, .focus_c_text-stone-700:focus, .disabled_c_text-stone-700:disabled, .enabled_c_text-stone-700:enabled, .checked_c_text-stone-700:checked {
+    color: rgb(68 64 60);
+}
+
+.text-stone-800, .hover_c_text-stone-800:hover, .active_c_text-stone-800:active, .inactive_c_text-stone-800:inactive, .focus_c_text-stone-800:focus, .disabled_c_text-stone-800:disabled, .enabled_c_text-stone-800:enabled, .checked_c_text-stone-800:checked {
+    color: rgb(41 37 36);
+}
+
+.text-stone-900, .hover_c_text-stone-900:hover, .active_c_text-stone-900:active, .inactive_c_text-stone-900:inactive, .focus_c_text-stone-900:focus, .disabled_c_text-stone-900:disabled, .enabled_c_text-stone-900:enabled, .checked_c_text-stone-900:checked {
+    color: rgb(28 25 23);
+}
+
+.text-red-50, .hover_c_text-red-50:hover, .active_c_text-red-50:active, .inactive_c_text-red-50:inactive, .focus_c_text-red-50:focus, .disabled_c_text-red-50:disabled, .enabled_c_text-red-50:enabled, .checked_c_text-red-50:checked {
+    color: rgb(254 242 242);
+}
+
+.text-red-100, .hover_c_text-red-100:hover, .active_c_text-red-100:active, .inactive_c_text-red-100:inactive, .focus_c_text-red-100:focus, .disabled_c_text-red-100:disabled, .enabled_c_text-red-100:enabled, .checked_c_text-red-100:checked {
+    color: rgb(254 226 226);
+}
+
+.text-red-200, .hover_c_text-red-200:hover, .active_c_text-red-200:active, .inactive_c_text-red-200:inactive, .focus_c_text-red-200:focus, .disabled_c_text-red-200:disabled, .enabled_c_text-red-200:enabled, .checked_c_text-red-200:checked {
+    color: rgb(254 202 202);
+}
+
+.text-red-300, .hover_c_text-red-300:hover, .active_c_text-red-300:active, .inactive_c_text-red-300:inactive, .focus_c_text-red-300:focus, .disabled_c_text-red-300:disabled, .enabled_c_text-red-300:enabled, .checked_c_text-red-300:checked {
+    color: rgb(252 165 165);
+}
+
+.text-red-400, .hover_c_text-red-400:hover, .active_c_text-red-400:active, .inactive_c_text-red-400:inactive, .focus_c_text-red-400:focus, .disabled_c_text-red-400:disabled, .enabled_c_text-red-400:enabled, .checked_c_text-red-400:checked {
+    color: rgb(248 113 113);
+}
+
+.text-red-500, .hover_c_text-red-500:hover, .active_c_text-red-500:active, .inactive_c_text-red-500:inactive, .focus_c_text-red-500:focus, .disabled_c_text-red-500:disabled, .enabled_c_text-red-500:enabled, .checked_c_text-red-500:checked {
+    color: rgb(239 68 68);
+}
+
+.text-red-600, .hover_c_text-red-600:hover, .active_c_text-red-600:active, .inactive_c_text-red-600:inactive, .focus_c_text-red-600:focus, .disabled_c_text-red-600:disabled, .enabled_c_text-red-600:enabled, .checked_c_text-red-600:checked {
+    color: rgb(220 38 38);
+}
+
+.text-red-700, .hover_c_text-red-700:hover, .active_c_text-red-700:active, .inactive_c_text-red-700:inactive, .focus_c_text-red-700:focus, .disabled_c_text-red-700:disabled, .enabled_c_text-red-700:enabled, .checked_c_text-red-700:checked {
+    color: rgb(185 28 28);
+}
+
+.text-red-800, .hover_c_text-red-800:hover, .active_c_text-red-800:active, .inactive_c_text-red-800:inactive, .focus_c_text-red-800:focus, .disabled_c_text-red-800:disabled, .enabled_c_text-red-800:enabled, .checked_c_text-red-800:checked {
+    color: rgb(153 27 27);
+}
+
+.text-red-900, .hover_c_text-red-900:hover, .active_c_text-red-900:active, .inactive_c_text-red-900:inactive, .focus_c_text-red-900:focus, .disabled_c_text-red-900:disabled, .enabled_c_text-red-900:enabled, .checked_c_text-red-900:checked {
+    color: rgb(127 29 29);
+}
+
+.text-orange-50, .hover_c_text-orange-50:hover, .active_c_text-orange-50:active, .inactive_c_text-orange-50:inactive, .focus_c_text-orange-50:focus, .disabled_c_text-orange-50:disabled, .enabled_c_text-orange-50:enabled, .checked_c_text-orange-50:checked {
+    color: rgb(255 247 237);
+}
+
+.text-orange-100, .hover_c_text-orange-100:hover, .active_c_text-orange-100:active, .inactive_c_text-orange-100:inactive, .focus_c_text-orange-100:focus, .disabled_c_text-orange-100:disabled, .enabled_c_text-orange-100:enabled, .checked_c_text-orange-100:checked {
+    color: rgb(255 237 213);
+}
+
+.text-orange-200, .hover_c_text-orange-200:hover, .active_c_text-orange-200:active, .inactive_c_text-orange-200:inactive, .focus_c_text-orange-200:focus, .disabled_c_text-orange-200:disabled, .enabled_c_text-orange-200:enabled, .checked_c_text-orange-200:checked {
+    color: rgb(254 215 170);
+}
+
+.text-orange-300, .hover_c_text-orange-300:hover, .active_c_text-orange-300:active, .inactive_c_text-orange-300:inactive, .focus_c_text-orange-300:focus, .disabled_c_text-orange-300:disabled, .enabled_c_text-orange-300:enabled, .checked_c_text-orange-300:checked {
+    color: rgb(253 186 116);
+}
+
+.text-orange-400, .hover_c_text-orange-400:hover, .active_c_text-orange-400:active, .inactive_c_text-orange-400:inactive, .focus_c_text-orange-400:focus, .disabled_c_text-orange-400:disabled, .enabled_c_text-orange-400:enabled, .checked_c_text-orange-400:checked {
+    color: rgb(251 146 60);
+}
+
+.text-orange-500, .hover_c_text-orange-500:hover, .active_c_text-orange-500:active, .inactive_c_text-orange-500:inactive, .focus_c_text-orange-500:focus, .disabled_c_text-orange-500:disabled, .enabled_c_text-orange-500:enabled, .checked_c_text-orange-500:checked {
+    color: rgb(249 115 22);
+}
+
+.text-orange-600, .hover_c_text-orange-600:hover, .active_c_text-orange-600:active, .inactive_c_text-orange-600:inactive, .focus_c_text-orange-600:focus, .disabled_c_text-orange-600:disabled, .enabled_c_text-orange-600:enabled, .checked_c_text-orange-600:checked {
+    color: rgb(234 88 12);
+}
+
+.text-orange-700, .hover_c_text-orange-700:hover, .active_c_text-orange-700:active, .inactive_c_text-orange-700:inactive, .focus_c_text-orange-700:focus, .disabled_c_text-orange-700:disabled, .enabled_c_text-orange-700:enabled, .checked_c_text-orange-700:checked {
+    color: rgb(194 65 12);
+}
+
+.text-orange-800, .hover_c_text-orange-800:hover, .active_c_text-orange-800:active, .inactive_c_text-orange-800:inactive, .focus_c_text-orange-800:focus, .disabled_c_text-orange-800:disabled, .enabled_c_text-orange-800:enabled, .checked_c_text-orange-800:checked {
+    color: rgb(154 52 18);
+}
+
+.text-orange-900, .hover_c_text-orange-900:hover, .active_c_text-orange-900:active, .inactive_c_text-orange-900:inactive, .focus_c_text-orange-900:focus, .disabled_c_text-orange-900:disabled, .enabled_c_text-orange-900:enabled, .checked_c_text-orange-900:checked {
+    color: rgb(124 45 18);
+}
+
+.text-amber-50, .hover_c_text-amber-50:hover, .active_c_text-amber-50:active, .inactive_c_text-amber-50:inactive, .focus_c_text-amber-50:focus, .disabled_c_text-amber-50:disabled, .enabled_c_text-amber-50:enabled, .checked_c_text-amber-50:checked {
+    color: rgb(255 251 235);
+}
+
+.text-amber-100, .hover_c_text-amber-100:hover, .active_c_text-amber-100:active, .inactive_c_text-amber-100:inactive, .focus_c_text-amber-100:focus, .disabled_c_text-amber-100:disabled, .enabled_c_text-amber-100:enabled, .checked_c_text-amber-100:checked {
+    color: rgb(254 243 199);
+}
+
+.text-amber-200, .hover_c_text-amber-200:hover, .active_c_text-amber-200:active, .inactive_c_text-amber-200:inactive, .focus_c_text-amber-200:focus, .disabled_c_text-amber-200:disabled, .enabled_c_text-amber-200:enabled, .checked_c_text-amber-200:checked {
+    color: rgb(253 230 138);
+}
+
+.text-amber-300, .hover_c_text-amber-300:hover, .active_c_text-amber-300:active, .inactive_c_text-amber-300:inactive, .focus_c_text-amber-300:focus, .disabled_c_text-amber-300:disabled, .enabled_c_text-amber-300:enabled, .checked_c_text-amber-300:checked {
+    color: rgb(252 211 77);
+}
+
+.text-amber-400, .hover_c_text-amber-400:hover, .active_c_text-amber-400:active, .inactive_c_text-amber-400:inactive, .focus_c_text-amber-400:focus, .disabled_c_text-amber-400:disabled, .enabled_c_text-amber-400:enabled, .checked_c_text-amber-400:checked {
+    color: rgb(251 191 36);
+}
+
+.text-amber-500, .hover_c_text-amber-500:hover, .active_c_text-amber-500:active, .inactive_c_text-amber-500:inactive, .focus_c_text-amber-500:focus, .disabled_c_text-amber-500:disabled, .enabled_c_text-amber-500:enabled, .checked_c_text-amber-500:checked {
+    color: rgb(245 158 11);
+}
+
+.text-amber-600, .hover_c_text-amber-600:hover, .active_c_text-amber-600:active, .inactive_c_text-amber-600:inactive, .focus_c_text-amber-600:focus, .disabled_c_text-amber-600:disabled, .enabled_c_text-amber-600:enabled, .checked_c_text-amber-600:checked {
+    color: rgb(217 119 6);
+}
+
+.text-amber-700, .hover_c_text-amber-700:hover, .active_c_text-amber-700:active, .inactive_c_text-amber-700:inactive, .focus_c_text-amber-700:focus, .disabled_c_text-amber-700:disabled, .enabled_c_text-amber-700:enabled, .checked_c_text-amber-700:checked {
+    color: rgb(180 83 9);
+}
+
+.text-amber-800, .hover_c_text-amber-800:hover, .active_c_text-amber-800:active, .inactive_c_text-amber-800:inactive, .focus_c_text-amber-800:focus, .disabled_c_text-amber-800:disabled, .enabled_c_text-amber-800:enabled, .checked_c_text-amber-800:checked {
+    color: rgb(146 64 14);
+}
+
+.text-amber-900, .hover_c_text-amber-900:hover, .active_c_text-amber-900:active, .inactive_c_text-amber-900:inactive, .focus_c_text-amber-900:focus, .disabled_c_text-amber-900:disabled, .enabled_c_text-amber-900:enabled, .checked_c_text-amber-900:checked {
+    color: rgb(120 53 15);
+}
+
+.text-yellow-50, .hover_c_text-yellow-50:hover, .active_c_text-yellow-50:active, .inactive_c_text-yellow-50:inactive, .focus_c_text-yellow-50:focus, .disabled_c_text-yellow-50:disabled, .enabled_c_text-yellow-50:enabled, .checked_c_text-yellow-50:checked {
+    color: rgb(254 252 232);
+}
+
+.text-yellow-100, .hover_c_text-yellow-100:hover, .active_c_text-yellow-100:active, .inactive_c_text-yellow-100:inactive, .focus_c_text-yellow-100:focus, .disabled_c_text-yellow-100:disabled, .enabled_c_text-yellow-100:enabled, .checked_c_text-yellow-100:checked {
+    color: rgb(254 249 195);
+}
+
+.text-yellow-200, .hover_c_text-yellow-200:hover, .active_c_text-yellow-200:active, .inactive_c_text-yellow-200:inactive, .focus_c_text-yellow-200:focus, .disabled_c_text-yellow-200:disabled, .enabled_c_text-yellow-200:enabled, .checked_c_text-yellow-200:checked {
+    color: rgb(254 240 138);
+}
+
+.text-yellow-300, .hover_c_text-yellow-300:hover, .active_c_text-yellow-300:active, .inactive_c_text-yellow-300:inactive, .focus_c_text-yellow-300:focus, .disabled_c_text-yellow-300:disabled, .enabled_c_text-yellow-300:enabled, .checked_c_text-yellow-300:checked {
+    color: rgb(253 224 71);
+}
+
+.text-yellow-400, .hover_c_text-yellow-400:hover, .active_c_text-yellow-400:active, .inactive_c_text-yellow-400:inactive, .focus_c_text-yellow-400:focus, .disabled_c_text-yellow-400:disabled, .enabled_c_text-yellow-400:enabled, .checked_c_text-yellow-400:checked {
+    color: rgb(250 204 21);
+}
+
+.text-yellow-500, .hover_c_text-yellow-500:hover, .active_c_text-yellow-500:active, .inactive_c_text-yellow-500:inactive, .focus_c_text-yellow-500:focus, .disabled_c_text-yellow-500:disabled, .enabled_c_text-yellow-500:enabled, .checked_c_text-yellow-500:checked {
+    color: rgb(234 179 8);
+}
+
+.text-yellow-600, .hover_c_text-yellow-600:hover, .active_c_text-yellow-600:active, .inactive_c_text-yellow-600:inactive, .focus_c_text-yellow-600:focus, .disabled_c_text-yellow-600:disabled, .enabled_c_text-yellow-600:enabled, .checked_c_text-yellow-600:checked {
+    color: rgb(202 138 4);
+}
+
+.text-yellow-700, .hover_c_text-yellow-700:hover, .active_c_text-yellow-700:active, .inactive_c_text-yellow-700:inactive, .focus_c_text-yellow-700:focus, .disabled_c_text-yellow-700:disabled, .enabled_c_text-yellow-700:enabled, .checked_c_text-yellow-700:checked {
+    color: rgb(161 98 7);
+}
+
+.text-yellow-800, .hover_c_text-yellow-800:hover, .active_c_text-yellow-800:active, .inactive_c_text-yellow-800:inactive, .focus_c_text-yellow-800:focus, .disabled_c_text-yellow-800:disabled, .enabled_c_text-yellow-800:enabled, .checked_c_text-yellow-800:checked {
+    color: rgb(133 77 14);
+}
+
+.text-yellow-900, .hover_c_text-yellow-900:hover, .active_c_text-yellow-900:active, .inactive_c_text-yellow-900:inactive, .focus_c_text-yellow-900:focus, .disabled_c_text-yellow-900:disabled, .enabled_c_text-yellow-900:enabled, .checked_c_text-yellow-900:checked {
+    color: rgb(113 63 18);
+}
+
+.text-lime-50, .hover_c_text-lime-50:hover, .active_c_text-lime-50:active, .inactive_c_text-lime-50:inactive, .focus_c_text-lime-50:focus, .disabled_c_text-lime-50:disabled, .enabled_c_text-lime-50:enabled, .checked_c_text-lime-50:checked {
+    color: rgb(247 254 231);
+}
+
+.text-lime-100, .hover_c_text-lime-100:hover, .active_c_text-lime-100:active, .inactive_c_text-lime-100:inactive, .focus_c_text-lime-100:focus, .disabled_c_text-lime-100:disabled, .enabled_c_text-lime-100:enabled, .checked_c_text-lime-100:checked {
+    color: rgb(236 252 203);
+}
+
+.text-lime-200, .hover_c_text-lime-200:hover, .active_c_text-lime-200:active, .inactive_c_text-lime-200:inactive, .focus_c_text-lime-200:focus, .disabled_c_text-lime-200:disabled, .enabled_c_text-lime-200:enabled, .checked_c_text-lime-200:checked {
+    color: rgb(217 249 157);
+}
+
+.text-lime-300, .hover_c_text-lime-300:hover, .active_c_text-lime-300:active, .inactive_c_text-lime-300:inactive, .focus_c_text-lime-300:focus, .disabled_c_text-lime-300:disabled, .enabled_c_text-lime-300:enabled, .checked_c_text-lime-300:checked {
+    color: rgb(190 242 100);
+}
+
+.text-lime-400, .hover_c_text-lime-400:hover, .active_c_text-lime-400:active, .inactive_c_text-lime-400:inactive, .focus_c_text-lime-400:focus, .disabled_c_text-lime-400:disabled, .enabled_c_text-lime-400:enabled, .checked_c_text-lime-400:checked {
+    color: rgb(163 230 53);
+}
+
+.text-lime-500, .hover_c_text-lime-500:hover, .active_c_text-lime-500:active, .inactive_c_text-lime-500:inactive, .focus_c_text-lime-500:focus, .disabled_c_text-lime-500:disabled, .enabled_c_text-lime-500:enabled, .checked_c_text-lime-500:checked {
+    color: rgb(132 204 22);
+}
+
+.text-lime-600, .hover_c_text-lime-600:hover, .active_c_text-lime-600:active, .inactive_c_text-lime-600:inactive, .focus_c_text-lime-600:focus, .disabled_c_text-lime-600:disabled, .enabled_c_text-lime-600:enabled, .checked_c_text-lime-600:checked {
+    color: rgb(101 163 13);
+}
+
+.text-lime-700, .hover_c_text-lime-700:hover, .active_c_text-lime-700:active, .inactive_c_text-lime-700:inactive, .focus_c_text-lime-700:focus, .disabled_c_text-lime-700:disabled, .enabled_c_text-lime-700:enabled, .checked_c_text-lime-700:checked {
+    color: rgb(77 124 15);
+}
+
+.text-lime-800, .hover_c_text-lime-800:hover, .active_c_text-lime-800:active, .inactive_c_text-lime-800:inactive, .focus_c_text-lime-800:focus, .disabled_c_text-lime-800:disabled, .enabled_c_text-lime-800:enabled, .checked_c_text-lime-800:checked {
+    color: rgb(63 98 18);
+}
+
+.text-lime-900, .hover_c_text-lime-900:hover, .active_c_text-lime-900:active, .inactive_c_text-lime-900:inactive, .focus_c_text-lime-900:focus, .disabled_c_text-lime-900:disabled, .enabled_c_text-lime-900:enabled, .checked_c_text-lime-900:checked {
+    color: rgb(54 83 20);
+}
+
+.text-green-50, .hover_c_text-green-50:hover, .active_c_text-green-50:active, .inactive_c_text-green-50:inactive, .focus_c_text-green-50:focus, .disabled_c_text-green-50:disabled, .enabled_c_text-green-50:enabled, .checked_c_text-green-50:checked {
+    color: rgb(240 253 244);
+}
+
+.text-green-100, .hover_c_text-green-100:hover, .active_c_text-green-100:active, .inactive_c_text-green-100:inactive, .focus_c_text-green-100:focus, .disabled_c_text-green-100:disabled, .enabled_c_text-green-100:enabled, .checked_c_text-green-100:checked {
+    color: rgb(220 252 231);
+}
+
+.text-green-200, .hover_c_text-green-200:hover, .active_c_text-green-200:active, .inactive_c_text-green-200:inactive, .focus_c_text-green-200:focus, .disabled_c_text-green-200:disabled, .enabled_c_text-green-200:enabled, .checked_c_text-green-200:checked {
+    color: rgb(187 247 208);
+}
+
+.text-green-300, .hover_c_text-green-300:hover, .active_c_text-green-300:active, .inactive_c_text-green-300:inactive, .focus_c_text-green-300:focus, .disabled_c_text-green-300:disabled, .enabled_c_text-green-300:enabled, .checked_c_text-green-300:checked {
+    color: rgb(134 239 172);
+}
+
+.text-green-400, .hover_c_text-green-400:hover, .active_c_text-green-400:active, .inactive_c_text-green-400:inactive, .focus_c_text-green-400:focus, .disabled_c_text-green-400:disabled, .enabled_c_text-green-400:enabled, .checked_c_text-green-400:checked {
+    color: rgb(74 222 128);
+}
+
+.text-green-500, .hover_c_text-green-500:hover, .active_c_text-green-500:active, .inactive_c_text-green-500:inactive, .focus_c_text-green-500:focus, .disabled_c_text-green-500:disabled, .enabled_c_text-green-500:enabled, .checked_c_text-green-500:checked {
+    color: rgb(34 197 94);
+}
+
+.text-green-600, .hover_c_text-green-600:hover, .active_c_text-green-600:active, .inactive_c_text-green-600:inactive, .focus_c_text-green-600:focus, .disabled_c_text-green-600:disabled, .enabled_c_text-green-600:enabled, .checked_c_text-green-600:checked {
+    color: rgb(22 163 74);
+}
+
+.text-green-700, .hover_c_text-green-700:hover, .active_c_text-green-700:active, .inactive_c_text-green-700:inactive, .focus_c_text-green-700:focus, .disabled_c_text-green-700:disabled, .enabled_c_text-green-700:enabled, .checked_c_text-green-700:checked {
+    color: rgb(21 128 61);
+}
+
+.text-green-800, .hover_c_text-green-800:hover, .active_c_text-green-800:active, .inactive_c_text-green-800:inactive, .focus_c_text-green-800:focus, .disabled_c_text-green-800:disabled, .enabled_c_text-green-800:enabled, .checked_c_text-green-800:checked {
+    color: rgb(22 101 52);
+}
+
+.text-green-900, .hover_c_text-green-900:hover, .active_c_text-green-900:active, .inactive_c_text-green-900:inactive, .focus_c_text-green-900:focus, .disabled_c_text-green-900:disabled, .enabled_c_text-green-900:enabled, .checked_c_text-green-900:checked {
+    color: rgb(20 83 45);
+}
+
+.text-emerald-50, .hover_c_text-emerald-50:hover, .active_c_text-emerald-50:active, .inactive_c_text-emerald-50:inactive, .focus_c_text-emerald-50:focus, .disabled_c_text-emerald-50:disabled, .enabled_c_text-emerald-50:enabled, .checked_c_text-emerald-50:checked {
+    color: rgb(236 253 245);
+}
+
+.text-emerald-100, .hover_c_text-emerald-100:hover, .active_c_text-emerald-100:active, .inactive_c_text-emerald-100:inactive, .focus_c_text-emerald-100:focus, .disabled_c_text-emerald-100:disabled, .enabled_c_text-emerald-100:enabled, .checked_c_text-emerald-100:checked {
+    color: rgb(209 250 229);
+}
+
+.text-emerald-200, .hover_c_text-emerald-200:hover, .active_c_text-emerald-200:active, .inactive_c_text-emerald-200:inactive, .focus_c_text-emerald-200:focus, .disabled_c_text-emerald-200:disabled, .enabled_c_text-emerald-200:enabled, .checked_c_text-emerald-200:checked {
+    color: rgb(167 243 208);
+}
+
+.text-emerald-300, .hover_c_text-emerald-300:hover, .active_c_text-emerald-300:active, .inactive_c_text-emerald-300:inactive, .focus_c_text-emerald-300:focus, .disabled_c_text-emerald-300:disabled, .enabled_c_text-emerald-300:enabled, .checked_c_text-emerald-300:checked {
+    color: rgb(110 231 183);
+}
+
+.text-emerald-400, .hover_c_text-emerald-400:hover, .active_c_text-emerald-400:active, .inactive_c_text-emerald-400:inactive, .focus_c_text-emerald-400:focus, .disabled_c_text-emerald-400:disabled, .enabled_c_text-emerald-400:enabled, .checked_c_text-emerald-400:checked {
+    color: rgb(52 211 153);
+}
+
+.text-emerald-500, .hover_c_text-emerald-500:hover, .active_c_text-emerald-500:active, .inactive_c_text-emerald-500:inactive, .focus_c_text-emerald-500:focus, .disabled_c_text-emerald-500:disabled, .enabled_c_text-emerald-500:enabled, .checked_c_text-emerald-500:checked {
+    color: rgb(16 185 129);
+}
+
+.text-emerald-600, .hover_c_text-emerald-600:hover, .active_c_text-emerald-600:active, .inactive_c_text-emerald-600:inactive, .focus_c_text-emerald-600:focus, .disabled_c_text-emerald-600:disabled, .enabled_c_text-emerald-600:enabled, .checked_c_text-emerald-600:checked {
+    color: rgb(5 150 105);
+}
+
+.text-emerald-700, .hover_c_text-emerald-700:hover, .active_c_text-emerald-700:active, .inactive_c_text-emerald-700:inactive, .focus_c_text-emerald-700:focus, .disabled_c_text-emerald-700:disabled, .enabled_c_text-emerald-700:enabled, .checked_c_text-emerald-700:checked {
+    color: rgb(4 120 87);
+}
+
+.text-emerald-800, .hover_c_text-emerald-800:hover, .active_c_text-emerald-800:active, .inactive_c_text-emerald-800:inactive, .focus_c_text-emerald-800:focus, .disabled_c_text-emerald-800:disabled, .enabled_c_text-emerald-800:enabled, .checked_c_text-emerald-800:checked {
+    color: rgb(6 95 70);
+}
+
+.text-emerald-900, .hover_c_text-emerald-900:hover, .active_c_text-emerald-900:active, .inactive_c_text-emerald-900:inactive, .focus_c_text-emerald-900:focus, .disabled_c_text-emerald-900:disabled, .enabled_c_text-emerald-900:enabled, .checked_c_text-emerald-900:checked {
+    color: rgb(6 78 59);
+}
+
+.text-teal-50, .hover_c_text-teal-50:hover, .active_c_text-teal-50:active, .inactive_c_text-teal-50:inactive, .focus_c_text-teal-50:focus, .disabled_c_text-teal-50:disabled, .enabled_c_text-teal-50:enabled, .checked_c_text-teal-50:checked {
+    color: rgb(240 253 250);
+}
+
+.text-teal-100, .hover_c_text-teal-100:hover, .active_c_text-teal-100:active, .inactive_c_text-teal-100:inactive, .focus_c_text-teal-100:focus, .disabled_c_text-teal-100:disabled, .enabled_c_text-teal-100:enabled, .checked_c_text-teal-100:checked {
+    color: rgb(204 251 241);
+}
+
+.text-teal-200, .hover_c_text-teal-200:hover, .active_c_text-teal-200:active, .inactive_c_text-teal-200:inactive, .focus_c_text-teal-200:focus, .disabled_c_text-teal-200:disabled, .enabled_c_text-teal-200:enabled, .checked_c_text-teal-200:checked {
+    color: rgb(153 246 228);
+}
+
+.text-teal-300, .hover_c_text-teal-300:hover, .active_c_text-teal-300:active, .inactive_c_text-teal-300:inactive, .focus_c_text-teal-300:focus, .disabled_c_text-teal-300:disabled, .enabled_c_text-teal-300:enabled, .checked_c_text-teal-300:checked {
+    color: rgb(94 234 212);
+}
+
+.text-teal-400, .hover_c_text-teal-400:hover, .active_c_text-teal-400:active, .inactive_c_text-teal-400:inactive, .focus_c_text-teal-400:focus, .disabled_c_text-teal-400:disabled, .enabled_c_text-teal-400:enabled, .checked_c_text-teal-400:checked {
+    color: rgb(45 212 191);
+}
+
+.text-teal-500, .hover_c_text-teal-500:hover, .active_c_text-teal-500:active, .inactive_c_text-teal-500:inactive, .focus_c_text-teal-500:focus, .disabled_c_text-teal-500:disabled, .enabled_c_text-teal-500:enabled, .checked_c_text-teal-500:checked {
+    color: rgb(20 184 166);
+}
+
+.text-teal-600, .hover_c_text-teal-600:hover, .active_c_text-teal-600:active, .inactive_c_text-teal-600:inactive, .focus_c_text-teal-600:focus, .disabled_c_text-teal-600:disabled, .enabled_c_text-teal-600:enabled, .checked_c_text-teal-600:checked {
+    color: rgb(13 148 136);
+}
+
+.text-teal-700, .hover_c_text-teal-700:hover, .active_c_text-teal-700:active, .inactive_c_text-teal-700:inactive, .focus_c_text-teal-700:focus, .disabled_c_text-teal-700:disabled, .enabled_c_text-teal-700:enabled, .checked_c_text-teal-700:checked {
+    color: rgb(15 118 110);
+}
+
+.text-teal-800, .hover_c_text-teal-800:hover, .active_c_text-teal-800:active, .inactive_c_text-teal-800:inactive, .focus_c_text-teal-800:focus, .disabled_c_text-teal-800:disabled, .enabled_c_text-teal-800:enabled, .checked_c_text-teal-800:checked {
+    color: rgb(17 94 89);
+}
+
+.text-teal-900, .hover_c_text-teal-900:hover, .active_c_text-teal-900:active, .inactive_c_text-teal-900:inactive, .focus_c_text-teal-900:focus, .disabled_c_text-teal-900:disabled, .enabled_c_text-teal-900:enabled, .checked_c_text-teal-900:checked {
+    color: rgb(19 78 74);
+}
+
+.text-cyan-50, .hover_c_text-cyan-50:hover, .active_c_text-cyan-50:active, .inactive_c_text-cyan-50:inactive, .focus_c_text-cyan-50:focus, .disabled_c_text-cyan-50:disabled, .enabled_c_text-cyan-50:enabled, .checked_c_text-cyan-50:checked {
+    color: rgb(236 254 255);
+}
+
+.text-cyan-100, .hover_c_text-cyan-100:hover, .active_c_text-cyan-100:active, .inactive_c_text-cyan-100:inactive, .focus_c_text-cyan-100:focus, .disabled_c_text-cyan-100:disabled, .enabled_c_text-cyan-100:enabled, .checked_c_text-cyan-100:checked {
+    color: rgb(207 250 254);
+}
+
+.text-cyan-200, .hover_c_text-cyan-200:hover, .active_c_text-cyan-200:active, .inactive_c_text-cyan-200:inactive, .focus_c_text-cyan-200:focus, .disabled_c_text-cyan-200:disabled, .enabled_c_text-cyan-200:enabled, .checked_c_text-cyan-200:checked {
+    color: rgb(165 243 252);
+}
+
+.text-cyan-300, .hover_c_text-cyan-300:hover, .active_c_text-cyan-300:active, .inactive_c_text-cyan-300:inactive, .focus_c_text-cyan-300:focus, .disabled_c_text-cyan-300:disabled, .enabled_c_text-cyan-300:enabled, .checked_c_text-cyan-300:checked {
+    color: rgb(103 232 249);
+}
+
+.text-cyan-400, .hover_c_text-cyan-400:hover, .active_c_text-cyan-400:active, .inactive_c_text-cyan-400:inactive, .focus_c_text-cyan-400:focus, .disabled_c_text-cyan-400:disabled, .enabled_c_text-cyan-400:enabled, .checked_c_text-cyan-400:checked {
+    color: rgb(34 211 238);
+}
+
+.text-cyan-500, .hover_c_text-cyan-500:hover, .active_c_text-cyan-500:active, .inactive_c_text-cyan-500:inactive, .focus_c_text-cyan-500:focus, .disabled_c_text-cyan-500:disabled, .enabled_c_text-cyan-500:enabled, .checked_c_text-cyan-500:checked {
+    color: rgb(6 182 212);
+}
+
+.text-cyan-600, .hover_c_text-cyan-600:hover, .active_c_text-cyan-600:active, .inactive_c_text-cyan-600:inactive, .focus_c_text-cyan-600:focus, .disabled_c_text-cyan-600:disabled, .enabled_c_text-cyan-600:enabled, .checked_c_text-cyan-600:checked {
+    color: rgb(8 145 178);
+}
+
+.text-cyan-700, .hover_c_text-cyan-700:hover, .active_c_text-cyan-700:active, .inactive_c_text-cyan-700:inactive, .focus_c_text-cyan-700:focus, .disabled_c_text-cyan-700:disabled, .enabled_c_text-cyan-700:enabled, .checked_c_text-cyan-700:checked {
+    color: rgb(14 116 144);
+}
+
+.text-cyan-800, .hover_c_text-cyan-800:hover, .active_c_text-cyan-800:active, .inactive_c_text-cyan-800:inactive, .focus_c_text-cyan-800:focus, .disabled_c_text-cyan-800:disabled, .enabled_c_text-cyan-800:enabled, .checked_c_text-cyan-800:checked {
+    color: rgb(21 94 117);
+}
+
+.text-cyan-900, .hover_c_text-cyan-900:hover, .active_c_text-cyan-900:active, .inactive_c_text-cyan-900:inactive, .focus_c_text-cyan-900:focus, .disabled_c_text-cyan-900:disabled, .enabled_c_text-cyan-900:enabled, .checked_c_text-cyan-900:checked {
+    color: rgb(22 78 99);
+}
+
+.text-sky-50, .hover_c_text-sky-50:hover, .active_c_text-sky-50:active, .inactive_c_text-sky-50:inactive, .focus_c_text-sky-50:focus, .disabled_c_text-sky-50:disabled, .enabled_c_text-sky-50:enabled, .checked_c_text-sky-50:checked {
+    color: rgb(240 249 255);
+}
+
+.text-sky-100, .hover_c_text-sky-100:hover, .active_c_text-sky-100:active, .inactive_c_text-sky-100:inactive, .focus_c_text-sky-100:focus, .disabled_c_text-sky-100:disabled, .enabled_c_text-sky-100:enabled, .checked_c_text-sky-100:checked {
+    color: rgb(224 242 254);
+}
+
+.text-sky-200, .hover_c_text-sky-200:hover, .active_c_text-sky-200:active, .inactive_c_text-sky-200:inactive, .focus_c_text-sky-200:focus, .disabled_c_text-sky-200:disabled, .enabled_c_text-sky-200:enabled, .checked_c_text-sky-200:checked {
+    color: rgb(186 230 253);
+}
+
+.text-sky-300, .hover_c_text-sky-300:hover, .active_c_text-sky-300:active, .inactive_c_text-sky-300:inactive, .focus_c_text-sky-300:focus, .disabled_c_text-sky-300:disabled, .enabled_c_text-sky-300:enabled, .checked_c_text-sky-300:checked {
+    color: rgb(125 211 252);
+}
+
+.text-sky-400, .hover_c_text-sky-400:hover, .active_c_text-sky-400:active, .inactive_c_text-sky-400:inactive, .focus_c_text-sky-400:focus, .disabled_c_text-sky-400:disabled, .enabled_c_text-sky-400:enabled, .checked_c_text-sky-400:checked {
+    color: rgb(56 189 248);
+}
+
+.text-sky-500, .hover_c_text-sky-500:hover, .active_c_text-sky-500:active, .inactive_c_text-sky-500:inactive, .focus_c_text-sky-500:focus, .disabled_c_text-sky-500:disabled, .enabled_c_text-sky-500:enabled, .checked_c_text-sky-500:checked {
+    color: rgb(14 165 233);
+}
+
+.text-sky-600, .hover_c_text-sky-600:hover, .active_c_text-sky-600:active, .inactive_c_text-sky-600:inactive, .focus_c_text-sky-600:focus, .disabled_c_text-sky-600:disabled, .enabled_c_text-sky-600:enabled, .checked_c_text-sky-600:checked {
+    color: rgb(2 132 199);
+}
+
+.text-sky-700, .hover_c_text-sky-700:hover, .active_c_text-sky-700:active, .inactive_c_text-sky-700:inactive, .focus_c_text-sky-700:focus, .disabled_c_text-sky-700:disabled, .enabled_c_text-sky-700:enabled, .checked_c_text-sky-700:checked {
+    color: rgb(3 105 161);
+}
+
+.text-sky-800, .hover_c_text-sky-800:hover, .active_c_text-sky-800:active, .inactive_c_text-sky-800:inactive, .focus_c_text-sky-800:focus, .disabled_c_text-sky-800:disabled, .enabled_c_text-sky-800:enabled, .checked_c_text-sky-800:checked {
+    color: rgb(7 89 133);
+}
+
+.text-sky-900, .hover_c_text-sky-900:hover, .active_c_text-sky-900:active, .inactive_c_text-sky-900:inactive, .focus_c_text-sky-900:focus, .disabled_c_text-sky-900:disabled, .enabled_c_text-sky-900:enabled, .checked_c_text-sky-900:checked {
+    color: rgb(12 74 110);
+}
+
+.text-blue-50, .hover_c_text-blue-50:hover, .active_c_text-blue-50:active, .inactive_c_text-blue-50:inactive, .focus_c_text-blue-50:focus, .disabled_c_text-blue-50:disabled, .enabled_c_text-blue-50:enabled, .checked_c_text-blue-50:checked {
+    color: rgb(239 246 255);
+}
+
+.text-blue-100, .hover_c_text-blue-100:hover, .active_c_text-blue-100:active, .inactive_c_text-blue-100:inactive, .focus_c_text-blue-100:focus, .disabled_c_text-blue-100:disabled, .enabled_c_text-blue-100:enabled, .checked_c_text-blue-100:checked {
+    color: rgb(219 234 254);
+}
+
+.text-blue-200, .hover_c_text-blue-200:hover, .active_c_text-blue-200:active, .inactive_c_text-blue-200:inactive, .focus_c_text-blue-200:focus, .disabled_c_text-blue-200:disabled, .enabled_c_text-blue-200:enabled, .checked_c_text-blue-200:checked {
+    color: rgb(191 219 254);
+}
+
+.text-blue-300, .hover_c_text-blue-300:hover, .active_c_text-blue-300:active, .inactive_c_text-blue-300:inactive, .focus_c_text-blue-300:focus, .disabled_c_text-blue-300:disabled, .enabled_c_text-blue-300:enabled, .checked_c_text-blue-300:checked {
+    color: rgb(147 197 253);
+}
+
+.text-blue-400, .hover_c_text-blue-400:hover, .active_c_text-blue-400:active, .inactive_c_text-blue-400:inactive, .focus_c_text-blue-400:focus, .disabled_c_text-blue-400:disabled, .enabled_c_text-blue-400:enabled, .checked_c_text-blue-400:checked {
+    color: rgb(96 165 250);
+}
+
+.text-blue-500, .hover_c_text-blue-500:hover, .active_c_text-blue-500:active, .inactive_c_text-blue-500:inactive, .focus_c_text-blue-500:focus, .disabled_c_text-blue-500:disabled, .enabled_c_text-blue-500:enabled, .checked_c_text-blue-500:checked {
+    color: rgb(59 130 246);
+}
+
+.text-blue-600, .hover_c_text-blue-600:hover, .active_c_text-blue-600:active, .inactive_c_text-blue-600:inactive, .focus_c_text-blue-600:focus, .disabled_c_text-blue-600:disabled, .enabled_c_text-blue-600:enabled, .checked_c_text-blue-600:checked {
+    color: rgb(37 99 235);
+}
+
+.text-blue-700, .hover_c_text-blue-700:hover, .active_c_text-blue-700:active, .inactive_c_text-blue-700:inactive, .focus_c_text-blue-700:focus, .disabled_c_text-blue-700:disabled, .enabled_c_text-blue-700:enabled, .checked_c_text-blue-700:checked {
+    color: rgb(29 78 216);
+}
+
+.text-blue-800, .hover_c_text-blue-800:hover, .active_c_text-blue-800:active, .inactive_c_text-blue-800:inactive, .focus_c_text-blue-800:focus, .disabled_c_text-blue-800:disabled, .enabled_c_text-blue-800:enabled, .checked_c_text-blue-800:checked {
+    color: rgb(30 64 175);
+}
+
+.text-blue-900, .hover_c_text-blue-900:hover, .active_c_text-blue-900:active, .inactive_c_text-blue-900:inactive, .focus_c_text-blue-900:focus, .disabled_c_text-blue-900:disabled, .enabled_c_text-blue-900:enabled, .checked_c_text-blue-900:checked {
+    color: rgb(30 58 138);
+}
+
+.text-indigo-50, .hover_c_text-indigo-50:hover, .active_c_text-indigo-50:active, .inactive_c_text-indigo-50:inactive, .focus_c_text-indigo-50:focus, .disabled_c_text-indigo-50:disabled, .enabled_c_text-indigo-50:enabled, .checked_c_text-indigo-50:checked {
+    color: rgb(238 242 255);
+}
+
+.text-indigo-100, .hover_c_text-indigo-100:hover, .active_c_text-indigo-100:active, .inactive_c_text-indigo-100:inactive, .focus_c_text-indigo-100:focus, .disabled_c_text-indigo-100:disabled, .enabled_c_text-indigo-100:enabled, .checked_c_text-indigo-100:checked {
+    color: rgb(224 231 255);
+}
+
+.text-indigo-200, .hover_c_text-indigo-200:hover, .active_c_text-indigo-200:active, .inactive_c_text-indigo-200:inactive, .focus_c_text-indigo-200:focus, .disabled_c_text-indigo-200:disabled, .enabled_c_text-indigo-200:enabled, .checked_c_text-indigo-200:checked {
+    color: rgb(199 210 254);
+}
+
+.text-indigo-300, .hover_c_text-indigo-300:hover, .active_c_text-indigo-300:active, .inactive_c_text-indigo-300:inactive, .focus_c_text-indigo-300:focus, .disabled_c_text-indigo-300:disabled, .enabled_c_text-indigo-300:enabled, .checked_c_text-indigo-300:checked {
+    color: rgb(165 180 252);
+}
+
+.text-indigo-400, .hover_c_text-indigo-400:hover, .active_c_text-indigo-400:active, .inactive_c_text-indigo-400:inactive, .focus_c_text-indigo-400:focus, .disabled_c_text-indigo-400:disabled, .enabled_c_text-indigo-400:enabled, .checked_c_text-indigo-400:checked {
+    color: rgb(129 140 248);
+}
+
+.text-indigo-500, .hover_c_text-indigo-500:hover, .active_c_text-indigo-500:active, .inactive_c_text-indigo-500:inactive, .focus_c_text-indigo-500:focus, .disabled_c_text-indigo-500:disabled, .enabled_c_text-indigo-500:enabled, .checked_c_text-indigo-500:checked {
+    color: rgb(99 102 241);
+}
+
+.text-indigo-600, .hover_c_text-indigo-600:hover, .active_c_text-indigo-600:active, .inactive_c_text-indigo-600:inactive, .focus_c_text-indigo-600:focus, .disabled_c_text-indigo-600:disabled, .enabled_c_text-indigo-600:enabled, .checked_c_text-indigo-600:checked {
+    color: rgb(79 70 229);
+}
+
+.text-indigo-700, .hover_c_text-indigo-700:hover, .active_c_text-indigo-700:active, .inactive_c_text-indigo-700:inactive, .focus_c_text-indigo-700:focus, .disabled_c_text-indigo-700:disabled, .enabled_c_text-indigo-700:enabled, .checked_c_text-indigo-700:checked {
+    color: rgb(67 56 202);
+}
+
+.text-indigo-800, .hover_c_text-indigo-800:hover, .active_c_text-indigo-800:active, .inactive_c_text-indigo-800:inactive, .focus_c_text-indigo-800:focus, .disabled_c_text-indigo-800:disabled, .enabled_c_text-indigo-800:enabled, .checked_c_text-indigo-800:checked {
+    color: rgb(55 48 163);
+}
+
+.text-indigo-900, .hover_c_text-indigo-900:hover, .active_c_text-indigo-900:active, .inactive_c_text-indigo-900:inactive, .focus_c_text-indigo-900:focus, .disabled_c_text-indigo-900:disabled, .enabled_c_text-indigo-900:enabled, .checked_c_text-indigo-900:checked {
+    color: rgb(49 46 129);
+}
+
+.text-violet-50, .hover_c_text-violet-50:hover, .active_c_text-violet-50:active, .inactive_c_text-violet-50:inactive, .focus_c_text-violet-50:focus, .disabled_c_text-violet-50:disabled, .enabled_c_text-violet-50:enabled, .checked_c_text-violet-50:checked {
+    color: rgb(245 243 255);
+}
+
+.text-violet-100, .hover_c_text-violet-100:hover, .active_c_text-violet-100:active, .inactive_c_text-violet-100:inactive, .focus_c_text-violet-100:focus, .disabled_c_text-violet-100:disabled, .enabled_c_text-violet-100:enabled, .checked_c_text-violet-100:checked {
+    color: rgb(237 233 254);
+}
+
+.text-violet-200, .hover_c_text-violet-200:hover, .active_c_text-violet-200:active, .inactive_c_text-violet-200:inactive, .focus_c_text-violet-200:focus, .disabled_c_text-violet-200:disabled, .enabled_c_text-violet-200:enabled, .checked_c_text-violet-200:checked {
+    color: rgb(221 214 254);
+}
+
+.text-violet-300, .hover_c_text-violet-300:hover, .active_c_text-violet-300:active, .inactive_c_text-violet-300:inactive, .focus_c_text-violet-300:focus, .disabled_c_text-violet-300:disabled, .enabled_c_text-violet-300:enabled, .checked_c_text-violet-300:checked {
+    color: rgb(196 181 253);
+}
+
+.text-violet-400, .hover_c_text-violet-400:hover, .active_c_text-violet-400:active, .inactive_c_text-violet-400:inactive, .focus_c_text-violet-400:focus, .disabled_c_text-violet-400:disabled, .enabled_c_text-violet-400:enabled, .checked_c_text-violet-400:checked {
+    color: rgb(167 139 250);
+}
+
+.text-violet-500, .hover_c_text-violet-500:hover, .active_c_text-violet-500:active, .inactive_c_text-violet-500:inactive, .focus_c_text-violet-500:focus, .disabled_c_text-violet-500:disabled, .enabled_c_text-violet-500:enabled, .checked_c_text-violet-500:checked {
+    color: rgb(139 92 246);
+}
+
+.text-violet-600, .hover_c_text-violet-600:hover, .active_c_text-violet-600:active, .inactive_c_text-violet-600:inactive, .focus_c_text-violet-600:focus, .disabled_c_text-violet-600:disabled, .enabled_c_text-violet-600:enabled, .checked_c_text-violet-600:checked {
+    color: rgb(124 58 237);
+}
+
+.text-violet-700, .hover_c_text-violet-700:hover, .active_c_text-violet-700:active, .inactive_c_text-violet-700:inactive, .focus_c_text-violet-700:focus, .disabled_c_text-violet-700:disabled, .enabled_c_text-violet-700:enabled, .checked_c_text-violet-700:checked {
+    color: rgb(109 40 217);
+}
+
+.text-violet-800, .hover_c_text-violet-800:hover, .active_c_text-violet-800:active, .inactive_c_text-violet-800:inactive, .focus_c_text-violet-800:focus, .disabled_c_text-violet-800:disabled, .enabled_c_text-violet-800:enabled, .checked_c_text-violet-800:checked {
+    color: rgb(91 33 182);
+}
+
+.text-violet-900, .hover_c_text-violet-900:hover, .active_c_text-violet-900:active, .inactive_c_text-violet-900:inactive, .focus_c_text-violet-900:focus, .disabled_c_text-violet-900:disabled, .enabled_c_text-violet-900:enabled, .checked_c_text-violet-900:checked {
+    color: rgb(76 29 149);
+}
+
+.text-purple-50, .hover_c_text-purple-50:hover, .active_c_text-purple-50:active, .inactive_c_text-purple-50:inactive, .focus_c_text-purple-50:focus, .disabled_c_text-purple-50:disabled, .enabled_c_text-purple-50:enabled, .checked_c_text-purple-50:checked {
+    color: rgb(250 245 255);
+}
+
+.text-purple-100, .hover_c_text-purple-100:hover, .active_c_text-purple-100:active, .inactive_c_text-purple-100:inactive, .focus_c_text-purple-100:focus, .disabled_c_text-purple-100:disabled, .enabled_c_text-purple-100:enabled, .checked_c_text-purple-100:checked {
+    color: rgb(243 232 255);
+}
+
+.text-purple-200, .hover_c_text-purple-200:hover, .active_c_text-purple-200:active, .inactive_c_text-purple-200:inactive, .focus_c_text-purple-200:focus, .disabled_c_text-purple-200:disabled, .enabled_c_text-purple-200:enabled, .checked_c_text-purple-200:checked {
+    color: rgb(233 213 255);
+}
+
+.text-purple-300, .hover_c_text-purple-300:hover, .active_c_text-purple-300:active, .inactive_c_text-purple-300:inactive, .focus_c_text-purple-300:focus, .disabled_c_text-purple-300:disabled, .enabled_c_text-purple-300:enabled, .checked_c_text-purple-300:checked {
+    color: rgb(216 180 254);
+}
+
+.text-purple-400, .hover_c_text-purple-400:hover, .active_c_text-purple-400:active, .inactive_c_text-purple-400:inactive, .focus_c_text-purple-400:focus, .disabled_c_text-purple-400:disabled, .enabled_c_text-purple-400:enabled, .checked_c_text-purple-400:checked {
+    color: rgb(192 132 252);
+}
+
+.text-purple-500, .hover_c_text-purple-500:hover, .active_c_text-purple-500:active, .inactive_c_text-purple-500:inactive, .focus_c_text-purple-500:focus, .disabled_c_text-purple-500:disabled, .enabled_c_text-purple-500:enabled, .checked_c_text-purple-500:checked {
+    color: rgb(168 85 247);
+}
+
+.text-purple-600, .hover_c_text-purple-600:hover, .active_c_text-purple-600:active, .inactive_c_text-purple-600:inactive, .focus_c_text-purple-600:focus, .disabled_c_text-purple-600:disabled, .enabled_c_text-purple-600:enabled, .checked_c_text-purple-600:checked {
+    color: rgb(147 51 234);
+}
+
+.text-purple-700, .hover_c_text-purple-700:hover, .active_c_text-purple-700:active, .inactive_c_text-purple-700:inactive, .focus_c_text-purple-700:focus, .disabled_c_text-purple-700:disabled, .enabled_c_text-purple-700:enabled, .checked_c_text-purple-700:checked {
+    color: rgb(126 34 206);
+}
+
+.text-purple-800, .hover_c_text-purple-800:hover, .active_c_text-purple-800:active, .inactive_c_text-purple-800:inactive, .focus_c_text-purple-800:focus, .disabled_c_text-purple-800:disabled, .enabled_c_text-purple-800:enabled, .checked_c_text-purple-800:checked {
+    color: rgb(107 33 168);
+}
+
+.text-purple-900, .hover_c_text-purple-900:hover, .active_c_text-purple-900:active, .inactive_c_text-purple-900:inactive, .focus_c_text-purple-900:focus, .disabled_c_text-purple-900:disabled, .enabled_c_text-purple-900:enabled, .checked_c_text-purple-900:checked {
+    color: rgb(88 28 135);
+}
+
+.text-fuchsia-50, .hover_c_text-fuchsia-50:hover, .active_c_text-fuchsia-50:active, .inactive_c_text-fuchsia-50:inactive, .focus_c_text-fuchsia-50:focus, .disabled_c_text-fuchsia-50:disabled, .enabled_c_text-fuchsia-50:enabled, .checked_c_text-fuchsia-50:checked {
+    color: rgb(253 244 255);
+}
+
+.text-fuchsia-100, .hover_c_text-fuchsia-100:hover, .active_c_text-fuchsia-100:active, .inactive_c_text-fuchsia-100:inactive, .focus_c_text-fuchsia-100:focus, .disabled_c_text-fuchsia-100:disabled, .enabled_c_text-fuchsia-100:enabled, .checked_c_text-fuchsia-100:checked {
+    color: rgb(250 232 255);
+}
+
+.text-fuchsia-200, .hover_c_text-fuchsia-200:hover, .active_c_text-fuchsia-200:active, .inactive_c_text-fuchsia-200:inactive, .focus_c_text-fuchsia-200:focus, .disabled_c_text-fuchsia-200:disabled, .enabled_c_text-fuchsia-200:enabled, .checked_c_text-fuchsia-200:checked {
+    color: rgb(245 208 254);
+}
+
+.text-fuchsia-300, .hover_c_text-fuchsia-300:hover, .active_c_text-fuchsia-300:active, .inactive_c_text-fuchsia-300:inactive, .focus_c_text-fuchsia-300:focus, .disabled_c_text-fuchsia-300:disabled, .enabled_c_text-fuchsia-300:enabled, .checked_c_text-fuchsia-300:checked {
+    color: rgb(240 171 252);
+}
+
+.text-fuchsia-400, .hover_c_text-fuchsia-400:hover, .active_c_text-fuchsia-400:active, .inactive_c_text-fuchsia-400:inactive, .focus_c_text-fuchsia-400:focus, .disabled_c_text-fuchsia-400:disabled, .enabled_c_text-fuchsia-400:enabled, .checked_c_text-fuchsia-400:checked {
+    color: rgb(232 121 249);
+}
+
+.text-fuchsia-500, .hover_c_text-fuchsia-500:hover, .active_c_text-fuchsia-500:active, .inactive_c_text-fuchsia-500:inactive, .focus_c_text-fuchsia-500:focus, .disabled_c_text-fuchsia-500:disabled, .enabled_c_text-fuchsia-500:enabled, .checked_c_text-fuchsia-500:checked {
+    color: rgb(217 70 239);
+}
+
+.text-fuchsia-600, .hover_c_text-fuchsia-600:hover, .active_c_text-fuchsia-600:active, .inactive_c_text-fuchsia-600:inactive, .focus_c_text-fuchsia-600:focus, .disabled_c_text-fuchsia-600:disabled, .enabled_c_text-fuchsia-600:enabled, .checked_c_text-fuchsia-600:checked {
+    color: rgb(192 38 211);
+}
+
+.text-fuchsia-700, .hover_c_text-fuchsia-700:hover, .active_c_text-fuchsia-700:active, .inactive_c_text-fuchsia-700:inactive, .focus_c_text-fuchsia-700:focus, .disabled_c_text-fuchsia-700:disabled, .enabled_c_text-fuchsia-700:enabled, .checked_c_text-fuchsia-700:checked {
+    color: rgb(162 28 175);
+}
+
+.text-fuchsia-800, .hover_c_text-fuchsia-800:hover, .active_c_text-fuchsia-800:active, .inactive_c_text-fuchsia-800:inactive, .focus_c_text-fuchsia-800:focus, .disabled_c_text-fuchsia-800:disabled, .enabled_c_text-fuchsia-800:enabled, .checked_c_text-fuchsia-800:checked {
+    color: rgb(134 25 143);
+}
+
+.text-fuchsia-900, .hover_c_text-fuchsia-900:hover, .active_c_text-fuchsia-900:active, .inactive_c_text-fuchsia-900:inactive, .focus_c_text-fuchsia-900:focus, .disabled_c_text-fuchsia-900:disabled, .enabled_c_text-fuchsia-900:enabled, .checked_c_text-fuchsia-900:checked {
+    color: rgb(112 26 117);
+}
+
+.text-pink-50, .hover_c_text-pink-50:hover, .active_c_text-pink-50:active, .inactive_c_text-pink-50:inactive, .focus_c_text-pink-50:focus, .disabled_c_text-pink-50:disabled, .enabled_c_text-pink-50:enabled, .checked_c_text-pink-50:checked {
+    color: rgb(253 242 248);
+}
+
+.text-pink-100, .hover_c_text-pink-100:hover, .active_c_text-pink-100:active, .inactive_c_text-pink-100:inactive, .focus_c_text-pink-100:focus, .disabled_c_text-pink-100:disabled, .enabled_c_text-pink-100:enabled, .checked_c_text-pink-100:checked {
+    color: rgb(252 231 243);
+}
+
+.text-pink-200, .hover_c_text-pink-200:hover, .active_c_text-pink-200:active, .inactive_c_text-pink-200:inactive, .focus_c_text-pink-200:focus, .disabled_c_text-pink-200:disabled, .enabled_c_text-pink-200:enabled, .checked_c_text-pink-200:checked {
+    color: rgb(251 207 232);
+}
+
+.text-pink-300, .hover_c_text-pink-300:hover, .active_c_text-pink-300:active, .inactive_c_text-pink-300:inactive, .focus_c_text-pink-300:focus, .disabled_c_text-pink-300:disabled, .enabled_c_text-pink-300:enabled, .checked_c_text-pink-300:checked {
+    color: rgb(249 168 212);
+}
+
+.text-pink-400, .hover_c_text-pink-400:hover, .active_c_text-pink-400:active, .inactive_c_text-pink-400:inactive, .focus_c_text-pink-400:focus, .disabled_c_text-pink-400:disabled, .enabled_c_text-pink-400:enabled, .checked_c_text-pink-400:checked {
+    color: rgb(244 114 182);
+}
+
+.text-pink-500, .hover_c_text-pink-500:hover, .active_c_text-pink-500:active, .inactive_c_text-pink-500:inactive, .focus_c_text-pink-500:focus, .disabled_c_text-pink-500:disabled, .enabled_c_text-pink-500:enabled, .checked_c_text-pink-500:checked {
+    color: rgb(236 72 153);
+}
+
+.text-pink-600, .hover_c_text-pink-600:hover, .active_c_text-pink-600:active, .inactive_c_text-pink-600:inactive, .focus_c_text-pink-600:focus, .disabled_c_text-pink-600:disabled, .enabled_c_text-pink-600:enabled, .checked_c_text-pink-600:checked {
+    color: rgb(219 39 119);
+}
+
+.text-pink-700, .hover_c_text-pink-700:hover, .active_c_text-pink-700:active, .inactive_c_text-pink-700:inactive, .focus_c_text-pink-700:focus, .disabled_c_text-pink-700:disabled, .enabled_c_text-pink-700:enabled, .checked_c_text-pink-700:checked {
+    color: rgb(190 24 93);
+}
+
+.text-pink-800, .hover_c_text-pink-800:hover, .active_c_text-pink-800:active, .inactive_c_text-pink-800:inactive, .focus_c_text-pink-800:focus, .disabled_c_text-pink-800:disabled, .enabled_c_text-pink-800:enabled, .checked_c_text-pink-800:checked {
+    color: rgb(157 23 77);
+}
+
+.text-pink-900, .hover_c_text-pink-900:hover, .active_c_text-pink-900:active, .inactive_c_text-pink-900:inactive, .focus_c_text-pink-900:focus, .disabled_c_text-pink-900:disabled, .enabled_c_text-pink-900:enabled, .checked_c_text-pink-900:checked {
+    color: rgb(131 24 67);
+}
+
+.text-rose-50, .hover_c_text-rose-50:hover, .active_c_text-rose-50:active, .inactive_c_text-rose-50:inactive, .focus_c_text-rose-50:focus, .disabled_c_text-rose-50:disabled, .enabled_c_text-rose-50:enabled, .checked_c_text-rose-50:checked {
+    color: rgb(255 241 242);
+}
+
+.text-rose-100, .hover_c_text-rose-100:hover, .active_c_text-rose-100:active, .inactive_c_text-rose-100:inactive, .focus_c_text-rose-100:focus, .disabled_c_text-rose-100:disabled, .enabled_c_text-rose-100:enabled, .checked_c_text-rose-100:checked {
+    color: rgb(255 228 230);
+}
+
+.text-rose-200, .hover_c_text-rose-200:hover, .active_c_text-rose-200:active, .inactive_c_text-rose-200:inactive, .focus_c_text-rose-200:focus, .disabled_c_text-rose-200:disabled, .enabled_c_text-rose-200:enabled, .checked_c_text-rose-200:checked {
+    color: rgb(254 205 211);
+}
+
+.text-rose-300, .hover_c_text-rose-300:hover, .active_c_text-rose-300:active, .inactive_c_text-rose-300:inactive, .focus_c_text-rose-300:focus, .disabled_c_text-rose-300:disabled, .enabled_c_text-rose-300:enabled, .checked_c_text-rose-300:checked {
+    color: rgb(253 164 175);
+}
+
+.text-rose-400, .hover_c_text-rose-400:hover, .active_c_text-rose-400:active, .inactive_c_text-rose-400:inactive, .focus_c_text-rose-400:focus, .disabled_c_text-rose-400:disabled, .enabled_c_text-rose-400:enabled, .checked_c_text-rose-400:checked {
+    color: rgb(251 113 133);
+}
+
+.text-rose-500, .hover_c_text-rose-500:hover, .active_c_text-rose-500:active, .inactive_c_text-rose-500:inactive, .focus_c_text-rose-500:focus, .disabled_c_text-rose-500:disabled, .enabled_c_text-rose-500:enabled, .checked_c_text-rose-500:checked {
+    color: rgb(244 63 94);
+}
+
+.text-rose-600, .hover_c_text-rose-600:hover, .active_c_text-rose-600:active, .inactive_c_text-rose-600:inactive, .focus_c_text-rose-600:focus, .disabled_c_text-rose-600:disabled, .enabled_c_text-rose-600:enabled, .checked_c_text-rose-600:checked {
+    color: rgb(225 29 72);
+}
+
+.text-rose-700, .hover_c_text-rose-700:hover, .active_c_text-rose-700:active, .inactive_c_text-rose-700:inactive, .focus_c_text-rose-700:focus, .disabled_c_text-rose-700:disabled, .enabled_c_text-rose-700:enabled, .checked_c_text-rose-700:checked {
+    color: rgb(190 18 60);
+}
+
+.text-rose-800, .hover_c_text-rose-800:hover, .active_c_text-rose-800:active, .inactive_c_text-rose-800:inactive, .focus_c_text-rose-800:focus, .disabled_c_text-rose-800:disabled, .enabled_c_text-rose-800:enabled, .checked_c_text-rose-800:checked {
+    color: rgb(159 18 57);
+}
+
+.text-rose-900, .hover_c_text-rose-900:hover, .active_c_text-rose-900:active, .inactive_c_text-rose-900:inactive, .focus_c_text-rose-900:focus, .disabled_c_text-rose-900:disabled, .enabled_c_text-rose-900:enabled, .checked_c_text-rose-900:checked {
+    color: rgb(136 19 55);
+}
+
+/* Whitespace */
+
+.whitespace-normal, .hover_c_whitespace-normal:hover, .active_c_whitespace-normal:active, .inactive_c_whitespace-normal:inactive, .focus_c_whitespace-normal:focus, .disabled_c_whitespace-normal:disabled, .enabled_c_whitespace-normal:enabled, .checked_c_whitespace-normal:checked {
+    white-space: normal;
+}
+
+.whitespace-nowrap, .hover_c_whitespace-nowrap:hover, .active_c_whitespace-nowrap:active, .inactive_c_whitespace-nowrap:inactive, .focus_c_whitespace-nowrap:focus, .disabled_c_whitespace-nowrap:disabled, .enabled_c_whitespace-nowrap:enabled, .checked_c_whitespace-nowrap:checked {
+    white-space: nowrap;
+}
