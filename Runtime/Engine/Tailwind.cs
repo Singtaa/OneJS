@@ -223,6 +223,23 @@ public class Tailwind : MonoBehaviour, IClassStrProcessor {
                     }
                 }
             }, {
+                "border", (vals, dom) => {
+                    if (vals.Length != 1)
+                        return;
+                    var legnth = ParseLength(vals[0]);
+                    if (legnth.keyword != StyleKeyword.Null) {
+                        dom.ve.style.borderTopWidth = legnth.value.value;
+                        dom.ve.style.borderRightWidth = legnth.value.value;
+                        dom.ve.style.borderBottomWidth = legnth.value.value;
+                        dom.ve.style.borderLeftWidth = legnth.value.value;
+                        return;
+                    }
+                    dom.ve.style.borderTopColor = ParseColor(vals[0]);
+                    dom.ve.style.borderRightColor = ParseColor(vals[0]);
+                    dom.ve.style.borderBottomColor = ParseColor(vals[0]);
+                    dom.ve.style.borderLeftColor = ParseColor(vals[0]);
+                }
+            }, {
                 "border-t", (vals, dom) => {
                     if (vals.Length != 1)
                         return;
@@ -318,8 +335,8 @@ public class Tailwind : MonoBehaviour, IClassStrProcessor {
             var v1 = Convert.ToInt32($"0x{match.Groups[1].Value}", 16) / 255f;
             var v2 = Convert.ToInt32($"0x{match.Groups[2].Value}", 16) / 255f;
             var v3 = Convert.ToInt32($"0x{match.Groups[3].Value}", 16) / 255f;
-            var v4 = match.Groups[3].Length > 4
-                ? Convert.ToInt32($"0x{match.Groups[3].Value}", 16) / 255f
+            var v4 = match.Groups.Count > 4
+                ? Convert.ToInt32($"0x{match.Groups[4].Value}", 16) / 255f
                 : 1f;
             return new Color(v1, v2, v3, v4);
         }

@@ -160,7 +160,7 @@ namespace OneJS {
         [Tooltip(
             "Reset ScriptLib folder on every Game Start. Useful for updating the ScriptLib folder after upgrading" +
             " OneJS, or updating a stale ScriptLib folder on your mobile device.")]
-        [SerializeField] [Label("Extract ScriptLib on Start")] bool _extractScriptLibOnStart = true;
+        [SerializeField] [Label("Extract ScriptLib on Start")] bool _extractScriptLibOnStart = false;
 
         UIDocument _uiDocument;
         Document _document;

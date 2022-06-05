@@ -115,11 +115,10 @@ MonoBehaviour:
   _timeout: 0
   _recursionDepth: 0
   _scriptLibZip: {fileID: 4900000, guid: 46d508c959f3f5248b9f101a41b65173, type: 3}
-  _vscodeSettings: {fileID: 4900000, guid: 670f3870b20ddcc48a34d76d6f2c8f89, type: 3}
   _addonsZip: {fileID: 4900000, guid: 58f74fb9fe145c04d938ca90db492cf3, type: 3}
+  _vscodeSettings: {fileID: 4900000, guid: 670f3870b20ddcc48a34d76d6f2c8f89, type: 3}
   _tsconfig: {fileID: 4900000, guid: f5908381548dc074ba0aa40312094370, type: 3}
-  _extractScriptLibOnStart: 1
-  _extractAddonsOnStart: 0
+  _extractScriptLibOnStart: 0
 --- !u!114 &6661873769672997505
 MonoBehaviour:
   m_ObjectHideFlags: 0

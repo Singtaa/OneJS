@@ -177,6 +177,8 @@ namespace OneJS.Dom {
                         val = destinationArray;
                     } else if (pi.PropertyType == typeof(Single) && val.GetType() == typeof(double)) {
                         val = Convert.ToSingle(val);
+                    } else if (pi.PropertyType == typeof(Int32) && val.GetType() == typeof(double)) {
+                        val = Convert.ToInt32(val);
                     }
                     pi.SetValue(_ve, val);
                 }
