@@ -64,7 +64,7 @@ public class Tailwind : MonoBehaviour, IClassStrProcessor {
             var match = _regex.Match(name);
             if (match.Success) {
                 var funcName = match.Groups[1].Value;
-                var funcParams = match.Groups[2].Value.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                var funcParams = match.Groups[2].Value.Split('_', StringSplitOptions.RemoveEmptyEntries);
                 if (_funcs.ContainsKey(funcName)) {
                     _funcs[funcName](funcParams, dom);
                     continue;
@@ -118,6 +118,38 @@ public class Tailwind : MonoBehaviour, IClassStrProcessor {
                     }
                 }
             }, {
+                "pt", (vals, dom) => {
+                    if (vals.Length == 1) dom.ve.style.paddingTop = ParseLength(vals[0]);
+                }
+            }, {
+                "pb", (vals, dom) => {
+                    if (vals.Length == 1) dom.ve.style.paddingBottom = ParseLength(vals[0]);
+                }
+            }, {
+                "pl", (vals, dom) => {
+                    if (vals.Length == 1) dom.ve.style.paddingLeft = ParseLength(vals[0]);
+                }
+            }, {
+                "pr", (vals, dom) => {
+                    if (vals.Length == 1) dom.ve.style.paddingRight = ParseLength(vals[0]);
+                }
+            }, {
+                "px", (vals, dom) => {
+                    if (vals.Length == 1) {
+                        var v = ParseLength(vals[0]);
+                        dom.ve.style.paddingLeft = v;
+                        dom.ve.style.paddingRight = v;
+                    }
+                }
+            }, {
+                "py", (vals, dom) => {
+                    if (vals.Length == 1) {
+                        var v = ParseLength(vals[0]);
+                        dom.ve.style.paddingTop = v;
+                        dom.ve.style.paddingBottom = v;
+                    }
+                }
+            }, {
                 "m", (vals, dom) => {
                     if (vals.Length == 1) {
                         dom.ve.style.marginTop = ParseLength(vals[0]);
@@ -139,6 +171,38 @@ public class Tailwind : MonoBehaviour, IClassStrProcessor {
                         dom.ve.style.marginBottom = ParseLength(vals[2]);
                         dom.ve.style.marginLeft = ParseLength(vals[4]);
                         dom.ve.style.marginRight = ParseLength(vals[1]);
+                    }
+                }
+            }, {
+                "mt", (vals, dom) => {
+                    if (vals.Length == 1) dom.ve.style.marginTop = ParseLength(vals[0]);
+                }
+            }, {
+                "mb", (vals, dom) => {
+                    if (vals.Length == 1) dom.ve.style.marginBottom = ParseLength(vals[0]);
+                }
+            }, {
+                "ml", (vals, dom) => {
+                    if (vals.Length == 1) dom.ve.style.marginLeft = ParseLength(vals[0]);
+                }
+            }, {
+                "mr", (vals, dom) => {
+                    if (vals.Length == 1) dom.ve.style.marginRight = ParseLength(vals[0]);
+                }
+            }, {
+                "mx", (vals, dom) => {
+                    if (vals.Length == 1) {
+                        var v = ParseLength(vals[0]);
+                        dom.ve.style.marginLeft = v;
+                        dom.ve.style.marginRight = v;
+                    }
+                }
+            }, {
+                "my", (vals, dom) => {
+                    if (vals.Length == 1) {
+                        var v = ParseLength(vals[0]);
+                        dom.ve.style.marginTop = v;
+                        dom.ve.style.marginBottom = v;
                     }
                 }
             }, {
@@ -312,12 +376,45 @@ public class Tailwind : MonoBehaviour, IClassStrProcessor {
                         return new TimeValue(0);
                     }).ToList());
                 }
+            }, {
+                "translate-x", (vals, dom) => {
+                    if (vals.Length == 1)
+                        dom.ve.style.translate = new Translate(ParseLength(vals[0]).value, 0, 0);
+                }
+            }, {
+                "translate-y", (vals, dom) => {
+                    if (vals.Length == 1)
+                        dom.ve.style.translate = new Translate(0, ParseLength(vals[0]).value, 0);
+                }
+            }, {
+                "rotate", (vals, dom) => {
+                    if (vals.Length != 1)
+                        return;
+                    dom.ve.style.rotate = ParseRotate(vals[0]);
+                }
+            }, {
+                "scale", (vals, dom) => {
+                    if (vals.Length == 1 && float.TryParse(vals[0], out float v)) {
+                        dom.ve.style.scale = new StyleScale(new Vector2(v, v));
+                    } else if (vals.Length == 2 && float.TryParse(vals[0], out float v1) &&
+                               float.TryParse(vals[1], out float v2)) {
+                        dom.ve.style.scale = new StyleScale(new Vector2(v1, v2));
+                    }
+                }
+            }, {
+                "origin", (vals, dom) => {
+                    if (vals.Length == 2) {
+                        dom.ve.style.transformOrigin =
+                            new StyleTransformOrigin(new TransformOrigin(ParseLength(vals[0]).value,
+                                ParseLength(vals[1]).value, 0));
+                    }
+                }
             }
         };
     }
 
     StyleLength ParseLength(string str) {
-        var match = Regex.Match(str, "(\\d+?)(px|%)");
+        var match = Regex.Match(str, "([\\d\\.-]+?)(px|%)");
         if (match.Success) {
             var numStr = match.Groups[1].Value;
             var unitStr = match.Groups[2].Value;
@@ -325,6 +422,23 @@ public class Tailwind : MonoBehaviour, IClassStrProcessor {
                 unitStr == "%" ? LengthUnit.Percent : LengthUnit.Pixel));
         }
         return new StyleLength(StyleKeyword.Null);
+    }
+
+    StyleRotate ParseRotate(string str) {
+        var match = Regex.Match(str, "([\\d\\.-]+?)(deg|rad|grad|turn)");
+        if (match.Success) {
+            var numStr = match.Groups[1].Value;
+            var unitStr = match.Groups[2].Value;
+            var unit = AngleUnit.Degree;
+            if (unitStr == "grad")
+                unit = AngleUnit.Gradian;
+            if (unitStr == "rad")
+                unit = AngleUnit.Radian;
+            if (unitStr == "turn")
+                unit = AngleUnit.Turn;
+            return new StyleRotate(new Rotate(new Angle(float.Parse(numStr), unit)));
+        }
+        return new StyleRotate(StyleKeyword.Null);
     }
 
     StyleColor ParseColor(string str) {
