@@ -1,1 +1,1 @@
-Thank you everyone for the support! Just a quick note: Since Github doesn't allow setting collaborator permission for private free repos, everyone gets push access. Because of that, the main branch is set to be a protected branch (to prevent potential accidents)
+Thank you everyone for the support! Just a quick note: Since Github doesn't allow setting collaborator permission for private free repos, everyone gets push access. Because of that, the main branch is set as a protected branch (to prevent potential accidents)
