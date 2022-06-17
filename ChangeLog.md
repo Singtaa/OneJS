@@ -1,4 +1,17 @@
-﻿## [2022-05-16] v1.1.0 - Tailwind and Multi-Device Live Reload
+﻿## [2022-06-08] v1.1.1 - Flipbook and more Tailwind support
+
+### Newly Added:
+
+* Flipbook Visual Element
+* Negative value support for Tailwind
+
+### Minor Bug fixes:
+
+* opacity bugfix
+* Preact useContext bugfix
+* Preact nested children bugfix
+
+## [2022-05-26] v1.1.0 - Tailwind and Multi-Device Live Reload
 
 ### New Features:
 

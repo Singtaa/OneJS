@@ -132,10 +132,14 @@ namespace OneJS.Dom {
         }
 
         public void removeChild(Dom child) {
+            if (!this._ve.Contains(child.ve))
+                return;
             this._ve.Remove(child.ve);
             var index = _childNodes.IndexOf(child);
-            var prev = _childNodes[index - 1];
-            prev._nextSibling = child._nextSibling;
+            if (index > 0) {
+                var prev = _childNodes[index - 1];
+                prev._nextSibling = child._nextSibling;
+            }
             _childNodes.Remove(child);
         }
 
