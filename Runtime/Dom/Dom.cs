@@ -141,6 +141,7 @@ namespace OneJS.Dom {
                 prev._nextSibling = child._nextSibling;
             }
             _childNodes.Remove(child);
+            child._parentNode = null;
         }
 
         public void insertBefore(Dom a, Dom b) {
@@ -148,6 +149,7 @@ namespace OneJS.Dom {
             _ve.Insert(index, a.ve);
             _childNodes.Insert(index, a);
             a._nextSibling = b;
+            a._parentNode = this;
             if (index > 0) {
                 _childNodes[index - 1]._nextSibling = a;
             }
