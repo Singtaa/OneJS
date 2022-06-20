@@ -395,10 +395,10 @@ public class Tailwind : MonoBehaviour, IClassStrProcessor {
             }, {
                 "scale", (vals, dom) => {
                     if (vals.Length == 1 && float.TryParse(vals[0], out float v)) {
-                        dom.ve.style.scale = new StyleScale(new Vector2(v, v));
+                        dom.ve.style.scale = new StyleScale(new Scale(new Vector2(v, v)));
                     } else if (vals.Length == 2 && float.TryParse(vals[0], out float v1) &&
                                float.TryParse(vals[1], out float v2)) {
-                        dom.ve.style.scale = new StyleScale(new Vector2(v1, v2));
+                        dom.ve.style.scale = new StyleScale(new Scale(new Vector2(v1, v2)));
                     }
                 }
             }, {
