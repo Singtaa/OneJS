@@ -133,7 +133,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 6661873769672997505, guid: 171073f8a323d004f82984c58ed3049a, type: 3}
       propertyPath: _entryScript
-      value: Addons/Sample/sample.js
+      value: Samples/sample.js
       objectReference: {fileID: 0}
     - target: {fileID: 6661873769672997507, guid: 171073f8a323d004f82984c58ed3049a, type: 3}
       propertyPath: m_Name

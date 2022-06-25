@@ -1,13 +1,13 @@
-﻿## [2022-06-25] v1.2.0 - WorkingDir Rework
+﻿## [2022-06-24] v1.2.0 - WorkingDir Rework
 
-You are now able to keep all your scripts under `{ProjectDir}/OneJS`. And the scripts will be automatically bundled
-into`{persistentDataPath}/OneJS` for Standalone builds.
+You are now able to keep all your scripts under `{ProjectDir}/OneJS`. And the scripts will be automatically bundled into`{persistentDataPath}/OneJS` for Standalone builds.
 
-* Added a Bundler component that will be responsible for extracting scripts.
-* Added OneJSBuildProcessor ScriptableObject that will be responsible for packaging scripts (for Standalone builds).
+* Added a Bundler component that is responsible for extracting scripts.
+* Added OneJSBuildProcessor ScriptableObject that is responsible for packaging scripts (for Standalone builds).
+  * This is generally automatic as it uses OnPreprocessBuild
+  * It also provides glob ignore patterns for things you don't want to include in the bundle.
 * Added `[DefaultExecutionOrder]` for various components.
-* Added an extra option (`Poll Standalone Screen`) on the Tailwind component to allow you to also watch for screen
-  changes for standalone builds.
+* Added an extra option (`Poll Standalone Screen`) on the Tailwind component to allow you to also watch for screen changes for standalone builds.
 
 ## [2022-06-19] v1.1.2 - Bugfixes
 
@@ -38,8 +38,7 @@ into`{persistentDataPath}/OneJS` for Standalone builds.
 
 ### Other Notables:
 
-* Completely reworked Live Reload's File watching mechanism to conserve more CPU cycles. Previously it was using
-  FileSystemWatcher (poor performance when watching directories recursively).
+* Completely reworked Live Reload's File watching mechanism to conserve more CPU cycles. Previously it was using  FileSystemWatcher (poor performance when watching directories recursively).
 * New GradientRect control (allows linear gradients with 4 corners, demo'ed in the fortnite ui sample)
 
 ### Minor Bug fixes:
