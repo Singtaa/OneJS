@@ -20,6 +20,9 @@ public class Tailwind : MonoBehaviour, IClassStrProcessor {
     [Tooltip("Tailwind stylesheets for the various breakpoints")]
     [SerializeField] [Label("Breakpoint Style Sheets")] StyleSheet[] _breakpointStyleSheets;
 
+    [Tooltip("Watch for screen size changes even for Standalone builds.")]
+    [SerializeField] bool _pollStandaloneScreen;
+
     ScriptEngine _scriptEngine;
     UIDocument _uiDocument;
     Regex _regex = new Regex("^([\\w-]+?)-\\[(.+?)\\]");
@@ -45,16 +48,23 @@ public class Tailwind : MonoBehaviour, IClassStrProcessor {
         );
     }
 
-#if UNITY_EDITOR
     void Update() {
-        // Poll Screen size change (this is just Editor-mode convenience)
+#if UNITY_EDITOR
+        PollScreenChange();
+#else
+        if (_pollStandaloneScreen) {
+            PollScreenChange();
+        }
+#endif
+    }
+
+    void PollScreenChange() {
         var width = _uiDocument.rootVisualElement.resolvedStyle.width;
         if (!Mathf.Approximately(_lastScreenWidth, width)) {
             SetBreakpointStyleSheet(width);
             _lastScreenWidth = width;
         }
     }
-#endif
 
     public string ProcessClassStr(string classStr, Dom dom) {
         var names = classStr.Split(' ', StringSplitOptions.RemoveEmptyEntries);

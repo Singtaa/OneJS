@@ -54,6 +54,20 @@ namespace OneJS {
 
     [RequireComponent(typeof(UIDocument), typeof(CoroutineUtil))]
     public class ScriptEngine : MonoBehaviour {
+        public static string WorkingDir {
+            get {
+#if UNITY_EDITOR
+                var path = Path.Combine(Path.GetDirectoryName(Application.dataPath)!, "OneJS");
+                if (!Directory.Exists(path)) {
+                    Directory.CreateDirectory(path);
+                }
+                return path;
+#else
+                return Path.Combine(Application.persistentDataPath, "OneJS");
+#endif
+            }
+        }
+
         public Jint.Engine JintEngine => _engine;
         public ModuleLoadingEngine ModuleEngine => _cjsEngine;
         public Dom.Document Document => _document;
@@ -128,40 +142,6 @@ namespace OneJS {
         [SerializeField]
         int _recursionDepth;
 
-        [Foldout("MISC")]
-        [Tooltip("This is the compressed archive that OneJS uses to fill your " +
-                 "ScriptLib folder if one isn't found under Application.persistentDataPath.")]
-        [Label("ScriptLib Zip")]
-        [SerializeField]
-        TextAsset _scriptLibZip;
-
-        [Foldout("MISC")]
-        [Tooltip("This is the compressed archive that OneJS uses to fill your " +
-                 "Addons folder if one isn't found under Application.persistentDataPath.")]
-        [Label("ScriptLib Zip")]
-        [SerializeField]
-        TextAsset _addonsZip;
-
-        [Foldout("MISC")]
-        [Tooltip("Default vscode settings.json. If one isn't found under {Application.persistentDataPath}/.vscode, " +
-                 "this is the template that will be copied over.")]
-        [Label("VSCode Settings")]
-        [SerializeField]
-        TextAsset _vscodeSettings;
-
-        [Foldout("MISC")]
-        [Tooltip("Default tsconfig.json. If one isn't found under Application.persistentDataPath, " +
-                 "this is the template that will be copied over.")]
-        [Label("TS Config")]
-        [SerializeField]
-        TextAsset _tsconfig;
-
-        [Foldout("MISC")]
-        [Tooltip(
-            "Reset ScriptLib folder on every Game Start. Useful for updating the ScriptLib folder after upgrading" +
-            " OneJS, or updating a stale ScriptLib folder on your mobile device.")]
-        [SerializeField] [Label("Extract ScriptLib on Start")] bool _extractScriptLibOnStart = false;
-
         UIDocument _uiDocument;
         Document _document;
         ModuleLoadingEngine _cjsEngine;
@@ -176,12 +156,14 @@ namespace OneJS {
             _uiDocument.rootVisualElement.style.height = new StyleLength(new Length(100, LengthUnit.Percent));
             _document = new Document(_uiDocument.rootVisualElement, this);
             _styleSheets.ToList().ForEach(s => _uiDocument.rootVisualElement.styleSheets.Add(s));
-            CheckAndSetScriptLibEtAl();
+        }
+
+        void Start() {
             InitEngine();
         }
 
         public void RunScript(string scriptPath) {
-            var path = Path.Combine(Application.persistentDataPath, scriptPath);
+            var path = Path.Combine(ScriptEngine.WorkingDir, scriptPath);
             if (!File.Exists(path)) {
                 Debug.LogError($"Script Path ({path}) doesn't exist.");
                 return;
@@ -193,9 +175,9 @@ namespace OneJS {
         /// Engine will reload first then runs the script.
         /// Use this if you want to run the script with a brand new Engine.
         /// </summary>
-        /// <param name="scriptPath">Relative to Application.persistentDataPath</param>
+        /// <param name="scriptPath">Relative to WorkingDir</param>
         public void ReloadAndRunScript(string scriptPath) {
-            var path = Path.Combine(Application.persistentDataPath, scriptPath);
+            var path = Path.Combine(WorkingDir, scriptPath);
             if (!File.Exists(path)) {
                 Debug.LogError($"Script Path ({path}) doesn't exist.");
                 return;
@@ -232,60 +214,6 @@ namespace OneJS {
         /// </summary>
         public void RegisterClassStrProcessor(IClassStrProcessor processor) {
             _classStrProcessors.Add(processor);
-        }
-
-        /// <summary>
-        /// WARNING: This will replace the existing ScriptLib folder with the default one
-        /// </summary>
-        public void ExtractScriptLib() {
-            var path = Path.Combine(Application.persistentDataPath, "ScriptLib");
-            if (Directory.Exists(path)) {
-                var di = new DirectoryInfo(path);
-                foreach (FileInfo file in di.EnumerateFiles()) {
-                    file.Delete();
-                }
-                foreach (DirectoryInfo dir in di.EnumerateDirectories()) {
-                    if (dir.Name != ".git")
-                        dir.Delete(true);
-                }
-            }
-
-            Stream inStream = new MemoryStream(_scriptLibZip.bytes);
-            Stream gzipStream = new GZipInputStream(inStream);
-
-            TarArchive tarArchive = TarArchive.CreateInputTarArchive(gzipStream);
-            tarArchive.ExtractContents(Application.persistentDataPath);
-            tarArchive.Close();
-            gzipStream.Close();
-            inStream.Close();
-            Debug.Log($"ScriptLib Zip extracted. ({path})");
-        }
-
-        /// <summary>
-        /// WARNING: This will replace the existing Addons folder with the default one
-        /// </summary>
-        public void ExtractAddons() {
-            var path = Path.Combine(Application.persistentDataPath, "Addons");
-            if (Directory.Exists(path)) {
-                var di = new DirectoryInfo(path);
-                foreach (FileInfo file in di.EnumerateFiles()) {
-                    file.Delete();
-                }
-                foreach (DirectoryInfo dir in di.EnumerateDirectories()) {
-                    if (dir.Name != ".git")
-                        dir.Delete(true);
-                }
-            }
-
-            Stream inStream = new MemoryStream(_addonsZip.bytes);
-            Stream gzipStream = new GZipInputStream(inStream);
-
-            TarArchive tarArchive = TarArchive.CreateInputTarArchive(gzipStream);
-            tarArchive.ExtractContents(Application.persistentDataPath);
-            tarArchive.Close();
-            gzipStream.Close();
-            inStream.Close();
-            Debug.Log($"Addons Zip extracted. ({path})");
         }
 
         void CleanUp() {
@@ -360,112 +288,14 @@ namespace OneJS {
         }
 
         void RunModule(string scriptPath) {
-            var preloadsPath = Path.Combine(Application.persistentDataPath, "ScriptLib/onejs/preloads");
+            var preloadsPath = Path.Combine(WorkingDir, "ScriptLib/onejs/preloads");
             if (Directory.Exists(preloadsPath)) {
                 var files = Directory.GetFiles(preloadsPath,
                     "*.js", SearchOption.AllDirectories).ToList();
-                files.ForEach(f => _cjsEngine.RunMain(Path.GetRelativePath(Application.persistentDataPath, f)));
+                files.ForEach(f => _cjsEngine.RunMain(Path.GetRelativePath(WorkingDir, f)));
                 _preloadedScripts.ForEach(p => _cjsEngine.RunMain(p));
             }
             _cjsEngine.RunMain(scriptPath);
         }
-
-        void CheckAndSetScriptLibEtAl() {
-            /*
-             * Note this needs to be done during runtime. So don't use any Editor Utils.
-             */
-            if (_extractScriptLibOnStart) {
-                ExtractScriptLib();
-            }
-            // if (_extractAddonsOnStart) {
-            //     ExtractAddons();
-            // }
-
-            var indexjsPath = Path.Combine(Application.persistentDataPath, "index.js");
-            var scriptLibPath = Path.Combine(Application.persistentDataPath, "ScriptLib");
-            var addonsPath = Path.Combine(Application.persistentDataPath, "Addons");
-            var tsconfigPath = Path.Combine(Application.persistentDataPath, "tsconfig.json");
-            var vscodeSettingsPath = Path.Combine(Application.persistentDataPath, ".vscode/settings.json");
-
-            var indexjsFound = File.Exists(indexjsPath);
-            var scriptLibFound = Directory.Exists(scriptLibPath);
-            var addonsFound = Directory.Exists(addonsPath);
-            var tsconfigFound = File.Exists(tsconfigPath);
-            var vscodeSettingsFound = File.Exists(vscodeSettingsPath);
-
-            if (!indexjsFound) {
-                File.WriteAllText(indexjsPath, "log(\"[index.js]: OneJS is good to go.\")");
-                Debug.Log("index.js wasn't found. So a default one was created.");
-            }
-
-            if (!scriptLibFound) {
-                Stream inStream = new MemoryStream(_scriptLibZip.bytes);
-                Stream gzipStream = new GZipInputStream(inStream);
-
-                TarArchive tarArchive = TarArchive.CreateInputTarArchive(gzipStream);
-                tarArchive.ExtractContents(Application.persistentDataPath);
-                tarArchive.Close();
-                gzipStream.Close();
-                inStream.Close();
-                Debug.Log("ScriptLib Folder wasn't found. So a default one was created (from ScriptLib Zip).");
-            }
-
-            if (!addonsFound) {
-                Stream inStream = new MemoryStream(_addonsZip.bytes);
-                Stream gzipStream = new GZipInputStream(inStream);
-
-                TarArchive tarArchive = TarArchive.CreateInputTarArchive(gzipStream);
-                tarArchive.ExtractContents(Application.persistentDataPath);
-                tarArchive.Close();
-                gzipStream.Close();
-                inStream.Close();
-                Debug.Log("Addons Folder wasn't found. So a default one was created (from Addons Zip).");
-            }
-
-            if (!tsconfigFound) {
-                File.WriteAllText(tsconfigPath, _tsconfig.text);
-                Debug.Log("tsconfig.json wasn't found. So a default one was created.");
-            }
-
-            if (!vscodeSettingsFound) {
-                var dirPath = Path.Combine(Application.persistentDataPath, ".vscode");
-                if (!Directory.Exists(dirPath)) {
-                    Directory.CreateDirectory(dirPath);
-                }
-                File.WriteAllText(vscodeSettingsPath, _vscodeSettings.text);
-                Debug.Log(".vscode/settings.json wasn't found. So a default one was created.");
-            }
-        }
-
-#if UNITY_EDITOR
-        [Button()]
-        void OpenPersistantDataFolder() {
-            Process.Start(Application.persistentDataPath);
-        }
-
-        [ContextMenu("Extract ScriptLib")]
-        void ExtractScriptLibFolder() {
-            if (!UnityEditor.EditorUtility.DisplayDialog("Are you sure?",
-                "WARNING! This will overwrite the ScriptLib folder under Application.persistentDataPath.\n\n" +
-                "Consider backing up the existing ScriptLib folder if you need to keep any changes.",
-                "Confirm", "Cancel"))
-                return;
-
-            ExtractScriptLib();
-        }
-
-
-        [ContextMenu("Extract Addons")]
-        void ExtractAddonsFolder() {
-            if (!UnityEditor.EditorUtility.DisplayDialog("Are you sure?",
-                "WARNING! This will overwrite the Addons folder under Application.persistentDataPath.\n\n" +
-                "Consider backing up the existing Addons folder if you need to keep any changes.",
-                "Confirm", "Cancel"))
-                return;
-
-            ExtractAddons();
-        }
-
-#endif
     }
 }

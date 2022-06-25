@@ -7,7 +7,7 @@ namespace OneJS.Utils {
         public static Font Load(string path) {
             path = Path.IsPathRooted(path)
                 ? path
-                : Path.GetFullPath(Path.Combine(Application.persistentDataPath, path));
+                : Path.GetFullPath(Path.Combine(ScriptEngine.WorkingDir, path));
             var font = new Font(path);
             return font;
         }
@@ -15,7 +15,7 @@ namespace OneJS.Utils {
         public static FontDefinition LoadDefinition(string path) {
             path = Path.IsPathRooted(path)
                 ? path
-                : Path.GetFullPath(Path.Combine(Application.persistentDataPath, path));
+                : Path.GetFullPath(Path.Combine(ScriptEngine.WorkingDir, path));
             var font = new Font(path);
             return FontDefinition.FromFont(font);
         }

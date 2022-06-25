@@ -2,7 +2,8 @@
     "name": "OneJSEditor",
     "rootNamespace": "",
     "references": [
-        "GUID:7e70ddc105ff1234a8102f95cc3a9aa6"
+        "GUID:7e70ddc105ff1234a8102f95cc3a9aa6",
+        "GUID:776d03a35f1b52c4a9aed9f56d7b4229"
     ],
     "includePlatforms": [
         "Editor"

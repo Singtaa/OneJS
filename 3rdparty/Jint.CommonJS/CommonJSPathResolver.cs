@@ -5,6 +5,12 @@ using UnityEngine;
 
 namespace Jint.CommonJS {
     public class CommonJSPathResolver : IModuleResolver {
+#if UNITY_EDITOR
+        private static readonly string WORKING_DIR = Path.Combine(Path.GetDirectoryName(Application.dataPath)!, "OneJS");
+#else
+        private static readonly string WORKING_DIR = Path.Combine(Application.persistentDataPath, "OneJS");
+#endif
+
         private readonly IEnumerable<string> extensionHandlers;
 
         public CommonJSPathResolver(IEnumerable<string> extensionHandlers) {
@@ -20,11 +26,11 @@ namespace Jint.CommonJS {
             // var cwd = parent.filePath != null ? Path.GetDirectoryName(parent.filePath) : Environment.CurrentDirectory;
             var cwd = parent.filePath != null
                 ? Path.GetDirectoryName(parent.filePath)
-                : Application.persistentDataPath;
+                : WORKING_DIR;
             var path = Path.GetFullPath(Path.Combine(cwd, moduleId));
 
             if (!moduleId.StartsWith(".")) {
-                path = Path.Combine(Application.persistentDataPath, moduleId);
+                path = Path.Combine(WORKING_DIR, moduleId);
             }
 
             /*
@@ -35,7 +41,7 @@ namespace Jint.CommonJS {
             var found = false;
             foreach (var pm in pathMappings) {
                 if (!moduleId.StartsWith("."))
-                    path = Path.Combine(Application.persistentDataPath, pm + moduleId);
+                    path = Path.Combine(WORKING_DIR, pm + moduleId);
 
                 if (Directory.Exists(path)) {
                     path = Path.Combine(path, "index");

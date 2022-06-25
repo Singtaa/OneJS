@@ -1,16 +1,10 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Net;
-using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using NaughtyAttributes;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace OneJS.Engine {
     public enum ENetSyncMode {
@@ -19,6 +13,7 @@ namespace OneJS.Engine {
         Client
     }
 
+    [DefaultExecutionOrder(100)]
     [RequireComponent(typeof(ScriptEngine))]
     public class LiveReload : MonoBehaviour {
         public bool IsServer => _mode == ENetSyncMode.Server || _mode == ENetSyncMode.Auto &&
@@ -26,9 +21,13 @@ namespace OneJS.Engine {
 
         public bool IsClient => !IsServer;
 
-        [InfoBox("This component will watch a single file for you. When change is detected, " +
-                 "the engine will reload and the script will be re-run.")]
+        [InfoBox("This component will watch the `{ProjectDir}/OneJS` folder for you. When change is detected, " +
+                 "the script engine will reload and the entry script will be re-run.")]
         [SerializeField] [Label("Run on Start")] bool _runOnStart = true;
+
+        [Tooltip("Turn on Live Reload for Standalone build. Remember to turn this off for deployment where you don't " +
+                 "need Live Reload as it does consume CPU resources.")]
+        [SerializeField] bool _turnOnForStandalone = true;
 
         [Tooltip("Should be a .js file relative to your `persistentDataPath`." +
                  "")]
@@ -58,7 +57,7 @@ namespace OneJS.Engine {
         int _tick;
 
         void Awake() {
-            _workingDir = Application.persistentDataPath;
+            _workingDir = ScriptEngine.WorkingDir;
             _scriptEngine = GetComponent<ScriptEngine>();
         }
 
@@ -69,6 +68,14 @@ namespace OneJS.Engine {
         }
 
         void Start() {
+#if UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID
+            if (!_turnOnForStandalone) {
+                if (_runOnStart) {
+                    _scriptEngine.RunScript(_entryScript);
+                }
+                return;
+            }
+#endif
             if (_netSync) {
                 if (IsServer) {
                     // Running as Server
@@ -92,15 +99,23 @@ namespace OneJS.Engine {
         }
 
         void OnEnable() {
+#if UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID
+            if (!_turnOnForStandalone)
+                return;
+#endif
             if (_netSync && IsClient)
                 return;
-            _watcher = new CustomWatcher(Application.persistentDataPath, _watchFilter);
+            _watcher = new CustomWatcher(_workingDir, _watchFilter);
             _watcher.OnChangeDetected += OnFileChangeDetected;
             _watcher.Start();
             Debug.Log($"Live Reload On");
         }
 
         void OnDisable() {
+#if UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID
+            if (!_turnOnForStandalone)
+                return;
+#endif
             if (_netSync && IsClient)
                 return;
             _watcher.Stop();
@@ -111,6 +126,10 @@ namespace OneJS.Engine {
         // }
 
         void Update() {
+#if UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID
+            if (!_turnOnForStandalone)
+                return;
+#endif
             _tick++;
             _watcher.Poll();
             if (_netSync) {

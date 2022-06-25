@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: ae1afe1674e74bd39267e3f192436aa9
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - _scriptsBundleZip: {fileID: 4900000, guid: bb06fb5af9b25f5468b07208f51a9047, type: 3}
+  - _samplesZip: {fileID: 4900000, guid: 58f74fb9fe145c04d938ca90db492cf3, type: 3}
+  - _scriptLibZip: {fileID: 4900000, guid: 46d508c959f3f5248b9f101a41b65173, type: 3}
+  - _vscodeSettings: {fileID: 4900000, guid: 670f3870b20ddcc48a34d76d6f2c8f89, type: 3}
+  - _tsconfig: {fileID: 4900000, guid: f5908381548dc074ba0aa40312094370, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

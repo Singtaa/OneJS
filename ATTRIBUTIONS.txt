@@ -3,6 +3,8 @@
 Jint (BSD-2-Clause)
 Jint.CommonJS (MIT)
 Esprima.Net (BSD-3-Clause)
+DotNet.Glob (MIT)
+NUglify (BSD-2-Clause)
 SharpZipLib (MIT)
 LiteNetLib (MIT)
 NaughtyAttributes (MIT)

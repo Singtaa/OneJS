@@ -58,7 +58,7 @@ namespace OneJS.Engine {
                 for (int i = 0; i < num; i++) {
                     var path = reader.GetString();
                     var text = reader.GetString();
-                    File.WriteAllText(Path.Combine(Application.persistentDataPath, path), text);
+                    File.WriteAllText(Path.Combine(ScriptEngine.WorkingDir, path), text);
                 }
                 OnFileChanged?.Invoke();
             }

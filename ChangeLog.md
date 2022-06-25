@@ -1,4 +1,21 @@
-﻿## [2022-06-08] v1.1.1 - Flipbook and more Tailwind support
+﻿## [2022-06-25] v1.2.0 - WorkingDir Rework
+
+You are now able to keep all your scripts under `{ProjectDir}/OneJS`. And the scripts will be automatically bundled
+into`{persistentDataPath}/OneJS` for Standalone builds.
+
+* Added a Bundler component that will be responsible for extracting scripts.
+* Added OneJSBuildProcessor ScriptableObject that will be responsible for packaging scripts (for Standalone builds).
+* Added `[DefaultExecutionOrder]` for various components.
+* Added an extra option (`Poll Standalone Screen`) on the Tailwind component to allow you to also watch for screen
+  changes for standalone builds.
+
+## [2022-06-19] v1.1.2 - Bugfixes
+
+* Fixed various preact cyclic reference errors
+* Fixed preact diff bug (missing parentNode)
+* Fixed Tailwind StyleScale regression in 2021.3
+
+## [2022-06-08] v1.1.1 - Flipbook and more Tailwind support
 
 ### Newly Added:
 
@@ -7,7 +24,7 @@
 
 ### Minor Bug fixes:
 
-* opacity bugfix
+* Opacity bugfix
 * Preact useContext bugfix
 * Preact nested children bugfix
 

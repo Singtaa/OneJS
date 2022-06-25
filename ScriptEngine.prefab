@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 6661873769672997516}
   - component: {fileID: 6661873769672997519}
   - component: {fileID: 6661873769672997518}
+  - component: {fileID: 6324388976432546210}
   - component: {fileID: 6661873769672997505}
   - component: {fileID: 6661873769672997504}
   - component: {fileID: -7210667014852890819}
@@ -114,8 +115,26 @@ MonoBehaviour:
   _memoryLimit: 0
   _timeout: 0
   _recursionDepth: 0
+--- !u!114 &6324388976432546210
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6661873769672997507}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ae1afe1674e74bd39267e3f192436aa9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _ignoreList: '.vscode
+
+    tsconfig.json
+
+    Samples'
+  _scriptsBundleZip: {fileID: 4900000, guid: bb06fb5af9b25f5468b07208f51a9047, type: 3}
+  _samplesZip: {fileID: 4900000, guid: 58f74fb9fe145c04d938ca90db492cf3, type: 3}
   _scriptLibZip: {fileID: 4900000, guid: 46d508c959f3f5248b9f101a41b65173, type: 3}
-  _addonsZip: {fileID: 4900000, guid: 58f74fb9fe145c04d938ca90db492cf3, type: 3}
   _vscodeSettings: {fileID: 4900000, guid: 670f3870b20ddcc48a34d76d6f2c8f89, type: 3}
   _tsconfig: {fileID: 4900000, guid: f5908381548dc074ba0aa40312094370, type: 3}
   _extractScriptLibOnStart: 0
@@ -132,6 +151,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _runOnStart: 1
+  _turnOnForStandalone: 1
   _entryScript: index.js
   _watchFilter: '*.js'
   _netSync: 0
