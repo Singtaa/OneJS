@@ -55,7 +55,7 @@ namespace OneJS.Dom {
 
         // NOTE: Using `object` for now. `EventCallback<EventBase>` will somehow lead to massive slowdown on Linux.
         // [props.ts] `dom._listeners[name + useCapture] = value;`
-        public Dictionary<string, Action<EventBase>> _listeners => __listeners;
+        public Dictionary<string, JsValue> _listeners => __listeners;
 
         Document _document;
         VisualElement _ve;
@@ -67,7 +67,7 @@ namespace OneJS.Dom {
         string _innerHTML;
         List<Dom> _childNodes = new List<Dom>();
         object __children;
-        Dictionary<string, Action<EventBase>> __listeners = new Dictionary<string, Action<EventBase>>();
+        Dictionary<string, JsValue> __listeners = new Dictionary<string, JsValue>();
 
         Dictionary<string, EventCallback<EventBase>> _registeredCallbacks =
             new Dictionary<string, EventCallback<EventBase>>();
@@ -95,6 +95,13 @@ namespace OneJS.Dom {
         public Dom(VisualElement ve, Document document) {
             _ve = ve;
             _document = document;
+        }
+
+        public void CallListener(string name, EventBase evt) {
+            var func = __listeners[name].As<FunctionInstance>();
+            var engine = _document.scriptEngine.JintEngine;
+            var thisDom = JsValue.FromObject(engine, this);
+            func.Call(thisDom, JsValue.FromObject(engine, evt));
         }
 
         public void clearChildren() {

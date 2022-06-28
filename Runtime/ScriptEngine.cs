@@ -295,7 +295,10 @@ namespace OneJS {
                 files.ForEach(f => _cjsEngine.RunMain(Path.GetRelativePath(WorkingDir, f)));
                 _preloadedScripts.ForEach(p => _cjsEngine.RunMain(p));
             }
+
+            // var t = DateTime.Now;
             _cjsEngine.RunMain(scriptPath);
+            // print($"RunModule {(DateTime.Now - t).TotalMilliseconds}ms");
         }
     }
 }
