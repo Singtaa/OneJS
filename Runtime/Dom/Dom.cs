@@ -53,10 +53,9 @@ namespace OneJS.Dom {
             set { __children = value; }
         }
 
-        public Dictionary<string, EventCallback<EventBase>> _listeners {
-            get { return __listeners; }
-            set { __listeners = value; }
-        }
+        // NOTE: Using `object` for now. `EventCallback<EventBase>` will somehow lead to massive slowdown on Linux.
+        // [props.ts] `dom._listeners[name + useCapture] = value;`
+        public Dictionary<string, object> _listeners => __listeners;
 
         Document _document;
         VisualElement _ve;
@@ -68,10 +67,24 @@ namespace OneJS.Dom {
         string _innerHTML;
         List<Dom> _childNodes = new List<Dom>();
         object __children;
-        Dictionary<string, EventCallback<EventBase>> __listeners;
+        Dictionary<string, object> __listeners = new Dictionary<string, object>();
 
         Dictionary<string, EventCallback<EventBase>> _registeredCallbacks =
             new Dictionary<string, EventCallback<EventBase>>();
+        
+        static Dictionary<string, RegisterCallbackDelegate> _eventCache =
+            new Dictionary<string, RegisterCallbackDelegate>();
+        
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void Init() {
+            _eventCache.Clear();
+        }
+
+        public static void RegisterCallback<T>(VisualElement ve, EventCallback<T> callback)  where T : EventBase<T>, new() {
+            ve.RegisterCallback(callback);
+        }
+        
+        public delegate void RegisterCallbackDelegate(VisualElement ve, EventCallback<EventBase> callback);
 
         public Dom(string tagName) {
             _ve = new VisualElement();
@@ -89,19 +102,28 @@ namespace OneJS.Dom {
         }
 
         public void addEventListener(string name, JsValue jsval, bool useCapture = false) {
+            // var t = DateTime.Now;
             var func = jsval.As<FunctionInstance>();
             var engine = _document.scriptEngine.JintEngine;
             var thisDom = JsValue.FromObject(engine, this);
             var callback = (EventCallback<EventBase>)((e) => { func.Call(thisDom, JsValue.FromObject(engine, e)); });
-            var eventType = typeof(VisualElement).Assembly.GetType($"UnityEngine.UIElements.{name}Event");
-            if (eventType != null) {
-                var flags = BindingFlags.Public | BindingFlags.Instance;
-                var mi = _ve.GetType().GetMethods(flags)
-                    .Where(m => m.Name == "RegisterCallback" && m.GetGenericArguments().Length == 1).First();
-                mi = mi.MakeGenericMethod(eventType);
-                mi.Invoke(_ve, new object[] { callback, null });
+
+            if (_eventCache.ContainsKey(name)) {
+                _eventCache[name](_ve, callback);
+            } else {
+                var eventType = typeof(VisualElement).Assembly.GetType($"UnityEngine.UIElements.{name}Event");
+                if (eventType != null) {
+                    var flags = BindingFlags.Public | BindingFlags.Instance;
+                    var mi = this.GetType().GetMethod("RegisterCallback");
+                    mi = mi.MakeGenericMethod(eventType);
+                    var del = (RegisterCallbackDelegate)Delegate.CreateDelegate(typeof(RegisterCallbackDelegate), mi);
+                    _eventCache.Add(name, del);
+                    del(_ve, callback);
+                }
             }
+            
             _registeredCallbacks.Add(name, callback);
+            // Debug.Log($"{name} {(DateTime.Now - t).TotalMilliseconds}ms");
         }
 
         public void removeEventListener(string name, JsValue jsval, bool useCapture = false) {
