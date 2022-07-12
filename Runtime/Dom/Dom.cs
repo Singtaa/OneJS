@@ -53,7 +53,7 @@ namespace OneJS.Dom {
             set { __children = value; }
         }
 
-        // NOTE: Using `object` for now. `EventCallback<EventBase>` will somehow lead to massive slowdown on Linux.
+        // NOTE: Using `JsValue` here because `EventCallback<EventBase>` will lead to massive slowdown on Linux.
         // [props.ts] `dom._listeners[name + useCapture] = value;`
         public Dictionary<string, JsValue> _listeners => __listeners;
 
@@ -71,25 +71,24 @@ namespace OneJS.Dom {
 
         Dictionary<string, EventCallback<EventBase>> _registeredCallbacks =
             new Dictionary<string, EventCallback<EventBase>>();
-        
+
         static Dictionary<string, RegisterCallbackDelegate> _eventCache =
             new Dictionary<string, RegisterCallbackDelegate>();
-        
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void Init() {
             _eventCache.Clear();
         }
 
-        public static void RegisterCallback<T>(VisualElement ve, EventCallback<T> callback)  where T : EventBase<T>, new() {
+        public static void RegisterCallback<T>(VisualElement ve, EventCallback<T> callback)
+            where T : EventBase<T>, new() {
             ve.RegisterCallback(callback);
         }
-        
+
         public delegate void RegisterCallbackDelegate(VisualElement ve, EventCallback<EventBase> callback);
 
         public Dom(string tagName) {
             _ve = new VisualElement();
-            // This constructor is called by preact?
-            // Debug.Log("dom(string tagName) called");
         }
 
         public Dom(VisualElement ve, Document document) {
@@ -114,21 +113,32 @@ namespace OneJS.Dom {
             var engine = _document.scriptEngine.JintEngine;
             var thisDom = JsValue.FromObject(engine, this);
             var callback = (EventCallback<EventBase>)((e) => { func.Call(thisDom, JsValue.FromObject(engine, e)); });
+            var isValueChanged = name == "ValueChanged";
 
-            if (_eventCache.ContainsKey(name)) {
+            if (!isValueChanged && _eventCache.ContainsKey(name)) {
                 _eventCache[name](_ve, callback);
             } else {
                 var eventType = typeof(VisualElement).Assembly.GetType($"UnityEngine.UIElements.{name}Event");
+                if (isValueChanged) {
+                    var notifyInterface = _ve.GetType().GetInterfaces().Where(i => i.Name == "INotifyValueChanged`1")
+                        .FirstOrDefault();
+                    if (notifyInterface != null) {
+                        var valType = notifyInterface.GenericTypeArguments[0];
+                        eventType = typeof(VisualElement).Assembly.GetType($"UnityEngine.UIElements.ChangeEvent`1");
+                        eventType = eventType.MakeGenericType(valType);
+                    }
+                }
                 if (eventType != null) {
-                    var flags = BindingFlags.Public | BindingFlags.Instance;
                     var mi = this.GetType().GetMethod("RegisterCallback");
                     mi = mi.MakeGenericMethod(eventType);
+                    // mi.Invoke(null, new object[] { _ve, callback });
                     var del = (RegisterCallbackDelegate)Delegate.CreateDelegate(typeof(RegisterCallbackDelegate), mi);
-                    _eventCache.Add(name, del);
+                    if (!isValueChanged)
+                        _eventCache.Add(name, del);
                     del(_ve, callback);
                 }
             }
-            
+
             _registeredCallbacks.Add(name, callback);
             // Debug.Log($"{name} {(DateTime.Now - t).TotalMilliseconds}ms");
         }
