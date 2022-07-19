@@ -1,4 +1,11 @@
-﻿## [2022-06-24] v1.2.0 - WorkingDir Rework
+﻿## [2022-07-10] v1.2.1 - Minor features and bugfixes
+
+* Implemented onValueChanged for UI Toolkit controls
+* Fixed __listeners Linux slowdown
+* GameObject Extensions AddComp(), GetComp(), and FindType() fixes
+* UIElementsNativeModule handling for 2022.2 and later
+
+## [2022-06-24] v1.2.0 - WorkingDir Rework
 
 You are now able to keep all your scripts under `{ProjectDir}/OneJS`. And the scripts will be automatically bundled into`{persistentDataPath}/OneJS` for Standalone builds.
 

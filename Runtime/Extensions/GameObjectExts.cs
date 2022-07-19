@@ -45,45 +45,48 @@ namespace OneJS.Extensions {
         }
 
         public static bool TryGetComp(this GameObject go, string componentName, out Component comp) {
-            var type = FindType(componentName);
-            return go.TryGetComponent(type, out comp);
+            var components = go.GetComponents(typeof(Component));
+            foreach (var component in components) {
+                if (component.GetType().Name == componentName) {
+                    comp = component;
+                    return true;
+                }
+            }
+            comp = null;
+            return false;
         }
-        
+
         public static bool TryGetComp(this GameObject go, Type componentType, out Component comp) {
             return go.TryGetComponent(componentType, out comp);
         }
 
         public static Component GetComp(this GameObject go, string componentName) {
-            var type = FindType(componentName);
-            return go.GetComponent(type);
+            var components = go.GetComponents(typeof(Component));
+            foreach (var component in components) {
+                if (component.GetType().Name == componentName) {
+                    return component;
+                }
+            }
+            return null;
         }
 
         public static Component GetComp(this GameObject go, Type componentType) {
             return go.GetComponent(componentType);
         }
 
-        private static Type FindType(string name) {
-            // var asmNames = new[] { "AssetMakerStage", "UnityEngine.CoreModule", "UnityEngine.CoreModule", "Obi" };
-            // var type = AppDomain.CurrentDomain.GetAssemblies().Where(a => {
-            //     foreach (var asmName in asmNames) {
-            //         if (a.FullName.Contains(asmName)) {
-            //             return true;
-            //         }
-            //     }
-            //     return false;
-            // }).Select(a => a.GetTypes().Where(t => t.Name == name).FirstOrDefault()).FirstOrDefault();
-
-            var type = FindTypeInAssembly(name, typeof(GameObject).Assembly);
-            if (type == null)
-                type = FindTypeInAssembly(name, typeof(MeshCollider).Assembly);
-            if (type == null)
-                throw new Exception("[GameObjectExtensions] Cannot Find type: " + name);
-            return type;
-        }
-
-        private static Type FindTypeInAssembly(string name, Assembly asm) {
-            var res = asm.GetTypes().Where(t => t.Name == name).FirstOrDefault();
-            return res;
+        /// <summary>
+        /// Can be slow as it seaches all assemblies.
+        /// </summary>
+        public static Type FindType(string name) {
+            if (String.IsNullOrEmpty(name))
+                return null;
+            var asms = AppDomain.CurrentDomain.GetAssemblies();
+            foreach (var asm in asms) {
+                var type = asm.GetType(name);
+                if (type != null)
+                    return type;
+            }
+            return null;
         }
     }
 }

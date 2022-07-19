@@ -227,13 +227,19 @@ namespace OneJS {
         void InitEngine() {
             _engine = new Jint.Engine(opts => {
                     opts.AllowClr(_assemblies.Select((a) => {
+#if UNITY_2022_2_OR_NEWER
+                        if (a == "UnityEngine.UIElementsNativeModule") {
+                            return null;
+                        }
+#endif
                         try {
                             return Assembly.Load(a);
                         } catch (Exception e) {
-                            throw new Exception(
+                            Debug.Log(
                                 $"ScriptEngine could not load assembly \"{a}\". Please check your string(s) in the `assemblies` array.");
+                            return null;
                         }
-                    }).ToArray());
+                    }).Where(a => a != null).ToArray());
                     _extensions.ToList().ForEach((e) => {
                         var type = AssemblyFinder.FindType(e);
                         if (type == null)

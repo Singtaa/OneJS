@@ -46,7 +46,7 @@ namespace OneJS {
         [SerializeField]
         TextAsset _tsconfig;
 
-        string _onejsVersion = "1.2.0";
+        string _onejsVersion = "1.2.1";
 
         void Awake() {
             var versionString = PlayerPrefs.GetString("OneJSVersion", "0.0.0");
