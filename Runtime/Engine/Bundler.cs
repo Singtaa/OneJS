@@ -66,7 +66,7 @@ namespace OneJS {
         /// This should be only done for Standalone apps.
         /// </summary>
         public void ExtractScriptBundle() {
-#if UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID
+#if UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID || UNITY_WEBGL
             DeleteEverythingInPath(ScriptEngine.WorkingDir);
 
             Extract(_scriptsBundleZip.bytes);
