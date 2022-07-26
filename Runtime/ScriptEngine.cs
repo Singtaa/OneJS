@@ -149,6 +149,7 @@ namespace OneJS {
 
         List<Action> _engineReloadJSHandlers = new List<Action>();
         List<IClassStrProcessor> _classStrProcessors = new List<IClassStrProcessor>();
+        List<Type> _globalFuncTypes;
 
         public void Awake() {
             _uiDocument = GetComponent<UIDocument>();
@@ -156,6 +157,9 @@ namespace OneJS {
             _uiDocument.rootVisualElement.style.height = new StyleLength(new Length(100, LengthUnit.Percent));
             _document = new Document(_uiDocument.rootVisualElement, this);
             _styleSheets.ToList().ForEach(s => _uiDocument.rootVisualElement.styleSheets.Add(s));
+
+            _globalFuncTypes = this.GetType().Assembly.GetTypes()
+                .Where(t => t.IsVisible && t.FullName.StartsWith("OneJS.Engine.JSGlobals")).ToList();
         }
 
         void Start() {
@@ -220,8 +224,13 @@ namespace OneJS {
             _engineReloadJSHandlers.ForEach((a) => { OnReload -= a; });
             _engineReloadJSHandlers.Clear();
 
-            SetTimeout.Reset();
-            RequestAnimationFrame.Reset();
+            _globalFuncTypes.ForEach(t => {
+                var flags = BindingFlags.Public | BindingFlags.Static;
+                var mi = t.GetMethod("Reset", flags);
+                if (mi == null)
+                    return;
+                mi.Invoke(null, new object[] { });
+            });
         }
 
         void InitEngine() {
@@ -284,9 +293,7 @@ namespace OneJS {
             _engine.SetValue("self", _engine.GetValue("globalThis"));
             _engine.SetValue("window", _engine.GetValue("globalThis"));
 
-            var globalFuncTypes = this.GetType().Assembly.GetTypes()
-                .Where(t => t.IsVisible && t.FullName.StartsWith("OneJS.Engine.JSGlobals")).ToList();
-            globalFuncTypes.ForEach(t => {
+            _globalFuncTypes.ForEach(t => {
                 var flags = BindingFlags.Public | BindingFlags.Static;
                 var mi = t.GetMethod("Setup", flags);
                 mi.Invoke(null, new object[] { this });

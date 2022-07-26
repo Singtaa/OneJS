@@ -11,7 +11,7 @@ namespace OneJS.Engine.JSGlobals {
     public class RequestAnimationFrame {
         static int ID = 0;
         static Dictionary<int, IEnumerator> ID_DICT = new Dictionary<int, IEnumerator>();
-        
+
         public static void Reset() {
             foreach (var kvp in ID_DICT) {
                 CoroutineUtil.Stop(kvp.Value);
@@ -23,7 +23,9 @@ namespace OneJS.Engine.JSGlobals {
             engine.JintEngine.SetValue("requestAnimationFrame", new Func<JsValue, int>((handler) => {
                 ID++;
                 var routine =
-                    CoroutineUtil.EndOfFrame(() => { handler.As<Jint.Native.Function.FunctionInstance>().Call(); });
+                    CoroutineUtil.EndOfFrame(() => {
+                        handler.As<Jint.Native.Function.FunctionInstance>().Call(null, Time.timeSinceLevelLoad * 1000f);
+                    });
                 ID_DICT.Add(ID, routine);
                 CoroutineUtil.Start(routine);
                 return ID;
