@@ -21,14 +21,17 @@ namespace OneJS.Engine.JSGlobals {
 
         public static void Setup(ScriptEngine engine) {
             engine.JintEngine.SetValue("setTimeout", new Func<JsValue, float, int>((handler, timeout) => {
-                ID++;
+                var id = ++ID;
                 var routine =
                     CoroutineUtil.WaitForSeconds(timeout / 1000f,
-                        () => { handler.As<Jint.Native.Function.FunctionInstance>().Call(); });
+                        () => {
+                            handler.As<Jint.Native.Function.FunctionInstance>().Call();
+                            ID_DICT.Remove(id);
+                        });
 
-                ID_DICT.Add(ID, routine);
+                ID_DICT.Add(id, routine);
                 CoroutineUtil.Start(routine);
-                return ID;
+                return id;
             }));
             engine.JintEngine.SetValue("clearTimeout", new Action<int>((id) => {
                 if (ID_DICT.ContainsKey(id)) {
