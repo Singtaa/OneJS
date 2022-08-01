@@ -8,6 +8,7 @@ using ICSharpCode.SharpZipLib.GZip;
 using ICSharpCode.SharpZipLib.Tar;
 using Jint;
 using Jint.CommonJS;
+using Jint.Native;
 using Jint.Runtime.Interop;
 using NaughtyAttributes;
 using OneJS.Dom;
@@ -49,6 +50,22 @@ namespace OneJS {
         public ObjectModulePair(UnityEngine.MonoBehaviour obj, string m) {
             this.obj = obj;
             this.module = m;
+        }
+    }
+
+    public class QueuedAction {
+        public DateTime dateTime;
+        public Action action;
+        public int id;
+        public double timeout;
+        public bool requeue;
+
+        public QueuedAction(DateTime dateTime, Action action, int id, double timeout, bool requeue = false) {
+            this.dateTime = dateTime;
+            this.action = action;
+            this.id = id;
+            this.timeout = timeout;
+            this.requeue = requeue;
         }
     }
 
@@ -151,6 +168,14 @@ namespace OneJS {
         List<IClassStrProcessor> _classStrProcessors = new List<IClassStrProcessor>();
         List<Type> _globalFuncTypes;
 
+        int _currentActionId;
+        List<QueuedAction> _queuedActions = new List<QueuedAction>();
+        Dictionary<int, QueuedAction> _queueLookup = new Dictionary<int, QueuedAction>();
+
+
+        List<Action> _frameActions = new List<Action>();
+        List<Action> _frameActionBuffer = new List<Action>();
+
         public void Awake() {
             _uiDocument = GetComponent<UIDocument>();
             _uiDocument.rootVisualElement.style.width = new StyleLength(new Length(100, LengthUnit.Percent));
@@ -164,6 +189,39 @@ namespace OneJS {
 
         void Start() {
             InitEngine();
+        }
+
+        void Update() {
+            
+            int removeCount = 0;
+            for (int i = 0; i < _queuedActions.Count; i++) {
+                var qa = _queuedActions[i];
+                if (qa.dateTime > DateTime.Now) {
+                    break;
+                }
+                qa.action();
+                if (qa.requeue) {
+                    var newId = QueueAction(qa.action, qa.timeout, true);
+                    var newQA = _queueLookup[newId];
+                    newQA.id = qa.id;
+                    _queueLookup[qa.id] = newQA;
+                    _queueLookup.Remove(newId);
+                } else {
+                    _queueLookup.Remove(qa.id);
+                }
+                removeCount++;
+            }
+            _queuedActions.RemoveRange(0, removeCount);
+        }
+
+        void LateUpdate() {
+            
+            _frameActionBuffer.AddRange(_frameActions);
+            _frameActions.Clear();
+            for (int i = 0; i < _frameActionBuffer.Count; i++) {
+                _frameActionBuffer[i]();
+            }
+            _frameActionBuffer.Clear();
         }
 
         public void RunScript(string scriptPath) {
@@ -190,6 +248,39 @@ namespace OneJS {
             CleanUp();
             InitEngine();
             RunModule(scriptPath);
+        }
+
+        public int QueueFrameAction(Action action) {
+            _frameActions.Add(action);
+            return _frameActions.Count - 1;
+        }
+
+        public void ClearFrameAction(int id) {
+            if (_frameActions.Count > id) {
+                _frameActions.RemoveAt(id);
+            }
+        }
+
+        public int QueueAction(Action action, double milliseconds, bool requeue = false) {
+            var id = ++_currentActionId;
+            var qa = new QueuedAction(DateTime.Now.AddMilliseconds(milliseconds), action, id, milliseconds, requeue);
+            var insertIndex = _queuedActions.Count;
+            for (int i = 0; i < _queuedActions.Count; i++) {
+                if (_queuedActions[i].dateTime > qa.dateTime) {
+                    insertIndex = i;
+                    break;
+                }
+            }
+            _queuedActions.Insert(insertIndex, qa);
+            _queueLookup.Add(id, qa);
+            return id;
+        }
+
+        public void ClearQueuedAction(int id) {
+            if (_queueLookup.TryGetValue(id, out var tuple)) {
+                _queuedActions.Remove(tuple); // TODO can be optimized with binary search
+                _queueLookup.Remove(id);
+            }
         }
 
         /// <summary>
@@ -223,6 +314,13 @@ namespace OneJS {
         void CleanUp() {
             _engineReloadJSHandlers.ForEach((a) => { OnReload -= a; });
             _engineReloadJSHandlers.Clear();
+
+            _queuedActions.Clear();
+            _queueLookup.Clear();
+            _currentActionId = 0;
+
+            _frameActions.Clear();
+            _frameActionBuffer.Clear();
 
             _globalFuncTypes.ForEach(t => {
                 var flags = BindingFlags.Public | BindingFlags.Static;
