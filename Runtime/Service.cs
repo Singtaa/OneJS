@@ -16,7 +16,7 @@ namespace OneJS {
         }
 
         public static object Get(Type type) {
-            if (dict.ContainsKey(type)) {
+            if (!dict.ContainsKey(type)) {
                 throw new Exception($"Cannot find Service {type.Name}");
             }
             return dict[type];

@@ -8,7 +8,7 @@ using Random = UnityEngine.Random;
 
 namespace OneJS.Dom {
     public class Flipbook : Image {
-        public object Src {
+        public object src {
             get { return _src; }
             set {
                 if (value is string) {
@@ -23,7 +23,7 @@ namespace OneJS.Dom {
             }
         }
 
-        public int NumPerRow {
+        public int numPerRow {
             get { return _numPerRow; }
             set {
                 _numPerRow = value;
@@ -31,7 +31,7 @@ namespace OneJS.Dom {
             }
         }
 
-        public int Count {
+        public int count {
             get { return _count; }
             set {
                 _count = value;
@@ -39,7 +39,7 @@ namespace OneJS.Dom {
             }
         }
 
-        public float Interval {
+        public float interval {
             get { return _interval; }
             set {
                 _interval = value;
@@ -47,7 +47,7 @@ namespace OneJS.Dom {
             }
         }
 
-        public bool RandomRotation {
+        public bool randomRotation {
             get { return _randomRotation; }
             set {
                 _randomRotation = value;
