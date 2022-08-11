@@ -329,24 +329,48 @@ namespace OneJS {
                     return;
                 mi.Invoke(null, new object[] { });
             });
+            _loadedAssemblies?.Clear();
         }
 
+        Assembly[] _loadedAssemblies;
+
+        /// <summary>
+        /// Search loaded assemblies for a lowercase type name. Order of assemblies matter.
+        /// First match wins.
+        /// </summary>
+        /// <param name="typeName">type name to search for</param>
+        /// <returns>System.Type found by lowercase name.</returns>
+        public System.Type FindVisualElementType(string typeName) {
+            var typeNameL = typeName.ToLower();
+            foreach ( var assembly in _loadedAssemblies) {
+                var typesToSearch = assembly.GetTypes();
+                var type = typesToSearch.Where(t => t.Name.ToLower() == typeNameL)
+                    .FirstOrDefault();
+                if (type != null && type.IsSubclassOf(typeof(VisualElement))) {
+                    return type;
+                }
+            }
+            return null;
+        }
         void InitEngine() {
-            _engine = new Jint.Engine(opts => {
-                    opts.AllowClr(_assemblies.Select((a) => {
+            _loadedAssemblies = _assemblies.Select((a) =>
+            {
 #if UNITY_2022_2_OR_NEWER
-                        if (a == "UnityEngine.UIElementsNativeModule") {
-                            return null;
-                        }
+                if (a == "UnityEngine.UIElementsNativeModule") {
+                    return null;
+                }
 #endif
-                        try {
-                            return Assembly.Load(a);
-                        } catch (Exception e) {
-                            Debug.Log(
-                                $"ScriptEngine could not load assembly \"{a}\". Please check your string(s) in the `assemblies` array.");
-                            return null;
-                        }
-                    }).Where(a => a != null).ToArray());
+                try {
+                    return Assembly.Load(a);
+                } catch (Exception e) {
+                    Debug.Log(
+                        $"ScriptEngine could not load assembly \"{a}\". Please check your string(s) in the `assemblies` array.");
+                    return null;
+                }
+            }).Where(a => a != null).ToArray();
+
+            _engine = new Jint.Engine(opts => {
+                    opts.AllowClr(_loadedAssemblies);
                     _extensions.ToList().ForEach((e) => {
                         var type = AssemblyFinder.FindType(e);
                         if (type == null)

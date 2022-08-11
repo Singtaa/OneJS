@@ -22,6 +22,14 @@ namespace OneJS.Dom {
             get { return _nextSibling; }
         }
 
+        /// <summary>
+        /// ECMA Compliant id property, stored in the VE.name
+        /// </summary>
+        public string Id {
+            get { return _ve.name; }
+            set { _ve.name = value; }
+        }
+
         public DomStyle style => new DomStyle(this);
 
         public object value {
@@ -87,9 +95,10 @@ namespace OneJS.Dom {
 
         public delegate void RegisterCallbackDelegate(VisualElement ve, EventCallback<EventBase> callback);
 
-        public Dom(string tagName) {
-            _ve = new VisualElement();
-        }
+        // Not Used
+        //public Dom(string tagName) {
+        //    _ve = new VisualElement();
+        //}
 
         public Dom(VisualElement ve, Document document) {
             _ve = ve;
@@ -162,7 +171,12 @@ namespace OneJS.Dom {
             // if (node.ve.GetType().Name == "TextElement") {
             //     Debug.Log((node.ve as TextElement).text);
             // }
-            this._ve.Add(node.ve);
+            try {
+                this._ve.Add(node.ve);
+            } catch (Exception e) {
+                Debug.LogError(e.Message);
+                throw new Exception("Invalid Dom appendChild");
+            }
             node._parentNode = this;
             if (_childNodes.Count > 0) {
                 _childNodes[_childNodes.Count - 1]._nextSibling = node;
@@ -202,6 +216,8 @@ namespace OneJS.Dom {
                 foreach (var part in parts) {
                     _ve.AddToClassList(part);
                 }
+            } else if (name == "id" || name == "name") {
+                _ve.name = val.ToString();
             } else {
                 name = name.Replace("-", "");
                 var flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase;
@@ -233,6 +249,8 @@ namespace OneJS.Dom {
         public void removeAttribute(string name) {
             if (name == "class" || name == "className") {
                 _ve.ClearClassList();
+            } else if (name == "id") {
+                _ve.name = null;
             } else {
                 var flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase;
                 var pi = _ve.GetType().GetProperty(name, flags);
@@ -248,6 +266,31 @@ namespace OneJS.Dom {
 
         public override string ToString() {
             return $"dom: {this._ve.GetType().Name} ({this._ve.GetHashCode()})";
+        }
+
+        /// <summary>
+        /// BFS for first predicate matching Dom, including this one.
+        /// </summary>
+        /// <param name="predicate">Search criteria</param>
+        /// <returns>Matching Dom or null</returns>
+        public Dom First(Func<Dom, bool> predicate) {
+            Queue<Dom> q = new();
+            q.Enqueue(this);
+            while (q.Count > 0) {
+                var cnt = q.Count;
+                for (int i = 0; i < cnt; i++) {
+                    var cur = q.Dequeue();
+                    if (predicate(cur)) {
+                        return cur;
+                    }
+                    if (cur._childNodes != null) {
+                        for (int ci = 0; ci < cur._childNodes.Count; ci++) {
+                            q.Enqueue(cur._childNodes[ci]);
+                        }
+                    }
+                }
+            }
+            return null;
         }
     }
 }
