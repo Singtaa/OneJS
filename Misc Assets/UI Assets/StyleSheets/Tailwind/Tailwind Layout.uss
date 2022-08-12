@@ -1,7 +1,6 @@
 /* Container */
 .container, .hover_c_container:hover, .active_c_container:active, .inactive_c_container:inactive, .focus_c_container:focus, .disabled_c_container:disabled, .enabled_c_container:enabled, .checked_c_container:checked {
     width: 100%;
-    transform: rotate(0deg);
 }
 
 /* Display */
