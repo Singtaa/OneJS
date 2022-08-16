@@ -139,11 +139,11 @@ namespace OneJS {
 
         [Foldout("STYLING")]
         [Tooltip("Inculde here any global USS you'd need. OneJS also provides a default one.")]
-        [SerializeField] StyleSheet[] _styleSheets;
+        [SerializeField]
+        StyleSheet[] _styleSheets;
 
-        [Foldout("STYLING")]
-        [Tooltip("Screen breakpoints for responsive design.")]
-        [SerializeField] int[] _breakpoints = new[] { 640, 768, 1024, 1280, 1536 };
+        [Foldout("STYLING")] [Tooltip("Screen breakpoints for responsive design.")] [SerializeField]
+        int[] _breakpoints = new[] { 640, 768, 1024, 1280, 1536 };
 
         [Foldout("SECURITY")] [Tooltip("Allow access to System.Reflection from Javascript")] [SerializeField]
         bool _allowReflection;
@@ -192,7 +192,8 @@ namespace OneJS {
         }
 
         void Update() {
-            
+            _engine.ResetConstraints();
+
             int removeCount = 0;
             for (int i = 0; i < _queuedActions.Count; i++) {
                 var qa = _queuedActions[i];
@@ -215,7 +216,6 @@ namespace OneJS {
         }
 
         void LateUpdate() {
-            
             _frameActionBuffer.AddRange(_frameActions);
             _frameActions.Clear();
             for (int i = 0; i < _frameActionBuffer.Count; i++) {
