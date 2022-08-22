@@ -30,11 +30,6 @@ namespace OneJS.Editor {
 
         [Button()]
         void PackageScripts() {
-            var pttrns = _ignoreList.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-            foreach (var pttrn in pttrns) {
-                var glob = Glob.Parse(pttrn);
-            }
-
             var binPath = UnityEditor.AssetDatabase.GetAssetPath(_scriptsBundleZip);
             binPath = Path.GetFullPath(Path.Combine(Application.dataPath, @".." + Path.DirectorySeparatorChar,
                 binPath));
