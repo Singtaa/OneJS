@@ -35,6 +35,9 @@ namespace OneJS.Editor {
             GUIStyle myTextAreaStyle = new GUIStyle(EditorStyles.textArea) { wordWrap = false };
             GUILayout.TextArea(_defstr, myTextAreaStyle, GUILayout.ExpandHeight(true));
             EditorGUILayout.EndScrollView();
+            if (GUILayout.Button("Copy to Clipboard")) {
+                GUIUtility.systemCopyBuffer = _defstr;
+            }
         }
     }
 }
