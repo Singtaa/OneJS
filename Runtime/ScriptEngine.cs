@@ -263,7 +263,7 @@ namespace OneJS {
             var id = ++_currentActionId;
             var qa = new QueuedAction(action, id, milliseconds, requeue);
             if (milliseconds == 0) { // Instant Actions will be treated as frame actions
-                QueueFrameAction(action);
+                qa.id = QueueFrameAction(action);
                 _queueLookup.Add(id, qa);
                 return id;
             }
@@ -282,9 +282,9 @@ namespace OneJS {
         public void ClearQueuedAction(int id) {
             if (_queueLookup.TryGetValue(id, out var queuedAction)) {
                 if (queuedAction.timeout == 0) { // Instant Action was treated as frame action
-                    ClearFrameAction(id);
+                    ClearFrameAction(queuedAction.id);
                 }
-                _queuedActions.Remove(queuedAction); // TODO can be optimized with binary search
+                _queuedActions.Remove(queuedAction); // TODO can be optimized because _queuedActions is sorted by dateTime
                 _queueLookup.Remove(id);
             }
         }
