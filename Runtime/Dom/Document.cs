@@ -45,6 +45,7 @@ namespace OneJS.Dom {
                 _root.styleSheets.Remove(sheet);
                 Object.Destroy(sheet);
             }
+            _runtimeStyleSheets.Clear();
         }
 
         public Dom createElement(string tagName) {
