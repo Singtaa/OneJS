@@ -284,7 +284,8 @@ namespace OneJS {
                 if (queuedAction.timeout == 0) { // Instant Action was treated as frame action
                     ClearFrameAction(queuedAction.id);
                 }
-                _queuedActions.Remove(queuedAction); // TODO can be optimized because _queuedActions is sorted by dateTime
+                _queuedActions
+                    .Remove(queuedAction); // TODO can be optimized because _queuedActions is sorted by dateTime
                 _queueLookup.Remove(id);
             }
         }
@@ -339,6 +340,8 @@ namespace OneJS {
 
         void InitEngine() {
             _engine = new Jint.Engine(opts => {
+                    // Jint uses ConditionalWeakTable to track object identity, but Unity is buggy with ConditionalWeakTable.
+                    opts.Interop.TrackObjectWrapperIdentity = false;
                     opts.AllowClr(_assemblies.Select((a) => {
 #if UNITY_2022_2_OR_NEWER
                         if (a == "UnityEngine.UIElementsNativeModule") {
