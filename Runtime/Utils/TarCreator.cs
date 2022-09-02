@@ -64,9 +64,7 @@ namespace OneJS.Utils {
 
         bool IsIgnored(string filepath) {
             var path = Path.GetRelativePath(ScriptEngine.WorkingDir, filepath);
-            if (string.IsNullOrEmpty(IgnoreList))
-                return false;
-            var pttrns = IgnoreList.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            var pttrns = ("**/.git*\n" + IgnoreList).Split('\n', StringSplitOptions.RemoveEmptyEntries);
             foreach (var pttrn in pttrns) {
                 var glob = Glob.Parse(pttrn);
                 var isMatch = glob.IsMatch(path);

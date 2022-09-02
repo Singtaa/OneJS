@@ -1,11 +1,5 @@
 ﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using Jint;
 using Jint.Native;
-using OneJS.Engine;
-using OneJS.Utils;
-using UnityEngine;
 
 namespace OneJS.Engine.JSGlobals {
     public class SetTimeout {

@@ -5,6 +5,7 @@ using System.Reflection;
 using OneJS.Utils;
 using UnityEngine;
 using UnityEngine.UIElements;
+using Object = UnityEngine.Object;
 
 namespace OneJS.Dom {
     public class ElementCreationOptions {
@@ -18,6 +19,7 @@ namespace OneJS.Dom {
         Dom _body;
         VisualElement _root;
         ScriptEngine _scriptEngine;
+        List<StyleSheet> _runtimeStyleSheets = new List<StyleSheet>();
 
         Dictionary<string, System.Type> _tagCache;
 
@@ -34,6 +36,27 @@ namespace OneJS.Dom {
             _body = new Dom(_root, this);
             _scriptEngine = scriptEngine;
             InitializeTypesCache(); // accelerate tagName lookup
+        }
+
+        public void addRuntimeCSS(string css) {
+            var ss = ScriptableObject.CreateInstance<StyleSheet>();
+            var builder = new OneJS.CustomStyleSheets.CustomStyleSheetImporterImpl();
+            builder.BuildStyleSheet(ss, css);
+            _runtimeStyleSheets.Add(ss);
+            _root.styleSheets.Add(ss);
+        }
+
+        public void removeRuntimeStyleSheet(StyleSheet sheet) {
+            _root.styleSheets.Remove(sheet);
+            Object.Destroy(sheet);
+        }
+
+        public void clearRuntimeStyleSheets() {
+            foreach (var sheet in _runtimeStyleSheets) {
+                _root.styleSheets.Remove(sheet);
+                Object.Destroy(sheet);
+            }
+            _runtimeStyleSheets.Clear();
         }
 
         public Dom createElement(string tagName) {

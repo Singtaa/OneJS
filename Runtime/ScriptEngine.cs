@@ -60,8 +60,8 @@ namespace OneJS {
         public double timeout;
         public bool requeue;
 
-        public QueuedAction(DateTime dateTime, Action action, int id, double timeout, bool requeue = false) {
-            this.dateTime = dateTime;
+        public QueuedAction(Action action, int id, double timeout, bool requeue = false) {
+            this.dateTime = DateTime.Now.AddMilliseconds(timeout);
             this.action = action;
             this.id = id;
             this.timeout = timeout;
@@ -139,11 +139,11 @@ namespace OneJS {
 
         [Foldout("STYLING")]
         [Tooltip("Inculde here any global USS you'd need. OneJS also provides a default one.")]
-        [SerializeField] StyleSheet[] _styleSheets;
+        [SerializeField]
+        StyleSheet[] _styleSheets;
 
-        [Foldout("STYLING")]
-        [Tooltip("Screen breakpoints for responsive design.")]
-        [SerializeField] int[] _breakpoints = new[] { 640, 768, 1024, 1280, 1536 };
+        [Foldout("STYLING")] [Tooltip("Screen breakpoints for responsive design.")] [SerializeField]
+        int[] _breakpoints = new[] { 640, 768, 1024, 1280, 1536 };
 
         [Foldout("SECURITY")] [Tooltip("Allow access to System.Reflection from Javascript")] [SerializeField]
         bool _allowReflection;
@@ -191,8 +191,9 @@ namespace OneJS {
             InitEngine();
         }
 
-        void Update() {
-            
+        void LateUpdate() {
+            _engine.ResetConstraints();
+
             int removeCount = 0;
             for (int i = 0; i < _queuedActions.Count; i++) {
                 var qa = _queuedActions[i];
@@ -212,10 +213,7 @@ namespace OneJS {
                 removeCount++;
             }
             _queuedActions.RemoveRange(0, removeCount);
-        }
 
-        void LateUpdate() {
-            
             _frameActionBuffer.AddRange(_frameActions);
             _frameActions.Clear();
             for (int i = 0; i < _frameActionBuffer.Count; i++) {
@@ -263,7 +261,12 @@ namespace OneJS {
 
         public int QueueAction(Action action, double milliseconds, bool requeue = false) {
             var id = ++_currentActionId;
-            var qa = new QueuedAction(DateTime.Now.AddMilliseconds(milliseconds), action, id, milliseconds, requeue);
+            var qa = new QueuedAction(action, id, milliseconds, requeue);
+            if (milliseconds == 0) { // Instant Actions will be treated as frame actions
+                qa.id = QueueFrameAction(action);
+                _queueLookup.Add(id, qa);
+                return id;
+            }
             var insertIndex = _queuedActions.Count;
             for (int i = 0; i < _queuedActions.Count; i++) {
                 if (_queuedActions[i].dateTime > qa.dateTime) {
@@ -277,8 +280,12 @@ namespace OneJS {
         }
 
         public void ClearQueuedAction(int id) {
-            if (_queueLookup.TryGetValue(id, out var tuple)) {
-                _queuedActions.Remove(tuple); // TODO can be optimized with binary search
+            if (_queueLookup.TryGetValue(id, out var queuedAction)) {
+                if (queuedAction.timeout == 0) { // Instant Action was treated as frame action
+                    ClearFrameAction(queuedAction.id);
+                }
+                _queuedActions
+                    .Remove(queuedAction); // TODO can be optimized because _queuedActions is sorted by dateTime
                 _queueLookup.Remove(id);
             }
         }
@@ -370,6 +377,7 @@ namespace OneJS {
             }).Where(a => a != null).ToArray();
 
             _engine = new Jint.Engine(opts => {
+                    opts.Interop.TrackObjectWrapperIdentity = false;
                     opts.AllowClr(_loadedAssemblies);
                     _extensions.ToList().ForEach((e) => {
                         var type = AssemblyFinder.FindType(e);

@@ -85,7 +85,7 @@ namespace Jint.CommonJS {
                 engine.engine.Call(func, moduleObject, this.Exports, Path.GetDirectoryName(filePath), requireFunc);
             } catch (JavaScriptException jse) {
                 StringBuilder sb = new StringBuilder();
-                sb.Append($"Javascript Error at {filePath} (Line {jse.LineNumber - 2})\n\n");
+                sb.Append($"Javascript Error at {filePath} (Line {jse.Location.Start.Line - 2})\n\n");
                 sb.Append(jse.ToString());
                 throw new Exception(sb.ToString());
             }
