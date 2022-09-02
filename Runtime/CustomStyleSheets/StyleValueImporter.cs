@@ -168,20 +168,20 @@ namespace OneJS.CustomStyleSheets {
                     (float)htmlColor.G / (float)byte.MaxValue, (float)htmlColor.B / (float)byte.MaxValue,
                     (float)htmlColor.A / (float)byte.MaxValue));
             else if (genericFunction != null) {
-                throw new Exception("Not Implemented");
-                // if (genericFunction.Name == "resource") {
-                //     this.VisitResourceFunction(genericFunction);
-                // } else {
-                //     StyleValueFunction func;
-                //     if (!this.ValidateFunction(genericFunction, out func))
-                //         return;
-                //     this.m_Builder.AddValue(func);
-                //     this.m_Builder.AddValue(
-                //         (float)((IEnumerable<Term>)genericFunction.Arguments).Count<Term>(
-                //             (Func<Term, bool>)(a => !(a is Whitespace))));
-                //     foreach (Term term2 in genericFunction.Arguments)
-                //         this.VisitValue(term2);
-                // }
+                if (genericFunction.Name == "resource") {
+                    // this.VisitResourceFunction(genericFunction);
+                    throw new Exception("resource() Not Implemented");
+                } else {
+                    StyleValueFunction func;
+                    if (!this.ValidateFunction(genericFunction, out func))
+                        return;
+                    this.m_Builder.AddValue(func);
+                    this.m_Builder.AddValue(
+                        (float)((IEnumerable<Term>)genericFunction.Arguments).Count<Term>(
+                            (Func<Term, bool>)(a => !(a is Whitespace))));
+                    foreach (Term term2 in genericFunction.Arguments)
+                        this.VisitValue(term2);
+                }
             } else if (termList != null) {
                 int num = 0;
                 foreach (Term term3 in termList) {
@@ -209,6 +209,100 @@ namespace OneJS.CustomStyleSheets {
                     string.Format(StyleValueImporter.glossary.unsupportedTerm, (object)((object)term).GetType().Name),
                     this.m_CurrentLine);
             }
+        }
+
+        private bool ValidateFunction(GenericFunction term, out StyleValueFunction func) {
+            func = StyleValueFunction.Unknown;
+            if (term.Arguments.Length == 0) {
+                this.m_Errors.AddSemanticError(StyleSheetImportErrorCode.MissingFunctionArgument,
+                    string.Format(StyleValueImporter.glossary.missingFunctionArgument, (object)term.Name),
+                    this.m_CurrentLine);
+                return false;
+            }
+            if (term.Name == "var") {
+                func = StyleValueFunction.Var;
+                return this.ValidateVarFunction(term);
+            }
+            // try {
+            func = FromUssString(term.Name);
+            // } catch (Exception ex) {
+            //     StyleProperty currentProperty = this.m_Builder.currentProperty;
+            //     this.m_Errors.AddValidationWarning(
+            //         string.Format(StyleValueImporter.glossary.unknownFunction, (object)term.Name,
+            //             (object)currentProperty.name), currentProperty.line);
+            //     return false;
+            // }
+            return true;
+        }
+
+        public static StyleValueFunction FromUssString(string ussValue) {
+            ussValue = ussValue.ToLower();
+            string str = ussValue;
+            if (str == "var")
+                return StyleValueFunction.Var;
+            if (str == "env")
+                return StyleValueFunction.Env;
+            if (str == "linear-gradient")
+                return StyleValueFunction.LinearGradient;
+            throw new ArgumentOutOfRangeException(nameof(ussValue), (object)ussValue, "Unknown function name");
+        }
+
+        private bool ValidateVarFunction(GenericFunction term) {
+            int length = term.Arguments.Length;
+            Term term1 = term.Arguments[0];
+            bool flag1 = false;
+            bool flag2 = false;
+            for (int index = 0; index < length; ++index) {
+                Term term2 = term.Arguments[index];
+                if (!(((object)term2).GetType() == typeof(Whitespace))) {
+                    if (!flag1) {
+                        string str = (term.Arguments[index] is PrimitiveTerm primitiveTerm
+                            ? primitiveTerm.Value
+                            : (object)null) as string;
+                        if (string.IsNullOrEmpty(str)) {
+                            this.m_Errors.AddSemanticError(StyleSheetImportErrorCode.InvalidVarFunction,
+                                StyleValueImporter.glossary.missingVariableName, this.m_CurrentLine);
+                            return false;
+                        }
+                        if (!str.StartsWith("--")) {
+                            this.m_Errors.AddSemanticError(StyleSheetImportErrorCode.InvalidVarFunction,
+                                string.Format(StyleValueImporter.glossary.missingVariablePrefix, (object)str),
+                                this.m_CurrentLine);
+                            return false;
+                        }
+                        if (str.Length < 3) {
+                            this.m_Errors.AddSemanticError(StyleSheetImportErrorCode.InvalidVarFunction,
+                                StyleValueImporter.glossary.emptyVariableName, this.m_CurrentLine);
+                            return false;
+                        }
+                        flag1 = true;
+                    } else if (((object)term2).GetType() == typeof(Comma)) {
+                        if (flag2) {
+                            this.m_Errors.AddSemanticError(StyleSheetImportErrorCode.InvalidVarFunction,
+                                StyleValueImporter.glossary.tooManyFunctionArguments, this.m_CurrentLine);
+                            return false;
+                        }
+                        flag2 = true;
+                        ++index;
+                        if (index >= length) {
+                            this.m_Errors.AddSemanticError(StyleSheetImportErrorCode.InvalidVarFunction,
+                                StyleValueImporter.glossary.emptyFunctionArgument, this.m_CurrentLine);
+                            return false;
+                        }
+                    } else if (!flag2) {
+                        string str = "";
+                        while (((object)term2).GetType() == typeof(Whitespace) && index + 1 < length)
+                            term2 = term.Arguments[++index];
+                        if (((object)term2).GetType() != typeof(Whitespace))
+                            str = ((object)term2).ToString();
+                        this.m_Errors.AddSemanticError(StyleSheetImportErrorCode.InvalidVarFunction,
+                            string.Format(StyleValueImporter.glossary.unexpectedTokenInFunction, (object)str),
+                            this.m_CurrentLine);
+                        return false;
+                    }
+                }
+            }
+            return true;
         }
 
         static bool TryParseKeyword(string rawStr, out StyleValueKeyword value) {

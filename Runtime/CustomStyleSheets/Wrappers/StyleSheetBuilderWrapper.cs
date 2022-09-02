@@ -63,6 +63,12 @@ namespace OneJS.CustomStyleSheets {
             _type.InvokeMember("EndProperty", System.Reflection.BindingFlags.InvokeMethod, null, _instance,
                 new object[] { });
         }
+        
+        public void AddValue(StyleValueFunction func) {
+            var methodInfo = _type.GetMethod("AddValue",
+                new[] { _type.Assembly.GetType("UnityEngine.UIElements.StyleValueFunction") });
+            methodInfo.Invoke(_instance, new object[] { (int)func });
+        }
 
         public void AddValue(float val) {
             var methodInfo = _type.GetMethod("AddValue",
@@ -79,7 +85,7 @@ namespace OneJS.CustomStyleSheets {
         public void AddValue(Dimension dimension) {
             var methodInfo = _type.GetMethod("AddValue",
                 new[] { _type.Assembly.GetType("UnityEngine.UIElements.StyleSheets.Dimension") });
-            methodInfo.Invoke(_instance, new object[] { dimension });
+            methodInfo.Invoke(_instance, new object[] { dimension.ToOriginal() });
         }
 
         public void AddValue(StyleValueKeyword keyword) {
