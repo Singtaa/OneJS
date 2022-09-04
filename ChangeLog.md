@@ -1,4 +1,16 @@
-﻿## [2022-07-10] v1.2.1 - Minor features and bugfixes
+﻿## [2022-09-01] v1.3.0 - Runtime CSS
+
+You are now able to load CSS strings at runtime via `document.addRuntimeCSS()`. See https://onejs.com/runtimecss for more information.
+
+* Runtime CSS
+* Updated Jint to latest
+* Copy to Clipboard for TSDefConverter (credit to @Sciumo)
+* Added node_modules to JSPathResolver
+* _engine.ResetConstraints() in Update Loop
+* Action queues without coroutines
+* setInterval
+
+## [2022-07-10] v1.2.1 - Minor features and bugfixes
 
 * Implemented onValueChanged for UI Toolkit controls
 * Fixed __listeners Linux slowdown

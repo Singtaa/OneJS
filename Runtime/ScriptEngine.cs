@@ -194,6 +194,13 @@ namespace OneJS {
         void LateUpdate() {
             _engine.ResetConstraints();
 
+            _frameActionBuffer.AddRange(_frameActions);
+            _frameActions.Clear();
+            for (int i = 0; i < _frameActionBuffer.Count; i++) {
+                _frameActionBuffer[i]();
+            }
+            _frameActionBuffer.Clear();
+
             int removeCount = 0;
             for (int i = 0; i < _queuedActions.Count; i++) {
                 var qa = _queuedActions[i];
@@ -213,13 +220,6 @@ namespace OneJS {
                 removeCount++;
             }
             _queuedActions.RemoveRange(0, removeCount);
-
-            _frameActionBuffer.AddRange(_frameActions);
-            _frameActions.Clear();
-            for (int i = 0; i < _frameActionBuffer.Count; i++) {
-                _frameActionBuffer[i]();
-            }
-            _frameActionBuffer.Clear();
         }
 
         public void RunScript(string scriptPath) {
