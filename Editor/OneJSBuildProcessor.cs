@@ -43,5 +43,15 @@ namespace OneJS.Editor {
             tarOutputStream.Close();
             Debug.Log("Scripts Bundled Up.");
         }
+        
+        [Button()]
+        void ZeroOutScriptsBundleZip() {
+            var binPath = UnityEditor.AssetDatabase.GetAssetPath(_scriptsBundleZip);
+            binPath = Path.GetFullPath(Path.Combine(Application.dataPath, @".." + Path.DirectorySeparatorChar,
+                binPath));
+            var outStream = File.Create(binPath);
+            outStream.Close();
+        }
+        
     }
 }
