@@ -70,6 +70,24 @@ public class Tailwind : MonoBehaviour, IClassStrProcessor {
         var names = classStr.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         names = names.Select(s => s[0] >= 48 && s[0] <= 57 ? "_" + s : s).ToArray(); // ^\d => _\d
         var res = new List<string>();
+
+        // Expand Chained Tailwind Classes
+        foreach (var name in names) {
+            var tokens = name.Split(":");
+            if (tokens.Length == 1) {
+                res.Add(name);
+                continue;
+            }
+            var last = tokens[tokens.Length - 1];
+            for (int i = 0; i < tokens.Length - 1; i++) {
+                res.Add($"{tokens[i]}:{last}");
+            }
+        }
+
+        names = res.ToArray();
+        res.Clear();
+
+        // Process Tailwind-specific funcs
         foreach (var name in names) {
             var match = _regex.Match(name);
             if (match.Success) {
