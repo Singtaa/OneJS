@@ -336,7 +336,7 @@ namespace OneJS {
                     return;
                 mi.Invoke(null, new object[] { });
             });
-            _loadedAssemblies?.Clear();
+            _loadedAssemblies = new Assembly[0];
         }
 
         Assembly[] _loadedAssemblies;
