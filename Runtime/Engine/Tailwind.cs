@@ -71,16 +71,25 @@ public class Tailwind : MonoBehaviour, IClassStrProcessor {
         names = names.Select(s => s[0] >= 48 && s[0] <= 57 ? "_" + s : s).ToArray(); // ^\d => _\d
         var res = new List<string>();
         foreach (var name in names) {
-            var match = _regex.Match(name);
-            if (match.Success) {
-                var funcName = match.Groups[1].Value;
-                var funcParams = match.Groups[2].Value.Split('_', StringSplitOptions.RemoveEmptyEntries);
-                if (_funcs.ContainsKey(funcName)) {
-                    _funcs[funcName](funcParams, dom);
-                    continue;
+            var nameSplit = name.Split(":");
+            var className = nameSplit.Last();
+            var list = nameSplit.Length <= 1 ? new[] { name } : nameSplit.Where(n => n != className);
+            list.ForEach(_name =>
+            {
+                _name = _name.EndsWith(className) ? _name : $"{_name}:{className}";
+                var match = _regex.Match(_name);
+                if (match.Success)
+                {
+                    var funcName = match.Groups[1].Value;
+                    var funcParams = match.Groups[2].Value.Split('_', StringSplitOptions.RemoveEmptyEntries);
+                    if (_funcs.ContainsKey(funcName))
+                    {
+                        _funcs[funcName](funcParams, dom);
+                        return;
+                    }
                 }
-            }
-            res.Add(name);
+                res.Add(_name);
+            });
         }
 
         return String.Join(" ", res).Replace(".", "dot").Replace("/", "slash").Replace(":", "_c_");
