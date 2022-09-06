@@ -376,7 +376,7 @@ namespace OneJS {
             }).Where(a => a != null).ToArray();
 
             _engine = new Jint.Engine(opts => {
-                    opts.Interop.TrackObjectWrapperIdentity = false;
+                    opts.Interop.TrackObjectWrapperIdentity = false; // Unity too buggy with ConditionalWeakTable
                     opts.AllowClr(_loadedAssemblies);
                     _extensions.ToList().ForEach((e) => {
                         var type = AssemblyFinder.FindType(e);
