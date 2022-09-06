@@ -2694,4 +2694,4 @@
     margin-left: -384px;
 }
 
-/* Space Between: Not support due to no support for adjacent selectors */
+/* Space Between: Not supported due to no support for adjacent selectors */

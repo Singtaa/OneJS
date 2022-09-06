@@ -8112,7 +8112,7 @@
     border-left-color: rgb(136 19 55);
 }
 
-/* Divide Width: Not support due to no support for adjacent selectors */
+/* Divide Width: Not supported due to no support for adjacent selectors */
 
 /* Opacity */
 
@@ -13949,7 +13949,7 @@
     margin-left: -384px;
 }
 
-/* Space Between: Not support due to no support for adjacent selectors */
+/* Space Between: Not supported due to no support for adjacent selectors */
 
 /* Font Size */
 
