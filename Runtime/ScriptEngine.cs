@@ -172,6 +172,7 @@ namespace OneJS {
         List<QueuedAction> _queuedActions = new List<QueuedAction>();
         Dictionary<int, QueuedAction> _queueLookup = new Dictionary<int, QueuedAction>();
 
+        Assembly[] _loadedAssemblies;
 
         List<Action> _frameActions = new List<Action>();
         List<Action> _frameActionBuffer = new List<Action>();
@@ -338,8 +339,6 @@ namespace OneJS {
             });
             _loadedAssemblies = new Assembly[0];
         }
-
-        Assembly[] _loadedAssemblies;
 
         /// <summary>
         /// Search loaded assemblies for a lowercase type name. Order of assemblies matter.
