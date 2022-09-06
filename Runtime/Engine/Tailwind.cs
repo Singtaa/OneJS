@@ -70,26 +70,35 @@ public class Tailwind : MonoBehaviour, IClassStrProcessor {
         var names = classStr.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         names = names.Select(s => s[0] >= 48 && s[0] <= 57 ? "_" + s : s).ToArray(); // ^\d => _\d
         var res = new List<string>();
+
+        // Expand Chained Tailwind Classes
         foreach (var name in names) {
-            var nameSplit = name.Split(":");
-            var className = nameSplit.Last();
-            var list = nameSplit.Length <= 1 ? new[] { name } : nameSplit.Where(n => n != className);
-            list.ForEach(_name =>
-            {
-                _name = _name.EndsWith(className) ? _name : $"{_name}:{className}";
-                var match = _regex.Match(_name);
-                if (match.Success)
-                {
-                    var funcName = match.Groups[1].Value;
-                    var funcParams = match.Groups[2].Value.Split('_', StringSplitOptions.RemoveEmptyEntries);
-                    if (_funcs.ContainsKey(funcName))
-                    {
-                        _funcs[funcName](funcParams, dom);
-                        return;
-                    }
+            var tokens = name.Split(":");
+            if (tokens.Length == 1) {
+                res.Add(name);
+                continue;
+            }
+            var last = tokens[tokens.Length - 1];
+            for (int i = 0; i < tokens.Length - 1; i++) {
+                res.Add($"{tokens[i]}:{last}");
+            }
+        }
+
+        names = res.ToArray();
+        res.Clear();
+
+        // Process Tailwind-specific funcs
+        foreach (var name in names) {
+            var match = _regex.Match(name);
+            if (match.Success) {
+                var funcName = match.Groups[1].Value;
+                var funcParams = match.Groups[2].Value.Split('_', StringSplitOptions.RemoveEmptyEntries);
+                if (_funcs.ContainsKey(funcName)) {
+                    _funcs[funcName](funcParams, dom);
+                    continue;
                 }
-                res.Add(_name);
-            });
+            }
+            res.Add(name);
         }
 
         return String.Join(" ", res).Replace(".", "dot").Replace("/", "slash").Replace(":", "_c_");
