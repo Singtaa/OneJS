@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -230,12 +231,23 @@ namespace OneJS.Dom {
                 if (pi != null) {
                     if (pi.PropertyType.IsEnum) {
                         val = Convert.ToInt32(val);
-                    } else if (pi.PropertyType.IsArray && val.GetType() == typeof(object[])) {
+                    } else if (val.GetType() == typeof(object[])) {
                         var objAry = (object[])val;
                         var length = ((object[])val).Length;
-                        Array destinationArray = Array.CreateInstance(pi.PropertyType.GetElementType(), length);
-                        Array.Copy(objAry, destinationArray, length);
-                        val = destinationArray;
+                        if (pi.PropertyType.IsArray) {
+                            Array destinationArray = Array.CreateInstance(pi.PropertyType.GetElementType(), length);
+                            Array.Copy(objAry, destinationArray, length);
+                            val = destinationArray;
+                        } else {
+                            var genericArgs = pi.PropertyType.GetGenericArguments();
+                            var listType = typeof(List<>).MakeGenericType(genericArgs);
+                            if (pi.PropertyType == listType) {
+                                Array destinationArray = Array.CreateInstance(genericArgs[0], length);
+                                Array.Copy(objAry, destinationArray, length);
+                                var list = (IList)Activator.CreateInstance(listType, destinationArray);
+                                val = list;
+                            }
+                        }
                     } else if (pi.PropertyType == typeof(Single) && val.GetType() == typeof(double)) {
                         val = Convert.ToSingle(val);
                     } else if (pi.PropertyType == typeof(Int32) && val.GetType() == typeof(double)) {
