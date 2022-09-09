@@ -46,12 +46,17 @@ namespace OneJS.Utils {
             byte[] bytes;
             if (UglifyJS && filepath.EndsWith(".js")) {
                 var str = File.ReadAllText(filepath);
-                var res = Uglify.Js(str);
-                if (res.HasErrors) {
-                    Debug.Log($"Could not uglify {filepath}\n\n" + string.Join("\n\n", res.Errors));
+                try {
+                    var res = Uglify.Js(str);
+                    if (res.HasErrors) {
+                        Debug.Log($"Could not uglify {filepath}\n\n" + string.Join("\n\n", res.Errors));
+                        return;
+                    }
+                    bytes = System.Text.Encoding.UTF8.GetBytes(res.Code);
+                } catch (Exception e) {
+                    Debug.Log($"Could not uglify {filepath}\n\n" + e.Message);
                     return;
                 }
-                bytes = System.Text.Encoding.UTF8.GetBytes(res.Code);
             } else {
                 bytes = File.ReadAllBytes(filepath);
             }
