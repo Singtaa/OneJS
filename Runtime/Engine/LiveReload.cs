@@ -68,7 +68,7 @@ namespace OneJS.Engine {
         }
 
         void Start() {
-#if UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID
+#if !UNITY_EDITOR && (UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID)
             if (!_turnOnForStandalone) {
                 if (_runOnStart) {
                     _scriptEngine.RunScript(_entryScript);
@@ -99,7 +99,7 @@ namespace OneJS.Engine {
         }
 
         void OnEnable() {
-#if UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID
+#if !UNITY_EDITOR && (UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID)
             if (!_turnOnForStandalone)
                 return;
 #endif
@@ -112,7 +112,7 @@ namespace OneJS.Engine {
         }
 
         void OnDisable() {
-#if UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID
+#if !UNITY_EDITOR && (UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID)
             if (!_turnOnForStandalone)
                 return;
 #endif
@@ -126,7 +126,7 @@ namespace OneJS.Engine {
         // }
 
         void Update() {
-#if UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID
+#if !UNITY_EDITOR && (UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID)
             if (!_turnOnForStandalone)
                 return;
 #endif

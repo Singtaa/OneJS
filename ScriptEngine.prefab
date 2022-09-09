@@ -127,17 +127,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae1afe1674e74bd39267e3f192436aa9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _ignoreList: '.vscode
-
-    tsconfig.json
-
-    Samples'
+  _extractScriptLibOnStart: 0
   _scriptsBundleZip: {fileID: 4900000, guid: bb06fb5af9b25f5468b07208f51a9047, type: 3}
   _samplesZip: {fileID: 4900000, guid: 58f74fb9fe145c04d938ca90db492cf3, type: 3}
   _scriptLibZip: {fileID: 4900000, guid: 46d508c959f3f5248b9f101a41b65173, type: 3}
   _vscodeSettings: {fileID: 4900000, guid: 670f3870b20ddcc48a34d76d6f2c8f89, type: 3}
   _tsconfig: {fileID: 4900000, guid: f5908381548dc074ba0aa40312094370, type: 3}
-  _extractScriptLibOnStart: 0
 --- !u!114 &6661873769672997505
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -151,7 +146,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _runOnStart: 1
-  _turnOnForStandalone: 1
+  _turnOnForStandalone: 0
   _entryScript: index.js
   _watchFilter: '*.js'
   _netSync: 0
@@ -199,3 +194,4 @@ MonoBehaviour:
   - {fileID: 7433441132597879392, guid: 6a3f889724072c543a8d26728c15cb2d, type: 3}
   - {fileID: 7433441132597879392, guid: 432af14766008134ab5c7f29a65166f8, type: 3}
   - {fileID: 7433441132597879392, guid: 35930507c974b1e4883d5671212048c6, type: 3}
+  _pollStandaloneScreen: 0

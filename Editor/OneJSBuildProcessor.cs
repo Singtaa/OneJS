@@ -18,6 +18,7 @@ namespace OneJS.Editor {
                  "")]
         [ResizableTextArea] [SerializeField] string _ignoreList = ".vscode\ntsconfig.json\ntailwind.config.js\nnode_modules\nSamples";
         
+        [Tooltip("Uglify/Minify the bundled JS files.")]
         [SerializeField] bool _uglify = true;
 
         [Tooltip("This is the zip file of your bundled scripts. Use the `Package Scripts` button below to package " +
