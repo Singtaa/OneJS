@@ -477,7 +477,7 @@ public class Tailwind : MonoBehaviour, IClassStrProcessor {
             var v1 = Convert.ToInt32($"0x{match.Groups[1].Value}", 16) / 255f;
             var v2 = Convert.ToInt32($"0x{match.Groups[2].Value}", 16) / 255f;
             var v3 = Convert.ToInt32($"0x{match.Groups[3].Value}", 16) / 255f;
-            var v4 = match.Groups.Count > 4
+            var v4 = match.Groups.Count > 4 && match.Groups[4].Value != string.Empty
                 ? Convert.ToInt32($"0x{match.Groups[4].Value}", 16) / 255f
                 : 1f;
             return new Color(v1, v2, v3, v4);
