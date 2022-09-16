@@ -1,4 +1,16 @@
-﻿## [2022-09-01] v1.3.0 - Runtime CSS
+﻿## [2022-09-15] v1.3.1a - ExCSS.Unity fix
+
+* Patched ExCSS.Unity.dll so it doesn't cause conflicts with other Unity packages
+
+## [2022-09-13] v1.3.1 - Minor Bug Fixes
+
+* Fixed turning Live Reload off for Standalone builds
+* Add Navigation Events to the TS definitions
+* Better UglifyJS error handling
+* Adds support for chaining pseudo selectors @Walrusking16
+* Tag lookup fix, Dom compliance and ListView example @Sciumo
+
+## [2022-09-01] v1.3.0 - Runtime CSS
 
 You are now able to load CSS strings at runtime via `document.addRuntimeCSS()`. See https://onejs.com/runtimecss for more information.
 
