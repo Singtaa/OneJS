@@ -67,8 +67,8 @@ namespace OneJS.Engine {
         public void OnNetworkReceiveUnconnected(IPEndPoint remoteEndPoint, NetPacketReader reader,
             UnconnectedMessageType messageType) {
             var text = reader.GetString(100);
-            Debug.Log($"[Client] ReceiveUnconnected {messageType}. From: {remoteEndPoint}. Data: {text}");
-            if (messageType == UnconnectedMessageType.BasicMessage && text == "SERVER_DISCOVERY_RESPONSE") {
+            if (text == "SERVER_DISCOVERY_RESPONSE" && !_connectedToServer) {
+                Debug.Log($"[Client] SERVER_DISCOVERY_RESPONSE received. From: {remoteEndPoint}.");
                 NetManager.Connect(remoteEndPoint, "key");
             }
         }

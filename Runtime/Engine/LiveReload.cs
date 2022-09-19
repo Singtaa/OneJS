@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using LiteNetLib;
@@ -25,8 +26,9 @@ namespace OneJS.Engine {
                  "the script engine will reload and the entry script will be re-run.")]
         [SerializeField] [Label("Run on Start")] bool _runOnStart = true;
 
-        [Tooltip("Turn on Live Reload for Standalone build. Remember to turn this off for production deployment where " +
-                 "you don't need Live Reload.")]
+        [Tooltip(
+            "Turn on Live Reload for Standalone build. Remember to turn this off for production deployment where " +
+            "you don't need Live Reload.")]
         [SerializeField] bool _turnOnForStandalone = true;
 
         [Tooltip("Should be a .js file relative to your `persistentDataPath`." +
@@ -79,19 +81,22 @@ namespace OneJS.Engine {
             if (_netSync) {
                 if (IsServer) {
                     // Running as Server
-                    _server = new ServerListener();
-                    _net = new NetManager(_server) { BroadcastReceiveEnabled = true };
+                    _server = new ServerListener(_port);
+                    _net = new NetManager(_server)
+                        { BroadcastReceiveEnabled = true, UnconnectedMessagesEnabled = true };
                     _server.NetManager = _net;
                     _net.Start(_port);
+                    print($"[Server] Net Sync On (port {_port})");
                 } else {
                     // Runnning as Client
                     _client = new ClientListener(_port);
-                    _net = new NetManager(_client) { UnconnectedMessagesEnabled = true };
+                    _net = new NetManager(_client)
+                        { BroadcastReceiveEnabled = true, UnconnectedMessagesEnabled = true };
                     _client.NetManager = _net;
                     _client.OnFileChanged += () => { RunScript(); };
-                    _net.Start();
+                    _net.Start(_port);
+                    print($"[Client] Net Sync On (port {_port})");
                 }
-                print("Net Sync On");
             }
             if (_runOnStart) {
                 _scriptEngine.RunScript(_entryScript);
@@ -130,10 +135,15 @@ namespace OneJS.Engine {
             if (!_turnOnForStandalone)
                 return;
 #endif
-            _tick++;
-            _watcher.Poll();
+            if (!_netSync || !IsClient) {
+                _tick++;
+                _watcher.Poll();
+            }
             if (_netSync) {
                 _net.PollEvents();
+                if (IsServer) {
+                    _server.Broadcast();
+                }
                 if (IsClient) {
                     _client.BroadcastForServer();
                 }
