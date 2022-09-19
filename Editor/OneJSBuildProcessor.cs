@@ -1,10 +1,12 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using DotNet.Globbing;
 using ICSharpCode.SharpZipLib.GZip;
 using ICSharpCode.SharpZipLib.Tar;
 using NaughtyAttributes;
 using OneJS.Utils;
+using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
@@ -16,8 +18,9 @@ namespace OneJS.Editor {
 
         [Tooltip("Files and folders that you don't want to be bundled with your standalone app build." +
                  "")]
-        [ResizableTextArea] [SerializeField] string _ignoreList = ".vscode\ntsconfig.json\ntailwind.config.js\nnode_modules\nSamples";
-        
+        [ResizableTextArea]
+        [SerializeField] string _ignoreList = ".vscode\ntsconfig.json\ntailwind.config.js\nnode_modules\nSamples";
+
         [Tooltip("Uglify/Minify the bundled JS files.")]
         [SerializeField] bool _uglify = true;
 
@@ -28,6 +31,14 @@ namespace OneJS.Editor {
 
         public void OnPreprocessBuild(BuildReport report) {
             Debug.Log("OneJSBuildProcessor: Bundling Scripts...");
+            // NOTE: OnPreprocessBuild is called from a static context, so we can't
+            // access the serialized _ignoreList field directly. We have to use
+            // AssetDatabase.LoadAssetAtPath to access it.
+            var assetPath = AssetDatabase.FindAssets("OneJSBuildProcessor t:OneJSBuildProcessor")
+                .Select(AssetDatabase.GUIDToAssetPath).FirstOrDefault();
+            var oneJsBuildProcessor =
+                (OneJSBuildProcessor)AssetDatabase.LoadAssetAtPath(assetPath, typeof(OneJSBuildProcessor));
+            _ignoreList = oneJsBuildProcessor._ignoreList;
             PackageScripts();
         }
 
@@ -40,13 +51,15 @@ namespace OneJS.Editor {
             var gzoStream = new GZipOutputStream(outStream);
             gzoStream.SetLevel(3);
             var tarOutputStream = new TarOutputStream(gzoStream);
-            var tarCreator = new TarCreator(ScriptEngine.WorkingDir)
-                { ExcludeTS = true, UglifyJS = _uglify, IgnoreList = _ignoreList, IncludeRoot = false };
+            Debug.Log(_ignoreList);
+            var tarCreator = new TarCreator(ScriptEngine.WorkingDir) {
+                ExcludeTS = true, UglifyJS = _uglify, IgnoreList = _ignoreList, IncludeRoot = false
+            };
             tarCreator.CreateTar(tarOutputStream);
             tarOutputStream.Close();
             Debug.Log("Scripts Bundled Up.");
         }
-        
+
         [Button()]
         void ZeroOutScriptsBundleZip() {
             var binPath = UnityEditor.AssetDatabase.GetAssetPath(_scriptsBundleZip);
@@ -55,6 +68,5 @@ namespace OneJS.Editor {
             var outStream = File.Create(binPath);
             outStream.Close();
         }
-        
     }
 }
