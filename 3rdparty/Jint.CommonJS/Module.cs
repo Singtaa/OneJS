@@ -39,7 +39,7 @@ namespace Jint.CommonJS {
         /// Creates a new Module instaznce with the specified module id. The module is resolved to a file on disk
         /// according to the CommonJS specification.
         /// </summary>
-        internal Module(ModuleLoadingEngine e, string moduleId, Module parent = null) {
+        internal Module(ModuleLoadingEngine e, string moduleId, string resolvedPath, Module parent = null) {
             if (e == null) {
                 throw new System.ArgumentNullException(nameof(e));
             }
@@ -51,7 +51,8 @@ namespace Jint.CommonJS {
             }
 
             Id = moduleId;
-            this.filePath = e.Resolver.ResolvePath(Id, parent ?? this);
+            // this.filePath = e.Resolver.ResolvePath(Id, parent ?? this);
+            this.filePath = resolvedPath;
             this.parentModule = parent;
 
             if (parent != null) {
@@ -63,7 +64,7 @@ namespace Jint.CommonJS {
             string extension = Path.GetExtension(this.filePath);
             var loader = this.engine.FileExtensionParsers[extension] ?? this.engine.FileExtensionParsers["default"];
 
-            e.ModuleCache.Add(Id, this);
+            e.ModuleCache.Add(resolvedPath, this);
 
             loader(this.filePath, this);
         }

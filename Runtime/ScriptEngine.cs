@@ -399,7 +399,7 @@ namespace OneJS {
             SetupGlobals();
 
             foreach (var nsmp in _namespaces) {
-                _cjsEngine = _cjsEngine.RegisterInternalModule(nsmp.module,
+                _cjsEngine = _cjsEngine.RegisterInternalModule(nsmp.module, nsmp.module,
                     new NamespaceReference(_engine, nsmp.@namespace));
             }
             foreach (var scmp in _staticClasses) {

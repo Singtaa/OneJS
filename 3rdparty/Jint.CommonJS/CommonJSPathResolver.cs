@@ -24,7 +24,7 @@ namespace Jint.CommonJS {
             // }
 
             // var cwd = parent.filePath != null ? Path.GetDirectoryName(parent.filePath) : Environment.CurrentDirectory;
-            var cwd = parent.filePath != null
+            var cwd = parent != null
                 ? Path.GetDirectoryName(parent.filePath)
                 : WORKING_DIR;
             var path = Path.GetFullPath(Path.Combine(cwd, moduleId));
@@ -64,7 +64,9 @@ namespace Jint.CommonJS {
             }
             if (!found)
                 throw new FileNotFoundException($"Module {path} could not be resolved.");
-            return path;
+            var file = new FileInfo(path);
+            // Debug.Log($"{moduleId} => {file.FullName}");
+            return file.FullName;
         }
     }
 }
