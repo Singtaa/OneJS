@@ -31,6 +31,7 @@ namespace OneJS.Dom {
         protected void InitializeTypesCache() {
             _tagCache = new Dictionary<string, System.Type>();
         }
+
         public Document(VisualElement root, ScriptEngine scriptEngine) {
             _root = root;
             _body = new Dom(_root, this);
@@ -38,10 +39,10 @@ namespace OneJS.Dom {
             InitializeTypesCache(); // accelerate tagName lookup
         }
 
-        public void addRuntimeCSS(string css) {
+        public void addRuntimeUSS(string uss) {
             var ss = ScriptableObject.CreateInstance<StyleSheet>();
             var builder = new OneJS.CustomStyleSheets.CustomStyleSheetImporterImpl();
-            builder.BuildStyleSheet(ss, css);
+            builder.BuildStyleSheet(ss, uss);
             _runtimeStyleSheets.Add(ss);
             _root.styleSheets.Add(ss);
         }
@@ -88,7 +89,7 @@ namespace OneJS.Dom {
         /// </summary>
         /// <param name="id">Element ID</param>
         /// <returns>Dom element or null if not found</returns>
-        public Dom getElementById( string id ) {
+        public Dom getElementById(string id) {
             //var firstElement = _root.Q<VisualElement>(id);
             var elem = body.First((d) => d.ve.name == id);
             return elem;
