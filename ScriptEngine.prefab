@@ -36,7 +36,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_RootOrder: 2
+  m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &6661873769672997516
 MonoBehaviour:
@@ -100,6 +100,8 @@ MonoBehaviour:
     module: UnityEngine
   - namespace: UnityEngine.UIElements
     module: UnityEngine/UIElements
+  - namespace: UnityEngine.UIElements.VisualElement
+    module: UnityEngine/UIElements/VisualElement
   - namespace: OneJS.Utils
     module: OneJS/Utils
   _staticClasses:
