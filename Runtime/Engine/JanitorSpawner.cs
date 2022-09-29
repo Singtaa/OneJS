@@ -17,6 +17,7 @@ namespace OneJS.Engine {
         void Awake() {
             _scriptEngine = GetComponent<ScriptEngine>();
             _janitor = new GameObject("Janitor").AddComponent<Janitor>();
+            _janitor.clearGameObjects = _clearGameObjects;
             _janitor.clearLogs = _clearLogs;
         }
 
