@@ -252,6 +252,8 @@ namespace OneJS.Dom {
                         val = Convert.ToSingle(val);
                     } else if (pi.PropertyType == typeof(Int32) && val.GetType() == typeof(double)) {
                         val = Convert.ToInt32(val);
+                    } else if (pi.PropertyType == typeof(char) && val.GetType() == typeof(string)) {
+                        val = val.ToString()[0];
                     }
                     pi.SetValue(_ve, val);
                 }

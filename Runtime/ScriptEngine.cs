@@ -348,7 +348,7 @@ namespace OneJS {
         /// <returns>System.Type found by lowercase name.</returns>
         public System.Type FindVisualElementType(string typeName) {
             var typeNameL = typeName.ToLower();
-            foreach ( var assembly in _loadedAssemblies) {
+            foreach (var assembly in _loadedAssemblies) {
                 var typesToSearch = assembly.GetTypes();
                 var type = typesToSearch.Where(t => t.Name.ToLower() == typeNameL)
                     .FirstOrDefault();
@@ -358,9 +358,9 @@ namespace OneJS {
             }
             return null;
         }
+
         void InitEngine() {
-            _loadedAssemblies = _assemblies.Select((a) =>
-            {
+            _loadedAssemblies = _assemblies.Select((a) => {
 #if UNITY_2022_2_OR_NEWER
                 if (a == "UnityEngine.UIElementsNativeModule") {
                     return null;
@@ -412,7 +412,6 @@ namespace OneJS {
             foreach (var omp in _objects) {
                 _cjsEngine = _cjsEngine.RegisterInternalModule(omp.module, omp.obj);
             }
-
             _uiDocument.rootVisualElement.Clear();
             _engine.SetValue("document", _document);
             OnPostInit?.Invoke();
