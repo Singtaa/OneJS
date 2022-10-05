@@ -53,7 +53,7 @@ namespace OneJS {
         }
     }
 
-    public class QueuedAction {
+    public struct QueuedAction {
         public DateTime dateTime;
         public Action action;
         public int id;

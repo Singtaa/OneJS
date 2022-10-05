@@ -9,6 +9,7 @@
                 "*"
             ]
         },
+        "skipLibCheck": true,
         "removeComments": true,
         "jsx": "react",
         "jsxFactory": "h",

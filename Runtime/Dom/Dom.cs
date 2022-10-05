@@ -199,6 +199,10 @@ namespace OneJS.Dom {
         }
 
         public void insertBefore(Dom a, Dom b) {
+            if (b == null || b.ve == null || _ve.IndexOf(b.ve) == -1) {
+                appendChild(a);
+                return;
+            }
             var index = _ve.IndexOf(b.ve);
             _ve.Insert(index, a.ve);
             _childNodes.Insert(index, a);
