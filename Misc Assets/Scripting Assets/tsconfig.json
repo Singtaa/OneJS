@@ -13,7 +13,7 @@
         "removeComments": true,
         "jsx": "react",
         "jsxFactory": "h",
-        "target": "es6",
+        "target": "es5",
         "module": "commonjs",
         "noImplicitUseStrict": true,
         "lib": [
