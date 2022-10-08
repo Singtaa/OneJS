@@ -164,6 +164,7 @@ namespace OneJS {
         Document _document;
         ModuleLoadingEngine _cjsEngine;
         Jint.Engine _engine;
+        AsyncEngine.AsyncContext _asyncContext;
 
         List<Action> _engineReloadJSHandlers = new List<Action>();
         List<IClassStrProcessor> _classStrProcessors = new List<IClassStrProcessor>();
@@ -364,6 +365,7 @@ namespace OneJS {
                 }
             }).Where(a => a != null).ToArray();
 
+            _asyncContext = new AsyncEngine.AsyncContext();
             _engine = new Jint.Engine(opts => {
                     opts.Interop.TrackObjectWrapperIdentity = false; // Unity too buggy with ConditionalWeakTable
                     opts.AllowClr(_loadedAssemblies);
@@ -374,6 +376,7 @@ namespace OneJS {
                                 $"ScriptEngine could not load extension \"{e}\". Please check your string(s) in the `extensions` array.");
                         opts.AddExtensionMethods(type);
                     });
+                    opts.AddObjectConverter(new AsyncEngine.TaskConverter(_asyncContext));
 
                     opts.AllowOperatorOverloading();
                     if (_allowReflection) opts.Interop.AllowSystemReflection = true;

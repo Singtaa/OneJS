@@ -1,4 +1,16 @@
-﻿## [2022-09-15] v1.3.1a - ExCSS.Unity fix
+﻿## [2022-10-08] v1.3.3 - Async/await support
+
+* Async/await are now supported in OneJS scripts
+* Preact Signals are also now fully supported
+
+* Changed QueuedActions to use PriorityQueue
+* Added RadioButton and RadioButtonGroup TS Defs and sample usage
+* Fixed issue with relative path loading same modules more than once
+* Fixed OneJSBuildProcessor+OnPreprocessBuild _ignoreList issue
+* NetSync: Have Server also Broadcast
+* Tailwind ParseColor bugfix @LordXyroz
+
+## [2022-09-15] v1.3.1a - ExCSS.Unity fix
 
 * Patched ExCSS.Unity.dll so it doesn't cause conflicts with other Unity packages
 
