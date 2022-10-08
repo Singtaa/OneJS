@@ -166,7 +166,7 @@ namespace OneJS {
         List<Type> _globalFuncTypes;
 
         int _currentActionId;
-        PriorityQueue<QueuedAction, DateTime> _queuedActions = new PriorityQueue<QueuedAction, DateTime>();
+        PriorityQueue<int, DateTime> _queuedActionIds = new PriorityQueue<int, DateTime>();
         Dictionary<int, QueuedAction> _queueLookup = new Dictionary<int, QueuedAction>();
 
         Assembly[] _loadedAssemblies;
@@ -199,9 +199,10 @@ namespace OneJS {
             }
             _frameActionBuffer.Clear();
 
-            while (_queuedActions.Count > 0 && _queuedActions.TryPeek(out QueuedAction _, out DateTime time) &&
+            while (_queuedActionIds.Count > 0 && _queuedActionIds.TryPeek(out int _, out DateTime time) &&
                    time <= DateTime.Now) {
-                var qa = _queuedActions.Dequeue();
+                var qaid = _queuedActionIds.Dequeue();
+                var qa = _queueLookup[qaid];
                 if (!qa.cleared) {
                     qa.action();
                     if (qa.requeue) {
@@ -262,7 +263,7 @@ namespace OneJS {
                 _queueLookup.Add(id, qa);
                 return id;
             }
-            _queuedActions.Enqueue(qa, qa.dateTime);
+            _queuedActionIds.Enqueue(id, qa.dateTime);
             _queueLookup.Add(id, qa);
             return id;
         }
@@ -309,7 +310,7 @@ namespace OneJS {
             _engineReloadJSHandlers.ForEach((a) => { OnReload -= a; });
             _engineReloadJSHandlers.Clear();
 
-            _queuedActions.Clear();
+            _queuedActionIds.Clear();
             _queueLookup.Clear();
             _currentActionId = 0;
 
