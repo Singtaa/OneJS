@@ -64,6 +64,10 @@ namespace OneJS {
             this.requeue = requeue;
             cleared = false;
         }
+        
+        public void ResetDateTime() {
+            this.dateTime = DateTime.Now.AddMilliseconds(timeout);
+        }
     }
 
     [RequireComponent(typeof(UIDocument), typeof(CoroutineUtil))]
@@ -206,11 +210,9 @@ namespace OneJS {
                 if (!qa.cleared) {
                     qa.action();
                     if (qa.requeue) {
-                        var newId = QueueAction(qa.action, qa.timeout, true);
-                        var newQA = _queueLookup[newId];
-                        newQA.id = qa.id;
-                        _queueLookup[qa.id] = newQA;
-                        _queueLookup.Remove(newId);
+                        qa.ResetDateTime();
+                        _queueLookup[qa.id] = qa;
+                        _queuedActionIds.Enqueue(qa.id, qa.dateTime);
                         continue;
                     }
                 }
