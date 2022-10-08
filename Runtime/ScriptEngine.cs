@@ -1,19 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using ICSharpCode.SharpZipLib.GZip;
-using ICSharpCode.SharpZipLib.Tar;
 using Jint;
 using Jint.CommonJS;
-using Jint.Native;
 using Jint.Runtime.Interop;
 using NaughtyAttributes;
 using OneJS.Dom;
 using OneJS.Engine;
-using OneJS.Engine.JSGlobals;
 using OneJS.Utils;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -59,6 +54,7 @@ namespace OneJS {
         public int id;
         public double timeout;
         public bool requeue;
+        public bool cleared;
 
         public QueuedAction(Action action, int id, double timeout, bool requeue = false) {
             this.dateTime = DateTime.Now.AddMilliseconds(timeout);
@@ -66,6 +62,7 @@ namespace OneJS {
             this.id = id;
             this.timeout = timeout;
             this.requeue = requeue;
+            cleared = false;
         }
     }
 
@@ -169,7 +166,7 @@ namespace OneJS {
         List<Type> _globalFuncTypes;
 
         int _currentActionId;
-        List<QueuedAction> _queuedActions = new List<QueuedAction>();
+        PriorityQueue<QueuedAction, DateTime> _queuedActions = new PriorityQueue<QueuedAction, DateTime>();
         Dictionary<int, QueuedAction> _queueLookup = new Dictionary<int, QueuedAction>();
 
         Assembly[] _loadedAssemblies;
@@ -202,25 +199,22 @@ namespace OneJS {
             }
             _frameActionBuffer.Clear();
 
-            int removeCount = 0;
-            for (int i = 0; i < _queuedActions.Count; i++) {
-                var qa = _queuedActions[i];
-                if (qa.dateTime > DateTime.Now) {
-                    break;
+            while (_queuedActions.Count > 0 && _queuedActions.TryPeek(out QueuedAction _, out DateTime time) &&
+                   time <= DateTime.Now) {
+                var qa = _queuedActions.Dequeue();
+                if (!qa.cleared) {
+                    qa.action();
+                    if (qa.requeue) {
+                        var newId = QueueAction(qa.action, qa.timeout, true);
+                        var newQA = _queueLookup[newId];
+                        newQA.id = qa.id;
+                        _queueLookup[qa.id] = newQA;
+                        _queueLookup.Remove(newId);
+                        continue;
+                    }
                 }
-                qa.action();
-                if (qa.requeue) {
-                    var newId = QueueAction(qa.action, qa.timeout, true);
-                    var newQA = _queueLookup[newId];
-                    newQA.id = qa.id;
-                    _queueLookup[qa.id] = newQA;
-                    _queueLookup.Remove(newId);
-                } else {
-                    _queueLookup.Remove(qa.id);
-                }
-                removeCount++;
+                _queueLookup.Remove(qa.id);
             }
-            _queuedActions.RemoveRange(0, removeCount);
         }
 
         public void RunScript(string scriptPath) {
@@ -268,14 +262,7 @@ namespace OneJS {
                 _queueLookup.Add(id, qa);
                 return id;
             }
-            var insertIndex = _queuedActions.Count;
-            for (int i = 0; i < _queuedActions.Count; i++) {
-                if (_queuedActions[i].dateTime > qa.dateTime) {
-                    insertIndex = i;
-                    break;
-                }
-            }
-            _queuedActions.Insert(insertIndex, qa);
+            _queuedActions.Enqueue(qa, qa.dateTime);
             _queueLookup.Add(id, qa);
             return id;
         }
@@ -285,9 +272,8 @@ namespace OneJS {
                 if (queuedAction.timeout == 0) { // Instant Action was treated as frame action
                     ClearFrameAction(queuedAction.id);
                 }
-                _queuedActions
-                    .Remove(queuedAction); // TODO can be optimized because _queuedActions is sorted by dateTime
-                _queueLookup.Remove(id);
+                queuedAction.cleared = true;
+                _queueLookup[id] = queuedAction;
             }
         }
 
