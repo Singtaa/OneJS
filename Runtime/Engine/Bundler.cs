@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using ICSharpCode.SharpZipLib.GZip;
 using ICSharpCode.SharpZipLib.Tar;
 using NaughtyAttributes;
@@ -16,6 +17,12 @@ namespace OneJS {
             "Reset ScriptLib folder on every Game Start. Useful for updating the ScriptLib folder after upgrading" +
             " OneJS, or updating a stale ScriptLib folder on your mobile device.")]
         [SerializeField] [Label("Extract ScriptLib on Start")] bool _extractScriptLibOnStart = false;
+
+        [Tooltip(
+            "These subdirectories (directly under OneJS) will be ignored during standalone app bundling/extration. " +
+            "One common use for them is user-provided addons. You want these directories to survive OneJS updates.")]
+        [SerializeField]
+        [Label("Sub-Directories to Ignore")] string[] _subDirectoriesToIgnore = new[] { "Addons", "Modules" };
 
         [Foldout("ASSETS")]
         [Tooltip("This is the zip file of your bundled scripts.")]
@@ -46,16 +53,15 @@ namespace OneJS {
         [SerializeField]
         TextAsset _tsconfig;
 
-        string _onejsVersion = "1.3.3";
+        string _onejsVersion = "1.3.3a";
 
         void Awake() {
+#if UNITY_EDITOR
             var versionString = PlayerPrefs.GetString("OneJSVersion", "0.0.0");
             if (_extractScriptLibOnStart || versionString != _onejsVersion) {
                 ExtractScriptLib();
                 PlayerPrefs.SetString("OneJSVersion", _onejsVersion);
             }
-
-#if UNITY_EDITOR
             CheckAndSetScriptLibEtAl();
 #else
             ExtractScriptBundle();
@@ -67,7 +73,7 @@ namespace OneJS {
         /// </summary>
         public void ExtractScriptBundle() {
 #if UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID || UNITY_WEBGL
-            DeleteEverythingInPath(ScriptEngine.WorkingDir);
+            DeleteEverythingInPathWithIgnoredSubDirectories(ScriptEngine.WorkingDir);
 
             Extract(_scriptsBundleZip.bytes);
             Debug.Log($"Scripts Bundle extracted. ({ScriptEngine.WorkingDir})");
@@ -116,6 +122,24 @@ namespace OneJS {
                     file.Delete();
                 }
                 foreach (DirectoryInfo dir in di.EnumerateDirectories()) {
+                    dir.Delete(true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Root folder at path still remains
+        /// </summary>
+        void DeleteEverythingInPathWithIgnoredSubDirectories(string path) {
+            if (Directory.Exists(path)) {
+                var di = new DirectoryInfo(path);
+                foreach (FileInfo file in di.EnumerateFiles()) {
+                    file.Delete();
+                }
+                foreach (DirectoryInfo dir in di.EnumerateDirectories()) {
+                    if (_subDirectoriesToIgnore.ToList().Contains(dir.Name)) {
+                        continue;
+                    }
                     dir.Delete(true);
                 }
             }

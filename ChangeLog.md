@@ -1,4 +1,8 @@
-﻿## [2022-10-08] v1.3.3 - Async/await support
+﻿## [2022-09-15] v1.3.3a - Bundler Changes
+
+* Added user-defined sub-directories for the bundler to ignore during runtime updates
+
+## [2022-10-08] v1.3.3 - Async/await support
 
 * Async/await are now supported in OneJS scripts
 * Preact Signals are also now fully supported
