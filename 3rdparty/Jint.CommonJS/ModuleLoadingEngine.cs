@@ -38,15 +38,19 @@ namespace Jint.CommonJS {
             if (module is Module) {
                 module.Exports = (module as Module).Compile(sourceCode, path);
             } else {
+#pragma warning disable 618
                 module.Exports = engine.Execute(sourceCode).GetCompletionValue();
+#pragma warning restore 618
             }
             return module.Exports;
         }
 
         private JsValue LoadJson(string path, IModule module) {
             var sourceCode = File.ReadAllText(path);
+#pragma warning disable 618
             module.Exports = engine.Json.Parse(JsValue.Undefined, new[] { JsValue.FromObject(this.engine, sourceCode) })
                 .AsObject();
+#pragma warning restore 618
             return module.Exports;
         }
 

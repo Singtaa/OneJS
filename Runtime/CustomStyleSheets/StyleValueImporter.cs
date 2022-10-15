@@ -38,9 +38,9 @@ namespace OneJS.CustomStyleSheets {
         protected string m_AssetPath;
 
         protected int m_CurrentLine;
-
+#pragma warning disable 414
         private static readonly string kThemePrefix = "unity-theme://";
-
+#pragma warning restore 414
         private static Dictionary<string, StyleValueKeyword> s_NameCache;
 
         internal static StyleSheetImportGlossary glossary =>

@@ -26,10 +26,12 @@ namespace OneJS.Engine {
                  "the script engine will reload and the entry script will be re-run.")]
         [SerializeField] [Label("Run on Start")] bool _runOnStart = true;
 
+#pragma warning disable 414
         [Tooltip(
             "Turn on Live Reload for Standalone build. Remember to turn this off for production deployment where " +
             "you don't need Live Reload.")]
         [SerializeField] bool _turnOnForStandalone = true;
+#pragma warning restore 414
 
         [Tooltip("Should be a .js file relative to your `persistentDataPath`." +
                  "")]

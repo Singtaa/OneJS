@@ -58,8 +58,9 @@ namespace Jint.CommonJS {
             if (parent != null) {
                 parent.Children.Add(this);
             }
-
+#pragma warning disable 618
             this.Exports = engine.engine.Object.Construct(new JsValue[] { });
+#pragma warning restore 618
 
             string extension = Path.GetExtension(this.filePath);
             var loader = this.engine.FileExtensionParsers[extension] ?? this.engine.FileExtensionParsers["default"];
