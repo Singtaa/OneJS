@@ -6,7 +6,8 @@ using UnityEngine;
 namespace Jint.CommonJS {
     public class CommonJSPathResolver : IModuleResolver {
 #if UNITY_EDITOR
-        private static readonly string WORKING_DIR = Path.Combine(Path.GetDirectoryName(Application.dataPath)!, "OneJS");
+        private static readonly string
+            WORKING_DIR = Path.Combine(Path.GetDirectoryName(Application.dataPath)!, "OneJS");
 #else
         private static readonly string WORKING_DIR = Path.Combine(Application.persistentDataPath, "OneJS");
 #endif
@@ -43,7 +44,7 @@ namespace Jint.CommonJS {
                 if (!moduleId.StartsWith("."))
                     path = Path.Combine(WORKING_DIR, pm + moduleId);
 
-                if (Directory.Exists(path)) {
+                if (Directory.Exists(path) && !File.Exists(path + ".js")) {
                     path = Path.Combine(path, "index");
                 }
 
