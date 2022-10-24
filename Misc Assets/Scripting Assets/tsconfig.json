@@ -6,6 +6,7 @@
                 "ScriptLib/3rdparty/*",
                 "ScriptLib/*",
                 "Addons/*",
+                "Modules/*",
                 "*"
             ]
         },

@@ -91,6 +91,7 @@ namespace OneJS {
         public Dom.Document Document => _document;
         public Dom.Dom DocumentBody => _document.body;
         public int[] Breakpoints => _breakpoints;
+        public int Tick => _tick;
 
         public event Action OnPostInit;
         public event Action OnReload;
@@ -179,6 +180,8 @@ namespace OneJS {
         List<Action> _frameActions = new List<Action>();
         List<Action> _frameActionBuffer = new List<Action>();
 
+        int _tick = 0;
+
         public void Awake() {
             _uiDocument = GetComponent<UIDocument>();
             _uiDocument.rootVisualElement.style.width = new StyleLength(new Length(100, LengthUnit.Percent));
@@ -219,6 +222,7 @@ namespace OneJS {
                 }
                 _queueLookup.Remove(qa.id);
             }
+            _tick++;
         }
 
         public void RunScript(string scriptPath) {

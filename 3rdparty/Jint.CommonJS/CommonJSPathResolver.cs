@@ -38,7 +38,7 @@ namespace Jint.CommonJS {
              * - Try direct file in case an extension is provided
              * - if directory, return directory/index
              */
-            var pathMappings = new[] { "ScriptLib/3rdparty/", "ScriptLib/", "Addons/", "node_modules/", "" };
+            var pathMappings = new[] { "ScriptLib/3rdparty/", "ScriptLib/", "Addons/", "Modules/", "node_modules/", "" };
             var found = false;
             foreach (var pm in pathMappings) {
                 if (!moduleId.StartsWith("."))

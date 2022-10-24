@@ -15,31 +15,20 @@ namespace OneJS.Dom {
 
         public VisualElement ve => _ve;
 
-        public Dom parentNode {
-            get { return _parentNode; }
-        }
+        public Dom parentNode { get { return _parentNode; } }
 
-        public Dom nextSibling {
-            get { return _nextSibling; }
-        }
+        public Dom nextSibling { get { return _nextSibling; } }
 
         /// <summary>
         /// ECMA Compliant id property, stored in the VE.name
         /// </summary>
-        public string Id {
-            get { return _ve.name; }
-            set { _ve.name = value; }
-        }
+        public string Id { get { return _ve.name; } set { _ve.name = value; } }
 
         public DomStyle style => new DomStyle(this);
 
-        public object value {
-            get { return _value; }
-        }
+        public object value { get { return _value; } }
 
-        public bool @checked {
-            get { return _checked; }
-        }
+        public bool @checked { get { return _checked; } }
 
         public object data {
             get { return _data; }
@@ -51,16 +40,11 @@ namespace OneJS.Dom {
             }
         }
 
-        public string innerHTML {
-            get { return _innerHTML; }
-        }
+        public string innerHTML { get { return _innerHTML; } }
 
         public Vector2 layoutSize => _ve.layout.size;
 
-        public object _children {
-            get { return __children; }
-            set { __children = value; }
-        }
+        public object _children { get { return __children; } set { __children = value; } }
 
         // NOTE: Using `JsValue` here because `EventCallback<EventBase>` will lead to massive slowdown on Linux.
         // [props.ts] `dom._listeners[name + useCapture] = value;`
@@ -83,6 +67,8 @@ namespace OneJS.Dom {
 
         static Dictionary<string, RegisterCallbackDelegate> _eventCache =
             new Dictionary<string, RegisterCallbackDelegate>();
+
+        TickBasedCallTracker _tickBasedCallTracker;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void Init() {
@@ -107,10 +93,18 @@ namespace OneJS.Dom {
         }
 
         public void CallListener(string name, EventBase evt) {
-            var func = __listeners[name].As<FunctionInstance>();
-            var engine = _document.scriptEngine.JintEngine;
-            var thisDom = JsValue.FromObject(engine, this);
-            func.Call(thisDom, JsValue.FromObject(engine, evt));
+            // var func = __listeners[name].As<FunctionInstance>();
+            var tick = _document.scriptEngine.Tick;
+            _tickBasedCallTracker.count = _tickBasedCallTracker.tick == tick ? _tickBasedCallTracker.count + 1 : 0;
+            _tickBasedCallTracker.tick = tick;
+            if (_tickBasedCallTracker.count > 1000) {
+                Debug.LogError(
+                    $"Possible infinite loop detected. Event Listener(s) on {_ve.GetType().Name} called more than 1000 times in one frame.");
+                return;
+            }
+            var jintEngine = _document.scriptEngine.JintEngine;
+            var thisDom = JsValue.FromObject(jintEngine, this);
+            jintEngine.Call(__listeners[name], thisDom, new[] { JsValue.FromObject(jintEngine, evt) });
         }
 
         public void clearChildren() {
@@ -122,7 +116,9 @@ namespace OneJS.Dom {
             var func = jsval.As<FunctionInstance>();
             var engine = _document.scriptEngine.JintEngine;
             var thisDom = JsValue.FromObject(engine, this);
-            var callback = (EventCallback<EventBase>)((e) => { func.Call(thisDom, JsValue.FromObject(engine, e)); });
+            var callback = (EventCallback<EventBase>)((e) => {
+                engine.Call(jsval, thisDom, new[] { JsValue.FromObject(engine, e) });
+            });
             var isValueChanged = name == "ValueChanged";
 
             if (!isValueChanged && _eventCache.ContainsKey(name)) {
@@ -309,6 +305,11 @@ namespace OneJS.Dom {
                 }
             }
             return null;
+        }
+
+        struct TickBasedCallTracker {
+            public int tick;
+            public int count;
         }
     }
 }

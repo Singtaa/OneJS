@@ -95,6 +95,12 @@ namespace OneJS.Dom {
             return elem;
         }
 
+        public Dom[] querySelectorAll(string selector) {
+            var elems = _root.Query<VisualElement>(selector).Build();
+            // TODO new Dom shouldn't be used here, we need to be able to get existing Dom of the VisualElement
+            return elems.Select((e) => new Dom(e, this)).ToArray();
+        }
+
         public static object createStyleEnum(int v, Type type) {
             Type myParameterizedSomeClass = typeof(StyleEnum<>).MakeGenericType(type);
             ConstructorInfo constr = myParameterizedSomeClass.GetConstructor(new[] { type });
