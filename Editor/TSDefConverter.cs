@@ -190,7 +190,7 @@ namespace OneJS.Editor {
         string CleanTypeName(Type t) {
             // Need to watch out for things like `Span<T>.Enumerator` because it is generic
             // but type.Name only returns "Enumerator"
-            if (!t.IsGenericType || !t.Name.Contains("`"))
+            if ((!t.IsGenericType || !t.Name.Contains("`")) && !t.IsByRef)
                 return MapName(t.Name.Replace("&", ""));
             StringBuilder sb = new StringBuilder();
 
