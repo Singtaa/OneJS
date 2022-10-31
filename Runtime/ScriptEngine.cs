@@ -92,6 +92,7 @@ namespace OneJS {
         public Dom.Dom DocumentBody => _document.body;
         public int[] Breakpoints => _breakpoints;
         public int Tick => _tick;
+        public DateTime StartTime { get; private set; }
 
         public event Action OnPostInit;
         public event Action OnReload;
@@ -354,6 +355,7 @@ namespace OneJS {
         }
 
         void InitEngine() {
+            StartTime = DateTime.Now;
             _loadedAssemblies = _assemblies.Select((a) => {
 #if UNITY_2022_2_OR_NEWER
                 if (a == "UnityEngine.UIElementsNativeModule") {
