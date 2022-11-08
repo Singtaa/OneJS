@@ -1,4 +1,13 @@
-﻿## [2022-09-15] v1.3.3a - Bundler Changes
+﻿## [2022-11-08] v1.3.5 - useEventfulState()
+
+* Implemented useEventfulState()
+* Fixed inconsistent timing between performance.now() and requestAnimationFrame()
+* Keep existing unity-* classnames intact for stock controls
+* Added IsByRef check in TSDef Converter
+* Updated Preact Signals to latest version
+* Path Resolver tweak
+
+## [2022-10-13] v1.3.3a - Bundler Changes
 
 * Added user-defined sub-directories for the bundler to ignore during runtime updates
 

@@ -53,7 +53,7 @@ namespace OneJS {
         [SerializeField]
         TextAsset _tsconfig;
 
-        string _onejsVersion = "1.3.3a";
+        string _onejsVersion = "1.3.5";
 
         void Awake() {
 #if UNITY_EDITOR
