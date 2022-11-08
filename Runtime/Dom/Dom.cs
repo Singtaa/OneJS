@@ -75,12 +75,12 @@ namespace OneJS.Dom {
             _eventCache.Clear();
         }
 
-        public static void RegisterCallback<T>(VisualElement ve, EventCallback<T> callback)
+        public static void RegisterCallback<T>(VisualElement ve, EventCallback<T> callback, TrickleDown trickleDown = TrickleDown.NoTrickleDown)
             where T : EventBase<T>, new() {
-            ve.RegisterCallback(callback);
+            ve.RegisterCallback(callback, trickleDown);
         }
 
-        public delegate void RegisterCallbackDelegate(VisualElement ve, EventCallback<EventBase> callback);
+        public delegate void RegisterCallbackDelegate(VisualElement ve, EventCallback<EventBase> callback, TrickleDown trickleDown = TrickleDown.NoTrickleDown);
 
         // Not Used
         //public Dom(string tagName) {
@@ -113,7 +113,7 @@ namespace OneJS.Dom {
 
         public void addEventListener(string name, JsValue jsval, bool useCapture = false) {
             // var t = DateTime.Now;
-            var func = jsval.As<FunctionInstance>();
+            // var func = jsval.As<FunctionInstance>();
             var engine = _document.scriptEngine.JintEngine;
             var thisDom = JsValue.FromObject(engine, this);
             var callback = (EventCallback<EventBase>)((e) => {
@@ -122,7 +122,8 @@ namespace OneJS.Dom {
             var isValueChanged = name == "ValueChanged";
 
             if (!isValueChanged && _eventCache.ContainsKey(name)) {
-                _eventCache[name](_ve, callback);
+                _eventCache[name](_ve, callback, TrickleDown.TrickleDown);
+                // Debug.Log("Registered " + name + " on " + _ve.name);
             } else {
                 var eventType = typeof(VisualElement).Assembly.GetType($"UnityEngine.UIElements.{name}Event");
                 if (isValueChanged) {
@@ -141,7 +142,8 @@ namespace OneJS.Dom {
                     var del = (RegisterCallbackDelegate)Delegate.CreateDelegate(typeof(RegisterCallbackDelegate), mi);
                     if (!isValueChanged)
                         _eventCache.Add(name, del);
-                    del(_ve, callback);
+                    del(_ve, callback, TrickleDown.TrickleDown);
+                    // Debug.Log("Registered " + name + " on " + _ve.name);
                 }
             }
 
