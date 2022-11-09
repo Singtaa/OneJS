@@ -1,4 +1,7 @@
-﻿## [2022-11-08] v1.3.5 - useEventfulState()
+﻿
+* ScriptEngine.Objects list will now accept any UnityEngine.Object, not just MonoBehaviours.
+
+## [2022-11-08] v1.3.5 - useEventfulState()
 
 * Implemented useEventfulState()
 * Fixed inconsistent timing between performance.now() and requestAnimationFrame()

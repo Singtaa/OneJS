@@ -39,10 +39,10 @@ namespace OneJS {
 
     [Serializable]
     public class ObjectModulePair {
-        public UnityEngine.MonoBehaviour obj;
+        public UnityEngine.Object obj;
         public string module;
 
-        public ObjectModulePair(UnityEngine.MonoBehaviour obj, string m) {
+        public ObjectModulePair(UnityEngine.Object obj, string m) {
             this.obj = obj;
             this.module = m;
         }
@@ -64,7 +64,7 @@ namespace OneJS {
             this.requeue = requeue;
             cleared = false;
         }
-        
+
         public void ResetDateTime() {
             this.dateTime = DateTime.Now.AddMilliseconds(timeout);
         }
@@ -134,6 +134,8 @@ namespace OneJS {
             { new StaticClassModulePair("Unity.Mathematics.math", "math") };
 
         [Foldout("INTEROP")] [Tooltip("Object to JS Module mapping.")] [PairMapping("obj", "module")] [SerializeField]
+        [InfoBox(
+            "You can pass any UnityEngine.Object to the Javascript engine, and it will be accessible from the Javascript side. To pick a specific MonoBehaviour on a GameObject, you can Right-Click on the Inspector Tab of the GameObject and pick Properties. A standalone window will popup for you to drag the specifc MonoBehavior from.")]
         ObjectModulePair[] _objects = new ObjectModulePair[]
             { };
 
