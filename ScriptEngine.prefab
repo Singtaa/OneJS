@@ -107,9 +107,7 @@ MonoBehaviour:
   _staticClasses:
   - staticClass: Unity.Mathematics.math
     module: math
-  _objects:
-  - obj: {fileID: 0}
-    module: 
+  _objects: []
   _preloadedScripts: []
   _styleSheets:
   - {fileID: 7433441132597879392, guid: 8d3aca6016275b64ab60c4238e47d4af, type: 3}

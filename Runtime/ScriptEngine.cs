@@ -133,9 +133,9 @@ namespace OneJS {
         StaticClassModulePair[] _staticClasses = new[]
             { new StaticClassModulePair("Unity.Mathematics.math", "math") };
 
-        [Foldout("INTEROP")] [Tooltip("Object to JS Module mapping.")] [PairMapping("obj", "module")] [SerializeField]
+        [Foldout("INTEROP")] [Tooltip("Maps an Unity Object to a js module name (any string that you choose). Objects declared here will be accessible from Javascript via i.e. require(\"objname\"). You can also provide your own Type Definitions for better TS usage.")] [PairMapping("obj", "module")] [SerializeField]
         [InfoBox(
-            "You can pass any UnityEngine.Object to the Javascript engine, and it will be accessible from the Javascript side. To pick a specific MonoBehaviour on a GameObject, you can Right-Click on the Inspector Tab of the GameObject and pick Properties. A standalone window will popup for you to drag the specifc MonoBehavior from.")]
+            "The Objects list will now accept any UnityEngine.Object, not just MonoBehaviours. To pick a specific MonoBehaviour on a GameObject, you can Right-Click on the Inspector Tab of the GameObject and pick Properties. A standalone window will popup for you to drag the specifc MonoBehavior from.")]
         ObjectModulePair[] _objects = new ObjectModulePair[]
             { };
 
