@@ -144,10 +144,9 @@ namespace OneJS {
 
         [Foldout("INTEROP")] [Tooltip("Scripts that you want to load before everything else")] [SerializeField]
         List<string> _preloadedScripts = new List<string>();
-
         
         [Foldout("INTEROP")] [Tooltip("Allows you to catch .Net error from within JS.")] [SerializeField]
-        bool _catchDotNetExceptions;
+        bool _catchDotNetExceptions = true;
 
         [Foldout("STYLING")]
         [Tooltip("Inculde here any global USS you'd need. OneJS also provides a default one.")]
