@@ -133,7 +133,10 @@ namespace OneJS {
         StaticClassModulePair[] _staticClasses = new[]
             { new StaticClassModulePair("Unity.Mathematics.math", "math") };
 
-        [Foldout("INTEROP")] [Tooltip("Maps an Unity Object to a js module name (any string that you choose). Objects declared here will be accessible from Javascript via i.e. require(\"objname\"). You can also provide your own Type Definitions for better TS usage.")] [PairMapping("obj", "module")] [SerializeField]
+        [Foldout("INTEROP")]
+        [Tooltip(
+            "Maps an Unity Object to a js module name (any string that you choose). Objects declared here will be accessible from Javascript via i.e. require(\"objname\"). You can also provide your own Type Definitions for better TS usage.")]
+        [PairMapping("obj", "module")] [SerializeField]
         [InfoBox(
             "The Objects list will now accept any UnityEngine.Object, not just MonoBehaviours. To pick a specific MonoBehaviour on a GameObject, you can Right-Click on the Inspector Tab of the GameObject and pick Properties. A standalone window will popup for you to drag the specifc MonoBehavior from.")]
         ObjectModulePair[] _objects = new ObjectModulePair[]
@@ -141,6 +144,10 @@ namespace OneJS {
 
         [Foldout("INTEROP")] [Tooltip("Scripts that you want to load before everything else")] [SerializeField]
         List<string> _preloadedScripts = new List<string>();
+
+        
+        [Foldout("INTEROP")] [Tooltip("Allows you to catch .Net error from within JS.")] [SerializeField]
+        bool _catchDotNetExceptions;
 
         [Foldout("STYLING")]
         [Tooltip("Inculde here any global USS you'd need. OneJS also provides a default one.")]
@@ -385,8 +392,9 @@ namespace OneJS {
                         opts.AddExtensionMethods(type);
                     });
                     opts.AddObjectConverter(new AsyncEngine.TaskConverter(_asyncContext));
-
                     opts.AllowOperatorOverloading();
+
+                    if (_catchDotNetExceptions) opts.CatchClrExceptions();
                     if (_allowReflection) opts.Interop.AllowSystemReflection = true;
                     if (_allowGetType) opts.Interop.AllowGetType = true;
                     if (_memoryLimit > 0) opts.LimitMemory(_memoryLimit * 1000000);
