@@ -1,0 +1,257 @@
+﻿/* Transition duration */
+
+.duration-100 {
+    transition-duration: 0.1s;
+}
+.duration-200 {
+    transition-duration: 0.2s;
+}
+.duration-300 {
+    transition-duration: 0.3s;
+}
+.duration-400 {
+    transition-duration: 0.4s;
+}
+.duration-500 {
+    transition-duration: 0.5s;
+}
+.duration-600 {
+    transition-duration: 0.6s;
+}
+.duration-700 {
+    transition-duration: 0.7s;
+}
+.duration-800 {
+    transition-duration: 0.8s;
+}
+.duration-900 {
+    transition-duration: 0.9s;
+}
+.duration-1000 {
+    transition-duration: 1s;
+}
+.duration-1100 {
+    transition-duration: 1.1s;
+}
+.duration-1200 {
+    transition-duration: 1.2s;
+}
+.duration-1300 {
+    transition-duration: 1.3s;
+}
+.duration-1400 {
+    transition-duration: 1.4s;
+}
+.duration-1500 {
+    transition-duration: 1.5s;
+}
+.duration-1600 {
+    transition-duration: 1.6s;
+}
+.duration-1700 {
+    transition-duration: 1.7s;
+}
+.duration-1800 {
+    transition-duration: 1.8s;
+}
+.duration-1900 {
+    transition-duration: 1.9s;
+}
+.duration-2000 {
+    transition-duration: 2s;
+}
+.duration-2100 {
+    transition-duration: 2.1s;
+}
+.duration-2200 {
+    transition-duration: 2.2s;
+}
+.duration-2300 {
+    transition-duration: 2.3s;
+}
+.duration-2400 {
+    transition-duration: 2.4s;
+}
+.duration-2500 {
+    transition-duration: 2.5s;
+}
+.duration-2600 {
+    transition-duration: 2.6s;
+}
+.duration-2700 {
+    transition-duration: 2.7s;
+}
+.duration-2800 {
+    transition-duration: 2.8s;
+}
+.duration-2900 {
+    transition-duration: 2.9s;
+}
+.duration-3000 {
+    transition-duration: 3s;
+}
+
+/* Transition delay */
+
+
+.delay-100 {
+    transition-delay: 0.1s;
+}
+.delay-200 {
+    transition-delay: 0.2s;
+}
+.delay-300 {
+    transition-delay: 0.3s;
+}
+.delay-400 {
+    transition-delay: 0.4s;
+}
+.delay-500 {
+    transition-delay: 0.5s;
+}
+.delay-600 {
+    transition-delay: 0.6s;
+}
+.delay-700 {
+    transition-delay: 0.7s;
+}
+.delay-800 {
+    transition-delay: 0.8s;
+}
+.delay-900 {
+    transition-delay: 0.9s;
+}
+.delay-1000 {
+    transition-delay: 1s;
+}
+.delay-1100 {
+    transition-delay: 1.1s;
+}
+.delay-1200 {
+    transition-delay: 1.2s;
+}
+.delay-1300 {
+    transition-delay: 1.3s;
+}
+.delay-1400 {
+    transition-delay: 1.4s;
+}
+.delay-1500 {
+    transition-delay: 1.5s;
+}
+.delay-1600 {
+    transition-delay: 1.6s;
+}
+.delay-1700 {
+    transition-delay: 1.7s;
+}
+.delay-1800 {
+    transition-delay: 1.8s;
+}
+.delay-1900 {
+    transition-delay: 1.9s;
+}
+.delay-2000 {
+    transition-delay: 2s;
+}
+.delay-2100 {
+    transition-delay: 2.1s;
+}
+.delay-2200 {
+    transition-delay: 2.2s;
+}
+.delay-2300 {
+    transition-delay: 2.3s;
+}
+.delay-2400 {
+    transition-delay: 2.4s;
+}
+.delay-2500 {
+    transition-delay: 2.5s;
+}
+.delay-2600 {
+    transition-delay: 2.6s;
+}
+.delay-2700 {
+    transition-delay: 2.7s;
+}
+.delay-2800 {
+    transition-delay: 2.8s;
+}
+.delay-2900 {
+    transition-delay: 2.9s;
+}
+.delay-3000 {
+    transition-delay: 3s;
+}
+
+/* Transition timing function */
+.ease {
+    transition-timing-function: ease;
+}
+.ease-in {
+    transition-timing-function: ease-in;
+}
+.ease-out {
+    transition-timing-function: ease-out;
+}
+.ease-in-out {
+    transition-timing-function: ease-in-out;
+}
+.ease-linear {
+    transition-timing-function: linear;
+}
+.ease-in-sine {
+    transition-timing-function: ease-in-sine;
+}
+.ease-out-sine {
+    transition-timing-function: ease-out-sine;
+}
+.ease-in-out-sine {
+    transition-timing-function: ease-in-out-sine;
+}
+.ease-in-cubic {
+    transition-timing-function: ease-in-cubic;
+}
+.ease-out-cubic {
+    transition-timing-function: ease-out-cubic;
+}
+.ease-in-out-cubic {
+    transition-timing-function: ease-in-out-cubic;
+}
+.ease-in-circ {
+    transition-timing-function: ease-in-circ;
+}
+.ease-out-circ {
+    transition-timing-function: ease-out-circ;
+}
+.ease-in-out-circ {
+    transition-timing-function: ease-in-out-circ;
+}
+.ease-in-elastic {
+    transition-timing-function: ease-in-elastic;
+}
+.ease-out-elastic {
+    transition-timing-function: ease-out-elastic;
+}
+.ease-in-out-elastic {
+    transition-timing-function: ease-in-out-elastic;
+}
+.ease-in-back {
+    transition-timing-function: ease-in-back;
+}
+.ease-out-back {
+    transition-timing-function: ease-out-back;
+}
+.ease-in-out-back {
+    transition-timing-function: ease-in-out-back;
+}
+.ease-in-bounce {
+    transition-timing-function: ease-in-bounce;
+}
+.ease-out-bounce {
+    transition-timing-function: ease-out-bounce;
+}
+.ease-in-out-bounce {
+    transition-timing-function: ease-in-out-bounce;
+}

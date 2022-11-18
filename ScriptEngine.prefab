@@ -109,6 +109,7 @@ MonoBehaviour:
     module: math
   _objects: []
   _preloadedScripts: []
+  _catchDotNetExceptions: 0
   _styleSheets:
   - {fileID: 7433441132597879392, guid: 8d3aca6016275b64ab60c4238e47d4af, type: 3}
   _breakpoints: 8002000000030000000400000005000000060000
@@ -193,6 +194,7 @@ MonoBehaviour:
   - {fileID: 7433441132597879392, guid: 30788a0b3a9417646a4f1f15d6109dda, type: 3}
   - {fileID: 7433441132597879392, guid: 92f2f575a80430440babd439ca0a2efa, type: 3}
   - {fileID: 7433441132597879392, guid: 07bab1b4b49a7f14ebafa14af1f0183b, type: 3}
+  - {fileID: 7433441132597879392, guid: ea68cac32f6c49e19b14bca02557b8de, type: 3}
   _breakpointStyleSheets:
   - {fileID: 7433441132597879392, guid: 9bbff89c884e61d48a166ab33a217618, type: 3}
   - {fileID: 7433441132597879392, guid: 46364f1a665d4cc4eb43a19b3c441835, type: 3}
