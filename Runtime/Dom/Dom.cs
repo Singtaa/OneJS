@@ -75,12 +75,14 @@ namespace OneJS.Dom {
             _eventCache.Clear();
         }
 
-        public static void RegisterCallback<T>(VisualElement ve, EventCallback<T> callback, TrickleDown trickleDown = TrickleDown.NoTrickleDown)
+        public static void RegisterCallback<T>(VisualElement ve, EventCallback<T> callback,
+            TrickleDown trickleDown = TrickleDown.NoTrickleDown)
             where T : EventBase<T>, new() {
             ve.RegisterCallback(callback, trickleDown);
         }
 
-        public delegate void RegisterCallbackDelegate(VisualElement ve, EventCallback<EventBase> callback, TrickleDown trickleDown = TrickleDown.NoTrickleDown);
+        public delegate void RegisterCallbackDelegate(VisualElement ve, EventCallback<EventBase> callback,
+            TrickleDown trickleDown = TrickleDown.NoTrickleDown);
 
         // Not Used
         //public Dom(string tagName) {
@@ -122,7 +124,7 @@ namespace OneJS.Dom {
             var isValueChanged = name == "ValueChanged";
 
             if (!isValueChanged && _eventCache.ContainsKey(name)) {
-                _eventCache[name](_ve, callback, TrickleDown.TrickleDown);
+                _eventCache[name](_ve, callback, TrickleDown.NoTrickleDown);
                 // Debug.Log("Registered " + name + " on " + _ve.name);
             } else {
                 var eventType = typeof(VisualElement).Assembly.GetType($"UnityEngine.UIElements.{name}Event");
@@ -142,7 +144,7 @@ namespace OneJS.Dom {
                     var del = (RegisterCallbackDelegate)Delegate.CreateDelegate(typeof(RegisterCallbackDelegate), mi);
                     if (!isValueChanged)
                         _eventCache.Add(name, del);
-                    del(_ve, callback, TrickleDown.TrickleDown);
+                    del(_ve, callback, TrickleDown.NoTrickleDown);
                     // Debug.Log("Registered " + name + " on " + _ve.name);
                 }
             }
