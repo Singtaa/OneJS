@@ -1,4 +1,8 @@
-﻿
+﻿## [2022-12-15] v1.4.3 Built-in Styled Components and Emotion APIs
+
+* Implemented `onejs/styled` which includes both styled-components and emotion APIs.
+* `backgroundImage` Style prop now also accepts Sprite objects in addition to string paths and Texture objects.
+* Reverted default Trickledown.
 * ScriptEngine.Objects list will now accept any UnityEngine.Object, not just MonoBehaviours.
 
 ## [2022-11-08] v1.3.5 - useEventfulState()
@@ -40,7 +44,8 @@
 
 ## [2022-09-01] v1.3.0 - Runtime CSS
 
-You are now able to load CSS strings at runtime via `document.addRuntimeCSS()`. See https://onejs.com/runtimecss for more information.
+You are now able to load CSS strings at runtime via `document.addRuntimeCSS()`. See https://onejs.com/runtimecss for
+more information.
 
 * Runtime CSS
 * Updated Jint to latest
@@ -59,14 +64,16 @@ You are now able to load CSS strings at runtime via `document.addRuntimeCSS()`. 
 
 ## [2022-06-24] v1.2.0 - WorkingDir Rework
 
-You are now able to keep all your scripts under `{ProjectDir}/OneJS`. And the scripts will be automatically bundled into`{persistentDataPath}/OneJS` for Standalone builds.
+You are now able to keep all your scripts under `{ProjectDir}/OneJS`. And the scripts will be automatically bundled
+into`{persistentDataPath}/OneJS` for Standalone builds.
 
 * Added a Bundler component that is responsible for extracting scripts.
 * Added OneJSBuildProcessor ScriptableObject that is responsible for packaging scripts (for Standalone builds).
-  * This is generally automatic as it uses OnPreprocessBuild
-  * It also provides glob ignore patterns for things you don't want to include in the bundle.
+    * This is generally automatic as it uses OnPreprocessBuild
+    * It also provides glob ignore patterns for things you don't want to include in the bundle.
 * Added `[DefaultExecutionOrder]` for various components.
-* Added an extra option (`Poll Standalone Screen`) on the Tailwind component to allow you to also watch for screen changes for standalone builds.
+* Added an extra option (`Poll Standalone Screen`) on the Tailwind component to allow you to also watch for screen
+  changes for standalone builds.
 
 ## [2022-06-19] v1.1.2 - Bugfixes
 
@@ -97,7 +104,8 @@ You are now able to keep all your scripts under `{ProjectDir}/OneJS`. And the sc
 
 ### Other Notables:
 
-* Completely reworked Live Reload's File watching mechanism to conserve more CPU cycles. Previously it was using  FileSystemWatcher (poor performance when watching directories recursively).
+* Completely reworked Live Reload's File watching mechanism to conserve more CPU cycles. Previously it was using
+  FileSystemWatcher (poor performance when watching directories recursively).
 * New GradientRect control (allows linear gradients with 4 corners, demo'ed in the fortnite ui sample)
 
 ### Minor Bug fixes:

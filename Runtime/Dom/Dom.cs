@@ -215,7 +215,7 @@ namespace OneJS.Dom {
 
         public void setAttribute(string name, object val) {
             if (name == "class" || name == "className") {
-                var unityClassnames = _ve.GetClasses().Where(c => c.StartsWith("unity-"));
+                var unityClassnames = _ve.GetClasses().Where(c => c.StartsWith("unity-")).ToArray();
                 _ve.ClearClassList();
                 var unprocessedClassStr = _document.scriptEngine.ProcessClassStr(val.ToString(), this);
                 var parts = (unprocessedClassStr).Split(' ', StringSplitOptions.RemoveEmptyEntries);

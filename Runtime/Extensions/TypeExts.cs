@@ -2,7 +2,7 @@
 using System.Linq;
 
 namespace OneJS.Extensions {
-    public static class TypeExtensions {
+    public static class TypeExts {
         /// <summary>
         /// Returns the type name. If this is a generic type, appends
         /// the list of generic type arguments between angle brackets.
