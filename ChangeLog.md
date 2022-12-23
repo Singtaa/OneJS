@@ -1,4 +1,7 @@
-﻿## [2022-12-15] v1.4.3 Built-in Styled Components and Emotion APIs
+﻿* `classnames` added
+* VectorAPI check for sample scene
+
+## [2022-12-15] v1.4.3 Built-in Styled Components and Emotion APIs
 
 * Implemented `onejs/styled` which includes both styled-components and emotion APIs.
 * `backgroundImage` Style prop now also accepts Sprite objects in addition to string paths and Texture objects.
