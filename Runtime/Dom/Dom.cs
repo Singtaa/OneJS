@@ -14,6 +14,8 @@ namespace OneJS.Dom {
         public Document document => _document;
 
         public VisualElement ve => _ve;
+        
+        public Dom[] childNodes => _childNodes.ToArray();
 
         public Dom parentNode { get { return _parentNode; } }
 

@@ -323,6 +323,7 @@ namespace OneJS {
         }
 
         void CleanUp() {
+            _document.clearRuntimeStyleSheets();
             _engineReloadJSHandlers.ForEach((a) => { OnReload -= a; });
             _engineReloadJSHandlers.Clear();
 

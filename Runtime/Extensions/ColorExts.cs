@@ -41,6 +41,14 @@ namespace OneJS.Extensions {
             return ((Color)color).ToFloat3();
         }
 
+        public static Color ToColor(this Color32 color) {
+            return ((Color)color);
+        }
+
+        public static Color32 ToColor32(this Color color) {
+            return (Color32)color;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float4 ToFloat4(this Color32 color) {
             // return new float4(color.r / 255f, color.g / 255f, color.b / 255f, color.a / 255f);

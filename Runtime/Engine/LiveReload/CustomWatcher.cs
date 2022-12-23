@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -78,6 +79,12 @@ namespace OneJS.Engine {
                 var fi = new FileInfo(path);
                 res.Add(path, fi.LastWriteTimeUtc);
             }
+            // DirectoryInfo dirInfo = new DirectoryInfo(_dir);
+            // var fis = dirInfo.EnumerateFiles(_filter, SearchOption.AllDirectories)
+            //     .AsParallel().ToArray();
+            // foreach (var fi in fis) {
+            //     res.Add(fi.FullName, fi.LastWriteTimeUtc);
+            // }
             return res;
         }
 
