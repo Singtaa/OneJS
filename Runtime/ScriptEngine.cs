@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Sockets;
 using System.Reflection;
 using Jint;
 using Jint.CommonJS;
@@ -144,7 +145,7 @@ namespace OneJS {
 
         [Foldout("INTEROP")] [Tooltip("Scripts that you want to load before everything else")] [SerializeField]
         List<string> _preloadedScripts = new List<string>();
-        
+
         [Foldout("INTEROP")] [Tooltip("Allows you to catch .Net error from within JS.")] [SerializeField]
         bool _catchDotNetExceptions = true;
 
@@ -222,6 +223,7 @@ namespace OneJS {
                 var qa = _queueLookup[qaid];
                 if (!qa.cleared) {
                     qa.action();
+                    qa = _queueLookup[qaid]; // in case the struct was changed (action cleared itself)
                     if (qa.requeue) {
                         qa.ResetDateTime();
                         _queueLookup[qa.id] = qa;
@@ -290,6 +292,7 @@ namespace OneJS {
                     ClearFrameAction(queuedAction.id);
                 }
                 queuedAction.cleared = true;
+                queuedAction.requeue = false;
                 _queueLookup[id] = queuedAction;
             }
         }
