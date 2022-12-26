@@ -1,4 +1,7 @@
-﻿* `classnames` added
+﻿## [2022-12-25] v1.4.4 Misc
+
+* Bugfix for `clearInterval()` not working inside the queued action
+* `classnames` added
 * VectorAPI check for sample scene
 
 ## [2022-12-15] v1.4.3 Built-in Styled Components and Emotion APIs
