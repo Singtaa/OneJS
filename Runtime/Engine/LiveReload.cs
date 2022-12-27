@@ -96,7 +96,7 @@ namespace OneJS.Engine {
                         { BroadcastReceiveEnabled = true, UnconnectedMessagesEnabled = true };
                     _client.NetManager = _net;
                     _client.OnFileChanged += () => { RunScript(); };
-                    _net.Start(_port);
+                    _net.Start();
                     print($"[Client] Net Sync On (port {_port})");
                 }
             }
