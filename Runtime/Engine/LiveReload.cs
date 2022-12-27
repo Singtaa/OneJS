@@ -24,31 +24,50 @@ namespace OneJS.Engine {
 
         [InfoBox("This component will watch the `{ProjectDir}/OneJS` folder for you. When change is detected, " +
                  "the script engine will reload and the entry script will be re-run.")]
-        [SerializeField] [Label("Run on Start")] bool _runOnStart = true;
+        [SerializeField]
+        [Label("Run on Start")]
+        bool _runOnStart = true;
 
 #pragma warning disable 414
         [Tooltip(
             "Turn on Live Reload for Standalone build. Remember to turn this off for production deployment where " +
             "you don't need Live Reload.")]
-        [SerializeField] bool _turnOnForStandalone = true;
+        [SerializeField]
+        bool _turnOnForStandalone = true;
 #pragma warning restore 414
 
         [Tooltip("Should be a .js file relative to your `persistentDataPath`." +
                  "")]
-        [SerializeField] string _entryScript = "index.js";
+        [SerializeField]
+        string _entryScript = "index.js";
         [SerializeField] string _watchFilter = "*.js";
 
 
         // Net Sync is disabled for this initial version of OneJS. Will come in the very next update.
         [Tooltip("Allows Live Reload to work across devices (i.e. edit code on PC, live reload on mobile device." + "")]
-        [SerializeField] bool _netSync;
+        [SerializeField]
+        bool _netSync;
         [Tooltip("`Server` broadcasts the file changes. `Client` receives the changes. `Auto` means Server for " +
                  "desktop, and Client for mobile.")]
-        [SerializeField] [ShowIf("_netSync")] ENetSyncMode _mode = ENetSyncMode.Auto;
-        [Tooltip("Port for both Server and Client. (Client also listens on a port for better discovery across devices.)")]
-        [SerializeField] [ShowIf("_netSync")] int _port = 9050;
-        [Tooltip("Set this to true when you need to Net Sync apps on the same device. (i.e. between Editor and Standalone)")]
-        [SerializeField] [ShowIf("_mode", ENetSyncMode.Client)] bool _useRandomPortForClient = false;
+        [SerializeField]
+        [ShowIf("_netSync")]
+        ENetSyncMode _mode = ENetSyncMode.Auto;
+        [Tooltip(
+            "Port for both Server and Client. (Client also listens on a port for better discovery across devices.)")]
+        [SerializeField]
+        [ShowIf("_netSync")]
+        int _port = 9050;
+        [Tooltip(
+            "Explicit IP address to use for server. Use this if you are having problems with network discovery. Keep this empty to use auto discovery.")]
+        [SerializeField]
+        [Label("Server IP")]
+        [ShowIf("_mode", ENetSyncMode.Client)]
+        string _serverIP = "";
+        [Tooltip(
+            "Set this to true when you need to Net Sync apps on the same device. (i.e. between Editor and Standalone)")]
+        [SerializeField]
+        [ShowIf("_mode", ENetSyncMode.Client)]
+        bool _useRandomPortForClient = false;
 
         ScriptEngine _scriptEngine;
         // FileSystemWatcher _watcher;
@@ -86,16 +105,22 @@ namespace OneJS.Engine {
                 if (IsServer) {
                     // Running as Server
                     _server = new ServerListener(_port);
-                    _net = new NetManager(_server)
-                        { BroadcastReceiveEnabled = true, UnconnectedMessagesEnabled = true };
+                    _net = new NetManager(_server) {
+                        BroadcastReceiveEnabled = true,
+                        UnconnectedMessagesEnabled = true,
+                        IPv6Mode = IPv6Mode.Disabled
+                    };
                     _server.NetManager = _net;
                     _net.Start(_port);
                     print($"[Server] Net Sync On (port {_port})");
                 } else {
                     // Runnning as Client
                     _client = new ClientListener(_port);
-                    _net = new NetManager(_client)
-                        { BroadcastReceiveEnabled = true, UnconnectedMessagesEnabled = true };
+                    _net = new NetManager(_client) {
+                        BroadcastReceiveEnabled = true,
+                        UnconnectedMessagesEnabled = true,
+                        IPv6Mode = IPv6Mode.Disabled
+                    };
                     _client.NetManager = _net;
                     _client.OnFileChanged += () => { RunScript(); };
                     if (_useRandomPortForClient)
@@ -153,7 +178,7 @@ namespace OneJS.Engine {
                     _server.Broadcast();
                 }
                 if (IsClient) {
-                    _client.BroadcastForServer();
+                    _client.BroadcastForServer(_serverIP);
                 }
             }
         }

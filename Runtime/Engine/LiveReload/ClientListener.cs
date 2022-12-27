@@ -22,8 +22,14 @@ namespace OneJS.Engine {
             _serverPort = serverPort;
         }
 
-        public void BroadcastForServer() {
+        public void BroadcastForServer(string serverIP = "") {
             if (_connectedToServer || (DateTime.Now - _lastBroadcastTime).TotalSeconds < 10) {
+                return;
+            }
+            if (!String.IsNullOrEmpty(serverIP)) {
+                Debug.Log("Attempting to Connect to Server");
+                NetManager.Connect(serverIP, _serverPort, "key");
+                _lastBroadcastTime = DateTime.Now;
                 return;
             }
             NetDataWriter writer = new NetDataWriter();

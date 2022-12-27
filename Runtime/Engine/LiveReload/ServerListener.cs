@@ -38,7 +38,7 @@ namespace OneJS.Engine {
         }
 
         public void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo) {
-            Debug.Log("[Server] Peer disconnected: " + peer.EndPoint);
+            Debug.Log("[Server] Peer disconnected: " + peer.EndPoint + " REASON: " + disconnectInfo.Reason);
         }
 
         public void OnNetworkError(IPEndPoint endPoint, SocketError socketError) {
