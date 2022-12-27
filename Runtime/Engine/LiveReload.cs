@@ -45,8 +45,10 @@ namespace OneJS.Engine {
         [Tooltip("`Server` broadcasts the file changes. `Client` receives the changes. `Auto` means Server for " +
                  "desktop, and Client for mobile.")]
         [SerializeField] [ShowIf("_netSync")] ENetSyncMode _mode = ENetSyncMode.Auto;
-        [Tooltip("Server's port. Any unused port will do.")]
+        [Tooltip("Port for both Server and Client. (Client also listens on a port for better discovery across devices.)")]
         [SerializeField] [ShowIf("_netSync")] int _port = 9050;
+        [Tooltip("Set this to true when you need to Net Sync apps on the same device. (i.e. between Editor and Standalone)")]
+        [SerializeField] [ShowIf("_mode", ENetSyncMode.Client)] bool _useRandomPortForClient = false;
 
         ScriptEngine _scriptEngine;
         // FileSystemWatcher _watcher;
@@ -96,8 +98,12 @@ namespace OneJS.Engine {
                         { BroadcastReceiveEnabled = true, UnconnectedMessagesEnabled = true };
                     _client.NetManager = _net;
                     _client.OnFileChanged += () => { RunScript(); };
-                    _net.Start();
-                    print($"[Client] Net Sync On (port {_port})");
+                    if (_useRandomPortForClient)
+                        _net.Start();
+                    else
+                        _net.Start(_port);
+
+                    print($"[Client] Net Sync On (port {_net.LocalPort})");
                 }
             }
             if (_runOnStart) {
