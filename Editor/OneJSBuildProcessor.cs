@@ -21,6 +21,9 @@ namespace OneJS.Editor {
         [ResizableTextArea]
         [SerializeField] string _ignoreList = ".vscode\ntsconfig.json\ntailwind.config.js\nnode_modules\nSamples";
 
+        [Tooltip("Strip the TS files.")]
+        [SerializeField] bool _excludeTS = true;
+        
         [Tooltip("Uglify/Minify the bundled JS files.")]
         [SerializeField] bool _uglify = true;
 
@@ -53,7 +56,7 @@ namespace OneJS.Editor {
             var tarOutputStream = new TarOutputStream(gzoStream);
             Debug.Log(_ignoreList);
             var tarCreator = new TarCreator(ScriptEngine.WorkingDir) {
-                ExcludeTS = true, UglifyJS = _uglify, IgnoreList = _ignoreList, IncludeRoot = false
+                ExcludeTS = _excludeTS, UglifyJS = _uglify, IgnoreList = _ignoreList, IncludeRoot = false
             };
             tarCreator.CreateTar(tarOutputStream);
             tarOutputStream.Close();
