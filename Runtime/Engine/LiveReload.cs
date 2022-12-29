@@ -116,17 +116,9 @@ namespace OneJS.Engine {
                 } else {
                     // Runnning as Client
                     _client = new ClientListener(_port);
-                    _net = new NetManager(_client) {
-                        BroadcastReceiveEnabled = true,
-                        UnconnectedMessagesEnabled = true,
-                        IPv6Mode = IPv6Mode.Disabled
-                    };
-                    _client.NetManager = _net;
+                    _net = _client.InitNetManager();
                     _client.OnFileChanged += () => { RunScript(); };
-                    if (_useRandomPortForClient)
-                        _net.Start();
-                    else
-                        _net.Start(_port);
+                    _client.Start(_useRandomPortForClient);
 
                     print($"[Client] Net Sync On (port {_net.LocalPort})");
                 }
@@ -159,9 +151,22 @@ namespace OneJS.Engine {
             _watcher.Stop();
         }
 
-        // void OnApplicationPause(bool pauseStatus) {
-        //     
-        // }
+        void OnApplicationFocus(bool focusStatus) {
+            // print($"OnFocus ({focusStatus})");
+            if (!focusStatus) {
+                if (_netSync && IsClient) {
+                    _client.Stop();
+                }
+            } else {
+                if (_netSync && IsClient) {
+                    _client.Start(_useRandomPortForClient);
+                }
+            }
+        }
+
+        void OnApplicationPause(bool pauseStatus) {
+            // print($"OnPause ({pauseStatus})");
+        }
 
         void Update() {
 #if !UNITY_EDITOR && (UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID)

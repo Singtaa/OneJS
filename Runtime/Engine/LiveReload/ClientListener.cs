@@ -8,22 +8,46 @@ using UnityEngine;
 
 namespace OneJS.Engine {
     public class ClientListener : INetEventListener {
-        public NetManager NetManager { get; set; }
-        public bool ConnectedToServer => _connectedToServer;
+        public NetManager NetManager { get; private set; }
+        public bool ConnectedToServer => _serverPeer != null;
 
         public event Action OnFileChanged;
 
         DateTime _lastBroadcastTime;
         int _serverPort;
-        bool _connectedToServer;
+        NetPeer _serverPeer;
 
         public ClientListener(int serverPort) {
             _lastBroadcastTime = DateTime.Now.AddSeconds(-100);
             _serverPort = serverPort;
         }
 
+        public NetManager InitNetManager() {
+            NetManager = new NetManager(this) {
+                BroadcastReceiveEnabled = true,
+                UnconnectedMessagesEnabled = true,
+                IPv6Mode = IPv6Mode.Disabled
+            };
+            return NetManager;
+        }
+
+        public void Start(bool useRandomPortForClient) {
+            if (useRandomPortForClient)
+                NetManager.Start();
+            else
+                NetManager.Start(_serverPort);
+        }
+
+        public void Stop() {
+            if (_serverPeer != null) {
+                _serverPeer.Disconnect();
+                _serverPeer = null;
+            }
+            NetManager.Stop();
+        }
+
         public void BroadcastForServer(string serverIP = "") {
-            if (_connectedToServer || (DateTime.Now - _lastBroadcastTime).TotalSeconds < 10) {
+            if (_serverPeer != null || (DateTime.Now - _lastBroadcastTime).TotalSeconds < 10) {
                 return;
             }
             if (!String.IsNullOrEmpty(serverIP)) {
@@ -40,15 +64,18 @@ namespace OneJS.Engine {
 
         public void OnPeerConnected(NetPeer peer) {
             Debug.Log($"[Client {NetManager.LocalPort}] connected to: {peer.EndPoint.Address}:{peer.EndPoint.Port}");
-            _connectedToServer = true;
+            // _connectedToServer = true;
+            _serverPeer = peer;
         }
 
         public void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo) {
-            _connectedToServer = false;
+            // _connectedToServer = false;
+            _serverPeer = null;
         }
 
         public void OnNetworkError(IPEndPoint endPoint, SocketError socketError) {
-            _connectedToServer = false;
+            // _connectedToServer = false;
+            _serverPeer = null;
         }
 
         public void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channelNumber,
@@ -73,7 +100,7 @@ namespace OneJS.Engine {
         public void OnNetworkReceiveUnconnected(IPEndPoint remoteEndPoint, NetPacketReader reader,
             UnconnectedMessageType messageType) {
             var text = reader.GetString(100);
-            if (text == "SERVER_DISCOVERY_RESPONSE" && !_connectedToServer) {
+            if (text == "SERVER_DISCOVERY_RESPONSE" && _serverPeer == null) {
                 Debug.Log($"[Client] SERVER_DISCOVERY_RESPONSE received. From: {remoteEndPoint}.");
                 NetManager.Connect(remoteEndPoint, "key");
             }
