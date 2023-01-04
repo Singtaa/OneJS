@@ -1,4 +1,9 @@
-﻿## [2022-12-25] v1.4.4 Misc
+﻿## [2023-01-04] v1.4.5 Misc
+
+* TSDefConverter now supports Jint syntax for events ("add_" and "remove_").
+* Added a new Sample (CharManSample)
+
+## [2022-12-25] v1.4.4 Misc
 
 * Bugfix for `clearInterval()` not working inside the queued action
 * `classnames` added

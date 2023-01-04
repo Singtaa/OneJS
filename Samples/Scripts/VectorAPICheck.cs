@@ -2,7 +2,7 @@
 using System;
 using UnityEngine;
 
-namespace OneJS.Misc {
+namespace OneJS.Samples {
     public class VectorAPICheck : MonoBehaviour {
 #if !UNITY_2022_1_OR_NEWER
         void Awake() {

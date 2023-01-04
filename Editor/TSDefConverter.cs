@@ -19,12 +19,16 @@ namespace OneJS.Editor {
             { "UInt16", "number" },
             { "Single", "number" },
             { "String", "string" },
+            { "Action", "() => void" },
             { "Object", "any" },
         };
+
+        bool _jintSyntaxForEvents;
 
         Type _type;
         ConstructorInfo[] _ctors;
         FieldInfo[] _fields;
+        EventInfo[] _events;
         MethodInfo[] _methods;
         PropertyInfo[] _properties;
         FieldInfo[] _staticFields;
@@ -35,8 +39,9 @@ namespace OneJS.Editor {
         string _output;
         int _indentSpaces = 0;
 
-        public TSDefConverter(Type type) {
+        public TSDefConverter(Type type, bool jintSyntaxForEvents = false) {
             this._type = type;
+            this._jintSyntaxForEvents = jintSyntaxForEvents;
             DoMembers();
         }
 
@@ -56,6 +61,16 @@ namespace OneJS.Editor {
 
             foreach (var p in _properties) {
                 lines.Add(PropToStr(p));
+            }
+            foreach (var e in _events) {
+                if (_jintSyntaxForEvents) {
+                    var str = $"{e.Name}: (handler: {CleanTypeName(e.EventHandlerType)}) => void";
+                    lines.Add(new String(' ', _indentSpaces) + "add_" + str);
+                    lines.Add(new String(' ', _indentSpaces) + "remove_" + str);
+                } else {
+                    var str = $"{e.Name}: {CleanTypeName(e.EventHandlerType)}";
+                    lines.Add(new String(' ', _indentSpaces) + str);
+                }
             }
             foreach (var f in _fields) {
                 lines.Add(FieldToStr(f));
@@ -96,6 +111,7 @@ namespace OneJS.Editor {
             var flags = BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.DeclaredOnly;
             _ctors = _type.GetConstructors(flags | BindingFlags.Instance);
             _fields = _type.GetFields(flags | BindingFlags.Instance);
+            _events = _type.GetEvents(flags | BindingFlags.Instance);
             _methods = _type.GetMethods(flags | BindingFlags.Instance);
             _properties = _type.GetProperties(flags | BindingFlags.Instance);
             _staticFields = _type.GetFields(flags | BindingFlags.Static);
@@ -148,6 +164,14 @@ namespace OneJS.Editor {
             return new String(' ', _indentSpaces) + str;
         }
 
+        string EventToStr(EventInfo eventInfo) {
+            if (eventInfo.CustomAttributes.Where(a => a.AttributeType == typeof(ObsoleteAttribute)).Count() > 0)
+                return null;
+            var str = $"{eventInfo.Name}: {CleanTypeName(eventInfo.EventHandlerType)}";
+
+            return new String(' ', _indentSpaces) + str;
+        }
+
         string MethodToStr(MethodInfo methodInfo, bool isStatic = false) {
             if (methodInfo.CustomAttributes.Where(a => a.AttributeType == typeof(ObsoleteAttribute)).Count() > 0)
                 return null;
@@ -192,7 +216,21 @@ namespace OneJS.Editor {
             // but type.Name only returns "Enumerator"
             if ((!t.IsGenericType || !t.Name.Contains("`")) && !t.IsByRef)
                 return MapName(t.Name.Replace("&", ""));
+
             StringBuilder sb = new StringBuilder();
+
+            if (t.FullName.StartsWith("System.Action`")) {
+                var str = String.Join(", ",
+                    t.GetGenericArguments().Select((t, i) => $"{(char)(i + 97)}: " + CleanTypeName(t)));
+                return $"({str}) => void";
+            }
+
+            if (t.FullName.StartsWith("System.Func`")) {
+                var gts = t.GetGenericArguments();
+                var str = String.Join(", ",
+                    gts.Take(gts.Length - 1).Select((t, i) => $"{(char)(i + 97)}: " + CleanTypeName(t)));
+                return $"({str}) => {CleanTypeName(gts.Last())}";
+            }
 
             sb.Append(t.Name.Substring(0, t.Name.LastIndexOf("`")));
             sb.Append(t.GetGenericArguments().Aggregate("<",
