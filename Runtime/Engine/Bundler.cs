@@ -56,10 +56,15 @@ namespace OneJS {
         string _onejsVersion = "1.4.5";
 
         void Awake() {
-#if UNITY_EDITOR
             var versionString = PlayerPrefs.GetString("OneJSVersion", "0.0.0");
+#if UNITY_EDITOR
             if (_extractScriptLibOnStart || versionString != _onejsVersion) {
                 ExtractScriptLib();
+                if (versionString != _onejsVersion) {
+                    ExtractSamples();
+                    print(
+                        $"Both ScriptLib and Samples extracted. This can happen when OneJS is updated (or when it's your first time running OneJS).");
+                }
                 PlayerPrefs.SetString("OneJSVersion", _onejsVersion);
             }
             CheckAndSetScriptLibEtAl();
