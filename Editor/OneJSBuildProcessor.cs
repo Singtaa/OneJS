@@ -54,7 +54,6 @@ namespace OneJS.Editor {
             var gzoStream = new GZipOutputStream(outStream);
             gzoStream.SetLevel(3);
             var tarOutputStream = new TarOutputStream(gzoStream);
-            Debug.Log(_ignoreList);
             var tarCreator = new TarCreator(ScriptEngine.WorkingDir) {
                 ExcludeTS = _excludeTS, UglifyJS = _uglify, IgnoreList = _ignoreList, IncludeRoot = false
             };

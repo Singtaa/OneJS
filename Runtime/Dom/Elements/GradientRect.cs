@@ -31,12 +31,12 @@ namespace OneJS.Dom {
                 vertices[1].tint = Colors[1];
                 vertices[2].tint = Colors[2];
                 vertices[3].tint = Colors[2];
-            }  else if (Colors.Length == 4) {
+            } else if (Colors.Length == 4) {
                 vertices[0].tint = Colors[0];
                 vertices[1].tint = Colors[1];
                 vertices[2].tint = Colors[2];
                 vertices[3].tint = Colors[3];
-            } 
+            }
 
             var left = 0f;
             var right = rect.width;
