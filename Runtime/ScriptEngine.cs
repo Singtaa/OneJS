@@ -145,6 +145,9 @@ namespace OneJS {
         [Foldout("INTEROP")] [Tooltip("Scripts that you want to load before everything else")] [SerializeField]
         List<string> _preloadedScripts = new List<string>();
 
+        [Foldout("INTEROP")] [Tooltip("Scripts that you want to load after everything else")] [SerializeField]
+        List<string> _postloadedScripts = new List<string>();
+
         [Foldout("INTEROP")] [Tooltip("Allows you to catch .Net error from within JS.")] [SerializeField]
         bool _catchDotNetExceptions = true;
 
@@ -444,12 +447,13 @@ namespace OneJS {
                 var files = Directory.GetFiles(preloadsPath,
                     "*.js", SearchOption.AllDirectories).ToList();
                 files.ForEach(f => _cjsEngine.RunMain(Path.GetRelativePath(WorkingDir, f)));
-                _preloadedScripts.ForEach(p => _cjsEngine.RunMain(p));
             }
+            _preloadedScripts.ForEach(p => _cjsEngine.RunMain(p));
 
             // var t = DateTime.Now;
             _cjsEngine.RunMain(scriptPath);
             // print($"RunModule {(DateTime.Now - t).TotalMilliseconds}ms");
+            _postloadedScripts.ForEach(p => _cjsEngine.RunMain(p));
         }
     }
 }
