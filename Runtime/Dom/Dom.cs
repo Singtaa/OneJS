@@ -14,7 +14,7 @@ namespace OneJS.Dom {
         public Document document => _document;
 
         public VisualElement ve => _ve;
-        
+
         public Dom[] childNodes => _childNodes.ToArray();
 
         public Dom parentNode { get { return _parentNode; } }
@@ -25,6 +25,8 @@ namespace OneJS.Dom {
         /// ECMA Compliant id property, stored in the VE.name
         /// </summary>
         public string Id { get { return _ve.name; } set { _ve.name = value; } }
+
+        public string key { get; set; }
 
         public DomStyle style => new DomStyle(this);
 
@@ -229,6 +231,8 @@ namespace OneJS.Dom {
                 }
             } else if (name == "id" || name == "name") {
                 _ve.name = val.ToString();
+            } else if (name == "key") {
+                this.key = val.ToString();
             } else {
                 name = name.Replace("-", "");
                 var flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase;
