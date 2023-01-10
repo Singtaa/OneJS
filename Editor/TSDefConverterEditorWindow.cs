@@ -5,7 +5,7 @@ using UnityEngine;
 namespace OneJS.Editor {
     public class TSDefConverterEditorWindow : EditorWindow {
         [SerializeField] string _typeName;
-        [SerializeField] bool _jintSyntaxForEvents;
+        [SerializeField] bool _jintSyntaxForEvents = true;
         [SerializeField] string _defstr;
         [SerializeField] Vector2 _scrollPos;
 

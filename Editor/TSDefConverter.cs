@@ -32,6 +32,7 @@ namespace OneJS.Editor {
         MethodInfo[] _methods;
         PropertyInfo[] _properties;
         FieldInfo[] _staticFields;
+        EventInfo[] _staticEvents;
         MethodInfo[] _staticMethods;
         PropertyInfo[] _staticProperties;
 
@@ -52,25 +53,20 @@ namespace OneJS.Editor {
             foreach (var p in _staticProperties) {
                 lines.Add(PropToStr(p, true));
             }
+            foreach (var e in _staticEvents) {
+                DoEventLines(e, lines, true);
+            }
             foreach (var f in _staticFields) {
                 lines.Add(FieldToStr(f, true));
             }
             foreach (var m in _staticMethods) {
                 lines.Add(MethodToStr(m, true));
             }
-
             foreach (var p in _properties) {
                 lines.Add(PropToStr(p));
             }
             foreach (var e in _events) {
-                if (_jintSyntaxForEvents) {
-                    var str = $"{e.Name}: (handler: {CleanTypeName(e.EventHandlerType)}) => void";
-                    lines.Add(new String(' ', _indentSpaces) + "add_" + str);
-                    lines.Add(new String(' ', _indentSpaces) + "remove_" + str);
-                } else {
-                    var str = $"{e.Name}: {CleanTypeName(e.EventHandlerType)}";
-                    lines.Add(new String(' ', _indentSpaces) + str);
-                }
+                DoEventLines(e, lines);
             }
             foreach (var f in _fields) {
                 lines.Add(FieldToStr(f));
@@ -84,6 +80,18 @@ namespace OneJS.Editor {
             Unindent();
             lines.Add("}");
             return String.Join("\n", lines.Where(l => l != null));
+        }
+
+        void DoEventLines(EventInfo e, List<string> lines, bool isStatic = false) {
+            var staticStr = isStatic ? "static " : "";
+            if (_jintSyntaxForEvents) {
+                var str = $"{e.Name}(handler: {CleanTypeName(e.EventHandlerType)}): void";
+                lines.Add(new String(' ', _indentSpaces) + $"{staticStr}add_" + str);
+                lines.Add(new String(' ', _indentSpaces) + $"{staticStr}remove_" + str);
+            } else {
+                var str = $"{e.Name}: {CleanTypeName(e.EventHandlerType)}";
+                lines.Add(new String(' ', _indentSpaces) + str);
+            }
         }
 
         public void Debug() {
@@ -115,6 +123,7 @@ namespace OneJS.Editor {
             _methods = _type.GetMethods(flags | BindingFlags.Instance);
             _properties = _type.GetProperties(flags | BindingFlags.Instance);
             _staticFields = _type.GetFields(flags | BindingFlags.Static);
+            _staticEvents = _type.GetEvents(flags | BindingFlags.Static);
             _staticMethods = _type.GetMethods(flags | BindingFlags.Static);
             _staticProperties = _type.GetProperties(flags | BindingFlags.Static);
         }
