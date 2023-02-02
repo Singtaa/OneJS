@@ -5,16 +5,18 @@ using UnityEngine;
 
 namespace Jint.CommonJS {
     public class CommonJSPathResolver : IModuleResolver {
-#if UNITY_EDITOR
-        private static readonly string
-            WORKING_DIR = Path.Combine(Path.GetDirectoryName(Application.dataPath)!, "OneJS");
-#else
-        private static readonly string WORKING_DIR = Path.Combine(Application.persistentDataPath, "OneJS");
-#endif
+// #if UNITY_EDITOR
+//         private static readonly string
+//             WORKING_DIR = Path.Combine(Path.GetDirectoryName(Application.dataPath)!, "OneJS");
+// #else
+//         private static readonly string WORKING_DIR = Path.Combine(Application.persistentDataPath, "OneJS");
+// #endif
 
         private readonly IEnumerable<string> extensionHandlers;
+        string _workingDir;
 
-        public CommonJSPathResolver(IEnumerable<string> extensionHandlers) {
+        public CommonJSPathResolver(string workingDir, IEnumerable<string> extensionHandlers) {
+            _workingDir = workingDir;
             this.extensionHandlers = extensionHandlers;
         }
 
@@ -27,11 +29,11 @@ namespace Jint.CommonJS {
             // var cwd = parent.filePath != null ? Path.GetDirectoryName(parent.filePath) : Environment.CurrentDirectory;
             var cwd = parent != null
                 ? Path.GetDirectoryName(parent.filePath)
-                : WORKING_DIR;
+                : _workingDir;
             var path = Path.GetFullPath(Path.Combine(cwd, moduleId));
 
             if (!moduleId.StartsWith(".")) {
-                path = Path.Combine(WORKING_DIR, moduleId);
+                path = Path.Combine(_workingDir, moduleId);
             }
 
             /*
@@ -42,7 +44,7 @@ namespace Jint.CommonJS {
             var found = false;
             foreach (var pm in pathMappings) {
                 if (!moduleId.StartsWith("."))
-                    path = Path.Combine(WORKING_DIR, pm + moduleId);
+                    path = Path.Combine(_workingDir, pm + moduleId);
 
                 if (Directory.Exists(path) && !File.Exists(path + ".js")) {
                     path = Path.Combine(path, "index");

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using Jint.Native;
 using OneJS.Utils;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -14,6 +15,7 @@ namespace OneJS.Dom {
 
     public class Document {
         public ScriptEngine scriptEngine => _scriptEngine;
+        public VisualElement Root { get { return _root; } }
         public Dom body => _body;
 
         Dom _body;
@@ -23,7 +25,6 @@ namespace OneJS.Dom {
 
         Dictionary<string, System.Type> _tagCache;
 
-        public VisualElement Root { get { return _root; } }
 
         /// <summary>
         /// Cache tagName->Type lookup from assemblies.
@@ -129,6 +130,14 @@ namespace OneJS.Dom {
             ConstructorInfo constr = myParameterizedSomeClass.GetConstructor(new[] { typeof(StyleKeyword) });
             object instance = constr.Invoke(new object[] { keyword });
             return instance;
+        }
+
+        public void addEventListener(string name, JsValue jsval, bool useCapture = false) {
+            _body.addEventListener(name, jsval, useCapture);
+        }
+
+        public void removeEventListener(string name, JsValue jsval, bool useCapture = false) {
+            _body.removeEventListener(name, jsval, useCapture);
         }
     }
 }

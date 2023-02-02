@@ -11,11 +11,7 @@ namespace OneJS.Dom {
         public object src {
             get { return _src; }
             set {
-                if (value is string) {
-                    _texture = ImageLoader.Load((string)value);
-                    this.image = _texture;
-                    Reset();
-                } else if (value is Texture2D) {
+                if (value is Texture2D) {
                     _texture = (Texture2D)value;
                     this.image = _texture;
                     Reset();

@@ -16,8 +16,10 @@ namespace OneJS.Engine {
         DateTime _lastBroadcastTime;
         int _serverPort;
         NetPeer _serverPeer;
+        ScriptEngine _scriptEngine;
 
-        public ClientListener(int serverPort) {
+        public ClientListener(int serverPort, ScriptEngine scriptEngine) {
+            _scriptEngine = scriptEngine;
             _lastBroadcastTime = DateTime.Now.AddSeconds(-100);
             _serverPort = serverPort;
         }
@@ -91,7 +93,7 @@ namespace OneJS.Engine {
                 for (int i = 0; i < num; i++) {
                     var path = reader.GetString();
                     var text = reader.GetString();
-                    File.WriteAllText(Path.Combine(ScriptEngine.WorkingDir, path), text);
+                    File.WriteAllText(Path.Combine(_scriptEngine.WorkingDir, path), text);
                 }
                 OnFileChanged?.Invoke();
             }

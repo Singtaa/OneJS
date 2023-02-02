@@ -1,74 +1,31 @@
-﻿using System;
-using System.IO;
-using System.Linq;
-using DotNet.Globbing;
-using ICSharpCode.SharpZipLib.GZip;
-using ICSharpCode.SharpZipLib.Tar;
-using NaughtyAttributes;
-using OneJS.Utils;
+﻿using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace OneJS.Editor {
-    [CreateAssetMenu(fileName = "OneJSBuildProcessor", menuName = "OneJS/BuildProcessor", order = 1)]
-    public class OneJSBuildProcessor : ScriptableObject, IPreprocessBuildWithReport {
+    public class OneJSBuildProcessor : IPreprocessBuildWithReport {
         public int callbackOrder => 0;
 
-        [Tooltip("Files and folders that you don't want to be bundled with your standalone app build." +
-                 "")]
-        [ResizableTextArea]
-        [SerializeField] string _ignoreList = ".vscode\ntsconfig.json\ntailwind.config.js\nnode_modules\nSamples";
-
-        [Tooltip("Strip the TS files.")]
-        [SerializeField] bool _excludeTS = true;
-        
-        [Tooltip("Uglify/Minify the bundled JS files.")]
-        [SerializeField] bool _uglify = true;
-
-        [Tooltip("This is the zip file of your bundled scripts. Use the `Package Scripts` button below to package " +
-                 "everything up in your `{ProjectDir}/OneJS` folder. This step is automatically done for you during Building.")]
-        [SerializeField]
-        TextAsset _scriptsBundleZip;
-
         public void OnPreprocessBuild(BuildReport report) {
-            Debug.Log("OneJSBuildProcessor: Bundling Scripts...");
-            // NOTE: OnPreprocessBuild is called from a static context, so we can't
-            // access the serialized _ignoreList field directly. We have to use
-            // AssetDatabase.LoadAssetAtPath to access it.
-            var assetPath = AssetDatabase.FindAssets("OneJSBuildProcessor t:OneJSBuildProcessor")
-                .Select(AssetDatabase.GUIDToAssetPath).FirstOrDefault();
-            var oneJsBuildProcessor =
-                (OneJSBuildProcessor)AssetDatabase.LoadAssetAtPath(assetPath, typeof(OneJSBuildProcessor));
-            _ignoreList = oneJsBuildProcessor._ignoreList;
-            PackageScripts();
-        }
-
-        [Button()]
-        void PackageScripts() {
-            var binPath = UnityEditor.AssetDatabase.GetAssetPath(_scriptsBundleZip);
-            binPath = Path.GetFullPath(Path.Combine(Application.dataPath, @".." + Path.DirectorySeparatorChar,
-                binPath));
-            var outStream = File.Create(binPath);
-            var gzoStream = new GZipOutputStream(outStream);
-            gzoStream.SetLevel(3);
-            var tarOutputStream = new TarOutputStream(gzoStream);
-            var tarCreator = new TarCreator(ScriptEngine.WorkingDir) {
-                ExcludeTS = _excludeTS, UglifyJS = _uglify, IgnoreList = _ignoreList, IncludeRoot = false
-            };
-            tarCreator.CreateTar(tarOutputStream);
-            tarOutputStream.Close();
-            Debug.Log("Scripts Bundled Up.");
-        }
-
-        [Button()]
-        void ZeroOutScriptsBundleZip() {
-            var binPath = UnityEditor.AssetDatabase.GetAssetPath(_scriptsBundleZip);
-            binPath = Path.GetFullPath(Path.Combine(Application.dataPath, @".." + Path.DirectorySeparatorChar,
-                binPath));
-            var outStream = File.Create(binPath);
-            outStream.Close();
+            Debug.Log("Processing Bundler(s)...");
+            var originalScenePath = EditorSceneManager.GetActiveScene().path;
+            foreach (var bScene in EditorBuildSettings.scenes) {
+                if (!bScene.enabled)
+                    continue;
+                EditorSceneManager.OpenScene(bScene.path);
+                var scene = EditorSceneManager.GetActiveScene();
+                foreach (var obj in scene.GetRootGameObjects()) {
+                    var bundlers = obj.GetComponentsInChildren<Bundler>();
+                    foreach (var bundler in bundlers) {
+                        bundler.PackageScriptsForBuild();
+                    }
+                }
+            }
+            EditorSceneManager.OpenScene(originalScenePath);
         }
     }
 }

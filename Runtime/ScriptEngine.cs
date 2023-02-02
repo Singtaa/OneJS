@@ -5,83 +5,36 @@ using System.Linq;
 using System.Reflection;
 using Jint;
 using Jint.CommonJS;
+using Jint.Native;
 using Jint.Runtime.Interop;
-using NaughtyAttributes;
 using OneJS.Dom;
 using OneJS.Engine;
 using OneJS.Utils;
 using UnityEngine;
 using UnityEngine.UIElements;
 using Debug = UnityEngine.Debug;
+using DelegateWrapper = OneJS.Utils.DelegateWrapper;
 
 namespace OneJS {
-    [Serializable]
-    public class NamespaceModulePair {
-        public string @namespace;
-        public string module;
-
-        public NamespaceModulePair(string ns, string m) {
-            this.@namespace = ns;
-            this.module = m;
-        }
-    }
-
-    [Serializable]
-    public class StaticClassModulePair {
-        public string staticClass;
-        public string module;
-
-        public StaticClassModulePair(string sc, string m) {
-            this.staticClass = sc;
-            this.module = m;
-        }
-    }
-
-    [Serializable]
-    public class ObjectModulePair {
-        public UnityEngine.Object obj;
-        public string module;
-
-        public ObjectModulePair(UnityEngine.Object obj, string m) {
-            this.obj = obj;
-            this.module = m;
-        }
-    }
-
-    public struct QueuedAction {
-        public DateTime dateTime;
-        public Action action;
-        public int id;
-        public double timeout;
-        public bool requeue;
-        public bool cleared;
-
-        public QueuedAction(Action action, int id, double timeout, bool requeue = false) {
-            this.dateTime = DateTime.Now.AddMilliseconds(timeout);
-            this.action = action;
-            this.id = id;
-            this.timeout = timeout;
-            this.requeue = requeue;
-            cleared = false;
-        }
-
-        public void ResetDateTime() {
-            this.dateTime = DateTime.Now.AddMilliseconds(timeout);
-        }
-    }
-
     [RequireComponent(typeof(UIDocument), typeof(CoroutineUtil))]
     public class ScriptEngine : MonoBehaviour {
-        public static string WorkingDir {
+        public string WorkingDir {
             get {
 #if UNITY_EDITOR
-                var path = Path.Combine(Path.GetDirectoryName(Application.dataPath)!, "OneJS");
+                var path = Path.Combine(Path.GetDirectoryName(Application.dataPath)!,
+                    _editorModeWorkingDirInfo.relativePath);
+                if (_editorModeWorkingDirInfo.baseDir == EditorModeWorkingDirInfo.EditorModeBaseDir.PersistentDataPath)
+                    path = Path.Combine(Application.persistentDataPath, _editorModeWorkingDirInfo.relativePath);
                 if (!Directory.Exists(path)) {
                     Directory.CreateDirectory(path);
                 }
                 return path;
 #else
-                return Path.Combine(Application.persistentDataPath, "OneJS");
+                var path = Path.Combine(Path.GetDirectoryName(Application.dataPath)!,
+                    _playerModeWorkingDirInfo.relativePath);
+                if (_playerModeWorkingDirInfo.baseDir == PlayerModeWorkingDirInfo.PlayerModeBaseDir.PersistentDataPath)
+                    path = Path.Combine(Application.persistentDataPath, _playerModeWorkingDirInfo.relativePath);
+                return path;
 #endif
             }
         }
@@ -97,16 +50,18 @@ namespace OneJS {
         public event Action OnPostInit;
         public event Action OnReload;
 
-        [Foldout("INTEROP")] [Tooltip("Include any assembly you'd want to access from Javascript.")] [SerializeField]
+        [Tooltip("Include any assembly you'd want to access from Javascript.")] [SerializeField]
+        [PlainString]
         string[] _assemblies = new[] {
             "UnityEngine.CoreModule", "UnityEngine.PhysicsModule", "UnityEngine.UIElementsModule",
             "UnityEngine.IMGUIModule", "UnityEngine.TextRenderingModule",
             "Unity.Mathematics", "OneJS"
         };
 
-        [Foldout("INTEROP")]
+
         [Tooltip("Extensions need to be explicitly added to the script engine. OneJS also provide some default ones.")]
         [SerializeField]
+        [PlainString]
         string[] _extensions = new[] {
             "OneJS.Extensions.GameObjectExts",
             "OneJS.Extensions.ComponentExts",
@@ -115,7 +70,7 @@ namespace OneJS {
             "UnityEngine.UIElements.PointerCaptureHelper"
         };
 
-        [Foldout("INTEROP")]
+
         [Tooltip("C# Namespace to JS Module mapping.")]
         [PairMapping("namespace", "module")]
         [SerializeField]
@@ -126,52 +81,53 @@ namespace OneJS {
             new NamespaceModulePair("OneJS.Utils", "OneJS/Utils"),
         };
 
-        [Foldout("INTEROP")]
         [Tooltip("Static Class to JS Module mapping.")]
         [PairMapping("staticClass", "module")]
         [SerializeField]
         StaticClassModulePair[] _staticClasses = new[]
             { new StaticClassModulePair("Unity.Mathematics.math", "math") };
 
-        [Foldout("INTEROP")]
         [Tooltip(
             "Maps an Unity Object to a js module name (any string that you choose). Objects declared here will be accessible from Javascript via i.e. require(\"objname\"). You can also provide your own Type Definitions for better TS usage.")]
         [PairMapping("obj", "module")] [SerializeField]
-        [InfoBox(
-            "The Objects list will now accept any UnityEngine.Object, not just MonoBehaviours. To pick a specific MonoBehaviour on a GameObject, you can Right-Click on the Inspector Tab of the GameObject and pick Properties. A standalone window will popup for you to drag the specifc MonoBehavior from.")]
-        ObjectModulePair[] _objects = new ObjectModulePair[]
-            { };
+        ObjectModulePair[] _objects = new ObjectModulePair[] { };
 
-        [Foldout("INTEROP")] [Tooltip("Scripts that you want to load before everything else")] [SerializeField]
+        [Tooltip("Scripts that you want to load before everything else")] [SerializeField]
+        [PlainString]
         List<string> _preloadedScripts = new List<string>();
 
-        [Foldout("INTEROP")] [Tooltip("Scripts that you want to load after everything else")] [SerializeField]
+        [Tooltip("Scripts that you want to load after everything else")] [SerializeField]
+        [PlainString]
         List<string> _postloadedScripts = new List<string>();
 
-        [Foldout("INTEROP")] [Tooltip("Allows you to catch .Net error from within JS.")] [SerializeField]
-        bool _catchDotNetExceptions = true;
-
-        [Foldout("STYLING")]
         [Tooltip("Inculde here any global USS you'd need. OneJS also provides a default one.")]
         [SerializeField]
         StyleSheet[] _styleSheets;
 
-        [Foldout("STYLING")] [Tooltip("Screen breakpoints for responsive design.")] [SerializeField]
+        [Tooltip("Screen breakpoints for responsive design.")] [SerializeField]
         int[] _breakpoints = new[] { 640, 768, 1024, 1280, 1536 };
 
-        [Foldout("SECURITY")] [Tooltip("Allow access to System.Reflection from Javascript")] [SerializeField]
+
+        [Tooltip("Allows you to catch .Net error from within JS.")] [SerializeField]
+        bool _catchDotNetExceptions = true;
+        [Tooltip("Allow access to System.Reflection from Javascript")] [SerializeField]
         bool _allowReflection;
-        [Foldout("SECURITY")] [Tooltip("Allow access to .GetType() from Javascript")] [SerializeField]
+        [Tooltip("Allow access to .GetType() from Javascript")] [SerializeField]
         bool _allowGetType;
-        [Foldout("SECURITY")] [Tooltip("Memory Limit in MB. Set to 0 for no limit.")] [SerializeField] int _memoryLimit;
-        [Foldout("SECURITY")]
+        [Tooltip("Memory Limit in MB. Set to 0 for no limit.")] [SerializeField] int _memoryLimit;
         [Tooltip("How long a script can execute in milliseconds. Set to 0 for no limit.")]
         [SerializeField]
         int _timeout;
-        [Foldout("SECURITY")]
         [Tooltip("Limit depth of calls to prevent deep recursion calls. Set to 0 for no limit.")]
         [SerializeField]
         int _recursionDepth;
+
+        [PairMapping("baseDir", "relativePath", "/", "Editor WorkingDir")]
+        [SerializeField] EditorModeWorkingDirInfo _editorModeWorkingDirInfo;
+        [PairMapping("baseDir", "relativePath", "/", "Player WorkingDir")]
+        [SerializeField] PlayerModeWorkingDirInfo _playerModeWorkingDirInfo;
+
+        [SerializeField] int _selectedTab;
 
         UIDocument _uiDocument;
         Document _document;
@@ -239,7 +195,7 @@ namespace OneJS {
         }
 
         public void RunScript(string scriptPath) {
-            var path = Path.Combine(ScriptEngine.WorkingDir, scriptPath);
+            var path = Path.Combine(WorkingDir, scriptPath);
             if (!File.Exists(path)) {
                 Debug.LogError($"Script Path ({path}) doesn't exist.");
                 return;
@@ -255,13 +211,22 @@ namespace OneJS {
         public void ReloadAndRunScript(string scriptPath) {
             var path = Path.Combine(WorkingDir, scriptPath);
             if (!File.Exists(path)) {
-                Debug.LogError($"Script Path ({path}) doesn't exist.");
+                Debug.LogError($"File ({path}) doesn't exist.");
                 return;
             }
             OnReload?.Invoke();
             CleanUp();
             InitEngine();
             RunModule(scriptPath);
+        }
+
+        public void RunScriptRaw(string scriptPath) {
+            var path = Path.Combine(WorkingDir, scriptPath);
+            if (!File.Exists(path)) {
+                Debug.LogError($"Script Path ({path}) doesn't exist.");
+                return;
+            }
+            _cjsEngine.RunMain(scriptPath);
         }
 
         public int QueueFrameAction(Action action) {
@@ -407,7 +372,7 @@ namespace OneJS {
                     if (_recursionDepth > 0) opts.LimitRecursion(_recursionDepth);
                 }
             );
-            _cjsEngine = _engine.CommonJS();
+            _cjsEngine = _engine.CommonJS(WorkingDir);
 
             SetupGlobals();
 
@@ -442,12 +407,12 @@ namespace OneJS {
         }
 
         void RunModule(string scriptPath) {
-            var preloadsPath = Path.Combine(WorkingDir, "ScriptLib/onejs/preloads");
-            if (Directory.Exists(preloadsPath)) {
-                var files = Directory.GetFiles(preloadsPath,
-                    "*.js", SearchOption.AllDirectories).ToList();
-                files.ForEach(f => _cjsEngine.RunMain(Path.GetRelativePath(WorkingDir, f)));
-            }
+            // var preloadsPath = Path.Combine(WorkingDir, "ScriptLib/onejs/preloads");
+            // if (Directory.Exists(preloadsPath)) {
+            //     var files = Directory.GetFiles(preloadsPath,
+            //         "*.js", SearchOption.AllDirectories).ToList();
+            //     files.ForEach(f => _cjsEngine.RunMain(Path.GetRelativePath(WorkingDir, f)));
+            // }
             _preloadedScripts.ForEach(p => _cjsEngine.RunMain(p));
 
             // var t = DateTime.Now;
@@ -456,4 +421,83 @@ namespace OneJS {
             _postloadedScripts.ForEach(p => _cjsEngine.RunMain(p));
         }
     }
+
+    #region Extra
+    [Serializable]
+    public class EditorModeWorkingDirInfo {
+        public EditorModeBaseDir baseDir;
+        public string relativePath = "OneJS";
+
+        public enum EditorModeBaseDir {
+            ProjectPath,
+            PersistentDataPath
+        }
+    }
+
+    [Serializable]
+    public class PlayerModeWorkingDirInfo {
+        public PlayerModeBaseDir baseDir;
+        public string relativePath = "OneJS";
+
+        public enum PlayerModeBaseDir {
+            AppPath,
+            PersistentDataPath
+        }
+    }
+
+    [Serializable]
+    public class NamespaceModulePair {
+        public string @namespace;
+        public string module;
+
+        public NamespaceModulePair(string ns, string m) {
+            this.@namespace = ns;
+            this.module = m;
+        }
+    }
+
+    [Serializable]
+    public class StaticClassModulePair {
+        public string staticClass;
+        public string module;
+
+        public StaticClassModulePair(string sc, string m) {
+            this.staticClass = sc;
+            this.module = m;
+        }
+    }
+
+    [Serializable]
+    public class ObjectModulePair {
+        public UnityEngine.Object obj;
+        public string module;
+
+        public ObjectModulePair(UnityEngine.Object obj, string m) {
+            this.obj = obj;
+            this.module = m;
+        }
+    }
+
+    public struct QueuedAction {
+        public DateTime dateTime;
+        public Action action;
+        public int id;
+        public double timeout;
+        public bool requeue;
+        public bool cleared;
+
+        public QueuedAction(Action action, int id, double timeout, bool requeue = false) {
+            this.dateTime = DateTime.Now.AddMilliseconds(timeout);
+            this.action = action;
+            this.id = id;
+            this.timeout = timeout;
+            this.requeue = requeue;
+            cleared = false;
+        }
+
+        public void ResetDateTime() {
+            this.dateTime = DateTime.Now.AddMilliseconds(timeout);
+        }
+    }
+    #endregion
 }

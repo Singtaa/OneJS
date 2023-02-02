@@ -1,70 +1,74 @@
 ﻿using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using DotNet.Globbing;
 using ICSharpCode.SharpZipLib.GZip;
 using ICSharpCode.SharpZipLib.Tar;
-using NaughtyAttributes;
+using OneJS.Utils;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
 namespace OneJS {
     [DefaultExecutionOrder(50)]
     public class Bundler : MonoBehaviour {
-        [InfoBox("This component takes care of scripts bundling for both editor and runtime. OneJS keeps everything " +
-                 "under `{ProjectDir}/OneJS`. For standalone app builds, scripts will be extracted into " +
-                 "`{persistentDataPath}/OneJS` automatically.")]
-        [Tooltip(
-            "Reset ScriptLib folder on every Game Start. Useful for updating the ScriptLib folder after upgrading" +
-            " OneJS, or updating a stale ScriptLib folder on your mobile device.")]
-        [SerializeField] [Label("Extract ScriptLib on Start")] bool _extractScriptLibOnStart = false;
+        // [Tooltip(
+        //     "These subdirectories (under WorkingDir) will be ignored during standalone app bundling/extraction. " +
+        //     "One common use for them is user-provided addons. You want these directories to survive OneJS updates.")]
+        // [SerializeField]
+        // [PlainString]
+        // string[] _subDirectoriesToIgnore = new[] { "Addons" };
 
-        [Tooltip(
-            "These subdirectories (directly under OneJS) will be ignored during standalone app bundling/extration. " +
-            "One common use for them is user-provided addons. You want these directories to survive OneJS updates.")]
-        [SerializeField]
-        [Label("Sub-Directories to Ignore")] string[] _subDirectoriesToIgnore = new[] { "Addons", "Modules" };
-
-        [Foldout("ASSETS")]
         [Tooltip("This is the zip file of your bundled scripts.")]
         [SerializeField] TextAsset _scriptsBundleZip;
 
-        [Foldout("ASSETS")] [SerializeField]
+        [SerializeField]
         [Tooltip("The zip file that contains sample scripts. You normally don't need to touch this.")]
         TextAsset _samplesZip;
 
-        [Foldout("ASSETS")]
         [Tooltip("This is the zip file that OneJS uses to fill your " +
                  "ScriptLib folder if one isn't found under {ProjectDir}/OneJS. You normally don't need to touch this.")]
-        [Label("ScriptLib Zip")]
         [SerializeField]
         TextAsset _scriptLibZip;
 
-        [Foldout("ASSETS")]
         [Tooltip("Default vscode settings.json. If one isn't found under {ProjectDir}/OneJS/.vscode, " +
                  "this is the template that will be copied over. You normally don't need to touch this.")]
-        [Label("VSCode Settings")]
         [SerializeField]
         TextAsset _vscodeSettings;
 
-        [Foldout("ASSETS")]
         [Tooltip("Default tsconfig.json. If one isn't found under {ProjectDir}/OneJS, " +
                  "this is the template that will be copied over. You normally don't need to touch this.")]
-        [Label("TS Config")]
         [SerializeField]
         TextAsset _tsconfig;
 
-        string _onejsVersion = "1.4.5";
+        [Tooltip("Files and folders that you don't want to be bundled with your standalone app build." +
+                 "")]
+        [PlainString]
+        [SerializeField] string[] _ignoreList = new string[]
+            { ".vscode", "tsconfig.json", "tailwind.config.js", "node_modules", "Samples", "Addons" };
+
+        [Tooltip("Strip the TS files.")]
+        [SerializeField] bool _excludeTS;
+
+        [Tooltip("Uglify/Minify the bundled JS files.")]
+        [SerializeField] bool _uglify;
+
+        [Tooltip("Will automatically extract built-in Samples folder to your WorkingDir")]
+        [SerializeField] bool _extractSamples = true;
+
+        string _onejsVersion = "1.5.1";
+
+        ScriptEngine _scriptEngine;
 
         void Awake() {
+            _scriptEngine = GetComponent<ScriptEngine>();
             var versionString = PlayerPrefs.GetString("OneJSVersion", "0.0.0");
 #if UNITY_EDITOR
-            if (_extractScriptLibOnStart || versionString != _onejsVersion) {
+            if (versionString != _onejsVersion) {
                 ExtractScriptLib();
-                if (versionString != _onejsVersion) {
+                if (_extractSamples)
                     ExtractSamples();
-                    print(
-                        $"Both ScriptLib and Samples extracted. This can happen when OneJS is updated (or when it's your first time running OneJS).");
-                }
+                // print($"ScriptLib and Samples extracted. This can happen when OneJS is updated (or when it's your first time running OneJS).");
+
                 PlayerPrefs.SetString("OneJSVersion", _onejsVersion);
             }
             CheckAndSetScriptLibEtAl();
@@ -78,10 +82,10 @@ namespace OneJS {
         /// </summary>
         public void ExtractScriptBundle() {
 #if UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID || UNITY_WEBGL
-            DeleteEverythingInPathWithIgnoredSubDirectories(ScriptEngine.WorkingDir);
+            DeleteEverythingInPathWithIgnoredSubDirectories(_scriptEngine.WorkingDir);
 
             Extract(_scriptsBundleZip.bytes);
-            Debug.Log($"Scripts Bundle extracted. ({ScriptEngine.WorkingDir})");
+            // Debug.Log($"Scripts Bundle extracted. ({_scriptEngine.WorkingDir})");
 #endif
         }
 
@@ -89,7 +93,8 @@ namespace OneJS {
         /// WARNING: This will replace the existing ScriptLib folder with the default one
         /// </summary>
         public void ExtractScriptLib() {
-            var scriptLibPath = Path.Combine(ScriptEngine.WorkingDir, "ScriptLib");
+            _scriptEngine = GetComponent<ScriptEngine>();
+            var scriptLibPath = Path.Combine(_scriptEngine.WorkingDir, "ScriptLib");
             var dotGitPath = Path.Combine(scriptLibPath, ".git");
             if (Directory.Exists(dotGitPath)) {
                 Debug.Log($".git folder detected in ScriptLib, aborting extraction.");
@@ -105,7 +110,8 @@ namespace OneJS {
         /// WARNING: This will replace the existing Samples folder with the default one
         /// </summary>
         public void ExtractSamples() {
-            var samplesPath = Path.Combine(ScriptEngine.WorkingDir, "Samples");
+            _scriptEngine = GetComponent<ScriptEngine>();
+            var samplesPath = Path.Combine(_scriptEngine.WorkingDir, "Samples");
             var dotGitPath = Path.Combine(samplesPath, ".git");
             if (Directory.Exists(dotGitPath)) {
                 Debug.Log($".git folder detected in Samples, aborting extraction.");
@@ -142,7 +148,8 @@ namespace OneJS {
                     file.Delete();
                 }
                 foreach (DirectoryInfo dir in di.EnumerateDirectories()) {
-                    if (_subDirectoriesToIgnore.ToList().Contains(dir.Name)) {
+                    var relPath = Path.GetRelativePath(_scriptEngine.WorkingDir, dir.FullName);
+                    if (IsIgnored(relPath)) {
                         continue;
                     }
                     dir.Delete(true);
@@ -150,12 +157,23 @@ namespace OneJS {
             }
         }
 
+        bool IsIgnored(string path) {
+            foreach (var pttrn in _ignoreList) {
+                var glob = Glob.Parse(pttrn);
+                var isMatch = glob.IsMatch(path);
+                if (isMatch) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         void Extract(byte[] bytes) {
             Stream inStream = new MemoryStream(bytes);
             Stream gzipStream = new GZipInputStream(inStream);
 
             TarArchive tarArchive = TarArchive.CreateInputTarArchive(gzipStream);
-            tarArchive.ExtractContents(ScriptEngine.WorkingDir);
+            tarArchive.ExtractContents(_scriptEngine.WorkingDir);
             tarArchive.Close();
             gzipStream.Close();
             inStream.Close();
@@ -163,12 +181,12 @@ namespace OneJS {
 
         void CheckAndSetScriptLibEtAl() {
 #if UNITY_EDITOR
-            var indexjsPath = Path.Combine(ScriptEngine.WorkingDir, "index.js");
-            var scriptLibPath = Path.Combine(ScriptEngine.WorkingDir, "ScriptLib");
-            var samplesPath = Path.Combine(ScriptEngine.WorkingDir, "Samples");
-            var tsconfigPath = Path.Combine(ScriptEngine.WorkingDir, "tsconfig.json");
-            var gitignorePath = Path.Combine(ScriptEngine.WorkingDir, ".gitignore");
-            var vscodeSettingsPath = Path.Combine(ScriptEngine.WorkingDir, ".vscode/settings.json");
+            var indexjsPath = Path.Combine(_scriptEngine.WorkingDir, "index.js");
+            var scriptLibPath = Path.Combine(_scriptEngine.WorkingDir, "ScriptLib");
+            var samplesPath = Path.Combine(_scriptEngine.WorkingDir, "Samples");
+            var tsconfigPath = Path.Combine(_scriptEngine.WorkingDir, "tsconfig.json");
+            var gitignorePath = Path.Combine(_scriptEngine.WorkingDir, ".gitignore");
+            var vscodeSettingsPath = Path.Combine(_scriptEngine.WorkingDir, ".vscode/settings.json");
 
             var indexjsFound = File.Exists(indexjsPath);
             var scriptLibFound = Directory.Exists(scriptLibPath);
@@ -187,7 +205,7 @@ namespace OneJS {
                 Debug.Log("ScriptLib Folder wasn't found. So a default one was created (from ScriptLib Zip).");
             }
 
-            if (!samplesFound) {
+            if (!samplesFound && _extractSamples) {
                 Extract(_samplesZip.bytes);
                 Debug.Log("Samples Folder Extracted.");
             }
@@ -202,7 +220,7 @@ namespace OneJS {
             }
 
             if (!vscodeSettingsFound) {
-                var dirPath = Path.Combine(ScriptEngine.WorkingDir, ".vscode");
+                var dirPath = Path.Combine(_scriptEngine.WorkingDir, ".vscode");
                 if (!Directory.Exists(dirPath)) {
                     Directory.CreateDirectory(dirPath);
                 }
@@ -214,13 +232,40 @@ namespace OneJS {
 
 #if UNITY_EDITOR
 
-        [Button()]
-        void OpenWorkingDir() {
-            Process.Start(ScriptEngine.WorkingDir);
+        [ContextMenu("Package Scripts for build")]
+        public void PackageScriptsForBuild() {
+            _scriptEngine = GetComponent<ScriptEngine>();
+            var binPath = UnityEditor.AssetDatabase.GetAssetPath(_scriptsBundleZip);
+            binPath = Path.GetFullPath(Path.Combine(Application.dataPath, @".." + Path.DirectorySeparatorChar,
+                binPath));
+            var outStream = File.Create(binPath);
+            var gzoStream = new GZipOutputStream(outStream);
+            gzoStream.SetLevel(3);
+            var tarOutputStream = new TarOutputStream(gzoStream);
+            var tarCreator = new TarCreator(_scriptEngine.WorkingDir, _scriptEngine.WorkingDir) {
+                ExcludeTS = _excludeTS, UglifyJS = _uglify, IgnoreList = _ignoreList, IncludeRoot = false
+            };
+            tarCreator.CreateTar(tarOutputStream);
+            tarOutputStream.Close();
+            Debug.Log($"[{gameObject.scene.name}][{gameObject.name}][Bundler] ScriptsBundle.zip built.");
+        }
+
+        [ContextMenu("Zero Out ScriptsBundleZip")]
+        public void ZeroOutScriptsBundleZip() {
+            var binPath = UnityEditor.AssetDatabase.GetAssetPath(_scriptsBundleZip);
+            binPath = Path.GetFullPath(Path.Combine(Application.dataPath, @".." + Path.DirectorySeparatorChar,
+                binPath));
+            var outStream = File.Create(binPath);
+            outStream.Close();
+        }
+
+        public void OpenWorkingDir() {
+            _scriptEngine = GetComponent<ScriptEngine>();
+            Process.Start(_scriptEngine.WorkingDir);
         }
 
         [ContextMenu("Extract ScriptLib")]
-        void ExtractScriptLibFolder() {
+        public void ExtractScriptLibFolder() {
             if (!UnityEditor.EditorUtility.DisplayDialog("Are you sure?",
                     "WARNING! This will overwrite the ScriptLib folder under {WorkingDir}.\n\n" +
                     "Consider backing up the existing ScriptLib folder if you need to keep any changes.",
@@ -231,7 +276,7 @@ namespace OneJS {
         }
 
         [ContextMenu("Extract Samples")]
-        void ExtractSamplesFolder() {
+        public void ExtractSamplesFolder() {
             if (!UnityEditor.EditorUtility.DisplayDialog("Are you sure?",
                     "WARNING! This will overwrite the Samples folder under WorkingDir.\n\n" +
                     "Consider backing up the existing Samples folder if you need to keep any changes.",

@@ -17,6 +17,8 @@ namespace OneJS.Dom {
 
         public Dom[] childNodes => _childNodes.ToArray();
 
+        public Dom firstChild => _childNodes.Count > 0 ? childNodes[0] : null;
+
         public Dom parentNode { get { return _parentNode; } }
 
         public Dom nextSibling { get { return _nextSibling; } }
@@ -26,7 +28,16 @@ namespace OneJS.Dom {
         /// </summary>
         public string Id { get { return _ve.name; } set { _ve.name = value; } }
 
-        public string key { get; set; }
+        public string key {
+            get {
+                Debug.Log("Getting key " + _key);
+                return _key;
+            }
+            set {
+                Debug.Log("Setting key to " + value);
+                _key = value;
+            }
+        }
 
         public DomStyle style => new DomStyle(this);
 
@@ -56,6 +67,7 @@ namespace OneJS.Dom {
 
         Document _document;
         VisualElement _ve;
+        string _key;
         Dom _parentNode;
         Dom _nextSibling;
         object _value;
@@ -231,8 +243,6 @@ namespace OneJS.Dom {
                 }
             } else if (name == "id" || name == "name") {
                 _ve.name = val.ToString();
-            } else if (name == "key") {
-                this.key = val.ToString();
             } else {
                 name = name.Replace("-", "");
                 var flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase;

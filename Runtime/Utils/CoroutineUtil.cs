@@ -2,7 +2,7 @@
 using System;
 using System.Collections;
 
-namespace OneJS.Engine {
+namespace OneJS.Utils {
     public class CoroutineUtil : MonoBehaviour {
         public static CoroutineUtil Instance => instance;
         static CoroutineUtil instance;

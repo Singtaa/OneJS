@@ -1,14 +1,15 @@
 ﻿using System;
-using NaughtyAttributes;
 using UnityEngine;
 
 namespace OneJS.Engine {
     [DefaultExecutionOrder(-50)]
     [RequireComponent(typeof(ScriptEngine))]
     public class JanitorSpawner : MonoBehaviour {
-        [InfoBox("Spawns a Janitor on Game Start that can clean up GameObjects and Logs upon engine reloads.")]
-        [Tooltip("Turn this on to also have the Janitor to clear console logs on every Script Reload.")]
+        public Janitor Janitor => _janitor;
+
+        [Tooltip("Clean up spawned GameObjects on every ScriptEngine reload.")]
         [SerializeField] bool _clearGameObjects;
+        [Tooltip("Clear console logs on every ScriptEngine reload.")]
         [SerializeField] bool _clearLogs;
 
         ScriptEngine _scriptEngine;

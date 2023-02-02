@@ -10,14 +10,14 @@
                 "*"
             ]
         },
-        "skipLibCheck": false,
+        "skipLibCheck": true,
         "removeComments": true,
         "jsx": "react",
         "jsxFactory": "h",
         "target": "es5",
         "module": "commonjs",
         "noImplicitUseStrict": true,
-        "forceConsistentCasingInFileNames": true,
+        "forceConsistentCasingInFileNames": false,
         "lib": [
             "ES6"
         ]

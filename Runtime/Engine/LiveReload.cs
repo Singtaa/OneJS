@@ -1,10 +1,8 @@
 using System.IO;
-using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using LiteNetLib;
 using LiteNetLib.Utils;
-using NaughtyAttributes;
 using UnityEngine;
 
 namespace OneJS.Engine {
@@ -22,10 +20,7 @@ namespace OneJS.Engine {
 
         public bool IsClient => !IsServer;
 
-        [InfoBox("This component will watch the `{ProjectDir}/OneJS` folder for you. When change is detected, " +
-                 "the script engine will reload and the entry script will be re-run.")]
         [SerializeField]
-        [Label("Run on Start")]
         bool _runOnStart = true;
 
 #pragma warning disable 414
@@ -36,8 +31,8 @@ namespace OneJS.Engine {
         bool _turnOnForStandalone = true;
 #pragma warning restore 414
 
-        [Tooltip("Should be a .js file relative to your `persistentDataPath`." +
-                 "")]
+        [Tooltip("Should be a .js file relative to the WorkingDir, which by default is '{projectDir}/OneJS' for editor-time, " +
+                 "and '{persistentDataPath}/OneJS' for standalone build.")]
         [SerializeField]
         string _entryScript = "index.js";
         [SerializeField] string _watchFilter = "*.js";
@@ -50,23 +45,19 @@ namespace OneJS.Engine {
         [Tooltip("`Server` broadcasts the file changes. `Client` receives the changes. `Auto` means Server for " +
                  "desktop, and Client for mobile.")]
         [SerializeField]
-        [ShowIf("_netSync")]
         ENetSyncMode _mode = ENetSyncMode.Auto;
         [Tooltip(
             "Port for both Server and Client. (Client also listens on a port for better discovery across devices.)")]
         [SerializeField]
-        [ShowIf("_netSync")]
         int _port = 9050;
+        
         [Tooltip(
             "Explicit IP address to use for server. Use this if you are having problems with network discovery. Keep this empty to use auto discovery.")]
         [SerializeField]
-        [Label("Server IP")]
-        [ShowIf("_mode", ENetSyncMode.Client)]
         string _serverIP = "";
         [Tooltip(
             "Set this to true when you need to Net Sync apps on the same device. (i.e. between Editor and Standalone)")]
         [SerializeField]
-        [ShowIf("_mode", ENetSyncMode.Client)]
         bool _useRandomPortForClient = false;
 
         ScriptEngine _scriptEngine;
@@ -82,8 +73,8 @@ namespace OneJS.Engine {
         int _tick;
 
         void Awake() {
-            _workingDir = ScriptEngine.WorkingDir;
             _scriptEngine = GetComponent<ScriptEngine>();
+            _workingDir = _scriptEngine.WorkingDir;
         }
 
         void OnDestroy() {
@@ -115,9 +106,9 @@ namespace OneJS.Engine {
                     print($"[Server] Net Sync On (port {_port})");
                 } else {
                     // Runnning as Client
-                    _client = new ClientListener(_port);
+                    _client = new ClientListener(_port, _scriptEngine);
                     _net = _client.InitNetManager();
-                    _client.OnFileChanged += () => { RunScript(); };
+                    _client.OnFileChanged += () => { Reload(); };
                     _client.Start(_useRandomPortForClient);
 
                     print($"[Client] Net Sync On (port {_net.LocalPort})");
@@ -138,7 +129,7 @@ namespace OneJS.Engine {
             _watcher = new CustomWatcher(_workingDir, _watchFilter);
             _watcher.OnChangeDetected += OnFileChangeDetected;
             _watcher.Start();
-            Debug.Log($"Live Reload On");
+            Debug.Log($"Live Reload On (entry script: {_entryScript})");
         }
 
         void OnDisable() {
@@ -188,8 +179,18 @@ namespace OneJS.Engine {
             }
         }
 
-        void RunScript() {
+        [ContextMenu("Reload")]
+        public void Reload() {
             _scriptEngine.ReloadAndRunScript(_entryScript);
+        }
+        
+        public void SetEntryScriptAndReload(string path) {
+            if (!File.Exists(Path.Combine(_scriptEngine.WorkingDir, path))) {
+                print("File not found: " + path);
+                return;
+            }
+            _entryScript = path;
+            Reload();
         }
 
         void OnFileChangeDetected(string[] paths) {
@@ -206,7 +207,7 @@ namespace OneJS.Engine {
                 }
                 _server.SendToAllClients(writer);
             }
-            RunScript();
+            Reload();
         }
 
         public string GetMD5(string filepath) {

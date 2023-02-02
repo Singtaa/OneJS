@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using DotNet.Globbing;
 using ICSharpCode.SharpZipLib.Tar;
@@ -10,13 +11,20 @@ namespace OneJS.Utils {
         public bool ExcludeTS { get; set; }
         public bool ExcludeTSDef { get; set; }
         public bool UglifyJS { get; set; }
-        public string IgnoreList { get; set; }
+        public string[] IgnoreList { get; set; }
         public bool IncludeRoot { get; set; } = true;
 
         string _baseDir;
+        string _rootDir;
 
-        public TarCreator(string baseDir) {
+        /**
+         * Creates a new TarCreator.
+         * @param baseDir The base directory to start from.
+         * @param rootDir The root directory. i.e. ScriptEngine WorkingDir
+         */
+        public TarCreator(string baseDir, string rootDir) {
             _baseDir = baseDir;
+            _rootDir = rootDir;
         }
 
         public void CreateTar(TarOutputStream tarOutputStream, string curDir = null) {
@@ -68,13 +76,14 @@ namespace OneJS.Utils {
         }
 
         bool IsIgnored(string filepath) {
-            var path = Path.GetRelativePath(ScriptEngine.WorkingDir, filepath);
-            var pttrns = ("**/.git*\n" + IgnoreList).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            var path = Path.GetRelativePath(_rootDir, filepath);
+            var pttrns = new List<string>(IgnoreList);
+            pttrns.Insert(0, "**/.git*");
             foreach (var pttrn in pttrns) {
                 var glob = Glob.Parse(pttrn);
                 var isMatch = glob.IsMatch(path);
                 if (isMatch) {
-                    Debug.Log($"IGNORED: {path}");
+                    Debug.Log($"IGNORED: {filepath}");
                     return true;
                 }
             }

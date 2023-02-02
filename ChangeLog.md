@@ -1,4 +1,14 @@
-﻿## [2023-01-04] v1.4.5 Misc
+﻿## [2023-01-26] v1.5.1 - Getting ready for VanillaBox
+
+* New custom Editors for ScriptEngine, Bundler, and LiveReload. Removed dependency on NaughtyAttributes.
+* Some internal changes done to support the launch of VanillaBox
+* Removed lib.dom.d.ts from the default Typescript typings
+* Made WorkingDir more configurable per ScriptEngine. This also makes having multiple ScriptEngines easier.
+* Replaced FrontLoader and ImageLoader with the `resource` global variable
+* Moved OneJSBuildProcessor functionality to Bundler
+* Removed `Extract ScriptLib On Start` option as this is replaced by the ScriptsBundle
+
+## [2023-01-04] v1.4.5 Misc
 
 * TSDefConverter now supports Jint syntax for events ("add_" and "remove_").
 * Added a new Sample (CharManSample)

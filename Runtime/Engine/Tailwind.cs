@@ -3,10 +3,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using NaughtyAttributes;
 using OneJS;
 using OneJS.Dom;
-using OneJS.Engine;
+using OneJS.Utils;
 using UnityEngine;
 using UnityEngine.Serialization;
 using UnityEngine.UIElements;
@@ -18,7 +17,7 @@ public class Tailwind : MonoBehaviour, IClassStrProcessor {
     [SerializeField] StyleSheet[] _baseStyleSheets;
 
     [Tooltip("Tailwind stylesheets for the various breakpoints")]
-    [SerializeField] [Label("Breakpoint Style Sheets")] StyleSheet[] _breakpointStyleSheets;
+    [SerializeField] StyleSheet[] _breakpointStyleSheets;
 
     [Tooltip("Watch for screen size changes even for Standalone builds.")]
     [SerializeField] bool _pollStandaloneScreen;
