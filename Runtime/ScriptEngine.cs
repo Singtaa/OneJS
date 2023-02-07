@@ -440,8 +440,8 @@ namespace OneJS {
         public string relativePath = "OneJS";
 
         public enum PlayerModeBaseDir {
+            PersistentDataPath,
             AppPath,
-            PersistentDataPath
         }
     }
 

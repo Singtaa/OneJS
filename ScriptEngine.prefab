@@ -129,7 +129,7 @@ MonoBehaviour:
   _playerModeWorkingDirInfo:
     baseDir: 0
     relativePath: OneJS
-  _selectedTab: 0
+  _selectedTab: 3
 --- !u!114 &6324388976432546210
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -152,8 +152,6 @@ MonoBehaviour:
   - tsconfig.json
   - tailwind.config.js
   - node_modules
-  - Samples
-  - Addons
   _excludeTS: 0
   _uglify: 0
   _extractSamples: 1
