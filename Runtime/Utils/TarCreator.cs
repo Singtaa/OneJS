@@ -76,6 +76,8 @@ namespace OneJS.Utils {
         }
 
         bool IsIgnored(string filepath) {
+            if (IgnoreList == null || IgnoreList.Length == 0)
+                return false;
             var path = Path.GetRelativePath(_rootDir, filepath);
             var pttrns = new List<string>(IgnoreList);
             pttrns.Insert(0, "**/.git*");
