@@ -129,7 +129,7 @@ MonoBehaviour:
   _playerModeWorkingDirInfo:
     baseDir: 0
     relativePath: OneJS
-  _selectedTab: 3
+  _selectedTab: 0
 --- !u!114 &6324388976432546210
 MonoBehaviour:
   m_ObjectHideFlags: 0

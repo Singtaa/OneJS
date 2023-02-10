@@ -22,7 +22,7 @@ namespace OneJS.Samples {
         }
 
         IEnumerator ChangeCharactersArrayCo() {
-            var waitTime = Random.Range(6f, 20f); // Change characters array every 1-10 seconds
+            var waitTime = Random.Range(6f, 20f); // Change characters array every few seconds
             yield return new WaitForSeconds(waitTime);
             ChangeCharactersArray();
         }
