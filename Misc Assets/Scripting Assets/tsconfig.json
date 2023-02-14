@@ -17,7 +17,7 @@
         "target": "es5",
         "module": "commonjs",
         "noImplicitUseStrict": true,
-        "forceConsistentCasingInFileNames": false,
+        "forceConsistentCasingInFileNames": true,
         "lib": [
             "ES6"
         ]
