@@ -44,6 +44,13 @@ namespace OneJS.Dom {
             var ss = ScriptableObject.CreateInstance<StyleSheet>();
             var builder = new OneJS.CustomStyleSheets.CustomStyleSheetImporterImpl();
             builder.BuildStyleSheet(ss, uss);
+            if (builder.importErrors.hasErrors) {
+                Debug.LogError($"Runtime USS Error(s)");
+                foreach (var error in builder.importErrors) {
+                    Debug.LogError(error);
+                }
+                return;
+            }
             _runtimeStyleSheets.Add(ss);
             _root.styleSheets.Add(ss);
         }
