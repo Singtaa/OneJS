@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace OneJS.Engine {
     /*
-     * Credit to @twop, the one who did the original Promise implementation for Jint
+     * Credit to @twop, who did the original Promise implementation for Jint
      *
      * https://gist.github.com/twop/8d7b849d0105c779eed87bff8ae59722
      */

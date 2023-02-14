@@ -100,7 +100,7 @@ namespace OneJS {
         [PlainString]
         List<string> _postloadedScripts = new List<string>();
 
-        [Tooltip("Inculde here any global USS you'd need. OneJS also provides a default one.")]
+        [Tooltip("Include here any global USS you'd need. OneJS also provides a default one.")]
         [SerializeField]
         StyleSheet[] _styleSheets;
 

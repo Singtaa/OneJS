@@ -67,12 +67,12 @@ public class ScriptEngineEditor : Editor {
         switch (_selectedTab.intValue) {
             case 0:
                 EditorGUILayout.HelpBox(
-                    "The Objects list will now accept any UnityEngine.Object, not just MonoBehaviours. To pick a specific MonoBehaviour on a GameObject, you can Right-Click on the Inspector Tab of the GameObject and pick Properties. A standalone window will popup for you to drag the specifc MonoBehavior from.",
+                    "The Objects list accepts any UnityEngine.Object, not just MonoBehaviours. To pick a specific MonoBehaviour component, you can right-click on the Inspector Tab of the selected GameObject and pick Properties. A standalone window will pop up for you to drag the specifc MonoBehavior from.",
                     MessageType.None);
                 EditorGUILayout.PropertyField(_objects);
                 EditorGUILayout.PropertyField(_assemblies);
-                EditorGUILayout.PropertyField(_extensions);
                 EditorGUILayout.PropertyField(_namespaces);
+                EditorGUILayout.PropertyField(_extensions);
                 EditorGUILayout.PropertyField(_staticClasses);
                 break;
             case 1:
