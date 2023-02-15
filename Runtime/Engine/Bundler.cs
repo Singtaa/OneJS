@@ -234,6 +234,7 @@ namespace OneJS {
 
         [ContextMenu("Package Scripts for build")]
         public void PackageScriptsForBuild() {
+            CheckAndSetScriptLibEtAl();
             _scriptEngine = GetComponent<ScriptEngine>();
             var binPath = UnityEditor.AssetDatabase.GetAssetPath(_scriptsBundleZip);
             binPath = Path.GetFullPath(Path.Combine(Application.dataPath, @".." + Path.DirectorySeparatorChar,
