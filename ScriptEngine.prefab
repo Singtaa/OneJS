@@ -105,6 +105,10 @@ MonoBehaviour:
     module: UnityEngine/UIElements
   - namespace: UnityEngine.UIElements.VisualElement
     module: UnityEngine/UIElements/VisualElement
+  - namespace: OneJS
+    module: OneJS
+  - namespace: OneJS.Dom
+    module: OneJS/Dom
   - namespace: OneJS.Utils
     module: OneJS/Utils
   _staticClasses:

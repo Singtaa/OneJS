@@ -180,6 +180,7 @@ namespace OneJS {
         }
 
         void CheckAndSetScriptLibEtAl() {
+            _scriptEngine = GetComponent<ScriptEngine>();
 #if UNITY_EDITOR
             var indexjsPath = Path.Combine(_scriptEngine.WorkingDir, "index.js");
             var scriptLibPath = Path.Combine(_scriptEngine.WorkingDir, "ScriptLib");

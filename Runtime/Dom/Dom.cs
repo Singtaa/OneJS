@@ -28,16 +28,7 @@ namespace OneJS.Dom {
         /// </summary>
         public string Id { get { return _ve.name; } set { _ve.name = value; } }
 
-        public string key {
-            get {
-                Debug.Log("Getting key " + _key);
-                return _key;
-            }
-            set {
-                Debug.Log("Setting key to " + value);
-                _key = value;
-            }
-        }
+        public string key { get { return _key; } set { _key = value; } }
 
         public DomStyle style => new DomStyle(this);
 
