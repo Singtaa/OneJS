@@ -1,4 +1,13 @@
-﻿## [2023-01-26] v1.5.1 - Getting ready for VanillaBox
+﻿## [2023-02-18] v1.5.5 - Internal Code Improvements
+
+Online documentation was revamped! Check it out at https://onejs.com/ There is now a new comprehensive Tutorial101.
+
+* Cloud Build support (some internal changes to Bundler)
+* Runtime USS errors are now properly handled (No longer need to reload scene)
+* Offline Doumentation.pdf revamped
+* Many minior tweaks and bugfixes
+
+## [2023-01-26] v1.5.1 - Getting ready for VanillaBox
 
 * New custom Editors for ScriptEngine, Bundler, and LiveReload. Removed dependency on NaughtyAttributes.
 * Some internal changes done to support the launch of VanillaBox
