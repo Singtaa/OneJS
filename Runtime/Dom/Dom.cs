@@ -195,6 +195,10 @@ namespace OneJS.Dom {
         public void removeChild(Dom child) {
             if (!this._ve.Contains(child.ve))
                 return;
+            using (var evt = TransitionCancelEvent.GetPooled()) {
+                evt.target = child.ve;
+                child.ve.SendEvent(evt);
+            }
             this._ve.Remove(child.ve);
             var index = _childNodes.IndexOf(child);
             if (index > 0) {
