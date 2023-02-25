@@ -345,7 +345,7 @@ namespace OneJS {
                     return Assembly.Load(a);
                 } catch (Exception e) {
                     Debug.Log(
-                        $"ScriptEngine could not load assembly \"{a}\". Please check your string(s) in the `assemblies` array.");
+                        $"ScriptEngine could not load assembly \"{a}\". Please check your string(s) in the INTEROP/Assemblies list.");
                     return null;
                 }
             }).Where(a => a != null).ToArray();
