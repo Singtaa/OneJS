@@ -365,7 +365,7 @@ namespace OneJS {
                     if (_catchDotNetExceptions) opts.CatchClrExceptions();
                     if (_allowReflection) opts.Interop.AllowSystemReflection = true;
                     if (_allowGetType) opts.Interop.AllowGetType = true;
-                    if (_memoryLimit > 0) opts.LimitMemory(1);
+                    if (_memoryLimit > 0) opts.LimitMemory(_memoryLimit * 1048576);
                     if (_timeout > 0) opts.TimeoutInterval(TimeSpan.FromMilliseconds(_timeout));
                     if (_recursionDepth > 0) opts.LimitRecursion(_recursionDepth);
                 }
