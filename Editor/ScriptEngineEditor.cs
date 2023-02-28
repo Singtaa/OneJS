@@ -18,6 +18,7 @@ public class ScriptEngineEditor : Editor {
     SerializedProperty _catchDotNetExceptions;
     SerializedProperty _allowReflection;
     SerializedProperty _allowGetType;
+    SerializedProperty _memoryLimit;
     SerializedProperty _timeout;
     SerializedProperty _recursionDepth;
 
@@ -43,6 +44,7 @@ public class ScriptEngineEditor : Editor {
         _catchDotNetExceptions = serializedObject.FindProperty("_catchDotNetExceptions");
         _allowReflection = serializedObject.FindProperty("_allowReflection");
         _allowGetType = serializedObject.FindProperty("_allowGetType");
+        _memoryLimit = serializedObject.FindProperty("_memoryLimit");
         _timeout = serializedObject.FindProperty("_timeout");
         _recursionDepth = serializedObject.FindProperty("_recursionDepth");
 
@@ -79,6 +81,7 @@ public class ScriptEngineEditor : Editor {
                 EditorGUILayout.PropertyField(_catchDotNetExceptions, new GUIContent("Catch .Net Exceptions"));
                 EditorGUILayout.PropertyField(_allowReflection);
                 EditorGUILayout.PropertyField(_allowGetType, new GUIContent("Allow GetType()"));
+                EditorGUILayout.PropertyField(_memoryLimit);
                 EditorGUILayout.PropertyField(_timeout);
                 EditorGUILayout.PropertyField(_recursionDepth);
                 break;

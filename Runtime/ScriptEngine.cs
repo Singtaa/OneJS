@@ -116,11 +116,9 @@ namespace OneJS {
         bool _allowGetType;
         [Tooltip("Memory Limit in MB. Set to 0 for no limit.")] [SerializeField] int _memoryLimit;
         [Tooltip("How long a script can execute in milliseconds. Set to 0 for no limit.")]
-        [SerializeField]
-        int _timeout;
+        [SerializeField] int _timeout;
         [Tooltip("Limit depth of calls to prevent deep recursion calls. Set to 0 for no limit.")]
-        [SerializeField]
-        int _recursionDepth;
+        [SerializeField] int _recursionDepth;
 
         [PairMapping("baseDir", "relativePath", "/", "Editor WorkingDir")]
         [SerializeField] EditorModeWorkingDirInfo _editorModeWorkingDirInfo;
@@ -367,7 +365,7 @@ namespace OneJS {
                     if (_catchDotNetExceptions) opts.CatchClrExceptions();
                     if (_allowReflection) opts.Interop.AllowSystemReflection = true;
                     if (_allowGetType) opts.Interop.AllowGetType = true;
-                    if (_memoryLimit > 0) opts.LimitMemory(_memoryLimit * 1000000);
+                    if (_memoryLimit > 0) opts.LimitMemory(1);
                     if (_timeout > 0) opts.TimeoutInterval(TimeSpan.FromMilliseconds(_timeout));
                     if (_recursionDepth > 0) opts.LimitRecursion(_recursionDepth);
                 }

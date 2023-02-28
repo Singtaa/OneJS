@@ -131,6 +131,10 @@ PrefabInstance:
     serializedVersion: 2
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 667018059808507767, guid: 171073f8a323d004f82984c58ed3049a, type: 3}
+      propertyPath: _autoSetUIScale
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 6661873769672997505, guid: 171073f8a323d004f82984c58ed3049a, type: 3}
       propertyPath: _entryScript
       value: Samples/main-sample.js
