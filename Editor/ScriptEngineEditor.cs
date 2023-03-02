@@ -1,5 +1,4 @@
-using System.Collections;
-using System.Collections.Generic;
+using System.Reflection;
 using OneJS;
 using UnityEditor;
 using UnityEngine;
@@ -90,15 +89,31 @@ public class ScriptEngineEditor : Editor {
                 EditorGUILayout.PropertyField(_breakpoints);
                 break;
             case 3:
-                var a = _editorModeWorkingDirInfo.boxedValue as EditorModeWorkingDirInfo;
-                var b = _playerModeWorkingDirInfo.boxedValue as PlayerModeWorkingDirInfo;
-                if (a.baseDir == EditorModeWorkingDirInfo.EditorModeBaseDir.PersistentDataPath &&
+                var fa = _editorModeWorkingDirInfo.serializedObject.targetObject.GetType()
+                    .GetField(_editorModeWorkingDirInfo.propertyPath, BindingFlags.Instance | BindingFlags.NonPublic);
+                var va = fa.GetValue(_editorModeWorkingDirInfo.serializedObject.targetObject);
+                var fb = _playerModeWorkingDirInfo.serializedObject.targetObject.GetType()
+                    .GetField(_playerModeWorkingDirInfo.propertyPath, BindingFlags.Instance | BindingFlags.NonPublic);
+                var vb = fb.GetValue(_playerModeWorkingDirInfo.serializedObject.targetObject);
+                if (va is EditorModeWorkingDirInfo a &&
+                    vb is PlayerModeWorkingDirInfo b &&
+                    a.baseDir == EditorModeWorkingDirInfo.EditorModeBaseDir.PersistentDataPath &&
                     b.baseDir == PlayerModeWorkingDirInfo.PlayerModeBaseDir.PersistentDataPath &&
                     a.relativePath == b.relativePath) {
                     EditorGUILayout.HelpBox(
                         "The Editor and Player mode working directories are the same. This is not recommended. You should set them to different directories.",
                         MessageType.Warning);
                 }
+                // // .boxedValue is only available in Unity 2022.1+
+                // var a = _editorModeWorkingDirInfo.boxedValue as EditorModeWorkingDirInfo;
+                // var b = _playerModeWorkingDirInfo.boxedValue as PlayerModeWorkingDirInfo;
+                // if (a.baseDir == EditorModeWorkingDirInfo.EditorModeBaseDir.PersistentDataPath &&
+                //     b.baseDir == PlayerModeWorkingDirInfo.PlayerModeBaseDir.PersistentDataPath &&
+                //     a.relativePath == b.relativePath) {
+                //     EditorGUILayout.HelpBox(
+                //         "The Editor and Player mode working directories are the same. This is not recommended. You should set them to different directories.",
+                //         MessageType.Warning);
+                // }
                 EditorGUILayout.PropertyField(_editorModeWorkingDirInfo);
                 EditorGUILayout.PropertyField(_playerModeWorkingDirInfo);
                 EditorGUILayout.PropertyField(_preloadedScripts);

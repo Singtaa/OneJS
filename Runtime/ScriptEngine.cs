@@ -342,8 +342,10 @@ namespace OneJS {
                 try {
                     return Assembly.Load(a);
                 } catch (Exception e) {
-                    Debug.Log(
-                        $"ScriptEngine could not load assembly \"{a}\". Please check your string(s) in the INTEROP/Assemblies list.");
+                    if (a != "Assembly-CSharp") {
+                        Debug.Log(
+                            $"ScriptEngine could not load assembly \"{a}\". Please check your string(s) in the INTEROP/Assemblies list.");
+                    }
                     return null;
                 }
             }).Where(a => a != null).ToArray();
@@ -414,7 +416,11 @@ namespace OneJS {
             _preloadedScripts.ForEach(p => _cjsEngine.RunMain(p));
 
             // var t = DateTime.Now;
+            // var a = GC.GetTotalMemory(false);
             _cjsEngine.RunMain(scriptPath);
+            // var b = GC.GetTotalMemory(false);
+            // var c = b - a;
+            // Debug.Log($"{a} {b} {c}");
             // print($"RunModule {(DateTime.Now - t).TotalMilliseconds}ms");
             _postloadedScripts.ForEach(p => _cjsEngine.RunMain(p));
         }
