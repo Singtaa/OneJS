@@ -34,6 +34,9 @@ namespace OneJS {
                     _playerModeWorkingDirInfo.relativePath);
                 if (_playerModeWorkingDirInfo.baseDir == PlayerModeWorkingDirInfo.PlayerModeBaseDir.PersistentDataPath)
                     path = Path.Combine(Application.persistentDataPath, _playerModeWorkingDirInfo.relativePath);
+                if (!Directory.Exists(path)) {
+                    Directory.CreateDirectory(path);
+                }
                 return path;
 #endif
             }
