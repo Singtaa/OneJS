@@ -5,7 +5,6 @@ using System.Linq;
 using System.Reflection;
 using Jint;
 using Jint.CommonJS;
-using Jint.Native;
 using Jint.Runtime.Interop;
 using OneJS.Dom;
 using OneJS.Engine;
@@ -13,7 +12,6 @@ using OneJS.Utils;
 using UnityEngine;
 using UnityEngine.UIElements;
 using Debug = UnityEngine.Debug;
-using DelegateWrapper = OneJS.Utils.DelegateWrapper;
 
 namespace OneJS {
     [RequireComponent(typeof(UIDocument), typeof(CoroutineUtil))]

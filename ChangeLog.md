@@ -1,4 +1,10 @@
-﻿## [2023-02-18] v1.5.5 - Internal Code Improvements
+﻿## [2023-03-04] v1.5.7 - Minor Tweaks and Bugfixes
+
+* Better VectorAPI version check
+* .boxedValue alternative (for Unity 2021.3)
+* Auto-create directory for player workingDir
+
+## [2023-02-18] v1.5.5 - Internal Code Improvements
 
 Online documentation was revamped! Check it out at https://onejs.com/ There is now a new comprehensive Tutorial101.
 
