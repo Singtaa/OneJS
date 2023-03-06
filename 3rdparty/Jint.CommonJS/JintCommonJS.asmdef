@@ -1,10 +1,7 @@
 {
     "name": "JintCommonJS",
     "rootNamespace": "",
-    "references": [
-        "GUID:7defe5b320693eb42be9ecbabf15c7e5",
-        "GUID:2a7751f864768194098b8fc137ab27e2"
-    ],
+    "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
