@@ -1,3 +1,3 @@
 Thank you everyone for the support! Just a quick note: Since Github doesn't allow setting collaborator permission for private free repos, everyone gets push access. Because of that, the main branch is set as a protected branch (to prevent potential accidents)
 
-In most cases, you can just clone this repo directly under your Assets folder.
+In most cases, you can just clone this repo directly under your Assets folder. If you encounter any issue when upgrading OneJS, you can try deleting `ScriptLib/` folder and `tsconfig.json` in your OneJS Working Directory. They will be automatically regenerated.
