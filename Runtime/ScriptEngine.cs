@@ -365,7 +365,7 @@ namespace OneJS {
                     opts.AddObjectConverter(new AsyncEngine.TaskConverter(_asyncContext));
                     opts.AllowOperatorOverloading();
 
-                    if (_catchDotNetExceptions) opts.CatchClrExceptions();
+                    if (_catchDotNetExceptions) opts.CatchClrExceptions(ClrExceptionHandler);
                     if (_allowReflection) opts.Interop.AllowSystemReflection = true;
                     if (_allowGetType) opts.Interop.AllowGetType = true;
                     if (_memoryLimit > 0) opts.LimitMemory(_memoryLimit * 1048576);
@@ -394,6 +394,13 @@ namespace OneJS {
             _uiDocument.rootVisualElement.Clear();
             _engine.SetValue("document", _document);
             OnPostInit?.Invoke();
+        }
+
+        bool ClrExceptionHandler(Exception exception) {
+            if (exception.GetType() != typeof(Jint.Runtime.JavaScriptException)) {
+                Debug.LogError(exception);
+            }
+            return true;
         }
 
         void SetupGlobals() {
