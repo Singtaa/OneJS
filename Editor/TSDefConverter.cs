@@ -9,7 +9,10 @@ namespace OneJS.Editor {
     public class TSDefConverter {
         readonly Dictionary<string, string> _typeMapping = new Dictionary<string, string>() {
             { "Void", "void" },
+
             { "Boolean", "boolean" },
+            { "Boolean[]", "boolean[]" },
+
             { "Double", "number" },
             { "Int32", "number" },
             { "UInt32", "number" },
@@ -18,9 +21,23 @@ namespace OneJS.Editor {
             { "Int16", "number" },
             { "UInt16", "number" },
             { "Single", "number" },
+
+            { "Double[]", "number[]" },
+            { "Int32[]", "number[]" },
+            { "UInt32[]", "number[]" },
+            { "Int64[]", "number[]" },
+            { "UInt64[]", "number[]" },
+            { "Int16[]", "number[]" },
+            { "UInt16[]", "number[]" },
+            { "Single[]", "number[]" },
+
             { "String", "string" },
-            { "Action", "() => void" },
+            { "String[]", "string[]" },
+
             { "Object", "any" },
+            { "Object[]", "any[]" },
+
+            { "Action", "() => void" },
         };
 
         bool _jintSyntaxForEvents;
