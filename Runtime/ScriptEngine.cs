@@ -44,9 +44,36 @@ namespace OneJS {
         public ModuleLoadingEngine ModuleEngine => _cjsEngine;
         public Dom.Document Document => _document;
         public Dom.Dom DocumentBody => _document.body;
-        public int[] Breakpoints => _breakpoints;
         public int Tick => _tick;
         public DateTime StartTime { get; private set; }
+
+        #region public properties for ScriptEngine options
+        public string[] Assemblies { get { return _assemblies; } set { _assemblies = value; } }
+        public string[] Extensions { get { return _extensions; } set { _extensions = value; } }
+        public NamespaceModulePair[] Namespaces { get { return _namespaces; } set { _namespaces = value; } }
+        public StaticClassModulePair[] StaticClasses { get { return _staticClasses; } set { _staticClasses = value; } }
+        public ObjectModulePair[] Objects { get { return _objects; } set { _objects = value; } }
+        public List<string> PreloadedScripts { get { return _preloadedScripts; } set { _preloadedScripts = value; } }
+        public List<string> PostloadedScripts { get { return _postloadedScripts; } set { _postloadedScripts = value; } }
+        public StyleSheet[] StyleSheets { get { return _styleSheets; } set { _styleSheets = value; } }
+        public int[] Breakpoints { get { return _breakpoints; } set { _breakpoints = value; } }
+        public bool CatchDotNetExceptions {
+            get { return _catchDotNetExceptions; }
+            set { _catchDotNetExceptions = value; }
+        }
+        public bool AllowReflection { get { return _allowReflection; } set { _allowReflection = value; } }
+        public bool AllowGetType { get { return _allowGetType; } set { _allowGetType = value; } }
+        public int Timeout { get { return _timeout; } set { _timeout = value; } }
+        public int RecursionDepth { get { return _recursionDepth; } set { _recursionDepth = value; } }
+        public EditorModeWorkingDirInfo EditorModeWorkingDirInfo {
+            get { return _editorModeWorkingDirInfo; }
+            set { _editorModeWorkingDirInfo = value; }
+        }
+        public PlayerModeWorkingDirInfo PlayerModeWorkingDirInfo {
+            get { return _playerModeWorkingDirInfo; }
+            set { _playerModeWorkingDirInfo = value; }
+        }
+        #endregion
 
         public event Action OnPostInit;
         public event Action OnReload;
