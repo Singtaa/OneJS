@@ -25,7 +25,9 @@ namespace OneJS.Editor {
                     }
                 }
             }
-            EditorSceneManager.OpenScene(originalScenePath);
+            if (!string.IsNullOrWhiteSpace(originalScenePath)) {
+                EditorSceneManager.OpenScene(originalScenePath);
+            }
         }
     }
 }
