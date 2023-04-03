@@ -15,6 +15,7 @@ public class ScriptEngineEditor : Editor {
     SerializedProperty _postloadedScripts;
 
     SerializedProperty _catchDotNetExceptions;
+    SerializedProperty _logRedundantErrors;
     SerializedProperty _allowReflection;
     SerializedProperty _allowGetType;
     SerializedProperty _memoryLimit;
@@ -41,6 +42,7 @@ public class ScriptEngineEditor : Editor {
         _postloadedScripts = serializedObject.FindProperty("_postloadedScripts");
 
         _catchDotNetExceptions = serializedObject.FindProperty("_catchDotNetExceptions");
+        _logRedundantErrors = serializedObject.FindProperty("_logRedundantErrors");
         _allowReflection = serializedObject.FindProperty("_allowReflection");
         _allowGetType = serializedObject.FindProperty("_allowGetType");
         _memoryLimit = serializedObject.FindProperty("_memoryLimit");
@@ -78,6 +80,7 @@ public class ScriptEngineEditor : Editor {
                 break;
             case 1:
                 EditorGUILayout.PropertyField(_catchDotNetExceptions, new GUIContent("Catch .Net Exceptions"));
+                EditorGUILayout.PropertyField(_logRedundantErrors);
                 EditorGUILayout.PropertyField(_allowReflection);
                 EditorGUILayout.PropertyField(_allowGetType, new GUIContent("Allow GetType()"));
                 EditorGUILayout.PropertyField(_memoryLimit);

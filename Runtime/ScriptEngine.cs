@@ -138,6 +138,10 @@ namespace OneJS {
 
         [Tooltip("Allows you to catch .Net error from within JS.")] [SerializeField]
         bool _catchDotNetExceptions = true;
+        [Tooltip(
+            "Sometimes errors may get lost in-between the interop or through anonymous functions. Use this to log these.")]
+        [SerializeField]
+        bool _logRedundantErrors = false;
         [Tooltip("Allow access to System.Reflection from Javascript")] [SerializeField]
         bool _allowReflection;
         [Tooltip("Allow access to .GetType() from Javascript")] [SerializeField]
@@ -424,7 +428,7 @@ namespace OneJS {
         }
 
         bool ClrExceptionHandler(Exception exception) {
-            if (exception.GetType() != typeof(Jint.Runtime.JavaScriptException)) {
+            if (_logRedundantErrors && exception.GetType() != typeof(Jint.Runtime.JavaScriptException)) {
                 Debug.LogError(exception);
             }
             return true;
