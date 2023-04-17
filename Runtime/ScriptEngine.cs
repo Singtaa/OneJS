@@ -385,6 +385,9 @@ namespace OneJS {
             _asyncContext = new AsyncEngine.AsyncContext();
             _engine = new Jint.Engine(opts => {
                     opts.Interop.TrackObjectWrapperIdentity = false; // Unity too buggy with ConditionalWeakTable
+                    opts.SetTypeResolver(new TypeResolver {
+                        MemberNameComparer = StringComparer.Ordinal
+                    });
                     opts.AllowClr(_loadedAssemblies);
                     _extensions.ToList().ForEach((e) => {
                         var type = AssemblyFinder.FindType(e);
