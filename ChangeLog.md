@@ -1,4 +1,24 @@
-﻿## [2023-03-04] v1.5.7 - Minor Tweaks and Bugfixes
+﻿## [2023-04-23] v1.5.9 - Quite a bit of QoL stuff, Tweaks, and Bugfixes
+
+* Added more CLR exception handling logging
+* VisualElementExts ForceUpdate()
+* Preact <-> Jint Cyclic ref error fix
+* Added array type mapping for TSDefConverter
+* Added public properties for ScriptEngine option fields
+* Added _logRedundantErrors to ScriptEngine
+* BuildProcessor bugfix for Cloudbuild @mattehr
+* Improved addEventListener and removeEventListener to allow multiple callbacks on the same event
+* Jint Engine tweak: MemberNameComparer = StringComparer.Ordinal
+
+* Color processor fix
+* More fields added to Image tag (jsx def)
+* Added unitySliceScale support (new in Unity 2022.2)
+* [StyleProcessor] Check for all falsy values instead of just null
+* forceUpdate() in useEventfulState
+* Added ref support for styled comp
+* Added memo to preact/compat
+
+## [2023-03-04] v1.5.7 - Minor Tweaks and Bugfixes
 
 * Better VectorAPI version check
 * .boxedValue alternative (for Unity 2021.3)
