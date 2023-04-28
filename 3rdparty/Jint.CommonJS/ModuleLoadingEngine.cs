@@ -20,7 +20,7 @@ namespace Jint.CommonJS {
         public readonly Engine engine;
         public IModuleResolver Resolver { get; set; }
 
-        public ModuleLoadingEngine(Engine e, string workingDir, IModuleResolver resolver = null) {
+        public ModuleLoadingEngine(Engine e, string workingDir, string[] pathMappings, IModuleResolver resolver = null) {
             this.engine = e;
             this.Resolver = resolver;
 
@@ -29,7 +29,7 @@ namespace Jint.CommonJS {
             FileExtensionParsers.Add(".json", this.LoadJson);
 
             if (resolver == null) {
-                this.Resolver = new CommonJSPathResolver(workingDir, this.FileExtensionParsers.Keys);
+                this.Resolver = new CommonJSPathResolver(workingDir, pathMappings, this.FileExtensionParsers.Keys);
             }
         }
 

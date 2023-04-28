@@ -157,6 +157,9 @@ namespace OneJS {
         [PairMapping("baseDir", "relativePath", "/", "Player WorkingDir")]
         [SerializeField] PlayerModeWorkingDirInfo _playerModeWorkingDirInfo;
 
+        [SerializeField] string[] _pathMappings = new[]
+            { "ScriptLib/3rdparty/", "ScriptLib/", "Addons/", "Modules/", "node_modules/" };
+
         [SerializeField] int _selectedTab;
 
         UIDocument _uiDocument;
@@ -407,7 +410,7 @@ namespace OneJS {
                     if (_recursionDepth > 0) opts.LimitRecursion(_recursionDepth);
                 }
             );
-            _cjsEngine = _engine.CommonJS(WorkingDir);
+            _cjsEngine = _engine.CommonJS(WorkingDir, _pathMappings);
 
             SetupGlobals();
 

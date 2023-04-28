@@ -122,6 +122,7 @@ MonoBehaviour:
   - {fileID: 7433441132597879392, guid: 8d3aca6016275b64ab60c4238e47d4af, type: 3}
   _breakpoints: 8002000000030000000400000005000000060000
   _catchDotNetExceptions: 1
+  _logRedundantErrors: 0
   _allowReflection: 0
   _allowGetType: 0
   _memoryLimit: 0
@@ -133,6 +134,12 @@ MonoBehaviour:
   _playerModeWorkingDirInfo:
     baseDir: 0
     relativePath: OneJS
+  _pathMappings:
+  - ScriptLib/3rdparty/
+  - ScriptLib/
+  - Addons/
+  - Modules/
+  - node_modules/
   _selectedTab: 0
 --- !u!114 &6324388976432546210
 MonoBehaviour:

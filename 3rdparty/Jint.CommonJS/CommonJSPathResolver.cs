@@ -14,9 +14,11 @@ namespace Jint.CommonJS {
 
         private readonly IEnumerable<string> extensionHandlers;
         string _workingDir;
+        string[] _pathMappings;
 
-        public CommonJSPathResolver(string workingDir, IEnumerable<string> extensionHandlers) {
+        public CommonJSPathResolver(string workingDir, string[] pathMappings, IEnumerable<string> extensionHandlers) {
             _workingDir = workingDir;
+            _pathMappings = pathMappings.Concat(new[] { "" }).ToArray();
             this.extensionHandlers = extensionHandlers;
         }
 
@@ -40,9 +42,9 @@ namespace Jint.CommonJS {
              * - Try direct file in case an extension is provided
              * - if directory, return directory/index
              */
-            var pathMappings = new[] { "ScriptLib/3rdparty/", "ScriptLib/", "Addons/", "Modules/", "node_modules/", "" };
+            // var pathMappings = new[] { "ScriptLib/3rdparty/", "ScriptLib/", "Addons/", "Modules/", "node_modules/", "" };
             var found = false;
-            foreach (var pm in pathMappings) {
+            foreach (var pm in _pathMappings) {
                 if (!moduleId.StartsWith("."))
                     path = Path.Combine(_workingDir, pm + moduleId);
 
