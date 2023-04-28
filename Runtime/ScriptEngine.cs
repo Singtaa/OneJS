@@ -157,6 +157,7 @@ namespace OneJS {
         [PairMapping("baseDir", "relativePath", "/", "Player WorkingDir")]
         [SerializeField] PlayerModeWorkingDirInfo _playerModeWorkingDirInfo;
 
+        [Tooltip("For CommonJS Path Resolver")]
         [SerializeField] string[] _pathMappings = new[]
             { "ScriptLib/3rdparty/", "ScriptLib/", "Addons/", "Modules/", "node_modules/" };
 
