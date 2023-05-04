@@ -169,7 +169,7 @@ namespace OneJS {
         Jint.Engine _engine;
         AsyncEngine.AsyncContext _asyncContext;
 
-        List<Action> _engineReloadJSHandlers = new List<Action>();
+        List<Jint.Native.Function.FunctionInstance> _engineReloadJSHandlers = new List<Jint.Native.Function.FunctionInstance>();
         List<IClassStrProcessor> _classStrProcessors = new List<IClassStrProcessor>();
         List<Type> _globalFuncTypes;
 
@@ -248,6 +248,7 @@ namespace OneJS {
                 Debug.LogError($"File ({path}) doesn't exist.");
                 return;
             }
+            RunJsReloadHandlers();
             OnReload?.Invoke();
             CleanUp();
             InitEngine();
@@ -300,11 +301,19 @@ namespace OneJS {
 
         /// <summary>
         /// This is a helper func for subscribing to the ScriptEngine.OnReload event.
-        /// Will automatically take care of the cleaning up during engine reload. 
+        /// Will be cleaned up on engine reload, but call UnregisterReloadHandler() if
+        /// want to clean up before then.
         /// </summary>
-        public void RegisterReloadHandler(Action handler) {
-            OnReload += handler;
+        public void RegisterReloadHandler(Jint.Native.Function.FunctionInstance handler) {
             _engineReloadJSHandlers.Add(handler);
+        }
+
+        /// <summary>
+        /// This is a helper func for unsubscribing to the ScriptEngine.OnReload event.
+        /// Use if you've called RegisterReloadHandler(), but the handler is no longer relevant.
+        /// </summary>
+        public void UnregisterReloadHandler(Jint.Native.Function.FunctionInstance handler) {
+            _engineReloadJSHandlers.Remove(handler);
         }
 
         /// <summary>
@@ -326,9 +335,16 @@ namespace OneJS {
             _classStrProcessors.Add(processor);
         }
 
+        void RunJsReloadHandlers() {
+            // The callbacks may attempt to register or unregister reload handlers, so make a copy
+            // of the list to avoid a concurrent modification exception.
+            foreach (var handler in _engineReloadJSHandlers.ToArray()) {
+                handler.Call();
+            }
+        }
+
         void CleanUp() {
             _document.clearRuntimeStyleSheets();
-            _engineReloadJSHandlers.ForEach((a) => { OnReload -= a; });
             _engineReloadJSHandlers.Clear();
 
             _queuedActionIds.Clear();

@@ -7,8 +7,10 @@ namespace OneJS.Engine.JSGlobals {
     public class OnEngineReload {
         public static void Setup(ScriptEngine engine) {
             engine.JintEngine.SetValue("onEngineReload", new Action<JsValue>((handler) => {
-                Action action = () => { handler.As<Jint.Native.Function.FunctionInstance>().Call(); };
-                engine.RegisterReloadHandler(action);
+                engine.RegisterReloadHandler(handler.As<Jint.Native.Function.FunctionInstance>());
+            }));
+            engine.JintEngine.SetValue("unregisterOnEngineReload", new Action<JsValue>((handler) => {
+                engine.UnregisterReloadHandler(handler.As<Jint.Native.Function.FunctionInstance>());
             }));
         }
     }
