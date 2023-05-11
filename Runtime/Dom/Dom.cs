@@ -262,6 +262,8 @@ namespace OneJS.Dom {
                 }
             } else if (name == "id" || name == "name") {
                 _ve.name = val.ToString();
+            } else if (name == "disabled") {
+                _ve.SetEnabled(false);
             } else {
                 name = name.Replace("-", "");
                 var flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase;
