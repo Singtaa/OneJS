@@ -169,7 +169,8 @@ namespace OneJS {
         Jint.Engine _engine;
         AsyncEngine.AsyncContext _asyncContext;
 
-        List<Jint.Native.Function.FunctionInstance> _engineReloadJSHandlers = new List<Jint.Native.Function.FunctionInstance>();
+        List<Jint.Native.Function.FunctionInstance> _engineReloadJSHandlers =
+            new List<Jint.Native.Function.FunctionInstance>();
         List<IClassStrProcessor> _classStrProcessors = new List<IClassStrProcessor>();
         List<Type> _globalFuncTypes;
 
@@ -197,6 +198,14 @@ namespace OneJS {
 
         void Start() {
             InitEngine();
+            TextField tf;
+#if ENABLE_INPUT_SYSTEM
+            if (FindObjectOfType<UnityEngine.EventSystems.EventSystem>() == null) {
+                Debug.Log("New Input System is enabled but there's no EventSystem in the scene." +
+                          " UI Toolkit may need an EventSystem in the scene in order to work correctly with the " +
+                          " New InputSystem. You can add one by going to Hierarchy Add -> UI -> Event System.");
+            }
+#endif
         }
 
         void LateUpdate() {
