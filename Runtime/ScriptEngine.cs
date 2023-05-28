@@ -208,6 +208,8 @@ namespace OneJS {
         }
 
         void LateUpdate() {
+            if (_engine == null) return;
+
             _engine.ResetConstraints();
 
             _frameActionBuffer.AddRange(_frameActions);
