@@ -198,7 +198,6 @@ namespace OneJS {
 
         void Start() {
             InitEngine();
-            TextField tf;
 #if ENABLE_INPUT_SYSTEM
             if (FindObjectOfType<UnityEngine.EventSystems.EventSystem>() == null) {
                 Debug.Log("New Input System is enabled but there's no EventSystem in the scene." +
@@ -262,6 +261,16 @@ namespace OneJS {
             CleanUp();
             InitEngine();
             RunModule(scriptPath);
+        }
+
+        /// <summary>
+        /// Clears up everything and sets the jint engine to null. All OnReload handlers (C# or JS) will still be run.
+        /// </summary>
+        public void Shutdown() {
+            RunJsReloadHandlers();
+            OnReload?.Invoke();
+            CleanUp();
+            _engine = null;
         }
 
         public void RunScriptRaw(string scriptPath) {
@@ -354,6 +363,7 @@ namespace OneJS {
 
         void CleanUp() {
             _document.clearRuntimeStyleSheets();
+            _uiDocument.rootVisualElement.Clear();
             _engineReloadJSHandlers.Clear();
 
             _queuedActionIds.Clear();
@@ -392,7 +402,7 @@ namespace OneJS {
             return null;
         }
 
-        void InitEngine() {
+        public void InitEngine() {
             StartTime = DateTime.Now;
             _loadedAssemblies = _assemblies.Select((a) => {
 #if UNITY_2022_2_OR_NEWER
@@ -477,7 +487,7 @@ namespace OneJS {
             });
         }
 
-        void RunModule(string scriptPath) {
+        public void RunModule(string scriptPath) {
             // var preloadsPath = Path.Combine(WorkingDir, "ScriptLib/onejs/preloads");
             // if (Directory.Exists(preloadsPath)) {
             //     var files = Directory.GetFiles(preloadsPath,
