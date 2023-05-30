@@ -217,7 +217,7 @@ namespace OneJS {
             }
 
             if (!gitignoreFound) {
-                File.WriteAllText(gitignorePath, "ScriptLib");
+                File.WriteAllText(gitignorePath, "ScriptLib/\nnode_modules/");
             }
 
             if (!vscodeSettingsFound) {
