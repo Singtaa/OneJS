@@ -8,7 +8,7 @@ using OneJS.Utils;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
-namespace OneJS {
+namespace OneJS.Engine {
     [DefaultExecutionOrder(50)]
     public class Bundler : MonoBehaviour {
         // [Tooltip(
@@ -40,6 +40,10 @@ namespace OneJS {
         [SerializeField]
         TextAsset _tsconfig;
 
+        [Tooltip("Default tailwind.config.js. If one isn't found under {ProjectDir}/OneJS, " +
+                 "this is the template that will be copied over. You normally don't need to touch this.")]
+        [SerializeField] TextAsset _tailwindConfig;
+
         [Tooltip("Files and folders that you don't want to be bundled with your standalone app build." +
                  "")]
         [PlainString]
@@ -55,7 +59,7 @@ namespace OneJS {
         [Tooltip("Will automatically extract built-in Samples folder to your WorkingDir")]
         [SerializeField] bool _extractSamples = true;
 
-        string _onejsVersion = "1.5.9";
+        string _onejsVersion = "1.6.1";
 
         ScriptEngine _scriptEngine;
 
@@ -188,6 +192,8 @@ namespace OneJS {
             var tsconfigPath = Path.Combine(_scriptEngine.WorkingDir, "tsconfig.json");
             var gitignorePath = Path.Combine(_scriptEngine.WorkingDir, ".gitignore");
             var vscodeSettingsPath = Path.Combine(_scriptEngine.WorkingDir, ".vscode/settings.json");
+            var inputCssPath = Path.Combine(_scriptEngine.WorkingDir, "input.css");
+            var tailwindConfigPath = Path.Combine(_scriptEngine.WorkingDir, "tailwind.config.js");
 
             var indexjsFound = File.Exists(indexjsPath);
             var scriptLibFound = Directory.Exists(scriptLibPath);
@@ -195,6 +201,8 @@ namespace OneJS {
             var tsconfigFound = File.Exists(tsconfigPath);
             var gitignoreFound = File.Exists(gitignorePath);
             var vscodeSettingsFound = File.Exists(vscodeSettingsPath);
+            var inputCssFound = File.Exists(inputCssPath);
+            var tailwindConfigFound = File.Exists(tailwindConfigPath);
 
             if (!indexjsFound) {
                 File.WriteAllText(indexjsPath, "log(\"[index.js]: OneJS is good to go.\")");
@@ -227,6 +235,15 @@ namespace OneJS {
                 }
                 File.WriteAllText(vscodeSettingsPath, _vscodeSettings.text);
                 Debug.Log(".vscode/settings.json wasn't found. So a default one was created.");
+            }
+
+            if (!inputCssFound) {
+                File.WriteAllText(inputCssPath, "@tailwind utilities;");
+            }
+
+            if (!tailwindConfigFound) {
+                File.WriteAllText(tailwindConfigPath, _tailwindConfig.text);
+                Debug.Log("tailwind.config.js wasn't found. So a default one was created.");
             }
 #endif
         }

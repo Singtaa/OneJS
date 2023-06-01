@@ -1,0 +1,23 @@
+.md_c_flex {
+  display: flex
+}
+
+.md_c_h-full {
+  height: 100%
+}
+
+.md_c_w-56 {
+  width: 224px
+}
+
+.md_c_max-w-2xl {
+  max-width: 672px
+}
+
+.md_c_shrink-0 {
+  flex-shrink: 0
+}
+
+.md_c_flex-row {
+  flex-direction: row
+}

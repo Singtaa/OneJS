@@ -1,4 +1,9 @@
-﻿## [2023-04-23] v1.5.9 - Quite a bit of QoL stuff, Tweaks, and Bugfixes
+﻿## [2023-05-30] v1.6.1 - Major Tailwind Support Rework
+
+* Support for Tailwind config has landed!
+* Documentation should be up in the next couple days.
+
+## [2023-04-23] v1.5.9 - Quite a bit of QoL stuff, Tweaks, and Bugfixes
 
 * Added more CLR exception handling logging
 * VisualElementExts ForceUpdate()

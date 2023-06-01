@@ -519,6 +519,15 @@ namespace OneJS {
             ProjectPath,
             PersistentDataPath
         }
+
+        public override string ToString() {
+            var basePath = baseDir switch {
+                EditorModeBaseDir.ProjectPath => Path.GetDirectoryName(Application.dataPath),
+                EditorModeBaseDir.PersistentDataPath => Application.persistentDataPath,
+                _ => throw new ArgumentOutOfRangeException()
+            };
+            return Path.Combine(basePath, relativePath);
+        }
     }
 
     [Serializable]
@@ -529,6 +538,15 @@ namespace OneJS {
         public enum PlayerModeBaseDir {
             PersistentDataPath,
             AppPath,
+        }
+
+        public override string ToString() {
+            var basePath = baseDir switch {
+                PlayerModeBaseDir.PersistentDataPath => Application.persistentDataPath,
+                PlayerModeBaseDir.AppPath => Path.GetDirectoryName(Application.dataPath),
+                _ => throw new ArgumentOutOfRangeException()
+            };
+            return Path.Combine(basePath, relativePath);
         }
     }
 

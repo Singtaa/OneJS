@@ -1,0 +1,65 @@
+﻿const defaultTheme = require('tailwindcss/defaultTheme')
+const plugin = require("tailwindcss/plugin")
+
+module.exports = {
+    content: ["./index.js"],
+    theme: rem2px(defaultTheme),
+    plugins: [
+        plugin(function ({ addUtilities }) {
+            addUtilities({
+                ".bg-crop": {
+                    "-unity-background-scale-mode": "scale-and-crop",
+                },
+                ".bg-fit": {
+                    "-unity-background-scale-mode": "scale-to-fit",
+                },
+                ".bg-fill": {
+                    "-unity-background-scale-mode": "scale-to-fill",
+                }
+            })
+        })
+    ],
+    corePlugins: {
+        // USS cannot support dynamic custom properties within rgb()
+        // which is what is used by Tailwind for opacity scales 
+        backdropOpacity: false,
+        backgroundOpacity: false,
+        borderOpacity: false,
+        divideOpacity: false,
+        ringOpacity: false,
+        textOpacity: false
+    }
+}
+
+/**
+ * Utilities
+ */
+
+function rem2px(input, fontSize = 16) { // rem is not supported in USS
+    if (input == null) {
+        return input
+    }
+    switch (typeof input) {
+        case 'object':
+            if (Array.isArray(input)) {
+                return input.map((val) => rem2px(val, fontSize))
+            }
+            const ret = {}
+            for (const key in input) {
+                ret[key] = rem2px(input[key], fontSize)
+            }
+            return ret;
+        case 'string':
+            return input.replace(
+                /(\d*\.?\d+)rem$/,
+                (_, val) => `${parseFloat(val) * fontSize}px`,
+            )
+        case 'function':
+            return eval(input.toString().replace(
+                /(\d*\.?\d+)rem/g,
+                (_, val) => `${parseFloat(val) * fontSize}px`,
+            ))
+        default:
+            return input
+    }
+}

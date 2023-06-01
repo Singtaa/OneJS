@@ -158,6 +158,7 @@ MonoBehaviour:
   _scriptLibZip: {fileID: 4900000, guid: 46d508c959f3f5248b9f101a41b65173, type: 3}
   _vscodeSettings: {fileID: 4900000, guid: 670f3870b20ddcc48a34d76d6f2c8f89, type: 3}
   _tsconfig: {fileID: 4900000, guid: f5908381548dc074ba0aa40312094370, type: 3}
+  _tailwindConfig: {fileID: 4900000, guid: 98eb49c1068248ea99d549ae006ee201, type: 3}
   _ignoreList:
   - .vscode
   - tsconfig.json
@@ -213,24 +214,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a81f6c1450819194bb5927ab2f45370e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _baseStyleSheets:
-  - {fileID: 7433441132597879392, guid: 4886cc2103dd49649abc80bf0f48b646, type: 3}
-  - {fileID: 7433441132597879392, guid: 12ce5a7726f0f3c4983d8a823461f021, type: 3}
-  - {fileID: 7433441132597879392, guid: ff65b629c506bfd4dbb150dfc2d0ad2c, type: 3}
-  - {fileID: 7433441132597879392, guid: ea815b434fdfa10458b7342c2ca92f19, type: 3}
-  - {fileID: 7433441132597879392, guid: 78a0b27c00634e343ac5e854927ee340, type: 3}
-  - {fileID: 7433441132597879392, guid: 03cca132acb21f44e9241833c1c04ee5, type: 3}
-  - {fileID: 7433441132597879392, guid: 30788a0b3a9417646a4f1f15d6109dda, type: 3}
-  - {fileID: 7433441132597879392, guid: 92f2f575a80430440babd439ca0a2efa, type: 3}
-  - {fileID: 7433441132597879392, guid: 07bab1b4b49a7f14ebafa14af1f0183b, type: 3}
-  - {fileID: 7433441132597879392, guid: ea68cac32f6c49e19b14bca02557b8de, type: 3}
+  _outputCssPath: output.css
+  _baseStyleSheet: {fileID: 7433441132597879392, guid: de2b9bc6e019ec94ea3d8e638e3aeb47, type: 3}
   _breakpointStyleSheets:
-  - {fileID: 7433441132597879392, guid: 9bbff89c884e61d48a166ab33a217618, type: 3}
-  - {fileID: 7433441132597879392, guid: 46364f1a665d4cc4eb43a19b3c441835, type: 3}
-  - {fileID: 7433441132597879392, guid: 6a3f889724072c543a8d26728c15cb2d, type: 3}
-  - {fileID: 7433441132597879392, guid: 432af14766008134ab5c7f29a65166f8, type: 3}
-  - {fileID: 7433441132597879392, guid: 35930507c974b1e4883d5671212048c6, type: 3}
+  - {fileID: 7433441132597879392, guid: c2aa5cc0c129fce4283cbd3da72a33ee, type: 3}
+  - {fileID: 7433441132597879392, guid: 12698b07e7079314dbca328293e9d363, type: 3}
+  - {fileID: 7433441132597879392, guid: 73194849dafc3eb42b21db3d80cbeac6, type: 3}
+  - {fileID: 7433441132597879392, guid: 007928e0339f8a34d919e2d74a1bf05e, type: 3}
+  - {fileID: 7433441132597879392, guid: 6ec902c05c0b24f4f96087acd5a9d34e, type: 3}
   _pollStandaloneScreen: 0
+  _noLog: 0
 --- !u!114 &667018059808507767
 MonoBehaviour:
   m_ObjectHideFlags: 0

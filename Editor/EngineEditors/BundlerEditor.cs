@@ -1,5 +1,6 @@
 ﻿using System;
 using OneJS;
+using OneJS.Engine;
 using UnityEditor;
 using UnityEngine;
 
@@ -14,6 +15,7 @@ public class BundlerEditor : Editor {
     SerializedProperty _samplesZip;
     SerializedProperty _vscodeSettings;
     SerializedProperty _tsconfig;
+    SerializedProperty _tailwindConfig;
 
     SerializedProperty _ignoreList;
     SerializedProperty _excludeTS;
@@ -30,6 +32,7 @@ public class BundlerEditor : Editor {
         _samplesZip = serializedObject.FindProperty("_samplesZip");
         _vscodeSettings = serializedObject.FindProperty("_vscodeSettings");
         _tsconfig = serializedObject.FindProperty("_tsconfig");
+        _tailwindConfig = serializedObject.FindProperty("_tailwindConfig");
 
         _ignoreList = serializedObject.FindProperty("_ignoreList");
         _excludeTS = serializedObject.FindProperty("_excludeTS");
@@ -52,6 +55,7 @@ public class BundlerEditor : Editor {
             EditorGUILayout.PropertyField(_samplesZip, new GUIContent("Samples.zip"));
             EditorGUILayout.PropertyField(_vscodeSettings, new GUIContent("VSCode Settings"));
             EditorGUILayout.PropertyField(_tsconfig, new GUIContent("tsconfig.json"));
+            EditorGUILayout.PropertyField(_tailwindConfig, new GUIContent("tailwind.config.js"));
         }
         if (GUILayout.Button(
                 new GUIContent("Bundle Scripts for Deployment", "This is done automatically when you build your player."),
