@@ -101,6 +101,8 @@ namespace OneJS.Engine {
                 return;
             _lastCssCheckTime = Time.realtimeSinceStartup;
             var path = Path.Combine(_scriptEngine.WorkingDir, _outputCssPath);
+            if (!File.Exists(path))
+                return;
             var fi = new FileInfo(path);
             if (_lastCssWriteStamp != fi.LastWriteTimeUtc) {
                 _lastCssWriteStamp = fi.LastWriteTimeUtc;
