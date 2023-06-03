@@ -1,11 +1,19 @@
 ﻿const defaultTheme = require('tailwindcss/defaultTheme')
 const plugin = require("tailwindcss/plugin")
 
+let theme = rem2px(defaultTheme)
+theme.extend = {
+    transitionTimingFunction: {
+        DEFAULT: "ease-in-out",
+        "in-out": "ease-in-out"
+    }
+}
+
 module.exports = {
     content: ["./index.js"],
-    theme: rem2px(defaultTheme),
+    theme: theme,
     plugins: [
-        plugin(function ({ addUtilities }) {
+        plugin(function ({ addUtilities, matchUtilities }) {
             addUtilities({
                 ".bg-crop": {
                     "-unity-background-scale-mode": "scale-and-crop",
@@ -17,11 +25,20 @@ module.exports = {
                     "-unity-background-scale-mode": "scale-to-fill",
                 }
             })
+
+            matchUtilities(
+                {
+                    transition: (value) => ({
+                        "transition-property": value,
+                    }),
+                }
+            )
         })
     ],
     corePlugins: {
         // USS cannot support dynamic custom properties within rgb()
         // which is what is used by Tailwind for opacity scales 
+        transitionProperty: false,
         backdropOpacity: false,
         backgroundOpacity: false,
         borderOpacity: false,
