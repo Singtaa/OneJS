@@ -258,10 +258,8 @@ namespace OneJS {
                 Debug.LogError($"File ({path}) doesn't exist.");
                 return;
             }
-            RunJsReloadHandlers();
-            OnReload?.Invoke();
-            CleanUp();
-            InitEngine();
+
+            Reload();
             RunModule(scriptPath);
         }
 
@@ -337,7 +335,7 @@ namespace OneJS {
         }
 
         /// <summary>
-        /// Apply all class string processors. 
+        /// Apply all class string processors.
         /// </summary>
         /// <param name="classString">String of class names</param>
         /// <param name="dom">The Dom that is setting the class attribute right now</param>
@@ -506,6 +504,13 @@ namespace OneJS {
             // Debug.Log($"{a} {b} {c}");
             // print($"RunModule {(DateTime.Now - t).TotalMilliseconds}ms");
             _postloadedScripts.ForEach(p => _cjsEngine.RunMain(p));
+        }
+
+        public void Reload() {
+            RunJsReloadHandlers();
+            OnReload?.Invoke();
+            CleanUp();
+            InitEngine();
         }
     }
 

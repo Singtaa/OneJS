@@ -20,6 +20,8 @@ namespace Jint.CommonJS {
         public readonly Engine engine;
         public IModuleResolver Resolver { get; set; }
 
+        private DelegateWrapper _requireWrapper;
+
         public ModuleLoadingEngine(Engine e, string workingDir, string[] pathMappings, IModuleResolver resolver = null) {
             this.engine = e;
             this.Resolver = resolver;
@@ -126,6 +128,28 @@ namespace Jint.CommonJS {
             }
 
             return new Module(this, moduleName, resolvedPath, parent).Exports;
+        }
+
+        /**
+         * Runs the provided source code. The following globals will be provided:
+         *
+         * - `require`: works as usual, loading modules from disk or cache.
+         * - `__dirname`: provides the value passed in the `dirname` parameter, or undefined.
+         *
+         * Neither `module` nor `exports` will be defined.
+         *
+         * Note that this will not run preloads defined in ScriptEngine.
+         */
+        public JsValue RunSource(string sourceCode, string dirname = null) {
+            var script = $@";(function(require, __dirname){{{sourceCode}}})";
+            var jsFunc = engine.Evaluate(script);
+            _requireWrapper ??= new DelegateWrapper(engine, new Func<string, JsValue>(Require));
+            var jsDirname = dirname != null ? new JsString(dirname) : JsValue.Undefined;
+            return engine.Call(jsFunc, _requireWrapper, jsDirname);
+        }
+
+        private JsValue Require(string moduleId) {
+            return Load(moduleId);
         }
     }
 }
