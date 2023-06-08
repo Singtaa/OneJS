@@ -96,6 +96,7 @@ namespace OneJS.Engine {
             }
         }
 
+#if UNITY_EDITOR
         void CheckOutputCssForChange() {
             if (_lastCssCheckTime > Time.realtimeSinceStartup - 0.1f)
                 return;
@@ -157,7 +158,8 @@ namespace OneJS.Engine {
             string absolutePath = Path.Combine(Application.dataPath, "../", relativePath);
             return absolutePath;
         }
-
+#endif
+        
         public string ProcessClassStr(string classStr, Dom.Dom dom) {
             var names = classStr.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             names = names.Select(s => s[0] >= 48 && s[0] <= 57 ? "_" + s : s).ToArray(); // ^\d => _\d
