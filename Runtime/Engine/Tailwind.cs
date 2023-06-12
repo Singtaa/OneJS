@@ -36,12 +36,12 @@ namespace OneJS.Engine {
         float _lastCssCheckTime;
 
         (string, string)[] _replacePairsForCssStr = new[] {
-            ("\\.", "_d_"), ("\\/", "_s_"), ("\\:", "_c_"),
+            ("\\.", "_d_"), ("\\/", "_s_"), ("\\:", "_c_"), ("\\%", "_p_"),
             ("\\[", "_lb_"), ("\\]", "_rb_"), ("\\(", "_lp_"), ("\\)", "_rp_")
         };
 
         (string, string)[] _replacePairsForClassNames = new[] {
-            (".", "_d_"), ("/", "_s_"), (":", "_c_"),
+            (".", "_d_"), ("/", "_s_"), (":", "_c_"), ("%", "_p_"),
             ("[", "_lb_"), ("]", "_rb_"), ("(", "_lp_"), (")", "_rp_")
         };
 

@@ -90,12 +90,14 @@ MonoBehaviour:
   - Unity.Mathematics
   - OneJS
   - Assembly-CSharp
+  - UnityEngine.InputLegacyModule
   _extensions:
   - OneJS.Extensions.GameObjectExts
   - OneJS.Extensions.ComponentExts
   - OneJS.Extensions.ColorExts
   - OneJS.Extensions.VisualElementExts
   - UnityEngine.UIElements.PointerCaptureHelper
+  - UnityEngine.UIElements.VisualElementExtensions
   _namespaces:
   - namespace: System.Collections.Generic
     module: System/Collections/Generic
