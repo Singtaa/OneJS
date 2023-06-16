@@ -38,6 +38,18 @@
   height: 100%
 }
 
+.h-_lb_50px_rb_ {
+  height: 50px
+}
+
+.h-_lb_200px_rb_ {
+  height: 200px
+}
+
+.h-_lb_400px_rb_ {
+  height: 400px
+}
+
 .w-16 {
   width: 64px
 }
@@ -58,8 +70,32 @@
   width: 100%
 }
 
+.w-_lb_50px_rb_ {
+  width: 50px
+}
+
+.w-_lb_300px_rb_ {
+  width: 300px
+}
+
+.w-_lb_600px_rb_ {
+  width: 600px
+}
+
+.w-_lb_200px_rb_ {
+  width: 200px
+}
+
+.w-_lb_400px_rb_ {
+  width: 400px
+}
+
 .min-w-_lb_200px_rb_ {
   min-width: 200px
+}
+
+.shrink-0 {
+  flex-shrink: 0
 }
 
 .flex-row {
@@ -112,6 +148,26 @@
 
 .bg-white {
   background-color: #fff
+}
+
+.bg-orange-400 {
+  background-color: #fb923c
+}
+
+.bg-teal-400 {
+  background-color: #2dd4bf
+}
+
+.bg-blue-400 {
+  background-color: #60a5fa
+}
+
+.bg-pink-400 {
+  background-color: #f472b6
+}
+
+.bg-purple-400 {
+  background-color: #c084fc
 }
 
 .p-_lb_2px_rb_ {
@@ -177,6 +233,10 @@
   transition-property: background-color
 }
 
+.transition-_lb_opacity_rb_ {
+  transition-property: opacity
+}
+
 .transition-_lb_translate_rb_ {
   transition-property: translate
 }
@@ -191,10 +251,6 @@
 
 .translate-y-1 {
   translate: 0 1deg
-}
-
-.transition-_lb_opacity_rb_ {
-  transition-property: opacity
 }
 
 .hover_c_bg-yellow-100:hover {
