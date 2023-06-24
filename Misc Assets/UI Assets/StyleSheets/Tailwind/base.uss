@@ -38,18 +38,6 @@
   height: 100%
 }
 
-.h-_lb_50px_rb_ {
-  height: 50px
-}
-
-.h-_lb_200px_rb_ {
-  height: 200px
-}
-
-.h-_lb_400px_rb_ {
-  height: 400px
-}
-
 .w-16 {
   width: 64px
 }
@@ -70,32 +58,8 @@
   width: 100%
 }
 
-.w-_lb_50px_rb_ {
-  width: 50px
-}
-
-.w-_lb_300px_rb_ {
-  width: 300px
-}
-
-.w-_lb_600px_rb_ {
-  width: 600px
-}
-
-.w-_lb_200px_rb_ {
-  width: 200px
-}
-
-.w-_lb_400px_rb_ {
-  width: 400px
-}
-
 .min-w-_lb_200px_rb_ {
   min-width: 200px
-}
-
-.shrink-0 {
-  flex-shrink: 0
 }
 
 .flex-row {
@@ -114,6 +78,10 @@
   justify-content: space-between
 }
 
+.overflow-hidden {
+  overflow: hidden
+}
+
 .rounded-_lb_16px_rb_ {
   border-radius: 16px
 }
@@ -124,6 +92,10 @@
 
 .rounded-md {
   border-radius: 6px
+}
+
+.rounded-sm {
+  border-radius: 2px
 }
 
 .border-_lb_1px_rb_ {
@@ -150,8 +122,8 @@
   background-color: #fff
 }
 
-.bg-orange-400 {
-  background-color: #fb923c
+.bg-red-400 {
+  background-color: #f87171
 }
 
 .bg-teal-400 {
@@ -162,12 +134,24 @@
   background-color: #60a5fa
 }
 
-.bg-pink-400 {
-  background-color: #f472b6
+.bg-blue-400_s_50 {
+  background-color: rgba(96 165 250 0.5)
 }
 
-.bg-purple-400 {
-  background-color: #c084fc
+.bg-white_s_50 {
+  background-color: rgba(255 255 255 0.5)
+}
+
+.bg-red-400_s_50 {
+  background-color: rgba(248 113 113 0.5)
+}
+
+.bg-white_s_0 {
+  background-color: rgba(255 255 255 0)
+}
+
+.bg-white_s_70 {
+  background-color: rgba(255 255 255 0.7)
 }
 
 .p-_lb_2px_rb_ {
@@ -176,6 +160,10 @@
 
 .p-_lb_6px_rb_ {
   padding: 6px
+}
+
+.p-2 {
+  padding: 8px
 }
 
 .px-_lb_12px_rb_ {
