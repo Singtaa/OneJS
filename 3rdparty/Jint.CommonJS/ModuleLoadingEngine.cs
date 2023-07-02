@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Jint.Native;
+using Jint.Native.Json;
 using Jint.Native.Object;
 using Jint.Runtime.Interop;
 using UnityEngine;
@@ -41,7 +42,8 @@ namespace Jint.CommonJS {
                 module.Exports = (module as Module).Compile(sourceCode, path);
             } else {
 #pragma warning disable 618
-                module.Exports = engine.Execute(sourceCode).GetCompletionValue();
+                // module.Exports = engine.Execute(sourceCode).GetCompletionValue();
+                module.Exports = engine.Evaluate(sourceCode);
 #pragma warning restore 618
             }
             return module.Exports;
@@ -50,8 +52,10 @@ namespace Jint.CommonJS {
         private JsValue LoadJson(string path, IModule module) {
             var sourceCode = File.ReadAllText(path);
 #pragma warning disable 618
-            module.Exports = engine.Json.Parse(JsValue.Undefined, new[] { JsValue.FromObject(this.engine, sourceCode) })
-                .AsObject();
+            var parser = new JsonParser(engine);
+            module.Exports = parser.Parse(sourceCode);
+            // module.Exports = engine.Json.Parse(JsValue.Undefined, new[] { JsValue.FromObject(this.engine, sourceCode) })
+            //     .AsObject();
 #pragma warning restore 618
             return module.Exports;
         }

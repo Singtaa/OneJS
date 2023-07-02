@@ -29,6 +29,8 @@ public class ScriptEngineEditor : Editor {
     SerializedProperty _playerModeWorkingDirInfo;
     
     SerializedProperty _pathMappings;
+    SerializedProperty _initEngineOnStart;
+    SerializedProperty _noLog;
 
     SerializedProperty _selectedTab;
 
@@ -58,6 +60,8 @@ public class ScriptEngineEditor : Editor {
         _playerModeWorkingDirInfo = serializedObject.FindProperty("_playerModeWorkingDirInfo");
         
         _pathMappings = serializedObject.FindProperty("_pathMappings");
+        _initEngineOnStart = serializedObject.FindProperty("_initEngineOnStart");
+        _noLog = serializedObject.FindProperty("_noLog");
     }
 
     public override void OnInspectorGUI() {
@@ -126,6 +130,8 @@ public class ScriptEngineEditor : Editor {
                 EditorGUILayout.PropertyField(_preloadedScripts);
                 EditorGUILayout.PropertyField(_postloadedScripts);
                 EditorGUILayout.PropertyField(_pathMappings);
+                EditorGUILayout.PropertyField(_initEngineOnStart);
+                EditorGUILayout.PropertyField(_noLog);
                 break;
             default:
                 break;

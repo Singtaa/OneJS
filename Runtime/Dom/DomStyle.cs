@@ -36,8 +36,8 @@ namespace OneJS.Dom {
                 key = pi.Name;
                 var engine = _dom.document.scriptEngine.JintEngine;
                 var globalThis = engine.GetValue("globalThis");
-                var func = engine.GetValue("globalThis").Get("__setStyleProperty");
-                func.Call(globalThis, JsValue.FromObject(engine, _dom.ve.style), key, val);
+                var func = globalThis.Get("__setStyleProperty");
+                func.Call(JsValue.FromObject(engine, _dom.ve.style), key, val);
             }
         }
 

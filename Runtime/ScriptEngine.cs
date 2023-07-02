@@ -161,6 +161,12 @@ namespace OneJS {
         [SerializeField] string[] _pathMappings = new[]
             { "ScriptLib/3rdparty/", "ScriptLib/", "Addons/", "Modules/", "node_modules/" };
 
+        [Tooltip("Uncheck this if you want to initialize the engine yourself in code.")]
+        [SerializeField] bool _initEngineOnStart = true;
+
+        [Tooltip("Disable informational logging")]
+        [SerializeField] bool _noLog;
+
         [SerializeField] int _selectedTab;
 
         UIDocument _uiDocument;
@@ -184,6 +190,8 @@ namespace OneJS {
         List<Action> _frameActionBuffer = new List<Action>();
 
         int _tick = 0;
+        
+        public static void Foo() { }
 
         public void Awake() {
             _uiDocument = GetComponent<UIDocument>();
@@ -197,9 +205,10 @@ namespace OneJS {
         }
 
         void Start() {
-            InitEngine();
+            if (_initEngineOnStart)
+                InitEngine();
 #if ENABLE_INPUT_SYSTEM
-            if (FindObjectOfType<UnityEngine.EventSystems.EventSystem>() == null) {
+            if (!_noLog && FindObjectOfType<UnityEngine.EventSystems.EventSystem>() == null) {
                 Debug.Log("New Input System is enabled but there's no EventSystem in the scene." +
                           " UI Toolkit may need an EventSystem in the scene in order to work correctly with the " +
                           " New InputSystem. You can add one by going to Hierarchy Add -> UI -> Event System.");

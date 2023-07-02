@@ -95,13 +95,14 @@ namespace OneJS.Engine {
             var completionSource = new TaskCompletionSource<JsValue>();
 #pragma warning disable 618
             ctx.OnLastTaskFinished =
-                () => completionSource.SetResult(engine.GetCompletionValue().UnwrapIfPromise());
+                () => completionSource.SetResult(engine.Evaluate("").UnwrapIfPromise());
 #pragma warning restore 618
 
             bool finishExecution;
+            JsValue promise;
 
             try {
-                engine.Execute(code);
+                promise = engine.Evaluate(code);
 
                 // means that there were no tasks created during execution
                 finishExecution = ctx.PendingTasksCount == 0;
@@ -112,7 +113,7 @@ namespace OneJS.Engine {
 
             if (finishExecution) {
 #pragma warning disable 618
-                return engine.GetCompletionValue().UnwrapIfPromise();
+                return promise.UnwrapIfPromise();
 #pragma warning restore 618
             }
 
