@@ -13,21 +13,35 @@ namespace OneJS.Editor {
 
         public void OnPreprocessBuild(BuildReport report) {
             Debug.Log("Processing Bundler(s)...");
+
             var originalScenePath = EditorSceneManager.GetActiveScene().path;
-            foreach (var bScene in EditorBuildSettings.scenes) {
-                if (!bScene.enabled)
-                    continue;
-                EditorSceneManager.OpenScene(bScene.path);
-                var scene = EditorSceneManager.GetActiveScene();
-                foreach (var obj in scene.GetRootGameObjects()) {
-                    var bundlers = obj.GetComponentsInChildren<Bundler>();
-                    foreach (var bundler in bundlers) {
-                        bundler.PackageScriptsForBuild();
-                    }
+            var buildScenes = EditorBuildSettings.scenes;
+
+            // If there are no enabled scenes in the build settings, use the current scene
+            if (buildScenes.Length == 0 || !System.Array.Exists(buildScenes, bScene => bScene.enabled)) {
+                ProcessScene(EditorSceneManager.GetActiveScene());
+            } else {
+                // Process each enabled scene in the build settings
+                foreach (var bScene in buildScenes) {
+                    if (!bScene.enabled)
+                        continue;
+                    EditorSceneManager.OpenScene(bScene.path);
+                    ProcessScene(EditorSceneManager.GetActiveScene());
                 }
             }
+
             if (!string.IsNullOrWhiteSpace(originalScenePath)) {
                 EditorSceneManager.OpenScene(originalScenePath);
+            }
+        }
+
+        private void ProcessScene(Scene scene) {
+            foreach (var obj in scene.GetRootGameObjects()) {
+                var bundlers = obj.GetComponentsInChildren<Bundler>();
+                foreach (var bundler in bundlers) {
+                    if (bundler.enabled && bundler.gameObject.activeInHierarchy)
+                        bundler.PackageScriptsForBuild();
+                }
             }
         }
     }
