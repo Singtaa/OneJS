@@ -14,6 +14,14 @@
   margin-top: 8px
 }
 
+.mb-3 {
+  margin-bottom: 12px
+}
+
+.mb-2 {
+  margin-bottom: 8px
+}
+
 .flex {
   display: flex
 }
@@ -30,8 +38,20 @@
   height: 18px
 }
 
+.h-_lb_24px_rb_ {
+  height: 24px
+}
+
 .h-_lb_28px_rb_ {
   height: 28px
+}
+
+.h-_lb_30px_rb_ {
+  height: 30px
+}
+
+.h-_lb_8px_rb_ {
+  height: 8px
 }
 
 .h-full {
@@ -50,8 +70,20 @@
   width: 18px
 }
 
+.w-_lb_24px_rb_ {
+  width: 24px
+}
+
 .w-_lb_28px_rb_ {
   width: 28px
+}
+
+.w-_lb_300px_rb_ {
+  width: 300px
+}
+
+.w-_lb_500px_rb_ {
+  width: 500px
 }
 
 .w-full {
@@ -64,6 +96,10 @@
 
 .flex-row {
   flex-direction: row
+}
+
+.flex-col {
+  flex-direction: column
 }
 
 .items-center {
@@ -118,12 +154,24 @@
   background-color: rgba(0 0 0 0.8)
 }
 
+.bg-black_s_50 {
+  background-color: rgba(0 0 0 0.5)
+}
+
+.bg-gray-400 {
+  background-color: #9ca3af
+}
+
 .bg-white {
   background-color: #fff
 }
 
-.bg-yellow-300 {
-  background-color: #fde047
+.p-1 {
+  padding: 4px
+}
+
+.p-2 {
+  padding: 8px
 }
 
 .p-3 {
@@ -136,6 +184,14 @@
 
 .p-_lb_6px_rb_ {
   padding: 6px
+}
+
+.p-4 {
+  padding: 16px
+}
+
+.p-5 {
+  padding: 20px
 }
 
 .px-_lb_12px_rb_ {
@@ -153,12 +209,12 @@
   padding-bottom: 10px
 }
 
-.text-yellow-600_s_90 {
-  color: rgba(202 138 4 0.9)
+.text-white_s_60 {
+  color: rgba(255 255 255 0.6)
 }
 
-.text-yellow-800 {
-  color: #854d0e
+.text-white_s_80 {
+  color: rgba(255 255 255 0.8)
 }
 
 .opacity-0 {
@@ -201,6 +257,10 @@
   translate: 0deg 0
 }
 
+.translate-x-_lb_-10px_rb_ {
+  translate: -10px 0
+}
+
 .translate-x-_lb_32px_rb_ {
   translate: 32px 0
 }
@@ -213,12 +273,32 @@
   background-color: white
 }
 
+.accented-bg-color {
+  background-color: #fde047
+}
+
 .default-text-color {
   color: #4b5563
 }
 
 .active-text-color {
   color: #cd8c06
+}
+
+.highlighted-text-color {
+  color: #854d0e
+}
+
+.hover_c_bg-white_s_20:hover {
+  background-color: rgba(255 255 255 0.2)
+}
+
+.hover_c_bg-white:hover {
+  background-color: #fff
+}
+
+.hover_c_bg-white_s_10:hover {
+  background-color: rgba(255 255 255 0.1)
 }
 
 .hover_c_hover-bg-color:hover {

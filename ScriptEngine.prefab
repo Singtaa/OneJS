@@ -142,8 +142,9 @@ MonoBehaviour:
   - Addons/
   - Modules/
   - node_modules/
+  _initEngineOnStart: 1
   _noLog: 0
-  _selectedTab: 3
+  _selectedTab: 0
 --- !u!114 &6324388976432546210
 MonoBehaviour:
   m_ObjectHideFlags: 0
