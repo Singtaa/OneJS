@@ -1,14 +1,17 @@
-﻿using Unity.Collections;
+﻿using Unity.Burst;
+using Unity.Collections;
 using Unity.Jobs;
 using UnityEngine;
 
 namespace OneJS.Utils {
+    [BurstCompile]
     public struct GradientTextureFillJob : IJobParallelFor {
         public NativeArray<Color32> colors;
         public int width;
         public int height;
         public Color32 topRightColor;
 
+        // Convenience static method for easy calling from JS for example
         public static void Run(NativeArray<Color32> colors, int width, int height, Color32 topRightColor) {
             var job = new GradientTextureFillJob {
                 colors = colors,
