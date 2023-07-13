@@ -2,7 +2,7 @@
     "name": "com.dragonground.onejs",
     "version": "1.6.4",
     "displayName": "OneJS",
-    "description": "OneJS is a Scripting Engine specifically designed for Unity. It is ligthweight, performant, pure C# based, has first-class Typescript support, and works everywhere.",
+    "description": "OneJS is a Scripting Engine specifically designed for Unity. It is lightweight, performant, pure C# based, has first-class Typescript support, and works everywhere.",
     "unity": "2022.3",
     "documentationUrl": "https://onejs.com/",
     "dependencies": {
