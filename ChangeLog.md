@@ -1,7 +1,13 @@
-﻿## [2023-05-30] v1.6.1 - Major Tailwind Support Rework
+﻿## [2023-07-03] v1.6.4 - Comp Library and More
 
-* Support for Tailwind config has landed!
-* Documentation should be up in the next couple days.
+* Added a new Component Library under ScriptLib/onejs/comps. These are inspired by HeadlessUI. 
+  * Please see the v1.6 Docs for more information.
+* ScriptLib folder now will contain the .ts files. This is to make it easier to refer to the TS implementation instead of the compiled JS.
+
+## [2023-05-30] v1.6.1 - Major Tailwind Rework
+
+* Support for Tailwind compiler has landed!
+* Documentation here: https://onejs.com/docs/v1.6/tailwind
 
 ## [2023-04-23] v1.5.9 - Quite a bit of QoL stuff, Tweaks, and Bugfixes
 

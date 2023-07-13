@@ -95,6 +95,8 @@ MonoBehaviour:
   - OneJS.Extensions.GameObjectExts
   - OneJS.Extensions.ComponentExts
   - OneJS.Extensions.ColorExts
+  - OneJS.Extensions.Texture2DExts
+  - Unity.Jobs.IJobParallelForExtensions
   - OneJS.Extensions.VisualElementExts
   - UnityEngine.UIElements.PointerCaptureHelper
   - UnityEngine.UIElements.VisualElementExtensions
