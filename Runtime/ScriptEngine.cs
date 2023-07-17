@@ -77,6 +77,7 @@ namespace OneJS {
 
         public event Action OnPostInit;
         public event Action OnReload;
+        public event Action OnEngineDestroy;
 
         [Tooltip("Include any assembly you'd want to access from Javascript.")] [SerializeField]
         [PlainString]
@@ -214,6 +215,10 @@ namespace OneJS {
                           " New InputSystem. You can add one by going to Hierarchy Add -> UI -> Event System.");
             }
 #endif
+        }
+
+        void OnDestroy() {
+            OnEngineDestroy?.Invoke();
         }
 
         void LateUpdate() {
