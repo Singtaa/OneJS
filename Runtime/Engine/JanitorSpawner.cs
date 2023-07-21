@@ -29,7 +29,6 @@ namespace OneJS.Engine {
             if (_respawnOnSceneLoad) {
                 Respawn();
             }
-            print("aaa");
         }
 
         void OnEnable() {
