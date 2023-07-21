@@ -7,10 +7,12 @@ using UnityEngine;
 public class JanitorSpawnerEditor : Editor {
     SerializedProperty _clearGameObjects;
     SerializedProperty _clearLogs;
+    SerializedProperty _respawnOnSceneLoad;
 
     void OnEnable() {
         _clearGameObjects = serializedObject.FindProperty("_clearGameObjects");
         _clearLogs = serializedObject.FindProperty("_clearLogs");
+        _respawnOnSceneLoad = serializedObject.FindProperty("_respawnOnSceneLoad");
     }
 
     public override void OnInspectorGUI() {
@@ -20,6 +22,7 @@ public class JanitorSpawnerEditor : Editor {
             MessageType.None);
         EditorGUILayout.PropertyField(_clearGameObjects);
         EditorGUILayout.PropertyField(_clearLogs);
+        EditorGUILayout.PropertyField(_respawnOnSceneLoad);
         serializedObject.ApplyModifiedProperties();
     }
 }

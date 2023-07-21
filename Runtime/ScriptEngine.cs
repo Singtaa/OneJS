@@ -73,6 +73,7 @@ namespace OneJS {
             get { return _playerModeWorkingDirInfo; }
             set { _playerModeWorkingDirInfo = value; }
         }
+        public bool DontDestroyOnLoad => _dontDestroyOnLoad;
         #endregion
 
         public event Action OnPostInit;
@@ -162,6 +163,10 @@ namespace OneJS {
         [SerializeField] string[] _pathMappings = new[]
             { "ScriptLib/3rdparty/", "ScriptLib/", "Addons/", "Modules/", "node_modules/" };
 
+
+        [Tooltip("Set DontDestoryOnLoad for this ScriptEngine GameObject.")]
+        [SerializeField] bool _dontDestroyOnLoad;
+
         [Tooltip("Uncheck this if you want to initialize the engine yourself in code.")]
         [SerializeField] bool _initEngineOnStart = true;
 
@@ -191,8 +196,9 @@ namespace OneJS {
         List<Action> _frameActionBuffer = new List<Action>();
 
         int _tick = 0;
-        
-        public static void Foo() { }
+
+        public static void Foo() {
+        }
 
         public void Awake() {
             _uiDocument = GetComponent<UIDocument>();
@@ -203,6 +209,10 @@ namespace OneJS {
 
             _globalFuncTypes = this.GetType().Assembly.GetTypes()
                 .Where(t => t.IsVisible && t.FullName.StartsWith("OneJS.Engine.JSGlobals")).ToList();
+
+            if (_dontDestroyOnLoad) {
+                DontDestroyOnLoad(gameObject);
+            }
         }
 
         void Start() {

@@ -144,9 +144,10 @@ MonoBehaviour:
   - Addons/
   - Modules/
   - node_modules/
+  _dontDestroyOnLoad: 1
   _initEngineOnStart: 1
   _noLog: 0
-  _selectedTab: 0
+  _selectedTab: 3
 --- !u!114 &6324388976432546210
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -208,6 +209,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _clearGameObjects: 1
   _clearLogs: 1
+  _respawnOnSceneLoad: 1
 --- !u!114 &-7210667014852890819
 MonoBehaviour:
   m_ObjectHideFlags: 0

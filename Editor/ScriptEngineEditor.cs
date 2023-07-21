@@ -29,6 +29,7 @@ public class ScriptEngineEditor : Editor {
     SerializedProperty _playerModeWorkingDirInfo;
     
     SerializedProperty _pathMappings;
+    SerializedProperty _dontDestroyOnLoad;
     SerializedProperty _initEngineOnStart;
     SerializedProperty _noLog;
 
@@ -60,6 +61,7 @@ public class ScriptEngineEditor : Editor {
         _playerModeWorkingDirInfo = serializedObject.FindProperty("_playerModeWorkingDirInfo");
         
         _pathMappings = serializedObject.FindProperty("_pathMappings");
+        _dontDestroyOnLoad = serializedObject.FindProperty("_dontDestroyOnLoad");
         _initEngineOnStart = serializedObject.FindProperty("_initEngineOnStart");
         _noLog = serializedObject.FindProperty("_noLog");
     }
@@ -130,6 +132,7 @@ public class ScriptEngineEditor : Editor {
                 EditorGUILayout.PropertyField(_preloadedScripts);
                 EditorGUILayout.PropertyField(_postloadedScripts);
                 EditorGUILayout.PropertyField(_pathMappings);
+                EditorGUILayout.PropertyField(_dontDestroyOnLoad);
                 EditorGUILayout.PropertyField(_initEngineOnStart);
                 EditorGUILayout.PropertyField(_noLog);
                 break;
