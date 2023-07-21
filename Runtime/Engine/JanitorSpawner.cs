@@ -25,21 +25,12 @@ namespace OneJS.Engine {
             SceneManager.sceneLoaded += OnSceneLoaded;
         }
 
-        void OnSceneLoaded(Scene scene, LoadSceneMode mode) {
-            if (_respawnOnSceneLoad) {
-                Respawn();
-            }
+        void OnDestroy() {
+            SceneManager.sceneLoaded -= OnSceneLoaded;
         }
 
         void OnEnable() {
             _scriptEngine.OnReload += OnReload;
-        }
-
-        void OnDisable() {
-            _scriptEngine.OnReload -= OnReload;
-        }
-
-        void Start() {
         }
 
         public void Respawn() {
@@ -49,6 +40,16 @@ namespace OneJS.Engine {
             _janitor = new GameObject("Janitor").AddComponent<Janitor>();
             _janitor.clearGameObjects = _clearGameObjects;
             _janitor.clearLogs = _clearLogs;
+        }
+
+        void OnDisable() {
+            _scriptEngine.OnReload -= OnReload;
+        }
+
+        void OnSceneLoaded(Scene scene, LoadSceneMode mode) {
+            if (_respawnOnSceneLoad) {
+                Respawn();
+            }
         }
 
         void OnReload() {
