@@ -17,6 +17,10 @@ namespace OneJS.Engine {
             _engine.OnPostInit -= OnPostInit;
         }
 
+        void OnPostInit() {
+            _engine.JintEngine.SetValue("webapi", (object)this);
+        }
+
         public void getText(string uri, Action<string> callback) {
             StartCoroutine(GetTextCo(uri, callback));
         }
@@ -33,8 +37,21 @@ namespace OneJS.Engine {
             }
         }
 
-        void OnPostInit() {
-            _engine.JintEngine.SetValue("webapi", (object)this);
+        public void getImage(string uri, Action<Texture2D> callback) {
+            StartCoroutine(GetImageCo(uri, callback));
+        }
+
+        IEnumerator GetImageCo(string uri, Action<Texture2D> callback) {
+            using (UnityWebRequest request = UnityWebRequestTexture.GetTexture(uri)) {
+                yield return request.SendWebRequest();
+
+                if (request.result == UnityWebRequest.Result.Success) {
+                    callback(((DownloadHandlerTexture)request.downloadHandler).texture);
+                } else {
+                    Debug.Log(request.result);
+                    callback(null);
+                }
+            }
         }
     }
 }
