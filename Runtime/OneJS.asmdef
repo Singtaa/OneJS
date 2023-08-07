@@ -11,8 +11,15 @@
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
-    "overrideReferences": false,
-    "precompiledReferences": [],
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "DotNet.Glob.dll",
+        "Jint.dll",
+        "Esprima.dll",
+        "NUglify.dll",
+        "ICSharpCode.SharpZipLib.dll",
+        "ExCSS.Unity.dll"
+    ],
     "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [],
