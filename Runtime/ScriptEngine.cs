@@ -74,6 +74,7 @@ namespace OneJS {
             set { _playerModeWorkingDirInfo = value; }
         }
         public bool DontDestroyOnLoad => _dontDestroyOnLoad;
+        public Assembly[] LoadedAssemblies => _loadedAssemblies;
         #endregion
 
         public event Action OnPostInit;

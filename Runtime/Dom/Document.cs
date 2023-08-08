@@ -17,27 +17,43 @@ namespace OneJS.Dom {
         public ScriptEngine scriptEngine => _scriptEngine;
         public VisualElement Root { get { return _root; } }
         public Dom body => _body;
+        public Dictionary<string, Type> UIElementEventTypesDict => _allUIElementEventTypes;
 
         Dom _body;
         VisualElement _root;
         ScriptEngine _scriptEngine;
         List<StyleSheet> _runtimeStyleSheets = new List<StyleSheet>();
 
-        Dictionary<string, System.Type> _tagCache;
-
-
-        /// <summary>
-        /// Cache tagName->Type lookup from assemblies.
-        /// </summary>
-        protected void InitializeTypesCache() {
-            _tagCache = new Dictionary<string, System.Type>();
-        }
+        Dictionary<string, Type> _tagCache = new Dictionary<string, System.Type>();
+        Dictionary<string, Type> _allUIElementEventTypes = new Dictionary<string, Type>();
 
         public Document(VisualElement root, ScriptEngine scriptEngine) {
             _root = root;
             _body = new Dom(_root, this);
             _scriptEngine = scriptEngine;
-            InitializeTypesCache(); // accelerate tagName lookup
+            _scriptEngine.OnPostInit += InitAllUIElementEvents;
+        }
+
+        void InitAllUIElementEvents() {
+            List<Type> typesInheritingFromEventBase = new List<Type>();
+
+            foreach (Assembly assembly in _scriptEngine.LoadedAssemblies) {
+                foreach (Type type in assembly.GetTypes()) {
+                    if (type.IsSubclassOf(typeof(EventBase))) {
+                        _allUIElementEventTypes.Add(type.Name, type);
+                    }
+                }
+            }
+        }
+
+        public Type FindUIElementEventType(string name) {
+            Type type;
+            if (_allUIElementEventTypes.TryGetValue(name, out type)) {
+                return type;
+            } else if (_allUIElementEventTypes.TryGetValue(name + "Event", out type)) {
+                return type;
+            }
+            return type;
         }
 
         public void addRuntimeUSS(string uss) {

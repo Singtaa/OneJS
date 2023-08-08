@@ -140,7 +140,7 @@ namespace OneJS.Dom {
                 _eventCache[name](_ve, callback, TrickleDown.NoTrickleDown);
                 // Debug.Log("Registered " + name + " on " + _ve.name);
             } else {
-                var eventType = typeof(VisualElement).Assembly.GetType($"UnityEngine.UIElements.{name}Event");
+                var eventType = _document.FindUIElementEventType(name);
                 if (isValueChanged) {
                     var notifyInterface = _ve.GetType().GetInterfaces().Where(i => i.Name == "INotifyValueChanged`1")
                         .FirstOrDefault();
@@ -178,7 +178,7 @@ namespace OneJS.Dom {
             if (!_registeredCallbacks.ContainsKey(name))
                 return;
             var callbackHolders = _registeredCallbacks[name];
-            var eventType = typeof(VisualElement).Assembly.GetType($"UnityEngine.UIElements.{name}Event");
+            var eventType = _document.FindUIElementEventType(name);
             if (eventType != null) {
                 var flags = BindingFlags.Public | BindingFlags.Instance;
                 var mi = _ve.GetType().GetMethods(flags)
