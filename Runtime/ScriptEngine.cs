@@ -79,6 +79,7 @@ namespace OneJS {
         public event Action OnPostInit;
         public event Action OnReload;
         public event Action OnEngineDestroy;
+        public event Action<Options> OnInitOptions;
 
         [Tooltip("Include any assembly you'd want to access from Javascript.")] [SerializeField]
         [PlainString]
@@ -468,6 +469,8 @@ namespace OneJS {
                     if (_memoryLimit > 0) opts.LimitMemory(_memoryLimit * 1048576);
                     if (_timeout > 0) opts.TimeoutInterval(TimeSpan.FromMilliseconds(_timeout));
                     if (_recursionDepth > 0) opts.LimitRecursion(_recursionDepth);
+                    
+                    OnInitOptions?.Invoke(opts);
                 }
             );
             _cjsEngine = _engine.CommonJS(WorkingDir, _pathMappings);
