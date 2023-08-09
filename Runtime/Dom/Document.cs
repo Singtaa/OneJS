@@ -44,6 +44,7 @@ namespace OneJS.Dom {
                     }
                 }
             }
+            _scriptEngine.OnPostInit -= InitAllUIElementEvents;
         }
 
         public Type FindUIElementEventType(string name) {
