@@ -18,6 +18,8 @@
         "target": "es5",
         "module": "commonjs",
         "forceConsistentCasingInFileNames": false,
+        "resolveJsonModule": true,
+        "esModuleInterop": true,
         "lib": [
             "ES6", "es2017"
         ]
