@@ -82,6 +82,8 @@ namespace OneJS {
         public event Action OnEngineDestroy;
         public event Action<Options> OnInitOptions;
 
+        public Func<string, Type, Type> TagTypeResolver;
+
         [Tooltip("Include any assembly you'd want to access from Javascript.")] [SerializeField]
         [PlainString]
         string[] _assemblies = new[] {
@@ -413,19 +415,23 @@ namespace OneJS {
         /// Search loaded assemblies for a lowercase type name. Order of assemblies matter.
         /// First match wins.
         /// </summary>
-        /// <param name="typeName">type name to search for</param>
+        /// <param name="tagName">tag name to search for</param>
         /// <returns>System.Type found by lowercase name.</returns>
-        public System.Type FindVisualElementType(string typeName) {
-            var typeNameL = typeName.ToLower();
+        public System.Type FindVisualElementType(string tagName) {
+            Type foundType = null;
+            var typeNameL = tagName.ToLower();
             foreach (var assembly in _loadedAssemblies) {
                 var typesToSearch = assembly.GetTypes();
-                var type = typesToSearch.Where(t => t.Name.ToLower() == typeNameL)
-                    .FirstOrDefault();
+                var type = typesToSearch.Where(t => t.Name.ToLower() == typeNameL).FirstOrDefault();
                 if (type != null && type.IsSubclassOf(typeof(VisualElement))) {
-                    return type;
+                    foundType = type;
+                    break;
                 }
             }
-            return null;
+            if (TagTypeResolver != null) {
+                foundType = TagTypeResolver(tagName, foundType);
+            }
+            return foundType;
         }
 
         public void InitEngine() {
@@ -470,7 +476,7 @@ namespace OneJS {
                     if (_memoryLimit > 0) opts.LimitMemory(_memoryLimit * 1048576);
                     if (_timeout > 0) opts.TimeoutInterval(TimeSpan.FromMilliseconds(_timeout));
                     if (_recursionDepth > 0) opts.LimitRecursion(_recursionDepth);
-                    
+
                     OnInitOptions?.Invoke(opts);
                 }
             );
