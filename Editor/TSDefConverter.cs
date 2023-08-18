@@ -240,9 +240,9 @@ namespace OneJS.Editor {
         string CleanTypeName(Type t) {
             // Need to watch out for things like `Span<T>.Enumerator` because it is generic
             // but type.Name only returns "Enumerator"
-            if ((!t.IsGenericType || !t.Name.Contains("`")) && !t.IsByRef)
+            var tName = t.Name.Replace("&", "");
+            if (!t.IsGenericType || !t.Name.Contains("`"))
                 return MapName(t.Name.Replace("&", ""));
-
             StringBuilder sb = new StringBuilder();
 
             if (t.FullName.StartsWith("System.Action`")) {
@@ -258,7 +258,8 @@ namespace OneJS.Editor {
                 return $"({str}) => {CleanTypeName(gts.Last())}";
             }
 
-            sb.Append(t.Name.Substring(0, t.Name.LastIndexOf("`")));
+            
+            sb.Append(tName.Substring(0, tName.LastIndexOf("`")));
             sb.Append(t.GetGenericArguments().Aggregate("<",
                 delegate(string aggregate, Type type) {
                     return aggregate + (aggregate == "<" ? "" : ",") + CleanTypeName(type);
