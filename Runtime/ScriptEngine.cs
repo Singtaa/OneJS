@@ -10,6 +10,7 @@ using OneJS.Dom;
 using OneJS.Engine;
 using OneJS.Utils;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.UIElements;
 using Debug = UnityEngine.Debug;
 
@@ -174,8 +175,8 @@ namespace OneJS {
         [Tooltip("Uncheck this if you want to initialize the engine yourself in code.")]
         [SerializeField] bool _initEngineOnStart = true;
 
-        [Tooltip("Disable informational logging")]
-        [SerializeField] bool _noLog;
+        [Tooltip("Enable extra informational logging")]
+        [SerializeField] bool _enableExtraLogging = true;
 
         [SerializeField] int _selectedTab;
 
@@ -223,7 +224,7 @@ namespace OneJS {
             if (_initEngineOnStart)
                 InitEngine();
 #if ENABLE_INPUT_SYSTEM
-            if (!_noLog && FindObjectOfType<UnityEngine.EventSystems.EventSystem>() == null) {
+            if (_enableExtraLogging && FindObjectOfType<UnityEngine.EventSystems.EventSystem>() == null) {
                 Debug.Log("New Input System is enabled but there's no EventSystem in the scene." +
                           " UI Toolkit may need an EventSystem in the scene in order to work correctly with the " +
                           " New InputSystem. You can add one by going to Hierarchy Add -> UI -> Event System.");

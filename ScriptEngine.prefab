@@ -146,8 +146,8 @@ MonoBehaviour:
   - node_modules/
   _dontDestroyOnLoad: 1
   _initEngineOnStart: 1
-  _noLog: 0
-  _selectedTab: 3
+  _enableExtraLogging: 1
+  _selectedTab: 0
 --- !u!114 &6324388976432546210
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -231,7 +231,7 @@ MonoBehaviour:
   - {fileID: 7433441132597879392, guid: 007928e0339f8a34d919e2d74a1bf05e, type: 3}
   - {fileID: 7433441132597879392, guid: 6ec902c05c0b24f4f96087acd5a9d34e, type: 3}
   _pollStandaloneScreen: 0
-  _noLog: 1
+  _enableLogging: 0
 --- !u!114 &667018059808507767
 MonoBehaviour:
   m_ObjectHideFlags: 0

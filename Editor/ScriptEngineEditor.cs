@@ -31,7 +31,7 @@ public class ScriptEngineEditor : Editor {
     SerializedProperty _pathMappings;
     SerializedProperty _dontDestroyOnLoad;
     SerializedProperty _initEngineOnStart;
-    SerializedProperty _noLog;
+    SerializedProperty _enableExtraLogging;
 
     SerializedProperty _selectedTab;
 
@@ -63,7 +63,7 @@ public class ScriptEngineEditor : Editor {
         _pathMappings = serializedObject.FindProperty("_pathMappings");
         _dontDestroyOnLoad = serializedObject.FindProperty("_dontDestroyOnLoad");
         _initEngineOnStart = serializedObject.FindProperty("_initEngineOnStart");
-        _noLog = serializedObject.FindProperty("_noLog");
+        _enableExtraLogging = serializedObject.FindProperty("_enableExtraLogging");
     }
 
     public override void OnInspectorGUI() {
@@ -134,7 +134,7 @@ public class ScriptEngineEditor : Editor {
                 EditorGUILayout.PropertyField(_pathMappings);
                 EditorGUILayout.PropertyField(_dontDestroyOnLoad);
                 EditorGUILayout.PropertyField(_initEngineOnStart);
-                EditorGUILayout.PropertyField(_noLog);
+                EditorGUILayout.PropertyField(_enableExtraLogging);
                 break;
             default:
                 break;

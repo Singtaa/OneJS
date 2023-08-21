@@ -25,8 +25,8 @@ namespace OneJS.Engine {
         [Tooltip("Watch for screen size changes even for Standalone builds.")]
         [SerializeField] bool _pollStandaloneScreen;
 
-        [Tooltip("Disable informational logging")]
-        [SerializeField] bool _noLog;
+        [Tooltip("Enable informational logging")]
+        [SerializeField] bool _enableLogging;
 
         ScriptEngine _scriptEngine;
         UIDocument _uiDocument;
@@ -55,7 +55,7 @@ namespace OneJS.Engine {
         }
 
         void Start() {
-            if (!_noLog) {
+            if (_enableLogging) {
                 print("tailwindcss -i ./input.css -o ./output.css --watch\n\n" +
                       $"Use the line above for tailwindcss cli. Run it at your OneJS working directory: {_scriptEngine.EditorModeWorkingDirInfo} \n");
             }
@@ -144,7 +144,7 @@ namespace OneJS.Engine {
             baseCss = TransformCssText(baseCss);
             File.WriteAllText(GetAssetPath(_baseStyleSheet), baseCss);
 
-            if (!_noLog)
+            if (_enableLogging)
                 print("Tailwind USS files Written.");
         }
 
