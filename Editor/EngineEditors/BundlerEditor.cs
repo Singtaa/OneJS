@@ -14,6 +14,7 @@ public class BundlerEditor : Editor {
     SerializedProperty _scriptLibZip;
     SerializedProperty _samplesZip;
     SerializedProperty _vscodeSettings;
+    SerializedProperty _vscodeTasks;
     SerializedProperty _tsconfig;
     SerializedProperty _tailwindConfig;
 
@@ -31,6 +32,7 @@ public class BundlerEditor : Editor {
         _scriptLibZip = serializedObject.FindProperty("_scriptLibZip");
         _samplesZip = serializedObject.FindProperty("_samplesZip");
         _vscodeSettings = serializedObject.FindProperty("_vscodeSettings");
+        _vscodeTasks = serializedObject.FindProperty("_vscodeTasks");
         _tsconfig = serializedObject.FindProperty("_tsconfig");
         _tailwindConfig = serializedObject.FindProperty("_tailwindConfig");
 
@@ -53,7 +55,8 @@ public class BundlerEditor : Editor {
             EditorGUILayout.PropertyField(_scriptsBundleZip, new GUIContent("ScriptsBundle.zip"));
             EditorGUILayout.PropertyField(_scriptLibZip, new GUIContent("ScriptLib.zip"));
             EditorGUILayout.PropertyField(_samplesZip, new GUIContent("Samples.zip"));
-            EditorGUILayout.PropertyField(_vscodeSettings, new GUIContent("VSCode Settings"));
+            EditorGUILayout.PropertyField(_vscodeSettings, new GUIContent("settings.json"));
+            EditorGUILayout.PropertyField(_vscodeTasks, new GUIContent("tasks.json"));
             EditorGUILayout.PropertyField(_tsconfig, new GUIContent("tsconfig.json"));
             EditorGUILayout.PropertyField(_tailwindConfig, new GUIContent("tailwind.config.js"));
         }

@@ -1,0 +1,38 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "shell",
+            "label": "tailwindcss: watch",
+            "command": "npx tailwindcss -i ./input.css -o ./output.css --watch",
+            "isBackground": true,
+            "group": "build",
+            "problemMatcher": {
+                "pattern": [
+                    {
+                        "regexp": "^CssSyntaxError: tailwindcss: (.*):(\\d+):(\\d+): (.+)$",
+                        "file": 1,
+                        "line": 2,
+                        "column": 3,
+                        "message": 4
+                    }
+                ],
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^Rebuilding\\.\\.\\..*",
+                    "endsPattern": "^Done in .*$"
+                }
+            }
+        },
+        {
+            "type": "typescript",
+            "tsconfig": "tsconfig.json",
+            "option": "watch",
+            "problemMatcher": [
+                "$tsc-watch"
+            ],
+            "group": "build",
+            "label": "tsc: watch - tsconfig.json"
+        }
+    ]
+}

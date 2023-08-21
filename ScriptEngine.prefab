@@ -164,6 +164,7 @@ MonoBehaviour:
   _samplesZip: {fileID: 4900000, guid: 58f74fb9fe145c04d938ca90db492cf3, type: 3}
   _scriptLibZip: {fileID: 4900000, guid: 46d508c959f3f5248b9f101a41b65173, type: 3}
   _vscodeSettings: {fileID: 4900000, guid: 670f3870b20ddcc48a34d76d6f2c8f89, type: 3}
+  _vscodeTasks: {fileID: 4900000, guid: 0cc5f8952dd0eac4484aee3799380dd8, type: 3}
   _tsconfig: {fileID: 4900000, guid: f5908381548dc074ba0aa40312094370, type: 3}
   _tailwindConfig: {fileID: 4900000, guid: 98eb49c1068248ea99d549ae006ee201, type: 3}
   _ignoreList:

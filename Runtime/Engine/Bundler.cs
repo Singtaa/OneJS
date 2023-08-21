@@ -18,14 +18,14 @@ namespace OneJS.Engine {
         // [PlainString]
         // string[] _subDirectoriesToIgnore = new[] { "Addons" };
 
-        [Tooltip("This is the zip file of your bundled scripts.")]
+        [Tooltip("This is the gzip file of your bundled scripts.")]
         [SerializeField] TextAsset _scriptsBundleZip;
 
         [SerializeField]
-        [Tooltip("The zip file that contains sample scripts. You normally don't need to touch this.")]
+        [Tooltip("The gzip file that contains sample scripts. You normally don't need to touch this.")]
         TextAsset _samplesZip;
 
-        [Tooltip("This is the zip file that OneJS uses to fill your " +
+        [Tooltip("This is the gzip file that OneJS uses to fill your " +
                  "ScriptLib folder if one isn't found under {ProjectDir}/OneJS. You normally don't need to touch this.")]
         [SerializeField]
         TextAsset _scriptLibZip;
@@ -34,6 +34,11 @@ namespace OneJS.Engine {
                  "this is the template that will be copied over. You normally don't need to touch this.")]
         [SerializeField]
         TextAsset _vscodeSettings;
+
+        [Tooltip("Default vscode tasks.json. If one isn't found under {ProjectDir}/OneJS/.vscode, " +
+                 "this is the template that will be copied over. You normally don't need to touch this.")]
+        [SerializeField]
+        TextAsset _vscodeTasks;
 
         [Tooltip("Default tsconfig.json. If one isn't found under {ProjectDir}/OneJS, " +
                  "this is the template that will be copied over. You normally don't need to touch this.")]
@@ -107,7 +112,7 @@ namespace OneJS.Engine {
             DeleteEverythingInPath(scriptLibPath);
 
             Extract(_scriptLibZip.bytes);
-            Debug.Log($"ScriptLib Zip extracted. ({scriptLibPath})");
+            Debug.Log($"ScriptLib gzip extracted. ({scriptLibPath})");
         }
 
         /// <summary>
@@ -124,7 +129,7 @@ namespace OneJS.Engine {
             DeleteEverythingInPath(samplesPath);
 
             Extract(_samplesZip.bytes);
-            Debug.Log($"Samples Zip extracted. ({samplesPath})");
+            Debug.Log($"Samples gzip extracted. ({samplesPath})");
         }
 
         /// <summary>
@@ -192,6 +197,7 @@ namespace OneJS.Engine {
             var tsconfigPath = Path.Combine(_scriptEngine.WorkingDir, "tsconfig.json");
             var gitignorePath = Path.Combine(_scriptEngine.WorkingDir, ".gitignore");
             var vscodeSettingsPath = Path.Combine(_scriptEngine.WorkingDir, ".vscode/settings.json");
+            var vscodeTasksPath = Path.Combine(_scriptEngine.WorkingDir, ".vscode/tasks.json");
             var inputCssPath = Path.Combine(_scriptEngine.WorkingDir, "input.css");
             var tailwindConfigPath = Path.Combine(_scriptEngine.WorkingDir, "tailwind.config.js");
 
@@ -201,6 +207,7 @@ namespace OneJS.Engine {
             var tsconfigFound = File.Exists(tsconfigPath);
             var gitignoreFound = File.Exists(gitignorePath);
             var vscodeSettingsFound = File.Exists(vscodeSettingsPath);
+            var vscodeTasksFound = File.Exists(vscodeTasksPath);
             var inputCssFound = File.Exists(inputCssPath);
             var tailwindConfigFound = File.Exists(tailwindConfigPath);
 
@@ -211,7 +218,7 @@ namespace OneJS.Engine {
 
             if (!scriptLibFound) {
                 Extract(_scriptLibZip.bytes);
-                Debug.Log("ScriptLib Folder wasn't found. So a default one was created (from ScriptLib Zip).");
+                Debug.Log("ScriptLib Folder wasn't found. So a default one was created (from ScriptLib gzip).");
             }
 
             if (!samplesFound && _extractSamples) {
@@ -235,6 +242,15 @@ namespace OneJS.Engine {
                 }
                 File.WriteAllText(vscodeSettingsPath, _vscodeSettings.text);
                 Debug.Log(".vscode/settings.json wasn't found. So a default one was created.");
+            }
+
+            if (!vscodeTasksFound) {
+                var dirPath = Path.Combine(_scriptEngine.WorkingDir, ".vscode");
+                if (!Directory.Exists(dirPath)) {
+                    Directory.CreateDirectory(dirPath);
+                }
+                File.WriteAllText(vscodeTasksPath, _vscodeTasks.text);
+                Debug.Log(".vscode/tasks.json wasn't found. So a default one was created.");
             }
 
             if (!inputCssFound) {
