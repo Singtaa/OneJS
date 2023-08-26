@@ -30,12 +30,13 @@ public class EventfulPropertyGenerator : ISourceGenerator {
                 foreach (var fieldNode in fieldNodes) {
                     var fieldSymbol =
                         semanticModel.GetDeclaredSymbol(fieldNode.Declaration.Variables.First()) as IFieldSymbol;
+                    var originalTypeSyntax = fieldNode.Declaration.Type.ToFullString().Trim();
 
                     if (fieldSymbol is null) continue;
 
                     var attributes = fieldSymbol.GetAttributes();
                     if (attributes.Any(attr => attr.AttributeClass.Name == "EventfulPropertyAttribute")) {
-                        propertiesCode += GeneratePropertyWithEvent(fieldSymbol);
+                        propertiesCode += GeneratePropertyWithEvent(fieldSymbol, originalTypeSyntax);
                     }
                 }
 
@@ -43,13 +44,11 @@ public class EventfulPropertyGenerator : ISourceGenerator {
                     var generatedCode = $@"
 using System;
 
-namespace {classSymbol.ContainingNamespace}
-{{
-    public partial class {classSymbol.Name}
-    {{
-        {propertiesCode}
+namespace {classSymbol.ContainingNamespace} {{
+    public partial class {classSymbol.Name} {{
+        {propertiesCode.Trim()}
     }}
-}}";
+}}".TrimStart('\n', '\r');
                     context.AddSource($"{classSymbol.Name}.EventfulProperties.cs",
                         SourceText.From(generatedCode, Encoding.UTF8));
                 }
@@ -57,22 +56,21 @@ namespace {classSymbol.ContainingNamespace}
         }
     }
 
-    private string GeneratePropertyWithEvent(IFieldSymbol fieldSymbol) {
-        var fieldType = fieldSymbol.Type.Name;
+    private string GeneratePropertyWithEvent(IFieldSymbol fieldSymbol, string originalTypeSyntax = null) {
+        var fieldType = string.IsNullOrEmpty(originalTypeSyntax) ? fieldSymbol.Type.Name : originalTypeSyntax;
         var fieldName = fieldSymbol.Name;
         var propName = TitleCase(fieldName);
 
         return $@"
-        public {fieldType} {propName}
-        {{
+        public {fieldType} {propName} {{
             get => {fieldName};
-            set
-            {{
+            set {{
                 {fieldName} = value;
                 On{propName}Changed?.Invoke(value);
             }}
         }}
-        public event Action<{fieldType}> On{propName}Changed;";
+        public event Action<{fieldType}> On{propName}Changed;".TrimStart('\n', '\r')
+               + Environment.NewLine + Environment.NewLine;
     }
 
     public string TitleCase(string input) {
