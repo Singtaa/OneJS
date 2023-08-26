@@ -4,28 +4,28 @@ using UnityEngine;
 using Random = UnityEngine.Random;
 
 namespace OneJS.Samples {
-    public class Character : MonoBehaviour {
-        public float Health {
-            get { return _health; }
-            set {
-                _health = value;
-                OnHealthChanged?.Invoke(_health);
-            }
-        }
+    public partial class Character : MonoBehaviour {
+        // public float Health {
+        //     get { return _health; }
+        //     set {
+        //         _health = value;
+        //         OnHealthChanged?.Invoke(_health);
+        //     }
+        // }
+        //
+        // public float MaxHealth {
+        //     get { return _maxHealth; }
+        //     set {
+        //         _maxHealth = value;
+        //         OnMaxHealthChanged?.Invoke(_maxHealth);
+        //     }
+        // }
+        //
+        // public event Action<float> OnHealthChanged;
+        // public event Action<float> OnMaxHealthChanged;
 
-        public float MaxHealth {
-            get { return _maxHealth; }
-            set {
-                _maxHealth = value;
-                OnMaxHealthChanged?.Invoke(_maxHealth);
-            }
-        }
-
-        public event Action<float> OnHealthChanged;
-        public event Action<float> OnMaxHealthChanged;
-
-        [SerializeField] float _health = 200f;
-        [SerializeField] float _maxHealth = 200f;
+        [SerializeField, EventfulProperty] float _health = 200f;
+        [SerializeField, EventfulProperty] float _maxHealth = 200f;
 
         void Start() {
             StartCoroutine(ChangeHealthCo());

@@ -1,155 +1,84 @@
-﻿using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System.Collections.Generic;
+﻿using System;
 using System.Linq;
 using System.Text;
-using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
-
-namespace OneJS.Codegen;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 
 [Generator]
 public class EventfulPropertyGenerator : ISourceGenerator {
-  const string MARKER_ATTRIBUTE_FULLY_QUALIFIED_NAME = "global::OneJS.EventfulPropertyAttribute";
-
-  public void Initialize(GeneratorInitializationContext context) {
-    context.RegisterForSyntaxNotifications(() => new PartialClassFinder());
-  }
-
-  public void Execute(GeneratorExecutionContext context) {
-    if (context.SyntaxReceiver is not PartialClassFinder finder) return;
-
-    foreach (var classDeclaration in finder.PartialClassDeclarations) {
-      var semanticModel = context.Compilation.GetSemanticModel(classDeclaration.SyntaxTree);
-      var fieldDeclarations = GetMarkedFieldDeclarations(semanticModel, classDeclaration).ToList();
-
-      if (fieldDeclarations.Count > 0) {
-        AddEventfulSource(context, classDeclaration, fieldDeclarations);
-      }
+    public void Initialize(GeneratorInitializationContext context) {
+        // No initialization needed
     }
-  }
 
-  static IEnumerable<FieldDeclarationSyntax> GetMarkedFieldDeclarations(SemanticModel semanticModel, ClassDeclarationSyntax classDeclaration) =>
-    classDeclaration.Members
-      .OfType<FieldDeclarationSyntax>()
-      .Where(f =>
-        f.AttributeLists.SelectMany(al => al.Attributes).Any(a =>
-          semanticModel.GetTypeInfo(a).Type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == MARKER_ATTRIBUTE_FULLY_QUALIFIED_NAME
-        )
-      );
+    public void Execute(GeneratorExecutionContext context) {
+        foreach (var syntaxTree in context.Compilation.SyntaxTrees) {
+            var semanticModel = context.Compilation.GetSemanticModel(syntaxTree);
 
-  static void AddEventfulSource(GeneratorExecutionContext context, ClassDeclarationSyntax classDeclaration, IEnumerable<FieldDeclarationSyntax> fieldDeclarations) {
-    var compilationUnit = GenerateEventfulCompilationUnit(classDeclaration, fieldDeclarations);
-    context.AddSource($"{classDeclaration.Identifier.ValueText}.EventfulProperty.cs", compilationUnit.GetText(Encoding.UTF8));
-  }
+            var classNodes = syntaxTree.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>();
 
-  static CompilationUnitSyntax GenerateEventfulCompilationUnit(ClassDeclarationSyntax classDeclaration, IEnumerable<FieldDeclarationSyntax> fieldDeclarations) =>
-    CompilationUnit()
-      .WithUsings(classDeclaration.SyntaxTree.GetCompilationUnitRoot().Usings)
-      .WithMembers(
-        SingletonList<MemberDeclarationSyntax>(
-          GenerateEventfulClass(classDeclaration, fieldDeclarations)
-        )
-      )
-      .NormalizeWhitespace();
+            foreach (var classNode in classNodes) {
+                var isPartial = classNode.Modifiers.Any(m => m.IsKind(SyntaxKind.PartialKeyword));
+                if (!isPartial) continue;
+                var classSymbol = semanticModel.GetDeclaredSymbol(classNode);
+                if (classSymbol is null) continue;
 
-  static ClassDeclarationSyntax GenerateEventfulClass(ClassDeclarationSyntax classDeclaration, IEnumerable<FieldDeclarationSyntax> fieldDeclarations) =>
-    ClassDeclaration(classDeclaration.Identifier)
-      .WithModifiers(classDeclaration.Modifiers)
-      .WithMembers(
-        List(
-          fieldDeclarations.SelectMany(fieldDeclaration =>
-            fieldDeclaration.Declaration.Variables.SelectMany(variableDeclarator => {
-              var fieldName = variableDeclarator.Identifier.ValueText;
-              var propertyName = ConvertToPropertyName(fieldName);
-              var eventName = $"On{propertyName}Changed";
+                var propertiesCode = "";
 
-              return new MemberDeclarationSyntax[] {
-                GenerateEventfulProperty(fieldDeclaration.Declaration.Type, fieldName, propertyName, eventName),
-                GenerateEventfulEvent(fieldDeclaration.Declaration.Type, eventName)
-              };
-            })
-          )
-        )
-      );
+                var fieldNodes = classNode.DescendantNodes().OfType<FieldDeclarationSyntax>();
+                foreach (var fieldNode in fieldNodes) {
+                    var fieldSymbol =
+                        semanticModel.GetDeclaredSymbol(fieldNode.Declaration.Variables.First()) as IFieldSymbol;
 
-  static PropertyDeclarationSyntax GenerateEventfulProperty(TypeSyntax typeSyntax, string fieldName, string propertyName, string eventName) {
-    var fieldNameSyntax = IdentifierName(fieldName);
-    var valueSyntax = IdentifierName("value");
+                    if (fieldSymbol is null) continue;
 
-    return PropertyDeclaration(typeSyntax, propertyName)
-      .WithModifiers(TokenList(Token(SyntaxKind.PublicKeyword)))
-      .WithAccessorList(
-        AccessorList(
-          List(new[] {
-            AccessorDeclaration(SyntaxKind.GetAccessorDeclaration)
-              .WithExpressionBody(ArrowExpressionClause(fieldNameSyntax))
-              .WithSemicolonToken(Token(SyntaxKind.SemicolonToken)),
-            AccessorDeclaration(SyntaxKind.SetAccessorDeclaration)
-              .WithBody(
-                Block(
-                  ExpressionStatement(
-                    AssignmentExpression(
-                      SyntaxKind.SimpleAssignmentExpression,
-                      fieldNameSyntax,
-                      valueSyntax
-                    )
-                  ),
-                  ExpressionStatement(
-                    ConditionalAccessExpression(
-                      IdentifierName(eventName),
-                      InvocationExpression(
-                        MemberBindingExpression(
-                          IdentifierName("Invoke")
-                        ),
-                        ArgumentList(
-                          SingletonSeparatedList(
-                            Argument(valueSyntax)
-                          )
-                        )
-                      )
-                    )
-                  )
-                )
-              )
-          })
-        )
-      );
-  }
+                    var attributes = fieldSymbol.GetAttributes();
+                    if (attributes.Any(attr => attr.AttributeClass.Name == "EventfulPropertyAttribute")) {
+                        propertiesCode += GeneratePropertyWithEvent(fieldSymbol);
+                    }
+                }
 
-  static EventFieldDeclarationSyntax GenerateEventfulEvent(TypeSyntax typeSyntax, string eventName) =>
-    EventFieldDeclaration(
-      VariableDeclaration(
-        QualifiedName(
-          IdentifierName("System"),
-          GenericName(
-            Identifier("Action"),
-            TypeArgumentList(
-              SingletonSeparatedList(typeSyntax)
-            )
-          )
-        ),
-        SingletonSeparatedList(
-          VariableDeclarator(eventName)
-        )
-      )
-    ).WithModifiers(TokenList(Token(SyntaxKind.PublicKeyword)));
+                if (!string.IsNullOrEmpty(propertiesCode)) {
+                    var generatedCode = $@"
+using System;
 
-  static string ConvertToPropertyName(string fieldName) {
-    fieldName = fieldName.TrimStart('_');
-    return char.ToUpper(fieldName[0]) + fieldName[1..];
-  }
-
-  class PartialClassFinder : ISyntaxReceiver {
-    public readonly List<ClassDeclarationSyntax> PartialClassDeclarations = new();
-
-    public void OnVisitSyntaxNode(SyntaxNode syntaxNode) {
-      if (
-        syntaxNode is ClassDeclarationSyntax classDeclaration &&
-        classDeclaration.Modifiers.Any(m => m.IsKind(SyntaxKind.PartialKeyword))
-      ) {
-        PartialClassDeclarations.Add(classDeclaration);
-      }
+namespace {classSymbol.ContainingNamespace}
+{{
+    public partial class {classSymbol.Name}
+    {{
+        {propertiesCode}
+    }}
+}}";
+                    context.AddSource($"{classSymbol.Name}.EventfulProperties.cs",
+                        SourceText.From(generatedCode, Encoding.UTF8));
+                }
+            }
+        }
     }
-  }
+
+    private string GeneratePropertyWithEvent(IFieldSymbol fieldSymbol) {
+        var fieldType = fieldSymbol.Type.Name;
+        var fieldName = fieldSymbol.Name;
+        var propName = TitleCase(fieldName);
+
+        return $@"
+        public {fieldType} {propName}
+        {{
+            get => {fieldName};
+            set
+            {{
+                {fieldName} = value;
+                On{propName}Changed?.Invoke(value);
+            }}
+        }}
+        public event Action<{fieldType}> On{propName}Changed;";
+    }
+
+    public string TitleCase(string input) {
+        if (string.IsNullOrEmpty(input)) return string.Empty;
+        input = input.Replace("-", "").Replace("_", "");
+        input = char.ToUpper(input[0]) + input.Substring(1);
+        return input;
+    }
 }

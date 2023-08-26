@@ -1,3 +1,16 @@
 {
-	"name": "OneJSSamples"
+    "name": "OneJSSamples",
+    "rootNamespace": "",
+    "references": [
+        "GUID:7e70ddc105ff1234a8102f95cc3a9aa6"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
 }
