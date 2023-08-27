@@ -1,7 +1,9 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
@@ -11,6 +13,7 @@ namespace OneJS.Codegen;
 [Generator]
 public class EventfulPropertyGenerator : ISourceGenerator {
   const string MARKER_ATTRIBUTE_FULLY_QUALIFIED_NAME = "global::OneJS.EventfulPropertyAttribute";
+  static readonly string OUTPUT_DIRECTORY = Path.Combine("Temp", "GeneratedCode", "OneJS");
 
   public void Initialize(GeneratorInitializationContext context) {
     context.RegisterForSyntaxNotifications(() => new PartialClassFinder());
@@ -21,10 +24,30 @@ public class EventfulPropertyGenerator : ISourceGenerator {
 
     foreach (var classDeclaration in finder.PartialClassDeclarations) {
       var semanticModel = context.Compilation.GetSemanticModel(classDeclaration.SyntaxTree);
+      var classSymbol = semanticModel.GetDeclaredSymbol(classDeclaration);
       var fieldDeclarations = GetMarkedFieldDeclarations(semanticModel, classDeclaration).ToList();
 
-      if (fieldDeclarations.Count > 0) {
-        AddEventfulSource(context, semanticModel, classDeclaration, fieldDeclarations);
+      if (fieldDeclarations.Count == 0) continue;
+
+      var projectPath = GetProjectPath(context);
+      var outputFileName = $"{classSymbol}.g.cs";
+      var outputFilePath = Path.Combine(projectPath ?? "", OUTPUT_DIRECTORY, outputFileName);
+      var compilationUnit = GenerateEventfulCompilationUnit(classSymbol, classDeclaration, fieldDeclarations)
+        .WithLeadingTrivia(
+          Trivia(
+            LineDirectiveTrivia(
+              Literal(2),
+              Literal(outputFilePath.Replace('\\', '/')),
+              true
+            )
+          )
+        )
+        .NormalizeWhitespace();
+      var sourceText = compilationUnit.GetText(Encoding.UTF8);
+      context.AddSource(outputFileName, sourceText);
+
+      if (projectPath != null) {
+        WriteOutputToFile(outputFilePath, sourceText);
       }
     }
   }
@@ -38,13 +61,7 @@ public class EventfulPropertyGenerator : ISourceGenerator {
         )
       );
 
-  static void AddEventfulSource(GeneratorExecutionContext context, SemanticModel semanticModel, ClassDeclarationSyntax classDeclaration, IEnumerable<FieldDeclarationSyntax> fieldDeclarations) {
-    var compilationUnit = GenerateEventfulCompilationUnit(semanticModel, classDeclaration, fieldDeclarations);
-    context.AddSource($"{classDeclaration.Identifier.ValueText}.EventfulProperty.cs", compilationUnit.GetText(Encoding.UTF8));
-  }
-
-  static CompilationUnitSyntax GenerateEventfulCompilationUnit(SemanticModel semanticModel, ClassDeclarationSyntax classDeclaration, IEnumerable<FieldDeclarationSyntax> fieldDeclarations) {
-    var classSymbol = semanticModel.GetDeclaredSymbol(classDeclaration);
+  static CompilationUnitSyntax GenerateEventfulCompilationUnit(INamedTypeSymbol classSymbol, ClassDeclarationSyntax classDeclaration, IEnumerable<FieldDeclarationSyntax> fieldDeclarations) {
     var namespaceSyntax = GenerateEventfulNamespace(classSymbol.ContainingNamespace);
     var compilationUnit = CompilationUnit().WithUsings(classDeclaration.SyntaxTree.GetCompilationUnitRoot().Usings);
 
@@ -67,7 +84,7 @@ public class EventfulPropertyGenerator : ISourceGenerator {
       );
     }
 
-    return compilationUnit.NormalizeWhitespace();
+    return compilationUnit;
   }
 
   static NameSyntax GenerateEventfulNamespace(INamespaceSymbol namespaceSymbol) {
@@ -167,6 +184,28 @@ public class EventfulPropertyGenerator : ISourceGenerator {
   static string ConvertToPropertyName(string fieldName) {
     fieldName = fieldName.TrimStart('_');
     return char.ToUpper(fieldName[0]) + fieldName[1..];
+  }
+
+  static void WriteOutputToFile(string outputFilePath, SourceText sourceText) {
+    Directory.CreateDirectory(Path.GetDirectoryName(outputFilePath));
+    File.WriteAllText(outputFilePath, sourceText.ToString());
+  }
+
+  static string GetProjectPath(GeneratorExecutionContext context) {
+    var isLanguageServer = context.AdditionalFiles.Length == 0;
+
+    if (isLanguageServer) return null;
+
+    // In Unity 2021.1 or newer, the content of the first additional file is the project path
+    var additionalFile = context.AdditionalFiles[0];
+    var projectPath = additionalFile.GetText(context.CancellationToken)?.ToString();
+
+    // Fallback to file path
+    if (string.IsNullOrEmpty(projectPath)) {
+      projectPath = Path.GetDirectoryName(additionalFile.Path);
+    }
+
+    return projectPath;
   }
 
   class PartialClassFinder : ISyntaxReceiver {
