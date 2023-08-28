@@ -182,8 +182,15 @@ public class EventfulPropertyGenerator : ISourceGenerator {
     ).WithModifiers(TokenList(Token(SyntaxKind.PublicKeyword)));
 
   static string ConvertToPropertyName(string fieldName) {
-    fieldName = fieldName.TrimStart('_');
-    return char.ToUpper(fieldName[0]) + fieldName[1..];
+    var sb = new StringBuilder();
+
+    for (var i = 0; i < fieldName.Length; i++) {
+      if (fieldName[i] == '_') continue;
+
+      sb.Append(i == 0 || fieldName[i-1] == '_' ? char.ToUpper(fieldName[i]) : fieldName[i]);
+    }
+
+    return sb.ToString();
   }
 
   static void WriteOutputToFile(string outputFilePath, SourceText sourceText) {
