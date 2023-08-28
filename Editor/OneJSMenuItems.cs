@@ -2,12 +2,18 @@
 using System.IO;
 using UnityEditor;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace OneJS.Editor {
     public class OneJSMenuItems {
         [MenuItem("OneJS/Open GeneratedCode Folder")]
         static void OpenGeneratedCodeFolder() {
-            OpenDir(Path.Combine(Application.dataPath, "..", "Temp", "GeneratedCode", "OneJS"));
+            var path = Path.Combine(Application.dataPath, "..", "Temp", "GeneratedCode", "OneJS");
+            if (Directory.Exists(path)) {
+                OpenDir(path);
+            } else {
+                Debug.Log($"Cannot find GeneratedCode folder at {path}. It may not have been generated yet.");
+            }
         }
 
         static void OpenDir(string path) {
