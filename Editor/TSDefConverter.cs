@@ -258,7 +258,18 @@ namespace OneJS.Editor {
                 return $"({str}) => {CleanTypeName(gts.Last())}";
             }
 
-            
+            if (t.FullName.StartsWith("System.ValueTuple`")) {
+                sb.Append("[");
+                var genericArgs = t.GetGenericArguments();
+                for (int i = 0; i < genericArgs.Length; i++) {
+                    if (i > 0)
+                        sb.Append(", ");
+                    sb.Append(CleanTypeName(genericArgs[i]));
+                }
+                sb.Append("]");
+                return sb.ToString();
+            }
+
             sb.Append(tName.Substring(0, tName.LastIndexOf("`")));
             sb.Append(t.GetGenericArguments().Aggregate("<",
                 delegate(string aggregate, Type type) {
