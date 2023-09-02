@@ -245,20 +245,20 @@ namespace OneJS.Editor {
                 return MapName(t.Name.Replace("&", ""));
             StringBuilder sb = new StringBuilder();
 
-            if (t.FullName.StartsWith("System.Action`")) {
+            if (t.FullName != null && t.FullName.StartsWith("System.Action`")) {
                 var str = String.Join(", ",
                     t.GetGenericArguments().Select((t, i) => $"{(char)(i + 97)}: " + CleanTypeName(t)));
                 return $"({str}) => void";
             }
 
-            if (t.FullName.StartsWith("System.Func`")) {
+            if (t.FullName != null && t.FullName.StartsWith("System.Func`")) {
                 var gts = t.GetGenericArguments();
                 var str = String.Join(", ",
                     gts.Take(gts.Length - 1).Select((t, i) => $"{(char)(i + 97)}: " + CleanTypeName(t)));
                 return $"({str}) => {CleanTypeName(gts.Last())}";
             }
 
-            if (t.FullName.StartsWith("System.ValueTuple`")) {
+            if (t.FullName != null && t.FullName.StartsWith("System.ValueTuple`")) {
                 sb.Append("[");
                 var genericArgs = t.GetGenericArguments();
                 for (int i = 0; i < genericArgs.Length; i++) {
