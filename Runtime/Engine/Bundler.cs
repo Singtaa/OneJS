@@ -64,7 +64,7 @@ namespace OneJS.Engine {
         [Tooltip("Will automatically extract built-in Samples folder to your WorkingDir")]
         [SerializeField] bool _extractSamples = true;
 
-        string _onejsVersion = "1.6.1";
+        string _onejsVersion = "1.6.6";
 
         ScriptEngine _scriptEngine;
 

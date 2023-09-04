@@ -1,6 +1,24 @@
-﻿## [2023-07-03] v1.6.4 - Comp Library and More
+﻿## [2023-08-31] v1.6.6 - Stability and Misc Additions
 
-* Added a new Component Library under ScriptLib/onejs/comps. These are inspired by HeadlessUI. 
+* Updated Jint to [beta-2050]
+* jsx-runtime support
+* OnPreprocessBuild now accommodates when there's no scene listed in the build settings
+* Added comps sample scene
+* Added GradientTextureFill Job example
+* Added onEngineDestroy
+* Added webapi.getImage()
+* Added OnInitOptions to ScriptEngine
+* Dom.addEventListener now go through all loaded assemblies
+* Fixed regression in InitAllUIElementEvents()
+* Added TagTypeResolver to ScriptEngine
+* JSON module import
+* Added default tasks.json for vscode
+* Added EventfulPropertyAttribute and corresponding source generator
+* Added ValueTuple check in TSDefConverter
+
+## [2023-07-03] v1.6.4 - Comp Library and More
+
+* Added a new Component Library under ScriptLib/onejs/comps. These are inspired by HeadlessUI.
   * Please see the v1.6 Docs for more information.
 * ScriptLib folder now will contain the .ts files. This is to make it easier to refer to the TS implementation instead of the compiled JS.
 
