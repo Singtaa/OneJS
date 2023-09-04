@@ -10,7 +10,7 @@ namespace OneJS.Editor {
         [SerializeField] Vector2 _scrollPos;
 
 
-        [MenuItem("OneJS/C# to TSDef Converter")]
+        [MenuItem("Tools/OneJS/C# to TSDef Converter")]
         private static void ShowWindow() {
             var window = GetWindow<TSDefConverterEditorWindow>();
             window.titleContent = new GUIContent("C# to TSDef Converter");
