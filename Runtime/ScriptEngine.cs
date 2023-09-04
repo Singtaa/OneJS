@@ -74,7 +74,7 @@ namespace OneJS {
             get { return _playerModeWorkingDirInfo; }
             set { _playerModeWorkingDirInfo = value; }
         }
-        public bool DontDestroyOnLoad => _dontDestroyOnLoad;
+        public bool SetDontDestroyOnLoad => _setDontDestroyOnLoad;
         public Assembly[] LoadedAssemblies => _loadedAssemblies;
         #endregion
 
@@ -169,8 +169,9 @@ namespace OneJS {
             { "ScriptLib/3rdparty/", "ScriptLib/", "Addons/", "Modules/", "node_modules/" };
 
 
+        [FormerlySerializedAs("_dontDestroyOnLoad")]
         [Tooltip("Set DontDestoryOnLoad for this ScriptEngine GameObject.")]
-        [SerializeField] bool _dontDestroyOnLoad;
+        [SerializeField] bool _setDontDestroyOnLoad;
 
         [Tooltip("Uncheck this if you want to initialize the engine yourself in code.")]
         [SerializeField] bool _initEngineOnStart = true;
@@ -215,7 +216,7 @@ namespace OneJS {
             _globalFuncTypes = this.GetType().Assembly.GetTypes()
                 .Where(t => t.IsVisible && t.FullName.StartsWith("OneJS.Engine.JSGlobals")).ToList();
 
-            if (_dontDestroyOnLoad) {
+            if (_setDontDestroyOnLoad) {
                 DontDestroyOnLoad(gameObject);
             }
         }
