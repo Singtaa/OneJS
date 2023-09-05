@@ -101,11 +101,11 @@ namespace OneJS.Editor {
         void DoEventLines(EventInfo e, List<string> lines, bool isStatic = false) {
             var staticStr = isStatic ? "static " : "";
             if (_jintSyntaxForEvents) {
-                var str = $"{e.Name}(handler: {CleanTypeName(e.EventHandlerType)}): void";
+                var str = $"{e.Name}(handler: {TSName(e.EventHandlerType)}): void";
                 lines.Add(new String(' ', _indentSpaces) + $"{staticStr}add_" + str);
                 lines.Add(new String(' ', _indentSpaces) + $"{staticStr}remove_" + str);
             } else {
-                var str = $"{e.Name}: {CleanTypeName(e.EventHandlerType)}";
+                var str = $"{e.Name}: {TSName(e.EventHandlerType)}";
                 lines.Add(new String(' ', _indentSpaces) + str);
             }
         }
@@ -151,15 +151,15 @@ namespace OneJS.Editor {
             if (_type.IsEnum)
                 type = "enum";
 
-            var str = $"export {type} {CleanTypeName(_type)}";
+            var str = $"export {type} {TSName(_type)}";
             if (!_type.IsEnum) {
                 if (_type.BaseType != null && _type.BaseType != typeof(System.Object) && !_type.IsValueType) {
-                    str += $" extends {CleanTypeName(_type.BaseType)}";
+                    str += $" extends {TSName(_type.BaseType)}";
                 }
                 var interfaces = _type.GetInterfaces();
                 if (interfaces.Length > 0) {
                     str += $" implements";
-                    var facesStr = String.Join(", ", interfaces.Select(i => CleanTypeName(i)));
+                    var facesStr = String.Join(", ", interfaces.Select(i => TSName(i)));
                     str += $" {facesStr}";
                 }
             }
@@ -170,7 +170,7 @@ namespace OneJS.Editor {
             if (propInfo.CustomAttributes.Where(a => a.AttributeType == typeof(ObsoleteAttribute)).Count() > 0)
                 return null;
             var str = isStatic ? "static " : "";
-            str += $"{propInfo.Name}: {CleanTypeName(propInfo.PropertyType)}";
+            str += $"{propInfo.Name}: {TSName(propInfo.PropertyType)}";
 
             return new String(' ', _indentSpaces) + str;
         }
@@ -184,7 +184,7 @@ namespace OneJS.Editor {
                 return new String(' ', _indentSpaces) + fieldInfo.Name + ",";
             }
             var str = isStatic ? "static " : "";
-            str += $"{fieldInfo.Name}: {CleanTypeName(fieldInfo.FieldType)}";
+            str += $"{fieldInfo.Name}: {TSName(fieldInfo.FieldType)}";
 
             return new String(' ', _indentSpaces) + str;
         }
@@ -192,7 +192,7 @@ namespace OneJS.Editor {
         string EventToStr(EventInfo eventInfo) {
             if (eventInfo.CustomAttributes.Where(a => a.AttributeType == typeof(ObsoleteAttribute)).Count() > 0)
                 return null;
-            var str = $"{eventInfo.Name}: {CleanTypeName(eventInfo.EventHandlerType)}";
+            var str = $"{eventInfo.Name}: {TSName(eventInfo.EventHandlerType)}";
 
             return new String(' ', _indentSpaces) + str;
         }
@@ -209,11 +209,11 @@ namespace OneJS.Editor {
                 builder.Append("<");
                 var argTypes = methodInfo.GetGenericArguments();
                 var typeStrs = argTypes.Select(t => {
-                    var typeName = CleanTypeName(t);
+                    var typeName = TSName(t);
                     var constraintTypes = t.GetGenericParameterConstraints();
 
                     if (constraintTypes.Length > 0) {
-                      return $"{typeName} extends {string.Join(", ", constraintTypes.Select(CleanTypeName))}";
+                      return $"{typeName} extends {string.Join(", ", constraintTypes.Select(TSName))}";
                     }
 
                     return typeName;
@@ -224,10 +224,10 @@ namespace OneJS.Editor {
             builder.Append("(");
 
             var parameters = methodInfo.GetParameters();
-            var parameterStrs = parameters.Select(p => $"{p.Name}: {CleanTypeName(p.ParameterType)}");
+            var parameterStrs = parameters.Select(p => $"{p.Name}: {TSName(p.ParameterType)}");
             builder.Append(String.Join(", ", parameterStrs));
 
-            builder.Append($"): {CleanTypeName(methodInfo.ReturnType)}");
+            builder.Append($"): {TSName(methodInfo.ReturnType)}");
             return new String(' ', _indentSpaces) + builder.ToString();
         }
 
@@ -238,14 +238,14 @@ namespace OneJS.Editor {
             str += $"constructor(";
 
             var parameters = ctorInfo.GetParameters();
-            str += String.Join(", ", parameters.Select(p => $"{p.Name}: {CleanTypeName(p.ParameterType)}"));
+            str += String.Join(", ", parameters.Select(p => $"{p.Name}: {TSName(p.ParameterType)}"));
 
             str += $")";
             return new String(' ', _indentSpaces) + str;
         }
 
 
-        string CleanTypeName(Type t) {
+        string TSName(Type t) {
             if (t.IsGenericParameter) return t.Name;
 
             // Need to watch out for things like `Span<T>.Enumerator` because it is generic
@@ -254,7 +254,7 @@ namespace OneJS.Editor {
             if (!t.IsGenericType || !t.Name.Contains("`"))
                 return MapName(tName);
 
-            var genericArgTypes = t.GetGenericArguments().Select(CleanTypeName);
+            var genericArgTypes = t.GetGenericArguments().Select(TSName);
 
             if (t.Namespace == "System") {
                 if (t.Name.StartsWith("Action`")) {
