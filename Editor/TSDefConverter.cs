@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
-using UnityEngine;
 
 namespace OneJS.Editor {
     public class TSDefConverter {
@@ -102,11 +101,11 @@ namespace OneJS.Editor {
         void DoEventLines(EventInfo e, List<string> lines, bool isStatic = false) {
             var staticStr = isStatic ? "static " : "";
             if (_jintSyntaxForEvents) {
-                var str = $"{e.Name}(handler: {CleanTypeName(e.EventHandlerType)}): void";
+                var str = $"{e.Name}(handler: {TSName(e.EventHandlerType)}): void";
                 lines.Add(new String(' ', _indentSpaces) + $"{staticStr}add_" + str);
                 lines.Add(new String(' ', _indentSpaces) + $"{staticStr}remove_" + str);
             } else {
-                var str = $"{e.Name}: {CleanTypeName(e.EventHandlerType)}";
+                var str = $"{e.Name}: {TSName(e.EventHandlerType)}";
                 lines.Add(new String(' ', _indentSpaces) + str);
             }
         }
@@ -152,15 +151,15 @@ namespace OneJS.Editor {
             if (_type.IsEnum)
                 type = "enum";
 
-            var str = $"export {type} {CleanTypeName(_type)}";
+            var str = $"export {type} {TSName(_type)}";
             if (!_type.IsEnum) {
                 if (_type.BaseType != null && _type.BaseType != typeof(System.Object) && !_type.IsValueType) {
-                    str += $" extends {CleanTypeName(_type.BaseType)}";
+                    str += $" extends {TSName(_type.BaseType)}";
                 }
                 var interfaces = _type.GetInterfaces();
                 if (interfaces.Length > 0) {
                     str += $" implements";
-                    var facesStr = String.Join(", ", interfaces.Select(i => CleanTypeName(i)));
+                    var facesStr = String.Join(", ", interfaces.Select(i => TSName(i)));
                     str += $" {facesStr}";
                 }
             }
@@ -171,7 +170,7 @@ namespace OneJS.Editor {
             if (propInfo.CustomAttributes.Where(a => a.AttributeType == typeof(ObsoleteAttribute)).Count() > 0)
                 return null;
             var str = isStatic ? "static " : "";
-            str += $"{propInfo.Name}: {CleanTypeName(propInfo.PropertyType)}";
+            str += $"{propInfo.Name}: {TSName(propInfo.PropertyType)}";
 
             return new String(' ', _indentSpaces) + str;
         }
@@ -185,7 +184,7 @@ namespace OneJS.Editor {
                 return new String(' ', _indentSpaces) + fieldInfo.Name + ",";
             }
             var str = isStatic ? "static " : "";
-            str += $"{fieldInfo.Name}: {CleanTypeName(fieldInfo.FieldType)}";
+            str += $"{fieldInfo.Name}: {TSName(fieldInfo.FieldType)}";
 
             return new String(' ', _indentSpaces) + str;
         }
@@ -193,7 +192,7 @@ namespace OneJS.Editor {
         string EventToStr(EventInfo eventInfo) {
             if (eventInfo.CustomAttributes.Where(a => a.AttributeType == typeof(ObsoleteAttribute)).Count() > 0)
                 return null;
-            var str = $"{eventInfo.Name}: {CleanTypeName(eventInfo.EventHandlerType)}";
+            var str = $"{eventInfo.Name}: {TSName(eventInfo.EventHandlerType)}";
 
             return new String(' ', _indentSpaces) + str;
         }
@@ -209,17 +208,26 @@ namespace OneJS.Editor {
             if (methodInfo.IsGenericMethod) {
                 builder.Append("<");
                 var argTypes = methodInfo.GetGenericArguments();
-                var typeStrs = argTypes.Select(t => CleanTypeName(t));
+                var typeStrs = argTypes.Select(t => {
+                    var typeName = TSName(t);
+                    var constraintTypes = t.GetGenericParameterConstraints();
+
+                    if (constraintTypes.Length > 0) {
+                      return $"{typeName} extends {string.Join(", ", constraintTypes.Select(TSName))}";
+                    }
+
+                    return typeName;
+                });
                 builder.Append(String.Join(", ", typeStrs));
                 builder.Append(">");
             }
             builder.Append("(");
 
             var parameters = methodInfo.GetParameters();
-            var parameterStrs = parameters.Select(p => $"{p.Name}: {CleanTypeName(p.ParameterType)}");
+            var parameterStrs = parameters.Select(p => $"{p.Name}: {TSName(p.ParameterType)}");
             builder.Append(String.Join(", ", parameterStrs));
 
-            builder.Append($"): {CleanTypeName(methodInfo.ReturnType)}");
+            builder.Append($"): {TSName(methodInfo.ReturnType)}");
             return new String(' ', _indentSpaces) + builder.ToString();
         }
 
@@ -230,60 +238,58 @@ namespace OneJS.Editor {
             str += $"constructor(";
 
             var parameters = ctorInfo.GetParameters();
-            str += String.Join(", ", parameters.Select(p => $"{p.Name}: {CleanTypeName(p.ParameterType)}"));
+            str += String.Join(", ", parameters.Select(p => $"{p.Name}: {TSName(p.ParameterType)}"));
 
             str += $")";
             return new String(' ', _indentSpaces) + str;
         }
 
 
-        string CleanTypeName(Type t) {
+        string TSName(Type t) {
+            if (t.IsGenericParameter) return t.Name;
+
             // Need to watch out for things like `Span<T>.Enumerator` because it is generic
             // but type.Name only returns "Enumerator"
             var tName = t.Name.Replace("&", "");
             if (!t.IsGenericType || !t.Name.Contains("`"))
-                return MapName(t.Name.Replace("&", ""));
-            StringBuilder sb = new StringBuilder();
+                return MapName(tName);
 
-            if (t.FullName != null && t.FullName.StartsWith("System.Action`")) {
-                var str = String.Join(", ",
-                    t.GetGenericArguments().Select((t, i) => $"{(char)(i + 97)}: " + CleanTypeName(t)));
-                return $"({str}) => void";
-            }
+            var genericArgTypes = t.GetGenericArguments().Select(TSName);
 
-            if (t.FullName != null && t.FullName.StartsWith("System.Func`")) {
-                var gts = t.GetGenericArguments();
-                var str = String.Join(", ",
-                    gts.Take(gts.Length - 1).Select((t, i) => $"{(char)(i + 97)}: " + CleanTypeName(t)));
-                return $"({str}) => {CleanTypeName(gts.Last())}";
-            }
-
-            if (t.FullName != null && t.FullName.StartsWith("System.ValueTuple`")) {
-                sb.Append("[");
-                var genericArgs = t.GetGenericArguments();
-                for (int i = 0; i < genericArgs.Length; i++) {
-                    if (i > 0)
-                        sb.Append(", ");
-                    sb.Append(CleanTypeName(genericArgs[i]));
+            if (t.Namespace == "System") {
+                if (t.Name.StartsWith("Action`")) {
+                    return TsFunctionSignature(genericArgTypes, "void");
                 }
-                sb.Append("]");
-                return sb.ToString();
+
+                if (t.Name.StartsWith("Func`")) {
+                    return TsFunctionSignature(genericArgTypes.SkipLast(1), genericArgTypes.Last());
+                }
+
+                if (t.Name.StartsWith("Predicate`")) {
+                    return TsFunctionSignature(genericArgTypes, "boolean");
+                }
+
+                static string TsFunctionSignature(IEnumerable<string> argTypes, string returnType) {
+                    var args = string.Join(", ", argTypes.Select((t, i) => $"{(char)(i + 'a')}: {t}"));
+                    return $"({args}) => {returnType}";
+                }
+
+                if (t.Name.StartsWith("Nullable`")) {
+                    return $"{genericArgTypes.First()} | null";
+                }
+
+                if (t.Name.StartsWith("ValueTuple`")) {
+                    return $"[{string.Join(", ", genericArgTypes)}]";
+                }
             }
 
-            sb.Append(tName.Substring(0, tName.LastIndexOf("`")));
-            sb.Append(t.GetGenericArguments().Aggregate("<",
-                delegate(string aggregate, Type type) {
-                    return aggregate + (aggregate == "<" ? "" : ",") + CleanTypeName(type);
-                }
-            ));
-            sb.Append(">");
-
-            return sb.ToString();
+            tName = tName[..tName.LastIndexOf("`")];
+            return $"{tName}<{string.Join(", ", genericArgTypes)}>";
         }
 
         string MapName(string typeName) {
-            if (_typeMapping.ContainsKey(typeName))
-                return _typeMapping[typeName];
+            if (_typeMapping.TryGetValue(typeName, out var mappedType))
+                return mappedType;
             return typeName;
         }
     }
