@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
-using UnityEngine;
 
 namespace OneJS.Editor {
     public class TSDefConverter {
@@ -209,7 +208,16 @@ namespace OneJS.Editor {
             if (methodInfo.IsGenericMethod) {
                 builder.Append("<");
                 var argTypes = methodInfo.GetGenericArguments();
-                var typeStrs = argTypes.Select(t => CleanTypeName(t));
+                var typeStrs = argTypes.Select(t => {
+                    var typeName = CleanTypeName(t);
+                    var constraintTypes = t.GetGenericParameterConstraints();
+
+                    if (constraintTypes.Length > 0) {
+                      return $"{typeName} extends {string.Join(", ", constraintTypes.Select(CleanTypeName))}";
+                    }
+
+                    return typeName;
+                });
                 builder.Append(String.Join(", ", typeStrs));
                 builder.Append(">");
             }
@@ -238,52 +246,50 @@ namespace OneJS.Editor {
 
 
         string CleanTypeName(Type t) {
+            if (t.IsGenericParameter) return t.Name;
+
             // Need to watch out for things like `Span<T>.Enumerator` because it is generic
             // but type.Name only returns "Enumerator"
             var tName = t.Name.Replace("&", "");
             if (!t.IsGenericType || !t.Name.Contains("`"))
-                return MapName(t.Name.Replace("&", ""));
-            StringBuilder sb = new StringBuilder();
+                return MapName(tName);
 
-            if (t.FullName != null && t.FullName.StartsWith("System.Action`")) {
-                var str = String.Join(", ",
-                    t.GetGenericArguments().Select((t, i) => $"{(char)(i + 97)}: " + CleanTypeName(t)));
-                return $"({str}) => void";
-            }
+            var genericArgTypes = t.GetGenericArguments().Select(CleanTypeName);
 
-            if (t.FullName != null && t.FullName.StartsWith("System.Func`")) {
-                var gts = t.GetGenericArguments();
-                var str = String.Join(", ",
-                    gts.Take(gts.Length - 1).Select((t, i) => $"{(char)(i + 97)}: " + CleanTypeName(t)));
-                return $"({str}) => {CleanTypeName(gts.Last())}";
-            }
-
-            if (t.FullName != null && t.FullName.StartsWith("System.ValueTuple`")) {
-                sb.Append("[");
-                var genericArgs = t.GetGenericArguments();
-                for (int i = 0; i < genericArgs.Length; i++) {
-                    if (i > 0)
-                        sb.Append(", ");
-                    sb.Append(CleanTypeName(genericArgs[i]));
+            if (t.Namespace == "System") {
+                if (t.Name.StartsWith("Action`")) {
+                    return TsFunctionSignature(genericArgTypes, "void");
                 }
-                sb.Append("]");
-                return sb.ToString();
+
+                if (t.Name.StartsWith("Func`")) {
+                    return TsFunctionSignature(genericArgTypes.SkipLast(1), genericArgTypes.Last());
+                }
+
+                if (t.Name.StartsWith("Predicate`")) {
+                    return TsFunctionSignature(genericArgTypes, "boolean");
+                }
+
+                static string TsFunctionSignature(IEnumerable<string> argTypes, string returnType) {
+                    var args = string.Join(", ", argTypes.Select((t, i) => $"{(char)(i + 'a')}: {t}"));
+                    return $"({args}) => {returnType}";
+                }
+
+                if (t.Name.StartsWith("Nullable`")) {
+                    return $"{genericArgTypes.First()} | null";
+                }
+
+                if (t.Name.StartsWith("ValueTuple`")) {
+                    return $"[{string.Join(", ", genericArgTypes)}]";
+                }
             }
 
-            sb.Append(tName.Substring(0, tName.LastIndexOf("`")));
-            sb.Append(t.GetGenericArguments().Aggregate("<",
-                delegate(string aggregate, Type type) {
-                    return aggregate + (aggregate == "<" ? "" : ",") + CleanTypeName(type);
-                }
-            ));
-            sb.Append(">");
-
-            return sb.ToString();
+            tName = tName[..tName.LastIndexOf("`")];
+            return $"{tName}<{string.Join(", ", genericArgTypes)}>";
         }
 
         string MapName(string typeName) {
-            if (_typeMapping.ContainsKey(typeName))
-                return _typeMapping[typeName];
+            if (_typeMapping.TryGetValue(typeName, out var mappedType))
+                return mappedType;
             return typeName;
         }
     }
