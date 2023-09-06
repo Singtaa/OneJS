@@ -8,7 +8,11 @@ namespace OneJS.Engine.JSGlobals {
         public static void Setup(ScriptEngine engine) {
             engine.JintEngine.SetValue("onEngineDestroy",
                 new Action<JsValue>((handler) => {
-                    engine.OnEngineDestroy += () => { engine.JintEngine.Call(handler); };
+                    engine.RegisterDestroyHandler(handler.As<Jint.Native.Function.FunctionInstance>());
+                }));
+            engine.JintEngine.SetValue("unregisterOnEngineDestroy",
+                new Action<JsValue>((handler) => {
+                    engine.UnregisterDestroyHandler(handler.As<Jint.Native.Function.FunctionInstance>());
                 }));
         }
     }

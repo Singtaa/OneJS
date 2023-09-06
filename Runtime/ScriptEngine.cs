@@ -189,6 +189,8 @@ namespace OneJS {
 
         List<Jint.Native.Function.FunctionInstance> _engineReloadJSHandlers =
             new List<Jint.Native.Function.FunctionInstance>();
+        List<Jint.Native.Function.FunctionInstance> _engineDestroyJSHandlers =
+            new List<Jint.Native.Function.FunctionInstance>();
         List<IClassStrProcessor> _classStrProcessors = new List<IClassStrProcessor>();
         List<Type> _globalFuncTypes;
 
@@ -202,9 +204,6 @@ namespace OneJS {
         List<Action> _frameActionBuffer = new List<Action>();
 
         int _tick = 0;
-
-        public static void Foo() {
-        }
 
         public void Awake() {
             _uiDocument = GetComponent<UIDocument>();
@@ -235,6 +234,7 @@ namespace OneJS {
 
         void OnDestroy() {
             OnEngineDestroy?.Invoke();
+            RunOnDestroyHandlers();
         }
 
         void LateUpdate() {
@@ -297,7 +297,7 @@ namespace OneJS {
         /// Clears up everything and sets the jint engine to null. All OnReload handlers (C# or JS) will still be run.
         /// </summary>
         public void Shutdown() {
-            RunJsReloadHandlers();
+            RunOnReloadHandlers();
             OnReload?.Invoke();
             CleanUp();
             _engine = null;
@@ -364,6 +364,28 @@ namespace OneJS {
             _engineReloadJSHandlers.Remove(handler);
         }
 
+        void RunOnReloadHandlers() {
+            // The callbacks may attempt to register or unregister reload handlers, so make a copy
+            // of the list to avoid a concurrent modification exception.
+            foreach (var handler in _engineReloadJSHandlers.ToArray()) {
+                handler.Call();
+            }
+        }
+
+        public void RegisterDestroyHandler(Jint.Native.Function.FunctionInstance handler) {
+            _engineDestroyJSHandlers.Add(handler);
+        }
+
+        public void UnregisterDestroyHandler(Jint.Native.Function.FunctionInstance handler) {
+            _engineDestroyJSHandlers.Remove(handler);
+        }
+
+        void RunOnDestroyHandlers() {
+            foreach (var handler in _engineDestroyJSHandlers.ToArray()) {
+                handler.Call();
+            }
+        }
+
         /// <summary>
         /// Apply all class string processors.
         /// </summary>
@@ -381,14 +403,6 @@ namespace OneJS {
         /// </summary>
         public void RegisterClassStrProcessor(IClassStrProcessor processor) {
             _classStrProcessors.Add(processor);
-        }
-
-        void RunJsReloadHandlers() {
-            // The callbacks may attempt to register or unregister reload handlers, so make a copy
-            // of the list to avoid a concurrent modification exception.
-            foreach (var handler in _engineReloadJSHandlers.ToArray()) {
-                handler.Call();
-            }
         }
 
         void CleanUp() {
@@ -543,7 +557,7 @@ namespace OneJS {
         }
 
         public void Reload() {
-            RunJsReloadHandlers();
+            RunOnReloadHandlers();
             OnReload?.Invoke();
             CleanUp();
             InitEngine();
