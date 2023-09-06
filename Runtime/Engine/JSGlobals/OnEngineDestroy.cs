@@ -4,7 +4,7 @@ using Jint.Native;
 using UnityEngine;
 
 namespace OneJS.Engine.JSGlobals {
-    public class OnEngineDestory {
+    public class OnEngineDestroy {
         public static void Setup(ScriptEngine engine) {
             engine.JintEngine.SetValue("onEngineDestroy",
                 new Action<JsValue>((handler) => {
