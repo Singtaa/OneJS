@@ -6,6 +6,7 @@ namespace OneJS.Editor {
     public class TSDefConverterEditorWindow : EditorWindow {
         [SerializeField] string _typeName;
         [SerializeField] bool _jintSyntaxForEvents = true;
+        [SerializeField] bool _includeBaseMembers = true;
         [SerializeField] string _defstr;
         [SerializeField] Vector2 _scrollPos;
 
@@ -19,17 +20,21 @@ namespace OneJS.Editor {
 
         private void OnGUI() {
             EditorGUILayout.Space(10);
-            EditorGUILayout.HelpBox("Generated typings can be verbose at times. Feel free to remove stuff you don't need. Remember, TS type definitions are just for compile-time type checking. They are nice to have, but not required.", MessageType.Info);
+            EditorGUILayout.HelpBox("Generated typings can be verbose at times. Feel free to remove " +
+                                    "stuff you don't need. Remember, TS type definitions are just for compile-time " +
+                                    "type checking. They are nice to have, but not required.", MessageType.Info);
             EditorGUILayout.LabelField("Fully Qualified Type Name:");
             _typeName = GUILayout.TextField(_typeName);
+            EditorGUIUtility.labelWidth = 300;
             _jintSyntaxForEvents = EditorGUILayout.Toggle("Use Jint syntax for events", _jintSyntaxForEvents);
+            _includeBaseMembers = EditorGUILayout.Toggle("Include Base Members", _includeBaseMembers);
             if (GUILayout.Button("Convert")) {
                 var type = AssemblyFinder.FindType(_typeName);
                 if (type == null) {
                     Debug.LogError($"Type {_typeName} not found.");
                     return;
                 }
-                var converter = new TSDefConverter(type, _jintSyntaxForEvents);
+                var converter = new TSDefConverter(type, _jintSyntaxForEvents, _includeBaseMembers);
                 _defstr = converter.Convert();
             }
             EditorGUILayout.Space(20);

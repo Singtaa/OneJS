@@ -40,6 +40,7 @@ namespace OneJS.Editor {
         };
 
         bool _jintSyntaxForEvents;
+        bool _includeBaseMembers;
 
         Type _type;
         ConstructorInfo[] _ctors;
@@ -56,9 +57,15 @@ namespace OneJS.Editor {
         string _output;
         int _indentSpaces = 0;
 
-        public TSDefConverter(Type type, bool jintSyntaxForEvents = false) {
+        /// <summary>
+        /// TODO refactor out an options class if more options are added
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="jintSyntaxForEvents"></param>
+        public TSDefConverter(Type type, bool jintSyntaxForEvents = false, bool includeBaseMembers = true) {
             this._type = type;
             this._jintSyntaxForEvents = jintSyntaxForEvents;
+            this._includeBaseMembers = includeBaseMembers;
             DoMembers();
         }
 
@@ -132,7 +139,14 @@ namespace OneJS.Editor {
         }
 
         void DoMembers() {
-            var flags = BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.DeclaredOnly;
+            var flags = BindingFlags.Public;
+
+            if (_includeBaseMembers) {
+                flags |= BindingFlags.FlattenHierarchy;
+            } else {
+                flags |= BindingFlags.DeclaredOnly;
+            }
+
             _ctors = _type.GetConstructors(flags | BindingFlags.Instance);
             _fields = _type.GetFields(flags | BindingFlags.Instance);
             _events = _type.GetEvents(flags | BindingFlags.Instance);
@@ -213,7 +227,7 @@ namespace OneJS.Editor {
                     var constraintTypes = t.GetGenericParameterConstraints();
 
                     if (constraintTypes.Length > 0) {
-                      return $"{typeName} extends {string.Join(", ", constraintTypes.Select(TSName))}";
+                        return $"{typeName} extends {string.Join(", ", constraintTypes.Select(TSName))}";
                     }
 
                     return typeName;
