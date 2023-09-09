@@ -117,9 +117,9 @@ namespace OneJS.Engine {
         void GenerateUssFiles() {
             _scriptEngine = GetComponent<ScriptEngine>();
             string css = File.ReadAllText(Path.Combine(_scriptEngine.WorkingDir, _outputCssPath));
-            
+
             css = ConvertRgbToRgba(css);
-            
+
             string pattern = @"@media[^\{]+\{(([^\{\}]+\{[^\{\}]+\}[^\{\}]*)+)\}";
             MatchCollection matches = Regex.Matches(css, pattern, RegexOptions.Singleline);
 
@@ -137,12 +137,14 @@ namespace OneJS.Engine {
                         break;
                     }
                 }
-                File.WriteAllText(GetAssetPath(_breakpointStyleSheets[i]), mediaCss);
+                File.WriteAllText(GetAbsoluteAssetPath(_breakpointStyleSheets[i]), mediaCss);
+                AssetDatabase.ImportAsset(AssetDatabase.GetAssetPath(_breakpointStyleSheets[i]));
             }
             baseCss = Regex.Replace(baseCss, @"@media[^\{]+\{([^\{\}]+\{[^\{\}]+\}[^\{\}]*)+\}", "",
                 RegexOptions.Singleline);
             baseCss = TransformCssText(baseCss);
-            File.WriteAllText(GetAssetPath(_baseStyleSheet), baseCss);
+            File.WriteAllText(GetAbsoluteAssetPath(_baseStyleSheet), baseCss);
+            AssetDatabase.ImportAsset(AssetDatabase.GetAssetPath(_baseStyleSheet));
 
             if (_enableLogging)
                 print("Tailwind USS files Written.");
@@ -155,13 +157,13 @@ namespace OneJS.Engine {
             return output;
         }
 
-        string GetAssetPath(UnityEngine.Object obj) {
+        string GetAbsoluteAssetPath(UnityEngine.Object obj) {
             string relativePath = AssetDatabase.GetAssetPath(obj);
             string absolutePath = Path.Combine(Application.dataPath, "../", relativePath);
             return absolutePath;
         }
 #endif
-        
+
         public string ProcessClassStr(string classStr, Dom.Dom dom) {
             var names = classStr.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             names = names.Select(s => s[0] >= 48 && s[0] <= 57 ? "_" + s : s).ToArray(); // ^\d => _\d
