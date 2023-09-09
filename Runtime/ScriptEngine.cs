@@ -202,6 +202,7 @@ namespace OneJS {
 
         List<Action> _frameActions = new List<Action>();
         List<Action> _frameActionBuffer = new List<Action>();
+        List<int> _frameActionIdsToRemove = new List<int>();
 
         int _tick = 0;
 
@@ -239,9 +240,15 @@ namespace OneJS {
 
         void LateUpdate() {
             if (_engine == null) return;
-
             _engine.ResetConstraints();
 
+            _frameActionIdsToRemove.Sort();
+            _frameActionIdsToRemove.Reverse();
+            for (int i = 0; i < _frameActionIdsToRemove.Count; i++) {
+                var id = _frameActionIdsToRemove[i];
+                _frameActions.RemoveAt(id);
+            }
+            _frameActionIdsToRemove.Clear();
             _frameActionBuffer.AddRange(_frameActions);
             _frameActions.Clear();
             for (int i = 0; i < _frameActionBuffer.Count; i++) {
@@ -319,7 +326,7 @@ namespace OneJS {
 
         public void ClearFrameAction(int id) {
             if (_frameActions.Count > id) {
-                _frameActions.RemoveAt(id);
+                _frameActionIdsToRemove.Add(id);
             }
         }
 
