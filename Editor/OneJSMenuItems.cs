@@ -21,6 +21,11 @@ namespace OneJS.Editor {
             var processName = "explorer.exe";
 #elif UNITY_STANDALONE_OSX
             var processName = "open";
+#elif UNITY_STANDALONE_LINUX
+            var processName = "xdg-open";
+#else
+            var processName = "unknown";
+            Debug.LogWarning("Unknown platform. Cannot open folder");
 #endif
             var argStr = $"\"{Path.GetFullPath(path)}\"";
             var proc = new Process() {
