@@ -7,6 +7,7 @@ namespace OneJS.Editor {
         [SerializeField] string _typeName;
         [SerializeField] bool _jintSyntaxForEvents = true;
         [SerializeField] bool _includeBaseMembers = true;
+        [SerializeField] bool _includeOverriddenMembers = true;
         [SerializeField] string _defstr;
         [SerializeField] Vector2 _scrollPos;
 
@@ -28,13 +29,15 @@ namespace OneJS.Editor {
             EditorGUIUtility.labelWidth = 300;
             _jintSyntaxForEvents = EditorGUILayout.Toggle("Use Jint syntax for events", _jintSyntaxForEvents);
             _includeBaseMembers = EditorGUILayout.Toggle("Include Base Members", _includeBaseMembers);
+            _includeOverriddenMembers = EditorGUILayout.Toggle("Include Overridden Members", _includeOverriddenMembers);
             if (GUILayout.Button("Convert")) {
                 var type = AssemblyFinder.FindType(_typeName);
                 if (type == null) {
                     Debug.LogError($"Type {_typeName} not found.");
                     return;
                 }
-                var converter = new TSDefConverter(type, _jintSyntaxForEvents, _includeBaseMembers);
+                var converter = new TSDefConverter(type, _jintSyntaxForEvents, _includeBaseMembers,
+                    _includeOverriddenMembers);
                 _defstr = converter.Convert();
             }
             EditorGUILayout.Space(20);

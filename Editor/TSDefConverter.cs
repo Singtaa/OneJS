@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using UnityEngine;
 
 namespace OneJS.Editor {
     public class TSDefConverter {
@@ -41,6 +42,7 @@ namespace OneJS.Editor {
 
         bool _jintSyntaxForEvents;
         bool _includeBaseMembers;
+        bool _includeOverriddenMembers;
 
         Type _type;
         ConstructorInfo[] _ctors;
@@ -58,14 +60,16 @@ namespace OneJS.Editor {
         int _indentSpaces = 0;
 
         /// <summary>
-        /// TODO refactor out an options class if more options are added
+        /// TODO refactor out an options class when too many options are needed
         /// </summary>
         /// <param name="type"></param>
         /// <param name="jintSyntaxForEvents"></param>
-        public TSDefConverter(Type type, bool jintSyntaxForEvents = false, bool includeBaseMembers = true) {
+        public TSDefConverter(Type type, bool jintSyntaxForEvents = true, bool includeBaseMembers = true,
+            bool includeOverriddenMembers = true) {
             this._type = type;
             this._jintSyntaxForEvents = jintSyntaxForEvents;
             this._includeBaseMembers = includeBaseMembers;
+            this._includeOverriddenMembers = includeOverriddenMembers;
             DoMembers();
         }
 
@@ -117,13 +121,12 @@ namespace OneJS.Editor {
             }
         }
 
-        public void Debug() {
-            DoMembers();
-            UnityEngine.Debug.Log($"{_type.Name} has {_fields.Length} fields, " +
-                                  $"{_methods.Length} methods, " + $"{_properties.Length} properties, " +
-                                  $"{_staticFields.Length} static fields, " +
-                                  $"{_staticMethods.Length} static methods, " +
-                                  $"{_staticProperties.Length} static properties");
+        public void LogDebugInfo() {
+            Debug.Log($"{_type.Name} has {_fields.Length} fields, " +
+                      $"{_methods.Length} methods, " + $"{_properties.Length} properties, " +
+                      $"{_staticFields.Length} static fields, " +
+                      $"{_staticMethods.Length} static methods, " +
+                      $"{_staticProperties.Length} static properties");
         }
 
         public void Indent() {
@@ -156,6 +159,14 @@ namespace OneJS.Editor {
             _staticEvents = _type.GetEvents(flags | BindingFlags.Static);
             _staticMethods = _type.GetMethods(flags | BindingFlags.Static);
             _staticProperties = _type.GetProperties(flags | BindingFlags.Static);
+
+            if (!_includeOverriddenMembers) {
+                _methods = _methods.Where(m => m.GetBaseDefinition() == m).ToArray();
+                _properties = _properties.Where(p =>
+                    (p.GetGetMethod() == null || p.GetGetMethod().GetBaseDefinition() == p.GetGetMethod()) &&
+                    (p.GetSetMethod() == null || p.GetSetMethod().GetBaseDefinition() == p.GetSetMethod())
+                ).ToArray();
+            }
         }
 
         string ClassDecStr() {
