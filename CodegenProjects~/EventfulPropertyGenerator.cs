@@ -167,7 +167,10 @@ public class EventfulPropertyGenerator : ISourceGenerator {
     EventFieldDeclaration(
       VariableDeclaration(
         QualifiedName(
-          IdentifierName("System"),
+          AliasQualifiedName(
+            IdentifierName(Token(SyntaxKind.GlobalKeyword)),
+            IdentifierName("System")
+          ),
           GenericName(
             Identifier("Action"),
             TypeArgumentList(
