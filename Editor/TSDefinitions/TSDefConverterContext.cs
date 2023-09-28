@@ -4,22 +4,20 @@ using System.Reflection;
 using OneJS.Extensions;
 using UnityEngine;
 
-namespace OneJS.Editor.TSDefinitions
-{
-    public class TsDefConverterObjectContext
-    {
+namespace OneJS.Editor.TSDefinitions {
+    public class TsDefConverterObjectContext {
         public int UnwrapOrder { get; set; }
 
-        public Type              Type             { get; set; }
-        public ConstructorInfo[] Ctors            { get; set; }
-        public FieldInfo[]       Fields           { get; set; }
-        public EventInfo[]       Events           { get; set; }
-        public MethodInfo[]      Methods          { get; set; }
-        public PropertyInfo[]    Properties       { get; set; }
-        public FieldInfo[]       StaticFields     { get; set; }
-        public EventInfo[]       StaticEvents     { get; set; }
-        public MethodInfo[]      StaticMethods    { get; set; }
-        public PropertyInfo[]    StaticProperties { get; set; }
+        public Type Type { get; set; }
+        public ConstructorInfo[] Ctors { get; set; }
+        public FieldInfo[] Fields { get; set; }
+        public EventInfo[] Events { get; set; }
+        public MethodInfo[] Methods { get; set; }
+        public PropertyInfo[] Properties { get; set; }
+        public FieldInfo[] StaticFields { get; set; }
+        public EventInfo[] StaticEvents { get; set; }
+        public MethodInfo[] StaticMethods { get; set; }
+        public PropertyInfo[] StaticProperties { get; set; }
 
 
         public TsDefConverterObjectContext(Type type, TSDefConverterOptions options, int unwrapOrder) {
@@ -35,20 +33,19 @@ namespace OneJS.Editor.TSDefinitions
                 flags |= BindingFlags.DeclaredOnly;
             }
 
-            Ctors            = Type.GetConstructors(flags | BindingFlags.Instance);
-            Fields           = Type.GetFields(flags | BindingFlags.Instance);
-            Events           = Type.GetEvents(flags | BindingFlags.Instance);
-            Methods          = Type.GetMethods(flags | BindingFlags.Instance);
-            Properties       = Type.GetProperties(flags | BindingFlags.Instance);
-            StaticFields     = Type.GetFields(flags | BindingFlags.Static);
-            StaticEvents     = Type.GetEvents(flags | BindingFlags.Static);
-            StaticMethods    = Type.GetMethods(flags | BindingFlags.Static);
+            Ctors = Type.GetConstructors(flags | BindingFlags.Instance);
+            Fields = Type.GetFields(flags | BindingFlags.Instance);
+            Events = Type.GetEvents(flags | BindingFlags.Instance);
+            Methods = Type.GetMethods(flags | BindingFlags.Instance);
+            Properties = Type.GetProperties(flags | BindingFlags.Instance);
+            StaticFields = Type.GetFields(flags | BindingFlags.Static);
+            StaticEvents = Type.GetEvents(flags | BindingFlags.Static);
+            StaticMethods = Type.GetMethods(flags | BindingFlags.Static);
             StaticProperties = Type.GetProperties(flags | BindingFlags.Static);
         }
     }
 
-    public class TsDefConverterContext
-    {
+    public class TsDefConverterContext {
         public static TsDefConverterContext Instance { get; private set; }
 
         private int _unwrapOrder = 0;
@@ -70,15 +67,15 @@ namespace OneJS.Editor.TSDefinitions
                 Debug.LogError("Type or TypesInNamespace must be set");
                 return false;
             }
-            
+
             if (Options.Type != null) {
                 return LoadObjectContext(Options.Type, true);
             }
-            
+
             foreach (var type in Options.TypesInNamespace) {
                 LoadObjectContext(type, true);
             }
-            
+
             return true;
         }
 
@@ -95,14 +92,13 @@ namespace OneJS.Editor.TSDefinitions
 
             ObjectContexts.Add(type, ctx);
 
-            if(Options.ExtractBaseDefinitions) {
+            if (Options.ExtractBaseDefinitions) {
                 foreach (var baseType in type.GetBaseTypes()) {
                     LoadObjectContext(baseType);
                 }
             }
-            
+
             return true;
         }
-
     }
 }

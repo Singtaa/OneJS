@@ -1,15 +1,14 @@
 using System;
+using System.Diagnostics;
 using OneJS.Editor;
 using OneJS.Utils;
-using Sirenix.Utilities;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
+using Debug = UnityEngine.Debug;
 
-namespace OneJS.Editor.TSDefinitions
-{
-    public class TSDefConverterEditorWindow : EditorWindow
-    {
+namespace OneJS.Editor.TSDefinitions {
+    public class TSDefConverterEditorWindow : EditorWindow {
         [SerializeField]
         private string _typeName;
 
@@ -20,13 +19,13 @@ namespace OneJS.Editor.TSDefinitions
         private bool _includeBaseMembers = true;
 
         [SerializeField]
-        private bool _excludeUnityBaseTypes = true;
+        private bool _includeDeclare = true;
 
         [SerializeField]
         private bool _extractBaseDefinitions = true;
 
         [SerializeField]
-        private bool _includeDeclare = true;
+        private bool _excludeUnityBaseTypes = false;
 
         [SerializeField]
         private string _outputStr;
@@ -34,7 +33,7 @@ namespace OneJS.Editor.TSDefinitions
         private TextField _outputField;
 
         private VisualElement nsQuestionContainer;
-        private Action<bool>  nsQuestionCallback;
+        private Action<bool> nsQuestionCallback;
 
         [MenuItem("Tools/OneJS/C# to TSDef Converter")]
         private static void ShowWindow() {
@@ -46,7 +45,7 @@ namespace OneJS.Editor.TSDefinitions
         void CreateGUI() {
             var root = new VisualElement {
                 style = {
-                    width  = new StyleLength(Length.Percent(100)),
+                    width = new StyleLength(Length.Percent(100)),
                     height = new StyleLength(Length.Percent(100))
                 }
             };
@@ -59,9 +58,9 @@ namespace OneJS.Editor.TSDefinitions
 
             container.Add(new Label("C# to TSDef Converter") {
                 style = {
-                    fontSize       = 20,
+                    fontSize = 20,
                     unityTextAlign = TextAnchor.MiddleCenter,
-                    marginBottom   = 20,
+                    marginBottom = 20,
                 }
             });
 
@@ -69,21 +68,20 @@ namespace OneJS.Editor.TSDefinitions
                 new HelpBox("Generated typings can be verbose at times. Feel free to remove " +
                             "stuff you don't need. Remember, TS type definitions are just for compile-time " +
                             "type checking. They are nice to have, but not required.",
-                            HelpBoxMessageType.Info
+                    HelpBoxMessageType.Info
                 ) {
                     style = {
                         // For some reason, the help box needs height set explicitly
-                        minHeight      = 40,
-                        unityTextAlign = TextAnchor.MiddleCenter,
-                        marginBottom   = 20,
+                        minHeight = 40,
+                        unityTextAlign = TextAnchor.UpperLeft,
+                        marginBottom = 20,
                     }
                 });
 
             var typeNameField = new TextField("Fully Qualified Type Name:") {
                 value = _typeName,
             };
-            typeNameField.RegisterValueChangedCallback(evt =>
-            {
+            typeNameField.RegisterValueChangedCallback(evt => {
                 _typeName = evt.newValue;
                 SettingsUpdated();
             });
@@ -91,10 +89,9 @@ namespace OneJS.Editor.TSDefinitions
 
             var jintSyntaxForEventsToggle = new Toggle("Use Jint syntax for events") {
                 value = _jintSyntaxForEvents,
-                style = {marginTop = 5}
+                style = { marginTop = 5 }
             };
-            jintSyntaxForEventsToggle.RegisterValueChangedCallback(evt =>
-            {
+            jintSyntaxForEventsToggle.RegisterValueChangedCallback(evt => {
                 _jintSyntaxForEvents = evt.newValue;
                 SettingsUpdated();
             });
@@ -102,21 +99,29 @@ namespace OneJS.Editor.TSDefinitions
 
             var includeBaseMembersToggle = new Toggle("Include Base Members") {
                 value = _includeBaseMembers,
-                style = {marginTop = 5}
+                style = { marginTop = 5 }
             };
-            includeBaseMembersToggle.RegisterValueChangedCallback(evt =>
-            {
+            includeBaseMembersToggle.RegisterValueChangedCallback(evt => {
                 _includeBaseMembers = evt.newValue;
                 SettingsUpdated();
             });
             container.Add(includeBaseMembersToggle);
 
+            var includeDeclareToggle = new Toggle("Include `declare module` wrapper") {
+                value = _includeDeclare,
+                style = { marginTop = 5 }
+            };
+            includeDeclareToggle.RegisterValueChangedCallback(evt => {
+                _includeDeclare = evt.newValue;
+                SettingsUpdated();
+            });
+            container.Add(includeDeclareToggle);
+
             var extractBaseDefinitionsToggle = new Toggle("Extract Base Definitions") {
                 value = _extractBaseDefinitions,
-                style = {marginTop = 5}
+                style = { marginTop = 5 }
             };
-            extractBaseDefinitionsToggle.RegisterValueChangedCallback(evt =>
-            {
+            extractBaseDefinitionsToggle.RegisterValueChangedCallback(evt => {
                 _extractBaseDefinitions = evt.newValue;
                 SettingsUpdated();
             });
@@ -124,35 +129,23 @@ namespace OneJS.Editor.TSDefinitions
 
             var excludeUnityBaseTypes = new Toggle("Exclude Unity Base Types(UnityObject, MonoBehaviour, etc)") {
                 value = _excludeUnityBaseTypes,
-                style = {marginTop = 5}
+                style = { marginTop = 5 }
             };
-            excludeUnityBaseTypes.RegisterValueChangedCallback(evt =>
-            {
+            excludeUnityBaseTypes.RegisterValueChangedCallback(evt => {
                 _excludeUnityBaseTypes = evt.newValue;
                 SettingsUpdated();
             });
             container.Add(excludeUnityBaseTypes);
 
-            var includeDeclareToggle = new Toggle("Include `declare module` wrapper") {
-                value = _includeDeclare,
-                style = {marginTop = 5}
-            };
-            includeDeclareToggle.RegisterValueChangedCallback(evt =>
-            {
-                _includeDeclare = evt.newValue;
-                SettingsUpdated();
-            });
-            container.Add(includeDeclareToggle);
-
-            container.Add(new Button(GenerateDefinition) {
-                text  = "Convert",
-                style = {marginTop = 10}
+            container.Add(new Button(() => GenerateDefinition(true)) {
+                text = "Convert",
+                style = { marginTop = 10 }
             });
 
             nsQuestionContainer = new VisualElement {
                 style = {
-                    display        = new StyleEnum<DisplayStyle>(DisplayStyle.None),
-                    marginTop      = 20,
+                    display = new StyleEnum<DisplayStyle>(DisplayStyle.None),
+                    marginTop = 20,
                     unityTextAlign = TextAnchor.MiddleLeft
                 }
             };
@@ -160,20 +153,14 @@ namespace OneJS.Editor.TSDefinitions
 
             var nsQuestionButtons = new VisualElement {
                 style = {
-                    marginTop      = 5,
+                    marginTop = 5,
                     unityTextAlign = TextAnchor.MiddleCenter
                 }
             };
-            nsQuestionButtons.Add(new Button(() =>
-            {
-                nsQuestionCallback?.Invoke(true);
-            }) {
+            nsQuestionButtons.Add(new Button(() => { nsQuestionCallback?.Invoke(true); }) {
                 text = "Yes",
             });
-            nsQuestionButtons.Add(new Button(() =>
-            {
-                nsQuestionCallback?.Invoke(false);
-            }) {
+            nsQuestionButtons.Add(new Button(() => { nsQuestionCallback?.Invoke(false); }) {
                 text = "No",
             });
             nsQuestionContainer.Add(nsQuestionButtons);
@@ -182,33 +169,31 @@ namespace OneJS.Editor.TSDefinitions
 
             container.Add(new Label("Result:") {
                 style = {
-                    marginTop      = 20,
+                    marginTop = 20,
                     unityTextAlign = TextAnchor.MiddleLeft
                 }
             });
             _outputField = new TextField {
-                multiline                  = true,
-                value                      = _outputStr,
-                isReadOnly                 = true,
-                verticalScrollerVisibility = ScrollerVisibility.Auto,
+                multiline = true,
+                value = _outputStr,
+                isReadOnly = true,
 
                 style = {
-                    marginTop      = 5,
+                    marginTop = 5,
                     unityTextAlign = TextAnchor.MiddleCenter,
-                    maxHeight      = 300,
+                    maxHeight = 9999,
                 }
             };
             container.Add(_outputField);
 
-            container.Add(new Button(() => GUIUtility.systemCopyBuffer = _outputStr) {text = "Copy to Clipboard"});
+            container.Add(new Button(() => GUIUtility.systemCopyBuffer = _outputStr) { text = "Copy to Clipboard" });
 
             rootVisualElement.Add(root);
         }
 
         private void ShowNamespaceQuestion(Action<bool> callback) {
             nsQuestionContainer.style.display = new StyleEnum<DisplayStyle>(DisplayStyle.Flex);
-            nsQuestionCallback = (result) =>
-            {
+            nsQuestionCallback = (result) => {
                 callback?.Invoke(result);
                 nsQuestionContainer.style.display = new StyleEnum<DisplayStyle>(DisplayStyle.None);
             };
@@ -220,33 +205,34 @@ namespace OneJS.Editor.TSDefinitions
             GenerateDefinition();
         }
 
-        private void GenerateDefinition() {
+        private void GenerateDefinition(bool logError = false) {
             var type = AssemblyFinder.FindType(_typeName);
 
             var options = new TSDefConverterOptions {
-                IncludeDeclare         = _includeDeclare,
-                IncludeBaseMembers     = _includeBaseMembers,
-                ExcludeUnityBaseTypes  = _excludeUnityBaseTypes,
+                IncludeDeclare = _includeDeclare,
+                IncludeBaseMembers = _includeBaseMembers,
+                ExcludeUnityBaseTypes = _excludeUnityBaseTypes,
                 ExtractBaseDefinitions = _extractBaseDefinitions,
-                JintSyntaxForEvents    = _jintSyntaxForEvents
+                JintSyntaxForEvents = _jintSyntaxForEvents
             };
 
             if (type == null) {
                 var typesInNs = AssemblyFinder.FindTypesInNamespace(_typeName);
                 if (typesInNs.Count == 0) {
-                    Debug.LogError($"Type {_typeName} not found.");
+                    if (logError)
+                        Debug.LogError($"Type {_typeName} not found.");
                     return;
                 }
 
-                ShowNamespaceQuestion(r =>
-                {
+                ShowNamespaceQuestion(r => {
                     if (!r) {
-                        Debug.LogError($"Type {_typeName} not found.");
+                        if (logError)
+                            Debug.LogError($"Type {_typeName} not found.");
                         return;
                     }
 
                     options.GenerateAllTypesInNamespace = true;
-                    options.TypesInNamespace            = typesInNs.ToArray();
+                    options.TypesInNamespace = typesInNs.ToArray();
 
                     RunWithOptions(options);
                 });
@@ -260,9 +246,9 @@ namespace OneJS.Editor.TSDefinitions
         }
 
         private void RunWithOptions(TSDefConverterOptions options) {
-            var ctx       = TsDefConverterContext.NewContext(options);
+            var ctx = TsDefConverterContext.NewContext(options);
             var converter = new TSDefConverter(ctx);
-            _outputStr         = converter.Convert();
+            _outputStr = converter.Convert();
             _outputField.value = _outputStr;
         }
     }
