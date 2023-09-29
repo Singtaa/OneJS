@@ -8,6 +8,13 @@ namespace OneJS.Utils {
         static Assembly[] _assemblies;
         static Assembly[] Assemblies => _assemblies ??= AppDomain.CurrentDomain.GetAssemblies();
 
+        static HashSet<string> _allNamespaces;
+        static HashSet<string> AllNamespaces =>
+            _allNamespaces ??= new HashSet<string>(
+                Assemblies.SelectMany(a => a.GetTypes().Select(t => t.Namespace))
+                    .Where(n => n != null)
+            );
+
         /// <summary>
         /// Can be slow
         /// </summary>
@@ -29,8 +36,14 @@ namespace OneJS.Utils {
             return null;
         }
 
+        public static bool IsValidNamespace(string namespaceName) {
+            return AllNamespaces.Contains(namespaceName);
+        }
+
         public static List<Type> FindTypesInNamespace(string namespaceName) {
             var typesInNamespace = new List<Type>();
+            if (!IsValidNamespace(namespaceName))
+                return typesInNamespace;
             foreach (var asm in Assemblies) {
                 foreach (var type in asm.GetTypes()) {
                     if (type.Namespace == namespaceName)
