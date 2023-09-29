@@ -22,7 +22,7 @@ namespace OneJS.Editor.TSDefinitions {
         private bool _includeDeclare = true;
 
         [SerializeField]
-        private bool _extractBaseDefinitions = true;
+        private bool _extractBaseDefinitions = false;
 
         [SerializeField]
         private bool _excludeUnityBaseTypes = false;
