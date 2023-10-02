@@ -86,6 +86,7 @@ namespace Jint.CommonJS {
                 ");
                 var requireFunc = new DelegateWrapper(engine.engine, new Func<string, JsValue>(this.Require));
                 engine.engine.Call(func, moduleObject, this.Exports, Path.GetDirectoryName(filePath), requireFunc).UnwrapIfPromise();
+                engine.engine.RunAvailableContinuations();
             } catch (JavaScriptException jse) {
                 StringBuilder sb = new StringBuilder();
                 sb.Append($"Javascript Error at {filePath} (Line {jse.Location.Start.Line - 2})\n\n");
