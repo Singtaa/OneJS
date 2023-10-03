@@ -241,6 +241,8 @@ namespace OneJS {
         void LateUpdate() {
             if (_engine == null) return;
             _engine.ResetConstraints();
+            _engine.RunAvailableContinuations(); // RunAvailableContinuations is not public in normal Jint
+            // _engine.Advanced.ProcessTasks(); // Can use this instead
 
             _frameActionIdsToRemove.Sort();
             _frameActionIdsToRemove.Reverse();

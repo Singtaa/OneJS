@@ -72,7 +72,12 @@ namespace Jint.CommonJS {
         }
 
         protected JsValue Require(string moduleId) {
-            return engine.Load(moduleId, this);
+            // RunAvailableContinuations is needed here (before engine.Load) to accomodate require() inside
+            // of Promise.resolve().then() chains such as in the case of dynamic imports. However, there may
+            // be better ways to handle this.
+            engine.engine.RunAvailableContinuations();
+            var jsVal = engine.Load(moduleId, this);
+            return jsVal;
         }
 
         public JsValue Compile(string sourceCode, string filePath) {
@@ -85,8 +90,7 @@ namespace Jint.CommonJS {
                     }})
                 ");
                 var requireFunc = new DelegateWrapper(engine.engine, new Func<string, JsValue>(this.Require));
-                engine.engine.Call(func, moduleObject, this.Exports, Path.GetDirectoryName(filePath), requireFunc).UnwrapIfPromise();
-                engine.engine.RunAvailableContinuations();
+                engine.engine.Call(func, moduleObject, this.Exports, Path.GetDirectoryName(filePath), requireFunc);
             } catch (JavaScriptException jse) {
                 StringBuilder sb = new StringBuilder();
                 sb.Append($"Javascript Error at {filePath} (Line {jse.Location.Start.Line - 2})\n\n");
