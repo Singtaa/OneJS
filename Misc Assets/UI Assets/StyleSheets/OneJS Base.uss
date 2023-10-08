@@ -3,6 +3,3 @@ Button {
     flex-direction: row;
     justify-content: center;
 }
-.unity-radio-button-group > .unity-base-field__input {
-    display: none;
-}
