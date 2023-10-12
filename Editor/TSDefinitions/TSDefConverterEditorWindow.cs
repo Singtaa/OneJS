@@ -46,12 +46,16 @@ namespace OneJS.Editor.TSDefinitions {
             var root = new VisualElement {
                 style = {
                     width = new StyleLength(Length.Percent(100)),
-                    height = new StyleLength(Length.Percent(100))
+                    height = new StyleLength(Length.Percent(100)),
                 }
             };
 
             var scrollContainer = new ScrollView(ScrollViewMode.Vertical);
             scrollContainer.contentContainer.style.flexGrow = 1;
+            scrollContainer.contentContainer.style.paddingBottom = 10;
+            scrollContainer.contentContainer.style.paddingLeft = 10;
+            scrollContainer.contentContainer.style.paddingRight = 10;
+            scrollContainer.contentContainer.style.paddingTop = 10;
             root.Add(scrollContainer);
 
             var container = scrollContainer.contentContainer;
@@ -175,7 +179,7 @@ namespace OneJS.Editor.TSDefinitions {
             });
             _outputField = new TextField {
                 multiline = true,
-                value = _outputStr,
+                value = _outputStr.Length > 10000 ? _outputStr.Substring(0, 10000) + "..." : _outputStr,
                 isReadOnly = true,
 
                 style = {
@@ -249,7 +253,7 @@ namespace OneJS.Editor.TSDefinitions {
             var ctx = TsDefConverterContext.NewContext(options);
             var converter = new TSDefConverter(ctx);
             _outputStr = converter.Convert();
-            _outputField.value = _outputStr;
+            _outputField.value = _outputStr.Length > 10000 ? _outputStr.Substring(0, 10000) + "..." : _outputStr;
         }
     }
 }
