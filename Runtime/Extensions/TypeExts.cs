@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace OneJS.Extensions {
@@ -21,6 +22,31 @@ namespace OneJS.Extensions {
                        + $"<{genericArguments}>";
             }
             return type.Name;
+        }
+
+
+        /// <summary>
+        /// Returns a lazy enumerable of all the base types of this type including interfaces and classes
+        /// </summary>
+        public static IEnumerable<Type> GetBaseTypes(this Type type, bool includeSelf = false) {
+            var first = type.GetBaseClasses(includeSelf).Concat(type.GetInterfaces());
+            if (includeSelf && type.IsInterface)
+                first.Concat(new Type[1] {type});
+
+            return first;
+        }
+
+        /// <summary>
+        /// Returns a lazy enumerable of all the base classes of this type
+        /// </summary>
+        public static IEnumerable<Type> GetBaseClasses(this Type type, bool includeSelf = false) {
+            if (type is not {BaseType: not null}) yield break;
+
+            if (includeSelf)
+                yield return type;
+
+            for (var current = type.BaseType; current != null; current = current.BaseType)
+                yield return current;
         }
     }
 }
