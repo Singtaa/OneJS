@@ -1,3 +1,3 @@
-Thank you everyone for the support! Just a quick note: Since Github doesn't allow setting collaborator permission for private free repos, everyone gets push access. Because of that, the main branch is set as a protected branch (to prevent potential accidents)
+### Preliminary V8 build for OneJS
 
-In most cases, you can just clone this repo directly under your Assets folder. If you encounter any issue when upgrading OneJS, you can try deleting `ScriptLib/` folder and `tsconfig.json` in your OneJS Working Directory. They will be automatically regenerated.
+To Enable V8, use the "Tools/OneJS/Enable V8" menu item. This is work in progress and is not yet ready for normal use. Expect lots of bugs and missing parity with Jint.

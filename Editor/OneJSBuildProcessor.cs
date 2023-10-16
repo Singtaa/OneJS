@@ -1,5 +1,5 @@
 ﻿using System.Collections.Generic;
-using OneJS.Engine;
+using OneJS.Engine.Components;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;

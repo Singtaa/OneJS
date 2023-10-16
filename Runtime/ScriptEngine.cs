@@ -8,6 +8,7 @@ using Jint.CommonJS;
 using Jint.Runtime.Interop;
 using OneJS.Dom;
 using OneJS.Engine;
+using OneJS.Engine.Components;
 using OneJS.Utils;
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -17,6 +18,11 @@ using Debug = UnityEngine.Debug;
 namespace OneJS {
     [RequireComponent(typeof(UIDocument), typeof(CoroutineUtil))]
     public class ScriptEngine : MonoBehaviour {
+        public enum EEngineType {
+            Jint,
+            V8
+        }
+
         public string WorkingDir {
             get {
 #if UNITY_EDITOR
@@ -41,7 +47,7 @@ namespace OneJS {
             }
         }
 
-        public Jint.Engine JintEngine => _engine;
+        public IEngineWrapper CoreEngine => _coreEngine;
         public ModuleLoadingEngine ModuleEngine => _cjsEngine;
         public Dom.Document Document => _document;
         public Dom.Dom DocumentBody => _document.body;
@@ -58,14 +64,13 @@ namespace OneJS {
         public List<string> PostloadedScripts { get { return _postloadedScripts; } set { _postloadedScripts = value; } }
         public StyleSheet[] StyleSheets { get { return _styleSheets; } set { _styleSheets = value; } }
         public int[] Breakpoints { get { return _breakpoints; } set { _breakpoints = value; } }
-        public bool CatchDotNetExceptions {
-            get { return _catchDotNetExceptions; }
-            set { _catchDotNetExceptions = value; }
-        }
+        public bool CatchDotNetExceptions { get { return _catchDotNetExceptions; } set { _catchDotNetExceptions = value; } }
         public bool AllowReflection { get { return _allowReflection; } set { _allowReflection = value; } }
         public bool AllowGetType { get { return _allowGetType; } set { _allowGetType = value; } }
+        public int MemoryLimit { get { return _memoryLimit; } set { _memoryLimit = value; } }
         public int Timeout { get { return _timeout; } set { _timeout = value; } }
         public int RecursionDepth { get { return _recursionDepth; } set { _recursionDepth = value; } }
+        public bool LogRedundantErrors { get { return _logRedundantErrors; } set { _logRedundantErrors = value; } }
         public EditorModeWorkingDirInfo EditorModeWorkingDirInfo {
             get { return _editorModeWorkingDirInfo; }
             set { _editorModeWorkingDirInfo = value; }
@@ -74,6 +79,7 @@ namespace OneJS {
             get { return _playerModeWorkingDirInfo; }
             set { _playerModeWorkingDirInfo = value; }
         }
+        public string[] PathMappings { get { return _pathMappings; } set { _pathMappings = value; } }
         public bool SetDontDestroyOnLoad => _setDontDestroyOnLoad;
         public Assembly[] LoadedAssemblies => _loadedAssemblies;
         #endregion
@@ -81,7 +87,6 @@ namespace OneJS {
         public event Action OnPostInit;
         public event Action OnReload;
         public event Action OnEngineDestroy;
-        public event Action<Options> OnInitOptions;
 
         public Func<string, Type, Type> TagTypeResolver;
 
@@ -183,8 +188,11 @@ namespace OneJS {
 
         UIDocument _uiDocument;
         Document _document;
+
+        // V8ScriptEngine _v8Engine;
+
         ModuleLoadingEngine _cjsEngine;
-        Jint.Engine _engine;
+        IEngineWrapper _coreEngine;
         AsyncEngine.AsyncContext _asyncContext;
 
         List<Jint.Native.Function.FunctionInstance> _engineReloadJSHandlers =
@@ -207,6 +215,12 @@ namespace OneJS {
         int _tick = 0;
 
         public void Awake() {
+#if ONEJS_V8
+            _coreEngine = new V8Wrapper(this);
+#else
+            _coreEngine = new JintWrapper(this);
+#endif
+
             _uiDocument = GetComponent<UIDocument>();
             _uiDocument.rootVisualElement.style.width = new StyleLength(new Length(100, LengthUnit.Percent));
             _uiDocument.rootVisualElement.style.height = new StyleLength(new Length(100, LengthUnit.Percent));
@@ -236,12 +250,15 @@ namespace OneJS {
         void OnDestroy() {
             OnEngineDestroy?.Invoke();
             RunOnDestroyHandlers();
+            _coreEngine.Dispose();
         }
 
         void LateUpdate() {
-            if (_engine == null) return;
-            _engine.ResetConstraints();
-            _engine.RunAvailableContinuations(); // RunAvailableContinuations is not public in normal Jint
+            if (_coreEngine == null) return;
+            if (_coreEngine is JintWrapper jw) {
+                jw.ResetConstraints();
+                jw.RunAvailableContinuations();
+            }
             // _engine.Advanced.ProcessTasks(); // Can use this instead
 
             _frameActionIdsToRemove.Sort();
@@ -277,6 +294,10 @@ namespace OneJS {
             _tick++;
         }
 
+        public void Call(object callback, object thisObj, params object[] arguments) {
+            _coreEngine.Call(callback, thisObj, arguments);
+        }
+
         public void RunScript(string scriptPath) {
             var path = Path.Combine(WorkingDir, scriptPath);
             if (!File.Exists(path)) {
@@ -309,7 +330,7 @@ namespace OneJS {
             RunOnReloadHandlers();
             OnReload?.Invoke();
             CleanUp();
-            _engine = null;
+            _coreEngine = null;
         }
 
         public void RunScriptRaw(string scriptPath) {
@@ -426,13 +447,7 @@ namespace OneJS {
             _frameActions.Clear();
             _frameActionBuffer.Clear();
 
-            _globalFuncTypes.ForEach(t => {
-                var flags = BindingFlags.Public | BindingFlags.Static;
-                var mi = t.GetMethod("Reset", flags);
-                if (mi == null)
-                    return;
-                mi.Invoke(null, new object[] { });
-            });
+            _coreEngine.Reset();
             _loadedAssemblies = new Assembly[0];
         }
 
@@ -479,90 +494,17 @@ namespace OneJS {
             }).Where(a => a != null).ToArray();
 
             _asyncContext = new AsyncEngine.AsyncContext();
-            _engine = new Jint.Engine(opts => {
-                    opts.Interop.TrackObjectWrapperIdentity = false; // Unity too buggy with ConditionalWeakTable
-                    opts.SetTypeResolver(new TypeResolver {
-                        MemberNameComparer = StringComparer.Ordinal
-                    });
-                    opts.AllowClr(_loadedAssemblies);
-                    _extensions.ToList().ForEach((e) => {
-                        var type = AssemblyFinder.FindType(e);
-                        if (type == null)
-                            throw new Exception(
-                                $"ScriptEngine could not load extension \"{e}\". Please check your string(s) in the `extensions` array.");
-                        opts.AddExtensionMethods(type);
-                    });
-                    opts.AddObjectConverter(new AsyncEngine.TaskConverter(_asyncContext));
-                    opts.AllowOperatorOverloading();
+            _coreEngine.Init();
 
-                    if (_catchDotNetExceptions) opts.CatchClrExceptions(ClrExceptionHandler);
-                    if (_allowReflection) opts.Interop.AllowSystemReflection = true;
-                    if (_allowGetType) opts.Interop.AllowGetType = true;
-                    if (_memoryLimit > 0) opts.LimitMemory(_memoryLimit * 1048576);
-                    if (_timeout > 0) opts.TimeoutInterval(TimeSpan.FromMilliseconds(_timeout));
-                    if (_recursionDepth > 0) opts.LimitRecursion(_recursionDepth);
-
-                    OnInitOptions?.Invoke(opts);
-                }
-            );
-            _cjsEngine = _engine.CommonJS(WorkingDir, _pathMappings);
-
-            SetupGlobals();
-
-            foreach (var nsmp in _namespaces) {
-                _cjsEngine = _cjsEngine.RegisterInternalModule(nsmp.module, nsmp.module,
-                    new NamespaceReference(_engine, nsmp.@namespace));
-            }
-            foreach (var scmp in _staticClasses) {
-                var type = AssemblyFinder.FindType(scmp.staticClass);
-                if (type == null)
-                    throw new Exception(
-                        $"ScriptEngine could not load static class \"{scmp.staticClass}\". Please check your string(s) in the `Static Classes` array.");
-                _cjsEngine = _cjsEngine.RegisterInternalModule(scmp.module, type);
-            }
-            foreach (var omp in _objects) {
-                _cjsEngine = _cjsEngine.RegisterInternalModule(omp.module, omp.obj);
-            }
             _uiDocument.rootVisualElement.Clear();
-            _engine.SetValue("document", _document);
+            _coreEngine.SetValue("document", _document);
             OnPostInit?.Invoke();
         }
 
-        bool ClrExceptionHandler(Exception exception) {
-            if (_logRedundantErrors && exception.GetType() != typeof(Jint.Runtime.JavaScriptException)) {
-                Debug.LogError(exception);
-            }
-            return true;
-        }
-
-        void SetupGlobals() {
-            _engine.SetValue("self", _engine.GetValue("globalThis"));
-            _engine.SetValue("window", _engine.GetValue("globalThis"));
-
-            _globalFuncTypes.ForEach(t => {
-                var flags = BindingFlags.Public | BindingFlags.Static;
-                var mi = t.GetMethod("Setup", flags);
-                mi.Invoke(null, new object[] { this });
-            });
-        }
-
         public void RunModule(string scriptPath) {
-            // var preloadsPath = Path.Combine(WorkingDir, "ScriptLib/onejs/preloads");
-            // if (Directory.Exists(preloadsPath)) {
-            //     var files = Directory.GetFiles(preloadsPath,
-            //         "*.js", SearchOption.AllDirectories).ToList();
-            //     files.ForEach(f => _cjsEngine.RunMain(Path.GetRelativePath(WorkingDir, f)));
-            // }
-            _preloadedScripts.ForEach(p => _cjsEngine.RunMain(p));
-
-            // var t = DateTime.Now;
-            // var a = GC.GetTotalMemory(false);
-            _cjsEngine.RunMain(scriptPath);
-            // var b = GC.GetTotalMemory(false);
-            // var c = b - a;
-            // Debug.Log($"{a} {b} {c}");
-            // print($"RunModule {(DateTime.Now - t).TotalMilliseconds}ms");
-            _postloadedScripts.ForEach(p => _cjsEngine.RunMain(p));
+            _preloadedScripts.ForEach(p => _coreEngine.RunModule(p));
+            _coreEngine.RunModule(scriptPath);
+            _postloadedScripts.ForEach(p => _coreEngine.RunModule(p));
         }
 
         public void Reload() {

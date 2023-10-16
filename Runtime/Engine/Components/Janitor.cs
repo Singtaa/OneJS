@@ -2,7 +2,7 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-namespace OneJS.Engine {
+namespace OneJS.Engine.Components {
     /// <summary>
     /// Janitor needs to be created by code (e.g. via JanitorSpawner) because 
     /// root GOs are not guaranteed the same order during runtime.

@@ -5,7 +5,7 @@ using LiteNetLib;
 using LiteNetLib.Utils;
 using UnityEngine;
 
-namespace OneJS.Engine {
+namespace OneJS.Engine.Components {
     public enum ENetSyncMode {
         Auto,
         Server,

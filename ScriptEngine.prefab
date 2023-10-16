@@ -144,7 +144,7 @@ MonoBehaviour:
   - Addons/
   - Modules/
   - node_modules/
-  _dontDestroyOnLoad: 1
+  _setDontDestroyOnLoad: 1
   _initEngineOnStart: 1
   _enableExtraLogging: 1
   _selectedTab: 0
@@ -245,7 +245,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 455c25dec0ce4839a83578f17fb6029c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _autoSetUIScale: 0
+  _autoSetUIScale: 1
   _defaultUIScale: 1
 --- !u!114 &-6158145890685900428
 MonoBehaviour:

@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.Serialization;
 using UnityEngine.UIElements;
 
-namespace OneJS.Engine {
+namespace OneJS.Engine.Components {
     [RequireComponent(typeof(UIDocument))]
     public class DPIAdjuster : MonoBehaviour {
         [Tooltip("Automatically set scale based on DPI")]

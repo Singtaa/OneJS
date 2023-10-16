@@ -3,16 +3,14 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Jint;
-using Jint.Native;
-using Jint.Native.Function;
+using OneJS.Engine;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace OneJS.Dom {
     public class RegisteredCallbackHolder {
         public EventCallback<EventBase> callback;
-        public JsValue jsValue;
+        public object jsValue;
     }
 
     public class Dom {
@@ -59,7 +57,7 @@ namespace OneJS.Dom {
 
         // NOTE: Using `JsValue` here because `EventCallback<EventBase>` will lead to massive slowdown on Linux.
         // [props.ts] `dom._listeners[name + useCapture] = value;`
-        public Dictionary<string, JsValue> _listeners => __listeners;
+        public Dictionary<string, object> _listeners => __listeners;
 
         Document _document;
         VisualElement _ve;
@@ -72,7 +70,7 @@ namespace OneJS.Dom {
         string _innerHTML;
         List<Dom> _childNodes = new List<Dom>();
         object __children;
-        Dictionary<string, JsValue> __listeners = new Dictionary<string, JsValue>();
+        Dictionary<string, object> __listeners = new Dictionary<string, object>();
 
         Dictionary<string, List<RegisteredCallbackHolder>> _registeredCallbacks =
             new Dictionary<string, List<RegisteredCallbackHolder>>();
@@ -116,22 +114,34 @@ namespace OneJS.Dom {
                     $"Possible infinite loop detected. Event Listener(s) on {_ve.GetType().Name} called more than 1000 times in one frame.");
                 return;
             }
-            var jintEngine = _document.scriptEngine.JintEngine;
-            var thisDom = JsValue.FromObject(jintEngine, this);
-            jintEngine.Call(__listeners[name], thisDom, new[] { JsValue.FromObject(jintEngine, evt) });
+            // var jintEngine = (_document.scriptEngine.CoreEngine as JintWrapper).JintEngine;
+            // var thisDom = JsValue.FromObject(jintEngine, this);
+            // jintEngine.Call(JsValue.FromObject(jintEngine, __listeners[name]), thisDom, new[] { JsValue.FromObject(jintEngine, evt) });
+
+            _document.scriptEngine.Call(__listeners[name], this, evt);
+        }
+
+        public void AddToListener(string name, object val) {
+            if (__listeners.ContainsKey(name)) {
+                __listeners[name] = val;
+            } else {
+                __listeners.Add(name, val);
+            }
         }
 
         public void clearChildren() {
             _ve.Clear();
         }
 
-        public void addEventListener(string name, JsValue jsval, bool useCapture = false) {
-            // var t = DateTime.Now;
-            // var func = jsval.As<FunctionInstance>();
-            var engine = _document.scriptEngine.JintEngine;
-            var thisDom = JsValue.FromObject(engine, this);
+#if ONEJS_V8
+        public void addEventListener(string name, object handler, bool useCapture = false) {
+#else
+        public void addEventListener(string name, Jint.Native.JsValue handler, bool useCapture = false) {
+#endif
+            var engine = _document.scriptEngine.CoreEngine;
             var callback = (EventCallback<EventBase>)((e) => {
-                engine.Call(jsval, thisDom, new[] { JsValue.FromObject(engine, e) });
+                engine.Call(handler, this, e);
+                // jintEngine.Call(handler, thisDom, new[] { JsValue.FromObject(jintEngine, e) });
             });
             var isValueChanged = name == "ValueChanged";
             // Debug.Log("addEventListener " + name + " on " + _ve.name + " " + isValueChanged);
@@ -162,7 +172,7 @@ namespace OneJS.Dom {
                 }
             }
 
-            var callbackHolder = new RegisteredCallbackHolder() { callback = callback, jsValue = jsval };
+            var callbackHolder = new RegisteredCallbackHolder() { callback = callback, jsValue = handler };
             if (_registeredCallbacks.ContainsKey(name))
                 _registeredCallbacks[name].Add(callbackHolder);
             else
@@ -174,7 +184,7 @@ namespace OneJS.Dom {
         /// <summary>
         /// Note that this method will remove ALL callbacks registered for the given event name.
         /// </summary>
-        public void removeEventListener(string name, JsValue jsval, bool useCapture = false) {
+        public void removeEventListener(string name, object handler, bool useCapture = false) {
             if (!_registeredCallbacks.ContainsKey(name))
                 return;
             var callbackHolders = _registeredCallbacks[name];
@@ -185,7 +195,7 @@ namespace OneJS.Dom {
                     .Where(m => m.Name == "UnregisterCallback" && m.GetGenericArguments().Length == 1).First();
                 mi = mi.MakeGenericMethod(eventType);
                 for (var i = 0; i < callbackHolders.Count; i++) {
-                    if (callbackHolders[i].jsValue == jsval) {
+                    if (callbackHolders[i].jsValue == handler) {
                         mi.Invoke(_ve, new object[] { callbackHolders[i].callback, null });
                         callbackHolders.RemoveAt(i);
                         i--;

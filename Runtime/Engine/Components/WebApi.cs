@@ -3,7 +3,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.Networking;
 
-namespace OneJS.Engine {
+namespace OneJS.Engine.Components {
     [RequireComponent(typeof(ScriptEngine))]
     public class WebApi : MonoBehaviour {
         ScriptEngine _engine;
@@ -18,7 +18,7 @@ namespace OneJS.Engine {
         }
 
         void OnPostInit() {
-            _engine.JintEngine.SetValue("webapi", (object)this);
+            _engine.CoreEngine.SetValue("webapi", (object)this);
         }
 
         public void getText(string uri, Action<string> callback) {

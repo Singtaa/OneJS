@@ -18,7 +18,10 @@
         "Esprima.dll",
         "NUglify.dll",
         "ICSharpCode.SharpZipLib.dll",
-        "ExCSS.Unity.dll"
+        "ExCSS.Unity.dll",
+        "ClearScript.Core.dll",
+        "ClearScript.V8.dll",
+        "ClearScript.V8.ICUData.dll"
     ],
     "autoReferenced": true,
     "defineConstraints": [],

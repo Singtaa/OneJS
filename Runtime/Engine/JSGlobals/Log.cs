@@ -6,12 +6,12 @@ namespace OneJS.Engine.JSGlobals {
     public class Log {
         public static void Setup(ScriptEngine engine) {
             LogTime.Clear();
-            engine.JintEngine.SetValue("log", new Action<object>(Debug.Log));
-            engine.JintEngine.SetValue("error", new Action<object>(Debug.LogError));
-            engine.JintEngine.SetValue("warn", new Action<object>(Debug.LogWarning));
-            engine.JintEngine.SetValue("logTime", new Action<object>(time));
-            engine.JintEngine.SetValue("logTimeEnd", new Action<object>(timeEnd));
-            engine.JintEngine.Evaluate(@"var console = {
+            engine.CoreEngine.SetValue("log", new Action<object>(Debug.Log));
+            engine.CoreEngine.SetValue("error", new Action<object>(Debug.LogError));
+            engine.CoreEngine.SetValue("warn", new Action<object>(Debug.LogWarning));
+            engine.CoreEngine.SetValue("logTime", new Action<object>(time));
+            engine.CoreEngine.SetValue("logTimeEnd", new Action<object>(timeEnd));
+            engine.CoreEngine.Execute(@"var console = {
                 log: log,
                 error: error,
                 warn: warn,

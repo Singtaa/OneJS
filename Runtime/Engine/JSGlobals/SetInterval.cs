@@ -8,14 +8,13 @@ using UnityEngine;
 namespace OneJS.Engine.JSGlobals {
     public class SetInterval {
         public static void Setup(ScriptEngine engine) {
-            engine.JintEngine.SetValue("setInterval", new Func<JsValue, float, int>((handler, timeout) => {
+            engine.CoreEngine.SetValue("setInterval", new Func<JsValue, float, int>((handler, timeout) => {
                 var id = engine.QueueAction(() => {
-                    engine.JintEngine.Call(handler);
-                    engine.JintEngine.RunAvailableContinuations();
+                    engine.CoreEngine.Call(handler);
                 }, timeout, true);
                 return id;
             }));
-            engine.JintEngine.SetValue("clearInterval", new Action<int>((id) => { engine.ClearQueuedAction(id); }));
+            engine.CoreEngine.SetValue("clearInterval", new Action<int>((id) => { engine.ClearQueuedAction(id); }));
         }
     }
 }

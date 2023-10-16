@@ -6,7 +6,7 @@ namespace OneJS.Engine.JSGlobals {
     public class Resource {
         public static void Setup(ScriptEngine engine) {
             var resource = new Resource(engine);
-            engine.JintEngine.SetValue("resource", resource);
+            engine.CoreEngine.SetValue("resource", resource);
         }
 
         ScriptEngine _engine;

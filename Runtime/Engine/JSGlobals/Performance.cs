@@ -4,7 +4,7 @@ namespace OneJS.Engine.JSGlobals {
     public class Performance {
         public static void Setup(ScriptEngine engine) {
             var performance = new Performance(engine.StartTime);
-            engine.JintEngine.SetValue("performance", performance);
+            engine.CoreEngine.SetValue("performance", performance);
         }
 
         DateTime _start;

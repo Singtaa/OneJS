@@ -6,6 +6,19 @@ using UnityEngine.UIElements;
 
 namespace OneJS.Extensions {
     public static class VisualElementExts {
+
+        public static float GetValue(this Slider slider) {
+            return slider.value;
+        }
+
+        public static void SetValue(this Slider slider, float value) {
+            slider.value = value;
+        }
+
+        public static T CastTo<T>(this VisualElement ve) where T : VisualElement {
+            return (T)ve;
+        }
+
         public static void Register(this CallbackEventHandler cbeh, Type eventType,
             EventCallback<EventBase> handler, TrickleDown useTrickleDown = TrickleDown.NoTrickleDown) {
             var flags = BindingFlags.Public | BindingFlags.Instance;

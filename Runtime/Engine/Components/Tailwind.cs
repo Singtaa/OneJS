@@ -13,7 +13,7 @@ using UnityEngine;
 using UnityEngine.Serialization;
 using UnityEngine.UIElements;
 
-namespace OneJS.Engine {
+namespace OneJS.Engine.Components {
     [RequireComponent(typeof(ScriptEngine), typeof(UIDocument))]
     public class Tailwind : MonoBehaviour, IClassStrProcessor {
         [Tooltip("Tailwind output file. Relative to the OneJS working directory.")]

@@ -8,7 +8,7 @@ using OneJS.Utils;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
-namespace OneJS.Engine {
+namespace OneJS.Engine.Components {
     [DefaultExecutionOrder(50)]
     public class Bundler : MonoBehaviour {
         // [Tooltip(
