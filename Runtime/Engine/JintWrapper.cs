@@ -82,7 +82,7 @@ namespace OneJS.Engine {
         }
 
         public void Dispose() {
-            throw new NotImplementedException();
+
         }
 
         public object GetValue(string name) {

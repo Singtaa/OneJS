@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using Jint;
-using Jint.Native;
+// using Jint;
+// using Jint.Native;
 using OneJS.Engine.Components;
 using OneJS.Utils;
 using UnityEngine;
@@ -10,7 +10,7 @@ using UnityEngine;
 namespace OneJS.Engine.JSGlobals {
     public class RequestAnimationFrame {
         public static void Setup(ScriptEngine engine) {
-            engine.CoreEngine.SetValue("requestAnimationFrame", new Func<JsValue, int>((handler) => {
+            engine.CoreEngine.SetValue("requestAnimationFrame", new Func<object, int>((handler) => {
                 var id = engine.QueueFrameAction(() => {
                     engine.CoreEngine.Call(handler, (DateTime.Now - engine.StartTime).TotalMilliseconds);
                 });

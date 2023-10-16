@@ -7,6 +7,7 @@ using Microsoft.ClearScript.JavaScript;
 using Microsoft.ClearScript.V8;
 using OneJS.Utils;
 using UnityEngine;
+using UnityEngine.Profiling;
 using UnityEngine.UIElements;
 
 namespace OneJS.Engine {
@@ -46,7 +47,6 @@ namespace OneJS.Engine {
                     throw new Exception(
                         $"ScriptEngine could not load extension \"{extension}\". Please check your string(s) in the `extensions` array.");
                 _engine.AddHostType(extension, type);
-                Debug.Log($"Loaded extension: {extension}");
             }
 
             _engine.AddHostType("Slider", typeof(Slider));
@@ -72,19 +72,22 @@ namespace OneJS.Engine {
         }
 
         public void Call(object callback, object thisObj = null, params object[] arguments) {
+            Profiler.BeginSample("V8Wrapper.Call");
             if (callback is Delegate clrDelegate) {
                 // Handle CLR delegate
                 clrDelegate.DynamicInvoke(arguments);
             } else {
                 // Assuming that if it's not a Delegate, it's a JavaScript function reference
-                // dynamic jsFunction = callback;
-                // jsFunction(arguments);
-
+                dynamic jsFunction = callback;
+                Profiler.BeginSample("V8Wrapper.Execute");
+                jsFunction(arguments);
+                Profiler.EndSample();
+/*
                 // Assuming the callback is a JavaScript function object
-                var guid = Guid.NewGuid().ToString("N");
-                var tempFuncName = "__tempJsCallback" + guid;
-                var tempArgsName = "__tempJsArguments" + guid;
-                var tempThisName = "__tempJsThis" + guid;
+                // var guid = Guid.NewGuid().ToString("N");
+                var tempFuncName = "__tempJsCallback";
+                var tempArgsName = "__tempJsArguments";
+                var tempThisName = "__tempJsThis";
                 _engine.Script[tempFuncName] = callback;
                 _engine.Script[tempArgsName] = arguments;
                 _engine.Script[tempThisName] = thisObj;
@@ -93,15 +96,18 @@ namespace OneJS.Engine {
                 string jsCode = $"{tempFuncName}.apply({(thisObj == null ? "null" : tempThisName)}, [...{tempArgsName}]);";
                 // string jsCode = $"log([...{tempArgsName}]);";
                 try {
+                    Profiler.BeginSample("V8Wrapper.Execute");
                     _engine.Execute(jsCode);
+                    Profiler.EndSample();
                 } catch (ScriptEngineException ex) {
                     Debug.Log(ex.ErrorDetails);
                 }
 
                 _engine.Script[tempFuncName] = null;
                 _engine.Script[tempArgsName] = null;
-                _engine.Script[tempThisName] = null;
+                _engine.Script[tempThisName] = null;*/
             }
+            Profiler.EndSample();
         }
 
         public void Execute(string code) {
@@ -114,7 +120,12 @@ namespace OneJS.Engine {
 
         public void RunModule(string scriptPath) {
             var fullpath = Path.Combine(_onejsScriptEngine.WorkingDir, scriptPath);
-            _engine.ExecuteDocument(fullpath, ModuleCategory.CommonJS);
+
+            try {
+                _engine.ExecuteDocument(fullpath, ModuleCategory.CommonJS);
+            } catch (ScriptEngineException ex) {
+                Debug.Log(ex.ErrorDetails);
+            }
         }
     }
 }
