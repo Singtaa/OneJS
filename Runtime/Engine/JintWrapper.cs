@@ -101,6 +101,7 @@ namespace OneJS.Engine {
                     return JsValue.FromObject(_jintEngine, objs.Select(obj => JsValue.FromObject(_jintEngine, obj)).ToArray());
                 return JsValue.FromObject(_jintEngine, o);
             }).ToArray();
+
             _jintEngine.Call(GetJsValue(callback), GetJsValue(thisObj), jsValues);
         }
 

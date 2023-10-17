@@ -57,7 +57,11 @@ namespace OneJS.Dom {
 
         // NOTE: Using `JsValue` here because `EventCallback<EventBase>` will lead to massive slowdown on Linux.
         // [props.ts] `dom._listeners[name + useCapture] = value;`
+#if ONEJS_V8
         public Dictionary<string, object> _listeners => __listeners;
+#else
+        public Dictionary<string, Jint.Native.JsValue> _listeners => __listeners;
+#endif
 
         Document _document;
         VisualElement _ve;
@@ -70,7 +74,12 @@ namespace OneJS.Dom {
         string _innerHTML;
         List<Dom> _childNodes = new List<Dom>();
         object __children;
+#if ONEJS_V8
         Dictionary<string, object> __listeners = new Dictionary<string, object>();
+#else
+        Dictionary<string, Jint.Native.JsValue> __listeners = new Dictionary<string, Jint.Native.JsValue>();
+#endif
+
 
         Dictionary<string, List<RegisteredCallbackHolder>> _registeredCallbacks =
             new Dictionary<string, List<RegisteredCallbackHolder>>();
@@ -121,7 +130,11 @@ namespace OneJS.Dom {
             _document.scriptEngine.Call(__listeners[name], this, evt);
         }
 
+#if ONEJS_V8
         public void AddToListener(string name, object val) {
+#else
+        public void AddToListener(string name, Jint.Native.JsValue val) {
+#endif
             if (__listeners.ContainsKey(name)) {
                 __listeners[name] = val;
             } else {
@@ -139,8 +152,8 @@ namespace OneJS.Dom {
         public void addEventListener(string name, Jint.Native.JsValue handler, bool useCapture = false) {
 #endif
             var engine = _document.scriptEngine.CoreEngine;
-            var callback = (EventCallback<EventBase>)((e) => {
-                engine.Call(handler, this, e);
+            var callback = (EventCallback<EventBase>)((ee) => {
+                engine.Call(handler, this, ee);
                 // jintEngine.Call(handler, thisDom, new[] { JsValue.FromObject(jintEngine, e) });
             });
             var isValueChanged = name == "ValueChanged";

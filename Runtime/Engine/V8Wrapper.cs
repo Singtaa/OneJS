@@ -77,37 +77,13 @@ namespace OneJS.Engine {
                 // Handle CLR delegate
                 clrDelegate.DynamicInvoke(arguments);
             } else {
-                // Assuming that if it's not a Delegate, it's a JavaScript function reference
-                dynamic jsFunction = callback;
                 Profiler.BeginSample("V8Wrapper.Execute");
-                jsFunction(arguments);
-                Profiler.EndSample();
-/*
-                // Assuming the callback is a JavaScript function object
-                // var guid = Guid.NewGuid().ToString("N");
-                var tempFuncName = "__tempJsCallback";
-                var tempArgsName = "__tempJsArguments";
-                var tempThisName = "__tempJsThis";
-                _engine.Script[tempFuncName] = callback;
-                _engine.Script[tempArgsName] = arguments;
-                _engine.Script[tempThisName] = thisObj;
-
-                // Use JavaScript's Function.prototype.apply to spread the arguments
-                string jsCode = $"{tempFuncName}.apply({(thisObj == null ? "null" : tempThisName)}, [...{tempArgsName}]);";
-                // string jsCode = $"log([...{tempArgsName}]);";
                 try {
-                    Profiler.BeginSample("V8Wrapper.Execute");
-                    _engine.Execute(jsCode);
-                    Profiler.EndSample();
+                    _engine.Script.callWithThisObj(callback, thisObj, arguments);
                 } catch (ScriptEngineException ex) {
-                    Debug.Log(ex.ErrorDetails);
+                    Debug.LogError(ex.ErrorDetails);
                 }
-
-                _engine.Script[tempFuncName] = null;
-                _engine.Script[tempArgsName] = null;
-                _engine.Script[tempThisName] = null;*/
             }
-            Profiler.EndSample();
         }
 
         public void Execute(string code) {
