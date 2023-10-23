@@ -17,7 +17,7 @@
         "jsxFactory": "h",
         "target": "es5",
         "module": "commonjs",
-        "forceConsistentCasingInFileNames": false,
+        "forceConsistentCasingInFileNames": true,
         "resolveJsonModule": true,
         "esModuleInterop": true,
         "lib": [

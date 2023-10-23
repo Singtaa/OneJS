@@ -1,4 +1,17 @@
-﻿## [2023-09-09] v1.6.7
+﻿## [2023-10-22] v1.6.8
+
+* Cyclic error fix for preact falsey check in Hookstate
+* TSDefConverter moved to using UI Toolkit instead of IMGUI (credit to @iDevelopThings)
+* Various Jint tweaks (RunAvailableContinuations & UnwrapIfPromise)
+* Updated Jint with rest/spread bug fix
+* Fixed the # char bug for TW classes
+* Added _includeOverriddenMembers for TSDefConverter
+* Fixed OpenDir for Linux
+
+* Auto-reimport uss after generation (Tailwind)
+* useEventfulState() forceUpdate() regression fix
+
+## [2023-09-09] v1.6.7
 
 * Auto-reimport uss after generation (Tailwind)
 * useEventfulState() forceUpdate() regression fix
