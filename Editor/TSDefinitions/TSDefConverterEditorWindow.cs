@@ -28,14 +28,14 @@ namespace OneJS.Editor.TSDefinitions {
         private bool _excludeUnityBaseTypes = false;
 
         [SerializeField]
-        private string _outputStr;
+        private string _outputStr = "";
 
         private TextField _outputField;
 
         private VisualElement nsQuestionContainer;
         private Action<bool> nsQuestionCallback;
 
-        [MenuItem("Tools/OneJS/C# to TSDef Converter")]
+        [MenuItem("Tools/OneJS/C# to TSDef Converter", false, 0)]
         private static void ShowWindow() {
             var window = GetWindow<TSDefConverterEditorWindow>();
             window.titleContent = new GUIContent("C# to TSDef Converter");

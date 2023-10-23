@@ -6,7 +6,7 @@ using Debug = UnityEngine.Debug;
 
 namespace OneJS.Editor {
     public class OneJSMenuItems {
-        [MenuItem("Tools/OneJS/Open GeneratedCode Folder")]
+        [MenuItem("Tools/OneJS/Open GeneratedCode Folder", false, 1)]
         static void OpenGeneratedCodeFolder() {
             var path = Path.Combine(Application.dataPath, "..", "Temp", "GeneratedCode", "OneJS");
             if (Directory.Exists(path)) {
