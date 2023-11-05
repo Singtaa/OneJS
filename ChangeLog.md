@@ -8,9 +8,6 @@
 * Added _includeOverriddenMembers for TSDefConverter
 * Fixed OpenDir for Linux
 
-* Auto-reimport uss after generation (Tailwind)
-* useEventfulState() forceUpdate() regression fix
-
 ## [2023-09-09] v1.6.7
 
 * Auto-reimport uss after generation (Tailwind)

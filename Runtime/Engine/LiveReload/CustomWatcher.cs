@@ -68,7 +68,9 @@ namespace OneJS.Engine {
                 }
             }
             lock (_obj) {
-                _detectedPaths = res.ToArray();
+                if (res.Count > 0) {
+                    _detectedPaths = res.ToArray();
+                }
             }
         }
 
