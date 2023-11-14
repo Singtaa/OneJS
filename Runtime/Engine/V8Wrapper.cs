@@ -72,12 +72,10 @@ namespace OneJS.Engine {
         }
 
         public void Call(object callback, object thisObj = null, params object[] arguments) {
-            Profiler.BeginSample("V8Wrapper.Call");
             if (callback is Delegate clrDelegate) {
                 // Handle CLR delegate
                 clrDelegate.DynamicInvoke(arguments);
             } else {
-                Profiler.BeginSample("V8Wrapper.Execute");
                 try {
                     _engine.Script.callWithThisObj(callback, thisObj, arguments);
                 } catch (ScriptEngineException ex) {
