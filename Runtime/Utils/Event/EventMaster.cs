@@ -1,6 +1,5 @@
 ﻿using System;
-using System.Reflection;
-using Jint.Native;
+using Jint.Native.Function;
 using UnityEngine;
 
 namespace OneJS.Utils {
@@ -19,7 +18,7 @@ namespace OneJS.Utils {
         public void Add(object obj, string name, DelegateWrapper wrapper) {
         }
 
-        public DelegateWrapper Add(Type type, string name, JsValue handler) {
+        public DelegateWrapper Add(Type type, string name, FunctionInstance handler) {
             var eventInfo = type.GetEvent(name);
             var wrapper = new DelegateWrapper(_scriptEngine.JintEngine, eventInfo, handler);
             eventInfo.AddMethod.Invoke(null, new object[] { wrapper.GetWrapped() });

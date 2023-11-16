@@ -1,10 +1,9 @@
 ﻿using System;
 using System.Linq;
 using System.Reflection;
-using System.Reflection.Emit;
 using Jint;
 using Jint.Native;
-using UnityEngine;
+using Jint.Native.Function;
 
 namespace OneJS.Utils {
     /// <summary>
@@ -13,31 +12,36 @@ namespace OneJS.Utils {
     public class DelegateWrapper {
         Jint.Engine _engine;
         EventInfo _eventInfo;
-        JsValue _handler;
+        FunctionInstance _handler;
         Delegate _del;
+
+        public static Delegate Wrap(Jint.Engine engine, EventInfo eventInfo, FunctionInstance handler) => new DelegateWrapper(engine, eventInfo, handler).GetWrapped();
 
         /// <summary>
         /// https://nondisplayable.ca/2017/03/31/using-reflection-to-bind-lambda-to-event-handler.html
         /// </summary>
-        public DelegateWrapper(Jint.Engine engine, EventInfo eventInfo, JsValue handler) {
-            this._engine = engine;
-            this._eventInfo = eventInfo;
-            this._handler = handler;
+        public DelegateWrapper(Jint.Engine engine, EventInfo eventInfo, FunctionInstance handler) {
+            _engine = engine;
+            _eventInfo = eventInfo;
+            _handler = handler;
 
             var handlerType = _eventInfo.EventHandlerType;
             MethodInfo invoke = handlerType.GetMethod("Invoke");
+
+            if (invoke.ReturnType != typeof(void)) {
+                throw new ArgumentException("[DelegateWrapper] Only support event delegate that return nothing.");
+            }
+
             ParameterInfo[] pars = invoke.GetParameters();
-            var typeTypes = pars.Select(p => p.ParameterType.GetType()).ToArray();
             var paramTypes = pars.Select(p => p.ParameterType).ToArray();
+            var methodInfo = typeof(DelegateWrapper).GetMethod(nameof(GetAction), paramTypes.Length, Array.Empty<Type>())
+                ?? throw new ArgumentException("[DelegateWrapper] Only support handler with up to 4 parameters.", nameof(handler));
 
-            var methodInfo = typeof(DelegateWrapper).GetMethod("GetAction", typeTypes);
-            if (methodInfo == null)
-                throw new Exception(
-                    "Cannot find Method Info. DelegateWrapper only support event handlers with up to 4 parameters.");
-            if (typeTypes.Length > 0)
+            if (paramTypes.Length > 0) {
                 methodInfo = methodInfo.MakeGenericMethod(paramTypes);
+            }
 
-            var h = (Delegate)methodInfo.Invoke(this, typeTypes);
+            var h = (Delegate)methodInfo.Invoke(this, Array.Empty<object>());
             _del = Delegate.CreateDelegate(handlerType, h, "Invoke");
         }
 
@@ -46,41 +50,41 @@ namespace OneJS.Utils {
         }
 
         public Action GetAction() {
-            return (() => { _handler.As<Jint.Native.Function.FunctionInstance>().Call(); });
+            return () => _handler.Call();
         }
 
-        public Action<A> GetAction<A>(Type ta) {
-            return ((a) => {
+        public Action<A> GetAction<A>() {
+            return (a) => {
                 var aa = JsValue.FromObject(_engine, a);
-                _handler.As<Jint.Native.Function.FunctionInstance>().Call(null, aa);
-            });
+                _handler.Call(aa);
+            };
         }
 
-        public Action<A, B> GetAction<A, B>(Type ta, Type tb) {
-            return ((a, b) => {
+        public Action<A, B> GetAction<A, B>() {
+            return (a, b) => {
                 var aa = JsValue.FromObject(_engine, a);
                 var bb = JsValue.FromObject(_engine, b);
-                _handler.As<Jint.Native.Function.FunctionInstance>().Call(null, aa, bb);
-            });
+                _handler.Call(aa, bb);
+            };
         }
 
-        public Action<A, B, C> GetAction<A, B, C>(Type ta, Type tb, Type tc) {
-            return ((a, b, c) => {
+        public Action<A, B, C> GetAction<A, B, C>() {
+            return (a, b, c) => {
                 var aa = JsValue.FromObject(_engine, a);
                 var bb = JsValue.FromObject(_engine, b);
                 var cc = JsValue.FromObject(_engine, c);
-                _handler.As<Jint.Native.Function.FunctionInstance>().Call(null, aa, bb, cc);
-            });
+                _handler.Call(aa, bb, cc);
+            };
         }
 
-        public Action<A, B, C, D> GetAction<A, B, C, D>(Type ta, Type tb, Type tc, Type td) {
-            return ((a, b, c, d) => {
+        public Action<A, B, C, D> GetAction<A, B, C, D>() {
+            return (a, b, c, d) => {
                 var aa = JsValue.FromObject(_engine, a);
                 var bb = JsValue.FromObject(_engine, b);
                 var cc = JsValue.FromObject(_engine, c);
                 var dd = JsValue.FromObject(_engine, d);
-                _handler.As<Jint.Native.Function.FunctionInstance>().Call(null, aa, bb, cc, dd);
-            });
+                _handler.Call(aa, bb, cc, dd);
+            };
         }
     }
 }
