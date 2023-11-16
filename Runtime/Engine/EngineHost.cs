@@ -31,7 +31,7 @@ namespace OneJS.Engine {
         /// <exception cref="ArgumentNullException"></exception>
         /// <exception cref="NotSupportedException"></exception>
         /// <exception cref="ArgumentException"></exception>
-        public Action subscribeEvent(object eventSource, string eventName, object handler) {
+        public Action subscribe(object eventSource, string eventName, object handler) {
             if (eventSource is null) {
                 throw new ArgumentNullException(nameof(eventSource), "[SubscribeEvent] Event source is null.");
             } else if (eventSource is JsValue) {
@@ -39,35 +39,45 @@ namespace OneJS.Engine {
             }
 
             var eventInfo = eventSource.GetType().GetEvent(eventName, BindingFlags.Public | BindingFlags.Instance);
+            if (eventInfo is null) {
+                throw new ArgumentException($"[SubscribeEvent] Cannot find event \"{eventName}\" on type \"{eventSource.GetType()}\".",
+                    nameof(eventName));
+            }
+
             var handlerDelegate = handler switch {
                 // Never hit this case from the JS side though
                 Delegate csHandler => csHandler,
                 FunctionInstance jsHandler => Utils.DelegateWrapper.Wrap(_jintEngine, eventInfo, jsHandler),
                 null => throw new ArgumentNullException(nameof(handler), "[SubscribeEvent] Handler is null."),
-                _ => throw new ArgumentException($"[SubscribeEvent] Cannot convert handler of type \"{handler.GetType()}\" to delegate.", nameof(handler)),
+                _ => throw new ArgumentException($"[SubscribeEvent] Cannot convert handler of type \"{handler.GetType()}\" to delegate.",
+                    nameof(handler)),
             };
             var isOnReloadEvent = eventSource == this && eventName == nameof(OnReload);
 
             eventInfo.AddEventHandler(eventSource, handlerDelegate);
 
             if (!isOnReloadEvent) {
-                OnReload += Unsubscribe;
+                OnReload += unsubscribe;
             }
 
             return () => {
-                Unsubscribe();
+                unsubscribe();
 
                 if (!isOnReloadEvent) {
-                    OnReload -= Unsubscribe;
+                    OnReload -= unsubscribe;
                 }
             };
 
-            void Unsubscribe() => eventInfo.RemoveEventHandler(eventSource, handlerDelegate);
+            void unsubscribe() => eventInfo.RemoveEventHandler(eventSource, handlerDelegate);
         }
 
         // JINT will call this method if the handler is a JS function. The handler will be passed as a FunctionInstance.
         // Without this method, the handler will be passed as a System.Func<> delegate.
-        public Action subscribeEvent(object eventSource, string eventName, JsValue handler) => subscribeEvent(eventSource, eventName, handler as object);
+        public Action subscribe(object eventSource, string eventName, JsValue handler) => subscribe(eventSource, eventName, handler as object);
+
+        // Also a couple of overloads for convenience (defaulting eventSource to this when not provided) 
+        public Action subscribe(string eventName, JsValue handler) => subscribe(this, eventName, handler as object);
+        public Action subscribe(string eventName, object handler) => subscribe(this, eventName, handler);
 
         public void InvokeOnReload() => OnReload?.Invoke();
 
@@ -92,7 +102,8 @@ namespace OneJS.Engine {
                     if (type != null) {
                         classes[pair.module] = TypeReference.CreateTypeReference(engine.JintEngine, type);
                     } else {
-                        UnityEngine.Debug.LogWarning($"[ScriptEngine] Cannot find type \"{pair.staticClass}\". Please check \"Static Classes\" array.", engine);
+                        UnityEngine.Debug.LogWarning(
+                            $"[ScriptEngine] Cannot find type \"{pair.staticClass}\". Please check \"Static Classes\" array.", engine);
                     }
                 }
 

@@ -541,7 +541,7 @@ namespace OneJS {
             }
             _uiDocument.rootVisualElement.Clear();
             _engine.SetValue("document", _document);
-            _engine.SetValue("OneJS", _engineHost);
+            _engine.SetValue("onejs", _engineHost);
             OnPostInit?.Invoke();
         }
 
