@@ -139,6 +139,7 @@ namespace OneJS.Editor.TSDefinitions
                 var str = $"{e.Name}: {TSName(e.EventHandlerType)}";
                 lines.Add(new string(' ', _indentSpaces) + str);
             }
+            lines.Add(new string(' ', _indentSpaces) + $"{staticStr}{e.Name}: OneJS.Event<{TSName(e.EventHandlerType)}>");
         }
 
         private string ClassDecStr(TsDefConverterObjectContext ctx) {

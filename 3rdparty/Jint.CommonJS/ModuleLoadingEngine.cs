@@ -43,7 +43,7 @@ namespace Jint.CommonJS {
             } else {
 #pragma warning disable 618
                 // module.Exports = engine.Execute(sourceCode).GetCompletionValue();
-                module.Exports = engine.Evaluate(sourceCode);
+                module.Exports = engine.Evaluate(sourceCode, path);
 #pragma warning restore 618
             }
             return module.Exports;

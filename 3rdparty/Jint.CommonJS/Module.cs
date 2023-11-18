@@ -88,7 +88,7 @@ namespace Jint.CommonJS {
                     ;(function (module, exports, __dirname, require) {{
                         {sourceCode}
                     }})
-                ");
+                ", filePath);
                 var requireFunc = new DelegateWrapper(engine.engine, new Func<string, JsValue>(this.Require));
                 engine.engine.Call(func, moduleObject, this.Exports, Path.GetDirectoryName(filePath), requireFunc);
             } catch (JavaScriptException jse) {

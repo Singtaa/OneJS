@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using Jint;
 using Jint.CommonJS;
+using Jint.Native;
 using Jint.Runtime.Interop;
 using OneJS.Dom;
 using OneJS.Engine;
@@ -85,7 +86,8 @@ namespace OneJS {
 
         public Func<string, Type, Type> TagTypeResolver;
 
-        [Tooltip("Include any assembly you'd want to access from Javascript.")] [SerializeField]
+        [Tooltip("Include any assembly you'd want to access from Javascript.")]
+        [SerializeField]
         [PlainString]
         string[] _assemblies = new[] {
             "UnityEngine.CoreModule", "UnityEngine.PhysicsModule", "UnityEngine.UIElementsModule",
@@ -124,14 +126,17 @@ namespace OneJS {
 
         [Tooltip(
             "Maps an Unity Object to a js module name (any string that you choose). Objects declared here will be accessible from Javascript via i.e. require(\"objname\"). You can also provide your own Type Definitions for better TS usage.")]
-        [PairMapping("obj", "module")] [SerializeField]
+        [PairMapping("obj", "module")]
+        [SerializeField]
         ObjectModulePair[] _objects = new ObjectModulePair[] { };
 
-        [Tooltip("Scripts that you want to load before everything else")] [SerializeField]
+        [Tooltip("Scripts that you want to load before everything else")]
+        [SerializeField]
         [PlainString]
         List<string> _preloadedScripts = new List<string>();
 
-        [Tooltip("Scripts that you want to load after everything else")] [SerializeField]
+        [Tooltip("Scripts that you want to load after everything else")]
+        [SerializeField]
         [PlainString]
         List<string> _postloadedScripts = new List<string>();
 
@@ -139,21 +144,25 @@ namespace OneJS {
         [SerializeField]
         StyleSheet[] _styleSheets;
 
-        [Tooltip("Screen breakpoints for responsive design.")] [SerializeField]
+        [Tooltip("Screen breakpoints for responsive design.")]
+        [SerializeField]
         int[] _breakpoints = new[] { 640, 768, 1024, 1280, 1536 };
 
 
-        [Tooltip("Allows you to catch .Net error from within JS.")] [SerializeField]
+        [Tooltip("Allows you to catch .Net error from within JS.")]
+        [SerializeField]
         bool _catchDotNetExceptions = true;
         [Tooltip(
             "Sometimes errors may get lost in-between the interop or through anonymous functions. Use this to log these.")]
         [SerializeField]
         bool _logRedundantErrors = false;
-        [Tooltip("Allow access to System.Reflection from Javascript")] [SerializeField]
+        [Tooltip("Allow access to System.Reflection from Javascript")]
+        [SerializeField]
         bool _allowReflection;
-        [Tooltip("Allow access to .GetType() from Javascript")] [SerializeField]
+        [Tooltip("Allow access to .GetType() from Javascript")]
+        [SerializeField]
         bool _allowGetType;
-        [Tooltip("Memory Limit in MB. Set to 0 for no limit.")] [SerializeField] int _memoryLimit;
+        [Tooltip("Memory Limit in MB. Set to 0 for no limit.")][SerializeField] int _memoryLimit;
         [Tooltip("How long a script can execute in milliseconds. Set to 0 for no limit.")]
         [SerializeField] int _timeout;
         [Tooltip("Limit depth of calls to prevent deep recursion calls. Set to 0 for no limit.")]
@@ -165,7 +174,8 @@ namespace OneJS {
         [SerializeField] PlayerModeWorkingDirInfo _playerModeWorkingDirInfo;
 
         [Tooltip("For CommonJS Path Resolver")]
-        [SerializeField] string[] _pathMappings = new[]
+        [SerializeField]
+        string[] _pathMappings = new[]
             { "ScriptLib/3rdparty/", "ScriptLib/", "Addons/", "Modules/", "node_modules/" };
 
 
@@ -185,6 +195,7 @@ namespace OneJS {
         Document _document;
         ModuleLoadingEngine _cjsEngine;
         Jint.Engine _engine;
+        EngineHost _engineHost;
         AsyncEngine.AsyncContext _asyncContext;
 
         List<Jint.Native.Function.FunctionInstance> _engineReloadJSHandlers =
@@ -379,6 +390,8 @@ namespace OneJS {
             foreach (var handler in _engineReloadJSHandlers.ToArray()) {
                 handler.Call();
             }
+
+            _engineHost.InvokeOnReload();
         }
 
         public void RegisterDestroyHandler(Jint.Native.Function.FunctionInstance handler) {
@@ -393,6 +406,8 @@ namespace OneJS {
             foreach (var handler in _engineDestroyJSHandlers.ToArray()) {
                 handler.Call();
             }
+
+            _engineHost.InvokeOnDestroy();
         }
 
         /// <summary>
@@ -418,6 +433,7 @@ namespace OneJS {
             _document.clearRuntimeStyleSheets();
             _uiDocument.rootVisualElement.Clear();
             _engineReloadJSHandlers.Clear();
+            _engineHost.Dispose();
 
             _queuedActionIds.Clear();
             _queueLookup.Clear();
@@ -480,31 +496,31 @@ namespace OneJS {
 
             _asyncContext = new AsyncEngine.AsyncContext();
             _engine = new Jint.Engine(opts => {
-                    opts.Interop.TrackObjectWrapperIdentity = false; // Unity too buggy with ConditionalWeakTable
-                    opts.SetTypeResolver(new TypeResolver {
-                        MemberNameComparer = StringComparer.Ordinal
-                    });
-                    opts.AllowClr(_loadedAssemblies);
-                    _extensions.ToList().ForEach((e) => {
-                        var type = AssemblyFinder.FindType(e);
-                        if (type == null)
-                            throw new Exception(
-                                $"ScriptEngine could not load extension \"{e}\". Please check your string(s) in the `extensions` array.");
-                        opts.AddExtensionMethods(type);
-                    });
-                    opts.AddObjectConverter(new AsyncEngine.TaskConverter(_asyncContext));
-                    opts.AllowOperatorOverloading();
+                opts.Interop.TrackObjectWrapperIdentity = false; // Unity too buggy with ConditionalWeakTable
+                opts.SetTypeResolver(new TypeResolver {
+                    MemberNameComparer = StringComparer.Ordinal
+                });
+                opts.AllowClr(_loadedAssemblies);
+                _extensions.ToList().ForEach((e) => {
+                    var type = AssemblyFinder.FindType(e);
+                    if (type == null)
+                        throw new Exception(
+                            $"ScriptEngine could not load extension \"{e}\". Please check your string(s) in the `extensions` array.");
+                    opts.AddExtensionMethods(type);
+                });
+                opts.AddObjectConverter(new AsyncEngine.TaskConverter(_asyncContext));
+                opts.AllowOperatorOverloading();
 
-                    if (_catchDotNetExceptions) opts.CatchClrExceptions(ClrExceptionHandler);
-                    if (_allowReflection) opts.Interop.AllowSystemReflection = true;
-                    if (_allowGetType) opts.Interop.AllowGetType = true;
-                    if (_memoryLimit > 0) opts.LimitMemory(_memoryLimit * 1048576);
-                    if (_timeout > 0) opts.TimeoutInterval(TimeSpan.FromMilliseconds(_timeout));
-                    if (_recursionDepth > 0) opts.LimitRecursion(_recursionDepth);
+                if (_catchDotNetExceptions) opts.CatchClrExceptions(ClrExceptionHandler);
+                if (_allowReflection) opts.Interop.AllowSystemReflection = true;
+                if (_allowGetType) opts.Interop.AllowGetType = true;
+                if (_memoryLimit > 0) opts.LimitMemory(_memoryLimit * 1048576);
+                if (_timeout > 0) opts.TimeoutInterval(TimeSpan.FromMilliseconds(_timeout));
+                if (_recursionDepth > 0) opts.LimitRecursion(_recursionDepth);
 
-                    OnInitOptions?.Invoke(opts);
-                }
-            );
+                OnInitOptions?.Invoke(opts);
+            });
+            _engineHost = new(this);
             _cjsEngine = _engine.CommonJS(WorkingDir, _pathMappings);
 
             SetupGlobals();
@@ -525,12 +541,13 @@ namespace OneJS {
             }
             _uiDocument.rootVisualElement.Clear();
             _engine.SetValue("document", _document);
+            _engine.SetValue("onejs", _engineHost);
             OnPostInit?.Invoke();
         }
 
         bool ClrExceptionHandler(Exception exception) {
             if (_logRedundantErrors && exception.GetType() != typeof(Jint.Runtime.JavaScriptException)) {
-                Debug.LogError(exception);
+                Debug.LogException(exception);
             }
             return true;
         }
