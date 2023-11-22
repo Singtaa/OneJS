@@ -13,6 +13,7 @@ namespace OneJS.Dom {
     public class RegisteredCallbackHolder {
         public EventCallback<EventBase> callback;
         public JsValue jsValue;
+        public bool useCapture;
     }
 
     public class Dom {
@@ -130,9 +131,7 @@ namespace OneJS.Dom {
             // var func = jsval.As<FunctionInstance>();
             var engine = _document.scriptEngine.JintEngine;
             var thisDom = JsValue.FromObject(engine, this);
-            var callback = (EventCallback<EventBase>)((e) => {
-                engine.Call(jsval, thisDom, new[] { JsValue.FromObject(engine, e) });
-            });
+            var callback = (EventCallback<EventBase>)((e) => { engine.Call(jsval, thisDom, new[] { JsValue.FromObject(engine, e) }); });
             var isValueChanged = name == "ValueChanged";
             // Debug.Log("addEventListener " + name + " on " + _ve.name + " " + isValueChanged);
 
@@ -162,11 +161,12 @@ namespace OneJS.Dom {
                 }
             }
 
-            var callbackHolder = new RegisteredCallbackHolder() { callback = callback, jsValue = jsval };
-            if (_registeredCallbacks.ContainsKey(name))
-                _registeredCallbacks[name].Add(callbackHolder);
-            else
-                _registeredCallbacks.Add(name, new List<RegisteredCallbackHolder> { callbackHolder });
+            var callbackHolder = new RegisteredCallbackHolder() { callback = callback, jsValue = jsval, useCapture = useCapture };
+            if (!_registeredCallbacks.TryGetValue(name, out List<RegisteredCallbackHolder> callbackList)) {
+                callbackList = new List<RegisteredCallbackHolder>();
+                _registeredCallbacks[name] = callbackList;
+            }
+            callbackList.Add(callbackHolder);
 
             // Debug.Log($"{name} {(DateTime.Now - t).TotalMilliseconds}ms");
         }
@@ -185,8 +185,9 @@ namespace OneJS.Dom {
                     .Where(m => m.Name == "UnregisterCallback" && m.GetGenericArguments().Length == 1).First();
                 mi = mi.MakeGenericMethod(eventType);
                 for (var i = 0; i < callbackHolders.Count; i++) {
-                    if (callbackHolders[i].jsValue == jsval) {
-                        mi.Invoke(_ve, new object[] { callbackHolders[i].callback, useCapture ? TrickleDown.TrickleDown : TrickleDown.NoTrickleDown });
+                    if (callbackHolders[i].jsValue == jsval && callbackHolders[i].useCapture == useCapture) {
+                        mi.Invoke(_ve,
+                            new object[] { callbackHolders[i].callback, useCapture ? TrickleDown.TrickleDown : TrickleDown.NoTrickleDown });
                         callbackHolders.RemoveAt(i);
                         i--;
                     }
