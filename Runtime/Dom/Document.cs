@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Jint.Native;
-using OneJS.Utils;
 using UnityEngine;
 using UnityEngine.UIElements;
 using Object = UnityEngine.Object;
@@ -24,8 +23,8 @@ namespace OneJS.Dom {
         ScriptEngine _scriptEngine;
         List<StyleSheet> _runtimeStyleSheets = new List<StyleSheet>();
 
-        Dictionary<string, Type> _tagCache = new Dictionary<string, System.Type>();
-        Dictionary<string, Type> _allUIElementEventTypes = new Dictionary<string, Type>();
+        Dictionary<string, Type> _tagCache = new();
+        Dictionary<string, Type> _allUIElementEventTypes = new();
 
         public Document(VisualElement root, ScriptEngine scriptEngine) {
             _root = root;
@@ -35,27 +34,23 @@ namespace OneJS.Dom {
         }
 
         void InitAllUIElementEvents() {
-            List<Type> typesInheritingFromEventBase = new List<Type>();
+            var typesInheritingFromEventBase = _scriptEngine.LoadedAssemblies
+                .SelectMany(asm => asm.GetTypes())
+                .Where(type => type.IsSubclassOf(typeof(EventBase)));
 
-            foreach (Assembly assembly in _scriptEngine.LoadedAssemblies) {
-                foreach (Type type in assembly.GetTypes()) {
-                    if (type.IsSubclassOf(typeof(EventBase))) {
-                        _allUIElementEventTypes.Add(type.Name, type);
-                    }
+            foreach (var type in typesInheritingFromEventBase) {
+                _allUIElementEventTypes.Add(type.Name, type);
+
+                if (type.Name.EndsWith("Event")) {
+                    // Strips 5 characters from the end of type name, which is "Event"
+                    _allUIElementEventTypes.Add(type.Name[..^5], type);
                 }
             }
+
             _scriptEngine.OnPostInit -= InitAllUIElementEvents;
         }
 
-        public Type FindUIElementEventType(string name) {
-            Type type;
-            if (_allUIElementEventTypes.TryGetValue(name, out type)) {
-                return type;
-            } else if (_allUIElementEventTypes.TryGetValue(name + "Event", out type)) {
-                return type;
-            }
-            return type;
-        }
+        public Type FindUIElementEventType(string name) => _allUIElementEventTypes[name];
 
         public void addRuntimeUSS(string uss) {
             var ss = ScriptableObject.CreateInstance<StyleSheet>();
