@@ -137,7 +137,7 @@ namespace OneJS.Dom {
             // Debug.Log("addEventListener " + name + " on " + _ve.name + " " + isValueChanged);
 
             if (!isValueChanged && _eventCache.ContainsKey(name)) {
-                _eventCache[name](_ve, callback, TrickleDown.NoTrickleDown);
+                _eventCache[name](_ve, callback, useCapture ? TrickleDown.TrickleDown : TrickleDown.NoTrickleDown);
                 // Debug.Log("Registered " + name + " on " + _ve.name);
             } else {
                 var eventType = _document.FindUIElementEventType(name);
@@ -157,7 +157,7 @@ namespace OneJS.Dom {
                     var del = (RegisterCallbackDelegate)Delegate.CreateDelegate(typeof(RegisterCallbackDelegate), mi);
                     if (!isValueChanged && !_eventCache.ContainsKey(name))
                         _eventCache.Add(name, del);
-                    del(_ve, callback, TrickleDown.NoTrickleDown);
+                    del(_ve, callback, useCapture ? TrickleDown.TrickleDown : TrickleDown.NoTrickleDown);
                     // Debug.Log("Registered " + name + " on " + _ve.name);
                 }
             }
@@ -186,7 +186,7 @@ namespace OneJS.Dom {
                 mi = mi.MakeGenericMethod(eventType);
                 for (var i = 0; i < callbackHolders.Count; i++) {
                     if (callbackHolders[i].jsValue == jsval) {
-                        mi.Invoke(_ve, new object[] { callbackHolders[i].callback, null });
+                        mi.Invoke(_ve, new object[] { callbackHolders[i].callback, useCapture ? TrickleDown.TrickleDown : TrickleDown.NoTrickleDown });
                         callbackHolders.RemoveAt(i);
                         i--;
                     }
