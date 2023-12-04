@@ -138,13 +138,12 @@ namespace OneJS.Engine {
                     }
                 }
                 File.WriteAllText(GetAbsoluteAssetPath(_breakpointStyleSheets[i]), mediaCss);
-                AssetDatabase.ImportAsset(AssetDatabase.GetAssetPath(_breakpointStyleSheets[i]));
             }
             baseCss = Regex.Replace(baseCss, @"@media[^\{]+\{([^\{\}]+\{[^\{\}]+\}[^\{\}]*)+\}", "",
                 RegexOptions.Singleline);
             baseCss = TransformCssText(baseCss);
             File.WriteAllText(GetAbsoluteAssetPath(_baseStyleSheet), baseCss);
-            AssetDatabase.ImportAsset(AssetDatabase.GetAssetPath(_baseStyleSheet));
+            AssetDatabase.Refresh();
 
             if (_enableLogging)
                 print("Tailwind USS files Written.");
