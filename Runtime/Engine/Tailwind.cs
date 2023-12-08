@@ -50,8 +50,12 @@ namespace OneJS.Engine {
         void Awake() {
             _uiDocument = GetComponent<UIDocument>();
             _scriptEngine = GetComponent<ScriptEngine>();
-            _uiDocument.rootVisualElement.styleSheets.Add(_baseStyleSheet);
             _scriptEngine.RegisterClassStrProcessor(this);
+        }
+
+        void OnEnable() {
+            if (!_uiDocument.rootVisualElement.styleSheets.Contains(_baseStyleSheet))
+                _uiDocument.rootVisualElement.styleSheets.Add(_baseStyleSheet);
         }
 
         void Start() {

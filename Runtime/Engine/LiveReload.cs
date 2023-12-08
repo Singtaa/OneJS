@@ -114,9 +114,6 @@ namespace OneJS.Engine {
                     print($"[Client] Net Sync On (port {_net.LocalPort})");
                 }
             }
-            if (_runOnStart) {
-                _scriptEngine.RunScript(_entryScript);
-            }
         }
 
         void OnEnable() {
@@ -129,6 +126,9 @@ namespace OneJS.Engine {
             _watcher = new CustomWatcher(_workingDir, _watchFilter);
             _watcher.OnChangeDetected += OnFileChangeDetected;
             _watcher.Start();
+            if (_runOnStart) {
+                _scriptEngine.RunScript(_entryScript);
+            }
             Debug.Log($"Live Reload On (entry script: {_entryScript})");
         }
 

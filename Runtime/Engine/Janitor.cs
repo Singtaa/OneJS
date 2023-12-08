@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System;
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -12,6 +13,12 @@ namespace OneJS.Engine {
         public bool clearLogs = true;
         public bool clearGameObjects = true;
 
+        bool _destroyed;
+
+        void OnDestroy() {
+            _destroyed = true;
+        }
+
         /// <summary>
         /// Destroys all root sibling GameObjects after this one.
         /// </summary>
@@ -24,6 +31,8 @@ namespace OneJS.Engine {
         }
 
         public void ClearGameObjects() {
+            if (_destroyed)
+                return;
             // NOTE GetSiblingIndex doesn't work on root GOs
             var rootGOs = SceneManager.GetActiveScene().GetRootGameObjects();
             var canDelete = false;

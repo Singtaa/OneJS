@@ -59,10 +59,7 @@ namespace OneJS {
         public List<string> PostloadedScripts { get { return _postloadedScripts; } set { _postloadedScripts = value; } }
         public StyleSheet[] StyleSheets { get { return _styleSheets; } set { _styleSheets = value; } }
         public int[] Breakpoints { get { return _breakpoints; } set { _breakpoints = value; } }
-        public bool CatchDotNetExceptions {
-            get { return _catchDotNetExceptions; }
-            set { _catchDotNetExceptions = value; }
-        }
+        public bool CatchDotNetExceptions { get { return _catchDotNetExceptions; } set { _catchDotNetExceptions = value; } }
         public bool AllowReflection { get { return _allowReflection; } set { _allowReflection = value; } }
         public bool AllowGetType { get { return _allowGetType; } set { _allowGetType = value; } }
         public int Timeout { get { return _timeout; } set { _timeout = value; } }
@@ -162,7 +159,7 @@ namespace OneJS {
         [Tooltip("Allow access to .GetType() from Javascript")]
         [SerializeField]
         bool _allowGetType;
-        [Tooltip("Memory Limit in MB. Set to 0 for no limit.")][SerializeField] int _memoryLimit;
+        [Tooltip("Memory Limit in MB. Set to 0 for no limit.")] [SerializeField] int _memoryLimit;
         [Tooltip("How long a script can execute in milliseconds. Set to 0 for no limit.")]
         [SerializeField] int _timeout;
         [Tooltip("Limit depth of calls to prevent deep recursion calls. Set to 0 for no limit.")]
@@ -218,12 +215,6 @@ namespace OneJS {
         int _tick = 0;
 
         public void Awake() {
-            _uiDocument = GetComponent<UIDocument>();
-            _uiDocument.rootVisualElement.style.width = new StyleLength(new Length(100, LengthUnit.Percent));
-            _uiDocument.rootVisualElement.style.height = new StyleLength(new Length(100, LengthUnit.Percent));
-            _document = new Document(_uiDocument.rootVisualElement, this);
-            _styleSheets.ToList().ForEach(s => _uiDocument.rootVisualElement.styleSheets.Add(s));
-
             _globalFuncTypes = this.GetType().Assembly.GetTypes()
                 .Where(t => t.IsVisible && t.FullName.StartsWith("OneJS.Engine.JSGlobals")).ToList();
 
@@ -233,8 +224,9 @@ namespace OneJS {
         }
 
         void Start() {
-            if (_initEngineOnStart)
-                InitEngine();
+            // if (_initEngineOnStart)
+            //     InitEngine();
+            
 #if ENABLE_INPUT_SYSTEM
             if (_enableExtraLogging && FindObjectOfType<UnityEngine.EventSystems.EventSystem>() == null) {
                 Debug.Log("New Input System is enabled but there's no EventSystem in the scene." +
@@ -242,6 +234,23 @@ namespace OneJS {
                           " New InputSystem. You can add one by going to Hierarchy Add -> UI -> Event System.");
             }
 #endif
+        }
+
+        void OnEnable() {
+            _uiDocument = GetComponent<UIDocument>();
+            _document = new Document(_uiDocument.rootVisualElement, this);
+            _styleSheets.ToList().ForEach(s => _uiDocument.rootVisualElement.styleSheets.Add(s));
+            _uiDocument.rootVisualElement.style.width = new StyleLength(new Length(100, LengthUnit.Percent));
+            _uiDocument.rootVisualElement.style.height = new StyleLength(new Length(100, LengthUnit.Percent));
+            if (_initEngineOnStart)
+                InitEngine();
+        }
+
+        void OnDisable() {
+            if (_engine == null) return;
+            RunOnReloadHandlers();
+            OnReload?.Invoke();
+            CleanUp();
         }
 
         void OnDestroy() {
@@ -431,7 +440,8 @@ namespace OneJS {
 
         void CleanUp() {
             _document.clearRuntimeStyleSheets();
-            _uiDocument.rootVisualElement.Clear();
+            if (_uiDocument.rootVisualElement != null)
+                _uiDocument.rootVisualElement.Clear();
             _engineReloadJSHandlers.Clear();
             _engineHost.Dispose();
 
