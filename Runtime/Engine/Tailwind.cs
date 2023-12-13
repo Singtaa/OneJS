@@ -123,6 +123,7 @@ namespace OneJS.Engine {
             string css = File.ReadAllText(Path.Combine(_scriptEngine.WorkingDir, _outputCssPath));
 
             css = ConvertRgbToRgba(css);
+            css = ConvertHexToRgba(css);
 
             string pattern = @"@media[^\{]+\{(([^\{\}]+\{[^\{\}]+\}[^\{\}]*)+)\}";
             MatchCollection matches = Regex.Matches(css, pattern, RegexOptions.Singleline);
@@ -212,6 +213,23 @@ namespace OneJS.Engine {
             string pattern = @"rgb\((.*?) /\s*(.*?)\)";
             string replacement = "rgba($1 $2)";
             return Regex.Replace(input, pattern, replacement);
+        }
+
+        static string ConvertHexToRgba(string input) {
+            string pattern = @": #([A-Fa-f0-9]{8})";
+            return Regex.Replace(input, pattern, new MatchEvaluator(HexMatchToRgba));
+        }
+
+        static string HexMatchToRgba(Match m) {
+            if (!m.Success) return "";
+
+            string hexValue = m.Groups[1].Value;
+            int r = Convert.ToInt32(hexValue.Substring(0, 2), 16);
+            int g = Convert.ToInt32(hexValue.Substring(2, 2), 16);
+            int b = Convert.ToInt32(hexValue.Substring(4, 2), 16);
+            float a = Convert.ToInt32(hexValue.Substring(6, 2), 16) / 255f;
+
+            return $": rgba({r}, {g}, {b}, {a:F2})";
         }
     }
 }
