@@ -22,14 +22,6 @@ namespace OneJS.Engine {
         /// <summary>
         /// Destroys all root sibling GameObjects after this one.
         /// </summary>
-        [ContextMenu("Clean")]
-        public void Clean() {
-            if (clearGameObjects)
-                ClearGameObjects();
-            if (clearLogs)
-                ClearLog();
-        }
-
         public void ClearGameObjects() {
             if (_destroyed)
                 return;
@@ -47,6 +39,14 @@ namespace OneJS.Engine {
                     continue;
                 Destroy(go);
             }
+        }
+
+        [ContextMenu("Clean")]
+        public void Clean() {
+            if (clearGameObjects)
+                ClearGameObjects();
+            if (clearLogs)
+                ClearLog();
         }
 
         [ContextMenu("Clear Logs")]

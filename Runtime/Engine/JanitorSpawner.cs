@@ -13,15 +13,16 @@ namespace OneJS.Engine {
         [SerializeField] bool _clearGameObjects = true;
         [Tooltip("Clear console logs on every ScriptEngine reload.")]
         [SerializeField] bool _clearLogs = true;
-        [Tooltip("Respawn the Janitor during scene reload.")]
+        [Tooltip("Respawn the Janitor during scene loads so that it doesn't clean up your additively loaded scenes.")]
         [SerializeField] bool _respawnOnSceneLoad = true;
+        [Tooltip("Don't clean up on OnDisable().")]
+        [SerializeField] bool _stopCleaningOnDisable;
 
         ScriptEngine _scriptEngine;
         Janitor _janitor;
 
         void Awake() {
             _scriptEngine = GetComponent<ScriptEngine>();
-            Respawn();
             SceneManager.sceneLoaded += OnSceneLoaded;
         }
 
@@ -30,7 +31,12 @@ namespace OneJS.Engine {
         }
 
         void OnEnable() {
+            Respawn();
             _scriptEngine.OnReload += OnReload;
+        }
+
+        void OnDisable() {
+            _scriptEngine.OnReload -= OnReload;
         }
 
         public void Respawn() {
@@ -42,10 +48,6 @@ namespace OneJS.Engine {
             _janitor.clearLogs = _clearLogs;
         }
 
-        void OnDisable() {
-            _scriptEngine.OnReload -= OnReload;
-        }
-
         void OnSceneLoaded(Scene scene, LoadSceneMode mode) {
             if (_respawnOnSceneLoad) {
                 Respawn();
@@ -53,6 +55,10 @@ namespace OneJS.Engine {
         }
 
         void OnReload() {
+            // Because OnDisable() order is non-deterministic, we need to check for gameObject.activeSelf
+            // instead of depending on individual components.
+            if (_stopCleaningOnDisable && !this.gameObject.activeSelf)
+                return;
             _janitor.Clean();
         }
     }

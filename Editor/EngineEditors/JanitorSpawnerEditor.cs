@@ -9,11 +9,13 @@ namespace OneJS.Editor {
         SerializedProperty _clearGameObjects;
         SerializedProperty _clearLogs;
         SerializedProperty _respawnOnSceneLoad;
+        SerializedProperty _stopCleaningOnDisable;
 
         void OnEnable() {
             _clearGameObjects = serializedObject.FindProperty("_clearGameObjects");
             _clearLogs = serializedObject.FindProperty("_clearLogs");
             _respawnOnSceneLoad = serializedObject.FindProperty("_respawnOnSceneLoad");
+            _stopCleaningOnDisable = serializedObject.FindProperty("_stopCleaningOnDisable");
         }
 
         public override void OnInspectorGUI() {
@@ -24,6 +26,7 @@ namespace OneJS.Editor {
             EditorGUILayout.PropertyField(_clearGameObjects);
             EditorGUILayout.PropertyField(_clearLogs);
             EditorGUILayout.PropertyField(_respawnOnSceneLoad);
+            EditorGUILayout.PropertyField(_stopCleaningOnDisable);
             serializedObject.ApplyModifiedProperties();
         }
     }
