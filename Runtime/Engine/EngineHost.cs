@@ -91,6 +91,8 @@ namespace OneJS.Engine {
         public class Interop {
             public readonly JsObject classes;
             public readonly JsObject objects;
+            
+            readonly ScriptEngine _engine;
 
             public Interop(ScriptEngine engine) {
                 classes = new(engine.JintEngine);
@@ -110,6 +112,14 @@ namespace OneJS.Engine {
                 foreach (var pair in engine.Objects) {
                     objects[pair.module] = JsValue.FromObject(engine.JintEngine, pair.obj);
                 }
+            }
+            
+            public void AddClass(string module, Type type) {
+                classes[module] = TypeReference.CreateTypeReference(_engine.JintEngine, type);
+            }
+            
+            public void AddObject(string module, object obj) {
+                objects[module] = JsValue.FromObject(_engine.JintEngine, obj);
             }
         }
     }

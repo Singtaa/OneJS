@@ -44,6 +44,7 @@ namespace OneJS {
 
         public Jint.Engine JintEngine => _engine;
         public ModuleLoadingEngine ModuleEngine => _cjsEngine;
+        public EngineHost EngineHost => _engineHost;
         public Dom.Document Document => _document;
         public Dom.Dom DocumentBody => _document.body;
         public int Tick => _tick;
