@@ -22,6 +22,7 @@ namespace OneJS.Editor {
         SerializedProperty _memoryLimit;
         SerializedProperty _timeout;
         SerializedProperty _recursionDepth;
+        SerializedProperty _maxExecutionStackCount;
 
         SerializedProperty _styleSheets;
         SerializedProperty _breakpoints;
@@ -54,6 +55,7 @@ namespace OneJS.Editor {
             _memoryLimit = serializedObject.FindProperty("_memoryLimit");
             _timeout = serializedObject.FindProperty("_timeout");
             _recursionDepth = serializedObject.FindProperty("_recursionDepth");
+            _maxExecutionStackCount = serializedObject.FindProperty("_maxExecutionStackCount");
 
             _styleSheets = serializedObject.FindProperty("_styleSheets");
             _breakpoints = serializedObject.FindProperty("_breakpoints");
@@ -97,6 +99,7 @@ namespace OneJS.Editor {
                     EditorGUILayout.PropertyField(_memoryLimit);
                     EditorGUILayout.PropertyField(_timeout);
                     EditorGUILayout.PropertyField(_recursionDepth);
+                    EditorGUILayout.PropertyField(_maxExecutionStackCount);
                     break;
                 case 2:
                     EditorGUILayout.PropertyField(_styleSheets);

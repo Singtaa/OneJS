@@ -165,6 +165,8 @@ namespace OneJS {
         [SerializeField] int _timeout;
         [Tooltip("Limit depth of calls to prevent deep recursion calls. Set to 0 for no limit.")]
         [SerializeField] int _recursionDepth;
+        [Tooltip("Maximum recursion stack count, defaults to -1. Set to value other than -1 to improve Jint's recursion limit (at the cost of slight performance and stacktrace readability degradation. For more info, refer to Jint's PR #1566")]
+        [SerializeField] int _maxExecutionStackCount = -1;
 
         [PairMapping("baseDir", "relativePath", "/", "Editor WorkingDir")]
         [SerializeField] EditorModeWorkingDirInfo _editorModeWorkingDirInfo;
@@ -528,6 +530,7 @@ namespace OneJS {
                 if (_memoryLimit > 0) opts.LimitMemory(_memoryLimit * 1048576);
                 if (_timeout > 0) opts.TimeoutInterval(TimeSpan.FromMilliseconds(_timeout));
                 if (_recursionDepth > 0) opts.LimitRecursion(_recursionDepth);
+                opts.Constraints.MaxExecutionStackCount = _maxExecutionStackCount;
 
                 OnInitOptions?.Invoke(opts);
             });
