@@ -32,7 +32,7 @@ public class EventfulPropertyGenerator : ISourceGenerator {
             var projectPath = GetProjectPath(context);
             var outputFileName = $"{classSymbol}.g.cs";
             var outputFilePath = Path.Combine(projectPath ?? "", OUTPUT_DIRECTORY, outputFileName);
-            var compilationUnit = GenerateEventfulCompilationUnit(classSymbol, classDeclaration, fieldDeclarations)
+            var compilationUnit = GenerateEventfulCompilationUnit(semanticModel, classSymbol, classDeclaration, fieldDeclarations)
                 .WithLeadingTrivia(
                     Trivia(
                         LineDirectiveTrivia(
@@ -62,7 +62,7 @@ public class EventfulPropertyGenerator : ISourceGenerator {
                 )
             );
 
-    static CompilationUnitSyntax GenerateEventfulCompilationUnit(INamedTypeSymbol classSymbol, ClassDeclarationSyntax classDeclaration,
+    static CompilationUnitSyntax GenerateEventfulCompilationUnit(SemanticModel semanticModel, INamedTypeSymbol classSymbol, ClassDeclarationSyntax classDeclaration,
         IEnumerable<FieldDeclarationSyntax> fieldDeclarations) {
         var namespaceSyntax = GenerateEventfulNamespace(classSymbol.ContainingNamespace);
         var compilationUnit = CompilationUnit().WithUsings(classDeclaration.SyntaxTree.GetCompilationUnitRoot().Usings);
@@ -73,7 +73,7 @@ public class EventfulPropertyGenerator : ISourceGenerator {
                     NamespaceDeclaration(namespaceSyntax)
                         .WithMembers(
                             SingletonList<MemberDeclarationSyntax>(
-                                GenerateEventfulClass(classDeclaration, fieldDeclarations)
+                                GenerateEventfulClass(semanticModel, classDeclaration, fieldDeclarations)
                             )
                         )
                 )
@@ -81,7 +81,7 @@ public class EventfulPropertyGenerator : ISourceGenerator {
         } else {
             compilationUnit = compilationUnit.WithMembers(
                 SingletonList<MemberDeclarationSyntax>(
-                    GenerateEventfulClass(classDeclaration, fieldDeclarations)
+                    GenerateEventfulClass(semanticModel, classDeclaration, fieldDeclarations)
                 )
             );
         }
@@ -101,7 +101,7 @@ public class EventfulPropertyGenerator : ISourceGenerator {
         }
     }
 
-    static ClassDeclarationSyntax GenerateEventfulClass(ClassDeclarationSyntax classDeclaration,
+    static ClassDeclarationSyntax GenerateEventfulClass(SemanticModel semanticModel, ClassDeclarationSyntax classDeclaration,
         IEnumerable<FieldDeclarationSyntax> fieldDeclarations) =>
         ClassDeclaration(classDeclaration.Identifier)
             .WithModifiers(classDeclaration.Modifiers)
@@ -112,9 +112,17 @@ public class EventfulPropertyGenerator : ISourceGenerator {
                             var fieldName = variableDeclarator.Identifier.ValueText;
                             var propertyName = ConvertToPropertyName(fieldName);
                             var eventName = $"On{propertyName}Changed";
+                            var checkEquality = fieldDeclaration.AttributeLists
+                                .SelectMany(al => al.Attributes)
+                                .FirstOrDefault(a => semanticModel.GetTypeInfo(a).Type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ==
+                                                     MARKER_ATTRIBUTE_FULLY_QUALIFIED_NAME)?
+                                .ArgumentList?
+                                .Arguments
+                                .FirstOrDefault()
+                                ?.Expression is LiteralExpressionSyntax literal && literal.IsKind(SyntaxKind.TrueLiteralExpression);
 
                             return new MemberDeclarationSyntax[] {
-                                GenerateEventfulProperty(fieldDeclaration.Declaration.Type, fieldName, propertyName, eventName),
+                                GenerateEventfulProperty(fieldDeclaration.Declaration.Type, fieldName, propertyName, eventName, checkEquality),
                                 GenerateEventfulEvent(fieldDeclaration.Declaration.Type, eventName)
                             };
                         })
@@ -122,9 +130,26 @@ public class EventfulPropertyGenerator : ISourceGenerator {
                 )
             );
 
-    static PropertyDeclarationSyntax GenerateEventfulProperty(TypeSyntax typeSyntax, string fieldName, string propertyName, string eventName) {
+    static PropertyDeclarationSyntax GenerateEventfulProperty(TypeSyntax typeSyntax, string fieldName, string propertyName, string eventName,
+        bool checkEquality = false) {
         var fieldNameSyntax = IdentifierName(fieldName);
         var valueSyntax = IdentifierName("value");
+
+        var setAccessorStatements = new List<StatementSyntax>();
+        if (checkEquality) {
+            setAccessorStatements.Add(
+                IfStatement(
+                    BinaryExpression(SyntaxKind.NotEqualsExpression, fieldNameSyntax, valueSyntax),
+                    Block(
+                        ExpressionStatement(AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, fieldNameSyntax, valueSyntax)),
+                        InvokeEventStatement(eventName, valueSyntax)
+                    )
+                )
+            );
+        } else {
+            setAccessorStatements.Add(ExpressionStatement(AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, fieldNameSyntax, valueSyntax)));
+            setAccessorStatements.Add(InvokeEventStatement(eventName, valueSyntax));
+        }
 
         return PropertyDeclaration(typeSyntax, propertyName)
             .WithModifiers(TokenList(Token(SyntaxKind.PublicKeyword)))
@@ -135,35 +160,22 @@ public class EventfulPropertyGenerator : ISourceGenerator {
                             .WithExpressionBody(ArrowExpressionClause(fieldNameSyntax))
                             .WithSemicolonToken(Token(SyntaxKind.SemicolonToken)),
                         AccessorDeclaration(SyntaxKind.SetAccessorDeclaration)
-                            .WithBody(
-                                Block(
-                                    ExpressionStatement(
-                                        AssignmentExpression(
-                                            SyntaxKind.SimpleAssignmentExpression,
-                                            fieldNameSyntax,
-                                            valueSyntax
-                                        )
-                                    ),
-                                    ExpressionStatement(
-                                        ConditionalAccessExpression(
-                                            IdentifierName(eventName),
-                                            InvocationExpression(
-                                                MemberBindingExpression(
-                                                    IdentifierName("Invoke")
-                                                ),
-                                                ArgumentList(
-                                                    SingletonSeparatedList(
-                                                        Argument(valueSyntax)
-                                                    )
-                                                )
-                                            )
-                                        )
-                                    )
-                                )
-                            )
+                            .WithBody(Block(setAccessorStatements))
                     })
                 )
             );
+    }
+
+    static ExpressionStatementSyntax InvokeEventStatement(string eventName, IdentifierNameSyntax valueSyntax) {
+        return ExpressionStatement(
+            ConditionalAccessExpression(
+                IdentifierName(eventName),
+                InvocationExpression(
+                    MemberBindingExpression(IdentifierName("Invoke")),
+                    ArgumentList(SingletonSeparatedList(Argument(valueSyntax)))
+                )
+            )
+        );
     }
 
     static EventFieldDeclarationSyntax GenerateEventfulEvent(TypeSyntax typeSyntax, string eventName) =>
