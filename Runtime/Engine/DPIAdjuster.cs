@@ -1,6 +1,7 @@
 ﻿using System;
 using UnityEngine;
 using UnityEngine.Serialization;
+using UnityEngine.UI;
 using UnityEngine.UIElements;
 
 namespace OneJS.Engine {
@@ -12,6 +13,9 @@ namespace OneJS.Engine {
         [Tooltip("Default UI scale for Panel Settings")]
         [SerializeField] float _defaultUIScale = 1f;
 
+        [Tooltip("DPI Threshold for switching between 1x and 2x scale")]
+        [SerializeField] int _dpiThreshold = 130;
+
         float _currentDPI;
         string _currentReolutionStr;
         UIDocument _uiDocument;
@@ -21,6 +25,11 @@ namespace OneJS.Engine {
             _uiDocument = GetComponent<UIDocument>();
             _panelSettings = _uiDocument.panelSettings;
             _panelSettings.scale = _defaultUIScale;
+            if (_panelSettings.scaleMode != PanelScaleMode.ConstantPhysicalSize)
+                this.enabled = false;
+        }
+
+        void OnEnable() {
             if (_autoSetUIScale)
                 SetScale();
         }
@@ -35,7 +44,7 @@ namespace OneJS.Engine {
         void SetScale() {
             _currentDPI = Screen.dpi;
             _currentReolutionStr = Screen.currentResolution.ToString();
-            _panelSettings.scale = _currentDPI > 130 ? 2f : 1f;
+            _panelSettings.scale = _currentDPI > _dpiThreshold ? 2f * _defaultUIScale : _defaultUIScale;
         }
     }
 }
