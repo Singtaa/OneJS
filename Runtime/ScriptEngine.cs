@@ -122,8 +122,9 @@ namespace OneJS {
         StaticClassModulePair[] _staticClasses = new[]
             { new StaticClassModulePair("Unity.Mathematics.math", "math") };
 
-        [Tooltip(
-            "Maps an Unity Object to a js module name (any string that you choose). Objects declared here will be accessible from Javascript via i.e. require(\"objname\"). You can also provide your own Type Definitions for better TS usage.")]
+        [Tooltip("Maps an Unity Object to a js module name (any string that you choose). Objects declared here will " +
+                 "be accessible from Javascript via i.e. require(\"objname\"). You can also provide your own Type " +
+                 "Definitions for better TS usage.")]
         [PairMapping("obj", "module")]
         [SerializeField]
         ObjectModulePair[] _objects = new ObjectModulePair[] { };
@@ -165,7 +166,9 @@ namespace OneJS {
         [SerializeField] int _timeout;
         [Tooltip("Limit depth of calls to prevent deep recursion calls. Set to 0 for no limit.")]
         [SerializeField] int _recursionDepth;
-        [Tooltip("Maximum recursion stack count, defaults to -1. Set to value other than -1 to improve Jint's recursion limit (at the cost of slight performance and stacktrace readability degradation. For more info, refer to Jint's PR #1566")]
+        [Tooltip("Maximum recursion stack count, defaults to -1. Set to value other than -1 to improve Jint's recursion " +
+                 "limit (at the cost of slight performance and stacktrace readability degradation. For more info, refer " +
+                 "to Jint's PR #1566")]
         [SerializeField] int _maxExecutionStackCount = -1;
 
         [PairMapping("baseDir", "relativePath", "/", "Editor WorkingDir")]
@@ -217,29 +220,12 @@ namespace OneJS {
 
         int _tick = 0;
 
-        public void Awake() {
+        void OnEnable() {
             _globalFuncTypes = this.GetType().Assembly.GetTypes()
                 .Where(t => t.IsVisible && t.FullName.StartsWith("OneJS.Engine.JSGlobals")).ToList();
-
-            if (_setDontDestroyOnLoad) {
+            if (_setDontDestroyOnLoad && Application.isPlaying) {
                 DontDestroyOnLoad(gameObject);
             }
-        }
-
-        void Start() {
-            // if (_initEngineOnStart)
-            //     InitEngine();
-            
-#if ENABLE_INPUT_SYSTEM
-            if (_enableExtraLogging && FindObjectOfType<UnityEngine.EventSystems.EventSystem>() == null) {
-                Debug.Log("New Input System is enabled but there's no EventSystem in the scene." +
-                          " UI Toolkit may need an EventSystem in the scene in order to work correctly with the " +
-                          " New InputSystem. You can add one by going to Hierarchy Add -> UI -> Event System.");
-            }
-#endif
-        }
-
-        void OnEnable() {
             _uiDocument = GetComponent<UIDocument>();
             _document = new Document(_uiDocument.rootVisualElement, this);
             _styleSheets.ToList().ForEach(s => _uiDocument.rootVisualElement.styleSheets.Add(s));
@@ -247,6 +233,19 @@ namespace OneJS {
             _uiDocument.rootVisualElement.style.height = new StyleLength(new Length(100, LengthUnit.Percent));
             if (_initEngineOnStart)
                 InitEngine();
+        }
+
+        void Start() {
+            // if (_initEngineOnStart)
+            //     InitEngine();
+
+#if ENABLE_INPUT_SYSTEM
+            if (_enableExtraLogging && FindObjectOfType<UnityEngine.EventSystems.EventSystem>() == null) {
+                Debug.Log("New Input System is enabled but there's no EventSystem in the scene." +
+                          " UI Toolkit may need an EventSystem in the scene in order to work correctly with the " +
+                          " New InputSystem. You can add one by going to Hierarchy Add -> UI -> Event System.");
+            }
+#endif
         }
 
         void OnDisable() {
@@ -261,7 +260,7 @@ namespace OneJS {
             RunOnDestroyHandlers();
         }
 
-        void LateUpdate() {
+        void Update() {
             if (_engine == null) return;
             _engine.ResetConstraints();
             _engine.RunAvailableContinuations(); // RunAvailableContinuations is not public in normal Jint

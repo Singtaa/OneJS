@@ -32,13 +32,13 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6661873769672997507}
+  serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &6661873769672997516
 MonoBehaviour:
@@ -132,6 +132,7 @@ MonoBehaviour:
   _memoryLimit: 0
   _timeout: 0
   _recursionDepth: 0
+  _maxExecutionStackCount: -1
   _editorModeWorkingDirInfo:
     baseDir: 0
     relativePath: OneJS
@@ -211,6 +212,7 @@ MonoBehaviour:
   _clearGameObjects: 1
   _clearLogs: 1
   _respawnOnSceneLoad: 1
+  _stopCleaningOnDisable: 0
 --- !u!114 &-7210667014852890819
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -247,6 +249,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _autoSetUIScale: 1
   _defaultUIScale: 1
+  _dpiThreshold: 130
 --- !u!114 &-6158145890685900428
 MonoBehaviour:
   m_ObjectHideFlags: 0

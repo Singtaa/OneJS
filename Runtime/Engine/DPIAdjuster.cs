@@ -25,7 +25,7 @@ namespace OneJS.Engine {
             _uiDocument = GetComponent<UIDocument>();
             _panelSettings = _uiDocument.panelSettings;
             _panelSettings.scale = _defaultUIScale;
-            if (_panelSettings.scaleMode != PanelScaleMode.ConstantPhysicalSize)
+            if (_panelSettings.scaleMode != PanelScaleMode.ConstantPixelSize)
                 this.enabled = false;
         }
 
