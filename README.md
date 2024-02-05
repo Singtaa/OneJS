@@ -35,7 +35,7 @@ document.body.appendChild(div)
 setInterval(() => { div.ve.MarkDirtyRepaint() })
 ```
 
-Use Menu `Tools / OneJS / Rebuild All` to generate TS Typings. To optimize GC, enable unsafe code and use a config class like this:
+Use Menu `Tools / OneJS / Rebuild All` to generate TS Typings. To optimize GC for value types, enable unsafe code and use a config class like this:
 
 ```csharp
 [Configure]
