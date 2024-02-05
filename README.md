@@ -35,4 +35,27 @@ document.body.appendChild(div)
 setInterval(() => { div.ve.MarkDirtyRepaint() })
 ```
 
+Use Menu `Tools / OneJS / Rebuild All` to generate TS Typings. To optimize GC, enable unsafe code and use a config class like this:
+
+```csharp
+[Configure]
+public class ExamplesCfg {
+    [BlittableCopy]
+    static IEnumerable<Type> Blittables {
+        get {
+            return new List<Type>() {
+                typeof(UnityEngine.Rect),
+                typeof(UnityEngine.Color),
+                typeof(UnityEngine.Color32),
+                typeof(UnityEngine.Vector2),
+                typeof(UnityEngine.Vector3),
+                typeof(UnityEngine.Quaternion),
+            };
+        }
+    }
+}
+```
+
+_(More doc on this coming soon.)_
+
 > TODO need to cover many of the other new features and improvements in V2, such as the new esbuild workflow, automatic ts typings, onejs npm modules etc.
