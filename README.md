@@ -38,6 +38,11 @@ setInterval(() => { div.ve.MarkDirtyRepaint() })
 Use Menu `Tools / OneJS / Rebuild All` to generate TS Typings. To optimize GC for value types, enable unsafe code and use a config class like this:
 
 ```csharp
+using System;
+using System.Collections.Generic;
+using Puerts;
+using UnityEngine;
+
 [Configure]
 public class ExamplesCfg {
     [BlittableCopy]
