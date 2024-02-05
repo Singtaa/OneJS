@@ -3,16 +3,13 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Jint;
-using Jint.Native;
-using Jint.Native.Function;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace OneJS.Dom {
     public class RegisteredCallbackHolder {
         public EventCallback<EventBase> callback;
-        public JsValue jsValue;
+        public object jsValue;
         public bool useCapture;
     }
 
@@ -60,7 +57,7 @@ namespace OneJS.Dom {
 
         // NOTE: Using `JsValue` here because `EventCallback<EventBase>` will lead to massive slowdown on Linux.
         // [props.ts] `dom._listeners[name + useCapture] = value;`
-        public Dictionary<string, JsValue> _listeners => __listeners;
+        public Dictionary<string, object> _listeners => __listeners;
 
         Document _document;
         VisualElement _ve;
@@ -73,7 +70,7 @@ namespace OneJS.Dom {
         string _innerHTML;
         List<Dom> _childNodes = new List<Dom>();
         object __children;
-        Dictionary<string, JsValue> __listeners = new Dictionary<string, JsValue>();
+        Dictionary<string, object> __listeners = new Dictionary<string, object>();
 
         Dictionary<string, List<RegisteredCallbackHolder>> _registeredCallbacks =
             new Dictionary<string, List<RegisteredCallbackHolder>>();
@@ -107,36 +104,43 @@ namespace OneJS.Dom {
             _document = document;
         }
 
-        public void CallListener(string name, EventBase evt) {
-            // var func = __listeners[name].As<FunctionInstance>();
-            var tick = _document.scriptEngine.Tick;
-            _tickBasedCallTracker.count = _tickBasedCallTracker.tick == tick ? _tickBasedCallTracker.count + 1 : 0;
-            _tickBasedCallTracker.tick = tick;
-            if (_tickBasedCallTracker.count > 1000) {
-                Debug.LogError(
-                    $"Possible infinite loop detected. Event Listener(s) on {_ve.GetType().Name} called more than 1000 times in one frame.");
-                return;
+        // public void CallListener(string name, EventBase evt) {
+        //     // var func = __listeners[name].As<FunctionInstance>();
+        //     var tick = _document.scriptEngine.Tick;
+        //     _tickBasedCallTracker.count = _tickBasedCallTracker.tick == tick ? _tickBasedCallTracker.count + 1 : 0;
+        //     _tickBasedCallTracker.tick = tick;
+        //     if (_tickBasedCallTracker.count > 1000) {
+        //         Debug.LogError(
+        //             $"Possible infinite loop detected. Event Listener(s) on {_ve.GetType().Name} called more than 1000 times in one frame.");
+        //         return;
+        //     }
+        //     var jintEngine = _document.scriptEngine.JintEngine;
+        //     var thisDom = JsValue.FromObject(jintEngine, this);
+        //     jintEngine.Call(__listeners[name], thisDom, new[] { JsValue.FromObject(jintEngine, evt) });
+        // }
+        
+        public string classname {
+            get {
+                return string.Join(" ", _ve.GetClasses().Where(c => !c.StartsWith("unity-")).ToArray());
             }
-            var jintEngine = _document.scriptEngine.JintEngine;
-            var thisDom = JsValue.FromObject(jintEngine, this);
-            jintEngine.Call(__listeners[name], thisDom, new[] { JsValue.FromObject(jintEngine, evt) });
+            set {
+                this.setAttribute("class", value);
+            }
+        }
+        
+        public void SetBackgroundColor(Color color) {
+            _ve.style.backgroundColor = color;
         }
 
         public void clearChildren() {
             _ve.Clear();
         }
 
-        public void addEventListener(string name, JsValue jsval, bool useCapture = false) {
-            // var t = DateTime.Now;
-            // var func = jsval.As<FunctionInstance>();
-            var engine = _document.scriptEngine.JintEngine;
-            var thisDom = JsValue.FromObject(engine, this);
-            var callback = (EventCallback<EventBase>)((e) => { engine.Call(jsval, thisDom, new[] { JsValue.FromObject(engine, e) }); });
-            var isValueChanged = name == "ValueChanged";
-            // Debug.Log("addEventListener " + name + " on " + _ve.name + " " + isValueChanged);
-
-            if (!isValueChanged && _eventCache.ContainsKey(name)) {
-                _eventCache[name](_ve, callback, useCapture ? TrickleDown.TrickleDown : TrickleDown.NoTrickleDown);
+        public void addEventListener(string name, EventCallback<EventBase> callback, bool useCapture = false) {
+            var nameLower = name.ToLower();
+            var isValueChanged = nameLower == "valuechanged";
+            if (!isValueChanged && _eventCache.ContainsKey(nameLower)) {
+                _eventCache[nameLower](_ve, callback, useCapture ? TrickleDown.TrickleDown : TrickleDown.NoTrickleDown);
                 // Debug.Log("Registered " + name + " on " + _ve.name);
             } else {
                 Type eventType = null;
@@ -149,7 +153,7 @@ namespace OneJS.Dom {
                         eventType = eventType.MakeGenericType(valType);
                     }
                 } else {
-                    eventType = _document.FindUIElementEventType(name);
+                    eventType = _document.FindUIElementEventType(nameLower);
                 }
 
                 if (eventType != null) {
@@ -157,17 +161,17 @@ namespace OneJS.Dom {
                     mi = mi.MakeGenericMethod(eventType);
                     // mi.Invoke(null, new object[] { _ve, callback });
                     var del = (RegisterCallbackDelegate)Delegate.CreateDelegate(typeof(RegisterCallbackDelegate), mi);
-                    if (!isValueChanged && !_eventCache.ContainsKey(name))
-                        _eventCache.Add(name, del);
+                    if (!isValueChanged && !_eventCache.ContainsKey(nameLower))
+                        _eventCache.Add(nameLower, del);
                     del(_ve, callback, useCapture ? TrickleDown.TrickleDown : TrickleDown.NoTrickleDown);
                     // Debug.Log("Registered " + name + " on " + _ve.name);
                 }
             }
 
-            var callbackHolder = new RegisteredCallbackHolder() { callback = callback, jsValue = jsval, useCapture = useCapture };
-            if (!_registeredCallbacks.TryGetValue(name, out List<RegisteredCallbackHolder> callbackList)) {
+            var callbackHolder = new RegisteredCallbackHolder() { callback = callback, useCapture = useCapture };
+            if (!_registeredCallbacks.TryGetValue(nameLower, out List<RegisteredCallbackHolder> callbackList)) {
                 callbackList = new List<RegisteredCallbackHolder>();
-                _registeredCallbacks[name] = callbackList;
+                _registeredCallbacks[nameLower] = callbackList;
             }
             callbackList.Add(callbackHolder);
 
@@ -177,18 +181,19 @@ namespace OneJS.Dom {
         /// <summary>
         /// Note that this method will remove ALL callbacks registered for the given event name.
         /// </summary>
-        public void removeEventListener(string name, JsValue jsval, bool useCapture = false) {
-            if (!_registeredCallbacks.ContainsKey(name))
+        public void removeEventListener(string name, EventCallback<EventBase> callback, bool useCapture = false) {
+            var nameLower = name.ToLower();
+            if (!_registeredCallbacks.ContainsKey(nameLower))
                 return;
-            var callbackHolders = _registeredCallbacks[name];
-            var eventType = _document.FindUIElementEventType(name);
+            var callbackHolders = _registeredCallbacks[nameLower];
+            var eventType = _document.FindUIElementEventType(nameLower);
             if (eventType != null) {
                 var flags = BindingFlags.Public | BindingFlags.Instance;
                 var mi = _ve.GetType().GetMethods(flags)
                     .Where(m => m.Name == "UnregisterCallback" && m.GetGenericArguments().Length == 1).First();
                 mi = mi.MakeGenericMethod(eventType);
                 for (var i = 0; i < callbackHolders.Count; i++) {
-                    if (callbackHolders[i].jsValue == jsval && callbackHolders[i].useCapture == useCapture) {
+                    if (callbackHolders[i].callback == callback && callbackHolders[i].useCapture == useCapture) {
                         mi.Invoke(_ve,
                             new object[] { callbackHolders[i].callback, useCapture ? TrickleDown.TrickleDown : TrickleDown.NoTrickleDown });
                         callbackHolders.RemoveAt(i);
@@ -196,7 +201,7 @@ namespace OneJS.Dom {
                     }
                 }
                 if (callbackHolders.Count == 0) {
-                    _registeredCallbacks.Remove(name);
+                    _registeredCallbacks.Remove(nameLower);
                 }
             }
         }
@@ -256,7 +261,8 @@ namespace OneJS.Dom {
             if (name == "class" || name == "className") {
                 var unityClassnames = _ve.GetClasses().Where(c => c.StartsWith("unity-")).ToArray();
                 _ve.ClearClassList();
-                var unprocessedClassStr = _document.scriptEngine.ProcessClassStr(val.ToString(), this);
+                // var unprocessedClassStr = _document.scriptEngine.ProcessClassStr(val.ToString(), this);
+                var unprocessedClassStr = val.ToString();
                 var parts = (unprocessedClassStr).Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 foreach (var unityClassname in unityClassnames) {
                     _ve.AddToClassList(unityClassname);

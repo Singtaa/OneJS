@@ -1,3 +1,3 @@
-Thank you everyone for the support! Just a quick note: Since Github doesn't allow setting collaborator permission for private free repos, everyone gets push access. Because of that, the main branch is set as a protected branch (to prevent potential accidents)
+> Note that this branch (OneJSv2) is a work in progress and is not yet ready for use. 
 
-In most cases, you can just clone this repo directly under your Assets folder. If you encounter any issue when upgrading OneJS, you can try deleting `ScriptLib/` folder and `tsconfig.json` in your OneJS Working Directory. They will be automatically regenerated.
+https://github.com/DragonGround/ScriptLib/assets/666527/e2f13f44-0370-4c90-8df7-ce9078dd04f1

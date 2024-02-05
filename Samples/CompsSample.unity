@@ -207,13 +207,13 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 841886148}
+  serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 1, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1578998365
 GameObject:
@@ -301,13 +301,13 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1578998365}
+  serializedVersion: 2
   m_LocalRotation: {x: 0.40821788, y: -0.23456968, z: 0.10938163, w: 0.8754261}
   m_LocalPosition: {x: 0, y: 3, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 50, y: -30, z: 0}
 --- !u!1001 &1668025749
 PrefabInstance:
@@ -319,6 +319,10 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 667018059808507767, guid: 171073f8a323d004f82984c58ed3049a, type: 3}
       propertyPath: _autoSetUIScale
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 667018059808507767, guid: 171073f8a323d004f82984c58ed3049a, type: 3}
+      propertyPath: _defaultUIScale
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6661873769672997505, guid: 171073f8a323d004f82984c58ed3049a, type: 3}
@@ -382,3 +386,10 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 171073f8a323d004f82984c58ed3049a, type: 3}
+--- !u!1660057539 &9223372036854775807
+SceneRoots:
+  m_ObjectHideFlags: 0
+  m_Roots:
+  - {fileID: 841886151}
+  - {fileID: 1578998367}
+  - {fileID: 1668025749}

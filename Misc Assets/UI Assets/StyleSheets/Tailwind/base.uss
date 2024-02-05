@@ -6,17 +6,24 @@
   position: relative
 }
 
-.inset-x-0 {
-  left: 0px;
-  right: 0px
-}
-
 .bottom-1 {
   bottom: 4px
 }
 
 .right-0 {
   right: 0px
+}
+
+.top-_lb_-1px_rb_ {
+  top: -1px
+}
+
+.m-6 {
+  margin: 24px
+}
+
+.mb-10 {
+  margin-bottom: 40px
 }
 
 .mb-2 {
@@ -31,6 +38,10 @@
   margin-bottom: 32px
 }
 
+.mr-4 {
+  margin-right: 16px
+}
+
 .mt-2 {
   margin-top: 8px
 }
@@ -43,6 +54,10 @@
   display: none
 }
 
+.h-16 {
+  height: 64px
+}
+
 .h-2 {
   height: 8px
 }
@@ -53,6 +68,10 @@
 
 .h-32 {
   height: 128px
+}
+
+.h-40 {
+  height: 160px
 }
 
 .h-6 {
@@ -91,16 +110,24 @@
   height: 100%
 }
 
+.h-_lb_400px_rb_ {
+  height: 400px
+}
+
+.h-_lb_500px_rb_ {
+  height: 500px
+}
+
 .w-16 {
   width: 64px
 }
 
-.w-20 {
-  width: 80px
-}
-
 .w-32 {
   width: 128px
+}
+
+.w-40 {
+  width: 160px
 }
 
 .w-6 {
@@ -113,6 +140,10 @@
 
 .w-8 {
   width: 32px
+}
+
+.w-96 {
+  width: 384px
 }
 
 .w-_lb_18px_rb_ {
@@ -143,16 +174,28 @@
   width: 500px
 }
 
+.w-_lb_544px_rb_ {
+  width: 544px
+}
+
 .w-full {
   width: 100%
+}
+
+.w-20 {
+  width: 80px
+}
+
+.w-_lb_400px_rb_ {
+  width: 400px
 }
 
 .min-w-_lb_200px_rb_ {
   min-width: 200px
 }
 
-.origin-top-left {
-  transform-origin: top left
+.grow {
+  flex-grow: 1
 }
 
 .flex-row {
@@ -167,8 +210,16 @@
   flex-wrap: wrap
 }
 
+.items-end {
+  align-items: flex-end
+}
+
 .items-center {
   align-items: center
+}
+
+.justify-end {
+  justify-content: flex-end
 }
 
 .justify-center {
@@ -185,6 +236,10 @@
 
 .overflow-hidden {
   overflow: hidden
+}
+
+.whitespace-nowrap {
+  white-space: nowrap
 }
 
 .rounded-_lb_16px_rb_ {
@@ -215,6 +270,22 @@
   border-width: 1px
 }
 
+.border-b-_lb_1px_rb_ {
+  border-bottom-width: 1px
+}
+
+.border-t-_lb_1px_rb_ {
+  border-top-width: 1px
+}
+
+.border-_lb__n_FFFFFF44_rb_ {
+  border-color: rgba(255, 255, 255, 0.27)
+}
+
+.border-_lb__n_FFFFFFBB_rb_ {
+  border-color: rgba(255, 255, 255, 0.73)
+}
+
 .border-_lb_rgba_lp_255_255_255_0_d_5_rp__rb_ {
   border-color: rgba(255 255 255 0.5)
 }
@@ -225,6 +296,22 @@
 
 .border-gray-400 {
   border-color: #9ca3af
+}
+
+.border-white {
+  border-color: #fff
+}
+
+.bg-_lb__n_00000033_rb_ {
+  background-color: rgba(0, 0, 0, 0.20)
+}
+
+.bg-_lb__n_7FFFD4BB_rb_ {
+  background-color: rgba(127, 255, 212, 0.73)
+}
+
+.bg-_lb__n_FFFFFF20_rb_ {
+  background-color: rgba(255, 255, 255, 0.13)
 }
 
 .bg-_lb_rgba_lp_0_0_0_0_d_5_rp__rb_ {
@@ -247,12 +334,28 @@
   background-color: #fed7aa
 }
 
-.bg-orange-500 {
-  background-color: #f97316
-}
-
 .bg-white {
   background-color: #fff
+}
+
+.bg-teal-200 {
+  background-color: #99f6e4
+}
+
+.bg-orange-300 {
+  background-color: #fdba74
+}
+
+.bg-red-300 {
+  background-color: #fca5a5
+}
+
+.bg-red-500 {
+  background-color: #ef4444
+}
+
+.bg-teal-500 {
+  background-color: #14b8a6
 }
 
 .p-1 {
@@ -261,10 +364,6 @@
 
 .p-3 {
   padding: 12px
-}
-
-.p-4 {
-  padding: 16px
 }
 
 .p-5 {
@@ -279,6 +378,16 @@
   padding: 6px
 }
 
+.px-1 {
+  padding-left: 4px;
+  padding-right: 4px
+}
+
+.px-20 {
+  padding-left: 80px;
+  padding-right: 80px
+}
+
 .px-_lb_12px_rb_ {
   padding-left: 12px;
   padding-right: 12px
@@ -289,9 +398,58 @@
   padding-bottom: 8px
 }
 
+.py-20 {
+  padding-top: 80px;
+  padding-bottom: 80px
+}
+
 .py-_lb_10px_rb_ {
   padding-top: 10px;
   padding-bottom: 10px
+}
+
+.pb-1 {
+  padding-bottom: 4px
+}
+
+.pb-10 {
+  padding-bottom: 40px
+}
+
+.pr-10 {
+  padding-right: 40px
+}
+
+.pt-2 {
+  padding-top: 8px
+}
+
+.text-3xl {
+  font-size: 30px;
+  line-height: 36px
+}
+
+.text-4xl {
+  font-size: 36px;
+  line-height: 40px
+}
+
+.text-5xl {
+  font-size: 48px;
+  line-height: 1
+}
+
+.text-xl {
+  font-size: 20px;
+  line-height: 28px
+}
+
+.text-gray-200 {
+  color: #e5e7eb
+}
+
+.text-white {
+  color: #fff
 }
 
 .text-white_s_80 {
@@ -306,20 +464,25 @@
   opacity: 1
 }
 
-.duration-200 {
-  transition-duration: 200ms
-}
-
-.duration-_lb_400ms_rb_ {
-  transition-duration: 400ms
-}
-
 .ease-in-out {
   transition-timing-function: ease-in-out
 }
 
+.bg-crop {
+  -unity-background-scale-mode: scale-and-crop
+}
+
 .bold {
   -unity-font-style: bold
+}
+
+.transition {
+  transition-property: color, background-color, border-color, opacity;
+  transition-duration: 150ms
+}
+
+.duration-200 {
+  transition-duration: 200ms
 }
 
 .translate-3 {

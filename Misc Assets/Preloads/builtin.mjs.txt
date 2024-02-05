@@ -1,0 +1,11 @@
+﻿const __addToGlobal = function(name, obj) {
+    const parts = name.split('.');
+    let current = globalThis;
+
+    for (let i = 0; i < parts.length - 1; i++) {
+        current[parts[i]] = current[parts[i]] || {};
+        current = current[parts[i]];
+    }
+
+    current[parts[parts.length - 1]] = obj;
+};

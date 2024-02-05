@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using OneJS.Engine;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -36,13 +35,13 @@ namespace OneJS.Editor {
         }
 
         private void ProcessScene(Scene scene) {
-            foreach (var obj in scene.GetRootGameObjects()) {
-                var bundlers = obj.GetComponentsInChildren<Bundler>();
-                foreach (var bundler in bundlers) {
-                    if (bundler.enabled && bundler.gameObject.activeInHierarchy)
-                        bundler.PackageScriptsForBuild();
-                }
-            }
+            // foreach (var obj in scene.GetRootGameObjects()) {
+            //     var bundlers = obj.GetComponentsInChildren<Bundler>();
+            //     foreach (var bundler in bundlers) {
+            //         if (bundler.enabled && bundler.gameObject.activeInHierarchy)
+            //             bundler.PackageScriptsForBuild();
+            //     }
+            // }
         }
     }
 }

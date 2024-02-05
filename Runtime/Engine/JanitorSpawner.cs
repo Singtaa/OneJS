@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.Serialization;
 
-namespace OneJS.Engine {
+namespace OneJS {
     [DefaultExecutionOrder(-50)]
     [RequireComponent(typeof(ScriptEngine))]
     public class JanitorSpawner : MonoBehaviour {

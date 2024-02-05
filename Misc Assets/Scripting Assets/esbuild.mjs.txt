@@ -1,0 +1,35 @@
+import * as esbuild from 'esbuild'
+import * as fs from 'fs'
+
+const unityImportTransformPlugin = {
+    name: 'unity-import-transform',
+    setup(build) {
+        build.onLoad({ filter: /\.js$/ }, async (args) => {
+            let contents = await fs.promises.readFile(args.path, 'utf8');
+
+            contents = contents.replace(
+                /import {([^}]+)} from "(UnityEngine[^"]*|OneJS[^"]*)";/g,
+                (match, imports, moduleName) => {
+                    moduleName = moduleName.replace('/', '.');
+                    // const importItems = imports.split(',').map(item => item.trim());
+                    return `const { ${imports} } = CS.${moduleName};`;
+                }
+            );
+
+            return {
+                contents,
+                loader: 'js',
+            };
+        });
+    },
+};
+
+let ctx = await esbuild.context({
+    entryPoints: ['@outputs/tsc/index.js'],
+    bundle: true,
+    plugins: [unityImportTransformPlugin],
+    // external: ['puerts', 'UnityEngine'],
+    outfile: '@outputs/esbuild/app.js',
+})
+
+await ctx.watch()

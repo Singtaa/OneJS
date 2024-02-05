@@ -1,0 +1,26 @@
+{
+    "compilerOptions": {
+        "baseUrl": ".",
+        "paths": {
+            "*": [
+                "onejs-core",
+                "onejs-core/3rdparty/*",
+                "*"
+            ]
+        },
+        "target": "esnext",
+        "moduleResolution": "node",
+        "sourceMap": true,
+        "strictNullChecks": true,
+        "jsx": "react",
+        "jsxFactory": "h",
+        "jsxFragmentFactory": "Fragment",
+        "lib": ["esnext"],
+        "typeRoots": [
+            "../Assets/OneJS/Puerts/Typing",
+            "../Assets/Gen/Typing",
+            "./node_modules/@types"
+        ],
+        "outDir": "@outputs/tsc"
+    }
+}
