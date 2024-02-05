@@ -35,4 +35,4 @@ document.body.appendChild(div)
 setInterval(() => { div.ve.MarkDirtyRepaint() })
 ```
 
-_More to come_
+> TODO need to cover many of the other new features and improvements in V2, such as the new esbuild workflow, automatic ts typings, onejs npm modules etc.
