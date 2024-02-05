@@ -1,4 +1,4 @@
-> Note that this branch (onejs-v2) is a work in progress and not yet ready for use. The core fundation is more or less all set. We need to spend more time to bring it to parity with OneJS V1. If you are going to play with this branch right now, please do it in a brand new Unity project. Do not use it in your existing OneJS V1 projects yet.
+> Note that this branch (onejs-v2) is a work in progress and not yet ready for use. The core foundation is more or less all set. We need to spend more time to bring it to parity with OneJS V1. If you are going to play with this branch right now, please do it in a brand new Unity project. Do not use it in your existing OneJS V1 projects yet.
 
 OneJS V2 represents a substantial advancement, marking a pivotal shift from Jint to Puerts (V8). This transition results in considerable performance enhancements, chief among them being zero-allocation 😱🤯🎉 interop between JS and Unity (as can be seen from the demo below). Here's what works in this early preliminary version: 
 
