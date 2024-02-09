@@ -1,4 +1,18 @@
-﻿## [2023-10-22] v1.6.8
+﻿## [2024-02-08] v1.6.10 - Bugfixes and Improvements
+
+OneJS V2 is coming! Get in our Discord server and private repo to follow the progress.
+
+* Changed ScriptEngine's LateUpdate() to Update() to fix Task resolution error
+* DPIAdjuster improvements
+* Added checkEquality option to EventfulPropertyAttribute
+* Exposed EngineHost on ScriptEngine
+* Tailwind 4-comp hex color fix
+* ScriptEngine OnEnable & OnDisable support
+* useCapture support for addEventListener and removeEventListener
+* Global host and interop objects with event subscription function (#12)
+* Improved CommonJS path resolver (#11)
+
+## [2023-10-22] v1.6.8
 
 * Cyclic error fix for preact falsey check in Hookstate
 * TSDefConverter moved to using UI Toolkit instead of IMGUI (credit to @iDevelopThings)
