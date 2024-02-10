@@ -71,7 +71,7 @@ namespace OneJS {
         }
 
         void Start() {
-            var filepath = Path.Combine(WorkingDir, "outputs/esbuild/app.js");
+            var filepath = Path.Combine(WorkingDir, "@outputs/esbuild/app.js");
             var code = File.ReadAllText(filepath);
             _jsEnv.Eval(code);
         }

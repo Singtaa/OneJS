@@ -64,7 +64,7 @@ namespace OneJS {
 
         public void ExtractOutputsIfNotFound() {
             _engine = GetComponent<ScriptEngine>();
-            var path = Path.Combine(_engine.WorkingDir, "outputs");
+            var path = Path.Combine(_engine.WorkingDir, "@outputs");
             if (Directory.Exists(path))
                 return;
 
@@ -82,6 +82,8 @@ namespace OneJS {
             gzipStream.Close();
             inStream.Close();
         }
+
+#if UNITY_EDITOR
 
         [ContextMenu("Package onejs-core.tgz")]
         void PackageOnejsCoreZip() {
@@ -117,7 +119,7 @@ namespace OneJS {
         void PackageOutputsZip() {
             _engine = GetComponent<ScriptEngine>();
             var t = DateTime.Now;
-            var path = Path.Combine(_engine.WorkingDir, "outputs");
+            var path = Path.Combine(_engine.WorkingDir, "@outputs");
 
             if (outputsZip == null) {
                 UnityEditor.EditorUtility.DisplayDialog("outputs.tgz is null",
@@ -142,5 +144,7 @@ namespace OneJS {
                 tarOutputStream.Close();
             }
         }
+
+#endif
     }
 }
