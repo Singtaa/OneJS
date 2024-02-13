@@ -33,7 +33,7 @@ namespace OneJS.Dom {
 
         public string key { get { return _key; } set { _key = value; } }
 
-        public DomStyle style => new DomStyle(this);
+        public DomStyle style => _style;
 
         public object value { get { return _value; } }
 
@@ -61,6 +61,7 @@ namespace OneJS.Dom {
 
         Document _document;
         VisualElement _ve;
+        DomStyle _style;
         string _key;
         Dom _parentNode;
         Dom _nextSibling;
@@ -102,6 +103,7 @@ namespace OneJS.Dom {
         public Dom(VisualElement ve, Document document) {
             _ve = ve;
             _document = document;
+            _style = new DomStyle(this);
         }
 
         // public void CallListener(string name, EventBase evt) {

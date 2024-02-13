@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
@@ -121,6 +122,30 @@ namespace OneJS.Dom {
             var elems = _root.Query<VisualElement>(selector).Build();
             // TODO new Dom shouldn't be used here, we need to be able to get existing Dom of the VisualElement
             return elems.Select((e) => new Dom(e, this)).ToArray();
+        }
+        
+        public Texture2D loadImage(string path, FilterMode filterMode = FilterMode.Bilinear) {
+            // TODO cache
+            path = Path.IsPathRooted(path) ? path : Path.Combine(_scriptEngine.WorkingDir, path);
+            var rawData = System.IO.File.ReadAllBytes(path);
+            Texture2D tex = new Texture2D(2, 2); // Create an empty Texture; size doesn't matter
+            tex.LoadImage(rawData);
+            tex.filterMode = filterMode;
+            return tex;
+        }
+        
+        public Font loadFont(string path) {
+            // TODO cache
+            path = Path.IsPathRooted(path) ? path : Path.Combine(_scriptEngine.WorkingDir, path);
+            var font = new Font(path);
+            return font;
+        }
+        
+        public FontDefinition loadFontDefinition(string path) {
+            // TODO cache
+            path = Path.IsPathRooted(path) ? path : Path.Combine(_scriptEngine.WorkingDir, path);
+            var font = new Font(path);
+            return FontDefinition.FromFont(font);
         }
 
         public static object createStyleEnum(int v, Type type) {
