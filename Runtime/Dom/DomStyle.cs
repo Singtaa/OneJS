@@ -10,551 +10,6 @@ using Cursor = UnityEngine.UIElements.Cursor;
 
 namespace OneJS.Dom {
     public class DomStyle {
-        #region Statics
-        static Dictionary<string, Action<Dom, string, object>> styleProcessors = new();
-
-        static DomStyle() {
-            AddProcessorForEnum("alignContent", typeof(Align));
-            AddProcessorForEnum("alignItems", typeof(Align));
-            AddProcessorForEnum("alignSelf", typeof(Align));
-            AddProcessorForColor("backgroundColor");
-            AddProcessorForBackground("backgroundImage");
-            AddProcessorForBackgroundSize("backgroundSize");
-            AddProcessorForBackgroundRepeat("backgroundRepeat");
-            AddProcessorForBackgroundPosition("backgroundPosition"); // Composite
-            AddProcessorForBackgroundPositionSingle("backgroundPositionX");
-            AddProcessorForBackgroundPositionSingle("backgroundPositionY");
-
-            AddProcessorForBorderColor("borderColor"); // Composite
-            AddProcessorForBorderWidth("borderWidth"); // Composite
-            AddProcessorForBorderRadius("borderRadius"); // Composite
-            AddProcessorForColor("borderBottomColor");
-            AddProcessorForColor("borderLeftColor");
-            AddProcessorForColor("borderRightColor");
-            AddProcessorForColor("borderTopColor");
-            AddProcessorForFloat("borderBottomWidth");
-            AddProcessorForFloat("borderLeftWidth");
-            AddProcessorForFloat("borderRightWidth");
-            AddProcessorForFloat("borderTopWidth");
-            AddProcessorForLength("borderBottomLeftRadius");
-            AddProcessorForLength("borderBottomRightRadius");
-            AddProcessorForLength("borderTopLeftRadius");
-            AddProcessorForLength("borderTopRightRadius");
-
-            AddProcessorForLength("bottom");
-            AddProcessorForColor("color");
-            AddProcessorForCursor("cursor");
-            AddProcessorForEnum("display", typeof(DisplayStyle));
-            AddProcessorForLength("flexBasis");
-            AddProcessorForEnum("flexDirection", typeof(FlexDirection));
-            AddProcessorForFloat("flexGrow");
-            AddProcessorForFloat("flexShrink");
-            AddProcessorForEnum("flexWrap", typeof(Wrap));
-            AddProcessorForLength("fontSize");
-            AddProcessorForLength("height");
-
-            AddProcessorForEnum("visibility", typeof(Visibility));
-            AddProcessorForEnum("whiteSpace", typeof(WhiteSpace));
-            AddProcessorForLength("width");
-            AddProcessorForLength("wordSpacing");
-            AddProcessorForLength("top");
-            // AddProcessorForTransformOrigin("transformOrigin");
-            // AddProcessorForListTimeValue("transitionDelay", typeof(TimeValue));
-            // AddProcessorForListTimeValue("transitionDuration", typeof(TimeValue));
-            // AddProcessorForListPropertyName("transitionProperty", typeof(StylePropertyName));
-            // AddProcessorForListEasingFunction("transitionTimingFunction", typeof(EasingFunction));
-            // AddProcessorForTranslate("translate");
-
-            AddProcessorForColor("unityBackgroundImageTintColor");
-            AddProcessorForEnum("unityBackgroundScaleMode", typeof(ScaleMode));
-            AddProcessorForFont("unityFont");
-            AddProcessorForFontDefinition("unityFontDefinition");
-            AddProcessorForEnum("unityFontStyleAndWeight", typeof(FontStyle));
-            AddProcessorForEnum("unityOverflowClipBox", typeof(OverflowClipBox));
-            AddProcessorForLength("unityParagraphSpacing");
-            AddProcessorForInt("unitySliceBottom");
-            AddProcessorForInt("unitySliceLeft");
-            AddProcessorForInt("unitySliceRight");
-            AddProcessorForInt("unitySliceTop");
-            AddProcessorForFloat("unitySliceScale");
-            AddProcessorForEnum("unityTextAlign", typeof(TextAnchor));
-            AddProcessorForColor("unityTextOutlineColor");
-            AddProcessorForFloat("unityTextOutlineWidth");
-            AddProcessorForEnum("unityTextOverflowPosition", typeof(TextOverflowPosition));
-
-            // TODO Custom AddProcessor for borderColor (not an existing property)
-        }
-
-        static void AddProcessorForColor(string key) {
-            var pi = GetPropertyInfo(key);
-
-            styleProcessors.Add(key, (dom, k, v) => {
-                if (v is string s) {
-                    var c = ColorUtility.TryParseHtmlString(s, out var color) ? color : Color.white;
-                    pi.SetValue(dom.ve.style, new StyleColor(c));
-                    return;
-                } else if (v is Color c) {
-                    pi.SetValue(dom.ve.style, new StyleColor(c));
-                    return;
-                }
-            });
-        }
-
-        static void AddProcessorForLength(string key) {
-            var pi = GetPropertyInfo(key);
-
-            styleProcessors.Add(key, (dom, k, v) => {
-                if (GetLength(v, out var l)) {
-                    pi.SetValue(dom.ve.style, new StyleLength(l));
-                }
-            });
-        }
-
-        static void AddProcessorForEnum(string key, Type enumType) {
-            var pi = GetPropertyInfo(key);
-
-            styleProcessors.Add(key, (dom, k, v) => {
-                if (v is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
-                    pi.SetValue(dom.ve.style, createStyleEnumWithKeyword(keyword, enumType));
-                    return;
-                }
-                if (v is int i) {
-                    if (Enum.IsDefined(enumType, i)) {
-                        pi.SetValue(dom.ve.style, createStyleEnum(i, enumType));
-                    }
-                } else if (v is string s) {
-                    if (Enum.TryParse(enumType, s, true, out var e)) {
-                        pi.SetValue(dom.ve.style, createStyleEnum(e, enumType));
-                    }
-                }
-            });
-        }
-
-        static void AddProcessorForBackground(string key) {
-            var pi = GetPropertyInfo(key);
-
-            styleProcessors.Add(key, (dom, k, v) => {
-                if (v == null) {
-                    pi.SetValue(dom.ve.style, new StyleBackground(StyleKeyword.Initial));
-                } else if (v is string s) {
-                    pi.SetValue(dom.ve.style, new StyleBackground(Background.FromTexture2D(dom.document.loadImage(s))));
-                } else if (v is Texture2D t) {
-                    pi.SetValue(dom.ve.style, new StyleBackground(Background.FromTexture2D(t)));
-                } else if (v is Sprite sp) {
-                    pi.SetValue(dom.ve.style, new StyleBackground(Background.FromSprite(sp)));
-                } else if (v is RenderTexture rt) {
-                    pi.SetValue(dom.ve.style, new StyleBackground(Background.FromRenderTexture(rt)));
-                } else if (v is VectorImage vi) {
-                    pi.SetValue(dom.ve.style, new StyleBackground(Background.FromVectorImage(vi)));
-                }
-            });
-        }
-
-        static void AddProcessorForBackgroundSize(string key) {
-            var pi = GetPropertyInfo(key);
-
-            styleProcessors.Add(key, (dom, k, v) => {
-                if (v is string s && StyleKeyword.TryParse(s, true, out StyleKeyword keyword)) {
-                    dom.ve.style.backgroundSize = new StyleBackgroundSize(keyword);
-                    return;
-                }
-                if (v is string str) {
-                    var parts = str.ToLower().Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (GetLength(parts[0], out var x)) {
-                        if (parts.Length > 1 && GetLength(parts[1], out var y)) {
-                            dom.ve.style.backgroundSize = new BackgroundSize(x, y);
-                            return;
-                        }
-                        dom.ve.style.backgroundSize = new BackgroundSize(x, x); // If only one value is provided, use it for both x and y
-                    }
-                }
-            });
-        }
-
-        static void AddProcessorForBackgroundRepeat(string key) {
-            var pi = GetPropertyInfo(key);
-
-            styleProcessors.Add(key, (dom, k, v) => {
-                if (v is string s && StyleKeyword.TryParse(s, true, out StyleKeyword keyword)) {
-                    pi.SetValue(dom.ve.style, new StyleBackgroundRepeat(keyword));
-                    return;
-                }
-                if (v is string str) {
-                    var parts = str.ToLower().Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length == 1) {
-                        if (Enum.TryParse(parts[0], true, out Repeat repeat)) {
-                            dom.ve.style.backgroundRepeat = new BackgroundRepeat(repeat, repeat);
-                        }
-                    } else if (parts.Length == 2) {
-                        if (Enum.TryParse(parts[0], true, out Repeat x) && Enum.TryParse(parts[1], true, out Repeat y)) {
-                            dom.ve.style.backgroundRepeat = new BackgroundRepeat(x, y);
-                        }
-                    }
-                }
-            });
-        }
-
-        static void AddProcessorForBackgroundPosition(string key) {
-            styleProcessors.Add(key, (dom, k, v) => {
-                if (v is string s && StyleKeyword.TryParse(s, true, out StyleKeyword keyword)) {
-                    dom.ve.style.backgroundPositionX = new StyleBackgroundPosition(keyword);
-                    dom.ve.style.backgroundPositionY = new StyleBackgroundPosition(keyword);
-                    return;
-                }
-                if (v is string str) {
-                    var parts = str.ToLower().Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length == 1) {
-                        if (Enum.TryParse(parts[0], true, out BackgroundPositionKeyword x)) {
-                            dom.ve.style.backgroundPositionX = new BackgroundPosition(x);
-                            dom.ve.style.backgroundPositionY = new BackgroundPosition(x);
-                        }
-                    } else if (parts.Length == 2) {
-                        if (Enum.TryParse(parts[0], true, out BackgroundPositionKeyword x) && GetLength(parts[1], out var l)) {
-                            dom.ve.style.backgroundPositionX = new BackgroundPosition(x, l);
-                        } else if (Enum.TryParse(parts[0], true, out x) && Enum.TryParse(parts[1], true, out BackgroundPositionKeyword y)) {
-                            dom.ve.style.backgroundPositionX = new BackgroundPosition(x, 0);
-                            dom.ve.style.backgroundPositionY = new BackgroundPosition(y, 0);
-                        }
-                    } else if (parts.Length == 4) {
-                        if (Enum.TryParse(parts[0], true, out BackgroundPositionKeyword x) && GetLength(parts[1], out var lx) &&
-                            Enum.TryParse(parts[2], true, out BackgroundPositionKeyword y) && GetLength(parts[3], out var ly)) {
-                            dom.ve.style.backgroundPositionX = new BackgroundPosition(x, lx);
-                            dom.ve.style.backgroundPositionY = new BackgroundPosition(y, ly);
-                        }
-                    }
-                }
-            });
-        }
-
-        static void AddProcessorForBackgroundPositionSingle(string key) {
-            var pi = GetPropertyInfo(key);
-            styleProcessors.Add(key, (dom, k, v) => {
-                if (v is string s && StyleKeyword.TryParse(s, true, out StyleKeyword keyword)) {
-                    pi.SetValue(dom.ve.style, new StyleBackgroundPosition(keyword));
-                    return;
-                }
-                if (v is string str) {
-                    var parts = str.ToLower().Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length == 1) {
-                        if (Enum.TryParse(parts[0], true, out BackgroundPositionKeyword posKeyword)) {
-                            pi.SetValue(dom.ve.style, new BackgroundPosition(posKeyword));
-                        }
-                    } else if (parts.Length == 2) {
-                        if (Enum.TryParse(parts[0], true, out BackgroundPositionKeyword posKeyword) && GetLength(parts[1], out var l)) {
-                            pi.SetValue(dom.ve.style, new BackgroundPosition(posKeyword, l));
-                        }
-                    }
-                }
-            });
-        }
-
-        static void AddProcessorForBorderColor(string key) {
-            styleProcessors.Add(key, (dom, k, v) => {
-                if (v is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
-                    dom.ve.style.borderBottomColor = new StyleColor(keyword);
-                    dom.ve.style.borderLeftColor = new StyleColor(keyword);
-                    dom.ve.style.borderRightColor = new StyleColor(keyword);
-                    dom.ve.style.borderTopColor = new StyleColor(keyword);
-                    return;
-                }
-                if (v is string s) {
-                    var parts = s.Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length == 1) {
-                        if (TryParseColorString(parts[0], out var c)) {
-                            __setBorderColors(dom, c, c, c, c);
-                        }
-                    } else if (parts.Length == 2) {
-                        if (TryParseColorString(parts[0], out var tb) && TryParseColorString(parts[1], out var lr)) {
-                            __setBorderColors(dom, tb, lr, tb, lr);
-                        }
-                    } else if (parts.Length == 3) {
-                        if (TryParseColorString(parts[0], out var t) && TryParseColorString(parts[1], out var lr) &&
-                            TryParseColorString(parts[2], out var b)) {
-                            __setBorderColors(dom, t, lr, b, lr);
-                        }
-                    } else if (parts.Length == 4) {
-                        if (TryParseColorString(parts[0], out var t) && TryParseColorString(parts[1], out var r) &&
-                            TryParseColorString(parts[2], out var b) && TryParseColorString(parts[3], out var l)) {
-                            __setBorderColors(dom, t, r, b, l);
-                        }
-                    }
-                } else if (v is Color c) {
-                    __setBorderColors(dom, c, c, c, c);
-                } else if (v is Puerts.JSObject jsObj) {
-                    if (jsObj.Get<int>("length") == 1) {
-                        var cc = jsObj.Get<Color>("0");
-                        __setBorderColors(dom, cc, cc, cc, cc);
-                    } else if (jsObj.Get<int>("length") == 2) {
-                        var tb = jsObj.Get<Color>("0");
-                        var lr = jsObj.Get<Color>("1");
-                        __setBorderColors(dom, tb, lr, tb, lr);
-                    } else if (jsObj.Get<int>("length") == 3) {
-                        var t = jsObj.Get<Color>("0");
-                        var lr = jsObj.Get<Color>("1");
-                        var b = jsObj.Get<Color>("2");
-                        __setBorderColors(dom, t, lr, b, lr);
-                    } else if (jsObj.Get<int>("length") == 4) {
-                        var t = jsObj.Get<Color>("0");
-                        var r = jsObj.Get<Color>("1");
-                        var b = jsObj.Get<Color>("2");
-                        var l = jsObj.Get<Color>("3");
-                        __setBorderColors(dom, t, r, b, l);
-                    }
-                }
-            });
-        }
-
-
-        static void AddProcessorForBorderWidth(string key) {
-            styleProcessors.Add(key, (dom, k, v) => {
-                if (v is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
-                    dom.ve.style.borderBottomWidth = new StyleFloat(keyword);
-                    dom.ve.style.borderLeftWidth = new StyleFloat(keyword);
-                    dom.ve.style.borderRightWidth = new StyleFloat(keyword);
-                    dom.ve.style.borderTopWidth = new StyleFloat(keyword);
-                    return;
-                }
-                if (v is string s) {
-                    var parts = s.Replace("px", "").Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length == 1) {
-                        if (float.TryParse(parts[0], out var l)) {
-                            __setBorderWidths(dom, l, l, l, l);
-                        }
-                    } else if (parts.Length == 2) {
-                        if (float.TryParse(parts[0], out var tb) && float.TryParse(parts[1], out var lr)) {
-                            __setBorderWidths(dom, tb, lr, tb, lr);
-                        }
-                    } else if (parts.Length == 3) {
-                        if (float.TryParse(parts[0], out var t) && float.TryParse(parts[1], out var lr) &&
-                            float.TryParse(parts[2], out var b)) {
-                            __setBorderWidths(dom, t, lr, b, lr);
-                        }
-                    } else if (parts.Length == 4) {
-                        if (float.TryParse(parts[0], out var t) && float.TryParse(parts[1], out var r) &&
-                            float.TryParse(parts[2], out var b) && float.TryParse(parts[3], out var l)) {
-                            __setBorderWidths(dom, t, r, b, l);
-                        }
-                    }
-                } else if (v is double d) {
-                    __setBorderWidths(dom, (float)d, (float)d, (float)d, (float)d);
-                } else if (v is Puerts.JSObject jsObj) {
-                    if (jsObj.Get<int>("length") == 1) {
-                        var l = jsObj.Get<float>("0");
-                        __setBorderWidths(dom, l, l, l, l);
-                    } else if (jsObj.Get<int>("length") == 2) {
-                        var tb = jsObj.Get<float>("0");
-                        var lr = jsObj.Get<float>("1");
-                        __setBorderWidths(dom, tb, lr, tb, lr);
-                    } else if (jsObj.Get<int>("length") == 3) {
-                        var t = jsObj.Get<float>("0");
-                        var lr = jsObj.Get<float>("1");
-                        var b = jsObj.Get<float>("2");
-                        __setBorderWidths(dom, t, lr, b, lr);
-                    } else if (jsObj.Get<int>("length") == 4) {
-                        var t = jsObj.Get<float>("0");
-                        var r = jsObj.Get<float>("1");
-                        var b = jsObj.Get<float>("2");
-                        var l = jsObj.Get<float>("3");
-                        __setBorderWidths(dom, t, r, b, l);
-                    }
-                }
-            });
-        }
-
-
-        static void AddProcessorForBorderRadius(string key) {
-            styleProcessors.Add(key, (dom, k, v) => {
-                if (v is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
-                    dom.ve.style.borderBottomLeftRadius = new StyleLength(keyword);
-                    dom.ve.style.borderBottomRightRadius = new StyleLength(keyword);
-                    dom.ve.style.borderTopLeftRadius = new StyleLength(keyword);
-                    dom.ve.style.borderTopRightRadius = new StyleLength(keyword);
-                    return;
-                }
-                if (v is string s) {
-                    var parts = s.Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length == 1) {
-                        if (GetLength(parts[0], out var l)) {
-                            __setBorderRadii(dom, l, l, l, l);
-                        }
-                    } else if (parts.Length == 2) {
-                        if (GetLength(parts[0], out var tlbr) && GetLength(parts[1], out var trbl)) {
-                            __setBorderRadii(dom, tlbr, trbl, tlbr, trbl);
-                        }
-                    } else if (parts.Length == 3) {
-                        if (GetLength(parts[0], out var tl) && GetLength(parts[1], out var trbl) &&
-                            GetLength(parts[2], out var br)) {
-                            __setBorderRadii(dom, tl, trbl, br, trbl);
-                        }
-                    } else if (parts.Length == 4) {
-                        if (GetLength(parts[0], out var tl) && GetLength(parts[1], out var tr) &&
-                            GetLength(parts[2], out var br) && GetLength(parts[3], out var bl)) {
-                            __setBorderRadii(dom, tl, tr, br, bl);
-                        }
-                    }
-                } else if (v is double d) {
-                    var l = new Length((float)d);
-                    __setBorderRadii(dom, l, l, l, l);
-                } else if (v is Puerts.JSObject jsObj) {
-                    if (jsObj.Get<int>("length") == 1) {
-                        var l = new Length(jsObj.Get<float>("0"));
-                        __setBorderRadii(dom, l, l, l, l);
-                    } else if (jsObj.Get<int>("length") == 2) {
-                        var tlbr = new Length(jsObj.Get<float>("0"));
-                        var trbl = new Length(jsObj.Get<float>("1"));
-                        __setBorderRadii(dom, tlbr, trbl, trbl, tlbr);
-                    } else if (jsObj.Get<int>("length") == 3) {
-                        var tl = new Length(jsObj.Get<float>("0"));
-                        var trbl = new Length(jsObj.Get<float>("1"));
-                        var br = new Length(jsObj.Get<float>("2"));
-                        __setBorderRadii(dom, tl, trbl, br, trbl);
-                    } else if (jsObj.Get<int>("length") == 4) {
-                        var tl = new Length(jsObj.Get<float>("0"));
-                        var tr = new Length(jsObj.Get<float>("1"));
-                        var br = new Length(jsObj.Get<float>("2"));
-                        var bl = new Length(jsObj.Get<float>("3"));
-                        __setBorderRadii(dom, tl, tr, br, bl);
-                    }
-                }
-            });
-        }
-
-
-        static void AddProcessorForFont(string key) {
-            var pi = GetPropertyInfo(key);
-
-            styleProcessors.Add(key, (dom, k, v) => {
-                if (v is string s) {
-                    dom.ve.style.unityFont = dom.document.loadFont(s);
-                } else if (v is Font f) {
-                    dom.ve.style.unityFont = f;
-                }
-            });
-        }
-
-        static void AddProcessorForFontDefinition(string key) {
-            var pi = GetPropertyInfo(key);
-
-            styleProcessors.Add(key, (dom, k, v) => {
-                if (v is string s) {
-                    dom.ve.style.unityFontDefinition = dom.document.loadFontDefinition(s);
-                } else if (v is FontDefinition fd) {
-                    dom.ve.style.unityFontDefinition = fd;
-                }
-            });
-        }
-
-        public static void AddProcessorForFloat(string key) {
-            var pi = GetPropertyInfo(key);
-
-            styleProcessors.Add(key, (dom, k, v) => {
-                pi.SetValue(dom.ve.style, v is double d ? new StyleFloat((float)d) : new StyleFloat(StyleKeyword.Initial));
-            });
-        }
-
-        public static void AddProcessorForInt(string key) {
-            var pi = GetPropertyInfo(key);
-
-            styleProcessors.Add(key, (dom, k, v) => {
-                pi.SetValue(dom.ve.style, v is double d ? new StyleInt((int)d) : new StyleInt(StyleKeyword.Initial));
-            });
-        }
-
-        public static void AddProcessorForCursor(string key) {
-            var pi = GetPropertyInfo(key);
-
-            styleProcessors.Add(key, (dom, k, v) => {
-                if (v is Cursor cursor) {
-                    dom.ve.style.cursor = cursor;
-                }
-            });
-        }
-
-        public static void AddProcessorForRotate(string key) {
-            var pi = GetPropertyInfo(key);
-
-            styleProcessors.Add(key, (dom, k, v) => {
-                if (v == null) {
-                    pi.SetValue(dom.ve.style, new StyleRotate(StyleKeyword.Initial));
-                    return;
-                }
-
-                if (v is string s) {
-                    var rotateRegex = new Regex(@"(-?\d+\.?\d*|\.\d+)(deg|grad|rad|turn)", RegexOptions.IgnoreCase);
-                    var match = rotateRegex.Match(s);
-                    if (match.Success) {
-                        float value = float.Parse(match.Groups[1].Value);
-                        var unit = match.Groups[2].Value.ToLower();
-                        AngleUnit angleUnit = AngleUnit.Degree; // Default to Degree
-
-                        switch (unit) {
-                            case "deg":
-                                angleUnit = AngleUnit.Degree;
-                                break;
-                            case "grad":
-                                angleUnit = AngleUnit.Gradian;
-                                break;
-                            case "rad":
-                                angleUnit = AngleUnit.Radian;
-                                break;
-                            case "turn":
-                                angleUnit = AngleUnit.Turn;
-                                break;
-                        }
-
-                        pi.SetValue(dom.ve.style, new Rotate(new Angle(value, angleUnit)));
-                    }
-                } else if (v is double d) {
-                    pi.SetValue(dom.ve.style, new StyleRotate(new Rotate(new Angle((float)d))));
-                } else {
-                    throw new Exception($"Unsupported value type for rotate: {v.GetType()}");
-                }
-            });
-        }
-
-        public static void AddProcessorForScale(string key) {
-            var pi = GetPropertyInfo(key);
-
-            styleProcessors.Add(key, (dom, k, v) => {
-                if (v is double d) {
-                    pi.SetValue(dom.ve.style, new StyleScale(new Scale(new Vector2((float)d, (float)d))));
-                } else if (v is Puerts.JSObject jsObj && jsObj.Get<int>("length") == 2) {
-                    var x = jsObj.Get<float>("0");
-                    var y = jsObj.Get<float>("1");
-                    pi.SetValue(dom.ve.style, new StyleScale(new Scale(new Vector2(x, y))));
-                } else {
-                    throw new Exception($"Unsupported value type for scale: {v.GetType()}");
-                }
-            });
-        }
-
-        public static PropertyInfo GetPropertyInfo(string key) {
-            var pi = typeof(IStyle).GetProperty(key, BindingFlags.Instance | BindingFlags.IgnoreCase | BindingFlags.Public);
-            if (pi == null)
-                throw new Exception($"Property not found: {key}");
-            return pi;
-        }
-
-
-        public static object createStyleEnum(object v, Type type) {
-            Type myParameterizedSomeClass = typeof(StyleEnum<>).MakeGenericType(type);
-            ConstructorInfo constr = myParameterizedSomeClass.GetConstructor(new[] { type });
-            object instance = constr.Invoke(new object[] { v });
-            return instance;
-        }
-
-        public static object createStyleEnumWithKeyword(StyleKeyword keyword, Type type) {
-            Type myParameterizedSomeClass = typeof(StyleEnum<>).MakeGenericType(type);
-            ConstructorInfo constr = myParameterizedSomeClass.GetConstructor(new[] { typeof(StyleKeyword) });
-            object instance = constr.Invoke(new object[] { keyword });
-            return instance;
-        }
-
-        public static bool TryParseColorString(string s, out Color color) {
-            return ColorUtility.TryParseHtmlString(s, out color);
-        }
-        #endregion
-
         Dom _dom;
 
         public DomStyle(Dom dom) {
@@ -564,12 +19,9 @@ namespace OneJS.Dom {
         public IStyle veStyle => _dom.ve.style;
 
         public void setProperty(string key, object value) {
-            // var pi = this.GetType().GetProperty(key, BindingFlags.Instance | BindingFlags.IgnoreCase | BindingFlags.Public);
-            // if (pi != null) {
-            //     pi.SetValue(this, value);
-            // }
-            if (styleProcessors.TryGetValue(key, out var action)) {
-                action(_dom, key, value);
+            var pi = this.GetType().GetProperty(key, BindingFlags.Instance | BindingFlags.IgnoreCase | BindingFlags.Public);
+            if (pi != null) {
+                pi.SetValue(this, value);
             }
         }
 
@@ -581,7 +33,6 @@ namespace OneJS.Dom {
                     veStyle.alignContent = styleEnum;
             }
         }
-
 
         public object alignItems {
             get => veStyle.alignItems;
@@ -766,6 +217,262 @@ namespace OneJS.Dom {
                     veStyle.borderBottomLeftRadius = styleLength;
             }
         }
+
+        public object bottom {
+            get => veStyle.bottom;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.bottom = styleLength;
+            }
+        }
+
+        public object color {
+            get => veStyle.color;
+            set {
+                if (TryParseStyleColor(value, out var styleColor))
+                    veStyle.color = styleColor;
+            }
+        }
+
+        public object cursor {
+            get => veStyle.cursor;
+            set {
+                if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
+                    veStyle.cursor = new StyleCursor(keyword);
+                } else if (value is Cursor c) {
+                    veStyle.cursor = new StyleCursor(c);
+                }
+            }
+        }
+
+        public object display {
+            get => veStyle.display;
+            set {
+                if (TryParseStyleEnum<DisplayStyle>(value, out var styleEnum))
+                    veStyle.display = styleEnum;
+            }
+        }
+
+        public object flexBasis {
+            get => veStyle.flexBasis;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.flexBasis = styleLength;
+            }
+        }
+
+        public object flexDirection {
+            get => veStyle.flexDirection;
+            set {
+                if (TryParseStyleEnum<FlexDirection>(value, out var styleEnum))
+                    veStyle.flexDirection = styleEnum;
+            }
+        }
+
+        public object flexGrow {
+            get => veStyle.flexGrow;
+            set {
+                if (TryParseStyleFloat(value, out var styleFloat))
+                    veStyle.flexGrow = styleFloat;
+            }
+        }
+
+        public object flexShrink {
+            get => veStyle.flexShrink;
+            set {
+                if (TryParseStyleFloat(value, out var styleFloat))
+                    veStyle.flexShrink = styleFloat;
+            }
+        }
+
+        public object flexWrap {
+            get => veStyle.flexWrap;
+            set {
+                if (TryParseStyleEnum<Wrap>(value, out var styleEnum))
+                    veStyle.flexWrap = styleEnum;
+            }
+        }
+
+        public object fontSize {
+            get => veStyle.fontSize;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.fontSize = styleLength;
+            }
+        }
+
+        public object height {
+            get => veStyle.height;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.height = styleLength;
+            }
+        }
+
+        public object justifyContent {
+            get => veStyle.justifyContent;
+            set {
+                if (TryParseStyleEnum<Justify>(value, out var styleEnum))
+                    veStyle.justifyContent = styleEnum;
+            }
+        }
+
+        public object left {
+            get => veStyle.left;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.left = styleLength;
+            }
+        }
+
+        public object letterSpacing {
+            get => veStyle.letterSpacing;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.letterSpacing = styleLength;
+            }
+        }
+
+        // Composite
+        public object margin {
+            get => (veStyle.marginTop, veStyle.marginRight, veStyle.marginBottom, veStyle.marginLeft);
+            set => SetMargin(value);
+        }
+
+        public object marginTop {
+            get => veStyle.marginTop;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.marginTop = styleLength;
+            }
+        }
+
+        public object marginRight {
+            get => veStyle.marginRight;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.marginRight = styleLength;
+            }
+        }
+
+        public object marginBottom {
+            get => veStyle.marginBottom;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.marginBottom = styleLength;
+            }
+        }
+
+        public object marginLeft {
+            get => veStyle.marginLeft;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.marginLeft = styleLength;
+            }
+        }
+
+        public object maxHeight {
+            get => veStyle.maxHeight;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.maxHeight = styleLength;
+            }
+        }
+
+        public object maxWidth {
+            get => veStyle.maxWidth;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.maxWidth = styleLength;
+            }
+        }
+
+        public object minHeight {
+            get => veStyle.minHeight;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.minHeight = styleLength;
+            }
+        }
+
+        public object minWidth {
+            get => veStyle.minWidth;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.minWidth = styleLength;
+            }
+        }
+
+        public object opacity {
+            get => veStyle.opacity;
+            set {
+                if (TryParseStyleFloat(value, out var styleFloat))
+                    veStyle.opacity = styleFloat;
+            }
+        }
+
+        public object overflow {
+            get => veStyle.overflow;
+            set {
+                if (TryParseStyleEnum<Overflow>(value, out var styleEnum))
+                    veStyle.overflow = styleEnum;
+            }
+        }
+        
+        public object padding {
+            get => (veStyle.paddingTop, veStyle.paddingRight, veStyle.paddingBottom, veStyle.paddingLeft);
+            set => SetPadding(value);
+        }
+        
+        public object paddingTop {
+            get => veStyle.paddingTop;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.paddingTop = styleLength;
+            }
+        }
+        
+        public object paddingRight {
+            get => veStyle.paddingRight;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.paddingRight = styleLength;
+            }
+        }
+        
+        public object paddingBottom {
+            get => veStyle.paddingBottom;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.paddingBottom = styleLength;
+            }
+        }
+        
+        public object paddingLeft {
+            get => veStyle.paddingLeft;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.paddingLeft = styleLength;
+            }
+        }
+        
+        public object position {
+            get => veStyle.position;
+            set {
+                if (TryParseStyleEnum<Position>(value, out var styleEnum))
+                    veStyle.position = styleEnum;
+            }
+        }
+        
+        public object right {
+            get => veStyle.right;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.right = styleLength;
+            }
+        }
+        
+        
         #endregion
 
         #region ParseStyles
@@ -956,11 +663,12 @@ namespace OneJS.Dom {
         }
 
         public void SetBorderColor(object value) {
+            if (value == null) {
+                __setBorderColorKeyword(_dom, StyleKeyword.Null);
+                return;
+            }
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
-                _dom.ve.style.borderBottomColor = new StyleColor(keyword);
-                _dom.ve.style.borderLeftColor = new StyleColor(keyword);
-                _dom.ve.style.borderRightColor = new StyleColor(keyword);
-                _dom.ve.style.borderTopColor = new StyleColor(keyword);
+                __setBorderColorKeyword(_dom, keyword);
                 return;
             }
             if (value is string s) {
@@ -1010,11 +718,12 @@ namespace OneJS.Dom {
         }
 
         public void SetBorderWidth(object value) {
+            if (value == null) {
+                __setBorderWidthKeyword(_dom, StyleKeyword.Null);
+                return;
+            }
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
-                _dom.ve.style.borderBottomWidth = new StyleFloat(keyword);
-                _dom.ve.style.borderLeftWidth = new StyleFloat(keyword);
-                _dom.ve.style.borderRightWidth = new StyleFloat(keyword);
-                _dom.ve.style.borderTopWidth = new StyleFloat(keyword);
+                __setBorderWidthKeyword(_dom, keyword);
                 return;
             }
             if (value is string s) {
@@ -1064,11 +773,12 @@ namespace OneJS.Dom {
         }
 
         public void SetBorderRadius(object value) {
+            if (value == null) {
+                __setBorderRadiusKeyword(_dom, StyleKeyword.Null);
+                return;
+            }
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
-                _dom.ve.style.borderBottomLeftRadius = new StyleLength(keyword);
-                _dom.ve.style.borderBottomRightRadius = new StyleLength(keyword);
-                _dom.ve.style.borderTopLeftRadius = new StyleLength(keyword);
-                _dom.ve.style.borderTopRightRadius = new StyleLength(keyword);
+                __setBorderRadiusKeyword(_dom, keyword);
                 return;
             }
             if (value is string s) {
@@ -1118,6 +828,7 @@ namespace OneJS.Dom {
             }
         }
 
+        // Make use of GetLength() method
         public bool TryParseStyleLength(object value, out StyleLength styleLength) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleLength = new StyleLength(keyword);
@@ -1129,19 +840,12 @@ namespace OneJS.Dom {
             }
 
             if (value is string s) {
-                if (s.EndsWith("px")) {
-                    if (float.TryParse(s.Substring(0, s.Length - 2), out var pixelValue)) {
-                        styleLength = new StyleLength(new Length(pixelValue));
-                        return true;
-                    }
-                } else if (s.EndsWith("%")) {
-                    if (float.TryParse(s.Substring(0, s.Length - 1), out var percentValue)) {
-                        styleLength = new StyleLength(new Length(percentValue, LengthUnit.Percent));
-                        return true;
-                    }
+                if (GetLength(s, out var length)) {
+                    styleLength = new StyleLength(length);
+                    return true;
                 }
-            } else if (value is double doubleValue) {
-                styleLength = new StyleLength((float)doubleValue);
+            } else if (value is double d) {
+                styleLength = new StyleLength((float)d);
                 return true;
             }
             styleLength = default;
@@ -1164,6 +868,72 @@ namespace OneJS.Dom {
             }
             styleFloat = default;
             return false;
+        }
+
+        public void SetMargin(object value) {
+            if (value == null) {
+                __setMarginKeyword(_dom, StyleKeyword.Null);
+                return;
+            }
+            if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
+                __setMarginKeyword(_dom, keyword);
+                return;
+            }
+            if (value is string s) {
+                var parts = s.Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 1) {
+                    if (GetLength(parts[0], out var l)) {
+                        __setMargins(_dom, l, l, l, l);
+                    }
+                } else if (parts.Length == 2) {
+                    if (GetLength(parts[0], out var tb) && GetLength(parts[1], out var lr)) {
+                        __setMargins(_dom, tb, lr, tb, lr);
+                    }
+                } else if (parts.Length == 3) {
+                    if (GetLength(parts[0], out var t) && GetLength(parts[1], out var lr) &&
+                        GetLength(parts[2], out var b)) {
+                        __setMargins(_dom, t, lr, b, lr);
+                    }
+                } else if (parts.Length == 4) {
+                    if (GetLength(parts[0], out var t) && GetLength(parts[1], out var r) &&
+                        GetLength(parts[2], out var b) && GetLength(parts[3], out var l)) {
+                        __setMargins(_dom, t, r, b, l);
+                    }
+                }
+            }
+        }
+
+        public void SetPadding(object value) {
+            if (value == null) {
+                __setPaddingKeyword(_dom, StyleKeyword.Null);
+                return;
+            }
+            if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
+                __setPaddingKeyword(_dom, keyword);
+                return;
+            }
+            if (value is string s) {
+                var parts = s.Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 1) {
+                    if (GetLength(parts[0], out var l)) {
+                        __setPaddings(_dom, l, l, l, l);
+                    }
+                } else if (parts.Length == 2) {
+                    if (GetLength(parts[0], out var tb) && GetLength(parts[1], out var lr)) {
+                        __setPaddings(_dom, tb, lr, tb, lr);
+                    }
+                } else if (parts.Length == 3) {
+                    if (GetLength(parts[0], out var t) && GetLength(parts[1], out var lr) &&
+                        GetLength(parts[2], out var b)) {
+                        __setPaddings(_dom, t, lr, b, lr);
+                    }
+                } else if (parts.Length == 4) {
+                    if (GetLength(parts[0], out var t) && GetLength(parts[1], out var r) &&
+                        GetLength(parts[2], out var b) && GetLength(parts[3], out var l)) {
+                        __setPaddings(_dom, t, r, b, l);
+                    }
+                }
+            }
         }
         #endregion
 
@@ -1190,25 +960,78 @@ namespace OneJS.Dom {
             return false;
         }
 
+        public static bool TryParseColorString(string s, out Color color) {
+            return ColorUtility.TryParseHtmlString(s, out color);
+        }
+
         static void __setBorderColors(Dom dom, Color t, Color r, Color b, Color l) {
+            dom.ve.style.borderTopColor = new StyleColor(t);
+            dom.ve.style.borderRightColor = new StyleColor(r);
             dom.ve.style.borderBottomColor = new StyleColor(b);
             dom.ve.style.borderLeftColor = new StyleColor(l);
-            dom.ve.style.borderRightColor = new StyleColor(r);
-            dom.ve.style.borderTopColor = new StyleColor(t);
+        }
+
+        static void __setBorderColorKeyword(Dom dom, StyleKeyword keyword) {
+            dom.ve.style.borderTopColor = new StyleColor(keyword);
+            dom.ve.style.borderRightColor = new StyleColor(keyword);
+            dom.ve.style.borderBottomColor = new StyleColor(keyword);
+            dom.ve.style.borderLeftColor = new StyleColor(keyword);
         }
 
         static void __setBorderWidths(Dom dom, float t, float r, float b, float l) {
+            dom.ve.style.borderTopWidth = new StyleFloat(t);
+            dom.ve.style.borderRightWidth = new StyleFloat(r);
             dom.ve.style.borderBottomWidth = new StyleFloat(b);
             dom.ve.style.borderLeftWidth = new StyleFloat(l);
-            dom.ve.style.borderRightWidth = new StyleFloat(r);
-            dom.ve.style.borderTopWidth = new StyleFloat(t);
+        }
+
+        static void __setBorderWidthKeyword(Dom dom, StyleKeyword keyword) {
+            dom.ve.style.borderTopWidth = new StyleFloat(keyword);
+            dom.ve.style.borderRightWidth = new StyleFloat(keyword);
+            dom.ve.style.borderBottomWidth = new StyleFloat(keyword);
+            dom.ve.style.borderLeftWidth = new StyleFloat(keyword);
         }
 
         static void __setBorderRadii(Dom dom, Length tl, Length tr, Length br, Length bl) {
-            dom.ve.style.borderBottomLeftRadius = new StyleLength(bl);
-            dom.ve.style.borderBottomRightRadius = new StyleLength(br);
             dom.ve.style.borderTopLeftRadius = new StyleLength(tl);
             dom.ve.style.borderTopRightRadius = new StyleLength(tr);
+            dom.ve.style.borderBottomRightRadius = new StyleLength(br);
+            dom.ve.style.borderBottomLeftRadius = new StyleLength(bl);
+        }
+
+        static void __setBorderRadiusKeyword(Dom dom, StyleKeyword keyword) {
+            dom.ve.style.borderTopLeftRadius = new StyleLength(keyword);
+            dom.ve.style.borderTopRightRadius = new StyleLength(keyword);
+            dom.ve.style.borderBottomRightRadius = new StyleLength(keyword);
+            dom.ve.style.borderBottomLeftRadius = new StyleLength(keyword);
+        }
+
+        static void __setMargins(Dom dom, Length t, Length r, Length b, Length l) {
+            dom.ve.style.marginTop = new StyleLength(t);
+            dom.ve.style.marginRight = new StyleLength(r);
+            dom.ve.style.marginBottom = new StyleLength(b);
+            dom.ve.style.marginLeft = new StyleLength(l);
+        }
+
+        static void __setMarginKeyword(Dom dom, StyleKeyword keyword) {
+            dom.ve.style.marginTop = new StyleLength(keyword);
+            dom.ve.style.marginRight = new StyleLength(keyword);
+            dom.ve.style.marginBottom = new StyleLength(keyword);
+            dom.ve.style.marginLeft = new StyleLength(keyword);
+        }
+
+        static void __setPaddings(Dom dom, Length t, Length r, Length b, Length l) {
+            dom.ve.style.paddingTop = new StyleLength(t);
+            dom.ve.style.paddingRight = new StyleLength(r);
+            dom.ve.style.paddingBottom = new StyleLength(b);
+            dom.ve.style.paddingLeft = new StyleLength(l);
+        }
+
+        static void __setPaddingKeyword(Dom dom, StyleKeyword keyword) {
+            dom.ve.style.paddingTop = new StyleLength(keyword);
+            dom.ve.style.paddingRight = new StyleLength(keyword);
+            dom.ve.style.paddingBottom = new StyleLength(keyword);
+            dom.ve.style.paddingLeft = new StyleLength(keyword);
         }
         #endregion
     }
