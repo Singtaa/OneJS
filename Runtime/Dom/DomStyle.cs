@@ -418,12 +418,12 @@ namespace OneJS.Dom {
                     veStyle.overflow = styleEnum;
             }
         }
-        
+
         public object padding {
             get => (veStyle.paddingTop, veStyle.paddingRight, veStyle.paddingBottom, veStyle.paddingLeft);
             set => SetPadding(value);
         }
-        
+
         public object paddingTop {
             get => veStyle.paddingTop;
             set {
@@ -431,7 +431,7 @@ namespace OneJS.Dom {
                     veStyle.paddingTop = styleLength;
             }
         }
-        
+
         public object paddingRight {
             get => veStyle.paddingRight;
             set {
@@ -439,7 +439,7 @@ namespace OneJS.Dom {
                     veStyle.paddingRight = styleLength;
             }
         }
-        
+
         public object paddingBottom {
             get => veStyle.paddingBottom;
             set {
@@ -447,7 +447,7 @@ namespace OneJS.Dom {
                     veStyle.paddingBottom = styleLength;
             }
         }
-        
+
         public object paddingLeft {
             get => veStyle.paddingLeft;
             set {
@@ -455,7 +455,7 @@ namespace OneJS.Dom {
                     veStyle.paddingLeft = styleLength;
             }
         }
-        
+
         public object position {
             get => veStyle.position;
             set {
@@ -463,7 +463,7 @@ namespace OneJS.Dom {
                     veStyle.position = styleEnum;
             }
         }
-        
+
         public object right {
             get => veStyle.right;
             set {
@@ -471,8 +471,359 @@ namespace OneJS.Dom {
                     veStyle.right = styleLength;
             }
         }
-        
-        
+
+        public object rotate {
+            get => veStyle.rotate;
+            set {
+                if (TryParseStyleRotate(value, out var styleRotate))
+                    veStyle.rotate = styleRotate;
+            }
+        }
+
+        public object scale {
+            get => veStyle.scale;
+            set {
+                if (TryParseStyleScale(value, out var styleScale))
+                    veStyle.scale = styleScale;
+            }
+        }
+
+        public object textOverflow {
+            get => veStyle.textOverflow;
+            set {
+                if (TryParseStyleEnum<TextOverflow>(value, out var styleEnum))
+                    veStyle.textOverflow = styleEnum;
+            }
+        }
+
+        public object textShadow {
+            get => veStyle.textShadow;
+            set {
+                if (TryParseStyleTextShadow(value, out var styleTextShadow))
+                    veStyle.textShadow = styleTextShadow;
+            }
+        }
+
+        public object top {
+            get => veStyle.top;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.top = styleLength;
+            }
+        }
+
+        public object transformOrigin {
+            get => veStyle.transformOrigin;
+            set {
+                if (TryParseStyleTransformOrigin(value, out var styleTransformOrigin))
+                    veStyle.transformOrigin = styleTransformOrigin;
+            }
+        }
+
+        public object transitionDelay {
+            get => veStyle.transitionDelay;
+            set {
+                if (TryParseStyleListTimeValue(value, out var timeValues))
+                    veStyle.transitionDelay = timeValues;
+            }
+        }
+
+        public object transitionDuration {
+            get => veStyle.transitionDuration;
+            set {
+                if (TryParseStyleListTimeValue(value, out var timeValues))
+                    veStyle.transitionDuration = timeValues;
+            }
+        }
+
+        public object transitionProperty {
+            get => veStyle.transitionProperty;
+            set {
+                // NOTE: make sure to use StylePropertyName and not PropertyName, as the latter is not
+                // from UIElements
+                if (TryParseStyleListPropertyName(value, out var propertyNames))
+                    veStyle.transitionProperty = propertyNames;
+            }
+        }
+
+        public object transitionTimingFunction {
+            get => veStyle.transitionTimingFunction;
+            set {
+                if (TryParseStyleListEasingFunction(value, out var timingFunctions))
+                    veStyle.transitionTimingFunction = timingFunctions;
+            }
+        }
+
+        public object translate {
+            get => veStyle.translate;
+            set {
+                if (TryParseStyleTranslate(value, out var styleTranslate))
+                    veStyle.translate = styleTranslate;
+            }
+        }
+
+        public object unityBackgroundImageTintColor {
+            get => veStyle.unityBackgroundImageTintColor;
+            set {
+                if (TryParseStyleColor(value, out var styleColor))
+                    veStyle.unityBackgroundImageTintColor = styleColor;
+            }
+        }
+
+        public object unityBackgroundScaleMode {
+            get => veStyle.unityBackgroundScaleMode;
+            set {
+                if (TryParseStyleEnum<ScaleMode>(value, out var styleEnum))
+                    veStyle.unityBackgroundScaleMode = styleEnum;
+            }
+        }
+
+        public object unityFont {
+            get => veStyle.unityFont;
+            set {
+                if (TryParseStyleFont(value, out var styleFont))
+                    veStyle.unityFont = styleFont;
+            }
+        }
+
+        public object unityFontDefinition {
+            get => veStyle.unityFontDefinition;
+            set {
+                if (TryParseStyleFontDefinition(value, out var styleFontDefinition))
+                    veStyle.unityFontDefinition = styleFontDefinition;
+            }
+        }
+
+        public object unityFontStyleAndWeight {
+            get => veStyle.unityFontStyleAndWeight;
+            set {
+                if (TryParseStyleEnum<FontStyle>(value, out var styleEnum))
+                    veStyle.unityFontStyleAndWeight = styleEnum;
+            }
+        }
+
+        public object unityOverflowClipBox {
+            get => veStyle.unityOverflowClipBox;
+            set {
+                if (TryParseStyleEnum<OverflowClipBox>(value, out var styleEnum))
+                    veStyle.unityOverflowClipBox = styleEnum;
+            }
+        }
+
+        public object unityParagraphSpacing {
+            get => veStyle.unityParagraphSpacing;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.unityParagraphSpacing = styleLength;
+            }
+        }
+
+        public object unitySliceBottom {
+            get => veStyle.unitySliceBottom;
+            set {
+                if (TryParseStyleInt(value, out var styleInt))
+                    veStyle.unitySliceBottom = styleInt;
+            }
+        }
+
+        public object unitySliceLeft {
+            get => veStyle.unitySliceLeft;
+            set {
+                if (TryParseStyleInt(value, out var styleInt))
+                    veStyle.unitySliceLeft = styleInt;
+            }
+        }
+
+        public object unitySliceRight {
+            get => veStyle.unitySliceRight;
+            set {
+                if (TryParseStyleInt(value, out var styleInt))
+                    veStyle.unitySliceRight = styleInt;
+            }
+        }
+
+        public object unitySliceTop {
+            get => veStyle.unitySliceTop;
+            set {
+                if (TryParseStyleInt(value, out var styleInt))
+                    veStyle.unitySliceTop = styleInt;
+            }
+        }
+
+        public object unitySliceScale {
+            get => veStyle.unitySliceScale;
+            set {
+                if (TryParseStyleFloat(value, out var styleFloat))
+                    veStyle.unitySliceScale = styleFloat;
+            }
+        }
+
+        public object unityTextAlign {
+            get => veStyle.unityTextAlign;
+            set {
+                if (TryParseStyleEnum<TextAnchor>(value, out var styleEnum))
+                    veStyle.unityTextAlign = styleEnum;
+            }
+        }
+
+        public object unityTextOutlineColor {
+            get => veStyle.unityTextOutlineColor;
+            set {
+                if (TryParseStyleColor(value, out var styleColor))
+                    veStyle.unityTextOutlineColor = styleColor;
+            }
+        }
+
+        public object unityTextOutlineWidth {
+            get => veStyle.unityTextOutlineWidth;
+            set {
+                if (TryParseStyleFloat(value, out var styleFloat))
+                    veStyle.unityTextOutlineWidth = styleFloat;
+            }
+        }
+
+        public object unityTextOverflowPosition {
+            get => veStyle.unityTextOverflowPosition;
+            set {
+                if (TryParseStyleEnum<TextOverflowPosition>(value, out var styleEnum))
+                    veStyle.unityTextOverflowPosition = styleEnum;
+            }
+        }
+
+        public object visibility {
+            get => veStyle.visibility;
+            set {
+                if (TryParseStyleEnum<Visibility>(value, out var styleEnum))
+                    veStyle.visibility = styleEnum;
+            }
+        }
+
+        public object whiteSpace {
+            get => veStyle.whiteSpace;
+            set {
+                if (TryParseStyleEnum<WhiteSpace>(value, out var styleEnum))
+                    veStyle.whiteSpace = styleEnum;
+            }
+        }
+
+        public object width {
+            get => veStyle.width;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.width = styleLength;
+            }
+        }
+
+        public object wordSpacing {
+            get => veStyle.wordSpacing;
+            set {
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.wordSpacing = styleLength;
+            }
+        }
+        #endregion
+
+        #region Fast Path
+        public void SetAlignContent(Align value) => veStyle.alignContent = new StyleEnum<Align>(value);
+        public void SetAlignItems(Align value) => veStyle.alignItems = new StyleEnum<Align>(value);
+        public void SetAlignSelf(Align value) => veStyle.alignSelf = new StyleEnum<Align>(value);
+        public void SetBackgroundColor(Color value) => veStyle.backgroundColor = new StyleColor(value);
+        public void SetBackgroundImage(Background value) => veStyle.backgroundImage = new StyleBackground(value);
+        public void SetBackgroundSize(BackgroundSize value) => veStyle.backgroundSize = new StyleBackgroundSize(value);
+        public void SetBackgroundRepeat(StyleBackgroundRepeat value) => veStyle.backgroundRepeat = value;
+        public void SetBackgroundPosition(StyleBackgroundPosition value) => veStyle.backgroundPositionX = veStyle.backgroundPositionY = value;
+        public void SetBackgroundPositionX(StyleBackgroundPosition value) => veStyle.backgroundPositionX = value;
+        public void SetBackgroundPositionY(StyleBackgroundPosition value) => veStyle.backgroundPositionY = value;
+
+        public void SetBorderColor(Color value) => veStyle.borderTopColor =
+            veStyle.borderRightColor = veStyle.borderBottomColor = veStyle.borderLeftColor = new StyleColor(value);
+
+        public void SetBorderTopColor(Color value) => veStyle.borderTopColor = new StyleColor(value);
+        public void SetBorderRightColor(Color value) => veStyle.borderRightColor = new StyleColor(value);
+        public void SetBorderBottomColor(Color value) => veStyle.borderBottomColor = new StyleColor(value);
+        public void SetBorderLeftColor(Color value) => veStyle.borderLeftColor = new StyleColor(value);
+
+        public void SetBorderWidth(float value) => veStyle.borderTopWidth =
+            veStyle.borderRightWidth = veStyle.borderBottomWidth = veStyle.borderLeftWidth = new StyleFloat(value);
+
+        public void SetBorderTopWidth(float value) => veStyle.borderTopWidth = new StyleFloat(value);
+        public void SetBorderRightWidth(float value) => veStyle.borderRightWidth = new StyleFloat(value);
+        public void SetBorderBottomWidth(float value) => veStyle.borderBottomWidth = new StyleFloat(value);
+        public void SetBorderLeftWidth(float value) => veStyle.borderLeftWidth = new StyleFloat(value);
+
+        public void SetBorderRadius(Length value) => veStyle.borderTopLeftRadius =
+            veStyle.borderTopRightRadius = veStyle.borderBottomRightRadius = veStyle.borderBottomLeftRadius = value;
+
+        public void SetBorderTopLeftRadius(Length value) => veStyle.borderTopLeftRadius = value;
+        public void SetBorderTopRightRadius(Length value) => veStyle.borderTopRightRadius = value;
+        public void SetBorderBottomRightRadius(Length value) => veStyle.borderBottomRightRadius = value;
+        public void SetBorderBottomLeftRadius(Length value) => veStyle.borderBottomLeftRadius = value;
+        public void SetBottom(Length value) => veStyle.bottom = value;
+        public void SetColor(Color value) => veStyle.color = new StyleColor(value);
+        public void SetCursor(Cursor value) => veStyle.cursor = new StyleCursor(value);
+        public void SetDisplay(DisplayStyle value) => veStyle.display = new StyleEnum<DisplayStyle>(value);
+        public void SetFlexBasis(StyleLength value) => veStyle.flexBasis = value;
+        public void SetFlexDirection(FlexDirection value) => veStyle.flexDirection = new StyleEnum<FlexDirection>(value);
+        public void SetFlexGrow(float value) => veStyle.flexGrow = new StyleFloat(value);
+        public void SetFlexShrink(float value) => veStyle.flexShrink = new StyleFloat(value);
+        public void SetFlexWrap(Wrap value) => veStyle.flexWrap = new StyleEnum<Wrap>(value);
+        public void SetFontSize(Length value) => veStyle.fontSize = value;
+        public void SetHeight(Length value) => veStyle.height = value;
+        public void SetJustifyContent(Justify value) => veStyle.justifyContent = new StyleEnum<Justify>(value);
+        public void SetLeft(Length value) => veStyle.left = value;
+        public void SetLetterSpacing(Length value) => veStyle.letterSpacing = value;
+        public void SetMargin(Length value) => veStyle.marginTop = veStyle.marginRight = veStyle.marginBottom = veStyle.marginLeft = value;
+        public void SetMarginTop(Length value) => veStyle.marginTop = value;
+        public void SetMarginRight(Length value) => veStyle.marginRight = value;
+        public void SetMarginBottom(Length value) => veStyle.marginBottom = value;
+        public void SetMarginLeft(Length value) => veStyle.marginLeft = value;
+        public void SetMaxHeight(Length value) => veStyle.maxHeight = value;
+        public void SetMaxWidth(Length value) => veStyle.maxWidth = value;
+        public void SetMinHeight(Length value) => veStyle.minHeight = value;
+        public void SetMinWidth(Length value) => veStyle.minWidth = value;
+        public void SetOpacity(float value) => veStyle.opacity = new StyleFloat(value);
+        public void SetOverflow(Overflow value) => veStyle.overflow = new StyleEnum<Overflow>(value);
+        public void SetPadding(Length value) => veStyle.paddingTop = veStyle.paddingRight = veStyle.paddingBottom = veStyle.paddingLeft = value;
+        public void SetPaddingTop(Length value) => veStyle.paddingTop = value;
+        public void SetPaddingRight(Length value) => veStyle.paddingRight = value;
+        public void SetPaddingBottom(Length value) => veStyle.paddingBottom = value;
+        public void SetPaddingLeft(Length value) => veStyle.paddingLeft = value;
+        public void SetPosition(Position value) => veStyle.position = new StyleEnum<Position>(value);
+        public void SetRight(Length value) => veStyle.right = value;
+        public void SetRotate(Rotate value) => veStyle.rotate = value;
+        public void SetScale(Scale value) => veStyle.scale = value;
+        public void SetTextOverflow(TextOverflow value) => veStyle.textOverflow = new StyleEnum<TextOverflow>(value);
+        public void SetTextShadow(TextShadow value) => veStyle.textShadow = value;
+        public void SetTop(Length value) => veStyle.top = value;
+        public void SetTransformOrigin(TransformOrigin value) => veStyle.transformOrigin = value;
+        public void SetTransitionDelay(List<TimeValue> value) => veStyle.transitionDelay = value;
+        public void SetTransitionDuration(List<TimeValue> value) => veStyle.transitionDuration = value;
+        public void SetTransitionProperty(List<StylePropertyName> value) => veStyle.transitionProperty = value;
+        public void SetTransitionTimingFunction(List<EasingFunction> value) => veStyle.transitionTimingFunction = value;
+        public void SetTranslate(Translate value) => veStyle.translate = value;
+        public void SetUnityBackgroundImageTintColor(Color value) => veStyle.unityBackgroundImageTintColor = new StyleColor(value);
+        public void SetUnityBackgroundScaleMode(ScaleMode value) => veStyle.unityBackgroundScaleMode = new StyleEnum<ScaleMode>(value);
+        public void SetUnityFont(Font value) => veStyle.unityFont = value;
+        public void SetUnityFontDefinition(FontDefinition value) => veStyle.unityFontDefinition = value;
+        public void SetUnityFontStyleAndWeight(FontStyle value) => veStyle.unityFontStyleAndWeight = new StyleEnum<FontStyle>(value);
+        public void SetUnityOverflowClipBox(OverflowClipBox value) => veStyle.unityOverflowClipBox = new StyleEnum<OverflowClipBox>(value);
+        public void SetUnityParagraphSpacing(Length value) => veStyle.unityParagraphSpacing = value;
+        public void SetUnitySliceBottom(int value) => veStyle.unitySliceBottom = new StyleInt(value);
+        public void SetUnitySliceLeft(int value) => veStyle.unitySliceLeft = new StyleInt(value);
+        public void SetUnitySliceRight(int value) => veStyle.unitySliceRight = new StyleInt(value);
+        public void SetUnitySliceTop(int value) => veStyle.unitySliceTop = new StyleInt(value);
+        public void SetUnitySliceScale(float value) => veStyle.unitySliceScale = new StyleFloat(value);
+        public void SetUnityTextAlign(TextAnchor value) => veStyle.unityTextAlign = new StyleEnum<TextAnchor>(value);
+        public void SetUnityTextOutlineColor(Color value) => veStyle.unityTextOutlineColor = new StyleColor(value);
+        public void SetUnityTextOutlineWidth(float value) => veStyle.unityTextOutlineWidth = new StyleFloat(value);
+
+        public void SetUnityTextOverflowPosition(TextOverflowPosition value) =>
+            veStyle.unityTextOverflowPosition = new StyleEnum<TextOverflowPosition>(value);
+
+        public void SetVisibility(Visibility value) => veStyle.visibility = new StyleEnum<Visibility>(value);
+        public void SetWhiteSpace(WhiteSpace value) => veStyle.whiteSpace = new StyleEnum<WhiteSpace>(value);
+        public void SetWidth(Length value) => veStyle.width = value;
+        public void SetWordSpacing(Length value) => veStyle.wordSpacing = value;
         #endregion
 
         #region ParseStyles
@@ -481,6 +832,19 @@ namespace OneJS.Dom {
                 styleEnum = new StyleEnum<T>(keyword);
                 return true;
             }
+            if (value == null) {
+                styleEnum = new StyleEnum<T>(StyleKeyword.Null);
+                return true;
+            }
+            if (value is StyleEnum<T> se) {
+                styleEnum = se;
+                return true;
+            }
+            if (value is T t) {
+                styleEnum = new StyleEnum<T>(t);
+                return true;
+            }
+
             if (value is double d) {
                 if (Enum.IsDefined(typeof(T), (int)d)) {
                     styleEnum = new StyleEnum<T>((T)((object)(int)d));
@@ -505,6 +869,10 @@ namespace OneJS.Dom {
                 styleColor = new StyleColor(StyleKeyword.Null);
                 return true;
             }
+            if (value is StyleColor sc) {
+                styleColor = sc;
+                return true;
+            }
 
             if (value is string s) {
                 var c = ColorUtility.TryParseHtmlString(s, out var color) ? color : Color.white;
@@ -525,6 +893,14 @@ namespace OneJS.Dom {
             }
             if (value == null) {
                 styleBackground = new StyleBackground(StyleKeyword.Null);
+                return true;
+            }
+            if (value is StyleBackground sb) {
+                styleBackground = sb;
+                return true;
+            }
+            if (value is Background b) {
+                styleBackground = new StyleBackground(b);
                 return true;
             }
 
@@ -560,15 +936,34 @@ namespace OneJS.Dom {
                 styleBackgroundSize = new StyleBackgroundSize(StyleKeyword.Null);
                 return true;
             }
+            if (value is StyleBackgroundSize sbs) {
+                styleBackgroundSize = sbs;
+                return true;
+            }
+            if (value is BackgroundSize bs) {
+                styleBackgroundSize = new StyleBackgroundSize(bs);
+                return true;
+            }
 
             if (value is string str) {
-                var parts = str.ToLower().Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                var parts = str.ToLower().Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
                 if (GetLength(parts[0], out var x)) {
                     if (parts.Length > 1 && GetLength(parts[1], out var y)) {
                         styleBackgroundSize = new BackgroundSize(x, y);
                         return true;
                     }
                     styleBackgroundSize = new BackgroundSize(x, x); // If only one value is provided, use it for both x and y
+                    return true;
+                }
+            } else if (value is Puerts.JSObject jsObj) {
+                if (jsObj.Get<int>("length") == 1) {
+                    var l = jsObj.Get<float>("0");
+                    styleBackgroundSize = new BackgroundSize(l, l);
+                    return true;
+                } else if (jsObj.Get<int>("length") == 2) {
+                    var x = jsObj.Get<float>("0");
+                    var y = jsObj.Get<float>("1");
+                    styleBackgroundSize = new BackgroundSize(x, y);
                     return true;
                 }
             }
@@ -585,9 +980,17 @@ namespace OneJS.Dom {
                 styleBackgroundRepeat = new StyleBackgroundRepeat(StyleKeyword.Null);
                 return true;
             }
+            if (value is StyleBackgroundRepeat sbr) {
+                styleBackgroundRepeat = sbr;
+                return true;
+            }
+            if (value is BackgroundRepeat br) {
+                styleBackgroundRepeat = new StyleBackgroundRepeat(br);
+                return true;
+            }
 
             if (value is string str) {
-                var parts = str.ToLower().Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                var parts = str.ToLower().Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 1) {
                     if (Enum.TryParse(parts[0], true, out Repeat repeat)) {
                         styleBackgroundRepeat = new BackgroundRepeat(repeat, repeat);
@@ -598,6 +1001,17 @@ namespace OneJS.Dom {
                         styleBackgroundRepeat = new BackgroundRepeat(x, y);
                         return true;
                     }
+                }
+            } else if (value is Puerts.JSObject jsObj) {
+                if (jsObj.Get<int>("length") == 1) {
+                    var r = jsObj.Get<Repeat>("0");
+                    styleBackgroundRepeat = new BackgroundRepeat(r, r);
+                    return true;
+                } else if (jsObj.Get<int>("length") == 2) {
+                    var x = jsObj.Get<Repeat>("0");
+                    var y = jsObj.Get<Repeat>("1");
+                    styleBackgroundRepeat = new BackgroundRepeat(x, y);
+                    return true;
                 }
             }
             styleBackgroundRepeat = default;
@@ -610,8 +1024,24 @@ namespace OneJS.Dom {
                 _dom.ve.style.backgroundPositionY = new StyleBackgroundPosition(keyword);
                 return;
             }
+            if (value == null) {
+                _dom.ve.style.backgroundPositionX = new StyleBackgroundPosition(StyleKeyword.Null);
+                _dom.ve.style.backgroundPositionY = new StyleBackgroundPosition(StyleKeyword.Null);
+                return;
+            }
+            if (value is StyleBackgroundPosition sbp) {
+                _dom.ve.style.backgroundPositionX = sbp;
+                _dom.ve.style.backgroundPositionY = sbp;
+                return;
+            }
+            if (value is BackgroundPosition bp) {
+                _dom.ve.style.backgroundPositionX = new StyleBackgroundPosition(bp);
+                _dom.ve.style.backgroundPositionY = new StyleBackgroundPosition(bp);
+                return;
+            }
+
             if (value is string str) {
-                var parts = str.ToLower().Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                var parts = str.ToLower().Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 1) {
                     if (Enum.TryParse(parts[0], true, out BackgroundPositionKeyword x)) {
                         _dom.ve.style.backgroundPositionX = new BackgroundPosition(x);
@@ -643,9 +1073,17 @@ namespace OneJS.Dom {
                 styleBackgroundPosition = new StyleBackgroundPosition(StyleKeyword.Null);
                 return true;
             }
+            if (value is StyleBackgroundPosition sbp) {
+                styleBackgroundPosition = sbp;
+                return true;
+            }
+            if (value is BackgroundPosition bp) {
+                styleBackgroundPosition = new StyleBackgroundPosition(bp);
+                return true;
+            }
 
             if (value is string s) {
-                var parts = s.ToLower().Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                var parts = s.ToLower().Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 1) {
                     if (Enum.TryParse(parts[0], true, out BackgroundPositionKeyword posKeyword)) {
                         styleBackgroundPosition = new BackgroundPosition(posKeyword);
@@ -663,16 +1101,21 @@ namespace OneJS.Dom {
         }
 
         public void SetBorderColor(object value) {
-            if (value == null) {
-                __setBorderColorKeyword(_dom, StyleKeyword.Null);
-                return;
-            }
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 __setBorderColorKeyword(_dom, keyword);
                 return;
             }
+            if (value == null) {
+                __setBorderColorKeyword(_dom, StyleKeyword.Null);
+                return;
+            }
+            if (value is StyleColor sc) {
+                __setBorderColors(_dom, sc.value, sc.value, sc.value, sc.value);
+                return;
+            }
+
             if (value is string s) {
-                var parts = s.Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                var parts = s.Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 1) {
                     if (TryParseColorString(parts[0], out var c)) {
                         __setBorderColors(_dom, c, c, c, c);
@@ -718,16 +1161,21 @@ namespace OneJS.Dom {
         }
 
         public void SetBorderWidth(object value) {
-            if (value == null) {
-                __setBorderWidthKeyword(_dom, StyleKeyword.Null);
-                return;
-            }
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 __setBorderWidthKeyword(_dom, keyword);
                 return;
             }
+            if (value == null) {
+                __setBorderWidthKeyword(_dom, StyleKeyword.Null);
+                return;
+            }
+            if (value is StyleFloat sf) {
+                __setBorderWidths(_dom, sf.value, sf.value, sf.value, sf.value);
+                return;
+            }
+
             if (value is string s) {
-                var parts = s.Replace("px", "").Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                var parts = s.Replace("px", "").Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 1) {
                     if (float.TryParse(parts[0], out var l)) {
                         __setBorderWidths(_dom, l, l, l, l);
@@ -773,16 +1221,25 @@ namespace OneJS.Dom {
         }
 
         public void SetBorderRadius(object value) {
-            if (value == null) {
-                __setBorderRadiusKeyword(_dom, StyleKeyword.Null);
-                return;
-            }
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 __setBorderRadiusKeyword(_dom, keyword);
                 return;
             }
+            if (value == null) {
+                __setBorderRadiusKeyword(_dom, StyleKeyword.Null);
+                return;
+            }
+            if (value is StyleLength sl) {
+                __setBorderRadii(_dom, sl.value, sl.value, sl.value, sl.value);
+                return;
+            }
+            if (value is Length ll) {
+                __setBorderRadii(_dom, ll, ll, ll, ll);
+                return;
+            }
+
             if (value is string s) {
-                var parts = s.Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                var parts = s.Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 1) {
                     if (GetLength(parts[0], out var l)) {
                         __setBorderRadii(_dom, l, l, l, l);
@@ -828,7 +1285,6 @@ namespace OneJS.Dom {
             }
         }
 
-        // Make use of GetLength() method
         public bool TryParseStyleLength(object value, out StyleLength styleLength) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleLength = new StyleLength(keyword);
@@ -836,6 +1292,14 @@ namespace OneJS.Dom {
             }
             if (value == null) {
                 styleLength = new StyleLength(StyleKeyword.Null);
+                return true;
+            }
+            if (value is StyleLength sl) {
+                styleLength = sl;
+                return true;
+            }
+            if (value is Length ll) {
+                styleLength = new StyleLength(ll);
                 return true;
             }
 
@@ -861,6 +1325,10 @@ namespace OneJS.Dom {
                 styleFloat = new StyleFloat(StyleKeyword.Null);
                 return true;
             }
+            if (value is StyleFloat sf) {
+                styleFloat = sf;
+                return true;
+            }
 
             if (value is double d) {
                 styleFloat = new StyleFloat((float)d);
@@ -871,16 +1339,25 @@ namespace OneJS.Dom {
         }
 
         public void SetMargin(object value) {
-            if (value == null) {
-                __setMarginKeyword(_dom, StyleKeyword.Null);
-                return;
-            }
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 __setMarginKeyword(_dom, keyword);
                 return;
             }
+            if (value == null) {
+                __setMarginKeyword(_dom, StyleKeyword.Null);
+                return;
+            }
+            if (value is StyleLength sl) {
+                __setMargins(_dom, sl.value, sl.value, sl.value, sl.value);
+                return;
+            }
+            if (value is Length ll) {
+                __setMargins(_dom, ll, ll, ll, ll);
+                return;
+            }
+
             if (value is string s) {
-                var parts = s.Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                var parts = s.Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 1) {
                     if (GetLength(parts[0], out var l)) {
                         __setMargins(_dom, l, l, l, l);
@@ -900,20 +1377,52 @@ namespace OneJS.Dom {
                         __setMargins(_dom, t, r, b, l);
                     }
                 }
+            } else if (value is double d) {
+                var l = new Length((float)d);
+                __setMargins(_dom, l, l, l, l);
+            } else if (value is Puerts.JSObject jsObj) {
+                if (jsObj.Get<int>("length") == 1) {
+                    var l = new Length(jsObj.Get<float>("0"));
+                    __setMargins(_dom, l, l, l, l);
+                } else if (jsObj.Get<int>("length") == 2) {
+                    var tb = new Length(jsObj.Get<float>("0"));
+                    var lr = new Length(jsObj.Get<float>("1"));
+                    __setMargins(_dom, tb, lr, tb, lr);
+                } else if (jsObj.Get<int>("length") == 3) {
+                    var t = new Length(jsObj.Get<float>("0"));
+                    var lr = new Length(jsObj.Get<float>("1"));
+                    var b = new Length(jsObj.Get<float>("2"));
+                    __setMargins(_dom, t, lr, b, lr);
+                } else if (jsObj.Get<int>("length") == 4) {
+                    var t = new Length(jsObj.Get<float>("0"));
+                    var r = new Length(jsObj.Get<float>("1"));
+                    var b = new Length(jsObj.Get<float>("2"));
+                    var l = new Length(jsObj.Get<float>("3"));
+                    __setMargins(_dom, t, r, b, l);
+                }
             }
         }
 
         public void SetPadding(object value) {
-            if (value == null) {
-                __setPaddingKeyword(_dom, StyleKeyword.Null);
-                return;
-            }
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 __setPaddingKeyword(_dom, keyword);
                 return;
             }
+            if (value == null) {
+                __setPaddingKeyword(_dom, StyleKeyword.Null);
+                return;
+            }
+            if (value is StyleLength sl) {
+                __setPaddings(_dom, sl.value, sl.value, sl.value, sl.value);
+                return;
+            }
+            if (value is Length ll) {
+                __setPaddings(_dom, ll, ll, ll, ll);
+                return;
+            }
+
             if (value is string s) {
-                var parts = s.Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                var parts = s.Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 1) {
                     if (GetLength(parts[0], out var l)) {
                         __setPaddings(_dom, l, l, l, l);
@@ -933,7 +1442,502 @@ namespace OneJS.Dom {
                         __setPaddings(_dom, t, r, b, l);
                     }
                 }
+            } else if (value is double d) {
+                var l = new Length((float)d);
+                __setPaddings(_dom, l, l, l, l);
+            } else if (value is Puerts.JSObject jsObj) {
+                if (jsObj.Get<int>("length") == 1) {
+                    var l = new Length(jsObj.Get<float>("0"));
+                    __setPaddings(_dom, l, l, l, l);
+                } else if (jsObj.Get<int>("length") == 2) {
+                    var tb = new Length(jsObj.Get<float>("0"));
+                    var lr = new Length(jsObj.Get<float>("1"));
+                    __setPaddings(_dom, tb, lr, tb, lr);
+                } else if (jsObj.Get<int>("length") == 3) {
+                    var t = new Length(jsObj.Get<float>("0"));
+                    var lr = new Length(jsObj.Get<float>("1"));
+                    var b = new Length(jsObj.Get<float>("2"));
+                    __setPaddings(_dom, t, lr, b, lr);
+                } else if (jsObj.Get<int>("length") == 4) {
+                    var t = new Length(jsObj.Get<float>("0"));
+                    var r = new Length(jsObj.Get<float>("1"));
+                    var b = new Length(jsObj.Get<float>("2"));
+                    var l = new Length(jsObj.Get<float>("3"));
+                    __setPaddings(_dom, t, r, b, l);
+                }
             }
+        }
+
+        Regex rotateRegex = new Regex(@"(-?\d+\.?\d*|\.\d+)(deg|grad|rad|turn)", RegexOptions.IgnoreCase);
+
+        public bool TryParseStyleRotate(object value, out StyleRotate styleRotate) {
+            if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
+                styleRotate = new StyleRotate(keyword);
+                return true;
+            }
+            if (value == null) {
+                styleRotate = new StyleRotate(StyleKeyword.Null);
+                return true;
+            }
+            if (value is StyleRotate sr) {
+                styleRotate = sr;
+                return true;
+            }
+            if (value is Rotate r) {
+                styleRotate = new StyleRotate(r);
+                return true;
+            }
+            if (value is Angle a) {
+                styleRotate = new StyleRotate(new Rotate(a));
+                return true;
+            }
+
+            if (value is string s) {
+                var match = rotateRegex.Match(s);
+                if (match.Success) {
+                    float f = float.Parse(match.Groups[1].Value);
+                    var unit = match.Groups[2].Value.ToLower();
+                    AngleUnit angleUnit = AngleUnit.Degree; // Default to Degree
+
+                    switch (unit) {
+                        case "deg":
+                            angleUnit = AngleUnit.Degree;
+                            break;
+                        case "grad":
+                            angleUnit = AngleUnit.Gradian;
+                            break;
+                        case "rad":
+                            angleUnit = AngleUnit.Radian;
+                            break;
+                        case "turn":
+                            angleUnit = AngleUnit.Turn;
+                            break;
+                    }
+
+                    styleRotate = new Rotate(new Angle(f, angleUnit));
+                    return true;
+                }
+            } else if (value is double d) {
+                styleRotate = new StyleRotate(new Rotate((float)d));
+                return true;
+            } else if (value is Puerts.JSObject jsObj) {
+                var f = jsObj.Get<float>("0");
+                styleRotate = new StyleRotate(new Rotate(f));
+                return true;
+            }
+            styleRotate = default;
+            return false;
+        }
+
+        public bool TryParseStyleScale(object value, out StyleScale styleScale) {
+            if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
+                styleScale = new StyleScale(keyword);
+                return true;
+            }
+            if (value == null) {
+                styleScale = new StyleScale(StyleKeyword.Null);
+                return true;
+            }
+            if (value is StyleScale ssss) {
+                styleScale = ssss;
+                return true;
+            }
+            if (value is Scale sss) {
+                styleScale = new StyleScale(sss);
+                return true;
+            }
+
+            if (value is string s) {
+                var parts = s.Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 1) {
+                    if (float.TryParse(parts[0], out var l)) {
+                        styleScale = new Scale(new Vector2(l, l));
+                        return true;
+                    }
+                } else if (parts.Length == 2) {
+                    if (float.TryParse(parts[0], out var x) && float.TryParse(parts[1], out var y)) {
+                        styleScale = new Scale(new Vector2(x, y));
+                        return true;
+                    }
+                }
+            } else if (value is double d) {
+                Debug.Log(d);
+                styleScale = new StyleScale(new Scale(new Vector2((float)d, (float)d)));
+                return true;
+            } else if (value is Puerts.JSObject jsObj && jsObj.Get<int>("length") == 2) {
+                var x = jsObj.Get<float>("0");
+                var y = jsObj.Get<float>("1");
+                styleScale = new StyleScale(new Scale(new Vector2(x, y)));
+                return true;
+            }
+            styleScale = default;
+            return false;
+        }
+
+        public bool TryParseStyleTextShadow(object value, out StyleTextShadow styleTextShadow) {
+            if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
+                styleTextShadow = new StyleTextShadow(keyword);
+                return true;
+            }
+            if (value == null) {
+                styleTextShadow = new StyleTextShadow(StyleKeyword.Null);
+                return true;
+            }
+            if (value is StyleTextShadow sts) {
+                styleTextShadow = sts;
+                return true;
+            }
+            if (value is TextShadow ts) {
+                styleTextShadow = new StyleTextShadow(ts);
+                return true;
+            }
+
+            if (value is string s) {
+                var parts = s.Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 3) {
+                    if (GetLength(parts[0], out var x) && GetLength(parts[1], out var y) && GetLength(parts[2], out var blur)) {
+                        styleTextShadow = new TextShadow() {
+                            offset = new Vector2(x.value, y.value),
+                            blurRadius = blur.value
+                        };
+                        return true;
+                    }
+                } else if (parts.Length == 4) {
+                    if (GetLength(parts[0], out var x) && GetLength(parts[1], out var y) && GetLength(parts[2], out var blur) &&
+                        TryParseColorString(parts[3], out var color)) {
+                        styleTextShadow = new TextShadow() {
+                            offset = new Vector2(x.value, y.value),
+                            blurRadius = blur.value,
+                            color = color
+                        };
+                        return true;
+                    }
+                }
+            }
+            styleTextShadow = default;
+            return false;
+        }
+
+        public bool TryParseStyleTransformOrigin(object value, out StyleTransformOrigin styleTransformOrigin) {
+            if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
+                styleTransformOrigin = new StyleTransformOrigin(keyword);
+                return true;
+            }
+            if (value == null) {
+                styleTransformOrigin = new StyleTransformOrigin(StyleKeyword.Null);
+                return true;
+            }
+            if (value is StyleTransformOrigin sto) {
+                styleTransformOrigin = sto;
+                return true;
+            }
+            if (value is TransformOrigin to) {
+                styleTransformOrigin = new StyleTransformOrigin(to);
+                return true;
+            }
+
+            if (value is string s) {
+                var parts = s.Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 1) {
+                    if (GetLength(parts[0], out var l)) {
+                        styleTransformOrigin = new TransformOrigin(l, l);
+                        return true;
+                    }
+                } else if (parts.Length == 2) {
+                    if (GetLength(parts[0], out var x) && GetLength(parts[1], out var y)) {
+                        styleTransformOrigin = new TransformOrigin(x, y);
+                        return true;
+                    }
+                }
+            } else if (value is double d) {
+                styleTransformOrigin = new StyleTransformOrigin(new TransformOrigin((float)d, (float)d));
+                return true;
+            } else if (value is Puerts.JSObject jsObj && jsObj.Get<int>("length") == 2) {
+                var x = jsObj.Get<float>("0");
+                var y = jsObj.Get<float>("1");
+                styleTransformOrigin = new StyleTransformOrigin(new TransformOrigin(x, y));
+                return true;
+            }
+            styleTransformOrigin = default;
+            return false;
+        }
+
+        Regex timeRegex = new Regex(@"(-?\d+\.?\d*)(s|ms)", RegexOptions.IgnoreCase);
+
+        public bool TryParseStyleListTimeValue(object value, out StyleList<TimeValue> styleListTimeValue) {
+            if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
+                styleListTimeValue = new StyleList<TimeValue>(keyword);
+                return true;
+            }
+            if (value == null) {
+                styleListTimeValue = new StyleList<TimeValue>(StyleKeyword.Null);
+                return true;
+            }
+            if (value is StyleList<TimeValue> sltv) {
+                styleListTimeValue = sltv;
+                return true;
+            }
+            if (value is List<TimeValue> ltv) {
+                styleListTimeValue = new StyleList<TimeValue>(ltv);
+                return true;
+            }
+
+            if (value is string s) {
+                var parts = s.Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                var timeValues = new List<TimeValue>();
+                foreach (var part in parts) {
+                    var match = timeRegex.Match(part);
+                    if (match.Success) {
+                        float f = float.Parse(match.Groups[1].Value);
+                        var unit = match.Groups[2].Value.ToLower();
+                        TimeUnit timeUnit = TimeUnit.Second; // Default to Second
+
+                        switch (unit) {
+                            case "s":
+                                timeUnit = TimeUnit.Second;
+                                break;
+                            case "ms":
+                                timeUnit = TimeUnit.Millisecond;
+                                break;
+                        }
+
+                        timeValues.Add(new TimeValue(f, timeUnit));
+                    }
+                }
+            } else if (value is TimeValue tv) {
+                styleListTimeValue = new StyleList<TimeValue>(new List<TimeValue>() { tv });
+                return true;
+            } else if (value is Puerts.JSObject jsObj) {
+                var timeValues = new List<TimeValue>();
+                for (int i = 0; i < jsObj.Get<int>("length"); i++) {
+                    var match = timeRegex.Match(jsObj.Get<string>(i.ToString()));
+                    if (match.Success) {
+                        float f = float.Parse(match.Groups[1].Value);
+                        var unit = match.Groups[2].Value.ToLower();
+                        TimeUnit timeUnit = TimeUnit.Second; // Default to Second
+
+                        switch (unit) {
+                            case "s":
+                                timeUnit = TimeUnit.Second;
+                                break;
+                            case "ms":
+                                timeUnit = TimeUnit.Millisecond;
+                                break;
+                        }
+
+                        timeValues.Add(new TimeValue(f, timeUnit));
+                    }
+                }
+                styleListTimeValue = new StyleList<TimeValue>(timeValues);
+                return true;
+            }
+            styleListTimeValue = default;
+            return false;
+        }
+
+        public bool TryParseStyleListPropertyName(object value, out StyleList<StylePropertyName> styleListPropertyName) {
+            if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
+                styleListPropertyName = new StyleList<StylePropertyName>(keyword);
+                return true;
+            }
+            if (value == null) {
+                styleListPropertyName = new StyleList<StylePropertyName>(StyleKeyword.Null);
+                return true;
+            }
+            if (value is StyleList<StylePropertyName> slpn) {
+                styleListPropertyName = slpn;
+                return true;
+            }
+            if (value is List<StylePropertyName> lpn) {
+                styleListPropertyName = new StyleList<StylePropertyName>(lpn);
+                return true;
+            }
+
+            if (value is string s) {
+                var parts = s.Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                var propertyNames = new List<StylePropertyName>();
+                foreach (var part in parts) {
+                    propertyNames.Add(part);
+                }
+                styleListPropertyName = new StyleList<StylePropertyName>(propertyNames);
+                return true;
+            } else if (value is StylePropertyName spn) {
+                styleListPropertyName = new StyleList<StylePropertyName>(new List<StylePropertyName>() { spn });
+                return true;
+            } else if (value is Puerts.JSObject jsObj) {
+                var propertyNames = new List<StylePropertyName>();
+                for (int i = 0; i < jsObj.Get<int>("length"); i++) {
+                    propertyNames.Add(jsObj.Get<string>(i.ToString()));
+                }
+                styleListPropertyName = new StyleList<StylePropertyName>(propertyNames);
+                return true;
+            }
+            styleListPropertyName = default;
+            return false;
+        }
+
+        public bool TryParseStyleListEasingFunction(object value, out StyleList<EasingFunction> styleListEasingFunction) {
+            if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
+                styleListEasingFunction = new StyleList<EasingFunction>(keyword);
+                return true;
+            }
+            if (value == null) {
+                styleListEasingFunction = new StyleList<EasingFunction>(StyleKeyword.Null);
+                return true;
+            }
+            if (value is StyleList<EasingFunction> slef) {
+                styleListEasingFunction = slef;
+                return true;
+            }
+            if (value is List<EasingFunction> lef) {
+                styleListEasingFunction = new StyleList<EasingFunction>(lef);
+                return true;
+            }
+
+            if (value is string s) {
+                var parts = s.Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                var easingFunctions = new List<EasingFunction>();
+                foreach (var part in parts) {
+                    if (Enum.TryParse(part, true, out EasingMode easing)) {
+                        easingFunctions.Add(easing);
+                    }
+                }
+                styleListEasingFunction = new StyleList<EasingFunction>(easingFunctions);
+                return true;
+            } else if (value is EasingFunction ef) {
+                styleListEasingFunction = new StyleList<EasingFunction>(new List<EasingFunction>() { ef });
+                return true;
+            } else if (value is Puerts.JSObject jsObj) {
+                var easingFunctions = new List<EasingFunction>();
+                for (int i = 0; i < jsObj.Get<int>("length"); i++) {
+                    if (Enum.TryParse(jsObj.Get<string>(i.ToString()), true, out EasingMode easing)) {
+                        easingFunctions.Add(easing);
+                    }
+                }
+                styleListEasingFunction = new StyleList<EasingFunction>(easingFunctions);
+                return true;
+            }
+            styleListEasingFunction = default;
+            return false;
+        }
+
+        public bool TryParseStyleTranslate(object value, out StyleTranslate styleTranslate) {
+            if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
+                styleTranslate = new StyleTranslate(keyword);
+                return true;
+            }
+            if (value == null) {
+                styleTranslate = new StyleTranslate(StyleKeyword.Null);
+                return true;
+            }
+            if (value is StyleTranslate st) {
+                styleTranslate = st;
+                return true;
+            }
+
+            if (value is string s) {
+                var parts = s.Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 1) {
+                    if (GetLength(parts[0], out var l)) {
+                        styleTranslate = new Translate(l, l);
+                        return true;
+                    }
+                } else if (parts.Length == 2) {
+                    if (GetLength(parts[0], out var x) && GetLength(parts[1], out var y)) {
+                        styleTranslate = new Translate(x, y);
+                        return true;
+                    }
+                }
+            } else if (value is double d) {
+                styleTranslate = new StyleTranslate(new Translate((float)d, (float)d));
+                return true;
+            } else if (value is Puerts.JSObject jsObj && jsObj.Get<int>("length") == 2) {
+                var x = jsObj.Get<float>("0");
+                var y = jsObj.Get<float>("1");
+                styleTranslate = new StyleTranslate(new Translate(x, y));
+                return true;
+            }
+            styleTranslate = default;
+            return false;
+        }
+
+        public bool TryParseStyleFont(object value, out StyleFont styleFont) {
+            if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
+                styleFont = new StyleFont(keyword);
+                return true;
+            }
+            if (value == null) {
+                styleFont = new StyleFont(StyleKeyword.Null);
+                return true;
+            }
+            if (value is StyleFont sf) {
+                styleFont = sf;
+                return true;
+            }
+            if (value is Font f) {
+                styleFont = new StyleFont(f);
+                return true;
+            }
+
+            if (value is string s) {
+                var font = _dom.document.loadFont(s);
+                if (font != null) {
+                    styleFont = new StyleFont(font);
+                    return true;
+                }
+            }
+            styleFont = default;
+            return false;
+        }
+
+        public bool TryParseStyleFontDefinition(object value, out StyleFontDefinition styleFontDefinition) {
+            if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
+                styleFontDefinition = new StyleFontDefinition(keyword);
+                return true;
+            }
+            if (value == null) {
+                styleFontDefinition = new StyleFontDefinition(StyleKeyword.Null);
+                return true;
+            }
+            if (value is StyleFontDefinition sfd) {
+                styleFontDefinition = sfd;
+                return true;
+            }
+            if (value is FontDefinition fd) {
+                styleFontDefinition = new StyleFontDefinition(fd);
+                return true;
+            }
+
+            if (value is string s) {
+                var fontDefinition = _dom.document.loadFontDefinition(s);
+                if (fontDefinition != null) {
+                    styleFontDefinition = new StyleFontDefinition(fontDefinition);
+                    return true;
+                }
+            }
+            styleFontDefinition = default;
+            return false;
+        }
+
+        public bool TryParseStyleInt(object value, out StyleInt styleInt) {
+            if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
+                styleInt = new StyleInt(keyword);
+                return true;
+            }
+            if (value == null) {
+                styleInt = new StyleInt(StyleKeyword.Null);
+                return true;
+            }
+            if (value is StyleInt si) {
+                styleInt = si;
+                return true;
+            }
+            if (value is double d) {
+                styleInt = new StyleInt((int)d);
+                return true;
+            }
+            styleInt = default;
+            return false;
         }
         #endregion
 
