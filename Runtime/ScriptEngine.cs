@@ -601,6 +601,25 @@ namespace OneJS {
             CleanUp();
             InitEngine();
         }
+
+        public void AddRuntimeObject(string module, object obj) {
+            ModuleEngine.RegisterInternalModule(module, obj);
+            _objects = _objects.Append(new ObjectModulePair(obj as UnityEngine.Object, module)).ToArray();
+        }
+
+        public void AddRuntimeNamespace(string name, string module) {
+            ModuleEngine.RegisterInternalModule(module, module, new NamespaceReference(_engine, name));
+            _namespaces = _namespaces.Append(new NamespaceModulePair(name, module)).ToArray();
+        }
+
+        public void AddRuntimeStaticClass(string name, string module) {
+            var type = AssemblyFinder.FindType(name);
+            if (type == null)
+                throw new Exception(
+                    $"ScriptEngine could not load static class \"{name}\". Please check your string(s) in the `Static Classes` array.");
+            ModuleEngine.RegisterInternalModule(module, type);
+            _staticClasses = _staticClasses.Append(new StaticClassModulePair(name, module)).ToArray();
+        }
     }
 
     #region Extra
