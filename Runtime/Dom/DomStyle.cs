@@ -2038,5 +2038,97 @@ namespace OneJS.Dom {
             dom.ve.style.paddingLeft = new StyleLength(keyword);
         }
         #endregion
+
+        /*
+        // TS Typings (for reference and AI generation)
+        alignContent: StyleEnum<Align> | Align | string | null | number;
+        alignItems: StyleEnum<Align> | Align | string | null | number;
+        alignSelf: StyleEnum<Align> | Align | string | null | number;
+        backgroundColor: StyleColor | Color | string | null;
+        backgroundImage: StyleBackground | Background | string | null;
+        backgroundSize: StyleBackgroundSize | BackgroundSize | string | null;
+        backgroundRepeat: StyleBackgroundRepeat | BackgroundRepeat | string | null;
+        backgroundPosition: StyleBackgroundPosition | BackgroundPosition | string | null;
+        backgroundPositionX: StyleBackgroundPosition | BackgroundPosition | string | null;
+        backgroundPositionY: StyleBackgroundPosition | BackgroundPosition | string | null;
+        borderColor: StyleColor | Color | string | null | Color[];
+        borderWidth: StyleFloat | number | string | null | number[];
+        borderRadius: StyleLength | Length | string | null | number[];
+        borderBottomColor: StyleColor | Color | string | null;
+        borderTopColor: StyleColor | Color | string | null;
+        borderLeftColor: StyleColor | Color | string | null;
+        borderRightColor: StyleColor | Color | string | null;
+        borderBottomWidth: StyleFloat | number | string | null;
+        borderTopWidth: StyleFloat | number | string | null;
+        borderLeftWidth: StyleFloat | number | string | null;
+        borderRightWidth: StyleFloat | number | string | null;
+        borderTopLeftRadius: StyleLength | Length | string | null;
+        borderTopRightRadius: StyleLength | Length | string | null;
+        borderBottomRightRadius: StyleLength | Length | string | null;
+        borderBottomLeftRadius: StyleLength | Length | string | null;
+        bottom: StyleLength | Length | string | null;
+        color: StyleColor | Color | string | null;
+        cursor: StyleCursor | Cursor | null;
+        display: StyleEnum<DisplayStyle> | DisplayStyle | string | null | number;
+        flexBasis: StyleLength | Length | string | null;
+        flexDirection: StyleEnum<FlexDirection> | FlexDirection | string | null | number;
+        flexGrow: StyleFloat | number | string | null;
+        flexShrink: StyleFloat | number | string | null;
+        flexWrap: StyleEnum<Wrap> | Wrap | string | null | number;
+        fontSize: StyleLength | Length | string | null;
+        height: StyleLength | Length | string | null;
+        justifyContent: StyleEnum<Justify> | Justify | string | null | number;
+        left: StyleLength | Length | string | null;
+        letterSpacing: StyleLength | Length | string | null;
+        margin: StyleLength | Length | string | null | number[];
+        marginBottom: StyleLength | Length | string | null;
+        marginLeft: StyleLength | Length | string | null;
+        marginRight: StyleLength | Length | string | null;
+        marginTop: StyleLength | Length | string | null;
+        maxHeight: StyleLength | Length | string | null;
+        maxWidth: StyleLength | Length | string | null;
+        minHeight: StyleLength | Length | string | null;
+        minWidth: StyleLength | Length | string | null;
+        opacity: StyleFloat | number | string | null;
+        overflow: StyleEnum<Overflow> | Overflow | string | null | number;
+        padding: StyleLength | Length | string | null | number[];
+        paddingBottom: StyleLength | Length | string | null;
+        paddingLeft: StyleLength | Length | string | null;
+        paddingRight: StyleLength | Length | string | null;
+        paddingTop: StyleLength | Length | string | null;
+        position: StyleEnum<Position> | Position | string | null | number;
+        right: StyleLength | Length | string | null;
+        rotate: StyleRotate | Rotate | string | null | number;
+        scale: StyleScale | Scale | string | null | number;
+        textOverflow: StyleEnum<TextOverflow> | TextOverflow | string | null | number;
+        textShadow: StyleTextShadow | TextShadow | string | null;
+        top: StyleLength | Length | string | null;
+        transformOrigin: StyleTransformOrigin | TransformOrigin | string | null | number[];
+        transitionDelay: StyleList<TimeValue> | TimeValue | string | null | string[];
+        transitionDuration: StyleList<TimeValue> | TimeValue | string | null | string[];
+        transitionProperty: StyleList<StylePropertyName> | StylePropertyName | string | null | string[];
+        transitionTimingFunction: StyleList<EasingFunction> | EasingFunction | string | null | string[];
+        translate: StyleTranslate | Translate | string | null | number[];
+        unityBackgroundImageTintColor: StyleColor | Color | string | null;
+        unityBackgroundScaleMode: StyleEnum<BackgroundScaleMode> | BackgroundScaleMode | string | null | number;
+        unityFont: StyleFont | Font | string | null;
+        unityFontDefinition: StyleFontDefinition | FontDefinition | string | null;
+        unityFontStyleAndWeight: StyleEnum<FontStyle> | FontStyle | string | null | number;
+        unityOverflowClipBox: StyleEnum<OverflowClipBox> | OverflowClipBox | string | null | number;
+        unityParagraphSpacing: StyleLength | Length | string | null;
+        unitySliceBottom: StyleInt | number | string | null;
+        unitySliceLeft: StyleInt | number | string | null;
+        unitySliceRight: StyleInt | number | string | null;
+        unitySliceTop: StyleInt | number | string | null;
+        unitySliceScale: StyleFloat | number | string | null;
+        unityTextAlign: StyleEnum<TextAnchor> | TextAnchor | string | null | number;
+        unityTextOutlineColor: StyleColor | Color | string | null;
+        unityTextOutlineWidth: StyleFloat | number | string | null;
+        unityTextOverflowPosition: StyleEnum<TextOverflowPosition> | TextOverflowPosition | string | null | number;
+        visibility: StyleEnum<Visibility> | Visibility | string | null | number;
+        whiteSpace: StyleEnum<WhiteSpace> | WhiteSpace | string | null | number;
+        width: StyleLength | Length | string | null;
+        wordSpacing: StyleLength | Length | string | null;
+        */
     }
 }
