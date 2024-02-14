@@ -827,7 +827,7 @@ namespace OneJS.Dom {
         #endregion
 
         #region ParseStyles
-        public bool TryParseStyleEnum<T>(object value, out StyleEnum<T> styleEnum) where T : struct, IConvertible {
+        bool TryParseStyleEnum<T>(object value, out StyleEnum<T> styleEnum) where T : struct, IConvertible {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleEnum = new StyleEnum<T>(keyword);
                 return true;
@@ -860,7 +860,7 @@ namespace OneJS.Dom {
             return false;
         }
 
-        public bool TryParseStyleColor(object value, out StyleColor styleColor) {
+        bool TryParseStyleColor(object value, out StyleColor styleColor) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleColor = new StyleColor(keyword);
                 return true;
@@ -886,7 +886,7 @@ namespace OneJS.Dom {
             return false;
         }
 
-        public bool TryParseStyleBackground(object value, out StyleBackground styleBackground) {
+        bool TryParseStyleBackground(object value, out StyleBackground styleBackground) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleBackground = new StyleBackground(keyword);
                 return true;
@@ -927,7 +927,7 @@ namespace OneJS.Dom {
             return false;
         }
 
-        public bool TryParseStyleBackgroundSize(object value, out StyleBackgroundSize styleBackgroundSize) {
+        bool TryParseStyleBackgroundSize(object value, out StyleBackgroundSize styleBackgroundSize) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleBackgroundSize = new StyleBackgroundSize(keyword);
                 return true;
@@ -971,7 +971,7 @@ namespace OneJS.Dom {
             return false;
         }
 
-        public bool TryParseStyleBackgroundRepeat(object value, out StyleBackgroundRepeat styleBackgroundRepeat) {
+        bool TryParseStyleBackgroundRepeat(object value, out StyleBackgroundRepeat styleBackgroundRepeat) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleBackgroundRepeat = new StyleBackgroundRepeat(keyword);
                 return true;
@@ -1018,7 +1018,7 @@ namespace OneJS.Dom {
             return false;
         }
 
-        public void SetBackgroundPosition(object value) {
+        void SetBackgroundPosition(object value) {
             if (value is string s && StyleKeyword.TryParse(s, true, out StyleKeyword keyword)) {
                 _dom.ve.style.backgroundPositionX = new StyleBackgroundPosition(keyword);
                 _dom.ve.style.backgroundPositionY = new StyleBackgroundPosition(keyword);
@@ -1064,7 +1064,7 @@ namespace OneJS.Dom {
             }
         }
 
-        public bool TryParseStyleBackgroundPositionSingle(object value, out StyleBackgroundPosition styleBackgroundPosition) {
+        bool TryParseStyleBackgroundPositionSingle(object value, out StyleBackgroundPosition styleBackgroundPosition) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleBackgroundPosition = new StyleBackgroundPosition(keyword);
                 return true;
@@ -1100,7 +1100,7 @@ namespace OneJS.Dom {
             return false;
         }
 
-        public void SetBorderColor(object value) {
+        void SetBorderColor(object value) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 __setBorderColorKeyword(_dom, keyword);
                 return;
@@ -1160,7 +1160,7 @@ namespace OneJS.Dom {
             }
         }
 
-        public void SetBorderWidth(object value) {
+        void SetBorderWidth(object value) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 __setBorderWidthKeyword(_dom, keyword);
                 return;
@@ -1220,7 +1220,7 @@ namespace OneJS.Dom {
             }
         }
 
-        public void SetBorderRadius(object value) {
+        void SetBorderRadius(object value) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 __setBorderRadiusKeyword(_dom, keyword);
                 return;
@@ -1285,7 +1285,7 @@ namespace OneJS.Dom {
             }
         }
 
-        public bool TryParseStyleLength(object value, out StyleLength styleLength) {
+        bool TryParseStyleLength(object value, out StyleLength styleLength) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleLength = new StyleLength(keyword);
                 return true;
@@ -1316,7 +1316,7 @@ namespace OneJS.Dom {
             return false;
         }
 
-        public bool TryParseStyleFloat(object value, out StyleFloat styleFloat) {
+        bool TryParseStyleFloat(object value, out StyleFloat styleFloat) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleFloat = new StyleFloat(keyword);
                 return true;
@@ -1338,7 +1338,7 @@ namespace OneJS.Dom {
             return false;
         }
 
-        public void SetMargin(object value) {
+        void SetMargin(object value) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 __setMarginKeyword(_dom, keyword);
                 return;
@@ -1403,7 +1403,7 @@ namespace OneJS.Dom {
             }
         }
 
-        public void SetPadding(object value) {
+        void SetPadding(object value) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 __setPaddingKeyword(_dom, keyword);
                 return;
@@ -1470,7 +1470,7 @@ namespace OneJS.Dom {
 
         Regex rotateRegex = new Regex(@"(-?\d+\.?\d*|\.\d+)(deg|grad|rad|turn)", RegexOptions.IgnoreCase);
 
-        public bool TryParseStyleRotate(object value, out StyleRotate styleRotate) {
+        bool TryParseStyleRotate(object value, out StyleRotate styleRotate) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleRotate = new StyleRotate(keyword);
                 return true;
@@ -1529,7 +1529,7 @@ namespace OneJS.Dom {
             return false;
         }
 
-        public bool TryParseStyleScale(object value, out StyleScale styleScale) {
+        bool TryParseStyleScale(object value, out StyleScale styleScale) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleScale = new StyleScale(keyword);
                 return true;
@@ -1574,7 +1574,7 @@ namespace OneJS.Dom {
             return false;
         }
 
-        public bool TryParseStyleTextShadow(object value, out StyleTextShadow styleTextShadow) {
+        bool TryParseStyleTextShadow(object value, out StyleTextShadow styleTextShadow) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleTextShadow = new StyleTextShadow(keyword);
                 return true;
@@ -1618,7 +1618,7 @@ namespace OneJS.Dom {
             return false;
         }
 
-        public bool TryParseStyleTransformOrigin(object value, out StyleTransformOrigin styleTransformOrigin) {
+        bool TryParseStyleTransformOrigin(object value, out StyleTransformOrigin styleTransformOrigin) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleTransformOrigin = new StyleTransformOrigin(keyword);
                 return true;
@@ -1664,7 +1664,7 @@ namespace OneJS.Dom {
 
         Regex timeRegex = new Regex(@"(-?\d+\.?\d*)(s|ms)", RegexOptions.IgnoreCase);
 
-        public bool TryParseStyleListTimeValue(object value, out StyleList<TimeValue> styleListTimeValue) {
+        bool TryParseStyleListTimeValue(object value, out StyleList<TimeValue> styleListTimeValue) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleListTimeValue = new StyleList<TimeValue>(keyword);
                 return true;
@@ -1735,7 +1735,7 @@ namespace OneJS.Dom {
             return false;
         }
 
-        public bool TryParseStyleListPropertyName(object value, out StyleList<StylePropertyName> styleListPropertyName) {
+        bool TryParseStyleListPropertyName(object value, out StyleList<StylePropertyName> styleListPropertyName) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleListPropertyName = new StyleList<StylePropertyName>(keyword);
                 return true;
@@ -1776,7 +1776,7 @@ namespace OneJS.Dom {
             return false;
         }
 
-        public bool TryParseStyleListEasingFunction(object value, out StyleList<EasingFunction> styleListEasingFunction) {
+        bool TryParseStyleListEasingFunction(object value, out StyleList<EasingFunction> styleListEasingFunction) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleListEasingFunction = new StyleList<EasingFunction>(keyword);
                 return true;
@@ -1821,7 +1821,7 @@ namespace OneJS.Dom {
             return false;
         }
 
-        public bool TryParseStyleTranslate(object value, out StyleTranslate styleTranslate) {
+        bool TryParseStyleTranslate(object value, out StyleTranslate styleTranslate) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleTranslate = new StyleTranslate(keyword);
                 return true;
@@ -1861,7 +1861,7 @@ namespace OneJS.Dom {
             return false;
         }
 
-        public bool TryParseStyleFont(object value, out StyleFont styleFont) {
+        bool TryParseStyleFont(object value, out StyleFont styleFont) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleFont = new StyleFont(keyword);
                 return true;
@@ -1890,7 +1890,7 @@ namespace OneJS.Dom {
             return false;
         }
 
-        public bool TryParseStyleFontDefinition(object value, out StyleFontDefinition styleFontDefinition) {
+        bool TryParseStyleFontDefinition(object value, out StyleFontDefinition styleFontDefinition) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleFontDefinition = new StyleFontDefinition(keyword);
                 return true;
@@ -1919,7 +1919,7 @@ namespace OneJS.Dom {
             return false;
         }
 
-        public bool TryParseStyleInt(object value, out StyleInt styleInt) {
+        bool TryParseStyleInt(object value, out StyleInt styleInt) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleInt = new StyleInt(keyword);
                 return true;
@@ -2110,7 +2110,7 @@ namespace OneJS.Dom {
         transitionTimingFunction: StyleList<EasingFunction> | EasingFunction | string | null | string[];
         translate: StyleTranslate | Translate | string | null | number[];
         unityBackgroundImageTintColor: StyleColor | Color | string | null;
-        unityBackgroundScaleMode: StyleEnum<BackgroundScaleMode> | BackgroundScaleMode | string | null | number;
+        unityBackgroundScaleMode: StyleEnum<ScaleMode> | ScaleMode | string | null | number;
         unityFont: StyleFont | Font | string | null;
         unityFontDefinition: StyleFontDefinition | FontDefinition | string | null;
         unityFontStyleAndWeight: StyleEnum<FontStyle> | FontStyle | string | null | number;
