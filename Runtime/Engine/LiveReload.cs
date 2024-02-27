@@ -50,7 +50,7 @@ namespace OneJS.Engine {
             "Port for both Server and Client. (Client also listens on a port for better discovery across devices.)")]
         [SerializeField]
         int _port = 9050;
-        
+
         [Tooltip(
             "Explicit IP address to use for server. Use this if you are having problems with network discovery. Keep this empty to use auto discovery.")]
         [SerializeField]
@@ -84,14 +84,6 @@ namespace OneJS.Engine {
         }
 
         void Start() {
-#if !UNITY_EDITOR && (UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID)
-            if (!_turnOnForStandalone) {
-                if (_runOnStart) {
-                    _scriptEngine.RunScript(_entryScript);
-                }
-                return;
-            }
-#endif
             if (_netSync) {
                 if (IsServer) {
                     // Running as Server
@@ -118,8 +110,12 @@ namespace OneJS.Engine {
 
         void OnEnable() {
 #if !UNITY_EDITOR && (UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID)
-            if (!_turnOnForStandalone)
+            if (!_turnOnForStandalone) {
+                if (_runOnStart) {
+                    _scriptEngine.RunScript(_entryScript);
+                }
                 return;
+            }
 #endif
             if (_netSync && IsClient)
                 return;
@@ -183,7 +179,7 @@ namespace OneJS.Engine {
         public void Reload() {
             _scriptEngine.ReloadAndRunScript(_entryScript);
         }
-        
+
         public void SetEntryScriptAndReload(string path) {
             if (!File.Exists(Path.Combine(_scriptEngine.WorkingDir, path))) {
                 print("File not found: " + path);
