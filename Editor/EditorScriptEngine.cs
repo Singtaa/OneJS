@@ -61,8 +61,10 @@ __addToGlobal;");
         }
         #endregion
 
-        public VisualElement RunFileAndGetVisualElement(string filePath, object target) {
-            var code = File.ReadAllText(Path.Combine(WorkingDir, filePath));
+        // TODO need to find workaround for repainting issue
+        // https://forum.unity.com/threads/is-there-something-like-oninspectorupdate-for-ui-toolkit.1223010/
+        public VisualElement CreateInspectorVE(string filePath, object target) {
+            var code = File.ReadAllText(Path.Combine(WorkingDir, "@outputs/esbuild", filePath));
             var func = _jsEnv.Eval<Func<object, Dom.Dom>>(code);
             
             var dom = func(target);
