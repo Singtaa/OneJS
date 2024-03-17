@@ -214,6 +214,8 @@ namespace OneJS.Dom {
             // if (node.ve.GetType().Name == "TextElement") {
             //     Debug.Log((node.ve as TextElement).text);
             // }
+            if (node == null)
+                return;
             try {
                 this._ve.Add(node.ve);
             } catch (Exception e) {

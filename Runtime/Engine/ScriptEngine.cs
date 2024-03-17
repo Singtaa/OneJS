@@ -9,7 +9,7 @@ using UnityEngine.UIElements;
 
 namespace OneJS {
     [RequireComponent(typeof(UIDocument))]
-    public class ScriptEngine : MonoBehaviour {
+    public class ScriptEngine : MonoBehaviour, IScriptEngine {
         #region Public Fields
         [PairMapping("baseDir", "relativePath", "/", "Editor WorkingDir")]
         public EditorModeWorkingDirInfo editorModeWorkingDirInfo;
