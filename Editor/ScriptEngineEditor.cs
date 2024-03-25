@@ -7,6 +7,8 @@ namespace OneJS.Editor {
     [CustomEditor(typeof(ScriptEngine))]
     [CanEditMultipleObjects]
     public class ScriptEngineEditor : UnityEditor.Editor {
+        static int _selectedTab;
+
         SerializedProperty _assemblies;
         SerializedProperty _extensions;
         SerializedProperty _namespaces;
@@ -35,11 +37,8 @@ namespace OneJS.Editor {
         SerializedProperty _initEngineOnStart;
         SerializedProperty _enableExtraLogging;
 
-        SerializedProperty _selectedTab;
 
         void OnEnable() {
-            _selectedTab = serializedObject.FindProperty("_selectedTab");
-
             _assemblies = serializedObject.FindProperty("_assemblies");
             _extensions = serializedObject.FindProperty("_extensions");
             _namespaces = serializedObject.FindProperty("_namespaces");
@@ -71,7 +70,7 @@ namespace OneJS.Editor {
 
         public override void OnInspectorGUI() {
             serializedObject.Update();
-            _selectedTab.intValue = GUILayout.Toolbar(_selectedTab.intValue, new GUIContent[] {
+            _selectedTab = GUILayout.Toolbar(_selectedTab, new GUIContent[] {
                 new GUIContent("INTEROP", ".Net to JS Interop Settings"),
                 new GUIContent("SECURITY", "Security Settings"),
                 new GUIContent("STYLING", "Base styling settings"),
@@ -80,7 +79,7 @@ namespace OneJS.Editor {
 
             GUILayout.Space(8);
 
-            switch (_selectedTab.intValue) {
+            switch (_selectedTab) {
                 case 0:
                     EditorGUILayout.HelpBox(
                         "The Objects list accepts any UnityEngine.Object, not just MonoBehaviours. To pick a specific MonoBehaviour component, you can right-click on the Inspector Tab of the selected GameObject and pick Properties. A standalone window will pop up for you to drag the specifc MonoBehavior from.",
