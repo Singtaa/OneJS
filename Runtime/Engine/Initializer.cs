@@ -13,6 +13,7 @@ namespace OneJS {
         public TextAsset defaultIndex;
         public TextAsset onejsCoreZip;
         public TextAsset outputsZip;
+        public TextAsset readme;
 
         ScriptEngine _engine;
 
@@ -23,6 +24,7 @@ namespace OneJS {
             CreateTsconfigFileIfNotFound();
             CreateEsbuildFileIfNotFound();
             CreateIndexFileIfNotFound();
+            CreateReadMeFileIfNotFound();
         }
 
         public void CreateTsconfigFileIfNotFound() {
@@ -50,6 +52,15 @@ namespace OneJS {
 
             File.WriteAllText(path, defaultIndex.text);
             Debug.Log($"'index.tsx' wasn't found. A new one was created ({path})");
+        }
+        
+        public void CreateReadMeFileIfNotFound() {
+            var path = Path.Combine(_engine.WorkingDir, "README.md");
+            if (File.Exists(path))
+                return;
+
+            File.WriteAllText(path, readme.text);
+            Debug.Log($"'README.md' wasn't found. A new one was created ({path})");
         }
 
         public void ExtractOnejsCoreIfNotFound() {

@@ -3,6 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text;
+using System.Text.RegularExpressions;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -58,6 +60,12 @@ namespace OneJS.Dom {
         // NOTE: Using `JsValue` here because `EventCallback<EventBase>` will lead to massive slowdown on Linux.
         // [props.ts] `dom._listeners[name + useCapture] = value;`
         public Dictionary<string, object> _listeners => __listeners;
+
+        static (string, string)[] _replacePairsForClassNames = new[] {
+            (".", "_d_"), ("/", "_s_"), (":", "_c_"), ("%", "_p_"), ("#", "_n_"),
+            ("[", "_lb_"), ("]", "_rb_"), ("(", "_lp_"), (")", "_rp_"),
+            (",", "_cm_")
+        };
 
         Document _document;
         VisualElement _ve;
@@ -120,7 +128,7 @@ namespace OneJS.Dom {
         //     var thisDom = JsValue.FromObject(jintEngine, this);
         //     jintEngine.Call(__listeners[name], thisDom, new[] { JsValue.FromObject(jintEngine, evt) });
         // }
-        
+
         public string classname {
             get {
                 return string.Join(" ", _ve.GetClasses().Where(c => !c.StartsWith("unity-")).ToArray());
@@ -129,7 +137,7 @@ namespace OneJS.Dom {
                 this.setAttribute("class", value);
             }
         }
-        
+
         public void SetBackgroundColor(Color color) {
             _ve.style.backgroundColor = color;
         }
@@ -265,8 +273,8 @@ namespace OneJS.Dom {
             if (name == "class" || name == "className") {
                 var unityClassnames = _ve.GetClasses().Where(c => c.StartsWith("unity-")).ToArray();
                 _ve.ClearClassList();
-                // var unprocessedClassStr = _document.scriptEngine.ProcessClassStr(val.ToString(), this);
-                var unprocessedClassStr = val.ToString();
+                var unprocessedClassStr = ProcessClassStr(val.ToString(), this);
+                // var unprocessedClassStr = val.ToString();
                 var parts = (unprocessedClassStr).Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 foreach (var unityClassname in unityClassnames) {
                     _ve.AddToClassList(unityClassname);
@@ -364,6 +372,39 @@ namespace OneJS.Dom {
                 }
             }
             return null;
+        }
+
+        public string ProcessClassStr(string classStr, Dom dom) {
+            var names = classStr.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            names = names.Select(s => s[0] >= 48 && s[0] <= 57 ? "_" + s : s).ToArray(); // ^\d => _\d
+
+            var output = String.Join(" ", names);
+            return TransformUsingPairs(output, _replacePairsForClassNames);
+        }
+
+        /// <summary>
+        /// Basically a more performant version of chaining string.Replace
+        /// </summary>
+        string TransformUsingPairs(string input, (string, string)[] pairs) {
+            var sb = new StringBuilder(input);
+            var indices = new List<(int, int, string)>();
+
+            foreach (var pair in pairs) {
+                int index = 0;
+                while ((index = input.IndexOf(pair.Item1, index)) != -1) {
+                    indices.Add((index, pair.Item1.Length, pair.Item2));
+                    index += pair.Item1.Length;
+                }
+            }
+
+            indices.Sort((a, b) => b.Item1.CompareTo(a.Item1));
+
+            foreach (var tuple in indices) {
+                sb.Remove(tuple.Item1, tuple.Item2);
+                sb.Insert(tuple.Item1, tuple.Item3);
+            }
+
+            return sb.ToString();
         }
 
         struct TickBasedCallTracker {

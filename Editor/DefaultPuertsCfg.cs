@@ -18,12 +18,36 @@ namespace OneJS.Editor {
                 var uiElementTypes = new[] {
                     typeof(VisualElement), typeof(Button), typeof(Label), typeof(TextElement),
 
+                    // JSX UnityEngine
+                    typeof(Bounds), typeof(BoundsInt), typeof(Color), typeof(Rect), typeof(RectInt), typeof(ScaleMode),
+                    typeof(Sprite), typeof(Texture), typeof(Texture2D), typeof(Vector2), typeof(Vector2Int), typeof(Vector3),
+                    typeof(Vector3Int), typeof(Vector4),
+
+                    // JSX UnityEngine/UIElements
+                    typeof(AttachToPanelEvent), typeof(BlurEvent), typeof(ClickEvent), typeof(InputEvent), typeof(FocusEvent),
+                    typeof(WheelEvent), typeof(DetachFromPanelEvent), typeof(DragEnterEvent), typeof(DragExitedEvent),
+                    typeof(DragLeaveEvent), typeof(DragPerformEvent), typeof(DragUpdatedEvent), typeof(ExecuteCommandEvent),
+                    typeof(FocusInEvent), typeof(FocusOutEvent), typeof(GeometryChangedEvent), typeof(KeyDownEvent),
+                    typeof(KeyUpEvent), typeof(MouseCaptureEvent), typeof(MouseCaptureOutEvent), typeof(MouseDownEvent),
+                    typeof(MouseEnterEvent), typeof(MouseEnterWindowEvent), typeof(MouseLeaveEvent), typeof(MouseLeaveWindowEvent),
+                    typeof(MouseMoveEvent), typeof(MouseOutEvent), typeof(MouseOverEvent), typeof(MouseUpEvent), typeof(PickingMode),
+                    typeof(PointerCancelEvent), typeof(PointerCaptureEvent), typeof(PointerCaptureOutEvent), typeof(PointerDownEvent),
+                    typeof(PointerEnterEvent), typeof(PointerLeaveEvent), typeof(PointerMoveEvent), typeof(PointerOutEvent),
+                    typeof(PointerOverEvent), typeof(PointerStationaryEvent), typeof(PointerUpEvent), typeof(ScrollViewMode),
+                    typeof(TooltipEvent), typeof(UxmlBoolAttributeDescription), typeof(UxmlDoubleAttributeDescription),
+                    typeof(UxmlFloatAttributeDescription), typeof(UxmlIntAttributeDescription), typeof(UxmlLongAttributeDescription),
+                    typeof(UxmlStringAttributeDescription), typeof(ValidateCommandEvent), typeof(ChangeEvent<>),
+                    typeof(ScrollerVisibility), typeof(DropdownField), typeof(NavigationMoveEvent), typeof(NavigationCancelEvent),
+                    typeof(NavigationSubmitEvent), typeof(TransitionCancelEvent), typeof(TransitionEndEvent),
+                    typeof(TransitionRunEvent), typeof(TransitionStartEvent), typeof(VectorImage),
+                    typeof(ScrollView.TouchScrollBehavior),
+
+                    // Styling
                     typeof(Align), typeof(DisplayStyle), typeof(FlexDirection), typeof(Wrap), typeof(Justify), typeof(Position), typeof(TextOverflow),
                     typeof(TimeValue), typeof(StylePropertyName), typeof(EasingFunction), typeof(OverflowClipBox), typeof(TextOverflowPosition),
                     typeof(Visibility), typeof(WhiteSpace), typeof(StyleKeyword), typeof(StyleColor), typeof(StyleBackground), typeof(Background),
                     typeof(Length), typeof(LengthUnit), typeof(StyleLength), typeof(StyleFloat), typeof(StyleInt),
-                    typeof(StyleEnum<>), typeof(IStyle), typeof(IResolvedStyle),
-                    typeof(UnityEngine.UIElements.Cursor),
+                    typeof(StyleEnum<>), typeof(IStyle), typeof(IResolvedStyle), typeof(UnityEngine.UIElements.Cursor),
                     typeof(StyleCursor), typeof(StyleRotate), typeof(Rotate), typeof(Angle), typeof(StyleScale), typeof(Scale), typeof(TextShadow),
                     typeof(StyleTextShadow), typeof(StyleTransformOrigin), typeof(TransformOrigin), typeof(StyleTranslate), typeof(Translate),
                     typeof(StyleFont), typeof(StyleFontDefinition), typeof(Overflow), typeof(EasingMode), typeof(FontDefinition),

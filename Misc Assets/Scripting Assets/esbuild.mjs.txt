@@ -40,7 +40,8 @@ await mainCtx.watch()
 
 
 /**
- * The following is for watching editor scripting files, such as custom inspectors:
+ * The following is for watching editor scripting files, such as custom inspectors.
+ * For example:
  * 
  * // C#
  * public class Car : MonoBehaviour {
@@ -57,7 +58,7 @@ await mainCtx.watch()
  * }
  * 
  * // editor/car-editor.js
- * import { h } from "onejs-core/editor"
+ * import { h } from "onejs-core"
  * 
  * export default function (target) {
  *     return <div>
@@ -69,7 +70,7 @@ await mainCtx.watch()
  * 
  */
 
-let entryPoints = await glob("./@outputs/tsc/editor/*.js");
+let entryPoints = await glob("./@outputs/tsc/editor/**/*.js");
 
 let editorCtx = await esbuild.context({
     entryPoints: entryPoints,

@@ -68,9 +68,11 @@ MonoBehaviour:
   playerModeWorkingDirInfo:
     baseDir: 0
     relativePath: App
+  runOnStart: 1
   preloads:
   - {fileID: 4900000, guid: 057173abc79c49a18c53df43d1b179de, type: 3}
   globalObjects: []
+  styleSheets: []
 --- !u!114 &9197640398682377884
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -88,3 +90,4 @@ MonoBehaviour:
   defaultIndex: {fileID: 4900000, guid: cd3538403d59c4642aa5a37b23e428cd, type: 3}
   onejsCoreZip: {fileID: 4900000, guid: 447491b0820deaa499feec456ba13940, type: 3}
   outputsZip: {fileID: 4900000, guid: f7502ff07da261a46bd9bc5fdfc641f1, type: 3}
+  readme: {fileID: 4900000, guid: 6e4c4114b8857a6428106ba02bc15e7a, type: 3}

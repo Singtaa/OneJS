@@ -9,6 +9,7 @@ MonoImporter:
   - defaultIndex: {fileID: 4900000, guid: cd3538403d59c4642aa5a37b23e428cd, type: 3}
   - onejsCoreZip: {fileID: 4900000, guid: 447491b0820deaa499feec456ba13940, type: 3}
   - outputsZip: {fileID: 4900000, guid: f7502ff07da261a46bd9bc5fdfc641f1, type: 3}
+  - readme: {fileID: 4900000, guid: 6e4c4114b8857a6428106ba02bc15e7a, type: 3}
   executionOrder: 0
   icon: {instanceID: 0}
   userData: 

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using OneJS.Dom;
 using Puerts;
 using UnityEngine;
@@ -24,6 +25,8 @@ namespace OneJS {
         [FormerlySerializedAs("globalObjs")]
         [PairMapping("obj", "name")]
         public ObjectMappingPair[] globalObjects;
+
+        public StyleSheet[] styleSheets;
         #endregion
 
         #region Events
@@ -58,6 +61,7 @@ namespace OneJS {
             foreach (var preload in preloads) {
                 _jsEnv.Eval(preload.text);
             }
+            styleSheets.ToList().ForEach(s => _uiDocument.rootVisualElement.styleSheets.Add(s));
             _document = new Document(_uiDocument.rootVisualElement, this);
             _addToGlobal = _jsEnv.Eval<System.Action<string, object>>(@"__addToGlobal");
             _addToGlobal("document", _document);
