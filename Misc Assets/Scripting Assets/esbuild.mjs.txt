@@ -1,4 +1,8 @@
+/**
+ * Default OneJS ESbuild Config
+ */
 import * as esbuild from 'esbuild'
+import glob from 'tiny-glob'
 import * as fs from 'fs'
 
 const unityImportTransformPlugin = {
@@ -24,7 +28,7 @@ const unityImportTransformPlugin = {
     },
 };
 
-let ctx = await esbuild.context({
+let mainCtx = await esbuild.context({
     entryPoints: ['@outputs/tsc/index.js'],
     bundle: true,
     plugins: [unityImportTransformPlugin],
@@ -32,4 +36,47 @@ let ctx = await esbuild.context({
     outfile: '@outputs/esbuild/app.js',
 })
 
-await ctx.watch()
+await mainCtx.watch()
+
+
+/**
+ * The following is for watching editor scripting files, such as custom inspectors:
+ * 
+ * // C#
+ * public class Car : MonoBehaviour {
+ *     public string make = "Toyota";
+ *     public int year = 1980;
+ *     public Color color = Color.black;
+ * }
+ * 
+ * [CustomEditor(typeof(Car))]
+ * public class CarEditor : Editor {
+ *     public override VisualElement CreateInspectorGUI() {
+ *         return EditorScriptEngine.Instance.CreateInspectorVE("editor/car-editor.js", target);
+ *     }
+ * }
+ * 
+ * // editor/car-editor.js
+ * import { h } from "onejs-core/editor"
+ * 
+ * export default function (target) {
+ *     return <div>
+ *         <div>{target.make}</div>
+ *         <div>{target.year}</div>
+ *         <div>{target.color}</div>
+ *     </div>
+ * }
+ * 
+ */
+
+let entryPoints = await glob("./@outputs/tsc/editor/*.js");
+
+let editorCtx = await esbuild.context({
+    entryPoints: entryPoints,
+    bundle: true,
+    globalName: "_contentScriptReturn",
+    footer: { js: "_contentScriptReturn.default" },
+    outdir: '@outputs/esbuild/editor',
+})
+
+await editorCtx.watch()

@@ -3,7 +3,7 @@
         "baseUrl": ".",
         "paths": {
             "*": [
-                "onejs-core",
+                "onejs-core/*",
                 "onejs-core/3rdparty/*",
                 "*"
             ]

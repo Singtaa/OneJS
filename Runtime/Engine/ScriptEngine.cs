@@ -16,6 +16,8 @@ namespace OneJS {
 
         [PairMapping("baseDir", "relativePath", "/", "Player WorkingDir")]
         [SerializeField] public PlayerModeWorkingDirInfo playerModeWorkingDirInfo;
+        
+        public bool runOnStart = true;
 
         public TextAsset[] preloads;
 
@@ -71,6 +73,7 @@ namespace OneJS {
         }
 
         void Start() {
+            if (!runOnStart) return;
             var filepath = Path.Combine(WorkingDir, "@outputs/esbuild/app.js");
             var code = File.ReadAllText(filepath);
             _jsEnv.Eval(code);

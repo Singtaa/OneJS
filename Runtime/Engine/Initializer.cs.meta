@@ -1,3 +1,16 @@
-﻿fileFormatVersion: 2
+fileFormatVersion: 2
 guid: c8ff045c895941eba30cc69bc77ef143
-timeCreated: 1707123651
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - defaultTsconfig: {fileID: 4900000, guid: b181bd048b43f5a4cb876f704b8f39bb, type: 3}
+  - defaultEsbuild: {fileID: 4900000, guid: d3ba9816c3810c74198392e1c5ca8a56, type: 3}
+  - defaultIndex: {fileID: 4900000, guid: cd3538403d59c4642aa5a37b23e428cd, type: 3}
+  - onejsCoreZip: {fileID: 4900000, guid: 447491b0820deaa499feec456ba13940, type: 3}
+  - outputsZip: {fileID: 4900000, guid: f7502ff07da261a46bd9bc5fdfc641f1, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
