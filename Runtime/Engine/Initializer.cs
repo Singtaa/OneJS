@@ -11,20 +11,25 @@ namespace OneJS {
         public TextAsset defaultTsconfig;
         public TextAsset defaultEsbuild;
         public TextAsset defaultIndex;
+        public TextAsset tailwindConfig;
+        public TextAsset postcssConfig;
+        public TextAsset readme;
         public TextAsset onejsCoreZip;
         public TextAsset outputsZip;
-        public TextAsset readme;
 
         ScriptEngine _engine;
 
         void Awake() {
             _engine = GetComponent<ScriptEngine>();
+            CreateTsconfigFileIfNotFound();
+            CreateReadMeFileIfNotFound();
+            CreateEsbuildFileIfNotFound();
+            CreateTailwindConfigFileIfNotFound();
+            CreatePostcssConfigFileIfNotFound();
+            CreateIndexFileIfNotFound();
+
             ExtractOnejsCoreIfNotFound();
             ExtractOutputsIfNotFound();
-            CreateTsconfigFileIfNotFound();
-            CreateEsbuildFileIfNotFound();
-            CreateIndexFileIfNotFound();
-            CreateReadMeFileIfNotFound();
         }
 
         public void CreateTsconfigFileIfNotFound() {
@@ -44,6 +49,24 @@ namespace OneJS {
             File.WriteAllText(path, defaultEsbuild.text);
             Debug.Log($"'esbuild.mjs' wasn't found. A new one was created ({path})");
         }
+        
+        public void CreateTailwindConfigFileIfNotFound() {
+            var path = Path.Combine(_engine.WorkingDir, "tailwind.config.js");
+            if (File.Exists(path))
+                return;
+
+            File.WriteAllText(path, tailwindConfig.text);
+            Debug.Log($"'tailwind.config.js' wasn't found. A new one was created ({path})");
+        }
+        
+        public void CreatePostcssConfigFileIfNotFound() {
+            var path = Path.Combine(_engine.WorkingDir, "postcss.config.js");
+            if (File.Exists(path))
+                return;
+
+            File.WriteAllText(path, postcssConfig.text);
+            Debug.Log($"'postcss.config.js' wasn't found. A new one was created ({path})");
+        }
 
         public void CreateIndexFileIfNotFound() {
             var path = Path.Combine(_engine.WorkingDir, "index.tsx");
@@ -53,7 +76,7 @@ namespace OneJS {
             File.WriteAllText(path, defaultIndex.text);
             Debug.Log($"'index.tsx' wasn't found. A new one was created ({path})");
         }
-        
+
         public void CreateReadMeFileIfNotFound() {
             var path = Path.Combine(_engine.WorkingDir, "README.md");
             if (File.Exists(path))

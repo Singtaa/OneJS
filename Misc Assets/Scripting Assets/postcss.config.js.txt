@@ -1,0 +1,9 @@
+const tailwindcss = require('tailwindcss')
+const ussTransformPlugin = require('./onejs-core/uss-transform-plugin.js')
+
+module.exports = {
+    plugins: [
+        tailwindcss('./tailwind.config.js'),
+        ussTransformPlugin(),
+    ]
+}
