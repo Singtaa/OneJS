@@ -51,9 +51,7 @@ class ArgumentCodeGenerator {
         } else if (typeName in fixGet) {
             return `${typeName} arg${this.index} = ${fixGet[typeName](this.v8Value(), isByRef)}`;
         } else {
-            // MODDED
-            // return `argobj${this.index} = argobj${this.index} != null ? argobj${this.index} : StaticTranslate<${typeInfo.TypeName}>.Get((int)data, isolate, NativeValueApi.GetValueFromArgument, v8Value${this.index}, ${typeInfo.IsByRef ? "true" : "false"}); ${typeName} arg${this.index} = (${typeName})argobj${this.index}`
-            return `${typeName} arg${this.index} = StaticTranslate<${typeInfo.TypeName}>.Get((int)data, isolate, NativeValueApi.GetValueFromArgument, v8Value${this.index}, ${typeInfo.IsByRef ? "true" : "false"})`
+            return `argobj${this.index} = argobj${this.index} != null ? argobj${this.index} : StaticTranslate<${typeInfo.TypeName}>.Get((int)data, isolate, NativeValueApi.GetValueFromArgument, v8Value${this.index}, ${typeInfo.IsByRef ? "true" : "false"}); ${typeName} arg${this.index} = (${typeName})argobj${this.index}`
         }
     }
 
@@ -282,17 +280,17 @@ ${FOR(toJsArray(data.Methods).filter(item => !item.IsLazyMember), method => $`
                         return acg.invokeIsMatch(overload.ParameterInfos.get_Item(idx))
                     }).join(' && ')})
                     ${ENDIF()}
-                    {//asd
+                    {
                     ${FOR(argumentCodeGenerators, (acg, idx) => $`
                         ${acg.getArg(overload.ParameterInfos.get_Item(idx))};
                     `)}
-                    //bbb
+
                         ${overload.IsVoid ? "" : "var result = "}${method.IsStatic ? data.Name : refSelf()}.${UnK(method.Name)} (${argumentCodeGenerators.map((acg, idx) => {
                             var paramInfo = overload.ParameterInfos.get_Item(idx);
                 return `${paramInfo.IsOut ? "out " : (paramInfo.IsByRef ? (paramInfo.IsIn ? "in " : "ref ") : "")}${acg.arg()}`
                             }).concat(overload.EllipsisedParameterInfos.Length == 0 ? [] : toJsArray(overload.EllipsisedParameterInfos).map(info=> info.DefaultValue)).join(', ')
                         });
-                    //ccc
+
                     ${FOR(argumentCodeGenerators, (acg, idx) => $`
                         ${IF(overload.ParameterInfos.get_Item(idx).IsByRef)}
                         StaticTranslate<${overload.ParameterInfos.get_Item(idx).TypeName}>.Set((int)data, isolate, Puerts.NativeValueApi.SetValueToByRefArgument, ${acg.v8Value()}, ${acg.arg()});
