@@ -1,8 +1,11 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace OneJS {
+    public delegate void MyCallback();
+
     public class Resource {
         ScriptEngine _engine;
 
@@ -25,7 +28,7 @@ namespace OneJS {
             var font = new Font(path);
             return FontDefinition.FromFont(font);
         }
-        
+
         public Texture2D loadImage(string path) {
             path = Path.IsPathRooted(path) ? path : Path.Combine(_engine.WorkingDir, path);
             var rawData = System.IO.File.ReadAllBytes(path);

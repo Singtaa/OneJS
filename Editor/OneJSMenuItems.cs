@@ -6,12 +6,12 @@ using Debug = UnityEngine.Debug;
 
 namespace OneJS.Editor {
     public class OneJSMenuItems {
-        [MenuItem("Tools/OneJS/Rebuild All", false, 1)]
-        public static void RebuildAll() {
-            Puerts.Editor.Generator.UnityMenu.ClearAll();
-            Puerts.Editor.Generator.UnityMenu.GenerateCode();
-            Puerts.Editor.Generator.UnityMenu.GenerateDTS();
-        }
+        // [MenuItem("Tools/OneJS/Rebuild All", false, 1)]
+        // public static void RebuildAll() {
+        //     Puerts.Editor.Generator.UnityMenu.ClearAll();
+        //     Puerts.Editor.Generator.UnityMenu.GenerateCode();
+        //     Puerts.Editor.Generator.UnityMenu.GenerateDTS();
+        // }
 
         public static void OpenDir(string path) {
 #if UNITY_STANDALONE_WIN

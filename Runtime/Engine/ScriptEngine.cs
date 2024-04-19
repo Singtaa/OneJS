@@ -56,12 +56,12 @@ namespace OneJS {
 
         void OnEnable() {
             _jsEnv = new JsEnv();
-            _jsEnv.UsingAction<Painter2D, Color>();
-            _jsEnv.UsingAction<Painter2D, Painter2D>();            
-            _jsEnv.UsingAction<Color, Color>();
-            _jsEnv.UsingAction<Color>();
-            _jsEnv.UsingFunc<Color>();
-            _jsEnv.UsingFunc<string>();
+            // _jsEnv.UsingAction<Painter2D, Color>();
+            // _jsEnv.UsingAction<Painter2D, Painter2D>();            
+            // _jsEnv.UsingAction<Color, Color>();
+            // _jsEnv.UsingAction<Color>();
+            // _jsEnv.UsingFunc<Color>();
+            // _jsEnv.UsingFunc<string>();
 
             foreach (var preload in preloads) {
                 _jsEnv.Eval(preload.text);
@@ -72,16 +72,6 @@ namespace OneJS {
             _addToGlobal("document", _document);
             _addToGlobal("resource", _resource);
             _addToGlobal("requestAnimationFrame", null);
-            _addToGlobal("getType", new Func<object, Type>((obj) => {
-                if (obj == null)
-                    return null;
-                if (obj is Type)
-                    return obj as Type;
-                return obj.GetType();
-            }));
-            _addToGlobal("getFoo", new Func<string>(() => {
-                return "foo";
-            }));
             foreach (var obj in globalObjects) {
                 _addToGlobal(obj.name, obj.obj);
             }
