@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+using Puerts;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -59,7 +60,7 @@ namespace OneJS.Dom {
 
         // NOTE: Using `JsValue` here because `EventCallback<EventBase>` will lead to massive slowdown on Linux.
         // [props.ts] `dom._listeners[name + useCapture] = value;`
-        public Dictionary<string, object> _listeners => __listeners;
+        public Dictionary<string, EventCallback<EventBase>> _listeners => __listeners;
 
         static (string, string)[] _replacePairsForClassNames = new[] {
             (".", "_d_"), ("/", "_s_"), (":", "_c_"), ("%", "_p_"), ("#", "_n_"),
@@ -79,7 +80,7 @@ namespace OneJS.Dom {
         string _innerHTML;
         List<Dom> _childNodes = new List<Dom>();
         object __children;
-        Dictionary<string, object> __listeners = new Dictionary<string, object>();
+        Dictionary<string, EventCallback<EventBase>> __listeners = new Dictionary<string, EventCallback<EventBase>>();
 
         Dictionary<string, List<RegisteredCallbackHolder>> _registeredCallbacks =
             new Dictionary<string, List<RegisteredCallbackHolder>>();
@@ -146,6 +147,27 @@ namespace OneJS.Dom {
             _ve.Clear();
         }
 
+        public void _addToListeners(string name, EventCallback<EventBase> callback) {
+            if (__listeners.ContainsKey(name)) {
+                __listeners[name] = callback;
+            } else {
+                __listeners.Add(name, callback);
+            }
+        }
+        
+        public EventCallback<EventBase> _getFromListeners(string name) {
+            if (__listeners.TryGetValue(name, out var callback)) {
+                return callback;
+            }
+            return null;
+        }
+        
+        public void _callListener(string name, EventBase evt) {
+            if (__listeners.TryGetValue(name, out var callback)) {
+                callback(evt);
+            }
+        }
+
         public void addEventListener(string name, EventCallback<EventBase> callback, bool useCapture = false) {
             var nameLower = name.ToLower();
             var isValueChanged = nameLower == "valuechanged";
@@ -189,7 +211,7 @@ namespace OneJS.Dom {
         }
 
         /// <summary>
-        /// Note that this method will remove ALL callbacks registered for the given event name.
+        /// Name, callback, and useCapture must match exactly to remove the listener.
         /// </summary>
         public void removeEventListener(string name, EventCallback<EventBase> callback, bool useCapture = false) {
             var nameLower = name.ToLower();

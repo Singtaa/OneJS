@@ -24,6 +24,7 @@ namespace OneJS.Editor {
                     typeof(Vector3Int), typeof(Vector4),
 
                     // JSX UnityEngine/UIElements
+                    typeof(PointerEventBase<ClickEvent>), typeof(KeyboardEventBase<KeyDownEvent>), typeof(Focusable),
                     typeof(AttachToPanelEvent), typeof(BlurEvent), typeof(ClickEvent), typeof(InputEvent), typeof(FocusEvent),
                     typeof(WheelEvent), typeof(DetachFromPanelEvent), typeof(DragEnterEvent), typeof(DragExitedEvent),
                     typeof(DragLeaveEvent), typeof(DragPerformEvent), typeof(DragUpdatedEvent), typeof(ExecuteCommandEvent),

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using OneJS.Dom;
@@ -11,6 +12,8 @@ using UnityEngine.UIElements;
 namespace OneJS {
     [RequireComponent(typeof(UIDocument))]
     public class ScriptEngine : MonoBehaviour, IScriptEngine {
+        public int Tick => _tick;
+        
         #region Public Fields
         [PairMapping("baseDir", "relativePath", "/", "Editor WorkingDir")]
         public EditorModeWorkingDirInfo editorModeWorkingDirInfo;
@@ -40,6 +43,7 @@ namespace OneJS {
         UIDocument _uiDocument;
         Document _document;
         Resource _resource;
+        int _tick;
 
         Action<string, object> _addToGlobal;
         #endregion
@@ -57,6 +61,7 @@ namespace OneJS {
             _jsEnv.UsingAction<Color, Color>();
             _jsEnv.UsingAction<Color>();
             _jsEnv.UsingFunc<Color>();
+            _jsEnv.UsingFunc<string>();
 
             foreach (var preload in preloads) {
                 _jsEnv.Eval(preload.text);
@@ -66,9 +71,21 @@ namespace OneJS {
             _addToGlobal = _jsEnv.Eval<System.Action<string, object>>(@"__addToGlobal");
             _addToGlobal("document", _document);
             _addToGlobal("resource", _resource);
+            _addToGlobal("requestAnimationFrame", null);
+            _addToGlobal("getType", new Func<object, Type>((obj) => {
+                if (obj == null)
+                    return null;
+                if (obj is Type)
+                    return obj as Type;
+                return obj.GetType();
+            }));
+            _addToGlobal("getFoo", new Func<string>(() => {
+                return "foo";
+            }));
             foreach (var obj in globalObjects) {
                 _addToGlobal(obj.name, obj.obj);
             }
+            _jsEnv.UsingFunc<string>();
             OnPostInit?.Invoke();
         }
 
@@ -85,6 +102,7 @@ namespace OneJS {
 
         void Update() {
             _jsEnv.Tick();
+            _tick++;
         }
         #endregion
 

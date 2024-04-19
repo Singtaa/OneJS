@@ -9,3 +9,11 @@
 
     current[parts[parts.length - 1]] = obj;
 };
+
+const requestAnimationFrame = function (callback) {
+    return setTimeout(callback)
+}
+
+const cancelAnimationFrame = function (id) {
+    clearTimeout(id)
+}
