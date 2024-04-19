@@ -12,6 +12,7 @@
         "moduleResolution": "node",
         "sourceMap": true,
         "strictNullChecks": true,
+        "skipLibCheck": true,
         "jsx": "react",
         "jsxFactory": "h",
         "jsxFragmentFactory": "Fragment",
