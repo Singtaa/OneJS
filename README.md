@@ -37,7 +37,7 @@ document.body.appendChild(div)
 setInterval(() => { div.ve.MarkDirtyRepaint() })
 ```
 
-Use Menu `Tools / PuerTS / Generate (all in one)` to generate TS Typings. To optimize GC for value types, enable unsafe code and use a config class like this:
+Use Menu `Tools / PuerTS / Generate (all in one)` to automatically generate TS Typings and Static Wrappers (the latter is for major performance gain). To optimize GC for value types, enable unsafe code and use a config class like the following (can be put anywhere in your project).
 
 ```csharp
 using System;
