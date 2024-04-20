@@ -31,7 +31,9 @@ namespace OneJS.Editor {
         public override void OnInspectorGUI() {
             var initializer = target as Initializer;
             serializedObject.Update();
-            showAssets = EditorGUILayout.Foldout(showAssets, "ASSETS", true);
+            EditorGUILayout.HelpBox("This component sets up OneJS for first time use. It creates essential files in the WorkingDir if they are missing.", MessageType.None);
+
+            showAssets = EditorGUILayout.Foldout(showAssets, "Default Assets", true);
             if (showAssets) {
                 EditorGUILayout.PropertyField(_tsconfig, new GUIContent("tsconfig.json"));
                 EditorGUILayout.PropertyField(_esbuild, new GUIContent("esbuild.mjs"));

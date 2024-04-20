@@ -4,7 +4,11 @@ using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace OneJS {
+    /// <summary>
+    /// Watch for screen size changes and apply media classes to the root element.
+    /// </summary>
     [DefaultExecutionOrder(10)]
+    [RequireComponent(typeof(ScriptEngine))]
     public class ScreenMonitor : MonoBehaviour {
         static string[] screenClasses = new[] {
             "onejs-media-sm", "onejs-media-md", "onejs-media-lg", "onejs-media-xl", "onejs-media-2xl"

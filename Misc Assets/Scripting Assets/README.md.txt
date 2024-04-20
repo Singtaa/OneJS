@@ -14,6 +14,6 @@ _Set your output uss path accordinly._
 
 `npx postcss input.css -o ../Assets/tailwind.uss --watch`
 
-## Tailwind Compiler (Don't do this directly. Use PostCSS instead.)
+## Tailwind Compiler (Don't need to do this directly. Use PostCSS instead.)
 
 `npx tailwindcss -i ./input.css -o ./output.css --watch`

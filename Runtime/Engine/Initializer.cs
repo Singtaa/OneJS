@@ -6,7 +6,11 @@ using OneJS.Utils;
 using UnityEngine;
 
 namespace OneJS {
+    /// <summary>
+    /// Sets up OneJS for first time use. It creates essential files in the WorkingDir if they are missing.
+    /// </summary>
     [DefaultExecutionOrder(-50)]
+    [RequireComponent(typeof(ScriptEngine))]
     public class Initializer : MonoBehaviour {
         public TextAsset defaultTsconfig;
         public TextAsset defaultEsbuild;

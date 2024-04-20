@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 3466507238892977760}
   - component: {fileID: 8930752045537606291}
   - component: {fileID: 9197640398682377884}
+  - component: {fileID: 2637249758932584858}
   - component: {fileID: -8986345742149058243}
   m_Layer: 0
   m_Name: ScriptEngine
@@ -69,7 +70,6 @@ MonoBehaviour:
   playerModeWorkingDirInfo:
     baseDir: 0
     relativePath: App
-  runOnStart: 1
   preloads:
   - {fileID: 4900000, guid: 057173abc79c49a18c53df43d1b179de, type: 3}
   globalObjects: []
@@ -94,6 +94,26 @@ MonoBehaviour:
   readme: {fileID: 4900000, guid: 6e4c4114b8857a6428106ba02bc15e7a, type: 3}
   onejsCoreZip: {fileID: 4900000, guid: 447491b0820deaa499feec456ba13940, type: 3}
   outputsZip: {fileID: 4900000, guid: f7502ff07da261a46bd9bc5fdfc641f1, type: 3}
+--- !u!114 &2637249758932584858
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 715137362024890918}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 41f26eb549784ed0af27069527c7f2a5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  entryFile: '@outputs/esbuild/app.js'
+  runOnStart: 1
+  liveReload: 1
+  pollingInterval: 300
+  clearGameObjects: 1
+  clearLogs: 1
+  respawnJanitorOnSceneLoad: 1
+  stopCleaningOnDisable: 0
 --- !u!114 &-8986345742149058243
 MonoBehaviour:
   m_ObjectHideFlags: 0
