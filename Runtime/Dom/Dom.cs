@@ -175,7 +175,7 @@ namespace OneJS.Dom {
         }
 
         /// <summary>
-        /// Note that this method will remove ALL callbacks registered for the given event name.
+        /// Name, callback, and useCapture must match exactly to remove the listener.
         /// </summary>
         public void removeEventListener(string name, JsValue jsval, bool useCapture = false) {
             if (!_registeredCallbacks.ContainsKey(name))
@@ -183,6 +183,7 @@ namespace OneJS.Dom {
             var callbackHolders = _registeredCallbacks[name];
             var eventType = _document.FindUIElementEventType(name);
             if (eventType != null) {
+                // TODO Optimize this using Dictionary<Type, MethodInfo> and lazy fill
                 var flags = BindingFlags.Public | BindingFlags.Instance;
                 var mi = _ve.GetType().GetMethods(flags)
                     .Where(m => m.Name == "UnregisterCallback" && m.GetGenericArguments().Length == 1).First();
