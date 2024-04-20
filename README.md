@@ -1,8 +1,8 @@
 > ~Note that this branch (onejs-v2) is a work in progress and not yet ready for use. The core foundation is more or less all set. We need to spend more time to bring it to parity with OneJS V1. If you are going to play with this branch right now, please do it in a brand new Unity project. Do not use it in your existing OneJS V1 projects yet.~
 
-> `onejs-v2` has achieved feature parity with V1, supporting Preact, Tailwind, Styled, and Emotion out of the box. We are currently polishing some custom Editors and working on documentation and demos. Stay tuned for more updates.
+> `onejs-v2` has achieved feature parity with V1, supporting Preact, Tailwind, Styled, and Emotion out of the box. So feel free to give it a try. We are currently polishing some custom Editors and working on documentation and demos.
 
-OneJS V2 is a major upgrade, transitioning from Jint to Puerts (V8). This change brings significant performance improvements, chief among them being zero-allocation 😱🤯🎉 interop between JS and Unity (as can be seen from the demo below). 
+OneJS V2 is a major upgrade, transitioning from Jint to Puerts (V8, QuickJS, and NodeJS). This change brings significant performance improvements, chief among them being zero-allocation 😱🤯🎉 interop between JS and Unity (as can be seen from the demo below). 
 
 https://github.com/DragonGround/ScriptLib/assets/666527/e2f13f44-0370-4c90-8df7-ce9078dd04f1
 
