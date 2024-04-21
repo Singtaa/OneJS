@@ -35,14 +35,24 @@ namespace OneJS {
             _engine = GetComponent<ScriptEngine>();
             SceneManager.sceneLoaded += OnSceneLoaded;
         }
-        
+
         void OnDestroy() {
             SceneManager.sceneLoaded -= OnSceneLoaded;
+        }
+
+        void OnEnable() {
+            Respawn();
+            _engine.OnReload += OnReload;
+        }
+
+        void OnDisable() {
+            _engine.OnReload -= OnReload;
         }
 
         void Start() {
             if (!runOnStart) return;
             _engine.EvalFile(entryFile);
+            _lastWriteTime = File.GetLastWriteTime(_engine.GetFullPath(entryFile));
         }
 
         void Update() {
@@ -67,6 +77,14 @@ namespace OneJS {
             _janitor = new GameObject("Janitor").AddComponent<Janitor>();
             _janitor.clearGameObjects = clearGameObjects;
             _janitor.clearLogs = clearLogs;
+        }
+
+        void OnReload() {
+            // Because OnDisable() order is non-deterministic, we need to check for gameObject.activeSelf
+            // instead of depending on individual components.
+            if (stopCleaningOnDisable && !this.gameObject.activeSelf)
+                return;
+            _janitor.Clean();
         }
 
         void OnSceneLoaded(Scene scene, LoadSceneMode mode) {

@@ -91,6 +91,8 @@ namespace OneJS {
 #endif
             }
         }
+        
+        public JsEnv JsEnv => _jsEnv;
         #endregion
 
         #region Public Methods

@@ -15,6 +15,12 @@ namespace OneJS.Editor {
                 var systemTypes = new[] {
                     typeof(System.Object)
                 };
+                var unityengineTypes = new[] {
+                    typeof(Behaviour), typeof(Component), typeof(GameObject), typeof(Transform),
+                    typeof(Camera), typeof(CameraClearFlags), typeof(Collider), 
+                    typeof(MeshRenderer), typeof(Renderer), typeof(Material), typeof(MeshFilter), typeof(Mesh),
+                    typeof(PhysicMaterial), typeof(Physics), typeof(PrimitiveType), typeof(UnityEngine.Random), typeof(Rigidbody),
+                };
                 var uiElementTypes = new[] {
                     typeof(VisualElement), typeof(Button), typeof(Label), typeof(TextElement),
 
@@ -24,6 +30,7 @@ namespace OneJS.Editor {
                     typeof(Vector3Int), typeof(Vector4),
 
                     // JSX UnityEngine/UIElements
+                    typeof(EventBase), typeof(EventBase<ClickEvent>),
                     typeof(PointerEventBase<ClickEvent>), typeof(KeyboardEventBase<KeyDownEvent>), typeof(Focusable),
                     typeof(AttachToPanelEvent), typeof(BlurEvent), typeof(ClickEvent), typeof(InputEvent), typeof(FocusEvent),
                     typeof(WheelEvent), typeof(DetachFromPanelEvent), typeof(DragEnterEvent), typeof(DragExitedEvent),
@@ -41,7 +48,7 @@ namespace OneJS.Editor {
                     typeof(ScrollerVisibility), typeof(DropdownField), typeof(NavigationMoveEvent), typeof(NavigationCancelEvent),
                     typeof(NavigationSubmitEvent), typeof(TransitionCancelEvent), typeof(TransitionEndEvent),
                     typeof(TransitionRunEvent), typeof(TransitionStartEvent), typeof(VectorImage),
-                    typeof(ScrollView.TouchScrollBehavior),
+                    typeof(ScrollView), typeof(ScrollView.TouchScrollBehavior),
 
                     // Styling
                     typeof(Align), typeof(DisplayStyle), typeof(FlexDirection), typeof(Wrap), typeof(Justify), typeof(Position), typeof(TextOverflow),
@@ -63,7 +70,7 @@ namespace OneJS.Editor {
                     typeof(uint2), typeof(uint3), typeof(uint4), typeof(uint2x2), typeof(uint3x3), typeof(uint4x4),
                     typeof(quaternion),
                 };
-                return ConcatTypes(systemTypes, uiElementTypes, mathematicsTypes);
+                return ConcatTypes(systemTypes, unityengineTypes, uiElementTypes, mathematicsTypes);
             }
         }
 
