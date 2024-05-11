@@ -28,6 +28,8 @@ namespace OneJS.Dom {
         public Dom parentNode { get { return _parentNode; } }
 
         public Dom nextSibling { get { return _nextSibling; } }
+        
+        public bool isConnected => _parentNode != null;
 
         /// <summary>
         /// ECMA Compliant id property, stored in the VE.name
@@ -35,6 +37,7 @@ namespace OneJS.Dom {
         public string Id { get { return _ve.name; } set { _ve.name = value; } }
 
         public string key { get { return _key; } set { _key = value; } }
+        public string namespaceURI => "http://www.w3.org/1999/xhtml";
 
         public DomStyle style => new DomStyle(this);
 
@@ -61,10 +64,12 @@ namespace OneJS.Dom {
         // NOTE: Using `JsValue` here because `EventCallback<EventBase>` will lead to massive slowdown on Linux.
         // [props.ts] `dom._listeners[name + useCapture] = value;`
         public Dictionary<string, JsValue> _listeners => __listeners;
+        public JsValue _updaters => __updaters;
 
         Document _document;
         VisualElement _ve;
         string _key;
+        string _namespaceURI;
         Dom _parentNode;
         Dom _nextSibling;
         object _value;
@@ -74,6 +79,7 @@ namespace OneJS.Dom {
         List<Dom> _childNodes = new List<Dom>();
         object __children;
         Dictionary<string, JsValue> __listeners = new Dictionary<string, JsValue>();
+        JsValue __updaters = JsValue.Undefined;
 
         Dictionary<string, List<RegisteredCallbackHolder>> _registeredCallbacks =
             new Dictionary<string, List<RegisteredCallbackHolder>>();

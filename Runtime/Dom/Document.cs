@@ -94,7 +94,11 @@ namespace OneJS.Dom {
             return new Dom(Activator.CreateInstance(type) as VisualElement, this);
         }
 
-        public Dom createElement(string tagName, ElementCreationOptions options) {
+        public Dom createElement(string tagName, ElementCreationOptions options) { // options currently not used
+            return createElement(tagName);
+        }
+        
+        public Dom createElementNS(string ns, string tagName, ElementCreationOptions options) { // namespace currently not used
             return createElement(tagName);
         }
 
