@@ -13,6 +13,7 @@ namespace OneJS {
     [DefaultExecutionOrder(-50)]
     [RequireComponent(typeof(ScriptEngine))]
     public class Initializer : MonoBehaviour {
+        public TextAsset defaultGitIgnore;
         public TextAsset defaultTsconfig;
         public TextAsset defaultEsbuild;
         public TextAsset defaultIndex;
@@ -32,9 +33,21 @@ namespace OneJS {
         public string[] ignoreList = new string[] { "tsc", "editor" };
 
         ScriptEngine _engine;
+        string _onejsVersion = "2.0.2";
 
         void Awake() {
             _engine = GetComponent<ScriptEngine>();
+            var versionString = PlayerPrefs.GetString("OneJSVersion", "0.0.0");
+#if !UNITY_EDITOR && (UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID)
+            ExtractOutputsForStandalone();
+#else
+            if (versionString != _onejsVersion) {
+                DeleteEverythingInPath(Path.Combine(_engine.WorkingDir, "onejs-core"));
+                // if (_extractSamples)
+                //     ExtractSamples();
+
+                PlayerPrefs.SetString("OneJSVersion", _onejsVersion);
+            }
             CreateTsconfigFileIfNotFound();
             CreateReadMeFileIfNotFound();
             CreateEsbuildFileIfNotFound();
@@ -44,12 +57,19 @@ namespace OneJS {
 
             ExtractOnejsCoreIfNotFound();
             ExtractOutputsIfNotFound();
-            
-            
+#endif
         }
 
         void Start() {
-            
+        }
+
+        public void CreateGitIgnoreFileIfNotFound() {
+            var path = Path.Combine(_engine.WorkingDir, ".gitignore");
+            if (File.Exists(path))
+                return;
+
+            File.WriteAllText(path, defaultGitIgnore.text);
+            Debug.Log($"'.gitignore' wasn't found. A new one was created ({path})");
         }
 
         public void CreateTsconfigFileIfNotFound() {
@@ -126,6 +146,18 @@ namespace OneJS {
             Debug.Log($"An existing 'outputs' directory wasn't found. An example one was created ({path})");
         }
 
+        public void ExtractOutputsForStandalone() {
+            var outputsVersion = PlayerPrefs.GetString("OutputsVersion", "0.0");
+            var path = Path.Combine(_engine.WorkingDir, "@outputs");
+            if (forceExtract || outputsVersion != version) {
+                if (Directory.Exists(path))
+                    DeleteEverythingInPath(path);
+                Extract(outputsZip.bytes);
+                PlayerPrefs.SetString("OutputsVersion", version);
+                Debug.Log($"outputs.tgz was extracted. Version: {version}");
+            }
+        }
+
         void Extract(byte[] bytes) {
             Stream inStream = new MemoryStream(bytes);
             Stream gzipStream = new GZipInputStream(inStream);
@@ -135,6 +167,26 @@ namespace OneJS {
             tarArchive.Close();
             gzipStream.Close();
             inStream.Close();
+        }
+
+        /// <summary>
+        /// Root folder at path still remains
+        /// </summary>
+        void DeleteEverythingInPath(string path) {
+            var dotGitPath = Path.Combine(path, ".git");
+            if (Directory.Exists(dotGitPath)) {
+                Debug.Log($".git folder detected at {path}, aborting extraction.");
+                return;
+            }
+            if (Directory.Exists(path)) {
+                var di = new DirectoryInfo(path);
+                foreach (FileInfo file in di.EnumerateFiles()) {
+                    file.Delete();
+                }
+                foreach (DirectoryInfo dir in di.EnumerateDirectories()) {
+                    dir.Delete(true);
+                }
+            }
         }
 
 #if UNITY_EDITOR
@@ -196,6 +248,15 @@ namespace OneJS {
                 Debug.Log($"outputs.tgz.bytes file updated. {tarOutputStream.Length} bytes {(DateTime.Now - t).TotalMilliseconds}ms");
                 tarOutputStream.Close();
             }
+        }
+
+        [ContextMenu("Zero Out outputs.tgz")]
+        public void ZeroOutOutputsZip() {
+            var binPath = UnityEditor.AssetDatabase.GetAssetPath(outputsZip);
+            binPath = Path.GetFullPath(Path.Combine(Application.dataPath, @".." + Path.DirectorySeparatorChar,
+                binPath));
+            var outStream = File.Create(binPath);
+            outStream.Close();
         }
 
 #endif

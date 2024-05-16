@@ -6,6 +6,7 @@ namespace OneJS.Editor {
     [CustomEditor(typeof(Initializer))]
     [CanEditMultipleObjects]
     public class InitializerEditor : UnityEditor.Editor {
+        SerializedProperty _gitignore;
         SerializedProperty _tsconfig;
         SerializedProperty _esbuild;
         SerializedProperty _index;
@@ -22,6 +23,7 @@ namespace OneJS.Editor {
         bool showAssets;
 
         void OnEnable() {
+            _gitignore = serializedObject.FindProperty("defaultGitIgnore");
             _tsconfig = serializedObject.FindProperty("defaultTsconfig");
             _esbuild = serializedObject.FindProperty("defaultEsbuild");
             _index = serializedObject.FindProperty("defaultIndex");
@@ -43,6 +45,7 @@ namespace OneJS.Editor {
 
             showAssets = EditorGUILayout.Foldout(showAssets, "Default Assets", true);
             if (showAssets) {
+                EditorGUILayout.PropertyField(_gitignore, new GUIContent("    .gitignore"));
                 EditorGUILayout.PropertyField(_tsconfig, new GUIContent("    tsconfig.json"));
                 EditorGUILayout.PropertyField(_esbuild, new GUIContent("    esbuild.mjs"));
                 EditorGUILayout.PropertyField(_tailwindConfig, new GUIContent("    tailwind.config.js"));

@@ -15,8 +15,10 @@ namespace OneJS {
             "onejs-media-sm", "onejs-media-md", "onejs-media-lg", "onejs-media-xl", "onejs-media-2xl"
         };
 
+        [Tooltip("Screen breakpoints for responsive design.")]
         public int[] breakpoints = new[] { 640, 768, 1024, 1280, 1536 };
-        [FormerlySerializedAs("pollStandaloneScreen")] public bool standalone;
+        [Tooltip("Enable for standalone player.")]
+        public bool standalone;
 
         UIDocument _uiDocument;
         float _lastScreenWidth;

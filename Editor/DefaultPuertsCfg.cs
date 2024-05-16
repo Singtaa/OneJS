@@ -22,7 +22,7 @@ namespace OneJS.Editor {
                 //     typeof(MeshRenderer), typeof(Renderer), typeof(Material), typeof(MeshFilter), typeof(Mesh),
                 //     typeof(PhysicMaterial), typeof(Physics), typeof(PrimitiveType), typeof(UnityEngine.Random), typeof(Rigidbody),
                 // };
-                var unityengineTypes = GetTypesFromAssemblies(typeof(GameObject).Assembly, typeof(Rigidbody).Assembly).Where(ns => ns.Namespace == "UnityEngine").ToArray();
+                var unityengineTypes = GetTypesFromAssemblies(typeof(GameObject).Assembly, typeof(Rigidbody).Assembly).Where(t => t.Namespace == "UnityEngine").ToArray();
 
                 var uiElementTypes = new[] {
                     typeof(VisualElement), typeof(Button), typeof(Label), typeof(TextElement),

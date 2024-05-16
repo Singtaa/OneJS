@@ -86,6 +86,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c8ff045c895941eba30cc69bc77ef143, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  defaultGitIgnore: {fileID: 4900000, guid: 2a425e8be2d087343bb754403617931e, type: 3}
   defaultTsconfig: {fileID: 4900000, guid: b181bd048b43f5a4cb876f704b8f39bb, type: 3}
   defaultEsbuild: {fileID: 4900000, guid: d3ba9816c3810c74198392e1c5ca8a56, type: 3}
   defaultIndex: {fileID: 4900000, guid: cd3538403d59c4642aa5a37b23e428cd, type: 3}
@@ -94,12 +95,11 @@ MonoBehaviour:
   readme: {fileID: 4900000, guid: 6e4c4114b8857a6428106ba02bc15e7a, type: 3}
   onejsCoreZip: {fileID: 4900000, guid: 447491b0820deaa499feec456ba13940, type: 3}
   outputsZip: {fileID: 4900000, guid: f7502ff07da261a46bd9bc5fdfc641f1, type: 3}
-  extractForDeployment: 1
   version: 1.0
   forceExtract: 0
   ignoreList:
-  - tsc
-  - editor
+  - '@outputs/esbuild/editor'
+  - '@outputs/tsc'
 --- !u!114 &2637249758932584858
 MonoBehaviour:
   m_ObjectHideFlags: 0
