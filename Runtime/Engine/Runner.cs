@@ -16,7 +16,7 @@ namespace OneJS {
 
         [Tooltip("Watch entry file for changes and reload.")]
         public bool liveReload = true;
-        [Tooltip("How often to check for changes in the entry file in milliseconds")]
+        [Tooltip("How often to check for changes in the entry file in milliseconds.")]
         public int pollingInterval = 300;
         public bool clearGameObjects = true;
         public bool clearLogs = true;
@@ -24,6 +24,8 @@ namespace OneJS {
         public bool respawnJanitorOnSceneLoad = true;
         [Tooltip("Don't clean up on OnDisable(). (Useful for when your workflow involves disabling ScriptEngine)")]
         public bool stopCleaningOnDisable;
+        [Tooltip("Enable Live Reload for Standalone build.")]
+        public bool standalone;
 
         ScriptEngine _engine;
         Janitor _janitor;
@@ -50,13 +52,23 @@ namespace OneJS {
         }
 
         void Start() {
-            if (!runOnStart) return;
-            _engine.EvalFile(entryFile);
-            _lastWriteTime = File.GetLastWriteTime(_engine.GetFullPath(entryFile));
+            var fullpath = _engine.GetFullPath(entryFile);
+            
+            if (!File.Exists(fullpath)) {
+                Debug.LogError($"Entry file not found: {fullpath}");
+                return;
+            }
+            _lastWriteTime = File.GetLastWriteTime(fullpath); // This needs to be before EvalFile in case EvalFile crashes
+            if (runOnStart) {
+                _engine.EvalFile(entryFile);
+            }
         }
 
         void Update() {
             if (!liveReload) return;
+#if !UNITY_EDITOR && (UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID)
+            if (!standalone) return;
+#endif
             if (Time.time - _lastCheckTime < pollingInterval / 1000f) return;
             _lastCheckTime = Time.time;
             CheckForChanges();
@@ -68,6 +80,11 @@ namespace OneJS {
             _lastWriteTime = writeTime;
             _engine.Reload();
             _engine.EvalFile(entryFile);
+
+            _engine.OnReload += () => {
+                _engine.JsEnv.UsingAction<bool>();
+                // Add more here
+            };
         }
 
         void Respawn() {

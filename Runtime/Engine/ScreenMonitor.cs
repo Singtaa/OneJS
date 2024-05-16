@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.UIElements;
 
 namespace OneJS {
@@ -15,7 +16,7 @@ namespace OneJS {
         };
 
         public int[] breakpoints = new[] { 640, 768, 1024, 1280, 1536 };
-        public bool pollStandaloneScreen;
+        [FormerlySerializedAs("pollStandaloneScreen")] public bool standalone;
 
         UIDocument _uiDocument;
         float _lastScreenWidth;
@@ -29,12 +30,12 @@ namespace OneJS {
         }
 
         void Update() {
-#if UNITY_EDITOR
-            PollScreenChange();
-#else
+#if !UNITY_EDITOR && (UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID)
             if (pollStandaloneScreen) {
                 PollScreenChange();
             }
+#else
+            PollScreenChange();
 #endif
         }
 

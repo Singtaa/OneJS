@@ -16,10 +16,10 @@ namespace OneJS.Editor {
 
             var style = new GUIStyle();
             style.normal.textColor = Color.white;
-            
+
             var rect = new Rect(position.x, position.y, itemWidth, position.height);
             if (!string.IsNullOrEmpty(pairMapping.label)) {
-                EditorGUI.LabelField(rect, pairMapping.label, style);
+                EditorGUI.LabelField(rect, new GUIContent(pairMapping.label, property.tooltip), style);
                 rect.x += itemWidth;
             }
             EditorGUI.PropertyField(rect, property.FindPropertyRelative(pairMapping.@from), GUIContent.none);

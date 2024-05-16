@@ -1,13 +1,21 @@
 ﻿using System;
 using System.Linq;
 using System.Reflection;
+using Puerts;
 using UnityEngine;
 using UnityEngine.Scripting;
 
 namespace OneJS.Extensions {
     public static class GameObjectExts {
-        public static T AddComponent<T>(this GameObject go, T toAdd) where T : Component {
-            return go.AddComponent<T>().GetCopyOf(toAdd) as T;
+        // // Be careful with this one. It somehow messes up the PuerTS side.
+        // public static T AddComponent<T>(this GameObject go, T toAdd) where T : Component {
+        //     return go.AddComponent<T>().GetCopyOf(toAdd) as T;
+        // }
+        
+        public static void Test(this GameObject go, object obj) {
+            var ptr = (IntPtr)obj;
+            var typeId = PuertsDLL.GetTypeIdFromValue(ScriptEngine.GlobalJsEnv.Isolate, ptr, false);
+            Debug.Log(typeId);
         }
 
         public static bool HasComp<T>(this GameObject go) where T : Component {

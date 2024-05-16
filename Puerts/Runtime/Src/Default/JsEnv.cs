@@ -397,12 +397,12 @@ namespace Puerts
 
         private readonly List<JSFunctionCallback> callbacks = new List<JSFunctionCallback>();
 
-        internal void InvokeCallback(IntPtr isolate, int callbackIdx, IntPtr info, IntPtr self, int paramLen)
+        public void InvokeCallback(IntPtr isolate, int callbackIdx, IntPtr info, IntPtr self, int paramLen)
         {
             callbacks[callbackIdx](isolate, info, self, paramLen);
         }
 
-        internal long AddCallback(JSFunctionCallback callback)
+        public long AddCallback(JSFunctionCallback callback)
         {
             int callbackIdx = callbacks.Count;
             callbacks.Add(callback);

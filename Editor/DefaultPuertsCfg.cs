@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Puerts;
 using Unity.Mathematics;
 using UnityEngine;
@@ -15,12 +16,14 @@ namespace OneJS.Editor {
                 var systemTypes = new[] {
                     typeof(System.Object)
                 };
-                var unityengineTypes = new[] {
-                    typeof(Behaviour), typeof(Component), typeof(GameObject), typeof(Transform),
-                    typeof(Camera), typeof(CameraClearFlags), typeof(Collider), 
-                    typeof(MeshRenderer), typeof(Renderer), typeof(Material), typeof(MeshFilter), typeof(Mesh),
-                    typeof(PhysicMaterial), typeof(Physics), typeof(PrimitiveType), typeof(UnityEngine.Random), typeof(Rigidbody),
-                };
+                // var unityengineTypes = new[] {
+                //     typeof(UnityEngine.Object), typeof(Behaviour), typeof(Component), typeof(GameObject), typeof(Transform),
+                //     typeof(Camera), typeof(CameraClearFlags), typeof(Collider),
+                //     typeof(MeshRenderer), typeof(Renderer), typeof(Material), typeof(MeshFilter), typeof(Mesh),
+                //     typeof(PhysicMaterial), typeof(Physics), typeof(PrimitiveType), typeof(UnityEngine.Random), typeof(Rigidbody),
+                // };
+                var unityengineTypes = GetTypesFromAssemblies(typeof(GameObject).Assembly, typeof(Rigidbody).Assembly).Where(ns => ns.Namespace == "UnityEngine").ToArray();
+
                 var uiElementTypes = new[] {
                     typeof(VisualElement), typeof(Button), typeof(Label), typeof(TextElement),
 
@@ -122,6 +125,10 @@ namespace OneJS.Editor {
 
         static Type[] ConcatTypes(params Type[][] types) {
             return types.SelectMany(t => t).ToArray();
+        }
+
+        static Type[] GetTypesFromAssemblies(params Assembly[] assemblies) {
+            return assemblies.SelectMany(a => a.GetTypes()).ToArray();
         }
     }
 }

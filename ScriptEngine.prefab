@@ -64,10 +64,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 44397aee6ee94f13a34ee5afdcc6e5bb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  editorModeWorkingDirInfo:
+  editorWorkingDirInfo:
     baseDir: 0
     relativePath: App
-  playerModeWorkingDirInfo:
+  playerWorkingDirInfo:
     baseDir: 0
     relativePath: App
   preloads:
@@ -94,6 +94,12 @@ MonoBehaviour:
   readme: {fileID: 4900000, guid: 6e4c4114b8857a6428106ba02bc15e7a, type: 3}
   onejsCoreZip: {fileID: 4900000, guid: 447491b0820deaa499feec456ba13940, type: 3}
   outputsZip: {fileID: 4900000, guid: f7502ff07da261a46bd9bc5fdfc641f1, type: 3}
+  extractForDeployment: 1
+  version: 1.0
+  forceExtract: 0
+  ignoreList:
+  - tsc
+  - editor
 --- !u!114 &2637249758932584858
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -114,6 +120,7 @@ MonoBehaviour:
   clearLogs: 1
   respawnJanitorOnSceneLoad: 1
   stopCleaningOnDisable: 0
+  standalone: 0
 --- !u!114 &-8986345742149058243
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -127,4 +134,4 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   breakpoints: 8002000000030000000400000005000000060000
-  pollStandaloneScreen: 0
+  standalone: 0

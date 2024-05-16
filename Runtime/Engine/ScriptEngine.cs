@@ -13,27 +13,31 @@ using UnityEngine.UIElements;
 namespace OneJS {
     [RequireComponent(typeof(UIDocument))]
     public class ScriptEngine : MonoBehaviour, IScriptEngine {
+        public static JsEnv GlobalJsEnv;
         public int Tick => _tick;
 
         #region Public Fields
+        [Tooltip("Set the OneJS Working Directory for Editor Mode.")]
         [PairMapping("baseDir", "relativePath", "/", "Editor WorkingDir")]
-        public EditorModeWorkingDirInfo editorModeWorkingDirInfo;
+        public EditorWorkingDirInfo editorWorkingDirInfo;
 
+        [Tooltip("Set the OneJS Working Directory for Standalone build.")]
         [PairMapping("baseDir", "relativePath", "/", "Player WorkingDir")]
-        [SerializeField] public PlayerModeWorkingDirInfo playerModeWorkingDirInfo;
+        [SerializeField] public PlayerWorkingDirInfo playerWorkingDirInfo;
 
+        [Tooltip("JS files that you want to preload before running anything else.")]
         public TextAsset[] preloads;
 
-        [FormerlySerializedAs("globalObjs")]
+        [Tooltip("Global objects that you want to expose to the JS environment. This list accepts any UnityEngine.Object, not just MonoBehaviours. There's a little trick in picking a specific MonoBehaviour component. You right-click on the Inspector Tab of the selected GameObject and pick Properties. A standalone window will pop up for you to drag the specifc MonoBehavior from.")]
         [PairMapping("obj", "name")]
         public ObjectMappingPair[] globalObjects;
 
+        [Tooltip("Include here any global USS you'd need. i.e. if you are working with Tailwind, make sure to include the output *.uss here.")]
         public StyleSheet[] styleSheets;
         #endregion
 
         #region Events
         public event Action OnReload;
-        public event Action OnPostInit;
         #endregion
 
         #region Private Fields
@@ -54,7 +58,23 @@ namespace OneJS {
         }
 
         void OnEnable() {
-            Reset();
+            Init();
+            PuertsDLL.SetGlobalFunction(_jsEnv.Isolate, "myFunction", JsEnvCallbackWrap, _jsEnv.AddCallback(MyFunction));
+        }
+
+        [MonoPInvokeCallback(typeof(V8FunctionCallback))]
+        public void JsEnvCallbackWrap(IntPtr isolate, IntPtr info, IntPtr self, int paramLen, long data) {
+            try {
+                int jsEnvIdx, callbackIdx;
+                Puerts.Utils.LongToTwoInt(data, out jsEnvIdx, out callbackIdx);
+                JsEnv.jsEnvs[jsEnvIdx].InvokeCallback(isolate, callbackIdx, info, self, paramLen);
+            } catch (Exception e) {
+                PuertsDLL.ThrowException(isolate, "JsEnvCallbackWrap c# exception:" + e.Message + ",stack:" + e.StackTrace);
+            }
+        }
+
+        public void MyFunction(IntPtr isolate, IntPtr info, IntPtr self, int paramLen) {
+            // print("abc");
         }
 
         void OnDisable() {
@@ -72,18 +92,18 @@ namespace OneJS {
             get {
 #if UNITY_EDITOR
                 var path = Path.Combine(Path.GetDirectoryName(Application.dataPath)!,
-                    editorModeWorkingDirInfo.relativePath);
-                if (editorModeWorkingDirInfo.baseDir == EditorModeWorkingDirInfo.EditorModeBaseDir.PersistentDataPath)
-                    path = Path.Combine(Application.persistentDataPath, editorModeWorkingDirInfo.relativePath);
+                    editorWorkingDirInfo.relativePath);
+                if (editorWorkingDirInfo.baseDir == EditorWorkingDirInfo.EditorBaseDir.PersistentDataPath)
+                    path = Path.Combine(Application.persistentDataPath, editorWorkingDirInfo.relativePath);
                 if (!Directory.Exists(path)) {
                     Directory.CreateDirectory(path);
                 }
                 return path;
 #else
                 var path = Path.Combine(Path.GetDirectoryName(Application.dataPath)!,
-                    playerModeWorkingDirInfo.relativePath);
-                if (playerModeWorkingDirInfo.baseDir == PlayerModeWorkingDirInfo.PlayerModeBaseDir.PersistentDataPath)
-                    path = Path.Combine(Application.persistentDataPath, playerModeWorkingDirInfo.relativePath);
+                    playerWorkingDirInfo.relativePath);
+                if (playerWorkingDirInfo.baseDir == PlayerWorkingDirInfo.PlayerBaseDir.PersistentDataPath)
+                    path = Path.Combine(Application.persistentDataPath, playerWorkingDirInfo.relativePath);
                 if (!Directory.Exists(path)) {
                     Directory.CreateDirectory(path);
                 }
@@ -91,7 +111,7 @@ namespace OneJS {
 #endif
             }
         }
-        
+
         public JsEnv JsEnv => _jsEnv;
         #endregion
 
@@ -109,17 +129,18 @@ namespace OneJS {
                 _uiDocument.rootVisualElement.styleSheets.Clear();
             }
         }
-        
+
         public void Reload() {
-            Reset();
+            Init();
             OnReload?.Invoke();
         }
 
-        public void Reset() {
+        void Init() {
             if (_jsEnv != null) {
                 _jsEnv.Dispose();
             }
             _jsEnv = new JsEnv();
+            GlobalJsEnv = _jsEnv;
             // _jsEnv.UsingAction<Painter2D, Color>();
             // _jsEnv.UsingAction<Painter2D, Painter2D>();            
             // _jsEnv.UsingAction<Color, Color>();
@@ -127,11 +148,14 @@ namespace OneJS {
             // _jsEnv.UsingFunc<Color>();
             // _jsEnv.UsingFunc<string>();
 
+            if (_uiDocument.rootVisualElement != null) {
+                _uiDocument.rootVisualElement.Clear();
+                _uiDocument.rootVisualElement.styleSheets.Clear();
+            }
+
             foreach (var preload in preloads) {
                 _jsEnv.Eval(preload.text);
             }
-            _uiDocument.rootVisualElement.Clear();
-            _uiDocument.rootVisualElement.styleSheets.Clear();
             styleSheets.ToList().ForEach(s => _uiDocument.rootVisualElement.styleSheets.Add(s));
             _document = new Document(_uiDocument.rootVisualElement, this);
             _addToGlobal = _jsEnv.Eval<System.Action<string, object>>(@"__addToGlobal");
@@ -140,19 +164,22 @@ namespace OneJS {
             foreach (var obj in globalObjects) {
                 _addToGlobal(obj.name, obj.obj);
             }
-            OnPostInit?.Invoke();
         }
-        
+
         /// <summary>
         /// Evaluate a script file at the given path.
         /// </summary>
         /// <param name="filepath">Relative to the WorkingDir</param>
         public void EvalFile(string filepath) {
-            var fullpath = Path.Combine(WorkingDir, filepath);
+            var fullpath = GetFullPath(filepath);
+            if (!File.Exists(fullpath)) {
+                Debug.LogError($"Entry file not found: {fullpath}");
+                return;
+            }
             var code = File.ReadAllText(fullpath);
             _jsEnv.Eval(code);
         }
-        
+
         /// <summary>
         /// Evaluate a code string.
         /// </summary>
@@ -166,11 +193,14 @@ namespace OneJS {
         [ContextMenu("Generate Globals Definitions")]
         public void GenerateGlobalsDefinitions() {
             var filename = EditorInputDialog.Show("Enter the file name", "", "globals.d.ts");
+            if (string.IsNullOrEmpty(filename))
+                return;
             var definitionContents = "";
             foreach (var obj in globalObjects) {
-                var objType = obj.obj.GetType();
+                // var objType = obj.obj.GetType();
+                // if (string.IsNullOrEmpty(objType.Namespace))
+                //     continue;
                 definitionContents += $"declare const {obj.name}: any;\n";
-                print($"declare const {obj.name}: any;");
             }
             File.WriteAllText(Path.Combine(Application.dataPath, $"Gen/Typing/csharp/{filename}"), definitionContents);
         }
@@ -190,19 +220,19 @@ namespace OneJS {
     }
 
     [Serializable]
-    public class EditorModeWorkingDirInfo {
-        public EditorModeBaseDir baseDir;
+    public class EditorWorkingDirInfo {
+        public EditorBaseDir baseDir;
         public string relativePath = "App";
 
-        public enum EditorModeBaseDir {
+        public enum EditorBaseDir {
             ProjectPath,
             PersistentDataPath
         }
 
         public override string ToString() {
             var basePath = baseDir switch {
-                EditorModeBaseDir.ProjectPath => Path.GetDirectoryName(Application.dataPath),
-                EditorModeBaseDir.PersistentDataPath => Application.persistentDataPath,
+                EditorBaseDir.ProjectPath => Path.GetDirectoryName(Application.dataPath),
+                EditorBaseDir.PersistentDataPath => Application.persistentDataPath,
                 _ => throw new ArgumentOutOfRangeException()
             };
             return Path.Combine(basePath, relativePath);
@@ -210,19 +240,19 @@ namespace OneJS {
     }
 
     [Serializable]
-    public class PlayerModeWorkingDirInfo {
-        public PlayerModeBaseDir baseDir;
+    public class PlayerWorkingDirInfo {
+        public PlayerBaseDir baseDir;
         public string relativePath = "App";
 
-        public enum PlayerModeBaseDir {
+        public enum PlayerBaseDir {
             PersistentDataPath,
             AppPath,
         }
 
         public override string ToString() {
             var basePath = baseDir switch {
-                PlayerModeBaseDir.PersistentDataPath => Application.persistentDataPath,
-                PlayerModeBaseDir.AppPath => Path.GetDirectoryName(Application.dataPath),
+                PlayerBaseDir.PersistentDataPath => Application.persistentDataPath,
+                PlayerBaseDir.AppPath => Path.GetDirectoryName(Application.dataPath),
                 _ => throw new ArgumentOutOfRangeException()
             };
             return Path.Combine(basePath, relativePath);

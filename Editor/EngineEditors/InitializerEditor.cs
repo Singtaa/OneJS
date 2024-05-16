@@ -15,6 +15,10 @@ namespace OneJS.Editor {
         SerializedProperty _onejsCoreZip;
         SerializedProperty _outputsZip;
 
+        SerializedProperty _version;
+        SerializedProperty _forceExtract;
+        SerializedProperty _ignoreList;
+
         bool showAssets;
 
         void OnEnable() {
@@ -26,24 +30,39 @@ namespace OneJS.Editor {
             _readme = serializedObject.FindProperty("readme");
             _onejsCoreZip = serializedObject.FindProperty("onejsCoreZip");
             _outputsZip = serializedObject.FindProperty("outputsZip");
+
+            _version = serializedObject.FindProperty("version");
+            _forceExtract = serializedObject.FindProperty("forceExtract");
+            _ignoreList = serializedObject.FindProperty("ignoreList");
         }
 
         public override void OnInspectorGUI() {
             var initializer = target as Initializer;
             serializedObject.Update();
-            EditorGUILayout.HelpBox("This component sets up OneJS for first time use. It creates essential files in the WorkingDir if they are missing.", MessageType.None);
+            EditorGUILayout.HelpBox("Sets up OneJS for first-time use by creating essential files in the WorkingDir if they are missing. Also takes care of @outputs folder extract for Standalone Player.", MessageType.None);
 
             showAssets = EditorGUILayout.Foldout(showAssets, "Default Assets", true);
             if (showAssets) {
-                EditorGUILayout.PropertyField(_tsconfig, new GUIContent("tsconfig.json"));
-                EditorGUILayout.PropertyField(_esbuild, new GUIContent("esbuild.mjs"));
-                EditorGUILayout.PropertyField(_tailwindConfig, new GUIContent("tailwind.config.js"));
-                EditorGUILayout.PropertyField(_postcssConfig, new GUIContent("postcss.config.js"));
-                EditorGUILayout.PropertyField(_index, new GUIContent("index.tsx"));
-                EditorGUILayout.PropertyField(_readme, new GUIContent("README.md"));
-                EditorGUILayout.PropertyField(_onejsCoreZip, new GUIContent("onejs-core.tgz"));
-                EditorGUILayout.PropertyField(_outputsZip, new GUIContent("outputs.tgz"));
+                EditorGUILayout.PropertyField(_tsconfig, new GUIContent("    tsconfig.json"));
+                EditorGUILayout.PropertyField(_esbuild, new GUIContent("    esbuild.mjs"));
+                EditorGUILayout.PropertyField(_tailwindConfig, new GUIContent("    tailwind.config.js"));
+                EditorGUILayout.PropertyField(_postcssConfig, new GUIContent("    postcss.config.js"));
+                EditorGUILayout.PropertyField(_index, new GUIContent("    index.tsx"));
+                EditorGUILayout.PropertyField(_readme, new GUIContent("    README.md"));
+                EditorGUILayout.PropertyField(_onejsCoreZip, new GUIContent("    onejs-core.tgz"));
+                EditorGUILayout.PropertyField(_outputsZip, new GUIContent("    outputs.tgz"));
+                GUILayout.Space(10);
             }
+
+            EditorGUILayout.PropertyField(_version, new GUIContent("Version"));
+            EditorGUILayout.PropertyField(_forceExtract, new GUIContent("Force Extract"));
+            EditorGUILayout.PropertyField(_ignoreList, new GUIContent("Ignore List"));
+            if (GUILayout.Button(
+                    new GUIContent("Package outputs.tgz", "Packages the @outputs folder into outputs.tgz."),
+                    GUI.skin.button, GUILayout.Height(30))) {
+                initializer.PackageOutputsZip();
+            }
+
             serializedObject.ApplyModifiedProperties();
         }
     }

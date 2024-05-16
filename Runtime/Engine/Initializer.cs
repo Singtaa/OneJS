@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using ICSharpCode.SharpZipLib.GZip;
 using ICSharpCode.SharpZipLib.Tar;
 using OneJS.Utils;
@@ -19,7 +20,16 @@ namespace OneJS {
         public TextAsset postcssConfig;
         public TextAsset readme;
         public TextAsset onejsCoreZip;
+
+        [Tooltip("The packaged @outputs folder")]
         public TextAsset outputsZip;
+
+        [Tooltip("For deployment, outputs.tgz will be extracted based on a version string. So it will override any existing @outputs folder if there's a version mismatch.")]
+        public string version = "1.0";
+        [Tooltip("Force extracting outputs.tgz on every game start, irregardless of version.")]
+        public bool forceExtract;
+        [Tooltip("Files and folders that you don't want to be bundled into outputs.tgz")] [PlainString]
+        public string[] ignoreList = new string[] { "tsc", "editor" };
 
         ScriptEngine _engine;
 
@@ -34,6 +44,12 @@ namespace OneJS {
 
             ExtractOnejsCoreIfNotFound();
             ExtractOutputsIfNotFound();
+            
+            
+        }
+
+        void Start() {
+            
         }
 
         public void CreateTsconfigFileIfNotFound() {
@@ -53,7 +69,7 @@ namespace OneJS {
             File.WriteAllText(path, defaultEsbuild.text);
             Debug.Log($"'esbuild.mjs' wasn't found. A new one was created ({path})");
         }
-        
+
         public void CreateTailwindConfigFileIfNotFound() {
             var path = Path.Combine(_engine.WorkingDir, "tailwind.config.js");
             if (File.Exists(path))
@@ -62,7 +78,7 @@ namespace OneJS {
             File.WriteAllText(path, tailwindConfig.text);
             Debug.Log($"'tailwind.config.js' wasn't found. A new one was created ({path})");
         }
-        
+
         public void CreatePostcssConfigFileIfNotFound() {
             var path = Path.Combine(_engine.WorkingDir, "postcss.config.js");
             if (File.Exists(path))
@@ -139,8 +155,7 @@ namespace OneJS {
                     "and override your existing onejs-core.tgz file.",
                     "Confirm", "Cancel")) {
                 var binPath = UnityEditor.AssetDatabase.GetAssetPath(onejsCoreZip);
-                binPath = Path.GetFullPath(Path.Combine(Application.dataPath, @".." + Path.DirectorySeparatorChar,
-                    binPath));
+                binPath = Path.GetFullPath(Path.Combine(Application.dataPath, @".." + Path.DirectorySeparatorChar, binPath));
                 var outStream = File.Create(binPath);
                 var gzoStream = new GZipOutputStream(outStream);
                 gzoStream.SetLevel(3);
@@ -154,7 +169,7 @@ namespace OneJS {
         }
 
         [ContextMenu("Package outputs.tgz")]
-        void PackageOutputsZip() {
+        public void PackageOutputsZip() {
             _engine = GetComponent<ScriptEngine>();
             var t = DateTime.Now;
             var path = Path.Combine(_engine.WorkingDir, "@outputs");
@@ -175,7 +190,7 @@ namespace OneJS {
                 var gzoStream = new GZipOutputStream(outStream);
                 gzoStream.SetLevel(3);
                 var tarOutputStream = new TarOutputStream(gzoStream);
-                var tarCreator = new TarCreator(path, _engine.WorkingDir) { };
+                var tarCreator = new TarCreator(path, _engine.WorkingDir) { IgnoreList = ignoreList };
                 tarCreator.CreateTar(tarOutputStream);
 
                 Debug.Log($"outputs.tgz.bytes file updated. {tarOutputStream.Length} bytes {(DateTime.Now - t).TotalMilliseconds}ms");
