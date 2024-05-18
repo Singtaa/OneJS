@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using ICSharpCode.SharpZipLib.GZip;
 using ICSharpCode.SharpZipLib.Tar;
 using OneJS.Utils;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace OneJS {
     /// <summary>
@@ -17,6 +19,7 @@ namespace OneJS {
         public TextAsset defaultTsconfig;
         public TextAsset defaultEsbuild;
         public TextAsset defaultIndex;
+        public TextAsset defaultAppDts;
         public TextAsset tailwindConfig;
         public TextAsset postcssConfig;
         public TextAsset readme;
@@ -48,19 +51,18 @@ namespace OneJS {
 
                 PlayerPrefs.SetString("OneJSVersion", _onejsVersion);
             }
+            CreateGitIgnoreFileIfNotFound();
             CreateTsconfigFileIfNotFound();
-            CreateReadMeFileIfNotFound();
             CreateEsbuildFileIfNotFound();
+            CreateIndexFileIfNotFound();
+            CreateAppDtsFileIfNotFound();
             CreateTailwindConfigFileIfNotFound();
             CreatePostcssConfigFileIfNotFound();
-            CreateIndexFileIfNotFound();
+            CreateReadMeFileIfNotFound();
 
             ExtractOnejsCoreIfNotFound();
             ExtractOutputsIfNotFound();
 #endif
-        }
-
-        void Start() {
         }
 
         public void CreateGitIgnoreFileIfNotFound() {
@@ -115,6 +117,15 @@ namespace OneJS {
 
             File.WriteAllText(path, defaultIndex.text);
             Debug.Log($"'index.tsx' wasn't found. A new one was created ({path})");
+        }
+        
+        public void CreateAppDtsFileIfNotFound() {
+            var path = Path.Combine(_engine.WorkingDir, "app.d.ts");
+            if (File.Exists(path))
+                return;
+
+            File.WriteAllText(path, defaultAppDts.text);
+            Debug.Log($"'app.d.ts' wasn't found. A new one was created ({path})");
         }
 
         public void CreateReadMeFileIfNotFound() {
@@ -221,11 +232,7 @@ namespace OneJS {
         }
 
         [ContextMenu("Package outputs.tgz")]
-        public void PackageOutputsZip() {
-            _engine = GetComponent<ScriptEngine>();
-            var t = DateTime.Now;
-            var path = Path.Combine(_engine.WorkingDir, "@outputs");
-
+        public void PackageOutputsZipWithPrompt() {
             if (outputsZip == null) {
                 UnityEditor.EditorUtility.DisplayDialog("outputs.tgz is null",
                     "Please make sure you have an outputs.tgz (Text Asset) set", "Okay");
@@ -235,19 +242,26 @@ namespace OneJS {
                     "This will package up your outputs folder under ScriptEngine.WorkingDir into a tgz file " +
                     "and override your existing outputs.tgz file.",
                     "Confirm", "Cancel")) {
-                var binPath = UnityEditor.AssetDatabase.GetAssetPath(outputsZip);
-                binPath = Path.GetFullPath(Path.Combine(Application.dataPath, @".." + Path.DirectorySeparatorChar,
-                    binPath));
-                var outStream = File.Create(binPath);
-                var gzoStream = new GZipOutputStream(outStream);
-                gzoStream.SetLevel(3);
-                var tarOutputStream = new TarOutputStream(gzoStream);
-                var tarCreator = new TarCreator(path, _engine.WorkingDir) { IgnoreList = ignoreList };
-                tarCreator.CreateTar(tarOutputStream);
-
-                Debug.Log($"outputs.tgz.bytes file updated. {tarOutputStream.Length} bytes {(DateTime.Now - t).TotalMilliseconds}ms");
-                tarOutputStream.Close();
+                PackageOutputsZip();
             }
+        }
+
+        public void PackageOutputsZip() {
+            _engine = GetComponent<ScriptEngine>();
+            var t = DateTime.Now;
+            var path = Path.Combine(_engine.WorkingDir, "@outputs");
+            var binPath = UnityEditor.AssetDatabase.GetAssetPath(outputsZip);
+            binPath = Path.GetFullPath(Path.Combine(Application.dataPath, @".." + Path.DirectorySeparatorChar,
+                binPath));
+            var outStream = File.Create(binPath);
+            var gzoStream = new GZipOutputStream(outStream);
+            gzoStream.SetLevel(3);
+            var tarOutputStream = new TarOutputStream(gzoStream);
+            var tarCreator = new TarCreator(path, _engine.WorkingDir) { IgnoreList = ignoreList };
+            tarCreator.CreateTar(tarOutputStream);
+
+            Debug.Log($"outputs.tgz.bytes file updated. {tarOutputStream.Length} bytes {(DateTime.Now - t).TotalMilliseconds}ms");
+            tarOutputStream.Close();
         }
 
         [ContextMenu("Zero Out outputs.tgz")]

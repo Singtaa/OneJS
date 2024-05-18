@@ -18,8 +18,6 @@
         "jsxFragmentFactory": "Fragment",
         "lib": ["esnext"],
         "typeRoots": [
-            "../Assets/OneJS/Puerts/Typing",
-            "../Assets/Gen/Typing",
             "./node_modules/@types"
         ],
         "outDir": "@outputs/tsc"

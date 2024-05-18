@@ -35,13 +35,13 @@ namespace OneJS.Editor {
         }
 
         private void ProcessScene(Scene scene) {
-            // foreach (var obj in scene.GetRootGameObjects()) {
-            //     var bundlers = obj.GetComponentsInChildren<Bundler>();
-            //     foreach (var bundler in bundlers) {
-            //         if (bundler.enabled && bundler.gameObject.activeInHierarchy)
-            //             bundler.PackageScriptsForBuild();
-            //     }
-            // }
+            foreach (var obj in scene.GetRootGameObjects()) {
+                var initializers = obj.GetComponentsInChildren<Initializer>();
+                foreach (var initializer in initializers) {
+                    if (initializer.enabled && initializer.gameObject.activeInHierarchy)
+                        initializer.PackageOutputsZip();
+                }
+            }
         }
     }
 }
