@@ -17,3 +17,19 @@ const requestAnimationFrame = function (callback) {
 const cancelAnimationFrame = function (id) {
     clearTimeout(id)
 }
+
+CS.UnityEngine.GameObject.prototype.GetComp = function (type) {
+    return this.GetComponent(puer.$typeof(type))
+}
+
+CS.UnityEngine.GameObject.prototype.AddComp = function (type) {
+    return this.AddComponent(puer.$typeof(type))
+}
+
+CS.UnityEngine.Component.prototype.GetComp = function (type) {
+    return this.GetComponent(puer.$typeof(type))
+}
+
+CS.UnityEngine.Component.prototype.AddComp = function (type) {
+    return this.AddComponent(puer.$typeof(type))
+}

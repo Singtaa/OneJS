@@ -7,6 +7,13 @@ using Puerts.Editor.Generator.DTS;
 
 namespace OneJS.Editor {
     public class DTSGenerator {
+        public static Type[] GetTypes(Assembly[] assemblies, string[] namespaces) {
+            var types = assemblies.SelectMany(a => a.GetTypes())
+                .Where(t => !t.IsGenericTypeDefinition && !t.IsNestedPrivate && t.IsPublic && namespaces.Contains(t.Namespace))
+                .ToArray();
+            return types;
+        }
+        
         public static string Generate(Assembly[] assemblies, string[] namespaces) {
             var types = assemblies.SelectMany(a => a.GetTypes())
                 .Where(t => !t.IsGenericTypeDefinition && !t.IsNestedPrivate && t.IsPublic && namespaces.Contains(t.Namespace))

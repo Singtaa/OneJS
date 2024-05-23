@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 you can get the english version change log at [Github Release](https://github.com/Tencent/puerts/releases)
 
+## [2.0.5] - 2024-05-07
+1. 修复：JsEnv被销毁后，GenericDelegate访问JsEnv的一些问题 #1677 81c3be7
+2. 修复：ESM有语法错误时，会导致Unity崩溃的问题 #1670
+
+## [2.0.4] - 2024-01-09
+1. 修复：调用extension方法并且方法带out或者ref参数会报错
+2. 修复：将JSObject赋值为null会报错
+3. 修复：调用带默认参数的extension函数时index读取不正确的bug
+4. 修复：xil2cpp下，值类型无参构造字段为随机值的问题
+
 ## [2.0.3] - 2023-11-02
 1. 重要：遵循Assetstore策略，生成菜单由PuerTS改到了Tools/PuerTS内
 2. 功能：支持dynamic import（即`import()`）#1540

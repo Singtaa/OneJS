@@ -397,12 +397,12 @@ namespace Puerts
 
         private readonly List<JSFunctionCallback> callbacks = new List<JSFunctionCallback>();
 
-        public void InvokeCallback(IntPtr isolate, int callbackIdx, IntPtr info, IntPtr self, int paramLen)
+        internal void InvokeCallback(IntPtr isolate, int callbackIdx, IntPtr info, IntPtr self, int paramLen)
         {
             callbacks[callbackIdx](isolate, info, self, paramLen);
         }
 
-        public long AddCallback(JSFunctionCallback callback)
+        internal long AddCallback(JSFunctionCallback callback)
         {
             int callbackIdx = callbacks.Count;
             callbacks.Add(callback);
@@ -822,12 +822,13 @@ namespace Puerts
             }
         }
 
-        internal void CheckLiveness()
+        internal bool CheckLiveness(bool shouldThrow = true)
         {
-            if (disposed)
+            if (disposed && shouldThrow)
             {
                 throw new InvalidOperationException("JsEnv has been disposed!");
             }
+            return !disposed;
         }
 
         Dictionary<IntPtr, int> funcRefCount = new Dictionary<IntPtr, int>();

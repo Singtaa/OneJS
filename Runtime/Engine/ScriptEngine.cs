@@ -59,22 +59,6 @@ namespace OneJS {
 
         void OnEnable() {
             Init();
-            PuertsDLL.SetGlobalFunction(_jsEnv.Isolate, "myFunction", JsEnvCallbackWrap, _jsEnv.AddCallback(MyFunction));
-        }
-
-        [MonoPInvokeCallback(typeof(V8FunctionCallback))]
-        public void JsEnvCallbackWrap(IntPtr isolate, IntPtr info, IntPtr self, int paramLen, long data) {
-            try {
-                int jsEnvIdx, callbackIdx;
-                Puerts.Utils.LongToTwoInt(data, out jsEnvIdx, out callbackIdx);
-                JsEnv.jsEnvs[jsEnvIdx].InvokeCallback(isolate, callbackIdx, info, self, paramLen);
-            } catch (Exception e) {
-                PuertsDLL.ThrowException(isolate, "JsEnvCallbackWrap c# exception:" + e.Message + ",stack:" + e.StackTrace);
-            }
-        }
-
-        public void MyFunction(IntPtr isolate, IntPtr info, IntPtr self, int paramLen) {
-            // print("abc");
         }
 
         void OnDisable() {

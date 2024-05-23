@@ -67,7 +67,7 @@ namespace OneJS.Editor {
 
             GUILayout.BeginHorizontal();
 
-            if (GUILayout.Button(new GUIContent("Package outputs.tgz", "Packages the @outputs folder into outputs.tgz."), GUILayout.Height(30))) {
+            if (GUILayout.Button(new GUIContent("Package outputs.tgz", "Packages the @outputs folder into outputs.tgz. This is also automatically done when you make a player build."), GUILayout.Height(30))) {
                 initializer.PackageOutputsZipWithPrompt();
             }
 
