@@ -21,6 +21,11 @@ namespace OneJS.Editor {
             return Generate(types);
         }
 
+        /// <summary>
+        /// Generate TypeScript definition from .Net types
+        /// </summary>
+        /// <param name="types">Include here all the .Net types you want to generate TS definitions for.</param>
+        /// <returns>The generated type definition (.d.ts) string</returns>
         public static string Generate(Type[] types) {
             string result = "";
             using (var jsEnv = new JsEnv()) {
