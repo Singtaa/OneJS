@@ -6,6 +6,7 @@ using ICSharpCode.SharpZipLib.GZip;
 using ICSharpCode.SharpZipLib.Tar;
 using OneJS.Utils;
 using UnityEngine;
+using UnityEngine.Serialization;
 using Debug = UnityEngine.Debug;
 
 namespace OneJS {
@@ -15,16 +16,10 @@ namespace OneJS {
     [DefaultExecutionOrder(-50)]
     [RequireComponent(typeof(ScriptEngine))]
     public class Initializer : MonoBehaviour {
-        public TextAsset defaultGitIgnore;
-        public TextAsset defaultTsconfig;
-        public TextAsset defaultEsbuild;
-        public TextAsset defaultIndex;
-        public TextAsset defaultAppDts;
-        public TextAsset tailwindConfig;
-        public TextAsset postcssConfig;
-        public TextAsset readme;
-        public TextAsset onejsCoreZip;
+        [PairMapping("path", "textAsset", ":")]
+        public DefaultFileMapping[] defaultFiles;
 
+        public TextAsset onejsCoreZip;
         [Tooltip("The packaged @outputs folder")]
         public TextAsset outputsZip;
 
@@ -51,90 +46,28 @@ namespace OneJS {
 
                 PlayerPrefs.SetString("OneJSVersion", _onejsVersion);
             }
-            CreateGitIgnoreFileIfNotFound();
-            CreateTsconfigFileIfNotFound();
-            CreateEsbuildFileIfNotFound();
-            CreateIndexFileIfNotFound();
-            CreateAppDtsFileIfNotFound();
-            CreateTailwindConfigFileIfNotFound();
-            CreatePostcssConfigFileIfNotFound();
-            CreateReadMeFileIfNotFound();
+
+            foreach (var mapping in defaultFiles) {
+                CreateIfNotFound(mapping);
+            }
 
             ExtractOnejsCoreIfNotFound();
             ExtractOutputsIfNotFound();
 #endif
         }
 
-        public void CreateGitIgnoreFileIfNotFound() {
-            var path = Path.Combine(_engine.WorkingDir, ".gitignore");
-            if (File.Exists(path))
-                return;
+        void CreateIfNotFound(DefaultFileMapping mapping) {
+            var path = Path.Combine(_engine.WorkingDir, mapping.path);
+            var directory = Path.GetDirectoryName(path);
 
-            File.WriteAllText(path, defaultGitIgnore.text);
-            Debug.Log($"'.gitignore' wasn't found. A new one was created ({path})");
-        }
+            if (!Directory.Exists(directory)) {
+                Directory.CreateDirectory(directory);
+            }
 
-        public void CreateTsconfigFileIfNotFound() {
-            var path = Path.Combine(_engine.WorkingDir, "tsconfig.json");
-            if (File.Exists(path))
-                return;
-
-            File.WriteAllText(path, defaultTsconfig.text);
-            Debug.Log($"'tsconfig.json' wasn't found. A new one was created ({path})");
-        }
-
-        public void CreateEsbuildFileIfNotFound() {
-            var path = Path.Combine(_engine.WorkingDir, "esbuild.mjs");
-            if (File.Exists(path))
-                return;
-
-            File.WriteAllText(path, defaultEsbuild.text);
-            Debug.Log($"'esbuild.mjs' wasn't found. A new one was created ({path})");
-        }
-
-        public void CreateTailwindConfigFileIfNotFound() {
-            var path = Path.Combine(_engine.WorkingDir, "tailwind.config.js");
-            if (File.Exists(path))
-                return;
-
-            File.WriteAllText(path, tailwindConfig.text);
-            Debug.Log($"'tailwind.config.js' wasn't found. A new one was created ({path})");
-        }
-
-        public void CreatePostcssConfigFileIfNotFound() {
-            var path = Path.Combine(_engine.WorkingDir, "postcss.config.js");
-            if (File.Exists(path))
-                return;
-
-            File.WriteAllText(path, postcssConfig.text);
-            Debug.Log($"'postcss.config.js' wasn't found. A new one was created ({path})");
-        }
-
-        public void CreateIndexFileIfNotFound() {
-            var path = Path.Combine(_engine.WorkingDir, "index.tsx");
-            if (File.Exists(path))
-                return;
-
-            File.WriteAllText(path, defaultIndex.text);
-            Debug.Log($"'index.tsx' wasn't found. A new one was created ({path})");
-        }
-        
-        public void CreateAppDtsFileIfNotFound() {
-            var path = Path.Combine(_engine.WorkingDir, "app.d.ts");
-            if (File.Exists(path))
-                return;
-
-            File.WriteAllText(path, defaultAppDts.text);
-            Debug.Log($"'app.d.ts' wasn't found. A new one was created ({path})");
-        }
-
-        public void CreateReadMeFileIfNotFound() {
-            var path = Path.Combine(_engine.WorkingDir, "README.md");
-            if (File.Exists(path))
-                return;
-
-            File.WriteAllText(path, readme.text);
-            Debug.Log($"'README.md' wasn't found. A new one was created ({path})");
+            if (!File.Exists(path)) {
+                File.WriteAllText(path, mapping.textAsset.text);
+                Debug.Log($"'{mapping.path}' wasn't found. A new one was created.");
+            }
         }
 
         public void ExtractOnejsCoreIfNotFound() {
@@ -274,5 +207,11 @@ namespace OneJS {
         }
 
 #endif
+    }
+
+    [Serializable]
+    public class DefaultFileMapping {
+        public string path;
+        public TextAsset textAsset;
     }
 }

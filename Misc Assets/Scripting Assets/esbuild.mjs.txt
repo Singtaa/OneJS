@@ -70,14 +70,17 @@ await mainCtx.watch()
  * 
  */
 
-let entryPoints = await glob("./@outputs/tsc/editor/**/*.js");
-
-let editorCtx = await esbuild.context({
-    entryPoints: entryPoints,
-    bundle: true,
-    globalName: "_contentScriptReturn",
-    footer: { js: "_contentScriptReturn.default" },
-    outdir: '@outputs/esbuild/editor',
-})
-
-await editorCtx.watch()
+let entryPoints = [];
+try {
+    entryPoints = await glob("./@outputs/tsc/editor/**/*.js")
+    let editorCtx = await esbuild.context({
+        entryPoints: entryPoints,
+        bundle: true,
+        globalName: "_contentScriptReturn",
+        footer: { js: "_contentScriptReturn.default" },
+        outdir: '@outputs/esbuild/editor',
+    })
+    await editorCtx.watch()
+} catch (error) {
+    // console.log("No editor scripts found.");
+}

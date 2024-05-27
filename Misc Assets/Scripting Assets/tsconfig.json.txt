@@ -1,14 +1,8 @@
 {
     "compilerOptions": {
         "baseUrl": ".",
-        "paths": {
-            "*": [
-                "onejs-core/*",
-                "onejs-core/3rdparty/*",
-                "*"
-            ]
-        },
         "target": "esnext",
+        "module": "esnext",
         "moduleResolution": "node",
         "sourceMap": true,
         "strictNullChecks": true,
@@ -16,10 +10,15 @@
         "jsx": "react",
         "jsxFactory": "h",
         "jsxFragmentFactory": "Fragment",
-        "lib": ["esnext"],
+        "lib": [
+            "esnext"
+        ],
         "typeRoots": [
-            "./node_modules/@types"
+            "./node_modules/@types",
         ],
         "outDir": "@outputs/tsc"
-    }
+    },
+    "include": [
+        "node_modules/@onejs/core/definitions"
+    ]
 }

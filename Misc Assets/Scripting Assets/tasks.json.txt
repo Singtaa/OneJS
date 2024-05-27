@@ -1,0 +1,54 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "esbuild",
+            "type": "shell",
+            "command": "node",
+            "args": [
+                "esbuild.mjs"
+            ],
+            "isBackground": true,
+            "problemMatcher": []
+        },
+        {
+            "label": "tailwind",
+            "type": "shell",
+            "command": "npx",
+            "args": [
+                "postcss",
+                "input.css",
+                "-o",
+                "../Assets/tailwind.uss",
+                "--watch"
+            ],
+            "isBackground": true,
+            "problemMatcher": []
+        },
+        {
+            "label": "tsc",
+            "type": "shell",
+            "command": "tsc",
+            "args": [
+                "-w"
+            ],
+            "isBackground": true,
+            "problemMatcher": [
+                "$tsc-watch"
+            ]
+        },
+        {
+            "label": "run all",
+            "dependsOn": [
+                "esbuild",
+                "tailwind",
+                "tsc"
+            ],
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}
