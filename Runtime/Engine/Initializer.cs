@@ -19,7 +19,6 @@ namespace OneJS {
         [PairMapping("path", "textAsset", ":")]
         public DefaultFileMapping[] defaultFiles;
 
-        public TextAsset onejsCoreZip;
         [Tooltip("The packaged @outputs folder")]
         public TextAsset outputsZip;
 
@@ -51,7 +50,6 @@ namespace OneJS {
                 CreateIfNotFound(mapping);
             }
 
-            ExtractOnejsCoreIfNotFound();
             ExtractOutputsIfNotFound();
 #endif
         }
@@ -70,15 +68,18 @@ namespace OneJS {
             }
         }
 
-        public void ExtractOnejsCoreIfNotFound() {
-            _engine = GetComponent<ScriptEngine>();
-            var path = Path.Combine(_engine.WorkingDir, "onejs-core");
-            if (Directory.Exists(path))
-                return;
-
-            Extract(onejsCoreZip.bytes);
-            Debug.Log($"An existing 'onejs-core' directory wasn't found. A new one was created ({path})");
-        }
+        /// <summary>
+        /// No longer used
+        /// </summary>
+        // public void ExtractOnejsCoreIfNotFound() {
+        //     _engine = GetComponent<ScriptEngine>();
+        //     var path = Path.Combine(_engine.WorkingDir, "onejs-core");
+        //     if (Directory.Exists(path))
+        //         return;
+        //
+        //     Extract(onejsCoreZip.bytes);
+        //     Debug.Log($"An existing 'onejs-core' directory wasn't found. A new one was created ({path})");
+        // }
 
         public void ExtractOutputsIfNotFound() {
             _engine = GetComponent<ScriptEngine>();
@@ -135,34 +136,34 @@ namespace OneJS {
 
 #if UNITY_EDITOR
 
-        [ContextMenu("Package onejs-core.tgz")]
-        void PackageOnejsCoreZip() {
-            _engine = GetComponent<ScriptEngine>();
-            var t = DateTime.Now;
-            var path = Path.Combine(_engine.WorkingDir, "onejs-core");
-
-            if (onejsCoreZip == null) {
-                UnityEditor.EditorUtility.DisplayDialog("onejs-core.tgz is null",
-                    "Please make sure you have a onejs-core.tgz (Text Asset) set", "Okay");
-                return;
-            }
-            if (UnityEditor.EditorUtility.DisplayDialog("Are you sure?",
-                    "This will package up your onejs-core folder under ScriptEngine.WorkingDir into a tgz file " +
-                    "and override your existing onejs-core.tgz file.",
-                    "Confirm", "Cancel")) {
-                var binPath = UnityEditor.AssetDatabase.GetAssetPath(onejsCoreZip);
-                binPath = Path.GetFullPath(Path.Combine(Application.dataPath, @".." + Path.DirectorySeparatorChar, binPath));
-                var outStream = File.Create(binPath);
-                var gzoStream = new GZipOutputStream(outStream);
-                gzoStream.SetLevel(3);
-                var tarOutputStream = new TarOutputStream(gzoStream);
-                var tarCreator = new TarCreator(path, _engine.WorkingDir) { };
-                tarCreator.CreateTar(tarOutputStream);
-
-                Debug.Log($"onejs-core.tgz.bytes file updated. {tarOutputStream.Length} bytes {(DateTime.Now - t).TotalMilliseconds}ms");
-                tarOutputStream.Close();
-            }
-        }
+        // [ContextMenu("Package onejs-core.tgz")]
+        // void PackageOnejsCoreZip() {
+        //     _engine = GetComponent<ScriptEngine>();
+        //     var t = DateTime.Now;
+        //     var path = Path.Combine(_engine.WorkingDir, "onejs-core");
+        //
+        //     if (onejsCoreZip == null) {
+        //         UnityEditor.EditorUtility.DisplayDialog("onejs-core.tgz is null",
+        //             "Please make sure you have a onejs-core.tgz (Text Asset) set", "Okay");
+        //         return;
+        //     }
+        //     if (UnityEditor.EditorUtility.DisplayDialog("Are you sure?",
+        //             "This will package up your onejs-core folder under ScriptEngine.WorkingDir into a tgz file " +
+        //             "and override your existing onejs-core.tgz file.",
+        //             "Confirm", "Cancel")) {
+        //         var binPath = UnityEditor.AssetDatabase.GetAssetPath(onejsCoreZip);
+        //         binPath = Path.GetFullPath(Path.Combine(Application.dataPath, @".." + Path.DirectorySeparatorChar, binPath));
+        //         var outStream = File.Create(binPath);
+        //         var gzoStream = new GZipOutputStream(outStream);
+        //         gzoStream.SetLevel(3);
+        //         var tarOutputStream = new TarOutputStream(gzoStream);
+        //         var tarCreator = new TarCreator(path, _engine.WorkingDir) { };
+        //         tarCreator.CreateTar(tarOutputStream);
+        //
+        //         Debug.Log($"onejs-core.tgz.bytes file updated. {tarOutputStream.Length} bytes {(DateTime.Now - t).TotalMilliseconds}ms");
+        //         tarOutputStream.Close();
+        //     }
+        // }
 
         [ContextMenu("Package outputs.tgz")]
         public void PackageOutputsZipWithPrompt() {

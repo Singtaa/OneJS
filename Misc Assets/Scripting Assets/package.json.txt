@@ -7,6 +7,6 @@
         "tiny-glob": "^0.2.9"
     },
     "dependencies": {
-        "@onejs/core": "npm:@jsr/onejs__onejs@^0.1.1"
+        "@onejs/core": "npm:@jsr/onejs__core@^0.1.1"
     }
 }
