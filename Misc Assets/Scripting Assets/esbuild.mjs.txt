@@ -58,7 +58,7 @@ await mainCtx.watch()
  * }
  * 
  * // editor/car-editor.js
- * import { h } from "onejs-core"
+ * import { h } from "@onejs/core"
  * 
  * export default function (target) {
  *     return <div>
