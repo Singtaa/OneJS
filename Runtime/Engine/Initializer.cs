@@ -19,6 +19,7 @@ namespace OneJS {
         [PairMapping("path", "textAsset", ":")]
         public DefaultFileMapping[] defaultFiles;
 
+        // public TextAsset onejsCoreZip;
         [Tooltip("The packaged @outputs folder")]
         public TextAsset outputsZip;
 
@@ -50,6 +51,7 @@ namespace OneJS {
                 CreateIfNotFound(mapping);
             }
 
+            // ExtractOnejsCoreIfNotFound();
             ExtractOutputsIfNotFound();
 #endif
         }
@@ -68,9 +70,6 @@ namespace OneJS {
             }
         }
 
-        /// <summary>
-        /// No longer used
-        /// </summary>
         // public void ExtractOnejsCoreIfNotFound() {
         //     _engine = GetComponent<ScriptEngine>();
         //     var path = Path.Combine(_engine.WorkingDir, "onejs-core");
@@ -157,7 +156,9 @@ namespace OneJS {
         //         var gzoStream = new GZipOutputStream(outStream);
         //         gzoStream.SetLevel(3);
         //         var tarOutputStream = new TarOutputStream(gzoStream);
-        //         var tarCreator = new TarCreator(path, _engine.WorkingDir) { };
+        //         var tarCreator = new TarCreator(path, _engine.WorkingDir) {
+        //             IgnoreList = new[] { ".git*", ".prettierrc", "jsr.json", "tsconfig.json", "README.md" }
+        //         };
         //         tarCreator.CreateTar(tarOutputStream);
         //
         //         Debug.Log($"onejs-core.tgz.bytes file updated. {tarOutputStream.Length} bytes {(DateTime.Now - t).TotalMilliseconds}ms");

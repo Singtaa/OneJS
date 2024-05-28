@@ -1,5 +1,5 @@
 const tailwindcss = require('tailwindcss')
-const ussTransformPlugin = require('./onejs-core/uss-transform-plugin.js')
+const ussTransformPlugin = require('@onejs/core/uss-transform-plugin.cjs')
 
 module.exports = {
     plugins: [
