@@ -1,19 +1,2 @@
-# Command Lines
-
-## Development Installs
-
-`npm install -DE esbuild tiny-glob tailwindcss postcss postcss-cli`
-
-## Running ESBuild
-
-`node esbuild.mjs`
-
-## Running Tailwind via PostCSS
-
-_Set your output uss path accordinly._
-
-`npx postcss input.css -o ../Assets/tailwind.uss --watch`
-
-## Tailwind Compiler (Don't need to do this directly. Use PostCSS instead.)
-
-`npx tailwindcss -i ./input.css -o ./output.css --watch`
+* `npm run setup` to install all dependencies
+* `ctrl` + `shift` + `b` to start up all the watchers in VSCode
