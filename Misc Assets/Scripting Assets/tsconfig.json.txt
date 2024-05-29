@@ -17,8 +17,5 @@
             "./node_modules/@types",
         ],
         "outDir": "@outputs/tsc"
-    },
-    "include": [
-        "node_modules/@onejs/core/definitions"
-    ]
+    }
 }

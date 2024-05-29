@@ -1,3 +1,5 @@
+/// <reference types="@onejs/core/definitions/index.d.ts" />
+
 declare global {
     interface Console {
         assert(condition?: boolean, ...data: any[]): void;
