@@ -1,6 +1,16 @@
 {
     "compilerOptions": {
         "baseUrl": ".",
+        "paths": {
+            "@onejs/core": [
+                "./onejs-core"
+            ],
+            "@onejs/core/*": ["./onejs-core/*"],
+            "*": [
+                "onejs-core/3rdparty/*",
+                "*"
+            ]
+        },
         "target": "esnext",
         "module": "esnext",
         "moduleResolution": "node",
@@ -11,10 +21,10 @@
         "jsxFactory": "h",
         "jsxFragmentFactory": "Fragment",
         "lib": [
-            "esnext"
+            "esnext", "dom"
         ],
         "typeRoots": [
-            "./node_modules/@types",
+            "./node_modules/@types"
         ],
         "outDir": "@outputs/tsc"
     }

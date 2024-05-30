@@ -7,7 +7,7 @@ namespace OneJS.Editor {
     [CanEditMultipleObjects]
     public class InitializerEditor : UnityEditor.Editor {
         SerializedProperty _defaultFiles;
-        // SerializedProperty _onejsCoreZip;
+        SerializedProperty _onejsCoreZip;
         SerializedProperty _outputsZip;
 
         SerializedProperty _version;
@@ -18,7 +18,7 @@ namespace OneJS.Editor {
 
         void OnEnable() {
             _defaultFiles = serializedObject.FindProperty("defaultFiles");
-            // _onejsCoreZip = serializedObject.FindProperty("onejsCoreZip");
+            _onejsCoreZip = serializedObject.FindProperty("onejsCoreZip");
             _outputsZip = serializedObject.FindProperty("outputsZip");
 
             _version = serializedObject.FindProperty("version");
@@ -34,7 +34,7 @@ namespace OneJS.Editor {
             EditorGUILayout.PropertyField(_defaultFiles, new GUIContent("Default Files"));
             EditorGUILayout.PropertyField(_version, new GUIContent("Version"));
             EditorGUILayout.PropertyField(_forceExtract, new GUIContent("Force Extract"));
-            // EditorGUILayout.PropertyField(_onejsCoreZip, new GUIContent("onejs-core.tgz"));
+            EditorGUILayout.PropertyField(_onejsCoreZip, new GUIContent("onejs-core.tgz"));
             EditorGUILayout.PropertyField(_outputsZip, new GUIContent("outputs.tgz"));
             EditorGUILayout.PropertyField(_ignoreList, new GUIContent("Ignore List"));
 
