@@ -120,11 +120,11 @@ namespace OneJS.Editor {
                 try {
                     if (Directory.Exists(puertsPath))
                         Directory.Delete(puertsPath, true);
-                    Directory.Move(upmPath, puertsPath);
                 } catch (Exception e) {
                     Debug.Log("Cannot replace your current JS backend because native plugins were already loaded. You need to restart Unity and try this again.");
                     throw e;
                 }
+                MoveDirectory(upmPath, puertsPath);
                 onComplete();
             });
         }
@@ -180,6 +180,46 @@ namespace OneJS.Editor {
             tarArchive.Close();
             gzipStream.Close();
             inStream.Close();
+        }
+
+        /// <summary>
+        /// Directory.Move() alternative that works across different volumes
+        /// </summary>
+        /// <param name="sourceDir"></param>
+        /// <param name="destDir"></param>
+        /// <exception cref="DirectoryNotFoundException"></exception>
+        /// <exception cref="IOException"></exception>
+        public static void MoveDirectory(string sourceDir, string destDir) {
+            if (!Directory.Exists(sourceDir)) {
+                throw new DirectoryNotFoundException($"Source directory does not exist or could not be found: {sourceDir}");
+            }
+
+            if (Directory.Exists(destDir)) {
+                throw new IOException($"Destination directory already exists: {destDir}");
+            }
+
+            try {
+                // Create the destination directory
+                Directory.CreateDirectory(destDir);
+
+                // Copy all the files
+                foreach (string file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories)) {
+                    string destFile = file.Replace(sourceDir, destDir);
+                    Directory.CreateDirectory(Path.GetDirectoryName(destFile));
+                    File.Copy(file, destFile, true);
+                }
+
+                // Copy all the subdirectories
+                foreach (string dir in Directory.GetDirectories(sourceDir, "*", SearchOption.AllDirectories)) {
+                    string destSubDir = dir.Replace(sourceDir, destDir);
+                    Directory.CreateDirectory(destSubDir);
+                }
+
+                // Delete the original directory and its contents
+                Directory.Delete(sourceDir, true);
+            } catch (Exception ex) {
+                throw new IOException($"An error occurred while moving the directory: {ex.Message}", ex);
+            }
         }
 
         public static void OpenDir(string path) {
