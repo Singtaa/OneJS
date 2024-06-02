@@ -1,13 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using OneJS.Dom;
-using OneJS.Editor;
 using Puerts;
 using UnityEngine;
-using UnityEngine.PlayerLoop;
-using UnityEngine.Serialization;
 using UnityEngine.UIElements;
 
 namespace OneJS {
@@ -174,9 +170,10 @@ namespace OneJS {
         #endregion
 
         #region ContextMenus
+#if UNITY_EDITOR
         [ContextMenu("Generate Globals Definitions")]
         public void GenerateGlobalsDefinitions() {
-            var filename = EditorInputDialog.Show("Enter the file name", "", "globals.d.ts");
+            var filename = OneJS.Editor.EditorInputDialog.Show("Enter the file name", "", "globals.d.ts");
             if (string.IsNullOrEmpty(filename))
                 return;
             var definitionContents = "";
@@ -188,6 +185,7 @@ namespace OneJS {
             }
             File.WriteAllText(Path.Combine(Application.dataPath, $"Gen/Typing/csharp/{filename}"), definitionContents);
         }
+#endif
         #endregion
     }
 

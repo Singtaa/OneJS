@@ -110,7 +110,7 @@ MonoBehaviour:
   onejsCoreZip: {fileID: 4900000, guid: 447491b0820deaa499feec456ba13940, type: 3}
   outputsZip: {fileID: 4900000, guid: f7502ff07da261a46bd9bc5fdfc641f1, type: 3}
   version: 1.0
-  forceExtract: 0
+  forceExtract: 1
   ignoreList:
   - '@outputs/esbuild/editor'
   - '@outputs/tsc'

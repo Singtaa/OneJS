@@ -154,7 +154,7 @@ namespace OneJS.Editor {
         }
 
         static void DownloadFile(string fileUrl, string savePath, Action onComplete) {
-            Debug.Log("Downloading " + fileUrl);
+            Debug.Log("Downloading " + Path.GetFileName(fileUrl));
             UnityWebRequest www = UnityWebRequest.Get(fileUrl);
             www.downloadHandler = new DownloadHandlerFile(savePath);
 

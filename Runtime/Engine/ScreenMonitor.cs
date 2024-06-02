@@ -33,7 +33,7 @@ namespace OneJS {
 
         void Update() {
 #if !UNITY_EDITOR && (UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID)
-            if (pollStandaloneScreen) {
+            if (standalone) {
                 PollScreenChange();
             }
 #else
