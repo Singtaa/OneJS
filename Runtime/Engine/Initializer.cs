@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using ICSharpCode.SharpZipLib.GZip;
 using ICSharpCode.SharpZipLib.Tar;
+using Newtonsoft.Json;
 using OneJS.Utils;
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -51,6 +53,7 @@ namespace OneJS {
                 CreateIfNotFound(mapping);
             }
 
+            WriteToPackageJson();
             ExtractOnejsCoreIfNotFound();
             ExtractOutputsIfNotFound();
 #endif
@@ -70,12 +73,32 @@ namespace OneJS {
             }
         }
 
+        void WriteToPackageJson() {
+            string scriptPath = new StackTrace(true).GetFrame(0).GetFileName();
+            var onejsPath = ParentFolder(ParentFolder(ParentFolder(scriptPath)));
+            // var escapedOnejsPath = onejsPath.Replace(@"\", @"\\").Replace("\"", "\\\"");
+            var packageJsonPath = Path.Combine(_engine.WorkingDir, "package.json");
+            string jsonString = File.ReadAllText(packageJsonPath);
+            Dictionary<string, object> jsonDict = JsonConvert.DeserializeObject<Dictionary<string, object>>(jsonString);
+
+            jsonDict["onejs"] = new Dictionary<string, object> {
+                { "unityPackagePath", onejsPath }
+            };
+
+            string updatedJsonString = JsonConvert.SerializeObject(jsonDict, Formatting.Indented);
+            File.WriteAllText(packageJsonPath, updatedJsonString);
+        }
+
+        string ParentFolder(string path) {
+            return Directory.GetParent(path).FullName;
+        }
+
         public void ExtractOnejsCoreIfNotFound() {
             _engine = GetComponent<ScriptEngine>();
             var path = Path.Combine(_engine.WorkingDir, "onejs-core");
             if (Directory.Exists(path))
                 return;
-        
+
             Extract(onejsCoreZip.bytes);
             Debug.Log($"An existing 'onejs-core' directory wasn't found. A new one was created ({path})");
         }
@@ -140,7 +163,7 @@ namespace OneJS {
             _engine = GetComponent<ScriptEngine>();
             var t = DateTime.Now;
             var path = Path.Combine(_engine.WorkingDir, "onejs-core");
-        
+
             if (onejsCoreZip == null) {
                 UnityEditor.EditorUtility.DisplayDialog("onejs-core.tgz is null",
                     "Please make sure you have a onejs-core.tgz (Text Asset) set", "Okay");
@@ -160,7 +183,7 @@ namespace OneJS {
                     IgnoreList = new[] { "**/node_modules", "**/.prettierrc", "**/jsr.json", "**/package.json", "**/tsconfig.json", "**/README.md" }
                 };
                 tarCreator.CreateTar(tarOutputStream);
-        
+
                 Debug.Log($"onejs-core.tgz.bytes file updated. {tarOutputStream.Length} bytes {(DateTime.Now - t).TotalMilliseconds}ms");
                 tarOutputStream.Close();
             }

@@ -27,5 +27,8 @@
             "./node_modules/@types"
         ],
         "outDir": "@outputs/tsc"
-    }
+    },
+    "exclude": [
+        "tmp"
+    ]
 }

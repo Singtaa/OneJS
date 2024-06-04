@@ -1,12 +1,16 @@
 ﻿{
     "scripts": {
-        "setup": "npm install -DE && tsc -p tsconfig.json"
+        "setup": "npm install && tsc -p tsconfig.json",
+        "switch": "node ./onejs-core/switch.cjs"
     },
     "devDependencies": {
         "esbuild": "^0.20.0",
+        "fs-extra": "^11.2.0",
         "postcss": "^8.4.38",
         "postcss-cli": "^11.0.0",
+        "rimraf": "^5.0.7",
         "tailwindcss": "^3.4.1",
+        "tar": "^7.2.0",
         "tiny-glob": "^0.2.9"
     },
     "dependencies": {
