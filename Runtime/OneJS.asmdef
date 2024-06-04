@@ -14,7 +14,8 @@
         "DotNet.Glob.dll",
         "NUglify.dll",
         "ICSharpCode.SharpZipLib.dll",
-        "ExCSS.Unity.dll"
+        "ExCSS.Unity.dll",
+        "Newtonsoft.Json.dll"
     ],
     "autoReferenced": true,
     "defineConstraints": [],
