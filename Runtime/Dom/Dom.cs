@@ -154,14 +154,14 @@ namespace OneJS.Dom {
                 __listeners.Add(name, callback);
             }
         }
-        
+
         public EventCallback<EventBase> _getFromListeners(string name) {
             if (__listeners.TryGetValue(name, out var callback)) {
                 return callback;
             }
             return null;
         }
-        
+
         public void _callListener(string name, EventBase evt) {
             if (__listeners.TryGetValue(name, out var callback)) {
                 callback(evt);
@@ -318,17 +318,20 @@ namespace OneJS.Dom {
                 }
                 var pi = _ve.GetType().GetProperty(name, flags);
                 if (pi != null) {
+                    var genericArgs = pi.PropertyType.GetGenericArguments();
                     if (pi.PropertyType.IsEnum) {
                         val = Convert.ToInt32(val);
-                    } else if (val.GetType() == typeof(object[])) {
-                        var objAry = (object[])val;
-                        var length = ((object[])val).Length;
+                    } else if (val is JSObject jsObj && jsObj.Get<int>("length") > 0) {
+                        var length = jsObj.Get<int>("length");
+                        var objAry = new object[length];
+                        for (var i = 0; i < length; i++) {
+                            objAry[i] = jsObj.Get<object>(i.ToString());
+                        }
                         if (pi.PropertyType.IsArray) {
                             Array destinationArray = Array.CreateInstance(pi.PropertyType.GetElementType(), length);
                             Array.Copy(objAry, destinationArray, length);
                             val = destinationArray;
-                        } else {
-                            var genericArgs = pi.PropertyType.GetGenericArguments();
+                        } else if ((genericArgs.Length > 0)) {
                             var listType = typeof(List<>).MakeGenericType(genericArgs);
                             if (pi.PropertyType == listType) {
                                 Array destinationArray = Array.CreateInstance(genericArgs[0], length);

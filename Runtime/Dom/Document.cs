@@ -31,7 +31,7 @@ namespace OneJS.Dom {
             _root = root;
             _body = new Dom(_root, this);
             _scriptEngine = scriptEngine;
-            _tagTypes = typeof(VisualElement).Assembly.GetTypes().Where(type => type.IsSubclassOf(typeof(VisualElement))).ToArray();
+            _tagTypes = GetAllVisualElementTypes();
             InitAllUIElementEvents();
         }
 
@@ -123,7 +123,7 @@ namespace OneJS.Dom {
             // TODO new Dom shouldn't be used here, we need to be able to get existing Dom of the VisualElement
             return elems.Select((e) => new Dom(e, this)).ToArray();
         }
-        
+
         public Texture2D loadImage(string path, FilterMode filterMode = FilterMode.Bilinear) {
             // TODO cache
             path = Path.IsPathRooted(path) ? path : Path.Combine(_scriptEngine.WorkingDir, path);
@@ -133,14 +133,14 @@ namespace OneJS.Dom {
             tex.filterMode = filterMode;
             return tex;
         }
-        
+
         public Font loadFont(string path) {
             // TODO cache
             path = Path.IsPathRooted(path) ? path : Path.Combine(_scriptEngine.WorkingDir, path);
             var font = new Font(path);
             return font;
         }
-        
+
         public FontDefinition loadFontDefinition(string path) {
             // TODO cache
             path = Path.IsPathRooted(path) ? path : Path.Combine(_scriptEngine.WorkingDir, path);
@@ -185,6 +185,29 @@ namespace OneJS.Dom {
         // public void removeEventListener(string name, JsValue jsval, bool useCapture = false) {
         //     _body.removeEventListener(name, jsval, useCapture);
         // }
+
+        Type[] GetAllVisualElementTypes() {
+            List<Type> visualElementTypes = new List<Type>();
+            Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
+
+            foreach (Assembly assembly in assemblies) {
+                Type[] types = null;
+
+                try {
+                    types = assembly.GetTypes();
+                } catch (ReflectionTypeLoadException ex) {
+                    types = ex.Types.Where(t => t != null).ToArray(); // Handle partially loaded types
+                }
+
+                foreach (Type type in types) {
+                    if (type.IsSubclassOf(typeof(VisualElement))) {
+                        visualElementTypes.Add(type);
+                    }
+                }
+            }
+
+            return visualElementTypes.ToArray();
+        }
 
         Type GetVisualElementType(string tagName) {
             Type foundType = null;
