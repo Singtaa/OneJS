@@ -11,12 +11,6 @@ namespace OneJS.Extensions {
         // public static T AddComponent<T>(this GameObject go, T toAdd) where T : Component {
         //     return go.AddComponent<T>().GetCopyOf(toAdd) as T;
         // }
-        
-        public static void Test(this GameObject go, object obj) {
-            var ptr = (IntPtr)obj;
-            var typeId = PuertsDLL.GetTypeIdFromValue(ScriptEngine.GlobalJsEnv.Isolate, ptr, false);
-            Debug.Log(typeId);
-        }
 
         public static bool HasComp<T>(this GameObject go) where T : Component {
             return go.TryGetComponent<T>(out T res);

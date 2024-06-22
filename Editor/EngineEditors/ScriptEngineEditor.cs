@@ -42,7 +42,7 @@ namespace OneJS.Editor {
 #if UNITY_STANDALONE_WIN
             var processName = GetCodeExecutablePathOnWindows();
 #elif UNITY_STANDALONE_OSX
-            var processName = "vscode";
+            var processName = "/usr/local/bin/code";
 #elif UNITY_STANDALONE_LINUX
             var processName = "vscode";
 #else

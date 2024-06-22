@@ -18,6 +18,12 @@ const cancelAnimationFrame = function (id) {
     clearTimeout(id)
 }
 
+const performance = {
+    now: function() {
+        return Date.now();
+    }
+}
+
 CS.UnityEngine.GameObject.prototype.GetComp = function (type) {
     return this.GetComponent(puer.$typeof(type))
 }

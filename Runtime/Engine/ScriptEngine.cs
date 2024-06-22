@@ -9,7 +9,6 @@ using UnityEngine.UIElements;
 namespace OneJS {
     [RequireComponent(typeof(UIDocument))]
     public class ScriptEngine : MonoBehaviour, IScriptEngine {
-        public static JsEnv GlobalJsEnv;
         public int Tick => _tick;
 
         #region Public Fields
@@ -38,6 +37,7 @@ namespace OneJS {
 
         #region Private Fields
         JsEnv _jsEnv;
+        EngineHost _engineHost;
 
         UIDocument _uiDocument;
         Document _document;
@@ -103,6 +103,7 @@ namespace OneJS {
         public void Shutdown() {
             if (_jsEnv != null) {
                 _jsEnv.Dispose();
+                _engineHost.InvokeOnDestroy();
             }
             if (_uiDocument.rootVisualElement != null) {
                 _uiDocument.rootVisualElement.Clear();
@@ -111,8 +112,9 @@ namespace OneJS {
         }
 
         public void Reload() {
-            Init();
             OnReload?.Invoke();
+            _engineHost.InvokeOnReload();
+            Init();
         }
 
         void Init() {
@@ -120,14 +122,9 @@ namespace OneJS {
                 _jsEnv.Dispose();
             }
             _jsEnv = new JsEnv();
-            GlobalJsEnv = _jsEnv;
-            // _jsEnv.UsingAction<Painter2D, Color>();
-            // _jsEnv.UsingAction<Painter2D, Painter2D>();            
-            // _jsEnv.UsingAction<Color, Color>();
-            // _jsEnv.UsingAction<Color>();
-            // _jsEnv.UsingFunc<Color>();
-            // _jsEnv.UsingFunc<string>();
-
+            _engineHost = new EngineHost(this);
+            _jsEnv.UsingAction<Action>();
+            
             if (_uiDocument.rootVisualElement != null) {
                 _uiDocument.rootVisualElement.Clear();
                 _uiDocument.rootVisualElement.styleSheets.Clear();
@@ -141,6 +138,7 @@ namespace OneJS {
             _addToGlobal = _jsEnv.Eval<System.Action<string, object>>(@"__addToGlobal");
             _addToGlobal("document", _document);
             _addToGlobal("resource", _resource);
+            _addToGlobal("onejs", _engineHost);
             foreach (var obj in globalObjects) {
                 _addToGlobal(obj.name, obj.obj);
             }
