@@ -1,65 +1,45 @@
 /**
  * Default OneJS ESbuild Config
  */
-import * as esbuild from 'esbuild'
-import glob from 'tiny-glob'
-import * as fs from 'fs'
-
-const unityImportTransformPlugin = {
-    name: 'unity-import-transform',
-    setup(build) {
-        build.onLoad({ filter: /\.js$/ }, async (args) => {
-            let contents = await fs.promises.readFile(args.path, 'utf8');
-
-            contents = contents.replace(
-                /import {([^}]+)} from "(UnityEngine[^"]*|OneJS[^"]*)";/g,
-                (match, imports, moduleName) => {
-                    moduleName = moduleName.replace('/', '.');
-                    // const importItems = imports.split(',').map(item => item.trim());
-                    return `const { ${imports} } = CS.${moduleName};`;
-                }
-            );
-
-            return {
-                contents,
-                loader: 'js',
-            };
-        });
-    },
-};
+import glob from "tiny-glob"
+import * as esbuild from "esbuild"
+import { importTransformPlugin } from "./onejs-core/import-transform.mjs"
 
 let mainCtx = await esbuild.context({
-    entryPoints: ['@outputs/tsc/index.js'],
-    bundle: true,
-    plugins: [unityImportTransformPlugin],
-    // external: ['puerts', 'UnityEngine'],
-    outfile: '@outputs/esbuild/app.js',
-})
+	entryPoints: ["@outputs/tsc/index.js"],
+	bundle: true,
+	alias: {
+		react: "./onejs-core/3rdparty/preact/compat/index.ts",
+		"react-dom": "./onejs-core/3rdparty/preact/compat/index.ts",
+	},
+	plugins: [importTransformPlugin],
+	// external: ['puerts', 'UnityEngine'],
+	outfile: "@outputs/esbuild/app.js",
+});
 
-await mainCtx.watch()
-
+await mainCtx.watch();
 
 /**
  * The following is for watching editor scripting files, such as custom inspectors.
  * For example:
- * 
+ *
  * // C#
  * public class Car : MonoBehaviour {
  *     public string make = "Toyota";
  *     public int year = 1980;
  *     public Color color = Color.black;
  * }
- * 
+ *
  * [CustomEditor(typeof(Car))]
  * public class CarEditor : Editor {
  *     public override VisualElement CreateInspectorGUI() {
  *         return EditorScriptEngine.Instance.CreateInspectorVE("editor/car-editor.js", target);
  *     }
  * }
- * 
+ *
  * // editor/car-editor.js
  * import { h } from "@onejs/core"
- * 
+ *
  * export default function (target) {
  *     return <div>
  *         <div>{target.make}</div>
@@ -67,20 +47,20 @@ await mainCtx.watch()
  *         <div>{target.color}</div>
  *     </div>
  * }
- * 
+ *
  */
 
 let entryPoints = [];
 try {
-    entryPoints = await glob("./@outputs/tsc/editor/**/*.js")
-    let editorCtx = await esbuild.context({
-        entryPoints: entryPoints,
-        bundle: true,
-        globalName: "_contentScriptReturn",
-        footer: { js: "_contentScriptReturn.default" },
-        outdir: '@outputs/esbuild/editor',
-    })
-    await editorCtx.watch()
+	entryPoints = await glob("./@outputs/tsc/editor/**/*.js");
+	let editorCtx = await esbuild.context({
+		entryPoints: entryPoints,
+		bundle: true,
+		globalName: "_contentScriptReturn",
+		footer: { js: "_contentScriptReturn.default" },
+		outdir: "@outputs/esbuild/editor",
+	});
+	await editorCtx.watch();
 } catch (error) {
-    // console.log("No editor scripts found.");
+	// console.log("No editor scripts found.");
 }
