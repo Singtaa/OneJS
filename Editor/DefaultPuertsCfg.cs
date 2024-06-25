@@ -100,8 +100,6 @@ namespace OneJS.Editor {
                     typeof(OneJS.Dom.Dom),
                     typeof(OneJS.Dom.DomStyle),
                     typeof(OneJS.Resource),
-
-                    typeof(OneJS.Painter2DWrapper),
                 };
             }
         }
