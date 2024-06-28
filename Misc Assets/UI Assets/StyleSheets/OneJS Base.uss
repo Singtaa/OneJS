@@ -3,7 +3,3 @@ Button {
     flex-direction: row;
     justify-content: center;
 }
-
-.chrusty-rock {
-    -unity-font-definition: resource("ChrustyRock");
-}

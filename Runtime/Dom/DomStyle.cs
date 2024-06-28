@@ -157,32 +157,32 @@ namespace OneJS.Dom {
         public object borderTopWidth {
             get => veStyle.borderTopWidth;
             set {
-                if (TryParseStyleFloat(value, out var styleFloat))
-                    veStyle.borderTopWidth = styleFloat;
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.borderTopWidth = styleLength.value.value;
             }
         }
 
         public object borderRightWidth {
             get => veStyle.borderRightWidth;
             set {
-                if (TryParseStyleFloat(value, out var styleFloat))
-                    veStyle.borderRightWidth = styleFloat;
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.borderRightWidth = styleLength.value.value;
             }
         }
 
         public object borderBottomWidth {
             get => veStyle.borderBottomWidth;
             set {
-                if (TryParseStyleFloat(value, out var styleFloat))
-                    veStyle.borderBottomWidth = styleFloat;
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.borderBottomWidth = styleLength.value.value;
             }
         }
 
         public object borderLeftWidth {
             get => veStyle.borderLeftWidth;
             set {
-                if (TryParseStyleFloat(value, out var styleFloat))
-                    veStyle.borderLeftWidth = styleFloat;
+                if (TryParseStyleLength(value, out var styleLength))
+                    veStyle.borderLeftWidth = styleLength.value.value;
             }
         }
 
