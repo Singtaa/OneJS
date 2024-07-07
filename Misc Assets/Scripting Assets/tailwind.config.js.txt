@@ -3,7 +3,7 @@ const { theme, paths, plugins: onejsPlugins, corePlugins } = require('./onejs-co
 
 
 module.exports = {
-    content: [...paths, "./@outputs/tsc/index.js"],
+    content: [...paths, "./@outputs/tsc/**/*.js"],
     theme: theme,
     plugins: [...onejsPlugins, plugin(function ({ addUtilities }) {
         addUtilities({

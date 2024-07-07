@@ -20,6 +20,13 @@ namespace Puerts
     public delegate void JSFunctionCallback(IntPtr isolate, IntPtr info, IntPtr self, int argumentsLen);
     public delegate object JSConstructorCallback(IntPtr isolate, IntPtr info, int argumentsLen);
 
+    public enum BackendType: int
+    {
+        V8 = 0,
+        Node = 1,
+        QuickJS = 2
+    }
+
     public class JsEnv : IDisposable
     {
         public static List<JsEnv> jsEnvs = new List<JsEnv>();
@@ -79,23 +86,23 @@ namespace Puerts
         internal Action OnDispose;
 
         public JsEnv() 
-            : this(new DefaultLoader(), -1, IntPtr.Zero, IntPtr.Zero)
+            : this(new DefaultLoader(), -1, BackendType.V8, IntPtr.Zero, IntPtr.Zero)
         {
         }
 
         public JsEnv(ILoader loader, int debugPort = -1)
-             : this(loader, debugPort, IntPtr.Zero, IntPtr.Zero)
+             : this(loader, debugPort, BackendType.V8, IntPtr.Zero, IntPtr.Zero)
         {
         }
 
         public JsEnv(ILoader loader, IntPtr externalRuntime, IntPtr externalContext)
-            : this(loader, -1, externalRuntime, externalContext)
+            : this(loader, -1, BackendType.V8, externalRuntime, externalContext)
         {
         }
 
-        public JsEnv(ILoader loader, int debugPort, IntPtr externalRuntime, IntPtr externalContext)
+        public JsEnv(ILoader loader, int debugPort, BackendType backend, IntPtr externalRuntime, IntPtr externalContext)
         {
-            const int libVersionExpect = 32;
+            const int libVersionExpect = 34;
             int libVersion = PuertsDLL.GetApiLevel();
             if (libVersion != libVersionExpect)
             {
@@ -107,11 +114,11 @@ namespace Puerts
             
             if (externalRuntime != IntPtr.Zero)
             {
-                isolate = PuertsDLL.CreateJSEngineWithExternalEnv(externalRuntime, externalContext);
+                isolate = PuertsDLL.CreateJSEngineWithExternalEnv((int)backend, externalRuntime, externalContext);
             }
             else
             {
-                isolate = PuertsDLL.CreateJSEngine();
+                isolate = PuertsDLL.CreateJSEngine((int)backend);
             }
             
             if (isolate == IntPtr.Zero)
@@ -145,11 +152,11 @@ namespace Puerts
             GeneralGetterManager = new GeneralGetterManager();
             GeneralSetterManager = new GeneralSetterManager();
 
-            if (PuertsDLL.GetLibBackend() == 0) 
+            if (PuertsDLL.GetLibBackend(isolate) == 0) 
                 Backend = new BackendV8(this);
-            else if (PuertsDLL.GetLibBackend() == 1)
+            else if (PuertsDLL.GetLibBackend(isolate) == 1)
                 Backend = new BackendNodeJS(this);
-            else if (PuertsDLL.GetLibBackend() == 2)
+            else if (PuertsDLL.GetLibBackend(isolate) == 2)
                 Backend = new BackendQuickJS(this);
 
             // 注册JS对象通用GC回调
@@ -192,7 +199,7 @@ namespace Puerts
                 string exceptionInfo = PuertsDLL.GetLastExceptionInfo(isolate);
                 throw new Exception(exceptionInfo);
             }
-            JSObjectValueGetter = new GenericDelegate(ptr, this);
+            JSObjectValueGetter = new GenericDelegate(ptr, this, "JSObjectValueGetter");
 #if THREAD_SAFE
             }
 #endif
@@ -294,10 +301,12 @@ namespace Puerts
                     string exceptionInfo = PuertsDLL.GetLastExceptionInfo(isolate);
                     throw new Exception(exceptionInfo);
                 }
-                ModuleExecutor = new GenericDelegate(ptr, this);
+                ModuleExecutor = new GenericDelegate(ptr, this, "ModuleExecutor");
             }
             JSObject jso = ModuleExecutor.Func<string, JSObject>(specifier);
-            
+
+            if (exportee == "") return (T)(object)jso;
+
             return jso.Get<T>(exportee);
         }
         public JSObject ExecuteModule(string specifier)
@@ -310,7 +319,7 @@ namespace Puerts
                     string exceptionInfo = PuertsDLL.GetLastExceptionInfo(isolate);
                     throw new Exception(exceptionInfo);
                 }
-                ModuleExecutor = new GenericDelegate(ptr, this);
+                ModuleExecutor = new GenericDelegate(ptr, this, "ModuleExecutor");
             }
             return ModuleExecutor.Func<string, JSObject>(specifier);
         }
@@ -473,7 +482,7 @@ namespace Puerts
                 }
 
                 IntPtr fn = IntPtr.Zero;
-                var value1 = PuertsDLL.GetArgumentValue(info, 0);
+                var value1 = PuertsDLL.GetArgumentValue(isolate, info, 0);
                 if (PuertsDLL.GetJsValueType(isolate, value1, false) == JsValueType.Function)
                 {
                     fn = PuertsDLL.GetFunctionFromValue(isolate, value1, false);
@@ -496,7 +505,7 @@ namespace Puerts
         Type GetTypeFromJs(IntPtr isolate, IntPtr info, IntPtr self, int paramLen)
         {
             Type type = null;
-            var value = PuertsDLL.GetArgumentValue(info, 0);
+            var value = PuertsDLL.GetArgumentValue(isolate, info, 0);
             if (PuertsDLL.GetJsValueType(isolate, value, false) == JsValueType.String)
             {
                 string classFullName = PuertsDLL.GetStringFromValue(isolate, value, false);
@@ -512,7 +521,7 @@ namespace Puerts
                     var genericArguments = new Type[paramLen - 1];
                     for (int i = 1; i < paramLen; i++)
                     {
-                        value = PuertsDLL.GetArgumentValue(info, i);
+                        value = PuertsDLL.GetArgumentValue(isolate, info, i);
                         if (PuertsDLL.GetJsValueType(isolate, value, false) != JsValueType.Function) return null;
                         var argTypeId = PuertsDLL.GetTypeIdFromValue(isolate, value, false);
                         if (argTypeId == -1) return null;
@@ -536,17 +545,17 @@ namespace Puerts
                 if (paramLen < 3) {
                     throw new Exception("invalid arguments length");
                 }
-                var csTypeJSValue = PuertsDLL.GetArgumentValue(info, 0);
+                var csTypeJSValue = PuertsDLL.GetArgumentValue(isolate, info, 0);
                 if (PuertsDLL.GetJsValueType(isolate, csTypeJSValue, false) != JsValueType.NativeObject) {
                     throw new Exception("the class must be a constructor");
                 }
                 Type type = StaticTranslate<Type>.Get(Index, isolate, NativeValueApi.GetValueFromArgument, csTypeJSValue, false);
-                string methodName = PuertsDLL.GetStringFromValue(isolate, PuertsDLL.GetArgumentValue(info, 1), false);
+                string methodName = PuertsDLL.GetStringFromValue(isolate, PuertsDLL.GetArgumentValue(isolate, info, 1), false);
                 
                 var genericArguments = new Type[paramLen - 2];
                 for (int i = 2; i < paramLen; i++)
                 {
-                    var value = PuertsDLL.GetArgumentValue(info, i);
+                    var value = PuertsDLL.GetArgumentValue(isolate, info, i);
                     if (PuertsDLL.GetJsValueType(isolate, value, false) != JsValueType.Function) 
                     {
                         throw new Exception("invalid Type for generic arguments " + (i - 2));

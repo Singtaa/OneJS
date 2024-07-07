@@ -55,9 +55,9 @@ namespace Puerts
                 method = method.MakeGenericMethod(constraintedArgumentTypes);
             }
 
-            if (method.IsSpecialName && method.Name.StartsWith("get_") && method.GetParameters().Length != 1) // getter of property
+            if (method.IsSpecialName && methodKey.Name.StartsWith("get_") && method.GetParameters().Length == 0) // getter of property
             {
-                string propName = method.Name.Substring(4);
+                string propName = methodKey.Name.Substring(4);
                 if (isNoRegisterInfoAndAllowSlowBinding || needFillSlowBindingProperty.Contains(propName))
                 {
                     PropertyMethods properyMethods;
@@ -69,9 +69,9 @@ namespace Puerts
                     properyMethods.Getter = method;
                 }
             }
-            else if (method.IsSpecialName && method.Name.StartsWith("set_") && method.GetParameters().Length != 2) // setter of property
+            else if (method.IsSpecialName && methodKey.Name.StartsWith("set_") && method.GetParameters().Length == 1) // setter of property
             {
-                string propName = method.Name.Substring(4);
+                string propName = methodKey.Name.Substring(4);
                 if (isNoRegisterInfoAndAllowSlowBinding || needFillSlowBindingProperty.Contains(propName))
                 {
                     PropertyMethods properyMethods;
@@ -88,6 +88,14 @@ namespace Puerts
                 if (isNoRegisterInfoAndAllowSlowBinding || needFillSlowBindingMethod.Contains(methodKey.Name))
                 {
                     List<MethodInfo> overloads;
+                    if (methodKey.IsExtension)
+                    {
+                        MethodKey tmp = new MethodKey { Name = methodKey.Name, IsStatic = false, IsExtension = false };
+                        if (slowBindingMethodGroup.ContainsKey(tmp))
+                        {
+                            methodKey = tmp;
+                        }
+                    }
                     if (!slowBindingMethodGroup.TryGetValue(methodKey, out overloads))
                     {
                         overloads = new List<MethodInfo>();
@@ -149,7 +157,7 @@ namespace Puerts
                 {
                     return (IntPtr isolate, IntPtr info, IntPtr self, int argumentsLen) =>
                     {
-                        var valuePtr = PuertsDLL.GetArgumentValue(info, 0);
+                        var valuePtr = PuertsDLL.GetArgumentValue(isolate, info, 0);
                         var valueType = PuertsDLL.GetJsValueType(isolate, valuePtr, false);
                         object value = null;
                         if (
@@ -179,7 +187,7 @@ namespace Puerts
                 {
                     return (IntPtr isolate, IntPtr info, IntPtr self, int argumentsLen) =>
                     {
-                        var valuePtr = PuertsDLL.GetArgumentValue(info, 0);
+                        var valuePtr = PuertsDLL.GetArgumentValue(isolate, info, 0);
                         var valueType = PuertsDLL.GetJsValueType(isolate, valuePtr, false);
                         object value = null;
                         if (
@@ -230,7 +238,7 @@ namespace Puerts
                 try
                 {
                     Array array = jsEnv.GeneralGetterManager.GetSelf(jsEnv.Idx, self) as Array;
-                    uint index = (uint)PuertsDLL.GetNumberFromValue(isolate1, PuertsDLL.GetArgumentValue(info, 0), false);
+                    uint index = (uint)PuertsDLL.GetNumberFromValue(isolate1, PuertsDLL.GetArgumentValue(isolate, info, 0), false);
                     if (FastArrayGet(isolate1, info, self, array, index)) return;
                     var transalteFunc = jsEnv.GeneralSetterManager.GetTranslateFunc(array.GetType().GetElementType());
                     transalteFunc(jsEnv.Idx, isolate1, NativeValueApi.SetValueToResult, info, array.GetValue((int)index));
@@ -246,8 +254,8 @@ namespace Puerts
                 try
                 {
                     Array array = jsEnv.GeneralGetterManager.GetSelf(jsEnv.Idx, self) as Array;
-                    uint index = (uint)PuertsDLL.GetNumberFromValue(isolate1, PuertsDLL.GetArgumentValue(info, 0), false);
-                    var val = PuertsDLL.GetArgumentValue(info, 1);
+                    uint index = (uint)PuertsDLL.GetNumberFromValue(isolate1, PuertsDLL.GetArgumentValue(isolate, info, 0), false);
+                    var val = PuertsDLL.GetArgumentValue(isolate, info, 1);
                     if (FastArraySet(isolate1, info, self, array, index, val)) return;
                     var transalteFunc = jsEnv.GeneralGetterManager.GetTranslateFunc(array.GetType().GetElementType());
                     array.SetValue(transalteFunc(jsEnv.Idx, isolate1, NativeValueApi.GetValueFromArgument, val, false), index);
@@ -568,6 +576,26 @@ namespace Puerts
                     if (field.IsStatic && (field.IsInitOnly || field.IsLiteral))
                     {
                         readonlyStaticFields.Add(field.Name);
+                    }
+                }
+            }
+
+            foreach(var prop in type.GetProperties(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+            {
+                int dotPos = prop.Name.LastIndexOf('.');
+                if (prop.Attributes == PropertyAttributes.None && dotPos != -1)
+                {
+                    var typeNameWithDot = prop.Name.Substring(0, dotPos + 1);
+                    var propName = prop.Name.Substring(dotPos + 1);
+                    var getter = type.GetMethod(typeNameWithDot + "get_" + propName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+                    if (getter != null && !getter.IsGenericMethodDefinition && !getter.IsAbstract)
+                    {
+                        sbr.AddMethod(new MethodKey { Name = "get_" + propName, IsStatic = false }, getter);
+                    }
+                    var setter = type.GetMethod(typeNameWithDot + "set_" + propName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+                    if (setter != null && !setter.IsGenericMethodDefinition && !setter.IsAbstract)
+                    {
+                        sbr.AddMethod(new MethodKey { Name = "set_" + propName, IsStatic = false }, setter);
                     }
                 }
             }

@@ -1,5 +1,5 @@
 {
-    "name": "OneJSEditor",
+    "name": "OneJS.Editor",
     "rootNamespace": "",
     "references": [
         "GUID:7e70ddc105ff1234a8102f95cc3a9aa6",

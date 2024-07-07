@@ -47,7 +47,7 @@ namespace OneJS.Editor {
             var processName = "vscode";
 #else
             var processName = "unknown";
-            Debug.LogWarning("Unknown platform. Cannot open VSCode folder");
+            UnityEngine.Debug.LogWarning("Unknown platform. Cannot open VSCode folder");
             return;
 #endif
             var argStr = $"\"{Path.GetFullPath(path)}\"";
