@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -229,7 +230,7 @@ namespace OneJS.Engine {
             int b = Convert.ToInt32(hexValue.Substring(4, 2), 16);
             float a = Convert.ToInt32(hexValue.Substring(6, 2), 16) / 255f;
 
-            return $": rgba({r}, {g}, {b}, {a:F2})";
+            return $": rgba({r}, {g}, {b}, {a.ToString("F2", CultureInfo.InvariantCulture)})";
         }
     }
 }
