@@ -1,4 +1,10 @@
-﻿## [2024-02-08] v1.6.10 - Bugfixes and Improvements
+﻿## [2024-07-08] v1.6.13 - Preact 10.21
+
+* Updated Preact to 10.21
+* CultureInfo.InvariantCulture fix for HexMatchToRgba()
+* Add AddRuntime* APIs for ScriptEngine
+
+## [2024-02-08] v1.6.10 - Bugfixes and Improvements
 
 OneJS V2 is coming! Get in our Discord server and private repo to follow the progress.
 
