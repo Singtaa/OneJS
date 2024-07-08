@@ -41,10 +41,8 @@ namespace OneJS.Editor {
         public static void VSCodeOpenDir(string path) {
 #if UNITY_STANDALONE_WIN
             var processName = GetCodeExecutablePathOnWindows();
-#elif UNITY_STANDALONE_OSX
-            var processName = "/usr/local/bin/code";
-#elif UNITY_STANDALONE_LINUX
-            var processName = "vscode";
+#elif UNITY_STANDALONE_OSX || UNITY_STANDALONE_LINUX
+            var processName = GetCodeExecutablePathOnUnix();
 #else
             var processName = "unknown";
             UnityEngine.Debug.LogWarning("Unknown platform. Cannot open VSCode folder");
@@ -81,6 +79,33 @@ namespace OneJS.Editor {
             if (pathEnvironmentVariable != null) {
                 foreach (var path in pathEnvironmentVariable.Split(Path.PathSeparator)) {
                     string fullPath = Path.Combine(path, "code.exe");
+                    if (File.Exists(fullPath)) {
+                        return fullPath;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        static string GetCodeExecutablePathOnUnix() {
+            string[] possiblePaths = new string[] {
+                "/usr/local/bin/code",
+                "/usr/bin/code",
+                "/snap/bin/code"
+            };
+
+            foreach (var path in possiblePaths) {
+                if (File.Exists(path)) {
+                    return path;
+                }
+            }
+
+            // Additional search in PATH environment variable
+            string pathEnvironmentVariable = Environment.GetEnvironmentVariable("PATH");
+            if (pathEnvironmentVariable != null) {
+                foreach (var path in pathEnvironmentVariable.Split(Path.PathSeparator)) {
+                    string fullPath = Path.Combine(path, "code");
                     if (File.Exists(fullPath)) {
                         return fullPath;
                     }
