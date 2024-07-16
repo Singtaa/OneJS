@@ -35,7 +35,39 @@ namespace OneJS.Editor {
             if (GUILayout.Button(new GUIContent("Open VSCode", "Opens the Working Directory with VSCode"), GUILayout.Height(30))) {
                 VSCodeOpenDir(scriptEngine.WorkingDir);
             }
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button(new GUIContent("Project Dir", "Opens the Project Directory in Explorer or Finder"), GUILayout.Height(30))) {
+                OpenDir(Path.GetDirectoryName(Application.dataPath));
+            }
+            if (GUILayout.Button(new GUIContent("Persistent Data Path", "Opens the PersistentData Directory in Explorer or Finder"), GUILayout.Height(30))) {
+                OpenDir(Application.persistentDataPath);
+            }
+            GUILayout.EndHorizontal();
             serializedObject.ApplyModifiedProperties();
+        }
+
+        static void OpenDir(string path) {
+#if UNITY_STANDALONE_WIN
+            var processName = "explorer.exe";
+#elif UNITY_STANDALONE_OSX
+            var processName = "open";
+#elif UNITY_STANDALONE_LINUX
+            var processName = "xdg-open";
+#else
+            var processName = "unknown";
+            Debug.LogWarning("Unknown platform. Cannot open folder");
+#endif
+            var argStr = $"\"{Path.GetFullPath(path)}\"";
+            var proc = new Process() {
+                StartInfo = new ProcessStartInfo() {
+                    FileName = processName,
+                    Arguments = argStr,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true,
+                },
+            };
+            proc.Start();
         }
 
         public static void VSCodeOpenDir(string path) {
