@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using ExCSS;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace OneJS.CustomStyleSheets {
     public enum URIValidationResult {
@@ -69,7 +71,10 @@ namespace OneJS.CustomStyleSheets {
             }
         }
 
-        public StyleValueImporter() {
+        ScriptEngine _scriptEngine;
+
+        public StyleValueImporter(ScriptEngine scriptEngine) {
+            _scriptEngine = scriptEngine;
             this.m_AssetPath = (string)null;
             this.m_Parser = new ExCSS.Parser();
             this.m_Builder = new StyleSheetBuilderWrapper();
@@ -90,6 +95,27 @@ namespace OneJS.CustomStyleSheets {
         }
 
         protected void VisitUrlFunction(PrimitiveTerm term) {
+            string path = (string)term.Value;
+            var workingDir = _scriptEngine.WorkingDir;
+            var fullpath = Path.Combine(workingDir, path);
+            if (File.Exists(fullpath)) {
+                // test path ends in .jpg or .png
+                if (path.EndsWith(".jpg") || path.EndsWith(".png")) {
+                    Texture2D tex = new Texture2D(2, 2);
+                    tex.LoadImage(File.ReadAllBytes(fullpath));
+                    tex.filterMode = FilterMode.Bilinear;
+
+                    m_Builder.AddValue(tex);
+
+                    // TODO ScalableImage with @2x
+                } else if (path.EndsWith(".ttf")) {
+                    Font font = new Font(fullpath);
+                    m_Builder.AddValue(font);
+                } else {
+                    m_Errors.AddSemanticError(StyleSheetImportErrorCode.InvalidURILocation,
+                        string.Format(StyleValueImporter.glossary.invalidUriLocation, path), m_CurrentLine);
+                }
+            }
         }
 
         protected void VisitValue(Term term) {
@@ -169,8 +195,8 @@ namespace OneJS.CustomStyleSheets {
                     (float)htmlColor.A / (float)byte.MaxValue));
             else if (genericFunction != null) {
                 if (genericFunction.Name == "resource") {
-                    // this.VisitResourceFunction(genericFunction);
-                    throw new Exception("resource() Not Implemented");
+                    this.VisitResourceFunction(genericFunction);
+                    // throw new Exception("resource() Not Implemented");
                 } else {
                     StyleValueFunction func;
                     if (!this.ValidateFunction(genericFunction, out func))

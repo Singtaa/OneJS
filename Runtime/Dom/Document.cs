@@ -57,7 +57,7 @@ namespace OneJS.Dom {
 
         public void addRuntimeUSS(string uss) {
             var ss = ScriptableObject.CreateInstance<StyleSheet>();
-            var builder = new OneJS.CustomStyleSheets.CustomStyleSheetImporterImpl();
+            var builder = new OneJS.CustomStyleSheets.CustomStyleSheetImporterImpl(_scriptEngine);
             builder.BuildStyleSheet(ss, uss);
             if (builder.importErrors.hasErrors) {
                 Debug.LogError($"Runtime USS Error(s)");

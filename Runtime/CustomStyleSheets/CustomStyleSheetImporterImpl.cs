@@ -8,6 +8,9 @@ using Object = UnityEngine.Object;
 
 namespace OneJS.CustomStyleSheets {
     public class CustomStyleSheetImporterImpl : StyleValueImporter {
+        public CustomStyleSheetImporterImpl(ScriptEngine scriptEngine) : base(scriptEngine) {
+        }
+
         public void BuildStyleSheet(UnityEngine.UIElements.StyleSheet asset, string contents) {
             ExCSS.StyleSheet styleSheet = this.m_Parser.Parse(contents);
             this.ImportParserStyleSheet(asset, styleSheet);

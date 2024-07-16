@@ -81,6 +81,12 @@ namespace OneJS.CustomStyleSheets {
                 new[] { typeof(Color) });
             methodInfo.Invoke(_instance, new object[] { color });
         }
+        
+        public void AddValue(UnityEngine.Object value) {
+            var methodInfo = _type.GetMethod("AddValue",
+                new[] { typeof(UnityEngine.Object) });
+            methodInfo.Invoke(_instance, new object[] { value });
+        }
 
         public void AddValue(Dimension dimension) {
             var methodInfo = _type.GetMethod("AddValue",
