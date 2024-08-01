@@ -7,7 +7,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace OneJS {
-    [RequireComponent(typeof(UIDocument))]
+    [RequireComponent(typeof(UIDocument))] [AddComponentMenu("OneJS/ScriptEngine")]
     public class ScriptEngine : MonoBehaviour, IScriptEngine {
         public int Tick => _tick;
 
@@ -136,7 +136,7 @@ namespace OneJS {
             styleSheets.ToList().ForEach(s => _uiDocument.rootVisualElement.styleSheets.Add(s));
             _document = new Document(_uiDocument.rootVisualElement, this);
             _addToGlobal = _jsEnv.Eval<System.Action<string, object>>(@"__addToGlobal");
-            _addToGlobal("document", _document);
+            _addToGlobal("___document", _document);
             _addToGlobal("resource", _resource);
             _addToGlobal("onejs", _engineHost);
             foreach (var obj in globalObjects) {

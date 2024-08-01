@@ -36,7 +36,7 @@ namespace OneJS.Editor {
 
         private void ProcessScene(Scene scene) {
             foreach (var obj in scene.GetRootGameObjects()) {
-                var initializers = obj.GetComponentsInChildren<Initializer>();
+                var initializers = obj.GetComponentsInChildren<Bundler>();
                 foreach (var initializer in initializers) {
                     if (initializer.enabled && initializer.gameObject.activeInHierarchy)
                         initializer.PackageOutputsZip();

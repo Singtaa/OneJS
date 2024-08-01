@@ -32,6 +32,10 @@ namespace OneJS.Editor {
             EditorGUILayout.PropertyField(_preloads, new GUIContent("Preloads"));
             EditorGUILayout.PropertyField(_globalObjects, new GUIContent("Global Objects"));
             EditorGUILayout.PropertyField(_styleSheets, new GUIContent("Style Sheets"));
+            EditorGUILayout.Space(10);
+            GUILayout.BeginHorizontal();
+
+            GUILayout.BeginVertical();
             if (GUILayout.Button(new GUIContent("Open VSCode", "Opens the Working Directory with VSCode"), GUILayout.Height(30))) {
                 VSCodeOpenDir(scriptEngine.WorkingDir);
             }
@@ -42,6 +46,17 @@ namespace OneJS.Editor {
             if (GUILayout.Button(new GUIContent("Persistent Data Path", "Opens the PersistentData Directory in Explorer or Finder"), GUILayout.Height(30))) {
                 OpenDir(Application.persistentDataPath);
             }
+            GUILayout.EndHorizontal();
+            GUILayout.EndVertical();
+
+            var generator = scriptEngine.GetComponent<DTSGenerator>();
+            if (generator != null && GUILayout.Button(new GUIContent("Generate DTS", "Generate TS Definitions"), GUILayout.ExpandHeight(true))) {
+                var editor = CreateEditor(generator);
+                if (editor is DTSGeneratorEditor generatorEditor) {
+                    generatorEditor.Generate();
+                }
+            }
+
             GUILayout.EndHorizontal();
             serializedObject.ApplyModifiedProperties();
         }

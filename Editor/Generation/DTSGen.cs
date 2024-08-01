@@ -5,9 +5,10 @@ using System.Linq;
 using System.Reflection;
 using Puerts;
 using Puerts.Editor.Generator.DTS;
+using UnityEngine;
 
 namespace OneJS.Editor {
-    public class DTSGenerator {
+    public class DTSGen : MonoBehaviour {
         public static Type[] GetTypes(Assembly[] assemblies, string[] namespaces) {
             var types = assemblies.SelectMany(a => a.GetTypes())
                 .Where(t => !t.IsGenericTypeDefinition && !t.IsNestedPrivate && t.IsPublic && namespaces.Contains(t.Namespace))

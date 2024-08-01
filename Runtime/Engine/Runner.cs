@@ -8,7 +8,7 @@ namespace OneJS {
     /// Executes and optionally live-reloads an entry file, while managing scene-related GameObject cleanups.
     /// </summary>
     [DefaultExecutionOrder(100)]
-    [RequireComponent(typeof(ScriptEngine))]
+    [RequireComponent(typeof(ScriptEngine))] [AddComponentMenu("OneJS/Runner")]
     public class Runner : MonoBehaviour {
         [Tooltip("The entry file to run. Relative to the OneJS WorkingDir.")]
         public string entryFile = "@outputs/esbuild/app.js";

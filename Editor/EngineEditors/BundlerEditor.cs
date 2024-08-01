@@ -3,24 +3,24 @@ using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace OneJS.Editor {
-    [CustomEditor(typeof(Initializer))]
+    [CustomEditor(typeof(Bundler))]
     [CanEditMultipleObjects]
-    public class InitializerEditor : UnityEditor.Editor {
+    public class BundlerEditor : UnityEditor.Editor {
         SerializedProperty _defaultFiles;
         SerializedProperty _directoriesToPackage;
-        SerializedProperty _onejsCoreZip;
+        // SerializedProperty _onejsCoreZip;
         SerializedProperty _outputsZip;
 
         SerializedProperty _version;
         SerializedProperty _forceExtract;
         SerializedProperty _ignoreList;
 
-        bool showAssets;
+        // bool showAssets;
 
         void OnEnable() {
             _defaultFiles = serializedObject.FindProperty("defaultFiles");
             _directoriesToPackage = serializedObject.FindProperty("directoriesToPackage");
-            _onejsCoreZip = serializedObject.FindProperty("onejsCoreZip");
+            // _onejsCoreZip = serializedObject.FindProperty("onejsCoreZip");
             _outputsZip = serializedObject.FindProperty("outputsZip");
 
             _version = serializedObject.FindProperty("version");
@@ -29,7 +29,7 @@ namespace OneJS.Editor {
         }
 
         public override void OnInspectorGUI() {
-            var initializer = target as Initializer;
+            var initializer = target as Bundler;
             serializedObject.Update();
             EditorGUILayout.HelpBox("Sets up OneJS for first-time use by creating essential files in the WorkingDir if they are missing. Also takes care of bundling and extraction for Standalone Player.", MessageType.None);
 
@@ -37,7 +37,7 @@ namespace OneJS.Editor {
             EditorGUILayout.PropertyField(_version, new GUIContent("Version"));
             EditorGUILayout.PropertyField(_forceExtract, new GUIContent("Force Extract"));
             EditorGUILayout.PropertyField(_directoriesToPackage, new GUIContent("Directories to Package"));
-            EditorGUILayout.PropertyField(_onejsCoreZip, new GUIContent("onejs-core.tgz"));
+            // EditorGUILayout.PropertyField(_onejsCoreZip, new GUIContent("onejs-core.tgz"));
             EditorGUILayout.PropertyField(_outputsZip, new GUIContent("outputs.tgz"));
             EditorGUILayout.PropertyField(_ignoreList, new GUIContent("Ignore List"));
 

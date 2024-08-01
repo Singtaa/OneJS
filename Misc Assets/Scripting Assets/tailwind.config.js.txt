@@ -1,5 +1,5 @@
 const plugin = require("tailwindcss/plugin")
-const { theme, paths, plugins: onejsPlugins, corePlugins } = require('./onejs-core/onejs-tw-config.cjs')
+const { theme, paths, plugins: onejsPlugins, corePlugins } = require('onejs-core/onejs-tw-config.cjs')
 
 
 module.exports = {

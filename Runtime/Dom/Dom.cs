@@ -29,6 +29,8 @@ namespace OneJS.Dom {
 
         public Dom nextSibling { get { return _nextSibling; } }
 
+        public int nodeType => _nodeType;
+
         /// <summary>
         /// ECMA Compliant id property, stored in the VE.name
         /// </summary>
@@ -74,6 +76,7 @@ namespace OneJS.Dom {
         string _key;
         Dom _parentNode;
         Dom _nextSibling;
+        int _nodeType;
         object _value;
         bool _checked;
         object _data;
@@ -148,11 +151,7 @@ namespace OneJS.Dom {
         }
 
         public void _addToListeners(string name, EventCallback<EventBase> callback) {
-            if (__listeners.ContainsKey(name)) {
-                __listeners[name] = callback;
-            } else {
-                __listeners.Add(name, callback);
-            }
+            __listeners[name] = callback;
         }
 
         public EventCallback<EventBase> _getFromListeners(string name) {

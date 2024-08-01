@@ -101,6 +101,10 @@ namespace OneJS.Dom {
             return createElement(tagName);
         }
 
+        public Dom createElementNS(string ns, string tagName, ElementCreationOptions options) { // namespace currently not used
+            return createElement(tagName);
+        }
+
         public Dom createTextNode(string text) {
             var tn = new TextElement();
             tn.text = text;

@@ -15,15 +15,15 @@ namespace OneJS {
     /// Sets up OneJS for first time use. It creates essential files in the WorkingDir if they are missing.
     /// </summary>
     [DefaultExecutionOrder(-50)]
-    [RequireComponent(typeof(ScriptEngine))]
-    public class Initializer : MonoBehaviour {
+    [RequireComponent(typeof(ScriptEngine))] [AddComponentMenu("OneJS/Bundler")]
+    public class Bundler : MonoBehaviour {
         [PairMapping("path", "textAsset", ":")]
         public DefaultFileMapping[] defaultFiles;
 
         [Tooltip("Directories to package for production. Must be names for root directories.")] [PlainString]
         public string[] directoriesToPackage = new string[] { "assets" };
-        [Tooltip("The packaged onejs-core folder (as a tarball).")]
-        public TextAsset onejsCoreZip;
+        // [Tooltip("The packaged onejs-core folder (as a tarball).")]
+        // public TextAsset onejsCoreZip;
         [Tooltip("The packaged @outputs folder (as a tarball).")]
         public TextAsset outputsZip;
 
@@ -35,7 +35,7 @@ namespace OneJS {
         public string[] ignoreList = new string[] { "tsc", "editor" };
 
         ScriptEngine _engine;
-        string _onejsVersion = "2.0.17";
+        string _onejsVersion = "2.0.21";
 
         void Awake() {
             _engine = GetComponent<ScriptEngine>();
@@ -56,7 +56,7 @@ namespace OneJS {
             }
 
             WriteToPackageJson();
-            ExtractOnejsCoreIfNotFound();
+            // ExtractOnejsCoreIfNotFound();
             ExtractOutputsIfNotFound();
 #endif
         }
@@ -95,15 +95,15 @@ namespace OneJS {
             return Directory.GetParent(path)?.FullName;
         }
 
-        public void ExtractOnejsCoreIfNotFound() {
-            _engine = GetComponent<ScriptEngine>();
-            var path = Path.Combine(_engine.WorkingDir, "onejs-core");
-            if (Directory.Exists(path))
-                return;
-
-            Extract(onejsCoreZip.bytes);
-            Debug.Log($"An existing 'onejs-core' directory wasn't found. A new one was created ({path})");
-        }
+        // public void ExtractOnejsCoreIfNotFound() {
+        //     _engine = GetComponent<ScriptEngine>();
+        //     var path = Path.Combine(_engine.WorkingDir, "onejs-core");
+        //     if (Directory.Exists(path))
+        //         return;
+        //
+        //     Extract(onejsCoreZip.bytes);
+        //     Debug.Log($"An existing 'onejs-core' directory wasn't found. A new one was created ({path})");
+        // }
 
         public void ExtractOutputsIfNotFound() {
             _engine = GetComponent<ScriptEngine>();
@@ -172,36 +172,36 @@ namespace OneJS {
 
 #if UNITY_EDITOR
 
-        [ContextMenu("Package onejs-core.tgz")]
-        void PackageOnejsCoreZip() {
-            _engine = GetComponent<ScriptEngine>();
-            var t = DateTime.Now;
-            var path = Path.Combine(_engine.WorkingDir, "onejs-core");
-
-            if (onejsCoreZip == null) {
-                EditorUtility.DisplayDialog("onejs-core.tgz is null",
-                    "Please make sure you have a onejs-core.tgz (Text Asset) set", "Okay");
-                return;
-            }
-            if (EditorUtility.DisplayDialog("Are you sure?",
-                    "This will package up your onejs-core folder under ScriptEngine.WorkingDir into a tgz file " +
-                    "and override your existing onejs-core.tgz file.",
-                    "Confirm", "Cancel")) {
-                var binPath = AssetDatabase.GetAssetPath(onejsCoreZip);
-                binPath = Path.GetFullPath(Path.Combine(Application.dataPath, @".." + Path.DirectorySeparatorChar, binPath));
-                var outStream = File.Create(binPath);
-                var gzoStream = new GZipOutputStream(outStream);
-                gzoStream.SetLevel(3);
-                var tarOutputStream = new TarOutputStream(gzoStream);
-                var tarCreator = new TarCreator(path, _engine.WorkingDir) {
-                    IgnoreList = new[] { "**/node_modules", "**/.prettierrc", "**/jsr.json", "**/package.json", "**/tsconfig.json", "**/README.md" }
-                };
-                tarCreator.CreateTar(tarOutputStream);
-
-                Debug.Log($"onejs-core.tgz.bytes file updated. {tarOutputStream.Length} bytes {(DateTime.Now - t).TotalMilliseconds}ms");
-                tarOutputStream.Close();
-            }
-        }
+        // [ContextMenu("Package onejs-core.tgz")]
+        // void PackageOnejsCoreZip() {
+        //     _engine = GetComponent<ScriptEngine>();
+        //     var t = DateTime.Now;
+        //     var path = Path.Combine(_engine.WorkingDir, "onejs-core");
+        //
+        //     if (onejsCoreZip == null) {
+        //         EditorUtility.DisplayDialog("onejs-core.tgz is null",
+        //             "Please make sure you have a onejs-core.tgz (Text Asset) set", "Okay");
+        //         return;
+        //     }
+        //     if (EditorUtility.DisplayDialog("Are you sure?",
+        //             "This will package up your onejs-core folder under ScriptEngine.WorkingDir into a tgz file " +
+        //             "and override your existing onejs-core.tgz file.",
+        //             "Confirm", "Cancel")) {
+        //         var binPath = AssetDatabase.GetAssetPath(onejsCoreZip);
+        //         binPath = Path.GetFullPath(Path.Combine(Application.dataPath, @".." + Path.DirectorySeparatorChar, binPath));
+        //         var outStream = File.Create(binPath);
+        //         var gzoStream = new GZipOutputStream(outStream);
+        //         gzoStream.SetLevel(3);
+        //         var tarOutputStream = new TarOutputStream(gzoStream);
+        //         var tarCreator = new TarCreator(path, _engine.WorkingDir) {
+        //             IgnoreList = new[] { "**/node_modules", "**/.prettierrc", "**/jsr.json", "**/package.json", "**/tsconfig.json", "**/README.md" }
+        //         };
+        //         tarCreator.CreateTar(tarOutputStream);
+        //
+        //         Debug.Log($"onejs-core.tgz.bytes file updated. {tarOutputStream.Length} bytes {(DateTime.Now - t).TotalMilliseconds}ms");
+        //         tarOutputStream.Close();
+        //     }
+        // }
 
         [ContextMenu("Package outputs.tgz")]
         public void PackageOutputsZipWithPrompt() {
