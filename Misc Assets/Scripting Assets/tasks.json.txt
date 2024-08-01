@@ -34,8 +34,8 @@
                 ],
                 "background": {
                     "activeOnStart": true,
-                    "beginsPattern": "\\[watch\\] build started",
-                    "endsPattern": "\\[watch\\] build finished"
+                    "beginsPattern": "\\[esbuild\\] starting build...",
+                    "endsPattern": "\\[esbuild\\] watching..."
                 }
             }
         },
@@ -54,7 +54,7 @@
             "problemMatcher": {
                 "pattern": [
                     {
-                        "regexp": "^CssSyntaxError: tailwindcss: (.*):(\\d+):(\\d+): (.+)$",
+                        "regexp": "^CssSyntaxError: (.*):(\\d+):(\\d+): (.+)$",
                         "file": 1,
                         "line": 2,
                         "column": 3,
@@ -63,8 +63,8 @@
                 ],
                 "background": {
                     "activeOnStart": true,
-                    "beginsPattern": "^Rebuilding\\.\\.\\..*",
-                    "endsPattern": "^Done in .*$"
+                    "beginsPattern": "\\[tailwindcss\\] compiler started...",
+                    "endsPattern": "\\[tailwindcss\\] watching..."
                 }
             }
         },

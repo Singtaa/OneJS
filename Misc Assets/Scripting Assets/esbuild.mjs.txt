@@ -3,21 +3,18 @@
  */
 import glob from "tiny-glob"
 import * as esbuild from "esbuild"
-import { importTransformPlugin } from "./onejs-core/import-transform.mjs"
+import { importTransformPlugin, watchOutputPlugin } from "onejs-core/import-transform.mjs"
 
 let mainCtx = await esbuild.context({
 	entryPoints: ["@outputs/tsc/index.js"],
 	bundle: true,
-	alias: {
-		react: "./onejs-core/3rdparty/preact/compat/index.ts",
-		"react-dom": "./onejs-core/3rdparty/preact/compat/index.ts",
-	},
-	plugins: [importTransformPlugin],
-	// external: ['puerts', 'UnityEngine'],
+	plugins: [importTransformPlugin, watchOutputPlugin],
+	inject: ["onejs-core/dist/index.js"],
 	outfile: "@outputs/esbuild/app.js",
 });
 
 await mainCtx.watch();
+console.log("Watching for changes...");
 
 /**
  * The following is for watching editor scripting files, such as custom inspectors.
