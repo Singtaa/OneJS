@@ -20,7 +20,7 @@ namespace OneJS {
         [PairMapping("path", "textAsset", ":")]
         public DefaultFileMapping[] defaultFiles;
 
-        [Tooltip("Directories to package for production. Must be names for root directories.")] [PlainString]
+        [Tooltip("Directories to package for production. Must be names for root directories under WorkingDir.")] [PlainString]
         public string[] directoriesToPackage = new string[] { "assets" };
         // [Tooltip("The packaged onejs-core folder (as a tarball).")]
         // public TextAsset onejsCoreZip;

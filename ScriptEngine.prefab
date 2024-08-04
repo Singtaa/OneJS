@@ -130,7 +130,8 @@ MonoBehaviour:
     textAsset: {fileID: 4900000, guid: 52e47ed3edef6754dab890d08d8b12b5, type: 3}
   - path: tsconfig.json
     textAsset: {fileID: 4900000, guid: b181bd048b43f5a4cb876f704b8f39bb, type: 3}
-  directoriesToPackage: []
+  directoriesToPackage:
+  - assets
   outputsZip: {fileID: 4900000, guid: f7502ff07da261a46bd9bc5fdfc641f1, type: 3}
   version: 1.0
   forceExtract: 1

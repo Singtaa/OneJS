@@ -50,7 +50,7 @@ namespace OneJS.Editor {
             GUILayout.EndVertical();
 
             var generator = scriptEngine.GetComponent<DTSGenerator>();
-            if (generator != null && GUILayout.Button(new GUIContent("Generate DTS", "Generate TS Definitions"), GUILayout.ExpandHeight(true))) {
+            if (generator != null && GUILayout.Button(new GUIContent("Generate DTS", "Generate TS Definitions. Configurations are on the DTS Generator component beblow."), GUILayout.ExpandHeight(true))) {
                 var editor = CreateEditor(generator);
                 if (editor is DTSGeneratorEditor generatorEditor) {
                     generatorEditor.Generate();
