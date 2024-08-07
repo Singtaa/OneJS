@@ -35,7 +35,7 @@ namespace OneJS {
         public string[] ignoreList = new string[] { "tsc", "editor" };
 
         ScriptEngine _engine;
-        string _onejsVersion = "2.0.21";
+        string _onejsVersion = "2.0.22";
 
         void Awake() {
             _engine = GetComponent<ScriptEngine>();
@@ -54,6 +54,7 @@ namespace OneJS {
             foreach (var mapping in defaultFiles) {
                 CreateIfNotFound(mapping);
             }
+            CreateVSCodeSettingsJsonIfNotFound();
 
             WriteToPackageJson();
             // ExtractOnejsCoreIfNotFound();
@@ -84,11 +85,25 @@ namespace OneJS {
             Dictionary<string, object> jsonDict = JsonConvert.DeserializeObject<Dictionary<string, object>>(jsonString);
 
             jsonDict["onejs"] = new Dictionary<string, object> {
-                { "unityPackagePath", onejsPath }
+                { "unity-package-path", onejsPath }
             };
 
             string updatedJsonString = JsonConvert.SerializeObject(jsonDict, Formatting.Indented);
             File.WriteAllText(packageJsonPath, updatedJsonString);
+        }
+
+        void CreateVSCodeSettingsJsonIfNotFound() {
+            var path = Path.Combine(_engine.WorkingDir, ".vscode/settings.json");
+            // Create if path doesn't exist
+            if (!File.Exists(path)) {
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                var jsonDict = JsonConvert.DeserializeObject<Dictionary<string, object>>("{}");
+
+                jsonDict["window.title"] = Application.productName;
+
+                string updatedJsonString = JsonConvert.SerializeObject(jsonDict, Formatting.Indented);
+                File.WriteAllText(path, updatedJsonString);
+            }
         }
 
         string ParentFolder(string path) {

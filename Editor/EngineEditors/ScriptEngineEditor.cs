@@ -30,8 +30,8 @@ namespace OneJS.Editor {
             EditorGUILayout.PropertyField(_editorWorkingDirInfo, new GUIContent("Editor WorkingDir"));
             EditorGUILayout.PropertyField(_playerWorkingDirInfo, new GUIContent("Player WorkingDir"));
             EditorGUILayout.PropertyField(_preloads, new GUIContent("Preloads"));
-            EditorGUILayout.PropertyField(_globalObjects, new GUIContent("Global Objects"));
-            EditorGUILayout.PropertyField(_styleSheets, new GUIContent("Style Sheets"));
+            EditorGUILayout.PropertyField(_globalObjects, new GUIContent("Globals"));
+            EditorGUILayout.PropertyField(_styleSheets, new GUIContent("Stylesheets"));
             EditorGUILayout.Space(10);
             GUILayout.BeginHorizontal();
 

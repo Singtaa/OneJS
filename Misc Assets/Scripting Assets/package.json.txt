@@ -1,7 +1,7 @@
 ﻿{
     "scripts": {
         "setup": "npm install && tsc -p tsconfig.json",
-        "switch": "node node_modules/onejs-core/switch.cjs"
+        "switch": "node node_modules/onejs-core/scripts/switch.cjs"
     },
     "devDependencies": {
         "esbuild": "^0.20.0",
@@ -14,8 +14,8 @@
         "tiny-glob": "^0.2.9"
     },
     "dependencies": {
-        "onejs-core": "^0.3.7",
-        "onejs-preact": "^0.3.7",
+        "onejs-core": "^0.3.12",
+        "onejs-preact": "^0.3.12",
         "css-flatten": "^2.0.0",
         "css-simple-parser": "^3.0.0"
     }

@@ -1,5 +1,5 @@
 const tailwindcss = require('tailwindcss')
-const ussTransformPlugin = require('onejs-core/uss-transform-plugin.cjs')
+const ussTransformPlugin = require('onejs-core/scripts/uss-transform-plugin.cjs')
 
 // Custom logging plugin
 const loggingPlugin = {
