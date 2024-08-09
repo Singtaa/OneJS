@@ -1849,6 +1849,12 @@ namespace OneJS.Dom {
             } else if (value is double d) {
                 styleTranslate = new StyleTranslate(new Translate((float)d, (float)d));
                 return true;
+            } else if (value is Vector2 v2) {
+                styleTranslate = new StyleTranslate(new Translate(v2.x, v2.y));
+                return true;
+            } else if (value is Vector3 v3) {
+                styleTranslate = new StyleTranslate(new Translate(v3.x, v3.y));
+                return true;
             } else if (value is Puerts.JSObject jsObj && jsObj.Get<int>("length") == 2) {
                 var x = jsObj.Get<float>("0");
                 var y = jsObj.Get<float>("1");
