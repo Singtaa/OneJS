@@ -14,6 +14,8 @@ namespace OneJS {
             // "UnityEngine", "UnityEngine.UIElements", "Unity.Mathematics", "OneJS", "OneJS.Dom", "OneJS.Utils"
         };
         [PlainString]
+        public string[] whitelistedTypes = new string[] { };
+        [PlainString]
         public string[] blacklistedTypes = new string[] {
             // "UnityEngine.UIElements.ITransform", "UnityEngine.UIElements.ICustomStyle"
         };

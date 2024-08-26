@@ -17,6 +17,7 @@ namespace OneJS.Editor {
     public class DTSGeneratorEditor : UnityEditor.Editor {
         SerializedProperty _assemblies;
         SerializedProperty _namespaces;
+        SerializedProperty _whitelistedTypes;
         SerializedProperty _blacklistedTypes;
         SerializedProperty _savePath;
         SerializedProperty _compact;
@@ -25,6 +26,7 @@ namespace OneJS.Editor {
         void OnEnable() {
             _assemblies = serializedObject.FindProperty("assemblies");
             _namespaces = serializedObject.FindProperty("namespaces");
+            _whitelistedTypes = serializedObject.FindProperty("whitelistedTypes");
             _blacklistedTypes = serializedObject.FindProperty("blacklistedTypes");
             _savePath = serializedObject.FindProperty("savePath");
             _compact = serializedObject.FindProperty("compact");
@@ -37,6 +39,7 @@ namespace OneJS.Editor {
 
             EditorGUILayout.PropertyField(_assemblies, new GUIContent("Assemblies"));
             EditorGUILayout.PropertyField(_namespaces, new GUIContent("Namespaces"));
+            EditorGUILayout.PropertyField(_whitelistedTypes, new GUIContent("Whitelisted Types"));
             EditorGUILayout.PropertyField(_blacklistedTypes, new GUIContent("Blacklisted Types"));
             EditorGUILayout.PropertyField(_savePath, new GUIContent("Save Path"));
             EditorGUILayout.PropertyField(_compact, new GUIContent("Compact"));
@@ -72,6 +75,17 @@ namespace OneJS.Editor {
                 }
             }).Where(a => a != null).ToArray();
             var namespaces = _namespaces.ToStringArray();
+            var typesToAdd = _whitelistedTypes.ToStringArray().Select((t) => {
+                Type type = null;
+                foreach (Assembly assembly in assemblies) {
+                    type = assembly.GetType(t);
+                    if (type != null)
+                        break;
+                }
+                if (type == null)
+                    Debug.Log($"Could not load type \"{t}\". Please check your string(s) in the Whitelisted Types list.");
+                return type;
+            }).Where(t => t != null).ToArray();
             var typesToRemove = _blacklistedTypes.ToStringArray().Select((t) => {
                 Type type = null;
                 foreach (Assembly assembly in assemblies) {
@@ -84,6 +98,7 @@ namespace OneJS.Editor {
                 return type;
             }).Where(t => t != null).ToArray();
             var types = DTSGen.GetTypes(assemblies, namespaces);
+            types = types.Concat(typesToAdd).ToArray();
             var uniqueSet = new HashSet<Type>(types);
             uniqueSet.ExceptWith(typesToRemove);
 
