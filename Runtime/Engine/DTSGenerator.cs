@@ -21,8 +21,14 @@ namespace OneJS {
         };
         [Tooltip("Relative to the OneJS WorkingDir.")]
         public string savePath = "app.d.ts";
+        [Tooltip("Check to only generate typings for the declared Assemblies.")]
+        public bool strictAssemblies = false;
         [Tooltip("Check to only generate typings for the declared namespaces.")]
-        public bool compact = true;
+        public bool strictNamespaces = false;
+        [Tooltip("Check to only generate exact typings (no supporting types will be generated).")]
+        public bool exact = false;
+        [Tooltip("Check to only generate typings for whitelisted types (supporting types will still be generated unless 'Exact' is checked).")]
+        public bool whitelistOnly = false;
         [Tooltip("Check to also generate typings for the global objects defined on ScriptEngine.")]
         public bool includeGlobalObjects = true;
     }

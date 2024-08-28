@@ -20,7 +20,10 @@ namespace OneJS.Editor {
         SerializedProperty _whitelistedTypes;
         SerializedProperty _blacklistedTypes;
         SerializedProperty _savePath;
-        SerializedProperty _compact;
+        SerializedProperty _strictAssemblies;
+        SerializedProperty _strictNamespaces;
+        SerializedProperty _whitelistOnly;
+        SerializedProperty _exact;
         SerializedProperty _includeGlobalObjects;
 
         void OnEnable() {
@@ -29,7 +32,10 @@ namespace OneJS.Editor {
             _whitelistedTypes = serializedObject.FindProperty("whitelistedTypes");
             _blacklistedTypes = serializedObject.FindProperty("blacklistedTypes");
             _savePath = serializedObject.FindProperty("savePath");
-            _compact = serializedObject.FindProperty("compact");
+            _strictAssemblies = serializedObject.FindProperty("strictAssemblies");
+            _strictNamespaces = serializedObject.FindProperty("strictNamespaces");
+            _whitelistOnly = serializedObject.FindProperty("whitelistOnly");
+            _exact = serializedObject.FindProperty("exact");
             _includeGlobalObjects = serializedObject.FindProperty("includeGlobalObjects");
         }
 
@@ -42,7 +48,10 @@ namespace OneJS.Editor {
             EditorGUILayout.PropertyField(_whitelistedTypes, new GUIContent("Whitelisted Types"));
             EditorGUILayout.PropertyField(_blacklistedTypes, new GUIContent("Blacklisted Types"));
             EditorGUILayout.PropertyField(_savePath, new GUIContent("Save Path"));
-            EditorGUILayout.PropertyField(_compact, new GUIContent("Compact"));
+            EditorGUILayout.PropertyField(_strictAssemblies, new GUIContent("Strict Assemblies"));
+            EditorGUILayout.PropertyField(_strictNamespaces, new GUIContent("Strict Namespaces"));
+            EditorGUILayout.PropertyField(_whitelistOnly, new GUIContent("Whitelist Only"));
+            EditorGUILayout.PropertyField(_exact, new GUIContent("Exact"));
             EditorGUILayout.PropertyField(_includeGlobalObjects, new GUIContent("Include Global Objects"));
 
             EditorGUILayout.Space(10);
@@ -106,9 +115,14 @@ namespace OneJS.Editor {
                 var globalTypes = scriptEngine.globalObjects.Select(pair => pair.obj.GetType()).ToArray();
                 uniqueSet.UnionWith(globalTypes);
             }
+            
+            if (_whitelistOnly.boolValue) {
+                // set uniqueSet to typesToAdd
+                uniqueSet = new HashSet<Type>(typesToAdd);
+            }
 
             var fullSavePath = Path.Combine(scriptEngine.WorkingDir, _savePath.stringValue);
-            GenerateDTS(fullSavePath, uniqueSet.ToArray());
+            GenerateDTS(fullSavePath, uniqueSet.ToArray(), assemblies, namespaces);
 
             if (_includeGlobalObjects.boolValue) {
                 AppendGlobals(fullSavePath);
@@ -117,7 +131,7 @@ namespace OneJS.Editor {
             Debug.Log($"[{t.Elapsed.TotalSeconds} seconds] Generated {fullSavePath}");
         }
 
-        void GenerateDTS(string fullSavePath, Type[] types) {
+        void GenerateDTS(string fullSavePath, Type[] types, Assembly[] assemblies, string[] namespaces) {
             var directory = Path.GetDirectoryName(fullSavePath);
             if (directory == null) {
                 Debug.LogError("Invalid Save Path. Null directory.");
@@ -127,13 +141,14 @@ namespace OneJS.Editor {
                 Directory.CreateDirectory(directory);
             }
 
-            var res = DTSGen.Generate(types);
-            if (_compact.boolValue) {
-                NamespaceNode root = NamespaceTreeParser.ParseNamespaces(res);
-                // NamespaceTreeParser.PrintNamespaceTree(root);
-                string[] namespacesToKeep = _namespaces.ToStringArray().Select(s => "CS." + s).ToArray();
-                res = NamespaceTreeFilter.FilterNamespaces(root, namespacesToKeep);
-            }
+            // var res = _exact.boolValue ? DTSGen.GenerateExact(types) : DTSGen.Generate(types);
+            // if (_strictAssemblies.boolValue) {
+            //     NamespaceNode root = NamespaceTreeParser.ParseNamespaces(res);
+            //     // NamespaceTreeParser.PrintNamespaceTree(root);
+            //     string[] namespacesToKeep = _namespaces.ToStringArray().Select(s => "CS." + s).ToArray();
+            //     res = NamespaceTreeFilter.FilterNamespaces(root, namespacesToKeep);
+            // }
+            var res = DTSGen.Generate(types, _exact.boolValue, _strictAssemblies.boolValue ? assemblies : null, _strictNamespaces.boolValue ? namespaces : null);
             File.WriteAllText(fullSavePath, res);
         }
 

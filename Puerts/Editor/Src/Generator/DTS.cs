@@ -234,8 +234,8 @@ namespace Puerts.Editor
                 }
             }
 
-            public class TsTypeGenInfo
-            {
+            public class TsTypeGenInfo {
+                public Type CSharpType; // MODDED
                 public string Name;
                 public string Document;
                 public TsMethodGenInfo[] Methods;
@@ -268,6 +268,7 @@ namespace Puerts.Editor
                 {
                     var result = new TsTypeGenInfo()
                     {
+                        CSharpType = type, // MODDED
                         Name = type.Name.Replace('`', '$'),
                         Document = DocResolver.GetTsDocument(type),
                         Methods = genTypeSet.Contains(type) ? TsMethodGenInfo.FromType(type, genTypeSet) : new TsMethodGenInfo[] { },

@@ -3,24 +3,32 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
+using JetBrains.Annotations;
 using Puerts;
 using Puerts.Editor.Generator.DTS;
 using UnityEngine;
 
 namespace OneJS.Editor {
     public class DTSGen : MonoBehaviour {
-        public static Type[] GetTypes(Assembly[] assemblies, string[] namespaces) {
+        /// <summary>
+        /// Null or empty namespaces means all namespaces
+        /// </summary>
+        public static Type[] GetTypes(Assembly[] assemblies, [CanBeNull] string[] namespaces) {
             var types = assemblies.SelectMany(a => a.GetTypes())
-                .Where(t => !t.IsGenericTypeDefinition && !t.IsNestedPrivate && t.IsPublic && namespaces.Contains(t.Namespace))
+                .Where(t => (t.IsPublic || t.IsNestedPublic) && (t.DeclaringType == null || t.DeclaringType.IsPublic) &&
+                            /*!t.IsGenericTypeDefinition && !t.IsNestedPrivate && */
+                            (namespaces == null || namespaces.Length == 0 || namespaces.Contains(t.Namespace)))
                 .ToArray();
             return types;
         }
 
+        public static Type[] GetTypes(Assembly[] assemblies) {
+            return GetTypes(assemblies, null);
+        }
+
         public static string Generate(Assembly[] assemblies, string[] namespaces) {
-            var types = assemblies.SelectMany(a => a.GetTypes())
-                .Where(t => !t.IsGenericTypeDefinition && !t.IsNestedPrivate && t.IsPublic && namespaces.Contains(t.Namespace))
-                .ToArray();
-            return Generate(types);
+            return Generate(GetTypes(assemblies, namespaces));
         }
 
         /// <summary>
@@ -29,23 +37,62 @@ namespace OneJS.Editor {
         /// <param name="types">Include here all the .Net types you want to generate TS definitions for.</param>
         /// <returns>The generated type definition (.d.ts) string</returns>
         public static string Generate(Type[] types) {
-            return Generate(TypingGenInfo.FromTypes(types));
+            return Generate(types, false, null, null);
         }
 
-        /// <summary>
-        /// Generate TypeScript definition for just the specified types
-        /// </summary>
-        public static string GenerateExact(Type[] types) {
+        public static string Generate(Type[] types, bool exact) {
+            return Generate(types, exact, null, null);
+        }
+
+        public static string Generate(Type[] types, Assembly[] strictAssemblies) {
+            return Generate(types, false, strictAssemblies, null);
+        }
+
+        public static string Generate(Type[] types, Assembly[] strictAssemblies, string[] strictNamespaces) {
+            return Generate(types, false, strictAssemblies, strictNamespaces);
+        }
+
+        // /// <summary>
+        // /// Generate TypeScript definition for just the specified types
+        // /// </summary>
+        // public static string GenerateExact(Type[] types) {
+        //     var genInfo = TypingGenInfo.FromTypes(types);
+        //     var tsNamespaces = new List<TsNamespaceGenInfo>();
+        //     foreach (var ns in genInfo.NamespaceInfos) {
+        //         ns.Types = ns.Types.Where(typeGenInfo => types.Any(t => SameType(typeGenInfo, t))).ToArray();
+        //         if (ns.Types.Length > 0) {
+        //             tsNamespaces.Add(ns);
+        //         }
+        //     }
+        //     genInfo.NamespaceInfos = tsNamespaces.ToArray();
+        //     return Generate(genInfo);
+        // }
+
+        public static string Generate(Type[] types, bool exact, [CanBeNull] Assembly[] strictAssemblies, [CanBeNull] string[] strictNamespaces) {
             var genInfo = TypingGenInfo.FromTypes(types);
             var tsNamespaces = new List<TsNamespaceGenInfo>();
             foreach (var ns in genInfo.NamespaceInfos) {
-                ns.Types = ns.Types.Where(typeGenInfo => types.Where(t => SameType(typeGenInfo, t)).Count() > 0).ToArray();
+                if (exact) {
+                    ns.Types = ns.Types.Where(typeGenInfo => types.Any(t => SameType(typeGenInfo, t))).ToArray();
+                }
+                if (strictAssemblies != null && strictAssemblies.Length > 0) {
+                    ns.Types = ns.Types.Where(typeGenInfo => {
+                        if (strictAssemblies.Contains(typeGenInfo.CSharpType.Assembly)) {
+                            return true;
+                        }
+
+                        Debug.Log($"Type {typeGenInfo.FullName} is not in the specified assemblies.");
+                        return false;
+                    }).ToArray();
+                }
+                if (strictNamespaces != null && strictNamespaces.Length > 0) {
+                    ns.Types = ns.Types.Where(typeGenInfo => strictNamespaces.Contains(typeGenInfo.Namespace)).ToArray();
+                }
                 if (ns.Types.Length > 0) {
                     tsNamespaces.Add(ns);
                 }
             }
             genInfo.NamespaceInfos = tsNamespaces.ToArray();
-            string result = "";
             return Generate(genInfo);
         }
 
@@ -64,6 +111,22 @@ namespace OneJS.Editor {
 
         static bool SameType(TsTypeGenInfo typeGenInfo, Type type) {
             return typeGenInfo.Name == type.Name.Replace('`', '$') && typeGenInfo.Namespace == type.Namespace;
+        }
+
+        /// <summary>
+        /// Note: fullname is puerts's ts fullname, not .Net's fullname
+        /// </summary>
+        public static bool AssembliesContainsTypeFullname(Assembly[] assemblies, string fullname) {
+            var name = Regex.Replace(fullname, @"\$(\d+)<.*?>", "`$1");
+            foreach (var assembly in assemblies) {
+                foreach (var type in TypeCollector.GetAllTypes(assembly)) {
+                    if (type.FullName.Replace('+', '.') == name) {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
     }
 }

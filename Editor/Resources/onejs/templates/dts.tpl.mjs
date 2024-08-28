@@ -49,19 +49,19 @@
 
     tt`
 declare namespace CS {
-    const __keep_incompatibility: unique symbol;
-
-    interface $Ref<T> {
-        value: T
-    }
-    namespace System {
-        interface Array$1<T> extends System.Array {
-            get_Item(index: number):T;
-            
-            set_Item(index: number, value: T):void;
-        }
-    }
-    ${data.TaskDef}
+    // const __keep_incompatibility: unique symbol;
+    // 
+    // interface $Ref<T> {
+    //     value: T
+    // }
+    // namespace System {
+    //     interface Array$1<T> extends System.Array {
+    //         get_Item(index: number):T;
+    //         
+    //         set_Item(index: number, value: T):void;
+    //     }
+    // }
+    // ${data.TaskDef}
 
     `
 
@@ -281,8 +281,9 @@ function typeDeclaration(type, level1) {
 }
 function typeNameWithOutGenericType(type, name) {
     if (type.IsGenericTypeDefinition) {
-        const gParameters = toJsArray(type.GenericParameters);
-        return gParameters.indexOf(name) != -1 ? "any" : name
+        // const gParameters = toJsArray(type.GenericParameters); // Modded
+        // return gParameters.indexOf(name) != -1 ? "any" : name // Modded
+        return "any";
     }
     return name;
 }
