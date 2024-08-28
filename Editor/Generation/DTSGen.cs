@@ -5,8 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using JetBrains.Annotations;
-using Puerts;
-using Puerts.Editor.Generator.DTS;
+using OneJS.Editor.Generator.DTS;
 using UnityEngine;
 
 namespace OneJS.Editor {
@@ -101,7 +100,7 @@ namespace OneJS.Editor {
         /// </summary>
         public static string Generate(TypingGenInfo genInfo) {
             string result = "";
-            using (var jsEnv = new JsEnv()) {
+            using (var jsEnv = new Puerts.JsEnv()) {
                 jsEnv.UsingFunc<TypingGenInfo, bool, string>();
                 var typingRender = jsEnv.ExecuteModule<Func<TypingGenInfo, bool, string>>("onejs/templates/dts.tpl.mjs", "default");
                 result = typingRender(genInfo, false);
