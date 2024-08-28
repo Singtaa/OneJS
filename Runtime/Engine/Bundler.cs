@@ -144,6 +144,8 @@ namespace OneJS {
                     var dirname = StringUtil.SanitizeFilename(dir);
                     var dirPath = Path.Combine(_engine.WorkingDir, dirname);
                     var tgz = Resources.Load<TextAsset>($"OneJS/Tarballs/{dirname}.tgz");
+                    if (tgz == null)
+                        continue;
                     if (Directory.Exists(dirPath))
                         DeleteEverythingInPath(dirPath);
                     Extract(tgz.bytes);
