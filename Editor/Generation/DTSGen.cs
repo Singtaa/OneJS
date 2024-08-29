@@ -72,7 +72,7 @@ namespace OneJS.Editor {
             var tsNamespaces = new List<TsNamespaceGenInfo>();
             foreach (var ns in genInfo.NamespaceInfos) {
                 if (exact) {
-                    ns.Types = ns.Types.Where(typeGenInfo => types.Any(t => SameType(typeGenInfo, t))).ToArray();
+                    ns.Types = ns.Types.Where(typeGenInfo => types.Contains(typeGenInfo.CSharpType)).ToArray();
                 }
                 if (strictAssemblies != null && strictAssemblies.Length > 0) {
                     ns.Types = ns.Types.Where(typeGenInfo => {
@@ -106,26 +106,6 @@ namespace OneJS.Editor {
                 result = typingRender(genInfo, false);
             }
             return result;
-        }
-
-        static bool SameType(TsTypeGenInfo typeGenInfo, Type type) {
-            return typeGenInfo.Name == type.Name.Replace('`', '$') && typeGenInfo.Namespace == type.Namespace;
-        }
-
-        /// <summary>
-        /// Note: fullname is puerts's ts fullname, not .Net's fullname
-        /// </summary>
-        public static bool AssembliesContainsTypeFullname(Assembly[] assemblies, string fullname) {
-            var name = Regex.Replace(fullname, @"\$(\d+)<.*?>", "`$1");
-            foreach (var assembly in assemblies) {
-                foreach (var type in TypeCollector.GetAllTypes(assembly)) {
-                    if (type.FullName.Replace('+', '.') == name) {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
         }
     }
 }
