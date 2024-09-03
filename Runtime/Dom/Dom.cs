@@ -238,11 +238,6 @@ namespace OneJS.Dom {
         }
 
         public void appendChild(Dom node) {
-            // Debug.Log(
-            //     $"{this._ve.GetType().Name} [{this._ve.childCount}] ({this._ve.GetHashCode()}) Adding {node.ve.GetType().Name} ({node.ve.GetHashCode()})");
-            // if (node.ve.GetType().Name == "TextElement") {
-            //     Debug.Log((node.ve as TextElement).text);
-            // }
             if (node == null)
                 return;
             try {
@@ -256,6 +251,7 @@ namespace OneJS.Dom {
                 _childNodes[_childNodes.Count - 1]._nextSibling = node;
             }
             _childNodes.Add(node);
+            _document.AddCachingDom(node);
         }
 
         public void removeChild(Dom child) {
@@ -273,9 +269,12 @@ namespace OneJS.Dom {
             }
             _childNodes.Remove(child);
             child._parentNode = null;
+            _document.RemoveCachingDom(child);
         }
 
         public void insertBefore(Dom a, Dom b) {
+            if (a == null)
+                return;
             if (b == null || b.ve == null || _ve.IndexOf(b.ve) == -1) {
                 appendChild(a);
                 return;
@@ -288,6 +287,7 @@ namespace OneJS.Dom {
             if (index > 0) {
                 _childNodes[index - 1]._nextSibling = a;
             }
+            _document.AddCachingDom(a);
         }
 
         public void setAttribute(string name, object val) {

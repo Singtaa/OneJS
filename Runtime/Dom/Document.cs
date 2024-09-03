@@ -23,6 +23,8 @@ namespace OneJS.Dom {
         ScriptEngine _scriptEngine;
         List<StyleSheet> _runtimeStyleSheets = new List<StyleSheet>();
 
+        Dictionary<VisualElement, Dom> _elementToDomLookup = new();
+
         Dictionary<string, Type> _tagCache = new();
         Dictionary<string, Type> _allUIElementEventTypes = new();
         Type[] _tagTypes;
@@ -124,8 +126,11 @@ namespace OneJS.Dom {
 
         public Dom[] querySelectorAll(string selector) {
             var elems = _root.Query<VisualElement>(selector).Build();
-            // TODO new Dom shouldn't be used here, we need to be able to get existing Dom of the VisualElement
-            return elems.Select((e) => new Dom(e, this)).ToArray();
+            var doms = elems
+                .Select(elem => _elementToDomLookup.TryGetValue(elem, out var dom) ? dom : null)
+                .Where(dom => dom != null)
+                .ToArray();
+            return doms;
         }
 
         public Texture2D loadImage(string path, FilterMode filterMode = FilterMode.Bilinear) {
@@ -189,6 +194,14 @@ namespace OneJS.Dom {
         // public void removeEventListener(string name, JsValue jsval, bool useCapture = false) {
         //     _body.removeEventListener(name, jsval, useCapture);
         // }
+
+        internal void AddCachingDom(Dom dom) {
+            _elementToDomLookup[dom.ve] = dom;
+        }
+
+        internal void RemoveCachingDom(Dom dom) {
+            _elementToDomLookup.Remove(dom.ve);
+        }
 
         Type[] GetAllVisualElementTypes() {
             List<Type> visualElementTypes = new List<Type>();
