@@ -45,15 +45,8 @@ namespace OneJS {
         void OnEnable() {
             Respawn();
             _engine.OnReload += OnReload;
-        }
-
-        void OnDisable() {
-            _engine.OnReload -= OnReload;
-        }
-
-        void Start() {
-            var fullpath = _engine.GetFullPath(entryFile);
             
+            var fullpath = _engine.GetFullPath(entryFile);
             if (!File.Exists(fullpath)) {
                 Debug.LogError($"Entry file not found: {fullpath}");
                 return;
@@ -62,6 +55,14 @@ namespace OneJS {
             if (runOnStart) {
                 _engine.EvalFile(entryFile);
             }
+        }
+
+        void OnDisable() {
+            _engine.OnReload -= OnReload;
+        }
+
+        void Start() {
+            
         }
 
         void Update() {
