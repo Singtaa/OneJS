@@ -86,9 +86,9 @@ namespace OneJS.Editor {
         }
 
         public static void VSCodeOpenDir(string path) {
-#if UNITY_STANDALONE_WIN
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
             var processName = GetCodeExecutablePathOnWindows();
-#elif UNITY_STANDALONE_OSX || UNITY_STANDALONE_LINUX
+#elif UNITY_STANDALONE_OSX || UNITY_STANDALONE_LINUX || UNITY_EDITOR_OSX || UNITY_EDITOR_LINUX
             var processName = GetCodeExecutablePathOnUnix();
 #else
             var processName = "unknown";
