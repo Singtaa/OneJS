@@ -80,11 +80,12 @@ namespace OneJS {
             _lastWriteTime = writeTime;
             _engine.Reload();
             _engine.EvalFile(entryFile);
+            
 
-            _engine.OnReload += () => {
-                _engine.JsEnv.UsingAction<bool>();
-                // Add more here
-            };
+            // _engine.OnReload += () => {
+            //     _engine.JsEnv.UsingAction<bool>();
+            //     // Add more here
+            // };
         }
 
         void Respawn() {

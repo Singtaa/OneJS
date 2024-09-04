@@ -115,6 +115,7 @@ namespace OneJS {
             OnReload?.Invoke();
             _engineHost.InvokeOnReload();
             Init();
+            RefreshStyleSheets();
         }
 
         void Init() {
@@ -124,7 +125,7 @@ namespace OneJS {
             _jsEnv = new JsEnv();
             _engineHost = new EngineHost(this);
             _jsEnv.UsingAction<Action>();
-            
+
             if (_uiDocument.rootVisualElement != null) {
                 _uiDocument.rootVisualElement.Clear();
                 _uiDocument.rootVisualElement.styleSheets.Clear();
@@ -164,6 +165,26 @@ namespace OneJS {
         /// <param name="code">The code string</param>
         public void Eval(string code) {
             _jsEnv.Eval(code);
+        }
+        #endregion
+
+        #region Private Methods
+        /// <summary>
+        /// This is for convenience for Live-Reload. Stylesheets need explicit refreshing
+        /// when Unity Editor doesn't have focus. Otherwise, stylesheet changes won't be
+        /// reflected in the Editor until it gains focus.
+        /// </summary>
+        void RefreshStyleSheets() {
+#if UNITY_EDITOR
+            foreach (var ss in styleSheets) {
+                if (ss != null) {
+                    string assetPath = UnityEditor.AssetDatabase.GetAssetPath(ss);
+                    if (!string.IsNullOrEmpty(assetPath)) {
+                        UnityEditor.AssetDatabase.ImportAsset(assetPath, UnityEditor.ImportAssetOptions.ForceUpdate);
+                    }
+                }
+            }
+#endif
         }
         #endregion
 
