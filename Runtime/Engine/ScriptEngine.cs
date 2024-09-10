@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.IO;
 using System.Linq;
 using OneJS.Dom;
@@ -115,7 +116,9 @@ namespace OneJS {
             OnReload?.Invoke();
             _engineHost.InvokeOnReload();
             Init();
-            RefreshStyleSheets();
+#if UNITY_EDITOR
+            StartCoroutine(RefreshStyleSheets());
+#endif
         }
 
         void Init() {
@@ -174,8 +177,9 @@ namespace OneJS {
         /// when Unity Editor doesn't have focus. Otherwise, stylesheet changes won't be
         /// reflected in the Editor until it gains focus.
         /// </summary>
-        void RefreshStyleSheets() {
+        IEnumerator RefreshStyleSheets() {
 #if UNITY_EDITOR
+            yield return new WaitForSeconds(0.1f);
             foreach (var ss in styleSheets) {
                 if (ss != null) {
                     string assetPath = UnityEditor.AssetDatabase.GetAssetPath(ss);
