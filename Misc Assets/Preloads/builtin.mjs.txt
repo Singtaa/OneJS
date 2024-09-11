@@ -17,7 +17,7 @@ const performance = {
 }
 
 const requestAnimationFrame = function (callback) {
-    return setTimeout(() => callback(CS.UnityEngine.Time.realtimeSinceStartupAsDouble))
+    return setTimeout(() => callback(CS.UnityEngine.Time.realtimeSinceStartupAsDouble * 1000))
 }
 
 const cancelAnimationFrame = function (id) {
