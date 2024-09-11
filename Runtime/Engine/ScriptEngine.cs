@@ -76,6 +76,8 @@ namespace OneJS {
                     editorWorkingDirInfo.relativePath);
                 if (editorWorkingDirInfo.baseDir == EditorWorkingDirInfo.EditorBaseDir.PersistentDataPath)
                     path = Path.Combine(Application.persistentDataPath, editorWorkingDirInfo.relativePath);
+                if (editorWorkingDirInfo.baseDir == EditorWorkingDirInfo.EditorBaseDir.StreamingAssetsPath)
+                    path = Path.Combine(Application.streamingAssetsPath, editorWorkingDirInfo.relativePath);
                 if (!Directory.Exists(path)) {
                     Directory.CreateDirectory(path);
                 }
@@ -85,6 +87,8 @@ namespace OneJS {
                     playerWorkingDirInfo.relativePath);
                 if (playerWorkingDirInfo.baseDir == PlayerWorkingDirInfo.PlayerBaseDir.PersistentDataPath)
                     path = Path.Combine(Application.persistentDataPath, playerWorkingDirInfo.relativePath);
+                if (playerWorkingDirInfo.baseDir == PlayerWorkingDirInfo.PlayerBaseDir.StreamingAssetsPath)
+                    path = Path.Combine(Application.streamingAssetsPath, playerWorkingDirInfo.relativePath);
                 if (!Directory.Exists(path)) {
                     Directory.CreateDirectory(path);
                 }
@@ -231,7 +235,8 @@ namespace OneJS {
 
         public enum EditorBaseDir {
             ProjectPath,
-            PersistentDataPath
+            PersistentDataPath,
+            StreamingAssetsPath
         }
 
         public override string ToString() {
@@ -251,6 +256,7 @@ namespace OneJS {
 
         public enum PlayerBaseDir {
             PersistentDataPath,
+            StreamingAssetsPath,
             AppPath,
         }
 
