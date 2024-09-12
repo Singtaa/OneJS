@@ -364,6 +364,10 @@ namespace OneJS.Dom {
                 }
             }
         }
+        
+        public bool contains(Dom child) {
+            return _ve.Contains(child.ve);
+        }
 
         public void focus() {
             _ve.Focus();

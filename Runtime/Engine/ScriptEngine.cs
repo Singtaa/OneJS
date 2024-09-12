@@ -176,13 +176,13 @@ namespace OneJS {
         #endregion
 
         #region Private Methods
+#if UNITY_EDITOR
         /// <summary>
         /// This is for convenience for Live-Reload. Stylesheets need explicit refreshing
         /// when Unity Editor doesn't have focus. Otherwise, stylesheet changes won't be
         /// reflected in the Editor until it gains focus.
         /// </summary>
         IEnumerator RefreshStyleSheets() {
-#if UNITY_EDITOR
             yield return new WaitForSeconds(0.1f);
             foreach (var ss in styleSheets) {
                 if (ss != null) {
@@ -192,8 +192,8 @@ namespace OneJS {
                     }
                 }
             }
-#endif
         }
+#endif
         #endregion
 
         #region ContextMenus
