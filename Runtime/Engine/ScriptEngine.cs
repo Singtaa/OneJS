@@ -147,6 +147,7 @@ namespace OneJS {
             _addToGlobal("___document", _document);
             _addToGlobal("resource", _resource);
             _addToGlobal("onejs", _engineHost);
+            _addToGlobal("___workingDir", WorkingDir);
             foreach (var obj in globalObjects) {
                 _addToGlobal(obj.name, obj.obj);
             }
@@ -162,16 +163,18 @@ namespace OneJS {
                 Debug.LogError($"Entry file not found: {fullpath}");
                 return;
             }
+            // var filename = Path.GetFileName(fullpath);
             var code = File.ReadAllText(fullpath);
-            _jsEnv.Eval(code);
+            _jsEnv.Eval(code, filepath);
         }
 
         /// <summary>
         /// Evaluate a code string.
         /// </summary>
         /// <param name="code">The code string</param>
-        public void Eval(string code) {
-            _jsEnv.Eval(code);
+        /// <param name="chunkName">The name of the chunk</param>
+        public void Eval(string code, string chunkName = "chunk") {
+            _jsEnv.Eval(code, chunkName);
         }
         #endregion
 
