@@ -53,6 +53,9 @@ MonoBehaviour:
   m_ParentUI: {fileID: 0}
   sourceAsset: {fileID: 9197481963319205126, guid: da6275ccc85492e468c37f133ded0a52, type: 3}
   m_SortingOrder: 0
+  m_WorldSpaceSizeMode: 1
+  m_WorldSpaceWidth: 1920
+  m_WorldSpaceHeight: 1080
 --- !u!114 &8930752045537606291
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -154,9 +157,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   assemblies: []
   namespaces: []
+  whitelistedTypes: []
   blacklistedTypes: []
   savePath: app.d.ts
-  compact: 1
+  strictAssemblies: 0
+  strictNamespaces: 0
+  exact: 0
+  whitelistOnly: 0
   includeGlobalObjects: 1
 --- !u!114 &-8986345742149058243
 MonoBehaviour:
