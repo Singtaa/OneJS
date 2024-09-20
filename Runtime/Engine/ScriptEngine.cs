@@ -33,6 +33,7 @@ namespace OneJS {
         #endregion
 
         #region Events
+        public event Action<JsEnv> PreInit;
         public event Action OnReload;
         #endregion
 
@@ -130,8 +131,10 @@ namespace OneJS {
                 _jsEnv.Dispose();
             }
             _jsEnv = new JsEnv();
-            _engineHost = new EngineHost(this);
             _jsEnv.UsingAction<Action>();
+            PreInit?.Invoke(_jsEnv);
+
+            _engineHost = new EngineHost(this);
 
             if (_uiDocument.rootVisualElement != null) {
                 _uiDocument.rootVisualElement.Clear();
