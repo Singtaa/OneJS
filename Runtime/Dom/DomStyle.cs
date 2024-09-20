@@ -529,8 +529,9 @@ namespace OneJS.Dom {
         public object transitionDuration {
             get => veStyle.transitionDuration;
             set {
-                if (TryParseStyleListTimeValue(value, out var timeValues))
+                if (TryParseStyleListTimeValue(value, out var timeValues)) {
                     veStyle.transitionDuration = timeValues;
+                }
             }
         }
 
@@ -547,8 +548,9 @@ namespace OneJS.Dom {
         public object transitionTimingFunction {
             get => veStyle.transitionTimingFunction;
             set {
-                if (TryParseStyleListEasingFunction(value, out var timingFunctions))
+                if (TryParseStyleListEasingFunction(value, out var timingFunctions)) {
                     veStyle.transitionTimingFunction = timingFunctions;
+                }
             }
         }
 
@@ -1559,7 +1561,6 @@ namespace OneJS.Dom {
                     }
                 }
             } else if (value is double d) {
-                Debug.Log(d);
                 styleScale = new StyleScale(new Scale(new Vector2((float)d, (float)d)));
                 return true;
             } else if (value is Puerts.JSObject jsObj && jsObj.Get<int>("length") == 2) {
@@ -1702,6 +1703,8 @@ namespace OneJS.Dom {
                         timeValues.Add(new TimeValue(f, timeUnit));
                     }
                 }
+                styleListTimeValue = new StyleList<TimeValue>(timeValues);
+                return true;
             } else if (value is TimeValue tv) {
                 styleListTimeValue = new StyleList<TimeValue>(new List<TimeValue>() { tv });
                 return true;
@@ -1796,7 +1799,7 @@ namespace OneJS.Dom {
                 var parts = s.Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
                 var easingFunctions = new List<EasingFunction>();
                 foreach (var part in parts) {
-                    if (Enum.TryParse(part, true, out EasingMode easing)) {
+                    if (Enum.TryParse(part.Replace("_", "").Replace("-", ""), true, out EasingMode easing)) {
                         easingFunctions.Add(easing);
                     }
                 }

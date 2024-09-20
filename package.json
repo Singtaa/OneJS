@@ -1,8 +1,8 @@
 {
     "name": "com.dragonground.onejs",
-    "version": "2.0.22",
+    "version": "2.0.25",
     "displayName": "OneJS",
-    "description": "OneJS is a powerful framework for Unity, combining Typescript, (P)React, and many other web technologies to enhance UI design and development. It offers fast iteration with instant code reloading, operates without a browser by directly interfacing with Unity's UI Toolkit, and serves as a script engine allowing access to .Net objects. This toolset significantly boosts productivity and flexibility for Unity developers.",
+    "description": "OneJS enables developers to use web technologies like TypeScript, Preact, and Tailwind directly within Unity, without needing a browser.",
     "unity": "2022.3",
     "documentationUrl": "https://onejs.com/",
     "dependencies": {
