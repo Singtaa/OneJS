@@ -621,8 +621,9 @@ namespace OneJS.Dom {
         public object unitySliceBottom {
             get => veStyle.unitySliceBottom;
             set {
-                if (TryParseStyleInt(value, out var styleInt))
+                if (TryParseStyleInt(value, out var styleInt)) {
                     veStyle.unitySliceBottom = styleInt;
+                }
             }
         }
 
@@ -1942,6 +1943,14 @@ namespace OneJS.Dom {
             if (value is double d) {
                 styleInt = new StyleInt((int)d);
                 return true;
+            }
+            if (value is string sss) {
+                // use regex to parse the string for leading digits
+                var match = new Regex(@"^(\d+)").Match(sss);
+                if (match.Success) {
+                    styleInt = new StyleInt(int.Parse(match.Groups[1].Value));
+                    return true;
+                }
             }
             styleInt = default;
             return false;

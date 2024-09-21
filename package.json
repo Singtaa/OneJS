@@ -2,7 +2,7 @@
     "name": "com.dragonground.onejs",
     "version": "2.0.25",
     "displayName": "OneJS",
-    "description": "OneJS enables developers to use web technologies like TypeScript, Preact, and Tailwind directly within Unity, without needing a browser.",
+    "description": "OneJS brings Javascript and many web techs to Unity. Native UI Toolkit integration, no browser needed.",
     "unity": "2022.3",
     "documentationUrl": "https://onejs.com/",
     "dependencies": {
