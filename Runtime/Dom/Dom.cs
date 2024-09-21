@@ -279,6 +279,9 @@ namespace OneJS.Dom {
                 appendChild(a);
                 return;
             }
+            if (a == b) {
+                return;
+            }
             var index = _ve.IndexOf(b.ve);
             _ve.Insert(index, a.ve);
             _childNodes.Insert(index, a);
@@ -374,7 +377,7 @@ namespace OneJS.Dom {
         }
 
         public override string ToString() {
-            return $"dom: {this._ve.GetType().Name} ({this._ve.GetHashCode()})";
+            return $"dom: {this._ve.GetType().Name} {this.key} ({this._ve.GetHashCode()})";
         }
 
         /// <summary>
