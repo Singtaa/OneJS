@@ -2,7 +2,7 @@
     "name": "com.dragonground.onejs",
     "version": "2.0.25",
     "displayName": "OneJS",
-    "description": "OneJS brings Javascript and many web techs to Unity. Native UI Toolkit integration, no browser needed.",
+    "description": "OneJS brings Javascript and many beloved web techs to Unity. It directly integrates with UI Toolkit, so no browser is required.",
     "unity": "2022.3",
     "documentationUrl": "https://onejs.com/",
     "dependencies": {

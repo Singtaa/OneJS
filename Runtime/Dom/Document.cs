@@ -135,19 +135,31 @@ namespace OneJS.Dom {
 
         public Texture2D loadImage(string path, FilterMode filterMode = FilterMode.Bilinear) {
             // TODO cache
-            path = Path.IsPathRooted(path) ? path : Path.Combine(_scriptEngine.WorkingDir, path);
-            var rawData = System.IO.File.ReadAllBytes(path);
-            Texture2D tex = new Texture2D(2, 2); // Create an empty Texture; size doesn't matter
-            tex.LoadImage(rawData);
-            tex.filterMode = filterMode;
-            return tex;
+            try {
+                path = Path.IsPathRooted(path) ? path : Path.Combine(_scriptEngine.WorkingDir, path);
+                var rawData = System.IO.File.ReadAllBytes(path);
+                Texture2D tex = new Texture2D(2, 2); // Create an empty Texture; size doesn't matter
+                tex.LoadImage(rawData);
+                tex.filterMode = filterMode;
+                return tex;
+            } catch (Exception e) {
+                Debug.LogError($"Failed to load image: {path}");
+                // Debug.LogError(e);
+                return null;
+            }
         }
 
         public Font loadFont(string path) {
             // TODO cache
+            try {
             path = Path.IsPathRooted(path) ? path : Path.Combine(_scriptEngine.WorkingDir, path);
             var font = new Font(path);
             return font;
+            } catch (Exception e) {
+                Debug.LogError($"Failed to load font: {path}");
+                // Debug.LogError(e);
+                return null;
+            }
         }
 
         public FontDefinition loadFontDefinition(string path) {
