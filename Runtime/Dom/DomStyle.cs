@@ -17,6 +17,7 @@ namespace OneJS.Dom {
         public IStyle veStyle => _dom.ve.style;
 
         public void setProperty(string key, object value) {
+            // TODO cache this
             var pi = this.GetType().GetProperty(key, BindingFlags.Instance | BindingFlags.IgnoreCase | BindingFlags.Public);
             if (pi != null) {
                 pi.SetValue(this, value);
@@ -1830,6 +1831,10 @@ namespace OneJS.Dom {
             }
             if (value == null) {
                 styleTranslate = new StyleTranslate(StyleKeyword.Null);
+                return true;
+            }
+            if (value is Translate tt) {
+                styleTranslate = tt;
                 return true;
             }
             if (value is StyleTranslate st) {
