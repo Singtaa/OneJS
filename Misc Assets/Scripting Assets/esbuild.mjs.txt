@@ -16,6 +16,8 @@ let mainCtx = await esbuild.context({
 	alias: {
 		"onejs": "onejs-core",
 		"preact": "onejs-preact",
+		"react": "onejs-preact/compat",
+		"react-dom": "onejs-preact/compat"
 	},
 	outfile: "@outputs/esbuild/app.js",
 });
