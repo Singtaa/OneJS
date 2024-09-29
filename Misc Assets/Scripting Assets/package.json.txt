@@ -11,7 +11,8 @@
         "rimraf": "^5.0.7",
         "tailwindcss": "^3.4.1",
         "tar": "^7.2.0",
-        "tiny-glob": "^0.2.9"
+        "tiny-glob": "^0.2.9",
+        "xml2js": "^0.6.2"
     },
     "dependencies": {
         "onejs-core": "^0.3.12",

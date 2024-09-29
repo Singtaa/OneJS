@@ -56,7 +56,7 @@ namespace OneJS {
             }
             CreateVSCodeSettingsJsonIfNotFound();
 
-            WriteToPackageJson();
+            // WriteToPackageJson();
             // ExtractOnejsCoreIfNotFound();
             ExtractOutputsIfNotFound();
 #endif
@@ -76,6 +76,9 @@ namespace OneJS {
             }
         }
 
+        /// <summary>
+        /// Not used anymore because of VCS issues when different users have different paths.
+        /// </summary>
         void WriteToPackageJson() {
             string scriptPath = new StackTrace(true).GetFrame(0).GetFileName();
             var onejsPath = ParentFolder(ParentFolder(ParentFolder(scriptPath)));
