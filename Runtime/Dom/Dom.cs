@@ -359,6 +359,8 @@ namespace OneJS.Dom {
                 _ve.ClearClassList();
             } else if (name == "id") {
                 _ve.name = null;
+            } else if (name == "disabled") {
+                _ve.SetEnabled(true);
             } else {
                 var flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase;
                 var pi = _ve.GetType().GetProperty(name, flags);
