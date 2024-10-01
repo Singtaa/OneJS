@@ -1,0 +1,139 @@
+﻿import { h, render } from "preact"
+import { Camera, Collider, CollisionDetectionMode, GameObject, Mathf, MeshRenderer, Physics, PhysicsMaterial, PrimitiveType, Random, Rigidbody, SphereCollider, Vector2, Vector3 } from "UnityEngine"
+import { namedColor, palettes, parseColor } from "onejs/utils"
+import { useEffect, useRef, useEventfulState } from "preact/hooks"
+import { Easing, Tween, update } from "@tweenjs/tween.js"
+import { Angle, ArcDirection, MeshGenerationContext, RuntimePanelUtils, TextElement } from "UnityEngine/UIElements"
+import { forwardRef } from "onejs-preact/compat"
+import { Slider } from "onejs-comps"
+
+let plane = GameObject.CreatePrimitive(PrimitiveType.Plane)
+plane.transform.position = new Vector3(0, -10, 0)
+plane.GetComp(MeshRenderer).material.color = namedColor("maroon")
+plane.transform.localScale = new Vector3(15, 1, 15)
+
+let pm = new PhysicsMaterial()
+pm.bounciness = 0.6
+plane.GetComp(Collider).material = pm
+
+var cam = GameObject.Find("Main Camera")
+cam.transform.position = new Vector3(0, 6, -10)
+cam.transform.LookAt(new Vector3(0, -15, 0))
+
+Physics.gravity = new Vector3(0, -30, 0)
+
+let balls: GameObject[] = []
+
+function createRandomBall() {
+    let ball = GameObject.CreatePrimitive(PrimitiveType.Sphere)
+    ball.GetComp(MeshRenderer).material.color = parseColor(palettes[Mathf.RoundToInt(Random.Range(0, 99))][2])
+    ball.transform.position = Vector3.op_Multiply(Random.insideUnitSphere, 2)
+    let rb = ball.AddComp(Rigidbody)
+    rb.collisionDetectionMode = CollisionDetectionMode.Continuous
+    rb.drag = 0.3
+    ball.GetComp(SphereCollider).material = pm
+    balls.push(ball)
+}
+
+for (let i = 0; i < 10; i++) {
+    createRandomBall()
+}
+
+const NamePlate = forwardRef(({ index }: { index: number }, ref) => {
+    return <div ref={ref} class="absolute hidden text-yellow-300 text-xl">{`Ball ${index}`}</div>
+})
+
+const RadialProgress = ({ progress }: { progress: number }) => {
+    const ref = useRef<Element>()
+    const labelRef = useRef<Element>()
+    const prev = useRef(progress)
+
+    useEffect(() => {
+        ref.current.ve.generateVisualContent = onGenerateVisualContent
+        ref.current.style.fontSize = 0
+    }, [])
+
+    useEffect(() => {
+        ref.current.ve.generateVisualContent = onGenerateVisualContent
+        ref.current.ve.MarkDirtyRepaint()
+
+        new Tween(prev).to({ current: progress }, 300)
+            .easing(Easing.Quadratic.InOut).onUpdate(() => {
+                ref.current.ve.MarkDirtyRepaint();
+                (labelRef.current.ve as TextElement).text = Math.round(prev.current * 100) + ""
+            }).start()
+    }, [progress])
+
+    function onGenerateVisualContent(mgc: MeshGenerationContext) {
+        var painter2D = mgc.painter2D
+
+        const { width, height } = mgc.visualElement.contentRect
+        let radius = Mathf.Min(width, height) / 2
+        let dx = width / 2 - radius
+        let dy = height / 2 - radius
+
+        setTimeout(() => {
+            ref.current.style.fontSize = Mathf.Min(width, height) * 0.3
+        })
+
+        painter2D.strokeColor = parseColor("#305fbc")
+        painter2D.lineWidth = radius * 0.2
+        painter2D.BeginPath()
+        painter2D.Arc(new Vector2(radius + dx, radius + dy),
+            radius * 0.80, new Angle(0), new Angle(prev.current * 360), ArcDirection.Clockwise)
+        painter2D.Stroke()
+        painter2D.ClosePath()
+    }
+
+    return <div ref={ref} class="w-full h-full justify-center items-center text-white"><label ref={labelRef} /></div>
+}
+
+declare const pman: any
+
+const App = () => {
+    const refs = Array.from({ length: balls.length }, () => useRef<Element>())
+    const [progress, _] = useEventfulState(pman, "Progress")
+
+    useEffect(() => {
+        var interval = setInterval(update)
+        return () => clearInterval(interval)
+    }, [])
+
+    function update() {
+        for (let i = 0; i < balls.length; i++) {
+            const ball = balls[i]
+            var pos = RuntimePanelUtils.CameraTransformWorldToPanel(document.body.ve.panel, ball.transform.position, Camera.main);
+            refs[i].current.style.translate = pos
+            refs[i].current.style.display = "flex"
+        }
+    }
+
+    function onSliderChange(t: number) {
+        pman.SetProgress(t)
+        console.log("SetProgress", t)
+    }
+
+    function onButtonClick() {
+        pman.SetProgress(0)
+        console.log("Reset")
+    }
+
+    return <div class="w-full h-full">
+        <div class="w-full h-full absolute">
+            {balls.map((ball, i) => <NamePlate ref={refs[i]} index={i} />)}
+        </div>
+        <div class="w-full h-full p-10">
+            <RadialProgress progress={progress} />
+            <Slider class="w-full" onChange={onSliderChange} value={pman.Progress} />
+            <button onClick={onButtonClick}>Reset</button>
+        </div>
+    </div>
+}
+
+render(<App />, document.body)
+
+function animate(time) {
+    requestAnimationFrame(animate)
+    update(time)
+}
+requestAnimationFrame(animate)
