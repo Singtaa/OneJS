@@ -1,5 +1,5 @@
 ﻿import { h, render } from "preact"
-import { Camera, Collider, CollisionDetectionMode, GameObject, Mathf, MeshRenderer, Physics, PhysicsMaterial, PrimitiveType, Random, Rigidbody, SphereCollider, Vector2, Vector3 } from "UnityEngine"
+import { Camera, Collider, CollisionDetectionMode, GameObject, Material, Mathf, MeshRenderer, Physics, PhysicsMaterial, PrimitiveType, Random, Rigidbody, Shader, SphereCollider, Vector2, Vector3 } from "UnityEngine"
 import { namedColor, palettes, parseColor } from "onejs/utils"
 import { useEffect, useRef, useEventfulState } from "preact/hooks"
 import { Easing, Tween, update } from "@tweenjs/tween.js"
@@ -7,9 +7,16 @@ import { Angle, ArcDirection, MeshGenerationContext, RuntimePanelUtils, TextElem
 import { forwardRef } from "onejs-preact/compat"
 import { Slider } from "onejs-comps"
 
+let shader = Shader.Find("Universal Render Pipeline/Lit")
+if (!shader) {
+    shader = Shader.Find("Standard")
+}
+let mat = new Material(shader)
+mat.color = namedColor("maroon")
+
 let plane = GameObject.CreatePrimitive(PrimitiveType.Plane)
 plane.transform.position = new Vector3(0, -10, 0)
-plane.GetComp(MeshRenderer).material.color = namedColor("maroon")
+plane.GetComp(MeshRenderer).material = mat
 plane.transform.localScale = new Vector3(15, 1, 15)
 
 let pm = new PhysicsMaterial()
@@ -26,7 +33,9 @@ let balls: GameObject[] = []
 
 function createRandomBall() {
     let ball = GameObject.CreatePrimitive(PrimitiveType.Sphere)
-    ball.GetComp(MeshRenderer).material.color = parseColor(palettes[Mathf.RoundToInt(Random.Range(0, 99))][2])
+    mat = CS.UnityEngine.Object.Instantiate(mat) as Material
+    mat.color = parseColor(palettes[Mathf.RoundToInt(Random.Range(0, 99))][2])
+    ball.GetComp(MeshRenderer).material = mat
     ball.transform.position = Vector3.op_Multiply(Random.insideUnitSphere, 2)
     let rb = ball.AddComp(Rigidbody)
     rb.collisionDetectionMode = CollisionDetectionMode.Continuous
