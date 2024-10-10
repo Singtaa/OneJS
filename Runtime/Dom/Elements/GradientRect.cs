@@ -40,10 +40,10 @@ namespace OneJS.Dom {
                 vertices[3].tint = Colors[3];
             }
 
-            var left = 0f;
-            var right = rect.width;
-            var top = 0f;
-            var bottom = rect.height;
+            var left = rect.xMin;
+            var right = rect.xMax;
+            var top = rect.yMin;
+            var bottom = rect.yMax;
 
             vertices[0].position = new Vector3(left, bottom, Vertex.nearZ);
             vertices[1].position = new Vector3(left, top, Vertex.nearZ);
