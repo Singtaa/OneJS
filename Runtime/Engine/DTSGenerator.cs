@@ -4,12 +4,14 @@ namespace OneJS {
     [RequireComponent(typeof(ScriptEngine))] [AddComponentMenu("OneJS/DTS Generator")]
     public class DTSGenerator : MonoBehaviour {
         [PlainString]
+        [Tooltip("Use this list to restrict the assemblies you want to generate typings for. Keep list empty for no restrictions. Use 'Assembly-CSharp' for the default (non-asmdef) assembly.")]
         public string[] assemblies = new string[] {
             // "UnityEngine.CoreModule", "UnityEngine.PhysicsModule", "UnityEngine.UIElementsModule",
             // "UnityEngine.IMGUIModule", "UnityEngine.TextRenderingModule",
             // "Unity.Mathematics", "OneJS.Runtime"
         };
         [PlainString]
+        [Tooltip("Use this list to restrict the namespaces you want to generate typings for. Keep list empty for no restrictions. Use empty string for global namespace.")]
         public string[] namespaces = new string[] {
             // "UnityEngine", "UnityEngine.UIElements", "Unity.Mathematics", "OneJS", "OneJS.Dom", "OneJS.Utils"
         };

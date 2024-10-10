@@ -17,7 +17,7 @@ namespace OneJS.Editor {
             var types = assemblies.SelectMany(a => a.GetTypes())
                 .Where(t => (t.IsPublic || t.IsNestedPublic) && (t.DeclaringType == null || t.DeclaringType.IsPublic) &&
                             /*!t.IsGenericTypeDefinition && !t.IsNestedPrivate && */
-                            (namespaces == null || namespaces.Length == 0 || namespaces.Contains(t.Namespace)))
+                            (namespaces == null || namespaces.Length == 0 || namespaces.Contains(string.IsNullOrEmpty(t.Namespace) ? "" : t.Namespace)))
                 .ToArray();
             return types;
         }
@@ -85,7 +85,11 @@ namespace OneJS.Editor {
                     }).ToArray();
                 }
                 if (strictNamespaces != null && strictNamespaces.Length > 0) {
-                    ns.Types = ns.Types.Where(typeGenInfo => strictNamespaces.Contains(typeGenInfo.Namespace)).ToArray();
+                    ns.Types = ns.Types.Where(typeGenInfo => {
+                        // Treat null namespace as global namespace
+                        var nsToSearch = string.IsNullOrEmpty(typeGenInfo.Namespace) ? "" : typeGenInfo.Namespace;
+                        return strictNamespaces.Contains(nsToSearch);
+                    }).ToArray();
                 }
                 if (ns.Types.Length > 0) {
                     tsNamespaces.Add(ns);

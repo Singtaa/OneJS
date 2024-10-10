@@ -20,8 +20,8 @@ namespace OneJS.Editor {
         SerializedProperty _whitelistedTypes;
         SerializedProperty _blacklistedTypes;
         SerializedProperty _savePath;
-        SerializedProperty _strictAssemblies;
-        SerializedProperty _strictNamespaces;
+        // SerializedProperty _strictAssemblies;
+        // SerializedProperty _strictNamespaces;
         SerializedProperty _whitelistOnly;
         SerializedProperty _exact;
         SerializedProperty _includeGlobalObjects;
@@ -32,8 +32,8 @@ namespace OneJS.Editor {
             _whitelistedTypes = serializedObject.FindProperty("whitelistedTypes");
             _blacklistedTypes = serializedObject.FindProperty("blacklistedTypes");
             _savePath = serializedObject.FindProperty("savePath");
-            _strictAssemblies = serializedObject.FindProperty("strictAssemblies");
-            _strictNamespaces = serializedObject.FindProperty("strictNamespaces");
+            // _strictAssemblies = serializedObject.FindProperty("strictAssemblies");
+            // _strictNamespaces = serializedObject.FindProperty("strictNamespaces");
             _whitelistOnly = serializedObject.FindProperty("whitelistOnly");
             _exact = serializedObject.FindProperty("exact");
             _includeGlobalObjects = serializedObject.FindProperty("includeGlobalObjects");
@@ -48,8 +48,8 @@ namespace OneJS.Editor {
             EditorGUILayout.PropertyField(_whitelistedTypes, new GUIContent("Whitelisted Types"));
             EditorGUILayout.PropertyField(_blacklistedTypes, new GUIContent("Blacklisted Types"));
             EditorGUILayout.PropertyField(_savePath, new GUIContent("Save Path"));
-            EditorGUILayout.PropertyField(_strictAssemblies, new GUIContent("Strict Assemblies"));
-            EditorGUILayout.PropertyField(_strictNamespaces, new GUIContent("Strict Namespaces"));
+            // EditorGUILayout.PropertyField(_strictAssemblies, new GUIContent("Strict Assemblies"));
+            // EditorGUILayout.PropertyField(_strictNamespaces, new GUIContent("Strict Namespaces"));
             EditorGUILayout.PropertyField(_whitelistOnly, new GUIContent("Whitelist Only"));
             EditorGUILayout.PropertyField(_exact, new GUIContent("Exact"));
             EditorGUILayout.PropertyField(_includeGlobalObjects, new GUIContent("Include Global Objects"));
@@ -148,7 +148,7 @@ namespace OneJS.Editor {
             //     string[] namespacesToKeep = _namespaces.ToStringArray().Select(s => "CS." + s).ToArray();
             //     res = NamespaceTreeFilter.FilterNamespaces(root, namespacesToKeep);
             // }
-            var res = DTSGen.Generate(types, _exact.boolValue, _strictAssemblies.boolValue ? assemblies : null, _strictNamespaces.boolValue ? namespaces : null);
+            var res = DTSGen.Generate(types, _exact.boolValue, assemblies, namespaces);
             File.WriteAllText(fullSavePath, res);
         }
 
