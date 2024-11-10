@@ -1976,6 +1976,9 @@ namespace OneJS.Dom {
                         lengthValue = new Length(percentValue, LengthUnit.Percent);
                         return true;
                     }
+                } else if (float.TryParse(s, out var normalValue)) {
+                    lengthValue = new Length(normalValue);
+                    return true;
                 }
             } else if (value is double doubleValue) {
                 lengthValue = new Length((float)doubleValue);
