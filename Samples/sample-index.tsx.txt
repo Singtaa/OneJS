@@ -58,18 +58,18 @@ const RadialProgress = ({ progress }: { progress: number }) => {
     const prev = useRef(progress)
 
     useEffect(() => {
-        ref.current.ve.generateVisualContent = onGenerateVisualContent
-        ref.current.style.fontSize = 0
+        ref.current!.ve.generateVisualContent = onGenerateVisualContent
+        ref.current!.style.fontSize = 0
     }, [])
 
     useEffect(() => {
-        ref.current.ve.generateVisualContent = onGenerateVisualContent
-        ref.current.ve.MarkDirtyRepaint()
+        ref.current!.ve.generateVisualContent = onGenerateVisualContent
+        ref.current!.ve.MarkDirtyRepaint()
 
         new Tween(prev).to({ current: progress }, 300)
             .easing(Easing.Quadratic.InOut).onUpdate(() => {
-                ref.current.ve.MarkDirtyRepaint();
-                (labelRef.current.ve as TextElement).text = Math.round(prev.current * 100) + ""
+                ref.current!.ve.MarkDirtyRepaint();
+                (labelRef.current!.ve as TextElement).text = Math.round(prev.current * 100) + ""
             }).start()
     }, [progress])
 
@@ -82,7 +82,7 @@ const RadialProgress = ({ progress }: { progress: number }) => {
         let dy = height / 2 - radius
 
         setTimeout(() => {
-            ref.current.style.fontSize = Mathf.Min(width, height) * 0.3
+            ref.current!.style.fontSize = Mathf.Min(width, height) * 0.3
         })
 
         painter2D.strokeColor = parseColor("#305fbc")
@@ -112,8 +112,8 @@ const App = () => {
         for (let i = 0; i < balls.length; i++) {
             const ball = balls[i]
             var pos = RuntimePanelUtils.CameraTransformWorldToPanel(document.body.ve.panel, ball.transform.position, Camera.main);
-            refs[i].current.style.translate = pos
-            refs[i].current.style.display = "flex"
+            refs[i].current!.style.translate = pos
+            refs[i].current!.style.display = "flex"
         }
     }
 
