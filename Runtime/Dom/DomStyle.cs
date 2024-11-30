@@ -16,6 +16,15 @@ namespace OneJS.Dom {
 
         public IStyle veStyle => _dom.ve.style;
 
+        public object getProperty(string key) {
+            // TODO cache this
+            var pi = this.GetType().GetProperty(key, BindingFlags.Instance | BindingFlags.IgnoreCase | BindingFlags.Public);
+            if (pi != null) {
+                return pi.GetValue(this);
+            }
+            return null;
+        }
+
         public void setProperty(string key, object value) {
             // TODO cache this
             var pi = this.GetType().GetProperty(key, BindingFlags.Instance | BindingFlags.IgnoreCase | BindingFlags.Public);
