@@ -1,4 +1,20 @@
-﻿# [2024-10-01] v2.0.26 - OneJS V2 🥳🎉
+﻿# [2024-10-01] v2.1.6 - Preparation for Editor UI
+
+We’re releasing this now, ahead of the Editor UI update (expected in a couple of weeks), as it includes significant improvements and bug fixes that are worth rolling out early. 
+
+If you are updating an existing project, make sure to also bump the `onejs-core` package to `^1.0.6` in your package.json.
+
+- Added WebApi from V1
+- `requestAnimationFrame()` bugfix (Thx @Kodra)
+- `DomStyle.GetLength()` bugfix
+- Use min/max for gradientrect
+- Added support for global namespace in DTSGenerator
+- `onejs-core` dependency bumped to `^1.0.6`
+- Many more bugfixes and improvements in `onejs-core` and `onejs-preact`
+
+- Most of the Editor UI code are actually in. We'll use the next release to list the contents.
+
+# [2024-10-01] v2.0.26 - OneJS V2 🥳🎉
 
 ## Major Changes
 
