@@ -111,7 +111,7 @@ const App = () => {
     function update() {
         for (let i = 0; i < balls.length; i++) {
             const ball = balls[i]
-            var pos = RuntimePanelUtils.CameraTransformWorldToPanel(document.body.ve.panel, ball.transform.position, Camera.main);
+            var pos = RuntimePanelUtils.CameraTransformWorldToPanel(document.body!.ve.panel, ball.transform.position, Camera.main);
             refs[i].current!.style.translate = pos
             refs[i].current!.style.display = "flex"
         }
