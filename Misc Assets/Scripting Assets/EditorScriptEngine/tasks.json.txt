@@ -1,0 +1,93 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "esbuild",
+            "type": "shell",
+            "command": "node",
+            "args": [ "esbuild.mjs" ],
+            "isBackground": true,
+            "problemMatcher": {
+                "owner": "typescript",
+                "fileLocation": "autoDetect",
+                "applyTo": "allDocuments",
+                "source": "esbuild",
+                "pattern": [
+                    {
+                        "regexp": "^.*\\[(ERROR|WARNING)\\]\\s+(.*)$",
+                        "severity": 1,
+                        "message": 2
+                    },
+                    {
+                        "regexp": "^$"
+                    },
+                    {
+                        "regexp": "^\\s*(.*):(\\d+):(\\d+):$",
+                        "file": 1,
+                        "line": 2,
+                        "column": 3
+                    },
+                    {
+                        "regexp": "^.*│\\s(.*)$",
+                        "code": 1
+                    }
+                ],
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "\\[esbuild\\] starting build...",
+                    "endsPattern": "\\[esbuild\\] watching..."
+                }
+            }
+        },
+        {
+            "label": "tailwind",
+            "type": "shell",
+            "command": "npx",
+            "args": [
+                "postcss",
+                "input.css",
+                "-o",
+                "../Assets/tailwind-editor.uss",
+                "--watch"
+            ],
+            "isBackground": true,
+            "problemMatcher": {
+                "pattern": [
+                    {
+                        "regexp": "^CssSyntaxError: (.*):(\\d+):(\\d+): (.+)$",
+                        "file": 1,
+                        "line": 2,
+                        "column": 3,
+                        "message": 4
+                    }
+                ],
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "\\[tailwindcss\\] compiler started...",
+                    "endsPattern": "\\[tailwindcss\\] watching..."
+                }
+            }
+        },
+        {
+            "label": "tsc",
+            "type": "shell",
+            "command": "tsc",
+            "args": [ "-w" ],
+            "isBackground": true,
+            "problemMatcher": [ "$tsc-watch" ]
+        },
+        {
+            "label": "run all",
+            "dependsOn": [
+                "esbuild",
+                "tailwind",
+                "tsc"
+            ],
+            "problemMatcher": [ ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}

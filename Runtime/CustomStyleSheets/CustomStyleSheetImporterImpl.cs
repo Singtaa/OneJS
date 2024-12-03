@@ -8,7 +8,7 @@ using Object = UnityEngine.Object;
 
 namespace OneJS.CustomStyleSheets {
     public class CustomStyleSheetImporterImpl : StyleValueImporter {
-        public CustomStyleSheetImporterImpl(ScriptEngine scriptEngine) : base(scriptEngine) {
+        public CustomStyleSheetImporterImpl(IScriptEngine scriptEngine) : base(scriptEngine) {
         }
 
         public void BuildStyleSheet(UnityEngine.UIElements.StyleSheet asset, string contents) {

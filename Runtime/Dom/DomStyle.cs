@@ -9,6 +9,7 @@ using Cursor = UnityEngine.UIElements.Cursor;
 namespace OneJS.Dom {
     public class DomStyle {
         Dom _dom;
+        Coroutine _imageCoroutine;
 
         public DomStyle(Dom dom) {
             this._dom = dom;
@@ -69,6 +70,14 @@ namespace OneJS.Dom {
         public object backgroundImage {
             get => veStyle.backgroundImage;
             set {
+                if (value is string s && IsRemoteUrl(s)) {
+                    StaticCoroutine.Stop(_imageCoroutine);
+                    _imageCoroutine = _dom.document.loadRemoteImage(s, (texture) => {
+                        veStyle.backgroundImage = new StyleBackground(Background.FromTexture2D(texture));
+                        _imageCoroutine = null;
+                    });
+                    return;
+                }
                 if (TryParseStyleBackground(value, out var styleBackground))
                     veStyle.backgroundImage = styleBackground;
             }
@@ -2069,6 +2078,13 @@ namespace OneJS.Dom {
             dom.ve.style.paddingRight = new StyleLength(keyword);
             dom.ve.style.paddingBottom = new StyleLength(keyword);
             dom.ve.style.paddingLeft = new StyleLength(keyword);
+        }
+
+        static bool IsRemoteUrl(string path) {
+            if (Uri.TryCreate(path, UriKind.Absolute, out Uri uriResult)) {
+                return uriResult.Scheme == Uri.UriSchemeHttp || uriResult.Scheme == Uri.UriSchemeHttps || uriResult.Scheme == Uri.UriSchemeFtp;
+            }
+            return false;
         }
         #endregion
 

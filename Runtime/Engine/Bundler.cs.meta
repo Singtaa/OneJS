@@ -13,7 +13,7 @@ MonoImporter:
   - onejsCoreZip: {fileID: 4900000, guid: 447491b0820deaa499feec456ba13940, type: 3}
   - outputsZip: {fileID: 4900000, guid: f7502ff07da261a46bd9bc5fdfc641f1, type: 3}
   executionOrder: 0
-  icon: {instanceID: 0}
+  icon: {fileID: 4422084297763085224, guid: 0000000000000000d000000000000000, type: 0}
   userData: 
   assetBundleName: 
   assetBundleVariant: 

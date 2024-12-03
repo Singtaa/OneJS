@@ -12,11 +12,10 @@ namespace OneJS.Dom {
         public string @is;
     }
 
-    public class Document {
+    public class Document : IDocument {
         public ScriptEngine scriptEngine => _scriptEngine;
         public VisualElement Root { get { return _root; } }
         public Dom body => _body;
-        public Dictionary<string, Type> UIElementEventTypesDict => _allUIElementEventTypes;
 
         Dom _body;
         VisualElement _root;
@@ -26,35 +25,17 @@ namespace OneJS.Dom {
         Dictionary<VisualElement, Dom> _elementToDomLookup = new();
 
         Dictionary<string, Type> _tagCache = new();
-        Dictionary<string, Type> _allUIElementEventTypes = new();
+        Dictionary<string, Texture2D> _imageCache = new();
+        Dictionary<string, Font> _fontCache = new();
+        Dictionary<string, FontDefinition> _fontDefinitionCache = new();
         Type[] _tagTypes;
+        WebApi _webApi = new WebApi();
 
         public Document(VisualElement root, ScriptEngine scriptEngine) {
             _root = root;
             _body = new Dom(_root, this);
             _scriptEngine = scriptEngine;
             _tagTypes = GetAllVisualElementTypes();
-            InitAllUIElementEvents();
-        }
-
-        void InitAllUIElementEvents() {
-            var eventTypes = typeof(VisualElement).Assembly.GetTypes().Where(type => type.IsSubclassOf(typeof(EventBase)));
-            foreach (var type in eventTypes) {
-                var typeNameLower = type.Name.ToLower();
-                _allUIElementEventTypes.Add(typeNameLower, type);
-
-                if (type.Name.EndsWith("Event")) {
-                    // Strips 5 characters from the end of type name, which is "Event"
-                    _allUIElementEventTypes.Add(typeNameLower[..^5], type);
-                }
-            }
-        }
-
-        public Type FindUIElementEventType(string name) {
-            if (_allUIElementEventTypes.TryGetValue(name, out var type)) {
-                return type;
-            }
-            return null;
         }
 
         public void addRuntimeUSS(string uss) {
@@ -96,7 +77,13 @@ namespace OneJS.Dom {
             if (type == null) {
                 return new Dom(new VisualElement(), this);
             }
-            return new Dom(Activator.CreateInstance(type) as VisualElement, this);
+            var obj = Activator.CreateInstance(type);
+            // See if obj has a "_document" field (using Reflection) and set it to this.
+            var documentField = type.GetField("_document", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (documentField != null) {
+                documentField.SetValue(obj, this);
+            }
+            return new Dom(obj as VisualElement, this);
         }
 
         public Dom createElement(string tagName, ElementCreationOptions options) {
@@ -133,14 +120,49 @@ namespace OneJS.Dom {
             return doms;
         }
 
+        public Dom getDomFromVE(VisualElement ve) {
+            if (_elementToDomLookup.TryGetValue(ve, out var dom)) {
+                return dom;
+            }
+            return null;
+        }
+        
+        public void clearCache() {
+            _imageCache.Clear();
+            _fontCache.Clear();
+            _fontDefinitionCache.Clear();
+        }
+        
+        public Coroutine loadRemoteImage(string url, Action<Texture2D> callback) {
+            if (_imageCache.TryGetValue(url, out var tex)) {
+                callback(tex);
+                return null;
+            }
+            return _webApi.getImage(url, (tex) => {
+                if (tex == null) {
+                    Debug.LogError($"Failed to load image: {url}");
+                    return;
+                }
+                _imageCache[url] = tex;
+                callback(tex);
+            });
+        }
+
+        /// <summary>
+        /// Loads an image from the specified path and returns a Texture2D object.
+        /// </summary>
+        /// <param name="path">Relative to the WorkingDir</param>
         public Texture2D loadImage(string path, FilterMode filterMode = FilterMode.Bilinear) {
-            // TODO cache
+            if (_imageCache.TryGetValue(path, out var texture)) {
+                return texture;
+            }
             try {
                 path = Path.IsPathRooted(path) ? path : Path.Combine(_scriptEngine.WorkingDir, path);
-                var rawData = System.IO.File.ReadAllBytes(path);
+                var rawData = File.ReadAllBytes(path);
                 Texture2D tex = new Texture2D(2, 2); // Create an empty Texture; size doesn't matter
                 tex.LoadImage(rawData);
                 tex.filterMode = filterMode;
+                _imageCache[path] = tex;
                 return tex;
             } catch (Exception e) {
                 Debug.LogError($"Failed to load image: {path}");
@@ -149,12 +171,19 @@ namespace OneJS.Dom {
             }
         }
 
+        /// <summary>
+        /// Loads a font from the specified path and returns a Font object.
+        /// </summary>
+        /// <param name="path">Relative to the WorkingDir</param>
         public Font loadFont(string path) {
-            // TODO cache
+            if (_fontCache.TryGetValue(path, out var f)) {
+                return f;
+            }
             try {
-            path = Path.IsPathRooted(path) ? path : Path.Combine(_scriptEngine.WorkingDir, path);
-            var font = new Font(path);
-            return font;
+                path = Path.IsPathRooted(path) ? path : Path.Combine(_scriptEngine.WorkingDir, path);
+                var font = new Font(path);
+                _fontCache[path] = font;
+                return font;
             } catch (Exception e) {
                 Debug.LogError($"Failed to load font: {path}");
                 // Debug.LogError(e);
@@ -162,10 +191,17 @@ namespace OneJS.Dom {
             }
         }
 
+        /// <summary>
+        /// Loads a font from the specified path and returns a FontDefinition object.
+        /// </summary>
+        /// <param name="path">Relative to the WorkingDir</param>
         public FontDefinition loadFontDefinition(string path) {
-            // TODO cache
+            if (_fontDefinitionCache.TryGetValue(path, out var fd)) {
+                return fd;
+            }
             path = Path.IsPathRooted(path) ? path : Path.Combine(_scriptEngine.WorkingDir, path);
             var font = new Font(path);
+            _fontCache[path] = font;
             return FontDefinition.FromFont(font);
         }
 
@@ -207,11 +243,11 @@ namespace OneJS.Dom {
         //     _body.removeEventListener(name, jsval, useCapture);
         // }
 
-        internal void AddCachingDom(Dom dom) {
+        void IDocument.AddCachingDom(Dom dom) {
             _elementToDomLookup[dom.ve] = dom;
         }
 
-        internal void RemoveCachingDom(Dom dom) {
+        void IDocument.RemoveCachingDom(Dom dom) {
             _elementToDomLookup.Remove(dom.ve);
         }
 

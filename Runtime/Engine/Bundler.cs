@@ -35,7 +35,7 @@ namespace OneJS {
         public string[] ignoreList = new string[] { "tsc", "editor" };
 
         ScriptEngine _engine;
-        string _onejsVersion = "2.0.22";
+        string _onejsVersion = "2.1.6";
 
         void Awake() {
             _engine = GetComponent<ScriptEngine>();
@@ -44,7 +44,7 @@ namespace OneJS {
             ExtractForStandalone();
 #else
             if (versionString != _onejsVersion) {
-                DeleteEverythingInPath(Path.Combine(_engine.WorkingDir, "onejs-core"));
+                // DeleteEverythingInPath(Path.Combine(_engine.WorkingDir, "onejs-core"));
                 // if (_extractSamples)
                 //     ExtractSamples();
 

@@ -1,0 +1,25 @@
+﻿{
+    "scripts": {
+        "setup": "npm install && tsc -p tsconfig.json",
+        "switch": "node node_modules/onejs-core/scripts/switch.cjs"
+    },
+    "devDependencies": {
+        "esbuild": "^0.20.0",
+        "fs-extra": "^11.2.0",
+        "postcss": "^8.4.38",
+        "postcss-cli": "^11.0.0",
+        "rimraf": "^5.0.7",
+        "tailwindcss": "^3.4.1",
+        "tar": "^7.2.0",
+        "tiny-glob": "^0.2.9",
+        "xml2js": "^0.6.2"
+    },
+    "dependencies": {
+        "@tweenjs/tween.js": "^23.1.2",
+        "onejs-comps": "^0.0.2",
+        "onejs-core": "^0.3.12",
+        "onejs-preact": "^0.3.12",
+        "css-flatten": "^2.0.0",
+        "css-simple-parser": "^3.0.0"
+    }
+}

@@ -30,10 +30,13 @@ namespace OneJS {
 
         [Tooltip("Include here any global USS you'd need. i.e. if you are working with Tailwind, make sure to include the output *.uss here.")]
         public StyleSheet[] styleSheets;
+        
+        public DTSGenerator dtsGenerator;
         #endregion
 
         #region Events
-        public event Action<JsEnv> PreInit;
+        public event Action<JsEnv> OnPreInit;
+        public event Action<JsEnv> OnPostInit;
         public event Action OnReload;
         #endregion
 
@@ -99,6 +102,8 @@ namespace OneJS {
         }
 
         public JsEnv JsEnv => _jsEnv;
+        
+        public Action<string, object> AddToGlobal => _addToGlobal;
         #endregion
 
         #region Public Methods
@@ -108,8 +113,8 @@ namespace OneJS {
 
         public void Shutdown() {
             if (_jsEnv != null) {
-                _jsEnv.Dispose();
                 _engineHost.InvokeOnDestroy();
+                _jsEnv.Dispose();
             }
             if (_uiDocument.rootVisualElement != null) {
                 _uiDocument.rootVisualElement.Clear();
@@ -131,8 +136,9 @@ namespace OneJS {
                 _jsEnv.Dispose();
             }
             _jsEnv = new JsEnv();
+            // _jsEnv = new JsEnv(new DefaultLoader(Path.Combine(WorkingDir, "@outputs/esbuild/")), 8080);
             _jsEnv.UsingAction<Action>();
-            PreInit?.Invoke(_jsEnv);
+            OnPreInit?.Invoke(_jsEnv);
 
             _engineHost = new EngineHost(this);
 
@@ -146,14 +152,15 @@ namespace OneJS {
             }
             styleSheets.ToList().ForEach(s => _uiDocument.rootVisualElement.styleSheets.Add(s));
             _document = new Document(_uiDocument.rootVisualElement, this);
-            _addToGlobal = _jsEnv.Eval<System.Action<string, object>>(@"__addToGlobal");
+            _addToGlobal = _jsEnv.Eval<Action<string, object>>(@"__addToGlobal");
             _addToGlobal("___document", _document);
+            _addToGlobal("___workingDir", WorkingDir);
             _addToGlobal("resource", _resource);
             _addToGlobal("onejs", _engineHost);
-            _addToGlobal("___workingDir", WorkingDir);
             foreach (var obj in globalObjects) {
                 _addToGlobal(obj.name, obj.obj);
             }
+            OnPostInit?.Invoke(_jsEnv);
         }
 
         /// <summary>

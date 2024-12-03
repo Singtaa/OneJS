@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: a22c35d066a7475a86131f74ae794dba
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - scriptEnginePrefab: {fileID: 8930752045537606291, guid: f99b6aec6fc021f4c9572906776c6555, type: 3}
+  - editorStyleSheet: {fileID: 7433441132597879392, guid: 6894d200432752448a323f825bc00c25, type: 3}
+  - packageJsonOverride: {fileID: 4900000, guid: 556ed37128b66584b90f1548d16447eb, type: 3}
+  - tasksJsonOverride: {fileID: 4900000, guid: 376e9c4298ac4a0eb7d2ba7f472ddca0, type: 3}
+  - appJsOverride: {fileID: 4900000, guid: 6c123345eea9a9e448848f53c3ad7266, type: 3}
+  executionOrder: 0
+  icon: {fileID: 3443629218296621865, guid: 0000000000000000d000000000000000, type: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

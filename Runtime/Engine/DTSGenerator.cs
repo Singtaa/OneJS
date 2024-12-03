@@ -1,8 +1,9 @@
-﻿using UnityEngine;
+﻿using System;
+using UnityEngine;
 
 namespace OneJS {
-    [RequireComponent(typeof(ScriptEngine))] [AddComponentMenu("OneJS/DTS Generator")]
-    public class DTSGenerator : MonoBehaviour {
+    [Serializable]
+    public class DTSGenerator {
         [PlainString]
         [Tooltip("Use this list to restrict the assemblies you want to generate typings for. Keep list empty for no restrictions. Use 'Assembly-CSharp' for the default (non-asmdef) assembly.")]
         public string[] assemblies = new string[] {

@@ -1,0 +1,13 @@
+Button {
+    margin: 0;
+    flex-direction: row;
+    justify-content: center;
+}
+
+Button:focus {
+    border-color: #303030;
+}
+
+TextField {
+    margin: 0;
+}

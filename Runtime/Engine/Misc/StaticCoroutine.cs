@@ -3,7 +3,8 @@ using UnityEngine;
 
 namespace OneJS {
     public class StaticCoroutine {
-        private class CoroutineHolder : MonoBehaviour { }
+        private class CoroutineHolder : MonoBehaviour {
+        }
 
         private static CoroutineHolder _holder;
 
@@ -18,8 +19,13 @@ namespace OneJS {
             }
         }
 
-        public static void Start(IEnumerator coroutine) {
-            Holder.StartCoroutine(coroutine);
+        public static Coroutine Start(IEnumerator coroutine) {
+            return Holder.StartCoroutine(coroutine);
+        }
+
+        public static void Stop(Coroutine coroutine) {
+            if (coroutine != null)
+                Holder.StopCoroutine(coroutine);
         }
     }
 }

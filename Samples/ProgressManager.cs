@@ -14,7 +14,7 @@ namespace OneJS.Samples {
         void Start() {
             StartCoroutine(ChangeProgressCo());
         }
-        
+
         public void SetProgress(float progress) {
             _progress = progress;
             OnProgressChanged?.Invoke(_progress);

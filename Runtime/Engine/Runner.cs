@@ -61,10 +61,6 @@ namespace OneJS {
             _engine.OnReload -= OnReload;
         }
 
-        void Start() {
-            
-        }
-
         void Update() {
             if (!liveReload) return;
 #if !UNITY_EDITOR && (UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID)
@@ -74,15 +70,18 @@ namespace OneJS {
             _lastCheckTime = Time.time;
             CheckForChanges();
         }
+        
+        public void Reload() {
+            _engine.Reload();
+            _engine.EvalFile(entryFile);
+        }
 
         void CheckForChanges() {
             var writeTime = File.GetLastWriteTime(_engine.GetFullPath(entryFile));
             if (_lastWriteTime == writeTime) return; // No change
             _lastWriteTime = writeTime;
-            _engine.Reload();
-            _engine.EvalFile(entryFile);
+            Reload();
             
-
             // _engine.OnReload += () => {
             //     _engine.JsEnv.UsingAction<bool>();
             //     // Add more here

@@ -17,7 +17,35 @@ namespace OneJS.Dom {
     }
 
     public class Dom {
-        public Document document => _document;
+        #region Statics
+        static Dictionary<string, Type> _allUIElementEventTypes = new();
+
+        static Dom() {
+            InitAllUIElementEvents();
+        }
+
+        static void InitAllUIElementEvents() {
+            var eventTypes = typeof(VisualElement).Assembly.GetTypes().Where(type => type.IsSubclassOf(typeof(EventBase)));
+            foreach (var type in eventTypes) {
+                var typeNameLower = type.Name.ToLower();
+                _allUIElementEventTypes.Add(typeNameLower, type);
+
+                if (type.Name.EndsWith("Event")) {
+                    // Strips 5 characters from the end of type name, which is "Event"
+                    _allUIElementEventTypes.Add(typeNameLower[..^5], type);
+                }
+            }
+        }
+
+        static Type FindUIElementEventType(string name) {
+            if (_allUIElementEventTypes.TryGetValue(name, out var type)) {
+                return type;
+            }
+            return null;
+        }
+        #endregion
+
+        public IDocument document => _document;
 
         public VisualElement ve => _ve;
 
@@ -70,7 +98,7 @@ namespace OneJS.Dom {
             (",", "_cm_")
         };
 
-        Document _document;
+        IDocument _document;
         VisualElement _ve;
         DomStyle _style;
         string _key;
@@ -112,7 +140,7 @@ namespace OneJS.Dom {
         //    _ve = new VisualElement();
         //}
 
-        public Dom(VisualElement ve, Document document) {
+        public Dom(VisualElement ve, IDocument document) {
             _ve = ve;
             _document = document;
             _style = new DomStyle(this);
@@ -184,7 +212,7 @@ namespace OneJS.Dom {
                         eventType = eventType.MakeGenericType(valType);
                     }
                 } else {
-                    eventType = _document.FindUIElementEventType(nameLower);
+                    eventType = FindUIElementEventType(nameLower);
                 }
 
                 if (eventType != null) {
@@ -217,7 +245,7 @@ namespace OneJS.Dom {
             if (!_registeredCallbacks.ContainsKey(nameLower))
                 return;
             var callbackHolders = _registeredCallbacks[nameLower];
-            var eventType = _document.FindUIElementEventType(nameLower);
+            var eventType = FindUIElementEventType(nameLower);
             if (eventType != null) {
                 var flags = BindingFlags.Public | BindingFlags.Instance;
                 var mi = _ve.GetType().GetMethods(flags)
@@ -251,7 +279,7 @@ namespace OneJS.Dom {
                 _childNodes[_childNodes.Count - 1]._nextSibling = node;
             }
             _childNodes.Add(node);
-            _document.AddCachingDom(node);
+            TryAddCacheDom(node);
         }
 
         public void removeChild(Dom child) {
@@ -269,7 +297,7 @@ namespace OneJS.Dom {
             }
             _childNodes.Remove(child);
             child._parentNode = null;
-            _document.RemoveCachingDom(child);
+            TryRemoveCacheDom(child);
         }
 
         public void insertBefore(Dom a, Dom b) {
@@ -290,7 +318,27 @@ namespace OneJS.Dom {
             if (index > 0) {
                 _childNodes[index - 1]._nextSibling = a;
             }
-            _document.AddCachingDom(a);
+            TryAddCacheDom(a);
+        }
+
+        public void insertAfter(Dom a, Dom b) {
+            if (a == null)
+                return;
+            if (b == null || b.ve == null || _ve.IndexOf(b.ve) == -1) {
+                appendChild(a);
+                return;
+            }
+            if (a == b) {
+                return;
+            }
+            var index = _ve.IndexOf(b.ve);
+            var newIndex = index + 1;
+            _ve.Insert(newIndex, a.ve);
+            _childNodes.Insert(newIndex, a);
+            a._parentNode = this;
+            a._nextSibling = b._nextSibling;
+            b._nextSibling = a;
+            TryAddCacheDom(a);
         }
 
         public void setAttribute(string name, object val) {
@@ -369,7 +417,7 @@ namespace OneJS.Dom {
                 }
             }
         }
-        
+
         public bool contains(Dom child) {
             return _ve.Contains(child.ve);
         }
@@ -413,6 +461,18 @@ namespace OneJS.Dom {
 
             var output = String.Join(" ", names);
             return TransformUsingPairs(output, _replacePairsForClassNames);
+        }
+
+        void TryAddCacheDom(Dom dom) {
+            if (_document != null) {
+                _document.AddCachingDom(dom);
+            }
+        }
+
+        void TryRemoveCacheDom(Dom dom) {
+            if (_document != null) {
+                _document.RemoveCachingDom(dom);
+            }
         }
 
         /// <summary>

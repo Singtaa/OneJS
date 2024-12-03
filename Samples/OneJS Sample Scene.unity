@@ -483,6 +483,14 @@ PrefabInstance:
       propertyPath: globalObjects.Array.data[2].name
       value: sam
       objectReference: {fileID: 0}
+    - target: {fileID: 8930752045537606291, guid: f99b6aec6fc021f4c9572906776c6555, type: 3}
+      propertyPath: editorWorkingDirInfo.relativePath
+      value: Sample
+      objectReference: {fileID: 0}
+    - target: {fileID: 8930752045537606291, guid: f99b6aec6fc021f4c9572906776c6555, type: 3}
+      propertyPath: playerWorkingDirInfo.relativePath
+      value: Sample
+      objectReference: {fileID: 0}
     - target: {fileID: 9197640398682377884, guid: f99b6aec6fc021f4c9572906776c6555, type: 3}
       propertyPath: outputsZip
       value: 
@@ -491,6 +499,10 @@ PrefabInstance:
       propertyPath: defaultFiles.Array.data[2].textAsset
       value: 
       objectReference: {fileID: 4900000, guid: a5058dcf76d049b4b5887731a253e996, type: 3}
+    - target: {fileID: 9197640398682377884, guid: f99b6aec6fc021f4c9572906776c6555, type: 3}
+      propertyPath: defaultFiles.Array.data[4].textAsset
+      value: 
+      objectReference: {fileID: 4900000, guid: c297645cbcae03944812c1a7554f3157, type: 3}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

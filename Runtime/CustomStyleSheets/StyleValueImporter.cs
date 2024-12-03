@@ -71,9 +71,9 @@ namespace OneJS.CustomStyleSheets {
             }
         }
 
-        ScriptEngine _scriptEngine;
+        IScriptEngine _scriptEngine;
 
-        public StyleValueImporter(ScriptEngine scriptEngine) {
+        public StyleValueImporter(IScriptEngine scriptEngine) {
             _scriptEngine = scriptEngine;
             this.m_AssetPath = (string)null;
             this.m_Parser = new ExCSS.Parser();

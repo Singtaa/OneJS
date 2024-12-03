@@ -12,79 +12,103 @@ using UnityEngine.UIElements;
 using Debug = UnityEngine.Debug;
 
 namespace OneJS.Editor {
-    [CustomEditor(typeof(DTSGenerator))]
-    [CanEditMultipleObjects]
-    public class DTSGeneratorEditor : UnityEditor.Editor {
-        SerializedProperty _assemblies;
-        SerializedProperty _namespaces;
-        SerializedProperty _whitelistedTypes;
-        SerializedProperty _blacklistedTypes;
-        SerializedProperty _savePath;
-        // SerializedProperty _strictAssemblies;
-        // SerializedProperty _strictNamespaces;
-        SerializedProperty _whitelistOnly;
-        SerializedProperty _exact;
-        SerializedProperty _includeGlobalObjects;
+    public class DTSGeneratorEditor {
+        // SerializedProperty _assemblies;
+        // SerializedProperty _namespaces;
+        // SerializedProperty _whitelistedTypes;
+        // SerializedProperty _blacklistedTypes;
+        // SerializedProperty _savePath;
+        // // SerializedProperty _strictAssemblies;
+        // // SerializedProperty _strictNamespaces;
+        // SerializedProperty _whitelistOnly;
+        // SerializedProperty _exact;
+        // SerializedProperty _includeGlobalObjects;
 
-        void OnEnable() {
-            _assemblies = serializedObject.FindProperty("assemblies");
-            _namespaces = serializedObject.FindProperty("namespaces");
-            _whitelistedTypes = serializedObject.FindProperty("whitelistedTypes");
-            _blacklistedTypes = serializedObject.FindProperty("blacklistedTypes");
-            _savePath = serializedObject.FindProperty("savePath");
-            // _strictAssemblies = serializedObject.FindProperty("strictAssemblies");
-            // _strictNamespaces = serializedObject.FindProperty("strictNamespaces");
-            _whitelistOnly = serializedObject.FindProperty("whitelistOnly");
-            _exact = serializedObject.FindProperty("exact");
-            _includeGlobalObjects = serializedObject.FindProperty("includeGlobalObjects");
+        DTSGenerator _dtsGenerator;
+        
+        public DTSGeneratorEditor(DTSGenerator dtsGenerator) {
+            _dtsGenerator = dtsGenerator;
         }
 
-        public override void OnInspectorGUI() {
-            serializedObject.Update();
-            EditorGUILayout.HelpBox("For generating TypeScript definitions from C# assemblies/namespaces", MessageType.None);
+        // public override void OnGUI(Rect position, SerializedProperty property, GUIContent label) {
+        //     DTSGenerator genny = property.managedReferenceValue as DTSGenerator;
+        //
+        //     if (genny == null) {
+        //         genny = new DTSGenerator();
+        //         // EditorGUI.LabelField(position, label.text, "Null or invalid object");
+        //         // return;
+        //     }
+        //
+        //     EditorGUILayout.HelpBox("For generating TypeScript definitions from C# assemblies/namespaces", MessageType.None);
+        //
+        //     EditorGUILayout.PropertyField(_assemblies, new GUIContent("Assemblies"));
+        //     EditorGUILayout.PropertyField(_namespaces, new GUIContent("Namespaces"));
+        //     EditorGUILayout.PropertyField(_whitelistedTypes, new GUIContent("Whitelisted Types"));
+        //     EditorGUILayout.PropertyField(_blacklistedTypes, new GUIContent("Blacklisted Types"));
+        //     EditorGUILayout.PropertyField(_savePath, new GUIContent("Save Path"));
+        //     // EditorGUILayout.PropertyField(_strictAssemblies, new GUIContent("Strict Assemblies"));
+        //     // EditorGUILayout.PropertyField(_strictNamespaces, new GUIContent("Strict Namespaces"));
+        //     EditorGUILayout.PropertyField(_whitelistOnly, new GUIContent("Whitelist Only"));
+        //     EditorGUILayout.PropertyField(_exact, new GUIContent("Exact"));
+        //     EditorGUILayout.PropertyField(_includeGlobalObjects, new GUIContent("Include Global Objects"));
+        //
+        //     EditorGUILayout.Space(10);
+        //     // if (GUILayout.Button(new GUIContent("Generate", "Generate TS Definitions"), GUILayout.Height(30))) {
+        //     //     if (EditorUtility.DisplayDialog("TS Definitions Generation",
+        //     //             "This may take a few minutes depending on the number of types. Are you sure you want to proceed right now?",
+        //     //             "Confirm", "Cancel")) {
+        //     //         Generate(genny);
+        //     //     }
+        //     // }
+        //
+        //     // EditorGUI.BeginProperty(position, label, property);
+        //     // var indent = EditorGUI.indentLevel;
+        //     // EditorGUI.indentLevel = 0;
+        //     //
+        //     // EditorGUI.PropertyField(position, property, GUIContent.none);
+        //     //
+        //     // EditorGUI.indentLevel = indent;
+        //     // EditorGUI.EndProperty();
+        // }
 
-            EditorGUILayout.PropertyField(_assemblies, new GUIContent("Assemblies"));
-            EditorGUILayout.PropertyField(_namespaces, new GUIContent("Namespaces"));
-            EditorGUILayout.PropertyField(_whitelistedTypes, new GUIContent("Whitelisted Types"));
-            EditorGUILayout.PropertyField(_blacklistedTypes, new GUIContent("Blacklisted Types"));
-            EditorGUILayout.PropertyField(_savePath, new GUIContent("Save Path"));
-            // EditorGUILayout.PropertyField(_strictAssemblies, new GUIContent("Strict Assemblies"));
-            // EditorGUILayout.PropertyField(_strictNamespaces, new GUIContent("Strict Namespaces"));
-            EditorGUILayout.PropertyField(_whitelistOnly, new GUIContent("Whitelist Only"));
-            EditorGUILayout.PropertyField(_exact, new GUIContent("Exact"));
-            EditorGUILayout.PropertyField(_includeGlobalObjects, new GUIContent("Include Global Objects"));
+        // void OnEnable() {
+        //     _assemblies = serializedObject.FindProperty("assemblies");
+        //     _namespaces = serializedObject.FindProperty("namespaces");
+        //     _whitelistedTypes = serializedObject.FindProperty("whitelistedTypes");
+        //     _blacklistedTypes = serializedObject.FindProperty("blacklistedTypes");
+        //     _savePath = serializedObject.FindProperty("savePath");
+        //     // _strictAssemblies = serializedObject.FindProperty("strictAssemblies");
+        //     // _strictNamespaces = serializedObject.FindProperty("strictNamespaces");
+        //     _whitelistOnly = serializedObject.FindProperty("whitelistOnly");
+        //     _exact = serializedObject.FindProperty("exact");
+        //     _includeGlobalObjects = serializedObject.FindProperty("includeGlobalObjects");
+        // }
 
-            EditorGUILayout.Space(10);
-            if (GUILayout.Button(new GUIContent("Generate", "Generate TS Definitions"), GUILayout.Height(30))) {
-                if (EditorUtility.DisplayDialog("TS Definitions Generation",
-                        "This may take a few minutes depending on the number of types. Are you sure you want to proceed right now?",
-                        "Confirm", "Cancel")) {
-                    Generate();
-                }
-            }
+        // public override void OnInspectorGUI() {
+        //     // serializedObject.Update();
+        //     
+        //
+        //     // if (GUILayout.Button(new GUIContent("Test", "Test"), GUILayout.Height(30))) {
+        //     //     Test();
+        //     // }
+        //
+        //     // serializedObject.ApplyModifiedProperties();
+        // }
 
-            // if (GUILayout.Button(new GUIContent("Test", "Test"), GUILayout.Height(30))) {
-            //     Test();
-            // }
-
-            serializedObject.ApplyModifiedProperties();
-        }
-
-        public void Generate() {
+        public void Generate(ObjectMappingPair[] globals, string workingDir) {
             var t = new Stopwatch();
             t.Start();
-            var dtsGenerator = target as DTSGenerator;
-            var scriptEngine = dtsGenerator.GetComponent<ScriptEngine>();
-            var assemblies = _assemblies.ToStringArray().Select((a) => {
+            var assemblies = _dtsGenerator.assemblies.Select((a) => {
                 try {
                     return Assembly.Load(a);
                 } catch (Exception e) {
                     Debug.Log($"Could not load assembly \"{a}\". Please check your string(s) in the Assemblies list.");
+                    Debug.LogError(e);
                     return null;
                 }
             }).Where(a => a != null).ToArray();
-            var namespaces = _namespaces.ToStringArray();
-            var typesToAdd = _whitelistedTypes.ToStringArray().Select((t) => {
+            var namespaces = _dtsGenerator.namespaces;
+            var typesToAdd = _dtsGenerator.whitelistedTypes.Select((t) => {
                 Type type = null;
                 foreach (Assembly assembly in assemblies) {
                     type = assembly.GetType(t);
@@ -95,7 +119,7 @@ namespace OneJS.Editor {
                     Debug.Log($"Could not load type \"{t}\". Please check your string(s) in the Whitelisted Types list.");
                 return type;
             }).Where(t => t != null).ToArray();
-            var typesToRemove = _blacklistedTypes.ToStringArray().Select((t) => {
+            var typesToRemove = _dtsGenerator.blacklistedTypes.Select((t) => {
                 Type type = null;
                 foreach (Assembly assembly in assemblies) {
                     type = assembly.GetType(t);
@@ -111,21 +135,20 @@ namespace OneJS.Editor {
             var uniqueSet = new HashSet<Type>(types);
             uniqueSet.ExceptWith(typesToRemove);
 
-            if (_includeGlobalObjects.boolValue) {
-                var globalTypes = scriptEngine.globalObjects.Select(pair => pair.obj.GetType()).ToArray();
-                uniqueSet.UnionWith(globalTypes);
+            if (_dtsGenerator.includeGlobalObjects) {
+                uniqueSet.UnionWith(globals.Select(pair => pair.obj.GetType()));
             }
-            
-            if (_whitelistOnly.boolValue) {
+
+            if (_dtsGenerator.whitelistOnly) {
                 // set uniqueSet to typesToAdd
                 uniqueSet = new HashSet<Type>(typesToAdd);
             }
 
-            var fullSavePath = Path.Combine(scriptEngine.WorkingDir, _savePath.stringValue);
+            var fullSavePath = Path.Combine(workingDir, _dtsGenerator.savePath);
             GenerateDTS(fullSavePath, uniqueSet.ToArray(), assemblies, namespaces);
 
-            if (_includeGlobalObjects.boolValue) {
-                AppendGlobals(fullSavePath);
+            if (_dtsGenerator.includeGlobalObjects) {
+                AppendGlobals(globals, fullSavePath);
             }
             t.Stop();
             Debug.Log($"[{t.Elapsed.TotalSeconds} seconds] Generated {fullSavePath}");
@@ -148,13 +171,11 @@ namespace OneJS.Editor {
             //     string[] namespacesToKeep = _namespaces.ToStringArray().Select(s => "CS." + s).ToArray();
             //     res = NamespaceTreeFilter.FilterNamespaces(root, namespacesToKeep);
             // }
-            var res = DTSGen.Generate(types, _exact.boolValue, assemblies, namespaces);
+            var res = DTSGen.Generate(types, _dtsGenerator.exact, assemblies, namespaces);
             File.WriteAllText(fullSavePath, res);
         }
 
-        void AppendGlobals(string filepath) {
-            var scriptEngine = (target as DTSGenerator).GetComponent<ScriptEngine>();
-            var globals = scriptEngine.globalObjects;
+        void AppendGlobals(ObjectMappingPair[] globals, string filepath) {
             if (globals.Length == 0)
                 return;
 
