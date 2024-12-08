@@ -11,9 +11,9 @@ namespace OneJS.Editor {
         /// <summary>
         /// Will be set from JS
         /// </summary>
-        public Action<VisualElement> render;
+        public Action<EditorWindow> render;
 
-        public VisualElement root;
+        public EditorWindow window;
         public EditorScriptEngine engine;
     }
 
@@ -25,7 +25,7 @@ namespace OneJS.Editor {
             Clear();
         }
 
-        public static void Register(Type type, Action<VisualElement> render) {
+        public static void Register(Type type, Action<EditorWindow> render) {
             if (renderers.TryGetValue(type, out var renderer)) {
                 renderer.render = render;
             } else {
@@ -43,28 +43,30 @@ namespace OneJS.Editor {
 
         public static void RefreshAll() {
             foreach (var renderer in renderers.Values) {
-                if (renderer.root != null) {
-                    renderer.root.Clear();
-                    renderer.engine.ApplyStyleSheets(renderer.root);
-                    renderer.render(renderer.root);
+                if (renderer.window != null) {
+                    renderer.window.rootVisualElement.Clear();
+                    renderer.engine.ApplyStyleSheets(renderer.window.rootVisualElement);
+                    renderer.render(renderer.window);
                 }
             }
         }
 
         public void Refresh(Type type) {
             if (renderers.TryGetValue(type, out var renderer)) {
-                renderer.root.Clear();
-                renderer.render(renderer.root);
+                renderer.window.rootVisualElement.Clear();
+                renderer.render(renderer.window);
             }
         }
 
-        public static bool TryRender(Type type, VisualElement root, EditorScriptEngine engine) {
+        public static bool TryRender<T>(T window, EditorScriptEngine engine) where T : EditorWindow {
+            var type = typeof(T);
             if (renderers.TryGetValue(type, out var renderer)) {
+                var root = window.rootVisualElement;
                 root.Clear();
                 engine.ApplyStyleSheets(root);
-                renderer.render(root);
+                renderer.render(window);
 
-                renderer.root = root;
+                renderer.window = window;
                 renderer.engine = engine;
                 return true;
             }

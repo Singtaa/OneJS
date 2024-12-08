@@ -7,7 +7,7 @@ using UnityEngine.UIElements;
 
 namespace OneJS.Editor {
     public class TabCreator {
-        public static EditorWindow CreateNewTab() {
+        public EditorWindow CreateNewTab() {
             var lastFocusedWindow = EditorWindow.focusedWindow;
             if (lastFocusedWindow == null) {
                 Debug.LogError("No focused window found");

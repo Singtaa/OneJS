@@ -35,7 +35,7 @@ namespace OneJS {
         public string[] ignoreList = new string[] { "tsc", "editor" };
 
         ScriptEngine _engine;
-        string _onejsVersion = "2.1.6";
+        string _onejsVersion = "2.1.7";
 
         void Awake() {
             _engine = GetComponent<ScriptEngine>();

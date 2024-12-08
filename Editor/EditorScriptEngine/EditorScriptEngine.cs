@@ -1,14 +1,11 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using Newtonsoft.Json;
 using Puerts;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.Serialization;
 using UnityEngine.UIElements;
 
 namespace OneJS.Editor {
@@ -130,8 +127,8 @@ namespace OneJS.Editor {
             _jsEnv.Eval(code);
         }
 
-        public bool TryRender(Type type, VisualElement root) {
-            return ElementRenderer.TryRender(type, root, this);
+        public bool TryRender<T>(T window) where T : EditorWindow {
+            return ElementRenderer.TryRender(window, this);
         }
 
         public void ApplyStyleSheets(VisualElement ve) {
