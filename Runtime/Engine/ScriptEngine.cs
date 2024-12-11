@@ -30,7 +30,7 @@ namespace OneJS {
 
         [Tooltip("Include here any global USS you'd need. i.e. if you are working with Tailwind, make sure to include the output *.uss here.")]
         public StyleSheet[] styleSheets;
-        
+
         public DTSGenerator dtsGenerator;
         #endregion
 
@@ -85,6 +85,15 @@ namespace OneJS {
                 if (!Directory.Exists(path)) {
                     Directory.CreateDirectory(path);
                 }
+#if MULTIPLAYER_PLAYMODE_ENABLED
+                if ( path.Contains( $"Library{Path.DirectorySeparatorChar}VP" ) )
+                {
+                    // MPPM is active
+                    path = Path.Combine( Path.GetDirectoryName( Application.dataPath )!,
+                        "..", "..", "..",
+                        editorWorkingDirInfo.relativePath );
+                }
+#endif
                 return path;
 #else
                 var path = Path.Combine(Path.GetDirectoryName(Application.dataPath)!,
@@ -102,7 +111,7 @@ namespace OneJS {
         }
 
         public JsEnv JsEnv => _jsEnv;
-        
+
         public Action<string, object> AddToGlobal => _addToGlobal;
         #endregion
 
