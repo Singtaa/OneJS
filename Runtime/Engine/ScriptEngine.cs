@@ -86,12 +86,11 @@ namespace OneJS {
                     Directory.CreateDirectory(path);
                 }
 #if MULTIPLAYER_PLAYMODE_ENABLED
-                if ( path.Contains( $"Library{Path.DirectorySeparatorChar}VP" ) )
-                {
+                if (path.Contains($"Library{Path.DirectorySeparatorChar}VP")) {
                     // MPPM is active
-                    path = Path.Combine( Path.GetDirectoryName( Application.dataPath )!,
+                    path = Path.Combine(Path.GetDirectoryName(Application.dataPath)!,
                         "..", "..", "..",
-                        editorWorkingDirInfo.relativePath );
+                        editorWorkingDirInfo.relativePath);
                 }
 #endif
                 return path;
