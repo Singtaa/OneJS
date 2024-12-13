@@ -95,7 +95,8 @@ namespace OneJS.Dom {
         static (string, string)[] _replacePairsForClassNames = new[] {
             (".", "_d_"), ("/", "_s_"), (":", "_c_"), ("%", "_p_"), ("#", "_n_"),
             ("[", "_lb_"), ("]", "_rb_"), ("(", "_lp_"), (")", "_rp_"),
-            (",", "_cm_")
+            (",", "_cm_"),
+            ("&", "_amp_"), (">", "_gt_"), ("<", "_lt_"), ("*", "_ast_"),
         };
 
         IDocument _document;
