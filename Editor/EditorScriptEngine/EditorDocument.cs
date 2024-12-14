@@ -251,11 +251,11 @@ namespace OneJS.Editor {
             return foundType;
         }
 
-        void IDocument.AddCachingDom(Dom.Dom dom) {
+        public void AddCachingDom(Dom.Dom dom) {
             _elementToDomLookup[dom.ve] = dom;
         }
 
-        void IDocument.RemoveCachingDom(Dom.Dom dom) {
+        public void RemoveCachingDom(Dom.Dom dom) {
             _elementToDomLookup.Remove(dom.ve);
         }
 

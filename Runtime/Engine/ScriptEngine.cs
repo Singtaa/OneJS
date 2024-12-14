@@ -9,7 +9,7 @@ using UnityEngine.UIElements;
 
 namespace OneJS {
     [RequireComponent(typeof(UIDocument))] [AddComponentMenu("OneJS/ScriptEngine")]
-    public class ScriptEngine : MonoBehaviour, IScriptEngine {
+    public class ScriptEngine : MonoBehaviour, IScriptEngine, IDisposable {
         public int Tick => _tick;
 
         #region Public Fields
@@ -38,6 +38,7 @@ namespace OneJS {
         public event Action<JsEnv> OnPreInit;
         public event Action<JsEnv> OnPostInit;
         public event Action OnReload;
+        public event Action OnDispose;
         #endregion
 
         #region Private Fields
@@ -63,7 +64,7 @@ namespace OneJS {
         }
 
         void OnDisable() {
-            Shutdown();
+            Dispose();
         }
 
         void Update() {
@@ -119,9 +120,9 @@ namespace OneJS {
             return Path.Combine(WorkingDir, filepath);
         }
 
-        public void Shutdown() {
+        public void Dispose() {
+            OnDispose?.Invoke();
             if (_jsEnv != null) {
-                _engineHost.InvokeOnDestroy();
                 _jsEnv.Dispose();
             }
             if (_uiDocument.rootVisualElement != null) {
@@ -132,7 +133,7 @@ namespace OneJS {
 
         public void Reload() {
             OnReload?.Invoke();
-            _engineHost.InvokeOnReload();
+            Dispose();
             Init();
 #if UNITY_EDITOR
             StartCoroutine(RefreshStyleSheets());

@@ -5,22 +5,41 @@ using Puerts;
 using UnityEngine;
 
 namespace OneJS {
+    public interface IEngineHost {
+        event Action onReload;
+        event Action onDispose;
+    }
+    
     /// <summary>
     /// Used to provide host objects and host functions to the JS side under `onejs` global variable
     /// </summary>
-    public class EngineHost : IDisposable {
+    public class EngineHost : IEngineHost, IDisposable {
         // public readonly Interop interop;
-        public event ActionCallback onReload;
-        public event ActionCallback onDestroy;
+        public event Action onReload;
+        public event Action onDispose;
 
-        public delegate void ActionCallback();
         // public delegate void JSCallback(object v);
 
-        readonly JsEnv _jsEnv;
+        readonly ScriptEngine _engine;
 
         public EngineHost(ScriptEngine engine) {
             // interop = new(engine);
-            _jsEnv = engine.JsEnv;
+            _engine = engine;
+            engine.OnReload += DoReload;
+            engine.OnDispose += Dispose;
+        }
+        
+        public void DoReload() {
+            onReload?.Invoke();
+        }
+        
+        public void Dispose() {
+            onDispose?.Invoke();
+            _engine.OnDispose -= Dispose;
+            onDispose = null;
+            
+            _engine.OnReload -= DoReload;
+            onReload = null;
         }
 
         /// <summary>
@@ -47,7 +66,7 @@ namespace OneJS {
                     nameof(eventName));
             }
 
-            var handlerDelegate = GenericDelegateWrapper.Wrap(_jsEnv, eventInfo, handler);
+            var handlerDelegate = GenericDelegateWrapper.Wrap(_engine.JsEnv, eventInfo, handler);
             var isOnReloadEvent = eventSource == this && eventName == nameof(onReload);
 
             eventInfo.AddEventHandler(eventSource, handlerDelegate);
@@ -69,54 +88,5 @@ namespace OneJS {
         }
 
         public Action subscribe(string eventName, GenericDelegate handler) => subscribe(this, eventName, handler);
-
-        public void InvokeOnReload() {
-            onReload?.Invoke();
-        }
-
-        public void InvokeOnDestroy() {
-            onDestroy?.Invoke();
-        }
-
-        public void Dispose() {
-            onReload = null;
-            onDestroy = null;
-        }
-
-        // // TODO
-        // public class Interop {
-        //     public readonly JsObject classes;
-        //     public readonly JsObject objects;
-        //     
-        //     readonly ScriptEngine _engine;
-        //
-        //     public Interop(ScriptEngine engine) {
-        //         classes = new(engine.JintEngine);
-        //         objects = new(engine.JintEngine);
-        //
-        //         foreach (var pair in engine.StaticClasses) {
-        //             var type = AssemblyFinder.FindType(pair.staticClass);
-        //
-        //             if (type != null) {
-        //                 classes[pair.module] = TypeReference.CreateTypeReference(engine.JintEngine, type);
-        //             } else {
-        //                 UnityEngine.Debug.LogWarning(
-        //                     $"[ScriptEngine] Cannot find type \"{pair.staticClass}\". Please check \"Static Classes\" array.", engine);
-        //             }
-        //         }
-        //
-        //         foreach (var pair in engine.Objects) {
-        //             objects[pair.module] = JsValue.FromObject(engine.JintEngine, pair.obj);
-        //         }
-        //     }
-        //     
-        //     public void AddClass(string module, Type type) {
-        //         classes[module] = TypeReference.CreateTypeReference(_engine.JintEngine, type);
-        //     }
-        //     
-        //     public void AddObject(string module, object obj) {
-        //         objects[module] = JsValue.FromObject(_engine.JintEngine, obj);
-        //     }
-        // }
     }
 }

@@ -10,7 +10,7 @@ using UnityEngine.UIElements;
 
 namespace OneJS.Editor {
     [CreateAssetMenu(fileName = "EditorScriptEngine", menuName = "OneJS/EditorScriptEngine")]
-    public class EditorScriptEngine : ScriptableObject, IScriptEngine {
+    public class EditorScriptEngine : ScriptableObject, IScriptEngine, IDisposable {
         #region Public Fields
         [Tooltip("Folder name under your project root that you want to use for this EditorScriptEngine.")]
         public string folderName = "Editor";
@@ -35,6 +35,11 @@ namespace OneJS.Editor {
         public bool initialized; // Denotes whether or not the working directory has been initialized
         #endregion
 
+        #region Events
+        public event Action OnReload;
+        public event Action OnDispose;
+        #endregion
+        
         #region Private Fields
         JsEnv _jsEnv;
         EditorDocument _document;
@@ -76,7 +81,7 @@ namespace OneJS.Editor {
             var addToGlobal = _jsEnv.Eval<Action<string, object>>(@"__addToGlobal");
             addToGlobal("___document", _document);
             addToGlobal("___workingDir", WorkingDir);
-            addToGlobal("___engineHost", _engineHost);
+            addToGlobal("onejs", _engineHost);
             foreach (var obj in globalObjects) {
                 addToGlobal(obj.name, obj.obj);
             }
@@ -87,6 +92,7 @@ namespace OneJS.Editor {
         }
 
         public void Dispose() {
+            OnDispose?.Invoke();
             EditorApplication.update -= Tick;
             StopWatching();
             if (_document != null) {
@@ -98,7 +104,6 @@ namespace OneJS.Editor {
                 _jsEnv = null;
                 _document = null;
             }
-            _engineHost?.Dispose();
         }
 
         void Tick() {
@@ -108,6 +113,7 @@ namespace OneJS.Editor {
 
         #region Public Methods
         public void Reload() {
+            OnReload?.Invoke();
             Dispose();
             Init();
         }
@@ -117,7 +123,7 @@ namespace OneJS.Editor {
                 return;
             var code = File.ReadAllText(ScriptFilePath);
             _jsEnv.Eval(code, "@outputs/esbuild/app.js");
-            // ReSelect();
+            // ReSelect(); //
             BaseEditor.Instance?.Refresh();
             ElementRenderer.RefreshAll();
             RefreshStyleSheets();
