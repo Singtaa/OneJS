@@ -181,26 +181,31 @@ public class EventfulPropertyGenerator : ISourceGenerator {
         );
     }
 
-    static EventFieldDeclarationSyntax GenerateEventfulEvent(TypeSyntax typeSyntax, string eventName) =>
-        EventFieldDeclaration(
+    static EventFieldDeclarationSyntax GenerateEventfulEvent(TypeSyntax typeSyntax, string eventName) {
+        TypeSyntax actionType = QualifiedName(
+            AliasQualifiedName(
+                IdentifierName(Token(SyntaxKind.GlobalKeyword)),
+                IdentifierName("System")
+            ),
+            GenericName(
+                Identifier("Action"),
+                TypeArgumentList(SingletonSeparatedList(typeSyntax))
+            )
+        );
+
+        // If the action type needs to be nullable, wrap it in NullableTypeSyntax
+        if (typeSyntax is NullableTypeSyntax) {
+            actionType = NullableType(actionType);
+        }
+
+        // Generate the event declaration
+        return EventFieldDeclaration(
             VariableDeclaration(
-                QualifiedName(
-                    AliasQualifiedName(
-                        IdentifierName(Token(SyntaxKind.GlobalKeyword)),
-                        IdentifierName("System")
-                    ),
-                    GenericName(
-                        Identifier("Action"),
-                        TypeArgumentList(
-                            SingletonSeparatedList(typeSyntax)
-                        )
-                    )
-                ),
-                SingletonSeparatedList(
-                    VariableDeclarator(eventName)
-                )
+                actionType,
+                SingletonSeparatedList(VariableDeclarator(eventName))
             )
         ).WithModifiers(TokenList(Token(SyntaxKind.PublicKeyword)));
+    }
 
     static string ConvertToPropertyName(string fieldName) {
         var sb = new StringBuilder();
