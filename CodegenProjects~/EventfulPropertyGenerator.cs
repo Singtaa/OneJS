@@ -34,11 +34,14 @@ public class EventfulPropertyGenerator : ISourceGenerator {
             var outputFilePath = Path.Combine(projectPath ?? "", OUTPUT_DIRECTORY, outputFileName);
             var compilationUnit = GenerateEventfulCompilationUnit(semanticModel, classSymbol, classDeclaration, fieldDeclarations)
                 .WithLeadingTrivia(
-                    Trivia(
-                        LineDirectiveTrivia(
-                            Literal(2),
-                            Literal(outputFilePath.Replace('\\', '/')),
-                            true
+                    TriviaList(
+                        Trivia(SyntaxFactory.NullableDirectiveTrivia(SyntaxFactory.Token(SyntaxKind.EnableKeyword), true)),
+                        Trivia(
+                            LineDirectiveTrivia(
+                                Literal(2),
+                                Literal(outputFilePath.Replace('\\', '/')),
+                                true
+                            )
                         )
                     )
                 )
