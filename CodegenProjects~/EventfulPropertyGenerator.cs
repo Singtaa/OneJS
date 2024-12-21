@@ -182,23 +182,21 @@ public class EventfulPropertyGenerator : ISourceGenerator {
     }
 
     static EventFieldDeclarationSyntax GenerateEventfulEvent(TypeSyntax typeSyntax, string eventName) {
-        TypeSyntax actionType = QualifiedName(
-            AliasQualifiedName(
-                IdentifierName(Token(SyntaxKind.GlobalKeyword)),
-                IdentifierName("System")
-            ),
-            GenericName(
-                Identifier("Action"),
-                TypeArgumentList(SingletonSeparatedList(typeSyntax))
+        // Create the generic Action<T> type
+        var actionType = NullableType(
+            QualifiedName(
+                AliasQualifiedName(
+                    IdentifierName(Token(SyntaxKind.GlobalKeyword)),
+                    IdentifierName("System")
+                ),
+                GenericName(
+                    Identifier("Action"),
+                    TypeArgumentList(SingletonSeparatedList(typeSyntax))
+                )
             )
         );
 
-        // If the action type needs to be nullable, wrap it in NullableTypeSyntax
-        if (typeSyntax is NullableTypeSyntax) {
-            actionType = NullableType(actionType);
-        }
-
-        // Generate the event declaration
+        // Generate the event declaration with a nullable event type
         return EventFieldDeclaration(
             VariableDeclaration(
                 actionType,
