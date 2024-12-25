@@ -7,6 +7,7 @@ namespace OneJS {
         [PlainString]
         [Tooltip("Use this list to restrict the assemblies you want to generate typings for. Keep list empty for no restrictions. Use 'Assembly-CSharp' for the default (non-asmdef) assembly.")]
         public string[] assemblies = new string[] {
+            "Assembly-CSharp",
             // "UnityEngine.CoreModule", "UnityEngine.PhysicsModule", "UnityEngine.UIElementsModule",
             // "UnityEngine.IMGUIModule", "UnityEngine.TextRenderingModule",
             // "Unity.Mathematics", "OneJS.Runtime"
