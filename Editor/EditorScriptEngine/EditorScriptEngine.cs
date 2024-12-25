@@ -39,9 +39,10 @@ namespace OneJS.Editor {
         public event Action OnReload;
         public event Action OnDispose;
         #endregion
-        
+
         #region Private Fields
         JsEnv _jsEnv;
+        RendererRegistry _rendererRegistry;
         EditorDocument _document;
         EditorEngineHost _engineHost;
         FileSystemWatcher _fileWatcher;
@@ -61,6 +62,8 @@ namespace OneJS.Editor {
         void OnEnable() {
             if (!initialized)
                 return;
+            // _rendererRegistry should not be in Init() because it needs to be persisted across reloads
+            _rendererRegistry = new RendererRegistry(this);
             Init();
         }
 
@@ -70,7 +73,7 @@ namespace OneJS.Editor {
             Dispose();
         }
 
-        public void Init() { //
+        public void Init() {
             ExtractIfNotFound();
             _jsEnv = new JsEnv();
             _engineHost = new EditorEngineHost(this);
@@ -81,6 +84,7 @@ namespace OneJS.Editor {
             var addToGlobal = _jsEnv.Eval<Action<string, object>>(@"__addToGlobal");
             addToGlobal("___document", _document);
             addToGlobal("___workingDir", WorkingDir);
+            addToGlobal("___engineHost", _engineHost);
             addToGlobal("onejs", _engineHost);
             foreach (var obj in globalObjects) {
                 addToGlobal(obj.name, obj.obj);
@@ -125,16 +129,29 @@ namespace OneJS.Editor {
             _jsEnv.Eval(code, "@outputs/esbuild/app.js");
             // ReSelect(); //
             BaseEditor.Instance?.Refresh();
-            ElementRenderer.RefreshAll();
+            _rendererRegistry.ReRenderAll();
             RefreshStyleSheets();
         }
-        
+
         public void Execute(string code) {
             _jsEnv.Eval(code);
         }
 
-        public bool TryRender<T>(T window) where T : EditorWindow {
-            return ElementRenderer.TryRender(window, this);
+        /// <summary>
+        /// Renders the editor UI for the target object (e.g. Editor or EditorWindow). The renderer
+        /// should already be registered from the JS side. If not, it will do nothing.
+        /// </summary>
+        public void Render<T>(VisualElement root) where T : UnityEngine.Object {
+            var type = typeof(T);
+            if (_rendererRegistry.TryGetRendererInfo(type, out var rendererInfo)) {
+                ApplyStyleSheets(root);
+                rendererInfo.roots.Add(root);
+                rendererInfo.render(rendererInfo.target, root);
+            }
+        }
+
+        public void RegisterRenderer(Type type, Action<UnityEngine.Object, VisualElement> render) {
+            _rendererRegistry.Register(type, render);
         }
 
         public void ApplyStyleSheets(VisualElement ve) {
@@ -169,8 +186,10 @@ namespace OneJS.Editor {
             }
         }
         public string ScriptFilePath => Path.Combine(WorkingDir, "@outputs/esbuild/app.js");
-        
+
         public EditorDocument document => _document;
+
+        public JsEnv jsEnv => _jsEnv;
         #endregion
 
         #region Runner
@@ -204,9 +223,9 @@ namespace OneJS.Editor {
         }
 
         void RunOnMainThread() {
+            EditorApplication.update -= RunOnMainThread;
             if (devMode)
                 Reload();
-            EditorApplication.update -= RunOnMainThread;
         }
 
         /// <summary>

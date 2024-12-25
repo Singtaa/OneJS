@@ -1,5 +1,6 @@
 ﻿using System;
 using Puerts;
+using UnityEngine.UIElements;
 
 namespace OneJS.Editor {
     public class EditorEngineHost : IEngineHost, IDisposable {
@@ -38,6 +39,10 @@ namespace OneJS.Editor {
         public void Execute(string jsCode) {
             _engine.Execute(jsCode);
         }
+        
+        public void RegisterRenderer(Type type, Action<UnityEngine.Object, VisualElement> render) {
+            _engine.RegisterRenderer(type, render);
+        }
 
         /// <summary>
         /// Execute the given JavaScript code using a sandboxed JS Environment
@@ -56,9 +61,6 @@ namespace OneJS.Editor {
                 addToGlobal(obj.name, obj.obj);
             }
             _sandboxEnv.Eval(jsCode, "sandbox_js_env");
-        }
-
-        public void testx() {
         }
     }
 }

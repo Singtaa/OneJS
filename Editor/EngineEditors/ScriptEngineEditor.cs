@@ -46,10 +46,13 @@ namespace OneJS.Editor {
                 OneJSEditorUtil.VSCodeOpenDir(scriptEngine.WorkingDir);
             }
             GUILayout.BeginHorizontal();
+            if (GUILayout.Button(new GUIContent("Working Dir", "Opens your JS Working Dir in Explorer or Finder"), GUILayout.Height(30))) {
+                OneJSEditorUtil.OpenDir(scriptEngine.WorkingDir);
+            }
             if (GUILayout.Button(new GUIContent("Project Dir", "Opens the Project Directory in Explorer or Finder"), GUILayout.Height(30))) {
                 OneJSEditorUtil.OpenDir(Path.GetDirectoryName(Application.dataPath));
             }
-            if (GUILayout.Button(new GUIContent("Persistent Data Path", "Opens the PersistentData Directory in Explorer or Finder"), GUILayout.Height(30))) {
+            if (GUILayout.Button(new GUIContent("Persistent Path", "Opens the PersistentDataPath in Explorer or Finder"), GUILayout.Height(30))) {
                 OneJSEditorUtil.OpenDir(Application.persistentDataPath);
             }
             GUILayout.EndHorizontal();
@@ -72,7 +75,7 @@ namespace OneJS.Editor {
                     editor.Generate(scriptEngine.globalObjects, scriptEngine.WorkingDir);
                 }
             }
-            
+
             var runner = scriptEngine.GetComponent<Runner>();
             if (Application.isPlaying && runner != null && GUILayout.Button(new GUIContent("Reload", "Forcibly Reload the Runner."), GUILayout.ExpandHeight(true))) {
                 runner.Reload();

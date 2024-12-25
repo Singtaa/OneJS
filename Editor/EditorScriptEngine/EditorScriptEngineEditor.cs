@@ -63,10 +63,13 @@ namespace OneJS.Editor {
                 OneJSEditorUtil.VSCodeOpenDir(editorScriptEngine.WorkingDir);
             }
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button(new GUIContent("Project Dir", "Opens the Project Directory in Explorer or Finder"), GUILayout.Height(30))) {
+            if (GUILayout.Button(new GUIContent("Working Dir", "Opens your JS Working Dir in Explorer or Finder"), GUILayout.Height(30))) {
+                OneJSEditorUtil.OpenDir(editorScriptEngine.WorkingDir);
+            }
+            if (GUILayout.Button(new GUIContent("Project Dir", "Opens your Project Directory in Explorer or Finder"), GUILayout.Height(30))) {
                 OneJSEditorUtil.OpenDir(Path.GetDirectoryName(Application.dataPath));
             }
-            if (GUILayout.Button(new GUIContent("Persistent Data Path", "Opens the PersistentData Directory in Explorer or Finder"), GUILayout.Height(30))) {
+            if (GUILayout.Button(new GUIContent("Persistent Path", "Opens the Persistent Data Path in Explorer or Finder"), GUILayout.Height(30))) {
                 OneJSEditorUtil.OpenDir(Application.persistentDataPath);
             }
             GUILayout.EndHorizontal();

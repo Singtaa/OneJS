@@ -7,14 +7,9 @@ using UnityEngine.UIElements;
 namespace OneJS.Editor {
     public class RendererWrapper {
         public Type type;
-
-        /// <summary>
-        /// Will be set from JS
-        /// </summary>
         public Action<EditorWindow> render;
-
-        public EditorWindow window;
         public EditorScriptEngine engine;
+        public EditorWindow window;
     }
 
     [InitializeOnLoad]
