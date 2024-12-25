@@ -15,9 +15,9 @@
         "xml2js": "^0.6.2"
     },
     "dependencies": {
-        "onejs-core": "^0.3.12",
-        "onejs-preact": "^0.3.12",
-        "onejs-editor": "^0.0.2",
+        "onejs-core": "^1.0.14",
+        "onejs-preact": "^1.0.1",
+        "onejs-editor": "^0.0.13",
         "css-flatten": "^2.0.0",
         "css-simple-parser": "^3.0.0"
     }
