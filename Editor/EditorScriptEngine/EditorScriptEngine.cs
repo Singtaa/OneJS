@@ -146,10 +146,11 @@ namespace OneJS.Editor {
         /// Renders the editor UI for the target object (e.g. Editor or EditorWindow). The renderer
         /// should already be registered from the JS side. If not, it will do nothing.
         /// </summary>
-        public void Render<T>(VisualElement root) where T : UnityEngine.Object {
+        public void Render<T>(T target, VisualElement root) where T : UnityEngine.Object {
             var type = typeof(T);
             if (_rendererRegistry.TryGetRendererInfo(type, out var rendererInfo)) {
                 ApplyStyleSheets(root);
+                rendererInfo.target = target;
                 rendererInfo.roots.Add(root);
                 rendererInfo.render(rendererInfo.target, root);
             }

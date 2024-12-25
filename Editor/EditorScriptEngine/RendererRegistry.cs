@@ -13,7 +13,6 @@ namespace OneJS.Editor {
         public HashSet<VisualElement> roots;
     }
 
-    [InitializeOnLoad]
     public class RendererRegistry {
         Dictionary<Type, RendererInfo> _renderers = new();
         EditorScriptEngine _engine;
