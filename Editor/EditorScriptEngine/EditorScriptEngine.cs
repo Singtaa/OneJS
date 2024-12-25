@@ -53,6 +53,9 @@ namespace OneJS.Editor {
             if (preloads == null || preloads.Length == 0) {
                 preloads = scriptEnginePrefab.preloads.ToArray();
             }
+            if (globalObjects == null || globalObjects.Length == 0) {
+                globalObjects = scriptEnginePrefab.globalObjects.ToArray();
+            }
             if (styleSheets == null || styleSheets.Length == 0) {
                 // styleSheets = scriptEnginePrefab.styleSheets.ToArray();
                 styleSheets = new[] { editorStyleSheet };
