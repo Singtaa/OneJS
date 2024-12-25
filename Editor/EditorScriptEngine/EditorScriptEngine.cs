@@ -28,7 +28,7 @@ namespace OneJS.Editor {
         public StyleSheet[] styleSheets;
         public DTSGenerator dtsGenerator;
         [Tooltip("Turns on Live Reload.")]
-        public bool devMode;
+        public bool devMode = true;
         [Tooltip("Enables extra logging.")]
         public bool extraLogging;
 
