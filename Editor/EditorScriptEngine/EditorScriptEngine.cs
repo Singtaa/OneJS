@@ -128,6 +128,8 @@ namespace OneJS.Editor {
         public void Run() {
             if (!File.Exists(ScriptFilePath))
                 return;
+            if (_rendererRegistry == null) // _rendererRegistry can be null during EditorScriptEngine's InitWorkingDir()
+                _rendererRegistry = new RendererRegistry(this);
             var code = File.ReadAllText(ScriptFilePath);
             _jsEnv.Eval(code, "@outputs/esbuild/app.js");
             // ReSelect(); //
