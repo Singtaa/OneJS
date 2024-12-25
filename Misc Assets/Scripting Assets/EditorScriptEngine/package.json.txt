@@ -17,7 +17,7 @@
     "dependencies": {
         "onejs-core": "^1.0.14",
         "onejs-preact": "^1.0.1",
-        "onejs-editor": "^0.0.13",
+        "onejs-editor": "^0.0.14",
         "css-flatten": "^2.0.0",
         "css-simple-parser": "^3.0.0"
     }
