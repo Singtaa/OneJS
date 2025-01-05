@@ -65,9 +65,11 @@ namespace OneJS.Editor {
         void OnEnable() {
             if (!initialized)
                 return;
-            // _rendererRegistry should not be in Init() because it needs to be persisted across reloads
+            // _rendererRegistry should not be reset in Init() because it needs to be persisted across reloads
             _rendererRegistry = new RendererRegistry(this);
-            Init();
+            // Introducing a 1-frame delay here prevents reimporting errors with Puerts. When Puerts loads
+            // its init.mjs file, initializing a new JsEnv in the same frame can trigger these errors.
+            EditorApplication.delayCall += Init;
         }
 
         void OnDisable() {
@@ -253,6 +255,9 @@ namespace OneJS.Editor {
 
         #region Bundling
         void ExtractIfNotFound() {
+            if (scriptEnginePrefab == null) { // Probably needed for reimporting caveats
+                return;
+            }
             var bundler = scriptEnginePrefab.GetComponent<Bundler>();
             var mappings = bundler.defaultFiles.ToList();
             mappings.Add(new DefaultFileMapping() { path = "@outputs/esbuild/app.js", textAsset = appJsOverride });
