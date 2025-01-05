@@ -5,7 +5,7 @@ namespace OneJS {
     [Serializable]
     public class DTSGenerator {
         [PlainString]
-        [Tooltip("Use this list to restrict the assemblies you want to generate typings for. Keep list empty for no restrictions. Use 'Assembly-CSharp' for the default (non-asmdef) assembly.")]
+        [Tooltip("Use this list to restrict the assemblies you want to generate typings for. It's recommended to provide at least one Assembly name here. Use 'Assembly-CSharp' for the default (non-asmdef) assembly.")]
         public string[] assemblies = new string[] {
             "Assembly-CSharp",
             // "UnityEngine.CoreModule", "UnityEngine.PhysicsModule", "UnityEngine.UIElementsModule",

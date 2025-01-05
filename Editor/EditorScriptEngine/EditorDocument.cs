@@ -63,12 +63,14 @@ namespace OneJS.Editor {
             return new Dom.Dom(tn, this);
         }
 
+#if UNITY_2022_1_OR_NEWER
         public Dom.Dom createTextNode(string text, bool selectable) {
             var tn = new TextElement();
             tn.selection.isSelectable = selectable;
             tn.text = text;
             return new Dom.Dom(tn, this);
         }
+#endif
 
         public void ApplyRuntimeStyleSheets(VisualElement ve) {
             // runtime stylesheets can potentially be null/destroy when entering/exiting play mode

@@ -34,6 +34,7 @@ namespace OneJS.Dom {
             }
         }
 
+        // MARK: - Style Properties
         #region Style Properties
         public object alignContent {
             get => veStyle.alignContent;
@@ -83,6 +84,7 @@ namespace OneJS.Dom {
             }
         }
 
+#if UNITY_2022_1_OR_NEWER
         public object backgroundSize {
             get => veStyle.backgroundSize;
             set {
@@ -120,6 +122,7 @@ namespace OneJS.Dom {
                     veStyle.backgroundPositionY = styleBackgroundPosition;
             }
         }
+#endif
 
         // Composite
         public object borderColor {
@@ -669,7 +672,7 @@ namespace OneJS.Dom {
                     veStyle.unitySliceTop = styleInt;
             }
         }
-
+#if UNITY_2022_1_OR_NEWER
         public object unitySliceScale {
             get => veStyle.unitySliceScale;
             set {
@@ -677,7 +680,7 @@ namespace OneJS.Dom {
                     veStyle.unitySliceScale = styleFloat;
             }
         }
-
+#endif
         public object unityTextAlign {
             get => veStyle.unityTextAlign;
             set {
@@ -749,12 +752,13 @@ namespace OneJS.Dom {
         public void SetAlignSelf(Align value) => veStyle.alignSelf = new StyleEnum<Align>(value);
         public void SetBackgroundColor(Color value) => veStyle.backgroundColor = new StyleColor(value);
         public void SetBackgroundImage(Background value) => veStyle.backgroundImage = new StyleBackground(value);
+#if UNITY_2022_1_OR_NEWER
         public void SetBackgroundSize(BackgroundSize value) => veStyle.backgroundSize = new StyleBackgroundSize(value);
         public void SetBackgroundRepeat(StyleBackgroundRepeat value) => veStyle.backgroundRepeat = value;
         public void SetBackgroundPosition(StyleBackgroundPosition value) => veStyle.backgroundPositionX = veStyle.backgroundPositionY = value;
         public void SetBackgroundPositionX(StyleBackgroundPosition value) => veStyle.backgroundPositionX = value;
         public void SetBackgroundPositionY(StyleBackgroundPosition value) => veStyle.backgroundPositionY = value;
-
+#endif
         public void SetBorderColor(Color value) => veStyle.borderTopColor =
             veStyle.borderRightColor = veStyle.borderBottomColor = veStyle.borderLeftColor = new StyleColor(value);
 
@@ -832,7 +836,9 @@ namespace OneJS.Dom {
         public void SetUnitySliceLeft(int value) => veStyle.unitySliceLeft = new StyleInt(value);
         public void SetUnitySliceRight(int value) => veStyle.unitySliceRight = new StyleInt(value);
         public void SetUnitySliceTop(int value) => veStyle.unitySliceTop = new StyleInt(value);
+#if UNITY_2022_1_OR_NEWER
         public void SetUnitySliceScale(float value) => veStyle.unitySliceScale = new StyleFloat(value);
+#endif
         public void SetUnityTextAlign(TextAnchor value) => veStyle.unityTextAlign = new StyleEnum<TextAnchor>(value);
         public void SetUnityTextOutlineColor(Color value) => veStyle.unityTextOutlineColor = new StyleColor(value);
         public void SetUnityTextOutlineWidth(float value) => veStyle.unityTextOutlineWidth = new StyleFloat(value);
@@ -946,7 +952,7 @@ namespace OneJS.Dom {
             styleBackground = default;
             return false;
         }
-
+#if UNITY_2022_1_OR_NEWER
         bool TryParseStyleBackgroundSize(object value, out StyleBackgroundSize styleBackgroundSize) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 styleBackgroundSize = new StyleBackgroundSize(keyword);
@@ -1119,7 +1125,7 @@ namespace OneJS.Dom {
             styleBackgroundPosition = default;
             return false;
         }
-
+#endif
         void SetBorderColor(object value) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
                 __setBorderColorKeyword(_dom, keyword);

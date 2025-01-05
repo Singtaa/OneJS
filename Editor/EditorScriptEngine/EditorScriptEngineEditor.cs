@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -79,7 +80,12 @@ namespace OneJS.Editor {
                 if (EditorUtility.DisplayDialog("TS Definitions Generation",
                         "This may take a few minutes depending on the number of types. Are you sure you want to proceed right now?",
                         "Confirm", "Cancel")) {
+#if UNITY_2022_1_OR_NEWER
                     var genny = (DTSGenerator)_dtsGenerator.boxedValue;
+#else
+                    var fieldInfo = _dtsGenerator.serializedObject.targetObject.GetType().GetField(_dtsGenerator.propertyPath, BindingFlags.Instance | BindingFlags.Public);
+                    var genny = fieldInfo.GetValue(serializedObject.targetObject) as DTSGenerator;
+#endif
                     var editor = new DTSGeneratorEditor(genny);
                     editor.Generate(editorScriptEngine.globalObjects, editorScriptEngine.WorkingDir);
                 }
