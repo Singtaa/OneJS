@@ -265,6 +265,11 @@ namespace OneJS.Editor
                     }
                 }
 
+                // ADDED for checking if a type is declaring generic, basically to filter out nested types of generic types
+                public static bool IsDeclaringGeneric(Type type) {
+                    return type.IsGenericTypeDefinition && type.FullName!.EndsWith("`" + type.GetGenericArguments().Length);
+                }
+
                 public static TsTypeGenInfo FromType(Type type, HashSet<Type> genTypeSet)
                 {
                     var result = new TsTypeGenInfo()
@@ -298,14 +303,14 @@ namespace OneJS.Editor
                                 })
                             )
                             .ToArray() : new TsPropertyGenInfo[] { },
-                        IsGenericTypeDefinition = type.IsGenericTypeDefinition,
+                        IsGenericTypeDefinition = IsDeclaringGeneric(type),
                         IsDelegate = (Utils.IsDelegate(type) && type != typeof(Delegate)),
                         IsInterface = type.IsInterface,
                         Namespace = type.Namespace,
                         ExtensionMethods = Utils.GetExtensionMethods(type, genTypeSet)
                             .Where(m => !Utils.IsNotSupportedMember(m, true))
                             .Where(m => Utils.getBindingMode(m) != BindingMode.DontBinding)
-                            .Select(m => TsMethodGenInfo.FromMethodBase(m, type.IsGenericTypeDefinition, true)).ToArray()
+                            .Select(m => TsMethodGenInfo.FromMethodBase(m, IsDeclaringGeneric(type), true)).ToArray()
                     };
 
                     if (result.IsGenericTypeDefinition)

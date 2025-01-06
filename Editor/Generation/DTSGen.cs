@@ -88,7 +88,7 @@ namespace OneJS.Editor {
                     ns.Types = ns.Types.Where(typeGenInfo => {
                         // Treat null namespace as global namespace
                         var nsToSearch = string.IsNullOrEmpty(typeGenInfo.Namespace) ? "" : typeGenInfo.Namespace;
-                        return strictNamespaces.Contains(nsToSearch);
+                        return strictNamespaces.Any(ns => nsToSearch.StartsWith(ns));
                     }).ToArray();
                 }
                 if (ns.Types.Length > 0) {

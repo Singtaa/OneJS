@@ -25,7 +25,7 @@ namespace OneJS.Editor {
         // SerializedProperty _includeGlobalObjects;
 
         DTSGenerator _dtsGenerator;
-        
+
         public DTSGeneratorEditor(DTSGenerator dtsGenerator) {
             _dtsGenerator = dtsGenerator;
         }
@@ -171,7 +171,7 @@ namespace OneJS.Editor {
             //     string[] namespacesToKeep = _namespaces.ToStringArray().Select(s => "CS." + s).ToArray();
             //     res = NamespaceTreeFilter.FilterNamespaces(root, namespacesToKeep);
             // }
-            var res = DTSGen.Generate(types, _dtsGenerator.exact, assemblies, namespaces);
+            var res = DTSGen.Generate(types, _dtsGenerator.exact, _dtsGenerator.strictAssemblies ? assemblies : null, _dtsGenerator.strictNamespaces ? namespaces : null);
             File.WriteAllText(fullSavePath, res);
         }
 
