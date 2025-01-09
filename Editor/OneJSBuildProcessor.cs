@@ -39,8 +39,7 @@ namespace OneJS.Editor {
                 var bundlers = obj.GetComponentsInChildren<Bundler>();
                 foreach (var bundler in bundlers) {
                     if (bundler.enabled && bundler.gameObject.activeInHierarchy) {
-                        bundler.PackageOutputsZip();
-                        bundler.PackageDirectories();
+                        bundler.PackageBundle();
                     }
                 }
             }

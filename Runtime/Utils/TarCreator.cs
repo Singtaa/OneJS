@@ -27,9 +27,26 @@ namespace OneJS.Utils {
             _rootDir = rootDir;
         }
 
+        /// <summary>
+        /// Creates a single tar file from the given top-level includes. Basically, it calls CreateTar() for each include.
+        /// </summary>
+        public void CreateTarFromIncludes(string[] includes, TarOutputStream tarOutputStream) {
+            foreach (var include in includes) {
+                var includePath = Path.Combine(_baseDir, include);
+                if (Directory.Exists(includePath)) {
+                    CreateTar(tarOutputStream, includePath);
+                } else if (File.Exists(includePath)) {
+                    WriteEntry(tarOutputStream, includePath, include);
+                } else {
+                    Debug.Log($"Include not found: {includePath}");
+                }
+            }
+        }
+
         public void CreateTar(TarOutputStream tarOutputStream, string curDir = null) {
             curDir ??= _baseDir;
-            var baseBaseDir = Path.GetFullPath(IncludeRoot ? Path.Combine(_baseDir, "../") : _baseDir);
+            // var baseBaseDir = Path.GetFullPath(IncludeRoot ? Path.Combine(_baseDir, "../") : _baseDir);
+            var baseBaseDir = Path.GetFullPath(IncludeRoot ? _rootDir : _baseDir);
 
             string[] filenames = Directory.GetFiles(curDir);
             foreach (string filepath in filenames) {

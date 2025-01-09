@@ -7,9 +7,8 @@ namespace OneJS.Editor {
     [CanEditMultipleObjects]
     public class BundlerEditor : UnityEditor.Editor {
         SerializedProperty _defaultFiles;
-        SerializedProperty _directoriesToPackage;
-        // SerializedProperty _onejsCoreZip;
-        SerializedProperty _outputsZip;
+        SerializedProperty _includes;
+        SerializedProperty _bundleZip;
 
         SerializedProperty _version;
         SerializedProperty _forceExtract;
@@ -19,9 +18,8 @@ namespace OneJS.Editor {
 
         void OnEnable() {
             _defaultFiles = serializedObject.FindProperty("defaultFiles");
-            _directoriesToPackage = serializedObject.FindProperty("directoriesToPackage");
-            // _onejsCoreZip = serializedObject.FindProperty("onejsCoreZip");
-            _outputsZip = serializedObject.FindProperty("outputsZip");
+            _includes = serializedObject.FindProperty("includes");
+            _bundleZip = serializedObject.FindProperty("bundleZip");
 
             _version = serializedObject.FindProperty("version");
             _forceExtract = serializedObject.FindProperty("forceExtract");
@@ -36,9 +34,8 @@ namespace OneJS.Editor {
             EditorGUILayout.PropertyField(_defaultFiles, new GUIContent("Default Files"));
             EditorGUILayout.PropertyField(_version, new GUIContent("Version"));
             EditorGUILayout.PropertyField(_forceExtract, new GUIContent("Force Extract"));
-            EditorGUILayout.PropertyField(_directoriesToPackage, new GUIContent("Directories to Package"));
-            // EditorGUILayout.PropertyField(_onejsCoreZip, new GUIContent("onejs-core.tgz"));
-            EditorGUILayout.PropertyField(_outputsZip, new GUIContent("outputs.tgz"));
+            EditorGUILayout.PropertyField(_includes, new GUIContent("Includes"));
+            EditorGUILayout.PropertyField(_bundleZip, new GUIContent("bundle.tgz"));
             EditorGUILayout.PropertyField(_ignoreList, new GUIContent("Ignore List"));
 
             // showAssets = EditorGUILayout.Foldout(showAssets, "Default Assets", true);

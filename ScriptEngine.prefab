@@ -145,14 +145,16 @@ MonoBehaviour:
     textAsset: {fileID: 4900000, guid: b181bd048b43f5a4cb876f704b8f39bb, type: 3}
   - path: global.d.ts
     textAsset: {fileID: 4900000, guid: 16d771fb0cb90ee41b8e2f8cd7953987, type: 3}
-  directoriesToPackage:
+  includes:
+  - '@outputs'
   - assets
-  outputsZip: {fileID: 4900000, guid: f7502ff07da261a46bd9bc5fdfc641f1, type: 3}
+  bundleZip: {fileID: 4900000, guid: f7502ff07da261a46bd9bc5fdfc641f1, type: 3}
   version: 1.0
   forceExtract: 1
   ignoreList:
-  - '@outputs/esbuild/editor'
   - '@outputs/tsc'
+  - node_modules
+  - tmp
 --- !u!114 &-8986345742149058243
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -8,6 +8,7 @@ using Newtonsoft.Json;
 using OneJS.Utils;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Serialization;
 using Debug = UnityEngine.Debug;
 
 namespace OneJS {
@@ -19,20 +20,20 @@ namespace OneJS {
     public class Bundler : MonoBehaviour {
         [PairMapping("path", "textAsset", ":")]
         public DefaultFileMapping[] defaultFiles;
+        
+        [Tooltip("Top-level files and directories you want to include in your deployment bundle.")] [PlainString]
+        public string[] includes = new string[] { "@outputs", "assets" };
 
-        [Tooltip("Directories to package for production. Must be names for root directories under WorkingDir.")] [PlainString]
-        public string[] directoriesToPackage = new string[] { "assets" };
-        // [Tooltip("The packaged onejs-core folder (as a tarball).")]
-        // public TextAsset onejsCoreZip;
-        [Tooltip("The packaged @outputs folder (as a tarball).")]
-        public TextAsset outputsZip;
+        [FormerlySerializedAs("outputsZip")]
+        [Tooltip("The packaged bundle as a tarball. Will be automatically extracted for Standalone Player builds.")]
+        public TextAsset bundleZip;
 
-        [Tooltip("Deployment version for the Standalone Player. The @outputs folder and all packaged directories will be overridden if there's a version mismatch or \"Force Extract\" is on.")]
+        [Tooltip("Deployment version for the Standalone Player. The bundled contents will be overridden if there's a version mismatch or \"Force Extract\" is on.")]
         public string version = "1.0";
         [Tooltip("Force extract on every game start, irregardless of version.")]
         public bool forceExtract;
         [Tooltip("Files and folders that you don't want to be packaged. Can use glob patterns.")] [PlainString]
-        public string[] ignoreList = new string[] { "tsc", "editor" };
+        public string[] ignoreList = new string[] { "@outputs/tsc", "node_modules", "tmp" };
 
         ScriptEngine _engine;
         string _onejsVersion = "2.1.8";
@@ -129,31 +130,19 @@ namespace OneJS {
             if (Directory.Exists(path))
                 return;
 
-            Extract(outputsZip.bytes);
+            Extract(bundleZip.bytes);
             Debug.Log($"An existing 'outputs' directory wasn't found. An example one was created ({path})");
         }
 
         public void ExtractForStandalone() {
             var deployVersion = PlayerPrefs.GetString("ONEJS_APP_DEPLOYMENT_VERSION", "0.0");
-            var outputPath = Path.Combine(_engine.WorkingDir, "@outputs");
+            var outputPath = _engine.WorkingDir;
             if (forceExtract || deployVersion != version) {
                 Debug.Log($"Extracting for Standalone Player. Deployment Version: {version}");
                 if (Directory.Exists(outputPath))
                     DeleteEverythingInPath(outputPath);
-                Extract(outputsZip.bytes);
-                Debug.Log($"@outputs folder extracted.");
-
-                foreach (var dir in directoriesToPackage) {
-                    var dirname = StringUtil.SanitizeFilename(dir);
-                    var dirPath = Path.Combine(_engine.WorkingDir, dirname);
-                    var tgz = Resources.Load<TextAsset>($"OneJS/Tarballs/{dirname}.tgz");
-                    if (tgz == null)
-                        continue;
-                    if (Directory.Exists(dirPath))
-                        DeleteEverythingInPath(dirPath);
-                    Extract(tgz.bytes);
-                    Debug.Log($"{dirname} directory extracted.");
-                }
+                Extract(bundleZip.bytes);
+                Debug.Log($"Bundle Zip extracted.");
 
                 PlayerPrefs.SetString("ONEJS_APP_DEPLOYMENT_VERSION", version);
             }
@@ -223,99 +212,59 @@ namespace OneJS {
         //     }
         // }
 
-        [ContextMenu("Package outputs.tgz")]
-        public void PackageOutputsZipWithPrompt() {
-            if (outputsZip == null) {
-                EditorUtility.DisplayDialog("outputs.tgz is null",
-                    "Please make sure you have an outputs.tgz (Text Asset) set", "Okay");
+        [ContextMenu("Package bundle.tgz")]
+        public void PackageBundleWithPrompt() {
+            if (bundleZip == null) {
+                EditorUtility.DisplayDialog("bundle.tgz is null",
+                    "Please make sure you have an bundle.tgz set", "Okay");
                 return;
             }
             if (EditorUtility.DisplayDialog("Are you sure?",
-                    "This will package up your outputs folder under ScriptEngine.WorkingDir into a tgz file " +
-                    "and override your existing outputs.tgz file.",
+                    "This will package up your WorkingDir into a tgz file (using your Includes and Ignore settings) " +
+                    "and override your existing bundle.tgz file.",
                     "Confirm", "Cancel")) {
-                PackageOutputsZip();
+                PackageBundle();
             }
         }
 
-        public void PackageOutputsZip() {
+        public void PackageBundle() {
             _engine = GetComponent<ScriptEngine>();
             var t = DateTime.Now;
-            var path = Path.Combine(_engine.WorkingDir, "@outputs");
-            var binPath = AssetDatabase.GetAssetPath(outputsZip);
+            // var path = Path.Combine(_engine.WorkingDir, "@outputs");
+            var binPath = AssetDatabase.GetAssetPath(bundleZip);
             binPath = Path.GetFullPath(Path.Combine(Application.dataPath, @".." + Path.DirectorySeparatorChar,
                 binPath));
             var outStream = File.Create(binPath);
             var gzoStream = new GZipOutputStream(outStream);
             gzoStream.SetLevel(3);
             var tarOutputStream = new TarOutputStream(gzoStream);
-            var tarCreator = new TarCreator(path, _engine.WorkingDir) { IgnoreList = ignoreList };
-            tarCreator.CreateTar(tarOutputStream);
+            var tarCreator = new TarCreator(_engine.WorkingDir, _engine.WorkingDir) { IgnoreList = ignoreList };
+            tarCreator.CreateTarFromIncludes(includes, tarOutputStream);
 
-            Debug.Log($"outputs.tgz.bytes file updated. {tarOutputStream.Length} bytes {(DateTime.Now - t).TotalMilliseconds}ms");
+            Debug.Log($"bundle.tgz.bytes file updated. {tarOutputStream.Length} bytes {(DateTime.Now - t).TotalMilliseconds}ms");
             tarOutputStream.Close();
         }
 
-        [ContextMenu("Zero Out outputs.tgz")]
-        public void ZeroOutOutputsZipWithPrompt() {
-            if (outputsZip == null) {
-                EditorUtility.DisplayDialog("outputs.tgz is null",
-                    "Please make sure you have an outputs.tgz (Text Asset) set", "Okay");
+        [ContextMenu("Zero Out bundle.tgz")]
+        public void ZeroOutBundleZipWithPrompt() {
+            if (bundleZip == null) {
+                EditorUtility.DisplayDialog("bundle.tgz is null",
+                    "Please make sure you have an bundle.tgz (Text Asset) set", "Okay");
                 return;
             }
             if (EditorUtility.DisplayDialog("Are you sure?",
-                    "This will zero out your outputs.tgz file. This is useful when you want to make a clean build.",
+                    "This will zero out your bundle.tgz file. This is useful when you want to make a clean build.",
                     "Confirm", "Cancel")) {
-                ZeroOutOutputsZip();
+                ZeroOutBundleZip();
             }
         }
 
-        public void ZeroOutOutputsZip() {
-            var binPath = AssetDatabase.GetAssetPath(outputsZip);
+        public void ZeroOutBundleZip() {
+            var binPath = AssetDatabase.GetAssetPath(bundleZip);
             binPath = Path.GetFullPath(Path.Combine(Application.dataPath, @".." + Path.DirectorySeparatorChar,
                 binPath));
             var outStream = File.Create(binPath);
             outStream.Close();
-        }
-
-        [ContextMenu("Package Directories")]
-        public void PackageDirectoriesWithPrompt() {
-            if (EditorUtility.DisplayDialog("Are you sure?",
-                    "This will package up the directories specified in the 'Directories to Package' field into tgz files in the Resources folder.",
-                    "Confirm", "Cancel")) {
-                PackageDirectories();
-            }
-        }
-
-        /// <summary>
-        /// Packages the specified directories as tarballs. These will be kept in the Resources folder.
-        /// </summary>
-        public void PackageDirectories() {
-            _engine = GetComponent<ScriptEngine>();
-            var t = DateTime.Now;
-            foreach (var dir in directoriesToPackage) {
-                var dirname = StringUtil.SanitizeFilename(dir);
-                var dirPath = Path.Combine(_engine.WorkingDir, dirname);
-                if (!Directory.Exists(dirPath)) {
-                    Debug.Log($"{dirPath} does not exist. Skipping.");
-                    continue;
-                }
-                var resourcesPath = Path.Combine(Application.dataPath, @"Resources/OneJS/Tarballs");
-                if (!Directory.Exists(resourcesPath)) {
-                    Directory.CreateDirectory(resourcesPath);
-                }
-                var binPath = Path.Combine(resourcesPath, $"{dirname}.tgz.bytes");
-                var outStream = File.Create(binPath);
-                var gzoStream = new GZipOutputStream(outStream);
-                gzoStream.SetLevel(3);
-                var tarOutputStream = new TarOutputStream(gzoStream);
-                var tarCreator = new TarCreator(dirPath, _engine.WorkingDir);
-                tarCreator.CreateTar(tarOutputStream);
-
-                Debug.Log($"{dirname}.tgz.bytes file updated. {tarOutputStream.Length} bytes {(DateTime.Now - t).TotalMilliseconds}ms");
-                tarOutputStream.Close();
-            }
-            AssetDatabase.Refresh();
         }
 
 #endif
