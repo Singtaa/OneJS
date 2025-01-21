@@ -135,7 +135,7 @@ namespace OneJS.Editor {
             var code = File.ReadAllText(ScriptFilePath);
             _jsEnv.Eval(code, "@outputs/esbuild/app.js");
             // ReSelect(); //
-            BaseEditor.Instance?.Refresh();
+            // BaseEditor.Instance?.Refresh();
             _rendererRegistry.ReRenderAll();
             RefreshStyleSheets();
         }
