@@ -11,14 +11,54 @@ using Debug = UnityEngine.Debug;
 
 namespace OneJS.Editor {
     public class OneJSMenuItems {
-        [MenuItem("Tools/OneJS/Generate StaticWrappers", false, 1)]
+        const string MenuPathQuickJS = "Tools/OneJS/Backend/QuickJS";
+        const string MenuPathV8 = "Tools/OneJS/Backend/V8";
+        const string MenuPathNodeJS = "Tools/OneJS/Backend/NodeJS";
+
+        [MenuItem(MenuPathQuickJS)]
+        static void SelectQuickJS() {
+            SwitchBackend("QuickJS");
+        }
+
+        [MenuItem(MenuPathV8)]
+        static void SelectV8() {
+            SwitchBackend("V8");
+        }
+
+        [MenuItem(MenuPathNodeJS)]
+        static void SelectNodeJS() {
+            SwitchBackend("NodeJS");
+        }
+
+        [MenuItem(MenuPathQuickJS, true)]
+        [MenuItem(MenuPathV8, true)]
+        [MenuItem(MenuPathNodeJS, true)]
+        static bool ValidateMenu() {
+            UpdateMenuCheckmarks();
+            return true;
+        }
+
+        static void SwitchBackend(string backend) {
+            OneJSBackend.SwitchBackend(backend); // Call OneJSBackend to switch backend
+            UpdateMenuCheckmarks();
+        }
+
+        static void UpdateMenuCheckmarks() {
+            string selectedBackend = OneJSBackend.GetCurrentBackend();
+
+            Menu.SetChecked(MenuPathQuickJS, selectedBackend == "QuickJS");
+            Menu.SetChecked(MenuPathV8, selectedBackend == "V8");
+            Menu.SetChecked(MenuPathNodeJS, selectedBackend == "NodeJS");
+        }
+
+        [MenuItem("Tools/OneJS/Generate StaticWrappers", false)]
         static void GenerateStaticWrappers() {
             UnityMenu.ClearAll();
             UnityMenu.GenerateCode();
             UnityMenu.GenRegisterInfo();
         }
 
-        [MenuItem("Tools/OneJS/Open GeneratedCode Folder", false, 21)]
+        [MenuItem("Tools/OneJS/Open GeneratedCode Folder", false)]
         static void OpenGeneratedCodeFolder() {
             var path = Path.Combine(Application.dataPath, "..", "Temp", "GeneratedCode", "OneJS");
             if (Directory.Exists(path)) {
