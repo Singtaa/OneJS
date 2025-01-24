@@ -1,4 +1,19 @@
-﻿# [2024-12-08] v2.1.7 - Minor Tweak
+﻿# [2025-01-23] v2.1.9 - Improvements to Bundler and DTSGen
+
+- Many updates on the npm modules (onejs-core, onejs-preact, onejs-comps, etc)
+- Backends MenuItems
+- Removed BaseEditor override
+- Bundler rewrite
+- DTSGen improvements
+- 2021.3 compatibility
+- Fixed puerts reimporting issue
+- Various EditorScriptEngine improvements
+- Use "Assembly-CSharp" by default for DTSGenerator
+- EditorEngineHost refactor
+- Codegen: accomodate for Nullable types
+- EngineHost Refactor
+
+# [2024-12-08] v2.1.7 - Minor Tweak
 
 - Added a global.d.ts by default
 
