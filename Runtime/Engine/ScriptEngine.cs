@@ -147,6 +147,9 @@ namespace OneJS {
             _jsEnv = new JsEnv();
             // _jsEnv = new JsEnv(new DefaultLoader(Path.Combine(WorkingDir, "@outputs/esbuild/")), 8080);
             _jsEnv.UsingAction<Action>();
+            
+            Dom.Dom.AddEventsFromTypes(dtsGenerator.GetAllTypes());
+            
             OnPreInit?.Invoke(_jsEnv);
 
             _engineHost = new EngineHost(this);

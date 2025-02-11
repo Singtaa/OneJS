@@ -25,16 +25,31 @@ namespace OneJS.Dom {
         }
 
         static void InitAllUIElementEvents() {
-            var eventTypes = typeof(VisualElement).Assembly.GetTypes().Where(type => type.IsSubclassOf(typeof(EventBase)));
-            foreach (var type in eventTypes) {
-                var typeNameLower = type.Name.ToLower();
-                _allUIElementEventTypes.Add(typeNameLower, type);
+            AddEventsFromAssembly(typeof(VisualElement).Assembly);
+        }
 
-                if (type.Name.EndsWith("Event")) {
-                    // Strips 5 characters from the end of type name, which is "Event"
-                    _allUIElementEventTypes.Add(typeNameLower[..^5], type);
-                }
-            }
+        public static void AddEventsFromAssemblies(Assembly[] assemblies) {
+            foreach (var assembly in assemblies)
+                AddEventsFromAssembly(assembly);
+        }
+
+        public static void AddEventsFromAssembly(Assembly assembly) {
+            var eventTypes = assembly.GetTypes().Where(type => type.IsSubclassOf(typeof(EventBase)));
+            foreach (var type in eventTypes)
+                AddEventType(type);
+        }
+
+        public static void AddEventsFromTypes(Type[] types) {
+            var eventTypes = types.Where(type => type.IsSubclassOf(typeof(EventBase)));
+            foreach (var type in eventTypes)
+                AddEventType(type);
+        }
+
+        static void AddEventType(Type type) {
+            var typeNameLower = type.Name.ToLower();
+            _allUIElementEventTypes[typeNameLower] = type;
+            if (type.Name.EndsWith("Event"))
+                _allUIElementEventTypes[typeNameLower[..^5]] = type;
         }
 
         static Type FindUIElementEventType(string name) {
