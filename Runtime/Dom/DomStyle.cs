@@ -35,6 +35,7 @@ namespace OneJS.Dom {
         }
 
         // MARK: - Style Properties
+
         #region Style Properties
         public object alignContent {
             get => veStyle.alignContent;
@@ -742,6 +743,69 @@ namespace OneJS.Dom {
             set {
                 if (TryParseStyleLength(value, out var styleLength))
                     veStyle.wordSpacing = styleLength;
+            }
+        }
+        #endregion
+
+        #region Composites
+        public object transform {
+            get => $"{veStyle.translate} {veStyle.scale} {veStyle.rotate}";
+            set {
+                if (value is string s) {
+                    var regex = new Regex(@"(\w+)\(([^)]+)\)");
+                    var matches = regex.Matches(s);
+                    foreach (Match match in matches) {
+                        var transformType = match.Groups[1].Value.ToLower();
+                        var transformValue = match.Groups[2].Value;
+
+                        switch (transformType) {
+                            // case "translatex":
+                            // case "translatey":
+                            case "translate":
+                                if (TryParseStyleTranslate(transformValue, out var translateValue))
+                                    veStyle.translate = translateValue;
+                                break;
+                            case "scale":
+                                if (TryParseStyleScale(transformValue, out var scaleValue))
+                                    veStyle.scale = scaleValue;
+                                break;
+                            case "rotate":
+                                if (TryParseStyleRotate(transformValue, out var rotateValue))
+                                    veStyle.rotate = rotateValue;
+                                break;
+                        }
+                    }
+                }
+            }
+        }
+
+        public object transition {
+            get => $"{veStyle.transitionProperty} {veStyle.transitionDuration} {veStyle.transitionTimingFunction}";
+            set {
+                if (value is string s) {
+                    var transitions = s.Split(',');
+
+                    var properties = new List<StylePropertyName>();
+                    var durations = new List<TimeValue>();
+                    var easingFunctions = new List<EasingFunction>();
+
+                    foreach (var transition in transitions) {
+                        var parts = transition.Trim().Split(' ');
+                        if (parts.Length < 2) continue;
+
+                        properties.Add(new StylePropertyName(parts[0]));
+
+                        if (TryParseStyleListTimeValue(parts[1], out var duration))
+                            durations.AddRange(duration.value);
+
+                        if (parts.Length > 2 && TryParseStyleListEasingFunction(parts[2], out var easing))
+                            easingFunctions.AddRange(easing.value);
+                    }
+
+                    veStyle.transitionProperty = new StyleList<StylePropertyName>(properties);
+                    veStyle.transitionDuration = new StyleList<TimeValue>(durations);
+                    veStyle.transitionTimingFunction = new StyleList<EasingFunction>(easingFunctions);
+                }
             }
         }
         #endregion
