@@ -144,15 +144,18 @@ namespace OneJS {
             if (_jsEnv != null) {
                 _jsEnv.Dispose();
             }
-            _jsEnv = new JsEnv();
             // _jsEnv = new JsEnv(new DefaultLoader(Path.Combine(WorkingDir, "@outputs/esbuild/")), 8080);
+            _jsEnv = new JsEnv();
+
+            // Some default UsingActions here. Please use OnPreInit to add more if needed (in your own code).
             _jsEnv.UsingAction<Action>();
             _jsEnv.UsingAction<float>();
             _jsEnv.UsingAction<int>();
             _jsEnv.UsingAction<string>();
-            
+            _jsEnv.UsingAction<bool>();
+
             Dom.Dom.AddEventsFromTypes(dtsGenerator.GetAllTypes());
-            
+
             OnPreInit?.Invoke(_jsEnv);
 
             _engineHost = new EngineHost(this);

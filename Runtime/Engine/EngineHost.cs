@@ -71,17 +71,22 @@ namespace OneJS {
 
             var handlerDelegate = GenericDelegateWrapper.Wrap(_engine.JsEnv, eventInfo, handler);
             var isOnReloadEvent = eventSource == this && eventName == nameof(onReload);
+            var isOnDisposeEvent = eventSource == this && eventName == nameof(onDispose);
 
             eventInfo.AddEventHandler(eventSource, handlerDelegate);
 
             if (!isOnReloadEvent) {
                 onReload += unsubscribe;
+                onDispose += unsubscribe;
             }
             return () => {
                 unsubscribe();
 
                 if (!isOnReloadEvent) {
                     onReload -= unsubscribe;
+                }
+                if (!isOnDisposeEvent) {
+                    onDispose -= unsubscribe;
                 }
             };
 
