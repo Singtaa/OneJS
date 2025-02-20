@@ -117,7 +117,9 @@ namespace OneJS {
 
         #region Public Methods
         public string GetFullPath(string filepath) {
-            return Path.Combine(WorkingDir, filepath);
+            var normalizedPath = filepath.Replace('/', Path.DirectorySeparatorChar)
+                .Replace('\\', Path.DirectorySeparatorChar);
+            return Path.GetFullPath(Path.Combine(WorkingDir, normalizedPath));
         }
 
         public void Dispose() {
