@@ -14,6 +14,9 @@ namespace OneJS.Editor {
     }
 
     public class RendererRegistry {
+        public int RenderersCount => _renderers.Count;
+        public string RenderersTypesString => string.Join(", ", _renderers.Keys);
+        
         Dictionary<Type, RendererInfo> _renderers = new();
         EditorScriptEngine _engine;
 

@@ -1,0 +1,30 @@
+﻿const require = function(name) {
+    if (name === 'fs') {
+        return {
+            existsSync: function(path) {
+                return CS.System.IO.File.Exists(path);
+            },
+            readFileSync: function(path) {
+                return CS.System.IO.File.ReadAllText(path);
+            }
+        }
+    } else if (name === 'path') {
+        return {
+            dirname: function(path) {
+                return CS.System.IO.Path.GetDirectoryName(path);
+            },
+            resolve: function(dir, url) {
+                url = url.replace(/\\/g, "/");
+                while (url.startsWith("../")) {
+                    dir = CS.System.IO.Path.GetDirectoryName(dir);
+                    url = url.substr(3);
+                }
+                return CS.System.IO.Path.Combine(dir, url);
+            },
+            join: function() {
+                return CS.System.IO.Path.Combine(...arguments);
+            }
+        }
+    }
+    return null;
+};

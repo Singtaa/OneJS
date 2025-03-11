@@ -177,7 +177,7 @@ namespace OneJS.Editor {
                 tex.filterMode = filterMode;
                 _imageCache[path] = tex;
                 return tex;
-            } catch (Exception e) {
+            } catch (Exception) {
                 Debug.LogError($"Failed to load image: {path}");
                 // Debug.LogError(e);
                 return null;
@@ -197,7 +197,7 @@ namespace OneJS.Editor {
                 var font = new Font(path);
                 _fontCache[path] = font;
                 return font;
-            } catch (Exception e) {
+            } catch (Exception) {
                 Debug.LogError($"Failed to load font: {path}");
                 // Debug.LogError(e);
                 return null;
@@ -243,7 +243,7 @@ namespace OneJS.Editor {
 
         Type GetVisualElementType(string tagName) {
             Type foundType = null;
-            var typeNameL = tagName.ToLower();
+            var typeNameL = tagName.Replace("-", "").ToLower();
             foreach (var tagType in _tagTypes) {
                 if (tagType.Name.ToLower() == typeNameL) {
                     foundType = tagType;

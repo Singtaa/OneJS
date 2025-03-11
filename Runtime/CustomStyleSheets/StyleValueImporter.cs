@@ -104,6 +104,7 @@ namespace OneJS.CustomStyleSheets {
                     Texture2D tex = new Texture2D(2, 2);
                     tex.LoadImage(File.ReadAllBytes(fullpath));
                     tex.filterMode = FilterMode.Bilinear;
+                    Debug.Log(tex);
 
                     m_Builder.AddValue(tex);
 

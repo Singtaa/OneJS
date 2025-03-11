@@ -3,12 +3,12 @@
  */
 import glob from "tiny-glob"
 import * as esbuild from "esbuild"
-import { importTransformation, watchOutputPlugin, copyAssetsPlugin } from "onejs-core/scripts/esbuild/index.mjs"
+import { importTransformationPlugin, watchOutputPlugin, copyAssetsPlugin } from "onejs-core/scripts/esbuild/index.mjs"
 
 let mainCtx = await esbuild.context({
 	entryPoints: ["@outputs/tsc/index.js"],
 	bundle: true,
-	plugins: [importTransformation(), watchOutputPlugin, copyAssetsPlugin()],
+	plugins: [importTransformationPlugin(), watchOutputPlugin, copyAssetsPlugin()],
 	inject: ["onejs-core/dist/index.js"],
 	platform: "node",
 	sourcemap: true,

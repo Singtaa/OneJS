@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Reflection;
+using OneJS.Utils;
 using Puerts;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace OneJS.Editor {
@@ -42,6 +45,76 @@ namespace OneJS.Editor {
         
         public void RegisterRenderer(Type type, Action<UnityEngine.Object, VisualElement> render) {
             _engine.RegisterRenderer(type, render);
+        }
+        
+        /// <summary>
+        /// Use this method to subscribe to an event on an object regardless of JS engine.
+        ///
+        /// NOTE: There's now a `subscribe` method on the JS side that does the same thing and also supports static events.
+        /// Use `import { subscribe } from 'onejs-core/utils'` to use it.
+        /// </summary>
+        /// <param name="eventSource">The object containing the event</param>
+        /// <param name="eventName">The name of the event</param>
+        /// <param name="handler">A C# delegate or a JS function</param>
+        /// <returns>A function to unsubscribe event</returns>
+        /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="NotSupportedException"></exception>
+        /// <exception cref="ArgumentException"></exception>
+        public Action subscribe(object eventSource, string eventName, GenericDelegate handler) {
+            if (eventSource is null) {
+                throw new ArgumentNullException(nameof(eventSource), "[SubscribeEvent] Event source is null.");
+            } else if (eventSource is JSObject) {
+                throw new NotSupportedException("[SubscribeEvent] Cannot subscribe event on JS value.");
+            }
+
+            var eventInfo = eventSource.GetType().GetEvent(eventName, BindingFlags.Public | BindingFlags.Instance);
+            if (eventInfo is null) {
+                throw new ArgumentException(
+                    $"[SubscribeEvent] Cannot find event \"{eventName}\" on type \"{eventSource.GetType()}\".",
+                    nameof(eventName));
+            }
+
+            var handlerDelegate = GenericDelegateWrapper.Wrap(_engine.JsEnv, eventInfo, handler);
+            var isOnReloadEvent = eventSource == this && eventName == nameof(onReload);
+            var isOnDisposeEvent = eventSource == this && eventName == nameof(onDispose);
+
+            eventInfo.AddEventHandler(eventSource, handlerDelegate);
+
+            if (!isOnReloadEvent) {
+                onReload += unsubscribe;
+                onDispose += unsubscribe;
+            }
+            return () => {
+                unsubscribe();
+
+                if (!isOnReloadEvent) {
+                    onReload -= unsubscribe;
+                }
+                if (!isOnDisposeEvent) {
+                    onDispose -= unsubscribe;
+                }
+            };
+
+            void unsubscribe() {
+                eventInfo.RemoveEventHandler(eventSource, handlerDelegate);
+            }
+        }
+
+        public Action subscribe(string eventName, GenericDelegate handler) => subscribe(this, eventName, handler);
+
+        /// <summary>
+        /// Use for event cleanup
+        /// </summary>
+        public void teardown(Action action) {
+            onReload += _teardown;
+            onDispose += _teardown;
+            
+            void _teardown() {
+                action();
+                
+                onReload -= _teardown;
+                onDispose -= _teardown;
+            }
         }
 
         /// <summary>

@@ -1,4 +1,4 @@
-﻿const __addToGlobal = function(name, obj) {
+﻿const __addToGlobal = function (name, obj) {
     const parts = name.split('.');
     let current = globalThis;
 
@@ -9,6 +9,29 @@
 
     current[parts[parts.length - 1]] = obj;
 };
+
+const newCsArray = function (type, count) {
+    return CS.System.Array.CreateInstance(puer.$typeof(type), count)
+}
+
+const toJsArray = function toJsArray(csArr) {
+    if (!csArr) return [];
+    let arr = new Array(csArr.Length);
+    var i = csArr.Length;
+    while (i--) {
+        arr[i] = csArr.get_Item(i);
+    }
+    return arr;
+}
+
+const toCsArray = function toCsArray(jsArr, type) {
+    if (!jsArr) return null;
+    let arr = newCsArray(type, jsArr.length);
+    for (let i = 0; i < jsArr.length; i++) {
+        arr.set_Item(i, jsArr[i]);
+    }
+    return arr;
+}
 
 const performance = {
     now: function () {
@@ -24,6 +47,8 @@ const cancelAnimationFrame = function (id) {
     clearTimeout(id)
 }
 
+// MARK: - Unity
+
 CS.UnityEngine.GameObject.prototype.GetComp = function (type) {
     return this.GetComponent(puer.$typeof(type))
 }
@@ -38,4 +63,187 @@ CS.UnityEngine.Component.prototype.GetComp = function (type) {
 
 CS.UnityEngine.Component.prototype.AddComp = function (type) {
     return this.AddComponent(puer.$typeof(type))
+}
+
+// MARK: - System.Array
+
+CS.System.Array.prototype.get = function (index) {
+    return this.get_Item(index)
+}
+
+CS.System.Array.prototype.set = function (index, value) {
+    this.set_Item(index, value)
+}
+
+CS.System.Array.prototype.toJsArray = function () {
+    return toJsArray(this)
+}
+
+CS.System.Array.prototype.at = function (index) {
+    if (index < 0) {
+        index += this.Length
+    }
+    return this.get(index)
+}
+
+CS.System.Array.prototype.forEach = function (callback) {
+    for (let i = 0; i < this.Length; i++) {
+        callback(this.get(i), i, this)
+    }
+}
+
+CS.System.Array.prototype.map = function (callback) {
+    const result = CS.System.Array.CreateInstance(this.GetType().GetElementType(), this.Length)
+    for (let i = 0; i < this.Length; i++) {
+        result[i] = callback(this.get(i), i, this)
+    }
+    return result
+}
+
+CS.System.Array.prototype.filter = function (callback) {
+    const result = []
+    for (let i = 0; i < this.Length; i++) {
+        if (callback(this.get(i), i, this)) {
+            result.push(this.get(i))
+        }
+    }
+    return toCsArray(result, this.GetType().GetElementType())
+}
+
+CS.System.Array.prototype.reduce = function (callback, initialValue) {
+    let accumulator = initialValue
+    for (let i = 0; i < this.Length; i++) {
+        accumulator = callback(accumulator, this.get(i), i, this)
+    }
+    return accumulator
+}
+
+CS.System.Array.prototype.reduceRight = function (callback, initialValue) {
+    let accumulator = initialValue
+    for (let i = this.Length - 1; i >= 0; i--) {
+        accumulator = callback(accumulator, this.get(i), i, this)
+    }
+    return accumulator
+}
+
+CS.System.Array.prototype.find = function (callback) {
+    for (let i = 0; i < this.Length; i++) {
+        if (callback(this.get(i), i, this)) {
+            return this.get(i)
+        }
+    }
+    return undefined
+}
+
+CS.System.Array.prototype.findIndex = function (callback) {
+    for (let i = 0; i < this.Length; i++) {
+        if (callback(this.get(i), i, this)) {
+            return i
+        }
+    }
+    return -1
+}
+
+CS.System.Array.prototype.indexOf = function (searchElement, fromIndex) {
+    fromIndex = fromIndex || 0
+    for (let i = fromIndex; i < this.Length; i++) {
+        if (this.get(i) === searchElement) {
+            return i
+        }
+    }
+    return -1
+}
+
+CS.System.Array.prototype.lastIndexOf = function (searchElement, fromIndex) {
+    fromIndex = fromIndex || this.Length - 1
+    for (let i = fromIndex; i >= 0; i--) {
+        if (this.get(i) === searchElement) {
+            return i
+        }
+    }
+    return -1
+}
+
+CS.System.Array.prototype.some = function (callback) {
+    for (let i = 0; i < this.Length; i++) {
+        if (callback(this.get(i), i, this)) {
+            return true
+        }
+    }
+    return false
+}
+
+CS.System.Array.prototype.every = function (callback) {
+    for (let i = 0; i < this.Length; i++) {
+        if (!callback(this.get(i), i, this)) {
+            return false
+        }
+    }
+    return true
+}
+
+CS.System.Array.prototype.slice = function (begin, end) {
+    const result = CS.System.Array.CreateInstance(this.GetType().GetElementType(), end - begin)
+    for (let i = begin; i < end; i++) {
+        result[i - begin] = this.get(i)
+    }
+    return result
+}
+
+CS.System.Array.prototype.concat = function (...args) {
+    const totalLength = this.Length + args.reduce((acc, arr) => acc + arr.Length, 0)
+    const result = CS.System.Array.CreateInstance(this.GetType().GetElementType(), totalLength)
+    let index = 0
+    for (let i = 0; i < this.Length; i++) {
+        result[index++] = this.get(i)
+    }
+    for (let i = 0; i < args.length; i++) {
+        for (let j = 0; j < args[i].Length; j++) {
+            result[index++] = args[i].get(j)
+        }
+    }
+    return result
+}
+
+CS.System.Array.prototype.join = function (separator) {
+    let result = ''
+    for (let i = 0; i < this.Length; i++) {
+        result += this.get(i)
+        if (i < this.Length - 1) {
+            result += separator
+        }
+    }
+    return result
+}
+
+CS.System.Array.prototype.sort = function (compareFunction) {
+    if (typeof compareFunction == 'function') {
+        return CS.System.Array.Sort(this, compareFunction)
+    }
+    return CS.System.Array.Sort(this)
+}
+
+CS.System.Array.prototype.reverse = function () {
+    return CS.System.Array.Reverse(this)
+}
+
+CS.System.Array.prototype.includes = function (searchElement, fromIndex) {
+    return this.indexOf(searchElement, fromIndex) !== -1
+}
+
+CS.System.Array.prototype.fill = function (value, start, end) {
+    start = start || 0
+    end = end || this.Length
+    for (let i = start; i < end; i++) {
+        this.set(i, value)
+    }
+    return this
+}
+
+CS.System.Array.prototype.copyWithin = function (target, start, end) {
+    let copy = this.slice(start, end)
+    for (let i = 0; i < copy.Length; i++) {
+        this.set(target + i, copy.get(i))
+    }
+    return this
 }

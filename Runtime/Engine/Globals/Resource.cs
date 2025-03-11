@@ -7,9 +7,9 @@ namespace OneJS {
     public delegate void MyCallback();
 
     public class Resource {
-        ScriptEngine _engine;
+        IScriptEngine _engine;
 
-        public Resource(ScriptEngine engine) {
+        public Resource(IScriptEngine engine) {
             _engine = engine;
         }
 

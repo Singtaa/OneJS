@@ -38,6 +38,8 @@ namespace OneJS.Editor {
         #region Events
         public event Action OnReload;
         public event Action OnDispose;
+        
+        public event Action OnPreInit;
         #endregion
 
         #region Private Fields
@@ -67,9 +69,16 @@ namespace OneJS.Editor {
                 return;
             // _rendererRegistry should not be reset in Init() because it needs to be persisted across reloads
             _rendererRegistry = new RendererRegistry(this);
-            // Introducing a 1-frame delay here prevents reimporting errors with Puerts. When Puerts loads
-            // its init.mjs file, initializing a new JsEnv in the same frame can trigger these errors.
-            EditorApplication.delayCall += Init;
+            // *May need to* introduce a 1-frame delay here prevents reimporting errors with Puerts. When Puerts
+            // loads its init.mjs file, initializing a new JsEnv in the same frame can trigger these errors.
+            // But this does interfere with the rendering of Custom Editors that depend on the engine being ready.
+            // EditorApplication.delayCall += Init;
+            try {
+                Init();
+            } catch (Exception) {
+                // Maybe this is the best way to handle the above issue
+                EditorApplication.delayCall += Init;
+            }
         }
 
         void OnDisable() {
@@ -81,6 +90,7 @@ namespace OneJS.Editor {
         public void Init() {
             ExtractIfNotFound();
             _jsEnv = new JsEnv();
+            OnPreInit?.Invoke();
             _engineHost = new EditorEngineHost(this);
             _document = new EditorDocument(this);
             foreach (var preload in preloads) {
@@ -90,6 +100,7 @@ namespace OneJS.Editor {
             addToGlobal("___document", _document);
             addToGlobal("___workingDir", WorkingDir);
             addToGlobal("___engineHost", _engineHost);
+            addToGlobal("resource", new Resource(this));
             addToGlobal("onejs", _engineHost);
             foreach (var obj in globalObjects) {
                 addToGlobal(obj.name, obj.obj);
@@ -148,9 +159,11 @@ namespace OneJS.Editor {
         /// Renders the editor UI for the target object (e.g. Editor or EditorWindow). The renderer
         /// should already be registered from the JS side. If not, it will do nothing.
         /// </summary>
-        public void Render<T>(T target, VisualElement root) where T : UnityEngine.Object {
-            var type = typeof(T);
+        public void Render(UnityEngine.Object target, VisualElement root) {
+            var type = target.GetType();
             if (_rendererRegistry.TryGetRendererInfo(type, out var rendererInfo)) {
+                // Debug.Log($"Renderers count: {_rendererRegistry.RenderersCount}");
+                // Debug.Log(_rendererRegistry.RenderersTypesString);
                 ApplyStyleSheets(root);
                 rendererInfo.target = target;
                 rendererInfo.roots.Add(root);
@@ -160,6 +173,12 @@ namespace OneJS.Editor {
 
         public void RegisterRenderer(Type type, Action<UnityEngine.Object, VisualElement> render) {
             _rendererRegistry.Register(type, render);
+        }
+
+        public void RemoveRenderRoot(Type type, VisualElement root) {
+            if (_rendererRegistry.TryGetRendererInfo(type, out var rendererInfo)) {
+                rendererInfo.roots.Remove(root);
+            }
         }
 
         public void ApplyStyleSheets(VisualElement ve) {
@@ -197,7 +216,9 @@ namespace OneJS.Editor {
 
         public EditorDocument document => _document;
 
-        public JsEnv jsEnv => _jsEnv;
+        public JsEnv JsEnv => _jsEnv;
+
+        public EditorEngineHost EngineHost => _engineHost;
         #endregion
 
         #region Runner
@@ -232,8 +253,9 @@ namespace OneJS.Editor {
 
         void RunOnMainThread() {
             EditorApplication.update -= RunOnMainThread;
-            if (devMode)
+            if (devMode) {
                 Reload();
+            }
         }
 
         /// <summary>
