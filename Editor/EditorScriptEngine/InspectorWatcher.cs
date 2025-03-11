@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using OneJS.Editor;
 using OneJS.Attributes;
 using UnityEditor;
@@ -14,7 +15,10 @@ namespace Weaver {
         static EditorWindow _inspectorWindow;
         static HashSet<EditorWindow> _openWindows;
 
+        static Type _inspectorWindowType;
+
         static InspectorWatcher() {
+            _inspectorWindowType = typeof(Editor).Assembly.GetType("UnityEditor.InspectorWindow");
             _openWindows = new HashSet<EditorWindow>(Resources.FindObjectsOfTypeAll<EditorWindow>());
             // Selection.selectionChanged += Update;
             EditorApplication.update += Update;
@@ -22,23 +26,22 @@ namespace Weaver {
         }
 
         static void Update() {
-            var selected = Selection.activeObject;
-            var inspectorWindowType = typeof(Editor).Assembly.GetType("UnityEditor.PropertyEditor");
-            var inspectorWindows = Resources.FindObjectsOfTypeAll(inspectorWindowType);
-            var hasOneJSAttribute = HasOneJSAttribute(selected);
+            var inspectorWindows = Resources.FindObjectsOfTypeAll(_inspectorWindowType);
             foreach (var inspectorWindow in inspectorWindows) {
-                var targetEle = (inspectorWindow as EditorWindow).rootVisualElement;
-                if (targetEle != null) {
-                    targetEle.EnableInClassList("inspector-root", true);
-                    targetEle.EnableInClassList("onejs-so-selected", hasOneJSAttribute);
-                    targetEle.EnableInClassList("theme-dark", EditorGUIUtility.isProSkin);
-                    targetEle.EnableInClassList("theme-light", !EditorGUIUtility.isProSkin);
+                var root = (inspectorWindow as EditorWindow).rootVisualElement;
+                var target = GetInspectorTarget(inspectorWindow as EditorWindow);
+                if (root != null && target != null) {
+                    var hasOneJSAttribute = HasOneJSAttribute(target);
+                    root.EnableInClassList("inspector-root", true);
+                    root.EnableInClassList("onejs-so-selected", hasOneJSAttribute);
+                    root.EnableInClassList("theme-dark", EditorGUIUtility.isProSkin);
+                    root.EnableInClassList("theme-light", !EditorGUIUtility.isProSkin);
                     if (hasOneJSAttribute) {
-                        var scrollView = targetEle.Q<ScrollView>();
+                        var scrollView = root.Q<ScrollView>();
                         if (scrollView != null) {
                             scrollView.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
                         }
-                        var holder = targetEle.Q(null, "unity-inspector-editors-list");
+                        var holder = root.Q(null, "unity-inspector-editors-list");
                         // Find the child element whose name starts with selected.GetType().Name + "Editor_"
                         // var editors = holder?.Children().Where(e => e.name.StartsWith(selected.GetType().Name + "Editor_")).ToArray();
                         var editors = holder?.Children().Where(e => e.GetType().Name == "EditorElement").ToArray();
@@ -46,7 +49,7 @@ namespace Weaver {
                             continue;
                         foreach (var editor in editors) {
                             var hasInspectorElement = editor.Q<InspectorElement>() != null;
-                            var isTargetName = editor.name.StartsWith(selected.GetType().Name + "Editor_");
+                            var isTargetName = editor.name.StartsWith(target.GetType().Name + "Editor_");
                             var good = hasInspectorElement && isTargetName;
                             editor.EnableInClassList("inspector-editor-element", good);
                             editor.EnableInClassList("none-editor-element", !good);
@@ -60,6 +63,21 @@ namespace Weaver {
             if (obj is ScriptableObject)
                 return Attribute.IsDefined(obj.GetType(), typeof(OneJSAttribute));
             return false;
+        }
+
+        public static UnityEngine.Object GetInspectorTarget(EditorWindow inspectorWindow) {
+            if (inspectorWindow == null) return null;
+
+            if (_inspectorWindowType == null || !_inspectorWindowType.IsInstanceOfType(inspectorWindow)) return null;
+
+            var getInspectedObjectMethod = _inspectorWindowType.GetMethod("GetInspectedObject",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            if (getInspectedObjectMethod != null) {
+                return getInspectedObjectMethod.Invoke(inspectorWindow, null) as UnityEngine.Object;
+            }
+
+            return null;
         }
 
         public static T FindScriptableObject<T>(string name) where T : ScriptableObject {
