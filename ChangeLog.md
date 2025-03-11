@@ -1,4 +1,14 @@
-﻿# [2025-01-23] v2.1.9 - Improvements to Bundler and DTSGen
+﻿# [2025-03-10] v2.1.13 - Bugfixes and Improvements
+
+`onejs/math` is now available! See `onejs-core` repo for more info.
+
+- Better custom UIElement Events handling
+- Normalized Path in ScriptEngine.GetFullPath()
+- EngineHost.subscribe() improvements
+- Better uss class name escaping
+- Many Editor UI improvements
+
+# [2025-01-23] v2.1.9 - Improvements to Bundler and DTSGen
 
 - Many updates on the npm modules (onejs-core, onejs-preact, onejs-comps, etc)
 - Backends MenuItems
