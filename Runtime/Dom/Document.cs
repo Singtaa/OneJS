@@ -126,13 +126,13 @@ namespace OneJS.Dom {
             }
             return null;
         }
-        
+
         public void clearCache() {
             _imageCache.Clear();
             _fontCache.Clear();
             _fontDefinitionCache.Clear();
         }
-        
+
         public Coroutine loadRemoteImage(string url, Action<Texture2D> callback) {
             if (_imageCache.TryGetValue(url, out var tex)) {
                 callback(tex);
@@ -157,12 +157,12 @@ namespace OneJS.Dom {
                 return texture;
             }
             try {
-                path = Path.IsPathRooted(path) ? path : Path.Combine(_scriptEngine.WorkingDir, path);
-                var rawData = File.ReadAllBytes(path);
+                var fullpath = Path.IsPathRooted(path) ? path : Path.Combine(_scriptEngine.WorkingDir, path);
+                var rawData = File.ReadAllBytes(fullpath);
                 Texture2D tex = new Texture2D(2, 2); // Create an empty Texture; size doesn't matter
                 tex.LoadImage(rawData);
                 tex.filterMode = filterMode;
-                _imageCache[path] = tex;
+                _imageCache[path] = tex; // caches the original path
                 return tex;
             } catch (Exception) {
                 Debug.LogError($"Failed to load image: {path}");
