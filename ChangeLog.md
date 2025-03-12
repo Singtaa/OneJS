@@ -1,4 +1,6 @@
-﻿# [2025-03-10] v2.1.13 - Bugfixes and Improvements
+﻿# [2025-03-12] v2.1.14 - Minor Tweaks
+
+# [2025-03-10] v2.1.13 - Bugfixes and Improvements
 
 `onejs/math` is now available! See `onejs-core` repo for more info.
 

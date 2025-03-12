@@ -135,5 +135,9 @@ namespace OneJS.Editor {
             }
             _sandboxEnv.Eval(jsCode, "sandbox_js_env");
         }
+        
+        public void ApplyStyleSheets(VisualElement ve) {
+            _engine.ApplyStyleSheets(ve);
+        }
     }
 }

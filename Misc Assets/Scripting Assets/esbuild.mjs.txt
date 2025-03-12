@@ -20,6 +20,9 @@ let mainCtx = await esbuild.context({
 		"react-dom": "onejs-preact/compat"
 	},
 	outfile: "@outputs/esbuild/app.js",
+	banner: {
+		js: "module = {exports: {}};"
+	}
 });
 
 await mainCtx.watch();
