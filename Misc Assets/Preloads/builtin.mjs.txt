@@ -92,10 +92,10 @@ CS.System.Array.prototype.forEach = function (callback) {
     }
 }
 
-CS.System.Array.prototype.map = function (callback) {
-    const result = CS.System.Array.CreateInstance(this.GetType().GetElementType(), this.Length)
+CS.System.Array.prototype.map = function (type, callback) {
+    const result = CS.System.Array.CreateInstance(puer.$typeof(type), this.Length)
     for (let i = 0; i < this.Length; i++) {
-        result[i] = callback(this.get(i), i, this)
+        result.set(i, callback(this.get(i), i, this))
     }
     return result
 }
@@ -185,7 +185,7 @@ CS.System.Array.prototype.every = function (callback) {
 CS.System.Array.prototype.slice = function (begin, end) {
     const result = CS.System.Array.CreateInstance(this.GetType().GetElementType(), end - begin)
     for (let i = begin; i < end; i++) {
-        result[i - begin] = this.get(i)
+        result.set(i - begin, this.get(i))
     }
     return result
 }
@@ -195,11 +195,11 @@ CS.System.Array.prototype.concat = function (...args) {
     const result = CS.System.Array.CreateInstance(this.GetType().GetElementType(), totalLength)
     let index = 0
     for (let i = 0; i < this.Length; i++) {
-        result[index++] = this.get(i)
+        result.set(index++, this.get(i))
     }
     for (let i = 0; i < args.length; i++) {
         for (let j = 0; j < args[i].Length; j++) {
-            result[index++] = args[i].get(j)
+            result.set(index++, args[i].get(j))
         }
     }
     return result

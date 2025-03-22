@@ -48,11 +48,16 @@ namespace Weaver {
                         if (editors == null || editors.Length == 0)
                             continue;
                         foreach (var editor in editors) {
-                            var hasInspectorElement = editor.Q<InspectorElement>() != null;
+                            var inspectorElement = editor.Q<InspectorElement>();
                             var isTargetName = editor.name.StartsWith(target.GetType().Name + "Editor_");
-                            var good = hasInspectorElement && isTargetName;
+                            var good = inspectorElement != null && isTargetName;
                             editor.EnableInClassList("inspector-editor-element", good);
                             editor.EnableInClassList("none-editor-element", !good);
+                            if (inspectorElement != null) {
+                                // This is a a fix for when the inspector element somehow becomes hidden 
+                                // during editor domain reload
+                                inspectorElement.style.display = DisplayStyle.Flex;
+                            }
                         }
                     }
                 }
