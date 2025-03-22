@@ -17,7 +17,6 @@
         "jsxFragmentFactory": "Fragment",
         "typeRoots": [ "./node_modules/@types" ],
         "sourceMap": true,
-        "strictNullChecks": true,
         "skipLibCheck": true
     },
     "exclude": [ "tmp" ]
