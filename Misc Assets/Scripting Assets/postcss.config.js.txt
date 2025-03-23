@@ -19,6 +19,6 @@ module.exports = {
         loggingPlugin,
         tailwindcss('./tailwind.config.js'),
         ussTransformPlugin(),
-        cleanupPlugin({ remove: ["line-height:", "display:grid"] })
+        cleanupPlugin({ remove: ["line-height:", "display:grid", ".items-baseline"] })
     ]
 }
