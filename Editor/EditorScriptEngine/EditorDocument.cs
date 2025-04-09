@@ -24,7 +24,7 @@ namespace OneJS.Editor {
         Dictionary<string, Texture2D> _imageCache = new();
         Dictionary<string, Font> _fontCache = new();
         Dictionary<string, FontDefinition> _fontDefinitionCache = new();
-        WebApi _webApi = new WebApi();
+        WebApi _webApi = new WebApi(); // TODO May need a dedicated WebApi that uses Editor Coroutines
 
         public EditorDocument(IScriptEngine scriptEngine) {
             _scriptEngine = scriptEngine;

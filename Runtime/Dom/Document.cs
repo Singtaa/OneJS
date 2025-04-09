@@ -12,6 +12,12 @@ namespace OneJS.Dom {
         public string @is;
     }
 
+    public struct ElementTypeInfo {
+        public string tagName;
+        public Type type;
+        public FieldInfo documentField;
+    }
+
     public class Document : IDocument {
         public ScriptEngine scriptEngine => _scriptEngine;
         public VisualElement Root { get { return _root; } }
@@ -24,7 +30,7 @@ namespace OneJS.Dom {
 
         Dictionary<VisualElement, Dom> _elementToDomLookup = new();
 
-        Dictionary<string, Type> _tagCache = new();
+        Dictionary<string, ElementTypeInfo> _tagCache = new();
         Dictionary<string, Texture2D> _imageCache = new();
         Dictionary<string, Font> _fontCache = new();
         Dictionary<string, FontDefinition> _fontDefinitionCache = new();
@@ -67,21 +73,25 @@ namespace OneJS.Dom {
         }
 
         public Dom createElement(string tagName) {
-            Type type;
+            ElementTypeInfo typeInfo;
             // Try to lookup from tagCache, may still be null if not a VE type.
-            if (!_tagCache.TryGetValue(tagName, out type)) {
-                type = GetVisualElementType(tagName);
-                _tagCache[tagName] = type;
+            if (!_tagCache.TryGetValue(tagName, out typeInfo)) {
+                var type = GetVisualElementType(tagName);
+                var fieldInfo = type?.GetField("_document", BindingFlags.Instance | BindingFlags.NonPublic);
+                typeInfo = new ElementTypeInfo() {
+                    tagName = tagName,
+                    type = GetVisualElementType(tagName),
+                    documentField = fieldInfo != null && typeof(IDocument).IsAssignableFrom(fieldInfo.FieldType) ? fieldInfo : null
+                };
+                _tagCache[tagName] = typeInfo;
             }
 
-            if (type == null) {
+            if (typeInfo.type == null) {
                 return new Dom(new VisualElement(), this);
             }
-            var obj = Activator.CreateInstance(type);
-            // See if obj has a "_document" field (using Reflection) and set it to this.
-            var documentField = type.GetField("_document", BindingFlags.Instance | BindingFlags.NonPublic);
-            if (documentField != null) {
-                documentField.SetValue(obj, this);
+            var obj = Activator.CreateInstance(typeInfo.type);
+            if (typeInfo.documentField != null) {
+                typeInfo.documentField.SetValue(obj, this);
             }
             return new Dom(obj as VisualElement, this);
         }

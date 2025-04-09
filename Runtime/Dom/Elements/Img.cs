@@ -9,7 +9,7 @@ namespace OneJS.Dom {
     public class Img : Image {
         public string Src { get { return _src; } set { SetSrc(value); } }
 
-        Document _document;
+        IDocument _document;
         string _src;
 
         Coroutine _imageCoroutine;
