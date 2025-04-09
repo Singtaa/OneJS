@@ -32,6 +32,10 @@ namespace OneJS {
         public StyleSheet[] styleSheets;
 
         public DTSGenerator dtsGenerator;
+
+        public bool debuggerSupport = false;
+        public string basePath = "@outputs/esbuild/";
+        public int port = 8080;
         #endregion
 
         #region Events
@@ -146,8 +150,12 @@ namespace OneJS {
             if (_jsEnv != null) {
                 _jsEnv.Dispose();
             }
-            _jsEnv = new JsEnv(new DefaultLoader(Path.Combine(WorkingDir, "@outputs/esbuild/")), 8080);
-            // _jsEnv = new JsEnv();
+
+            if (debuggerSupport) {
+                _jsEnv = new JsEnv(new DefaultLoader(Path.Combine(WorkingDir, basePath)), port);
+            } else {
+                _jsEnv = new JsEnv();
+            }
 
             // Some default UsingActions here. Please use OnPreInit to add more if needed (in your own code).
             _jsEnv.UsingAction<Action>();

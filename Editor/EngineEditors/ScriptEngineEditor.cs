@@ -18,6 +18,9 @@ namespace OneJS.Editor {
         SerializedProperty _globalObjects;
         SerializedProperty _styleSheets;
         SerializedProperty _dtsGenerator;
+        SerializedProperty _debuggerSupport;
+        SerializedProperty _basePath;
+        SerializedProperty _debuggerPort;
 
         void OnEnable() {
             _editorWorkingDirInfo = serializedObject.FindProperty("editorWorkingDirInfo");
@@ -26,6 +29,9 @@ namespace OneJS.Editor {
             _globalObjects = serializedObject.FindProperty("globalObjects");
             _styleSheets = serializedObject.FindProperty("styleSheets");
             _dtsGenerator = serializedObject.FindProperty("dtsGenerator");
+            _debuggerSupport = serializedObject.FindProperty("debuggerSupport");
+            _basePath = serializedObject.FindProperty("basePath");
+            _debuggerPort = serializedObject.FindProperty("port");
         }
 
         public override void OnInspectorGUI() {
@@ -38,6 +44,12 @@ namespace OneJS.Editor {
             EditorGUILayout.PropertyField(_globalObjects, new GUIContent("Globals"));
             EditorGUILayout.PropertyField(_styleSheets, new GUIContent("Stylesheets"));
             EditorGUILayout.PropertyField(_dtsGenerator, new GUIContent("DTS Generator"), true);
+            EditorGUILayout.PropertyField(_debuggerSupport, new GUIContent("Debugger Support"));
+            if (_debuggerSupport.boolValue) {
+                EditorGUILayout.PropertyField(_basePath, new GUIContent("    Base Path"));
+                EditorGUILayout.PropertyField(_debuggerPort, new GUIContent("    Debugger Port"));
+            }
+            
             EditorGUILayout.Space(10);
             GUILayout.BeginHorizontal();
 
