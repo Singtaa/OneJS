@@ -72,13 +72,13 @@ namespace OneJS.Editor {
             // *May need to* introduce a 1-frame delay here prevents reimporting errors with Puerts. When Puerts
             // loads its init.mjs file, initializing a new JsEnv in the same frame can trigger these errors.
             // But this does interfere with the rendering of Custom Editors that depend on the engine being ready.
-            // EditorApplication.delayCall += Init;
-            try {
-                Init();
-            } catch (Exception) {
-                // Maybe this is the best way to handle the above issue
-                EditorApplication.delayCall += Init;
-            }
+            EditorApplication.delayCall += Init;
+            // try {
+            //     Init();
+            // } catch (Exception) {
+            //     // Maybe this is the best way to handle the above issue
+            //     EditorApplication.delayCall += Init;
+            // }
         }
 
         void OnDisable() {
