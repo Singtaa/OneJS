@@ -1,4 +1,10 @@
-﻿# [2025-03-12] v2.1.14 - Minor Tweaks
+﻿# [2025-04-14] v2.1.15
+
+- Debugger Support options on ScriptEngine
+- WebApi to support headers
+- `2xl -> xxl` so we don't run into char escaping issues
+
+# [2025-03-12] v2.1.14 - Minor Tweaks
 
 # [2025-03-10] v2.1.13 - Bugfixes and Improvements
 
