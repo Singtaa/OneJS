@@ -36,6 +36,7 @@ namespace OneJS {
         public bool debuggerSupport = false;
         public string basePath = "@outputs/esbuild/";
         public int port = 8080;
+        public MiscSettings miscSettings;
         #endregion
 
         #region Events
@@ -224,7 +225,7 @@ namespace OneJS {
         /// reflected in the Editor until it gains focus.
         /// </summary>
         IEnumerator RefreshStyleSheets() {
-            yield return new WaitForSeconds(0.1f);
+            yield return new WaitForSeconds(miscSettings.styleSheetRefreshDelay);
             foreach (var ss in styleSheets) {
                 if (ss != null) {
                     string assetPath = UnityEditor.AssetDatabase.GetAssetPath(ss);
@@ -309,6 +310,12 @@ namespace OneJS {
             };
             return Path.Combine(basePath, relativePath);
         }
+    }
+
+    [Serializable]
+    public class MiscSettings {
+        [Tooltip("Delay before forcing stylesheet re-import to allow live changes to register properly")]
+        public float styleSheetRefreshDelay = 0.1f;
     }
     #endregion
 }

@@ -21,6 +21,7 @@ namespace OneJS.Editor {
         SerializedProperty _debuggerSupport;
         SerializedProperty _basePath;
         SerializedProperty _debuggerPort;
+        SerializedProperty _miscSettings;
 
         void OnEnable() {
             _editorWorkingDirInfo = serializedObject.FindProperty("editorWorkingDirInfo");
@@ -32,6 +33,7 @@ namespace OneJS.Editor {
             _debuggerSupport = serializedObject.FindProperty("debuggerSupport");
             _basePath = serializedObject.FindProperty("basePath");
             _debuggerPort = serializedObject.FindProperty("port");
+            _miscSettings = serializedObject.FindProperty("miscSettings");
         }
 
         public override void OnInspectorGUI() {
@@ -49,6 +51,7 @@ namespace OneJS.Editor {
                 EditorGUILayout.PropertyField(_basePath, new GUIContent("    Base Path"));
                 EditorGUILayout.PropertyField(_debuggerPort, new GUIContent("    Debugger Port"));
             }
+            EditorGUILayout.PropertyField(_miscSettings, new GUIContent("Misc Settings"), true);
             
             EditorGUILayout.Space(10);
             GUILayout.BeginHorizontal();
