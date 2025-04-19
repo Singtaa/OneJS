@@ -6,7 +6,7 @@
 */
 
 #if UNITY_2020_1_OR_NEWER
-#if EXPERIMENTAL_IL2CPP_PUERTS && ENABLE_IL2CPP
+#if (!PUERTS_DISABLE_IL2CPP_OPTIMIZATION && !UNITY_WEBGL && !UNITY_IPHONE || PUERTS_IL2CPP_OPTIMIZATION) && ENABLE_IL2CPP
 
 using System;
 using System.Runtime.CompilerServices;
@@ -16,35 +16,24 @@ namespace Puerts
     [UnityEngine.Scripting.Preserve]
     public class JSObject
     {
-        long placeHold0;
-        long placeHold1;
-        long placeHold2;
-        long placeHold3;
-        long placeHold4;
-        long placeHold5;
-        long placeHold6;
-        long placeHold7;
+        IntPtr apis; // PObjectRefInfo first ptr
+        IntPtr valueRef;
+        IntPtr nativeJsEnv;
 
         [MethodImpl(MethodImplOptions.InternalCall)]
-        void releaseScriptObject()
-        {
-            throw new NotImplementedException();
-        }
-
-        [MethodImpl(MethodImplOptions.InternalCall)]
-        object GetJSObjectValue(string key, Type resultType)
+        object GetJSObjectValue(IntPtr apis, string key, Type resultType)
         {
             throw new NotImplementedException();
         }
 
         public T Get<T>(string key) 
         {
-            return (T)GetJSObjectValue(key, typeof(T));
+            return (T)GetJSObjectValue(apis, key, typeof(T));
         }
 
         ~JSObject()
         {
-            releaseScriptObject();
+            Puerts.NativeAPI.AddPendingKillScriptObjects(apis, nativeJsEnv, valueRef);
         }
     }
 }

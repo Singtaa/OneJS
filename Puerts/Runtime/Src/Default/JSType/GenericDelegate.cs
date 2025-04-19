@@ -5,7 +5,7 @@
 * This file is subject to the terms and conditions defined in file 'LICENSE', which is part of this source code package.
 */
 
-#if !EXPERIMENTAL_IL2CPP_PUERTS || !ENABLE_IL2CPP
+#if PUERTS_DISABLE_IL2CPP_OPTIMIZATION || (!PUERTS_IL2CPP_OPTIMIZATION && (UNITY_WEBGL || UNITY_IPHONE)) || !ENABLE_IL2CPP
 
 using System;
 using System.Collections.Generic;
@@ -115,7 +115,7 @@ namespace Puerts
             }
 
             string stacktrace = null;
-#if UNITY_EDITOR
+#if UNITY_EDITOR || DEBUG
             //stacktrace = jsEnv.Eval<string>("new Error().stack");
             stacktrace = PuertsDLL.GetJSStackTrace(jsEnv.isolate);
 #endif
@@ -205,7 +205,7 @@ namespace Puerts
 
                 if (genericDelegateCreator == null)
                 {
-#if UNITY_EDITOR && !EXPERIMENTAL_IL2CPP_PUERTS
+#if UNITY_EDITOR && (PUERTS_DISABLE_IL2CPP_OPTIMIZATION || (!PUERTS_IL2CPP_OPTIMIZATION && (UNITY_WEBGL || UNITY_IPHONE)))
                     if ((delegateMethod.ReturnType.IsValueType && delegateMethod.ReturnType != typeof(void))
                         || parameters.Length > 4
                         || typeArgs.Any(paramType => paramType.IsValueType || paramType.IsByRef)
@@ -337,7 +337,7 @@ namespace Puerts
         private Delegate firstValue = null;
         private Dictionary<Type, Delegate> bindTo = null;
 
-#if UNITY_EDITOR
+#if UNITY_EDITOR || DEBUG
         private string stacktrace;
 #endif
 
@@ -352,7 +352,7 @@ namespace Puerts
             jsEnv.IncFuncRef(nativeJsFuncPtr);
             isolate = jsEnv != null ? jsEnv.isolate : IntPtr.Zero;
             this.jsEnv = jsEnv;
-#if UNITY_EDITOR
+#if UNITY_EDITOR || DEBUG
             this.stacktrace = stacktrace;
 #endif
         }
@@ -368,7 +368,7 @@ namespace Puerts
         {
             if (nativeJsFuncPtr == IntPtr.Zero)
             {
-#if UNITY_EDITOR
+#if UNITY_EDITOR || DEBUG
                 if (shouldThrow) throw new Exception("JsEnv has been disposed, stacktrace:" + (string.IsNullOrEmpty(this.stacktrace) ? "unknown" : this.stacktrace));
 #else
                 if (shouldThrow) throw new Exception("JsEnv has been disposed");

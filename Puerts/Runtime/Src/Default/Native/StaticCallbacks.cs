@@ -5,7 +5,7 @@
 * This file is subject to the terms and conditions defined in file 'LICENSE', which is part of this source code package.
 */
 
-#if !EXPERIMENTAL_IL2CPP_PUERTS || !ENABLE_IL2CPP
+#if PUERTS_DISABLE_IL2CPP_OPTIMIZATION || (!PUERTS_IL2CPP_OPTIMIZATION && (UNITY_WEBGL || UNITY_IPHONE)) || !ENABLE_IL2CPP
 
 using System;
 
@@ -21,6 +21,21 @@ namespace Puerts
                 int jsEnvIdx, callbackIdx;
                 Utils.LongToTwoInt(data, out jsEnvIdx, out callbackIdx);
                 JsEnv.jsEnvs[jsEnvIdx].InvokeCallback(isolate, callbackIdx, info, self, paramLen);
+            }
+            catch (Exception e)
+            {
+                PuertsDLL.ThrowException(isolate, "JsEnvCallbackWrap c# exception:" + e.Message + ",stack:" + e.StackTrace);
+            }
+        }
+
+        [MonoPInvokeCallback(typeof(JsFunctionFinalizeCallback))]
+        internal static void FunctionFinalizeCallback(IntPtr isolate, long data)
+        {
+            try
+            {
+                int jsEnvIdx, callbackIdx;
+                Utils.LongToTwoInt(data, out jsEnvIdx, out callbackIdx);
+                JsEnv.jsEnvs[jsEnvIdx].ReleaseCallback(callbackIdx);
             }
             catch (Exception e)
             {

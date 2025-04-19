@@ -5,8 +5,6 @@
 * This file is subject to the terms and conditions defined in file 'LICENSE', which is part of this source code package.
 */
 
-#if !EXPERIMENTAL_IL2CPP_PUERTS || !ENABLE_IL2CPP
-
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -28,6 +26,11 @@ namespace Puerts
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
 #endif
     public delegate void V8FunctionCallback(IntPtr isolate, IntPtr info, IntPtr self, int paramLen, long data);
+
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN || PUERTS_GENERAL || (UNITY_WSA && !UNITY_EDITOR)
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+#endif
+    public delegate void JsFunctionFinalizeCallback(IntPtr isolate, long data);
 
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN || PUERTS_GENERAL || (UNITY_WSA && !UNITY_EDITOR)
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -348,6 +351,20 @@ namespace Puerts
         }
 
         [DllImport(DLLNAME, CallingConvention = CallingConvention.Cdecl)]
+        private static extern void ReturnCSharpFunctionCallback2(IntPtr isolate, IntPtr info, IntPtr v8FunctionCallback, IntPtr JsFunctionFinalize, long data);
+
+        public static void ReturnCSharpFunctionCallback2(IntPtr isolate, IntPtr info, V8FunctionCallback v8FunctionCallback, JsFunctionFinalizeCallback JsFunctionFinalize, long data)
+        {
+#if PUERTS_GENERAL || (UNITY_WSA && !UNITY_EDITOR)
+            GCHandle.Alloc(v8FunctionCallback);
+            GCHandle.Alloc(JsFunctionFinalize);
+#endif
+            IntPtr fn = v8FunctionCallback == null ? IntPtr.Zero : Marshal.GetFunctionPointerForDelegate(v8FunctionCallback);
+            IntPtr fn2 = JsFunctionFinalize == null ? IntPtr.Zero : Marshal.GetFunctionPointerForDelegate(JsFunctionFinalize);
+            ReturnCSharpFunctionCallback2(isolate, info, fn, fn2, data);
+        }
+
+        [DllImport(DLLNAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern void ReturnJSObject(IntPtr isolate, IntPtr info, IntPtr JSObject);
 
         [DllImport(DLLNAME, CallingConvention = CallingConvention.Cdecl)]
@@ -647,5 +664,3 @@ namespace Puerts
         }
     }
 }
-
-#endif

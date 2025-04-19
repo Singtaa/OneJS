@@ -6,6 +6,27 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 you can get the english version change log at [Github Release](https://github.com/Tencent/puerts/releases)
 
+## [2.2.0] - 2025-3-18
+1. native_src_il2cpp合并到native_src
+2. il2cpp优化特性在android下不再要求静态库连接（有些unity不支持）
+3. il2cpp生成wrapper代码无需另外编译进plugins
+4. il2cpp支持0 gc反射
+5. quickjs backend以及mult backend支持il2cpp优化
+6. 简化quickjs backend和mult backend的编译，直接引入quick-ng源码编译
+7. 修正il2cpp优化的复合类型ref从c#到js的传递，fix #1886
+8. 除了ios和webgl之外所有平台的il2pp打包都默认开启il2cpp优化
+
+## [2.1.1] - 2024-10-25
+1. 鸿蒙平台禁用jit
+2. 高版本v8兼容
+3. 升级quickjs到最新版本
+4. v8 backend，quickjs添加websocket支持
+5. 添加支持模块lazyload和自动卸载的cjs实现。
+6. 解决plugin定义THREAD_SAFE宏，v8加锁不全的问题
+7. 添加ns（Nintendo Switch）的编译支持
+8. 解决clearmodulecache的内存泄露
+9. android下默认使用剪裁版本
+
 ## [2.1.0] - 2024-06-25
 1. 功能：支持JsEnv参数指定Backend是V8还是quickjs；
 2. 修复：C#中执行ExecuteModule时如果被加载模块有语法错误Unity会崩溃

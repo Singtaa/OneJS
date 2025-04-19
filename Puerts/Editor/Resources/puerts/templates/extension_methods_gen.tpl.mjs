@@ -8,7 +8,7 @@ import { FOR } from './tte.mjs'
 
 export default function TypingTemplate(rawInfo) {
     return `
-#if EXPERIMENTAL_IL2CPP_PUERTS && ENABLE_IL2CPP
+#if !PUERTS_DISABLE_IL2CPP_OPTIMIZATION && (PUERTS_IL2CPP_OPTIMIZATION || !UNITY_WEBGL || !UNITY_IPHONE) && ENABLE_IL2CPP
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -17,10 +17,10 @@ namespace PuertsIl2cpp
 public static class ExtensionMethodInfos_Gen
 {
     [UnityEngine.Scripting.Preserve]
-    public static IEnumerable<MethodInfo> TryLoadExtensionMethod(Type type)
+    public static MethodInfo[] TryLoadExtensionMethod(string assemblyQualifiedName)
     {
         if (false) {}${FOR(getExtendedTypeToExtensionTypeInfo(rawInfo), e => `
-        else if (type == typeof(${e.extendedType}))
+        else if (typeof(${e.extendedType}).AssemblyQualifiedName == assemblyQualifiedName)
         {
             return ExtensionMethodInfo.GetExtensionMethods(typeof(${e.extendedType})${FOR(e.extensionTypes, extensionType => `, typeof(${extensionType})`)});
         }`)}

@@ -6,8 +6,28 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 you can get the english version change log at [Github Release](https://github.com/Tencent/puerts/releases)
 
-## [2.1.0] - 2024-06-25
+## [2.2.0] - 2025-3-18
+1. native_src_il2cpp merged into native_src
+2. il2cpp optimization feature no longer requires static library linking on Android (unsupported by some Unity versions)
+3. il2cpp-generated wrapper code no longer needs to be separately compiled into plugins
+4. il2cpp supports zero-GC reflection
+5. QuickJS backend and Mult backend now support il2cpp optimization
+6. Simplified compilation for QuickJS backend and Mult backend by directly integrating quick-ng source code compilation
+7. Fixed compound type ref passing from C# to JS in il2cpp optimization, resolving #1886
+8. Enabled il2cpp optimization by default for all platforms except iOS and WebGL during il2cpp packaging
 
+## [2.1.1] - 2024-10-25
+1. Disable JIT on the HarmonyOS platform.
+2. Compatibility with higher versions of V8.
+3. Upgrade QuickJS to the latest version.
+4. V8 backend, add WebSocket support to QuickJS.
+5. Add support for lazy loading and automatic unloading in the CJS implementation.
+6. Resolve the issue of incomplete locking in V8 when defining the THREAD_SAFE macro in the plugin.
+7. Add compilation support for NS (Nintendo Switch).
+8. Fix memory leak in clearModuleCache.
+9. Use the trimmed version by default on Android.
+
+## [2.1.0] - 2024-06-25
 1. Feature: Support for specifying whether the Backend is V8 or quickjs through JsEnv parameters.
 2. Fix: Unity crashes when there are syntax errors in the loaded module during the execution of ExecuteModule in C#.
 3. Feature: Allow puer.getLastException to retrieve errors from ExecuteModule (#1686).
