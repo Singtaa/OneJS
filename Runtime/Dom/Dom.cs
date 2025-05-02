@@ -178,7 +178,7 @@ namespace OneJS.Dom {
         //     jintEngine.Call(__listeners[name], thisDom, new[] { JsValue.FromObject(jintEngine, evt) });
         // }
 
-        public string classname {
+        public string className {
             get {
                 return string.Join(" ", _ve.GetClasses().Where(c => !c.StartsWith("unity-")).ToArray());
             }
@@ -214,7 +214,7 @@ namespace OneJS.Dom {
 
         public void addEventListener(string name, EventCallback<EventBase> callback, bool useCapture = false) {
             var nameLower = name.ToLower();
-            var isValueChanged = nameLower == "valuechanged";
+            var isValueChanged = nameLower == "valuechanged" || nameLower == "change";
             if (!isValueChanged && _eventCache.ContainsKey(nameLower)) {
                 _eventCache[nameLower](_ve, callback, useCapture ? TrickleDown.TrickleDown : TrickleDown.NoTrickleDown);
                 // Debug.Log("Registered " + name + " on " + _ve.name);
@@ -359,7 +359,7 @@ namespace OneJS.Dom {
         }
 
         public void setAttribute(string name, object val) {
-            if (name == "class" || name == "className") {
+            if (name == "class" || name == "classname" || name == "className") {
                 var unityClassnames = _ve.GetClasses().Where(c => c.StartsWith("unity-")).ToArray();
                 _ve.ClearClassList();
                 var unprocessedClassStr = ProcessClassStr(val.ToString(), this);
