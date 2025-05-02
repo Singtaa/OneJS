@@ -1,3 +1,5 @@
+#if PUERTS_DISABLE_IL2CPP_OPTIMIZATION || (!PUERTS_IL2CPP_OPTIMIZATION && (UNITY_WEBGL || UNITY_IPHONE)) || !ENABLE_IL2CPP
+
 using System;
 using System.Linq;
 using System.Reflection;
@@ -87,3 +89,4 @@ namespace OneJS.Utils {
         }
     }
 }
+#endif

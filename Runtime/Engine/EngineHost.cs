@@ -9,7 +9,7 @@ namespace OneJS {
         event Action onReload;
         event Action onDispose;
     }
-    
+
     /// <summary>
     /// Used to provide host objects and host functions to the JS side under `onejs` global variable
     /// </summary>
@@ -28,19 +28,21 @@ namespace OneJS {
             engine.OnReload += DoReload;
             engine.OnDispose += Dispose;
         }
-        
+
         public void DoReload() {
             onReload?.Invoke();
         }
-        
+
         public void Dispose() {
             onDispose?.Invoke();
             _engine.OnDispose -= Dispose;
             onDispose = null;
-            
+
             _engine.OnReload -= DoReload;
             onReload = null;
         }
+
+#if PUERTS_DISABLE_IL2CPP_OPTIMIZATION || (!PUERTS_IL2CPP_OPTIMIZATION && (UNITY_WEBGL || UNITY_IPHONE)) || !ENABLE_IL2CPP
 
         /// <summary>
         /// Use this method to subscribe to an event on an object regardless of JS engine.
@@ -96,5 +98,6 @@ namespace OneJS {
         }
 
         public Action subscribe(string eventName, GenericDelegate handler) => subscribe(this, eventName, handler);
+#endif
     }
 }
