@@ -19,17 +19,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install libc++-dev
-        shell: bash
-        run: |
-          sudo apt-get install -y libc++-dev libc++abi-dev libunwind-dev
-
-      # Node is needed because the test drives npm/tsc/esbuild
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
       # Create empty project + import OneJS
       # Deleting the Android folder in the end to avoid possible naming conflict with Linux
       # https://github.com/Tencent/puerts/issues/1817#issuecomment-2292431530
@@ -72,6 +61,7 @@ jobs:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
+          customImage: singtaa/unity-ci-node:6000.0.48f1
           unityVersion: ${{ env.UNITY_VERSION }}
           projectPath: ${{ env.PROJECT_PATH }}
           githubToken: ${{ secrets.GITHUB_TOKEN }}
@@ -90,6 +80,7 @@ jobs:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
+          customImage: singtaa/unity-ci-node:6000.0.48f1
           unityVersion: ${{ env.UNITY_VERSION }}
           projectPath: ${{ env.PROJECT_PATH }}
           githubToken: ${{ secrets.GITHUB_TOKEN }}
