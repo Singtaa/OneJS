@@ -26,6 +26,7 @@ jobs:
           node-version: 20
 
       # Create empty project + import OneJS
+      # Deleting the Android folder in the end to avoid possible naming conflict with Linux
       - name: Bootstrap minimal Unity project
         run: |
           mkdir -p "$PROJECT_PATH/Assets" "$PROJECT_PATH/Packages" "$PROJECT_PATH/ProjectSettings"
@@ -47,6 +48,7 @@ jobs:
           JSON
           echo "m_EditorVersion: $UNITY_VERSION" > "$PROJECT_PATH/ProjectSettings/ProjectVersion.txt"
           rsync -a --exclude=.git --exclude=.github ./ "$PROJECT_PATH/Assets/OneJS"
+          rm -rf "$PROJECT_PATH/Assets/OneJS/Puerts/Plugins/Android"
 
       # Cache Library for faster reruns
       - uses: actions/cache@v3
