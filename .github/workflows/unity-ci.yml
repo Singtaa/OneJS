@@ -22,9 +22,7 @@ jobs:
       - name: Install libc++-dev
         shell: bash
         run: |
-          sudo apt-get install clang
-          sudo apt-get install libc++-dev
-          sudo apt-get install libc++abi-dev
+          sudo apt-get install -y libc++-dev libc++abi-dev libunwind-dev
 
       # Node is needed because the test drives npm/tsc/esbuild
       - name: Set up Node
