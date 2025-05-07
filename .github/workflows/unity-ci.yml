@@ -29,7 +29,14 @@ jobs:
       - name: Bootstrap minimal Unity project
         run: |
           mkdir -p "$PROJECT_PATH/Assets" "$PROJECT_PATH/Packages" "$PROJECT_PATH/ProjectSettings"
-          echo '{}' > "$PROJECT_PATH/Packages/manifest.json"
+          cat > "$PROJECT_PATH/Packages/manifest.json" <<'JSON'
+          {
+            "dependencies": {
+              "com.unity.mathematics": "1.2.6",
+              "com.unity.burst":      "1.8.4"
+            }
+          }
+          JSON
           echo "m_EditorVersion: $UNITY_VERSION" > "$PROJECT_PATH/ProjectSettings/ProjectVersion.txt"
           rsync -a --exclude=.git --exclude=.github ./ "$PROJECT_PATH/Assets/OneJS"
 
