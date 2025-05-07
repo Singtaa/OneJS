@@ -7,61 +7,75 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+env:
+  UNITY_VERSION: 6000.0.48f1
+  PROJECT_PATH: OneJS_CI_Project
+  SAMPLE_SCENE: Assets/OneJS/Samples/OneJS_SampleScene.unity
+
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        unityVersion: [6000.0.48f1]
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    # Node is needed because the test drives npm/tsc/esbuild
-    - name: Set up Node
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
+      # Node is needed because the test drives npm/tsc/esbuild
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-    - uses: game-ci/setup-unity@v3
-      with:
-        unityVersion: ${{ matrix.unityVersion }}
+      # Create empty project + import OneJS
+      - name: Bootstrap minimal Unity project
+        run: |
+          mkdir -p "$PROJECT_PATH/Assets" "$PROJECT_PATH/Packages" "$PROJECT_PATH/ProjectSettings"
+          echo '{}' > "$PROJECT_PATH/Packages/manifest.json"
+          echo "m_EditorVersion: $UNITY_VERSION" > "$PROJECT_PATH/ProjectSettings/ProjectVersion.txt"
+          rsync -a --exclude=.git --exclude=.github ./ "$PROJECT_PATH/Assets/OneJS"
 
-    - name: Create empty Unity project
-      run: |
-        /opt/unity/Editor/Unity -batchmode -nographics -quit -createProject UnityProject
+      # Cache Library for faster reruns
+      - uses: actions/cache@v3
+        with:
+          path: ${{ env.PROJECT_PATH }}/Library
+          key: Library-${{ env.UNITY_VERSION }}-${{ github.sha }}
+          restore-keys: |
+            Library-${{ env.UNITY_VERSION }}-
 
-    - name: Copy OneJS package into project
-      run: |
-        mkdir -p UnityProject/Assets/OneJS
-        rsync -a --exclude='.git*' ./ UnityProject/Assets/OneJS/
+      # Activate Unity
+      - uses: game-ci/unity-activate@v2
+        with:
+          unityVersion: ${{ env.UNITY_VERSION }}
+          license: ${{ secrets.UNITY_LICENSE }}
 
-    # -------- Playmode tests --------
-    - uses: game-ci/unity-test-runner@v3
-      id: tests
-      with:
-        unityVersion: ${{ matrix.unityVersion }}
-        projectPath: UnityProject
-        testMode: playmode
+      # Playmode tests
+      - uses: game-ci/unity-test-runner@v4
+        id: tests
+        with:
+          unityVersion: ${{ env.UNITY_VERSION }}
+          projectPath: UnityProject
+          testMode: playmode
 
-    - name: Upload Test Results
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: TestResults
-        path: ${{ steps.tests.outputs.artifactsPath }}
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TestResults
+          path: ${{ steps.tests.outputs.artifactsPath }}
 
-    # -------- Build sample scene --------
-    - uses: game-ci/unity-builder@v3
-      with:
-        unityVersion: ${{ matrix.unityVersion }}
-        projectPath: UnityProject
-        targetPlatform: StandaloneLinux64
-        buildScenes: |
-          Assets/OneJS/Samples/OneJS_SampleScene.unity
+      # Build the Sample Scene
+      - uses: game-ci/unity-builder@v4
+        with:
+          unityVersion: ${{ env.UNITY_VERSION }}
+          projectPath: ${{ env.PROJECT_PATH }}
+          targetPlatform: StandaloneLinux64
+          buildName: OneJS_Sample
+          buildScenes: ${{ env.SAMPLE_SCENE }}
 
-    - name: Upload Build
-      uses: actions/upload-artifact@v4
-      with:
-        name: Build
-        path: build
+      - name: Upload Build Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: Build
+          path: build
+
+      # Return license (good CI hygiene)
+      - uses: game-ci/unity-return-license@v2
