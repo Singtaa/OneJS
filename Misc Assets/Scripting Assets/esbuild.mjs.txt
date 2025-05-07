@@ -25,5 +25,16 @@ let mainCtx = await esbuild.context({
 	}
 });
 
-await mainCtx.watch();
-console.log("Watching for changes...");
+const args = process.argv.slice(2);
+const runOnce = args.includes("--once");
+
+if (runOnce) {
+	// Build once and exit
+	await mainCtx.rebuild();
+	await mainCtx.dispose();
+	console.log("Build completed (once).");
+} else {
+	// Default: watch mode
+	await mainCtx.watch();
+	console.log("Watching for changes...");
+}

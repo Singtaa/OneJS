@@ -20,7 +20,7 @@ namespace OneJS {
     public class Bundler : MonoBehaviour {
         [PairMapping("path", "textAsset", ":")]
         public DefaultFileMapping[] defaultFiles;
-        
+
         [Tooltip("Top-level files and directories you want to include in your deployment bundle.")] [PlainString]
         public string[] includes = new string[] { "@outputs", "assets" };
 
@@ -52,6 +52,11 @@ namespace OneJS {
                 PlayerPrefs.SetString("ONEJS_VERSION", _onejsVersion);
             }
 
+            ExtractAll();
+#endif
+        }
+
+        public void ExtractAll() {
             foreach (var mapping in defaultFiles) {
                 CreateIfNotFound(mapping);
             }
@@ -60,7 +65,6 @@ namespace OneJS {
             // WriteToPackageJson();
             // ExtractOnejsCoreIfNotFound();
             ExtractOutputsIfNotFound();
-#endif
         }
 
         void CreateIfNotFound(DefaultFileMapping mapping) {

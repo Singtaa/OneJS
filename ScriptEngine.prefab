@@ -89,6 +89,11 @@ MonoBehaviour:
     exact: 0
     whitelistOnly: 0
     includeGlobalObjects: 1
+  debuggerSupport: 0
+  basePath: '@outputs/esbuild/'
+  port: 8080
+  miscSettings:
+    styleSheetRefreshDelay: 0.1
 --- !u!114 &2637249758932584858
 MonoBehaviour:
   m_ObjectHideFlags: 0

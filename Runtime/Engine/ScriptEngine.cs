@@ -121,6 +121,11 @@ namespace OneJS {
         #endregion
 
         #region Public Methods
+        /// <summary>
+        /// Get the full path of a filepath relative to the WorkingDir.
+        /// </summary>
+        /// <param name="filepath">The filepath relative to the WorkingDir</param>
+        /// <returns>The full path of the filepath</returns>
         public string GetFullPath(string filepath) {
             var normalizedPath = filepath.Replace('/', Path.DirectorySeparatorChar)
                 .Replace('\\', Path.DirectorySeparatorChar);

@@ -1,0 +1,65 @@
+name: OneJS CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        unityVersion: [6000.0.48f1]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    # Node is needed because the test drives npm/tsc/esbuild
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    # Game-CI will download & cache the editor automatically
+    # Create a throw-away project, then drop the package in as Assets/OneJS
+    - name: Create empty Unity project
+      run: |
+        /opt/unity/Editor/Unity -batchmode -quit -createProject UnityProject
+
+    - name: Copy OneJS package into project
+      run: |
+        mkdir -p UnityProject/Assets/OneJS
+        rsync -a --exclude='.git*' ./ UnityProject/Assets/OneJS/
+
+    # -------- Playmode tests --------
+    - uses: game-ci/unity-test-runner@v3
+      id: tests
+      with:
+        unityVersion: ${{ matrix.unityVersion }}
+        projectPath: UnityProject
+        testMode: playmode
+
+    - name: Upload Test Results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: TestResults
+        path: ${{ steps.tests.outputs.artifactsPath }}
+
+    # -------- Build sample scene --------
+    - uses: game-ci/unity-builder@v3
+      with:
+        unityVersion: ${{ matrix.unityVersion }}
+        projectPath: UnityProject
+        targetPlatform: StandaloneLinux64
+        buildScenes: |
+          Assets/OneJS/Samples/OneJS_SampleScene.unity
+
+    - name: Upload Build
+      uses: actions/upload-artifact@v4
+      with:
+        name: Build
+        path: build
