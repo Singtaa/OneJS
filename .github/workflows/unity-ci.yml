@@ -19,6 +19,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install libc++-dev
+        shell: bash
+        run: |
+          sudo apt-get install clang
+          sudo apt-get install libc++-dev
+          sudo apt-get install libc++abi-dev
+
       # Node is needed because the test drives npm/tsc/esbuild
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -27,6 +34,7 @@ jobs:
 
       # Create empty project + import OneJS
       # Deleting the Android folder in the end to avoid possible naming conflict with Linux
+      # https://github.com/Tencent/puerts/issues/1817#issuecomment-2292431530
       - name: Bootstrap minimal Unity project
         run: |
           mkdir -p "$PROJECT_PATH/Assets" "$PROJECT_PATH/Packages" "$PROJECT_PATH/ProjectSettings"
