@@ -43,7 +43,6 @@ jobs:
           JSON
           echo "m_EditorVersion: $UNITY_VERSION" > "$PROJECT_PATH/ProjectSettings/ProjectVersion.txt"
           rsync -a --exclude=.git --exclude=.github ./ "$PROJECT_PATH/Assets/OneJS"
-          rm -rf "$PROJECT_PATH/Assets/OneJS/Puerts/Plugins/Android"
 
       # Cache Library for faster reruns
       - uses: actions/cache@v3
