@@ -21,6 +21,12 @@ namespace OneJS.CI {
 
         [OneTimeSetUp]
         public static void OneTimeSetUp() {
+            var tmpWorkDirPath = Path.Combine(Path.GetDirectoryName(Application.dataPath)!,
+                TMP_TEST_WORKING_DIR);
+            if (Directory.Exists(tmpWorkDirPath)) {
+                Directory.Delete(tmpWorkDirPath, true);
+            }
+
             var cameraGO = new GameObject("Main Camera");
             _mainCamera = cameraGO.AddComponent<Camera>();
             var prefab = LoadFromGUID<GameObject>("f99b6aec6fc021f4c9572906776c6555");

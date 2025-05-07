@@ -30,17 +30,17 @@ PluginImporter:
     Editor:
       enabled: 1
       settings:
-        CPU: x86_64
+        CPU: AnyCPU
         DefaultValueInitialized: true
         OS: Linux
     Linux64:
       enabled: 1
       settings:
-        CPU: x86_64
+        CPU: None
     OSXUniversal:
       enabled: 1
       settings:
-        CPU: None
+        CPU: AnyCPU
     Win:
       enabled: 1
       settings:

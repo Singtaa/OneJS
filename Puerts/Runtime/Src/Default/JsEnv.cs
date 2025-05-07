@@ -5,7 +5,7 @@
 * This file is subject to the terms and conditions defined in file 'LICENSE', which is part of this source code package.
 */
 
-#if PUERTS_DISABLE_IL2CPP_OPTIMIZATION || (!PUERTS_IL2CPP_OPTIMIZATION && (UNITY_WEBGL || UNITY_IPHONE)) || !ENABLE_IL2CPP
+#if PUERTS_DISABLE_IL2CPP_OPTIMIZATION || (!PUERTS_IL2CPP_OPTIMIZATION && UNITY_IPHONE) || !ENABLE_IL2CPP
 
 using System;
 using System.Linq;
@@ -114,7 +114,15 @@ namespace Puerts
             {
                 isolate = PuertsDLL.CreateJSEngine((int)backend);
             }
-            
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+            if (PuertsDLL.GetLibBackend(isolate) != 2 && jsEnvs.Count > 0)
+            {
+                disposed = true;
+                throw new InvalidOperationException("more than one JsEnv instance is not supported in WebGL");
+            }
+#endif
+
             if (isolate == IntPtr.Zero)
             {
                 disposed = true;

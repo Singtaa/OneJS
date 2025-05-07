@@ -1,6 +1,6 @@
 ﻿import { h, render } from "preact"
 import { Color } from "UnityEngine"
-import { Align, Justify } from "UnityEngine/UIElements"
+import { Align, FlexDirection, Justify } from "UnityEngine/UIElements"
 
 const commonStyles = {
     width: 100, height: 100, margin: 10, justifyContent: Justify.Center, alignItems: Align.Center
@@ -8,7 +8,7 @@ const commonStyles = {
 
 const App = () => {
 
-    return <div class="w-full h-full p-[10px] flex flex-row justify-center items-center flex-wrap">
+    return <div style={{width: "100%", height: "100%", flexDirection: FlexDirection.Row, justifyContent: Justify.Center, alignItems: Align.Center}}>
         <div style={{ ...commonStyles, backgroundColor: "yellow", borderRadius: 10, borderWidth: 2, borderColor: "red" }}>0</div>
         <div style={{ ...commonStyles, backgroundColor: Color.cyan, borderRadius: [10, 20, 30, 40], borderWidth: 5, borderColor: "red green" }}>1</div>
         <div style={{ ...commonStyles, backgroundColor: "#aabbcc", borderRadius: "50% 20px", borderWidth: "5px 10 15 20", borderColor: [Color.red, Color.green, Color.blue, Color.yellow], scale: [0.8, 1.2] }}>2</div>
