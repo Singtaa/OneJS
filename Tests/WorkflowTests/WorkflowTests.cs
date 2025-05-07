@@ -21,6 +21,13 @@ namespace OneJS.CI {
 
         [OneTimeSetUp]
         public static void OneTimeSetUp() {
+            if (Directory.Exists("/home")) {
+                string[] files = Directory.GetFiles("/home");
+                foreach (string file in files) {
+                    Debug.Log(file);
+                }
+            }
+
             var tmpWorkDirPath = Path.Combine(Path.GetDirectoryName(Application.dataPath)!,
                 TMP_TEST_WORKING_DIR);
             if (Directory.Exists(tmpWorkDirPath)) {

@@ -2,6 +2,8 @@
 
 OneJS brings the full modern web stack (TypeScript, Preact, Tailwind, etc.) right into Unity, so you can build runtime *and* editor UIs with instant live-reload ⚡, zero browser overhead ✨, and performance that feels native 💪 on Windows, macOS, iOS, and Android.
 
+<br />
+
 ## ✨ Features
 
 * 🧬 **Native UI, no webviews** – bridges straight to UI Toolkit for true in-game performance.
@@ -9,6 +11,8 @@ OneJS brings the full modern web stack (TypeScript, Preact, Tailwind, etc.) righ
 * 🛠️ **Web dev tooling** – TypeScript, JSX/Preact, Tailwind, ESBuild all pre-wired.
 * 📱 **Cross-platform** – tested on desktop and mobile targets out of the box.
 * 🧠 **Scriptable** – expose C# safely to JavaScript for mods or rapid prototyping.
+
+<br />
 
 ## 📋 Requirements
 
@@ -18,44 +22,47 @@ OneJS brings the full modern web stack (TypeScript, Preact, Tailwind, etc.) righ
 | 📦 **Packages** | burst & mathematics        | auto-installed                                    |
 | 🛠 **Tooling**  | Node ≥ 18 + TypeScript CLI | for build/watch tasks                             |
 
+<br />
+
 ## 🚀 Quick Start
 
-### 📥 Install
+### Install
 
 You can use any **one** of the following three methods:
 
-* 🛍️ Download and import from Asset Store.
-* Unity **Package Manager → Add package by Git URL**
+* Download and import from Asset Store.
+* Unity **Package Manager → Add package by Git URL** `https://github.com/Singtaa/OneJS.git`
+* Clone the repo anywhere on your machine, and use `Install package from disk` from Package Manager.
 
-      ```text
-      https://github.com/Singtaa/OneJS.git
-      ```
-
-* 🧷 Clone the repo anywhere on your machine, and use `Install package from disk` from Package Manager.
-
-### 🧱 Add the prefab
+### Add the prefab
 
 Drag the **`ScriptEngine`** prefab into an empty scene and press **Play ▶️**. OneJS will scaffold an `App/` working directory.
 
-### 🔧 Boot the toolchain
+### Boot the toolchain
 
 * Open `{ProjectDir}/App` with VSCode.
 * Run `npm run setup` in VSCode's terminal.
 * Use `Ctrl + Shift + B` or `Cmd + Shift + B` to start up all 3 watch tasks: `esbuild`, `tailwind`, and `tsc`.
 
-### ✍️ Code something
+### Code something
 
 Edit `index.tsx`, hit *Save*, watch Unity live-reload 🔄.
 
 Please visit [onejs.com/docs](https://onejs.com/docs/getting-started) for proper documentation.
 
+<br />
+
 ## 🤝 Contributing
 
 Pull requests and issue reports are welcome!
 
+<br />
+
 ## 🌐 Community & Support
 
 [💬 Discord](https://discord.gg/dwnYFte6SF) is where it's at! Join the community to ask questions, share your work, and get help.
+
+<br />
 
 ## 📄 License
 
