@@ -25,7 +25,7 @@ jobs:
         with:
           node-version: 20
 
-      # Create empty project + import OneJS
+      # Create empty project and import OneJS
       - name: Bootstrap minimal Unity project
         run: |
           mkdir -p "$PROJECT_PATH/Assets" "$PROJECT_PATH/Packages" "$PROJECT_PATH/ProjectSettings"
