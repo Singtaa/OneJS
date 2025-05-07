@@ -23,11 +23,13 @@ jobs:
       with:
         node-version: 20
 
-    # Game-CI will download & cache the editor automatically
-    # Create a throw-away project, then drop the package in as Assets/OneJS
+    - uses: game-ci/setup-unity@v3
+      with:
+        unityVersion: ${{ matrix.unityVersion }}
+
     - name: Create empty Unity project
       run: |
-        /opt/unity/Editor/Unity -batchmode -quit -createProject UnityProject
+        /opt/unity/Editor/Unity -batchmode -nographics -quit -createProject UnityProject
 
     - name: Copy OneJS package into project
       run: |
