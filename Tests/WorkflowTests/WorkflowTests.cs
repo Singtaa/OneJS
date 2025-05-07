@@ -70,15 +70,22 @@ namespace OneJS.CI {
         public IEnumerator WorkflowTest() {
             LogAssert.Expect(LogType.Log, new Regex("OneJS is good to go"));
             _scriptEngine.gameObject.SetActive(true);
-
-            RunCommand("npm run setup");
-            RunCommand("npm install typescript --save-dev");
+            _runner.enabled = false;
+            yield return null;
             var indexContent = LoadFromGUID<TextAsset>("a55d96be65534ffa89b4819c967a16ba").text;
             var indexPath = Path.Combine(_scriptEngine.WorkingDir, "index.tsx");
             File.WriteAllText(indexPath, indexContent);
-            RunCommand("npx tsc");
+
+            RunCommand("npm run setup");
+            RunCommand("npm install typescript --save-dev");
+            RunCommand("npm exec --yes -- tsc"); // npx will have PATH issues on linux because each RunCommand creates a new shell
             RunCommand("node esbuild.mjs --once");
-            yield return new WaitForSeconds(3); // Wait for runner to pick up the change
+
+            // yield return new WaitForSeconds(3); // Wait for runner to pick up the change
+
+            _runner.Reload();
+            yield return null;
+
             var uiDoc = _scriptEngine.GetComponent<UIDocument>();
             var root = uiDoc.rootVisualElement;
             var allNodes = root.Query().ToList();
@@ -110,7 +117,7 @@ namespace OneJS.CI {
             var process = new System.Diagnostics.Process {
                 StartInfo = new System.Diagnostics.ProcessStartInfo {
                     FileName = isWin ? "cmd.exe" : "/bin/bash",
-                    Arguments = isWin ? $"/c {command}" : $"-lic \"{command}\"",
+                    Arguments = isWin ? $"/c {command}" : $"-c \"{command}\"",
                     WorkingDirectory = _scriptEngine.WorkingDir,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
