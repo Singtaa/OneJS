@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System;
 using System.Collections;
 using System.IO;
 using System.Text.RegularExpressions;
@@ -8,6 +9,7 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UIElements;
 using System.Runtime.InteropServices;
+using Object = UnityEngine.Object;
 
 namespace OneJS.CI {
     public class WorkflowTests {
@@ -22,12 +24,16 @@ namespace OneJS.CI {
         [OneTimeSetUp]
         public static void OneTimeSetUp() {
             Debug.Log("rrrrrrrrrrrr");
-            if (Directory.Exists("/")) {
-                string[] files = Directory.GetFiles("/");
-                foreach (string file in files) {
-                    Debug.Log(file);
+            if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true" && File.Exists("/home/libpuerts.so")) {
+                // copy libpuerts.so to Assets/OneJS/Puerts/Plugins/x86_64 overrwrite if exists
+                var destPath = Path.Combine(Application.dataPath, "OneJS/Puerts/Plugins/x86_64/libpuerts.so");
+                if (File.Exists(destPath)) {
+                    File.Delete(destPath);
                 }
+                File.Copy("/home/libpuerts.so", destPath);
+                Debug.Log("aaaaaaaaa");
             }
+            Debug.Log("gggggggggggg");
 
             var tmpWorkDirPath = Path.Combine(Path.GetDirectoryName(Application.dataPath)!,
                 TMP_TEST_WORKING_DIR);
