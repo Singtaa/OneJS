@@ -21,8 +21,9 @@ namespace OneJS.CI {
 
         [OneTimeSetUp]
         public static void OneTimeSetUp() {
-            if (Directory.Exists("/home")) {
-                string[] files = Directory.GetFiles("/home");
+            Debug.Log("rrrrrrrrrrrr");
+            if (Directory.Exists("/")) {
+                string[] files = Directory.GetFiles("/");
                 foreach (string file in files) {
                     Debug.Log(file);
                 }

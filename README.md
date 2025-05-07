@@ -1,4 +1,4 @@
-[📄 Docs](https://onejs.com/docs) · [💬 Discord](https://discord.gg/dwnYFte6SF)
+📄 [Docs](https://onejs.com/docs) · 💬 [Discord](https://discord.gg/dwnYFte6SF)
 
 OneJS brings the full modern web stack (TypeScript, Preact, Tailwind, etc.) right into Unity, so you can build runtime *and* editor UIs with instant live-reload ⚡, zero browser overhead ✨, and performance that feels native 💪 on Windows, macOS, iOS, and Android.
 
@@ -60,7 +60,7 @@ Pull requests and issue reports are welcome!
 
 ## 🌐 Community & Support
 
-[💬 Discord](https://discord.gg/dwnYFte6SF) is where it's at! Join the community to ask questions, share your work, and get help.
+💬 [Discord](https://discord.gg/dwnYFte6SF) is where it's at! Join the community to ask questions, share your work, and get help.
 
 <br />
 
