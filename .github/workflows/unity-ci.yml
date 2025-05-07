@@ -34,6 +34,7 @@ jobs:
             "dependencies": {
               "com.unity.mathematics": "1.2.6",
               "com.unity.burst": "1.8.4",
+              "com.unity.test-framework": "1.4.5",
               "com.unity.modules.imageconversion": "1.0.0",
               "com.unity.modules.physics": "1.0.0",
               "com.unity.modules.unitywebrequest": "1.0.0",
