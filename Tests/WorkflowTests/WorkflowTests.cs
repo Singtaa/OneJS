@@ -76,10 +76,11 @@ namespace OneJS.CI {
             var indexPath = Path.Combine(_scriptEngine.WorkingDir, "index.tsx");
             File.WriteAllText(indexPath, indexContent);
 
-            RunCommand("npm run setup " +
-                       "&& npm install --no-audit --no-fund --save-dev typescript " +
-                       "&& npx --yes tsc " +
-                       "&& node esbuild.mjs --once");
+            RunCommand(
+                "npm run setup && " +
+                "npm install --no-audit --no-fund --save-dev typescript && " +
+                "npm exec --yes -- tsc && " +
+                "node esbuild.mjs --once");
 
             // RunCommand("npm run setup");
             // RunCommand("npm install typescript --save-dev");
@@ -122,7 +123,7 @@ namespace OneJS.CI {
             var process = new System.Diagnostics.Process {
                 StartInfo = new System.Diagnostics.ProcessStartInfo {
                     FileName = isWin ? "cmd.exe" : "/bin/bash",
-                    Arguments = isWin ? $"/c {command}" : $"-c \"{command}\"",
+                    Arguments = isWin ? $"/c {command}" : $"-lc \"{command}\"",
                     WorkingDirectory = _scriptEngine.WorkingDir,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
