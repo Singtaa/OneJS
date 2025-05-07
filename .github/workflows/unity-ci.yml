@@ -43,6 +43,7 @@ jobs:
           JSON
           echo "m_EditorVersion: $UNITY_VERSION" > "$PROJECT_PATH/ProjectSettings/ProjectVersion.txt"
           rsync -a --exclude=.git --exclude=.github ./ "$PROJECT_PATH/Assets/OneJS"
+          rm -rf "$PROJECT_PATH/Assets/OneJS/Puerts/Plugins/Android"
 
       # Cache Library for faster reruns
       - uses: actions/cache@v3
@@ -51,6 +52,12 @@ jobs:
           key: Library-${{ env.UNITY_VERSION }}-${{ github.sha }}
           restore-keys: |
             Library-${{ env.UNITY_VERSION }}-
+      
+      - name: Inject libpuerts.so inside container
+        uses: docker://singtaa/unity-ci-node:6000.0.48f1
+        with:
+          entrypoint: /bin/bash
+        args: -c "cp /home/libpuerts.so /github/workspace/${{ env.PROJECT_PATH }}/Assets/OneJS/Puerts/Plugins/x86_64/libpuerts.so"
 
       # Playmode tests
       - uses: game-ci/unity-test-runner@v4

@@ -23,17 +23,9 @@ namespace OneJS.CI {
 
         [OneTimeSetUp]
         public static void OneTimeSetUp() {
-            Debug.Log("rrrrrrrrrrrr");
-            if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true" && File.Exists("/home/libpuerts.so")) {
-                // copy libpuerts.so to Assets/OneJS/Puerts/Plugins/x86_64 overrwrite if exists
-                var destPath = Path.Combine(Application.dataPath, "OneJS/Puerts/Plugins/x86_64/libpuerts.so");
-                if (File.Exists(destPath)) {
-                    File.Delete(destPath);
-                }
-                File.Copy("/home/libpuerts.so", destPath);
-                Debug.Log("aaaaaaaaa");
+            if (File.Exists("/home/libpuerts.so")) {
+                Debug.Log("zzzzzzzzzzzz");
             }
-            Debug.Log("gggggggggggg");
 
             var tmpWorkDirPath = Path.Combine(Path.GetDirectoryName(Application.dataPath)!,
                 TMP_TEST_WORKING_DIR);
