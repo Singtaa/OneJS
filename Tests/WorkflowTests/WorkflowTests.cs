@@ -76,10 +76,15 @@ namespace OneJS.CI {
             var indexPath = Path.Combine(_scriptEngine.WorkingDir, "index.tsx");
             File.WriteAllText(indexPath, indexContent);
 
-            RunCommand("npm run setup");
-            RunCommand("npm install typescript --save-dev");
-            RunCommand("npm exec --yes -- tsc"); // npx will have PATH issues on linux because each RunCommand creates a new shell
-            RunCommand("node esbuild.mjs --once");
+            RunCommand("npm run setup " +
+                       "&& npm install --no-audit --no-fund --save-dev typescript " +
+                       "&& npx --yes tsc " +
+                       "&& node esbuild.mjs --once");
+
+            // RunCommand("npm run setup");
+            // RunCommand("npm install typescript --save-dev");
+            // RunCommand("npm exec --yes -- tsc"); // npx will have PATH issues on linux because each RunCommand creates a new shell
+            // RunCommand("node esbuild.mjs --once");
 
             // yield return new WaitForSeconds(3); // Wait for runner to pick up the change
 
