@@ -110,7 +110,7 @@ namespace OneJS.CI {
             var process = new System.Diagnostics.Process {
                 StartInfo = new System.Diagnostics.ProcessStartInfo {
                     FileName = isWin ? "cmd.exe" : "/bin/bash",
-                    Arguments = isWin ? $"/c {command}" : $"-c \"{command}\"",
+                    Arguments = isWin ? $"/c {command}" : $"-lic \"{command}\"",
                     WorkingDirectory = _scriptEngine.WorkingDir,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
