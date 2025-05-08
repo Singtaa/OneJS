@@ -46,7 +46,8 @@ jobs:
           rm -rf "$PROJECT_PATH/Assets/OneJS/Puerts/Plugins/Android"
 
       - name: Apply csc.rsp (pre-processor symbols)
-        run: echo -define:PUERTS_DISABLE_IL2CPP_OPTIMIZATION >> Assets/csc.rsp
+        run: |
+          echo "-define:PUERTS_DISABLE_IL2CPP_OPTIMIZATION" > "$PROJECT_PATH/Assets/csc.rsp"
 
       # Cache Library for faster reruns
       - uses: actions/cache@v3
