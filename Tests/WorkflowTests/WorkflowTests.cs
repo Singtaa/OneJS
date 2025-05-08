@@ -75,12 +75,16 @@ namespace OneJS.CI {
             var indexContent = LoadFromGUID<TextAsset>("a55d96be65534ffa89b4819c967a16ba").text;
             var indexPath = Path.Combine(_scriptEngine.WorkingDir, "index.tsx");
             File.WriteAllText(indexPath, indexContent);
+            
+            var isWin  = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+            var tscCmd = isWin ? "npx --yes tsc"        // cmd.exe honours PATHEXT so npx works
+                : "$(npm bin)/tsc";      // absolute path like /…/node_modules/.bin/tsc
 
             RunCommand(
-                "npm run setup && " +
-                "npm install --no-audit --no-fund --save-dev typescript && " +
-                "npm exec --yes -- tsc && " +
-                "node esbuild.mjs --once");
+                $"npm run setup && " +
+                $"npm install --no-audit --no-fund --save-dev typescript && " +
+                $"{tscCmd} && " +
+                $"node esbuild.mjs --once");
 
             // RunCommand("npm run setup");
             // RunCommand("npm install typescript --save-dev");
