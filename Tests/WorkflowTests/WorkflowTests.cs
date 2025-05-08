@@ -82,8 +82,8 @@ namespace OneJS.CI {
 
             RunCommand(
                 $"npm run setup && " +
-                $"npm install --no-audit --no-fund --save-dev typescript && " +
-                $"npm exec --package typescript tsc && " +
+                $"npm install typescript && " +
+                $"npx tsc && " +
                 $"node esbuild.mjs --once");
 
             // RunCommand("npm run setup");
