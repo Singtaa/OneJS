@@ -112,7 +112,7 @@ MonoBehaviour:
   pollingInterval: 300
   clearGameObjects: 1
   clearLogs: 1
-  respawnJanitorOnSceneLoad: 1
+  respawnJanitorOnSceneLoad: 0
   stopCleaningOnDisable: 0
   standalone: 0
 --- !u!114 &9197640398682377884

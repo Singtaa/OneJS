@@ -21,7 +21,7 @@ namespace OneJS {
         public bool clearGameObjects = true;
         public bool clearLogs = true;
         [Tooltip("Respawn the Janitor during scene loads so that it doesn't clean up your additively loaded scenes.")]
-        public bool respawnJanitorOnSceneLoad = true;
+        public bool respawnJanitorOnSceneLoad;
         [Tooltip("Don't clean up on OnDisable(). (Useful for when your workflow involves disabling ScriptEngine)")]
         public bool stopCleaningOnDisable;
         [Tooltip("Enable Live Reload for Standalone build.")]
