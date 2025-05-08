@@ -108,6 +108,7 @@ jobs:
 
       - name: Add Sample Scene to Build Settings
         run: |
+          mkdir -p "$PROJECT_PATH/Assets/Editor"
           echo "using UnityEditor;" > "$PROJECT_PATH/Assets/Editor/AddScenes.cs"
           echo "using UnityEditor.SceneManagement;" >> "$PROJECT_PATH/Assets/Editor/AddScenes.cs"
           echo "class AddScenes { [InitializeOnLoadMethod] static void Init() {" >> "$PROJECT_PATH/Assets/Editor/AddScenes.cs"
