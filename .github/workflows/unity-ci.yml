@@ -45,6 +45,9 @@ jobs:
           rsync -a --exclude=.git --exclude=.github ./ "$PROJECT_PATH/Assets/OneJS"
           rm -rf "$PROJECT_PATH/Assets/OneJS/Puerts/Plugins/Android"
 
+      - name: Apply csc.rsp (pre-processor symbols)
+        run: echo -define:PUERTS_DISABLE_IL2CPP_OPTIMIZATION >> Assets/csc.rsp
+
       # Cache Library for faster reruns
       - uses: actions/cache@v3
         with:
@@ -78,7 +81,7 @@ jobs:
         if: always()
         with:
           name: Test results
-          path: artifacts
+          path: ${{ steps.tests.outputs.testResults }}
 
       # Build the Sample Scene
       - uses: game-ci/unity-builder@v4
@@ -88,6 +91,7 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           customImage: singtaa/unity-ci-node:6000.0.48f1
+          allowDirtyBuild: true
           unityVersion: ${{ env.UNITY_VERSION }}
           projectPath: ${{ env.PROJECT_PATH }}
           githubToken: ${{ secrets.GITHUB_TOKEN }}
