@@ -3,7 +3,7 @@ name: OneJS CI
 on:
   push:
     branches: [ main ]
-    paths-ignore: &ignore_paths
+    paths-ignore:
       - '**/*.md'
       - '**/*.txt'
       - '.gitignore'
@@ -16,7 +16,17 @@ on:
       - '**/LICENSE'
   pull_request:
     branches: [ main ]
-    paths-ignore: *ignore_paths
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.txt'
+      - '.gitignore'
+      - '.gitattributes'
+      - '**/*.png'
+      - '**/*.jpg'
+      - '**/*.jpeg'
+      - '**/*.gif'
+      - '**/*.mp4'
+      - '**/LICENSE'
   workflow_dispatch:
 
 env:
