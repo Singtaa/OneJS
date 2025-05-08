@@ -4,7 +4,9 @@
 
 <br />
 
-OneJS brings the full JS ecosystem into Unity, so you can build snappy, modern UIs with live reload and zero browser overhead.
+OneJS lets you tap into the full JavaScript ecosystem right inside Unity, so you can build fast, modern UIs with live reload and no browser bloat.
+
+It's free and open-source, but if you're into it and want to support development, consider grabbing the package on the Unity Asset Store. You'll also get lifetime access to our upcoming [Game-Ready UI Library](https://onejs.com/game-uis).
 
 <br />
 
