@@ -82,7 +82,7 @@ jobs:
         if: always()
         with:
           name: Test results
-          path: ${{ steps.tests.outputs.testResults }}
+          path: artifacts
 
       # Build the Sample Scene
       - uses: game-ci/unity-builder@v4
