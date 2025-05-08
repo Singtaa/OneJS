@@ -75,23 +75,13 @@ namespace OneJS.CI {
             var indexContent = LoadFromGUID<TextAsset>("a55d96be65534ffa89b4819c967a16ba").text;
             var indexPath = Path.Combine(_scriptEngine.WorkingDir, "index.tsx");
             File.WriteAllText(indexPath, indexContent);
-            
-            var isWin  = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-            var tscCmd = isWin ? "npx --yes tsc"        // cmd.exe honours PATHEXT so npx works
-                : "$(npm bin)/tsc";      // absolute path like /…/node_modules/.bin/tsc
 
+            // npx may have PATH issues on linux because each RunCommand creates a new shell
+            // try to avoid "--save-dev" because certain test envs may have NODE_ENV=production set
             RunCommand(
                 $"npm run setup && " +
-                $"npm install typescript && " +
-                $"npx tsc && " +
+                $"tsc && " +
                 $"node esbuild.mjs --once");
-
-            // RunCommand("npm run setup");
-            // RunCommand("npm install typescript --save-dev");
-            // RunCommand("npm exec --yes -- tsc"); // npx will have PATH issues on linux because each RunCommand creates a new shell
-            // RunCommand("node esbuild.mjs --once");
-
-            // yield return new WaitForSeconds(3); // Wait for runner to pick up the change
 
             _runner.Reload();
             yield return null;
