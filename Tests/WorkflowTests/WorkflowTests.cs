@@ -90,6 +90,9 @@ namespace OneJS.CI {
             var root = uiDoc.rootVisualElement;
             var allNodes = root.Query().ToList();
             Assert.AreEqual(10, allNodes.Count, "Node Count mismatch");
+            
+            Debug.Log($"rrrrrr: {allNodes[0].resolvedStyle.width} {allNodes[0].resolvedStyle.height}");
+            Debug.Log($"rrrrrr: {allNodes[0].resolvedStyle.borderTopLeftRadius} {allNodes[0].resolvedStyle.rotate.angle.value}");
 
             Assert.AreEqual(100f, allNodes[8].resolvedStyle.width, "Width mismatch");
             Assert.AreEqual(20f, allNodes[8].resolvedStyle.borderBottomLeftRadius, "BottomLeftRadius mismatch");
