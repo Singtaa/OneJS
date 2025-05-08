@@ -1,3 +1,5 @@
+<img src="https://onejs.com/images/OneJS_Banner.jpg">
+
 📄 [Docs](https://onejs.com/docs) · 💬 [Discord](https://discord.gg/dwnYFte6SF)
 
 OneJS brings the full modern web stack (TypeScript, Preact, Tailwind, etc.) right into Unity, so you can build runtime *and* editor UIs with instant live-reload ⚡, zero browser overhead ✨, and performance that feels native 💪 on Windows, macOS, iOS, and Android.

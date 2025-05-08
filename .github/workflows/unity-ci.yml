@@ -3,8 +3,20 @@ name: OneJS CI
 on:
   push:
     branches: [ main ]
+    paths-ignore: &ignore_paths
+      - '**/*.md'
+      - '**/*.txt'
+      - '.gitignore'
+      - '.gitattributes'
+      - '**/*.png'
+      - '**/*.jpg'
+      - '**/*.jpeg'
+      - '**/*.gif'
+      - '**/*.mp4'
+      - '**/LICENSE'
   pull_request:
     branches: [ main ]
+    paths-ignore: *ignore_paths
   workflow_dispatch:
 
 env:
@@ -83,6 +95,15 @@ jobs:
         with:
           name: Test results
           path: artifacts
+
+      - name: Add Sample Scene to Build Settings
+        run: |
+          echo "using UnityEditor;" > "$PROJECT_PATH/Assets/Editor/AddScenes.cs"
+          echo "using UnityEditor.SceneManagement;" >> "$PROJECT_PATH/Assets/Editor/AddScenes.cs"
+          echo "class AddScenes { [InitializeOnLoadMethod] static void Init() {" >> "$PROJECT_PATH/Assets/Editor/AddScenes.cs"
+          echo "EditorBuildSettings.scenes = new EditorBuildSettingsScene[] {" >> "$PROJECT_PATH/Assets/Editor/AddScenes.cs"
+          echo "new EditorBuildSettingsScene(\"Assets/OneJS/Samples/OneJS_SampleScene.unity\", true) };" >> "$PROJECT_PATH/Assets/Editor/AddScenes.cs"
+          echo "} }" >> "$PROJECT_PATH/Assets/Editor/AddScenes.cs"
 
       # Build the Sample Scene
       - uses: game-ci/unity-builder@v4
