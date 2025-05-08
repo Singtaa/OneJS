@@ -91,12 +91,13 @@ namespace OneJS.CI {
             var allNodes = root.Query().ToList();
             Assert.AreEqual(10, allNodes.Count, "Node Count mismatch");
             
-            Debug.Log($"rrrrrr: {allNodes[0].resolvedStyle.width} {allNodes[0].resolvedStyle.height}");
-            Debug.Log($"rrrrrr: {allNodes[0].resolvedStyle.borderTopLeftRadius} {allNodes[0].resolvedStyle.rotate.angle.value}");
+            Debug.Log($"rrrrrr: {allNodes[8].resolvedStyle.width} {allNodes[8].resolvedStyle.height}");
+            Debug.Log($"rrrrrr: {allNodes[8].resolvedStyle.borderTopLeftRadius} {allNodes[8].resolvedStyle.rotate.angle.value}");
 
             Assert.AreEqual(100f, allNodes[8].resolvedStyle.width, "Width mismatch");
             Assert.AreEqual(20f, allNodes[8].resolvedStyle.borderBottomLeftRadius, "BottomLeftRadius mismatch");
             Assert.AreEqual(30f, allNodes[8].resolvedStyle.rotate.angle.value, "BottomLeftRadius mismatch");
+            Assert.AreEqual(Color.red, allNodes[8].resolvedStyle.backgroundColor, "BackgroundColor mismatch");
 
             yield return null;
         }
