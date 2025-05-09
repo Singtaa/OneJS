@@ -30,6 +30,8 @@ It's free and open-source, but if you're into it and want to support development
 
 <br />
 
+https://github.com/user-attachments/assets/2216a2b0-c5d1-43cb-b0f4-335719738307
+
 ## 🚀 Quick Start
 
 ### Install
