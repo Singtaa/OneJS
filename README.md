@@ -1,5 +1,7 @@
 <img src="https://onejs.com/images/OneJS_Banner.jpg">
 
+[![openupm](https://img.shields.io/npm/v/com.singtaa.onejs?label=openupm&registry_uri=https://package.openupm.com)](https://openupm.com/packages/com.singtaa.onejs/)
+
 📄 [Docs](https://onejs.com/docs) · 💬 [Discord](https://discord.gg/dwnYFte6SF)
 
 <br />
