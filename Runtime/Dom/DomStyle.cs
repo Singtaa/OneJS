@@ -1558,7 +1558,7 @@ namespace OneJS.Dom {
             }
         }
 
-        Regex rotateRegex = new Regex(@"(-?\d+\.?\d*|\.\d+)(deg|grad|rad|turn)", RegexOptions.IgnoreCase);
+        static Regex rotateRegex = new Regex(@"(-?\d+\.?\d*|\.\d+)(deg|grad|rad|turn)", RegexOptions.IgnoreCase);
 
         bool TryParseStyleRotate(object value, out StyleRotate styleRotate) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
@@ -1751,7 +1751,7 @@ namespace OneJS.Dom {
             return false;
         }
 
-        Regex timeRegex = new Regex(@"(-?\d+\.?\d*)(s|ms)", RegexOptions.IgnoreCase);
+        static Regex timeRegex = new Regex(@"(-?\d+\.?\d*)(s|ms)", RegexOptions.IgnoreCase);
 
         bool TryParseStyleListTimeValue(object value, out StyleList<TimeValue> styleListTimeValue) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
