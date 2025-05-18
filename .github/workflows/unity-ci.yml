@@ -9,7 +9,7 @@ on:
       - '**/LICENSE~'
       - '.gitignore'
       - '.gitattributes'
-  pull_request_target:
+  pull_request:
     branches: [ main ]
     paths-ignore:
       - '**/*.md'
@@ -27,6 +27,7 @@ env:
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
+    environment: unity-ci
 
     steps:
       - uses: actions/checkout@v4
