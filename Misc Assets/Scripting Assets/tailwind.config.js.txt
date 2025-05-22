@@ -1,13 +1,12 @@
 const plugin = require("tailwindcss/plugin")
-const { theme, paths, plugins: onejsPlugins, corePlugins } = require('onejs-core/scripts/onejs-tw-config.cjs')
-
+const { theme, paths, plugins: onejsPlugins, corePlugins } = require('onejs-core/scripts/postcss/onejs-tw-config.cjs')
 
 module.exports = {
-    content: [...paths, "./@outputs/esbuild/**/*.js"],
+    content: [...paths, "./@outputs/esbuild/**/*.js", "./comps/**/*.css"],
     theme: theme,
     plugins: [...onejsPlugins, plugin(function ({ addUtilities }) {
         addUtilities({
-            // These are some default colors for the OneJS UI Components
+            // These are some default colors for the OneJS Headless Components
             // such as Select, Toggle, Slider, etc
             ".default-bg-color": { "background-color": "white" },
             ".accented-bg-color": { "background-color": "#fde047" },
@@ -17,5 +16,5 @@ module.exports = {
             ".highlighted-text-color": { "color": "#854d0e" },
         })
     })],
-    corePlugins: corePlugins
+    corePlugins: corePlugins,
 }
