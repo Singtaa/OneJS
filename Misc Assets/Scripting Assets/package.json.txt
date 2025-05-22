@@ -20,6 +20,7 @@
     "dependencies": {
         "onejs-core": "^2.0.0",
         "onejs-preact": "^2.0.0",
+        "clsx": "^2.1.1",
         "tailwind-merge": "^2.6.0",
         "css-flatten": "^2.0.0",
         "css-simple-parser": "^3.0.0"
