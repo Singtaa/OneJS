@@ -42,14 +42,7 @@
         {
             "label": "tailwind",
             "type": "shell",
-            "command": "npx",
-            "args": [
-                "postcss",
-                "input.css",
-                "-o",
-                "../Assets/tailwind.uss",
-                "--watch"
-            ],
+            "command": "npx postcss input.css -o ../Assets/tailwind.uss --watch",
             "isBackground": true,
             "problemMatcher": {
                 "pattern": [

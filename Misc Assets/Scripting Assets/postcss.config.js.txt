@@ -1,24 +1,15 @@
 const tailwindcss = require('tailwindcss')
-const ussTransformPlugin = require('onejs-core/scripts/uss-transform-plugin.cjs')
-const cleanupPlugin = require('onejs-core/scripts/postcss-cleanup-plugin.cjs')
-
-// Custom logging plugin
-const loggingPlugin = {
-    postcssPlugin: 'postcss-logging-plugin',
-    Once(root, { result }) {
-        process.stdout.write('\x1Bc');
-        console.log('[tailwindcss] compiler started...')
-    },
-    OnceExit(root, { result }) {
-        console.log('[tailwindcss] watching...')
-    }
-};
+const ussTransformPlugin = require('onejs-core/scripts/postcss/uss-transform-plugin.cjs')
+const cleanupPlugin = require('onejs-core/scripts/postcss/cleanup-plugin.cjs')
+const optionalImportPlugin = require('onejs-core/scripts/postcss/optional-import-plugin.cjs')
+const loggingPlugin = require('onejs-core/scripts/postcss/tailwind-logging-plugin.cjs')
 
 module.exports = {
     plugins: [
-        loggingPlugin,
+        loggingPlugin(),
+        optionalImportPlugin(),
         tailwindcss('./tailwind.config.js'),
         ussTransformPlugin(),
-        cleanupPlugin({ remove: ["line-height:", "display:grid", ".items-baseline"] })
+        cleanupPlugin({ remove: ["line-height:", ".grid"] })
     ]
 }

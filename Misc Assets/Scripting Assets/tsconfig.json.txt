@@ -2,6 +2,7 @@
     "compilerOptions": {
         "baseUrl": ".",
         "paths": {
+            "@/*": ["*"],
             "onejs": [ "node_modules/onejs-core" ],
             "onejs/*": [ "node_modules/onejs-core/*" ],
             "preact": [ "node_modules/onejs-preact", "node_modules/preact" ],

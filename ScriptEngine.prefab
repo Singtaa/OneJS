@@ -93,7 +93,7 @@ MonoBehaviour:
   basePath: '@outputs/esbuild/'
   port: 8080
   miscSettings:
-    styleSheetRefreshDelay: 0.1
+    styleSheetRefreshDelay: 0.25
 --- !u!114 &2637249758932584858
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -1,1 +1,2 @@
-﻿@tailwind utilities;
+﻿@import "./comps/base.css";
+@tailwind utilities;
