@@ -81,7 +81,8 @@ namespace OneJS.CI {
             RunCommand(
                 $"npm run setup && " +
                 $"tsc && " +
-                $"node esbuild.mjs --once");
+                $"node esbuild.mjs --once && " +
+                $"npx postcss input.css -o ../Assets/tailwind.uss");
 
             _runner.Reload();
             yield return null;
