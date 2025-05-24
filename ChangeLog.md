@@ -1,4 +1,24 @@
-﻿# [2025-04-14] v2.1.15
+﻿# [2025-05-21] v2.2.1 - Game UIs
+
+Improved some workflows to support the rollout of our game UIs.
+
+To upgrade from a previous version: 
+
+- make sure to update `onejs-core` and `onejs-preact` to `^2.0.0`
+- The following defaults have changed:
+  - `postcss.config.js`, `tailwind.config.js`, `tsconfig.json`
+  - `input.css`, `.vscode/tasks.json`
+- You can delete them and run scene with ScriptEngine again (be mindful if you have custom changes)
+
+To install OneJS's Game UIs, you can now run:
+
+    ```bash
+    npx oj add all
+    ```
+
+This will work as long as you have a `premade-uis.tgz(.bytes)` file anywhere in your Assets/ folder. This file is only included in the OneJS Asset Store package.
+
+# [2025-04-14] v2.1.15
 
 - Debugger Support options on ScriptEngine
 - WebApi to support headers
