@@ -80,7 +80,7 @@ namespace OneJS {
         }
         
         IEnumerator DelayEvalFile() {
-            yield return new WaitForEndOfFrame();
+            yield return null;
             _engine.EvalFile(entryFile);
         }
 
