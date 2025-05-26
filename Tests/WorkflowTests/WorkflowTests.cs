@@ -86,6 +86,7 @@ namespace OneJS.CI {
 
             _runner.Reload();
             yield return null;
+            yield return null;
 
             var uiDoc = _scriptEngine.GetComponent<UIDocument>();
             var root = uiDoc.rootVisualElement;

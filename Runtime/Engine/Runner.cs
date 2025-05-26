@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -53,7 +54,8 @@ namespace OneJS {
             }
             _lastWriteTime = File.GetLastWriteTime(fullpath); // This needs to be before EvalFile in case EvalFile crashes
             if (runOnStart) {
-                _engine.EvalFile(entryFile);
+                // _engine.EvalFile(entryFile);
+                StartCoroutine(DelayEvalFile());
             }
         }
 
@@ -73,6 +75,12 @@ namespace OneJS {
         
         public void Reload() {
             _engine.Reload();
+            // _engine.EvalFile(entryFile);
+            StartCoroutine(DelayEvalFile());
+        }
+        
+        IEnumerator DelayEvalFile() {
+            yield return new WaitForEndOfFrame();
             _engine.EvalFile(entryFile);
         }
 
