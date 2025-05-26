@@ -64,7 +64,6 @@ namespace OneJS.CI {
 
         [UnityTest]
         public IEnumerator WorkflowTest() {
-            LogAssert.Expect(LogType.Log, new Regex("OneJS is good to go"));
             _scriptEngine.gameObject.SetActive(true);
             _runner.enabled = false;
             yield return null;
@@ -96,6 +95,7 @@ namespace OneJS.CI {
             Assert.AreEqual(Color.red, allNodes[8].resolvedStyle.backgroundColor, "BackgroundColor mismatch");
 
             yield return null;
+            LogAssert.Expect(LogType.Log, new Regex("OneJS is good to go"));
         }
 
         #region Static Helpers
