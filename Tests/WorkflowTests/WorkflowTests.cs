@@ -23,10 +23,6 @@ namespace OneJS.CI {
 
         [OneTimeSetUp]
         public static void OneTimeSetUp() {
-            if (File.Exists("/home/libpuerts.so")) {
-                Debug.Log("zzzzzzzzzzzz");
-            }
-
             var tmpWorkDirPath = Path.Combine(Path.GetDirectoryName(Application.dataPath)!,
                 TMP_TEST_WORKING_DIR);
             if (Directory.Exists(tmpWorkDirPath)) {
@@ -71,6 +67,7 @@ namespace OneJS.CI {
             LogAssert.Expect(LogType.Log, new Regex("OneJS is good to go"));
             _scriptEngine.gameObject.SetActive(true);
             _runner.enabled = false;
+            yield return null;
             yield return null;
             var indexContent = LoadFromGUID<TextAsset>("a55d96be65534ffa89b4819c967a16ba").text;
             var indexPath = Path.Combine(_scriptEngine.WorkingDir, "index.tsx");
