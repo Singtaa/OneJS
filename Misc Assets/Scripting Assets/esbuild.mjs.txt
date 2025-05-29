@@ -1,14 +1,15 @@
 /**
  * Default OneJS ESbuild Config
  */
-import glob from "tiny-glob"
 import * as esbuild from "esbuild"
-import { importTransformationPlugin, watchOutputPlugin, copyAssetsPlugin } from "onejs-core/scripts/esbuild/index.mjs"
+import { importTransformationPlugin, outputWatcherPlugin, copyAssetsPlugin, decoratorFixPlugin } from "onejs-core/scripts/esbuild/index.mjs"
 
-let mainCtx = await esbuild.context({
+const once = process.argv.includes("--once")
+
+let ctx = await esbuild.context({
 	entryPoints: ["@outputs/tsc/index.js"],
 	bundle: true,
-	plugins: [importTransformationPlugin(), watchOutputPlugin, copyAssetsPlugin()],
+	plugins: [importTransformationPlugin(), !once && outputWatcherPlugin(), copyAssetsPlugin(), decoratorFixPlugin()].filter(Boolean),
 	inject: ["onejs-core/dist/index.js"],
 	platform: "node",
 	sourcemap: true,
@@ -20,21 +21,14 @@ let mainCtx = await esbuild.context({
 		"react-dom": "onejs-preact/compat"
 	},
 	outfile: "@outputs/esbuild/app.js",
-	banner: {
-		js: "module = {exports: {}};"
-	}
 });
 
-const args = process.argv.slice(2);
-const runOnce = args.includes("--once");
-
-if (runOnce) {
-	// Build once and exit
-	await mainCtx.rebuild();
-	await mainCtx.dispose();
-	console.log("Build completed (once).");
+if (once) {
+    await ctx.rebuild()
+    await ctx.dispose()
+    console.log("Build finished.")
+    process.exit(0)
 } else {
-	// Default: watch mode
-	await mainCtx.watch();
-	console.log("Watching for changes...");
+    await ctx.watch()
+    console.log("Watching for changes…")
 }

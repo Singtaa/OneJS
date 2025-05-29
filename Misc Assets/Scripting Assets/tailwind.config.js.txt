@@ -4,6 +4,7 @@ const { theme, paths, plugins: onejsPlugins, corePlugins } = require('onejs-core
 module.exports = {
     content: [...paths, "./@outputs/esbuild/**/*.js", "./comps/**/*.css"],
     theme: theme,
+    important: ".root", // Used for the added selector specificity
     plugins: [...onejsPlugins, plugin(function ({ addUtilities }) {
         addUtilities({
             // These are some default colors for the OneJS Headless Components
