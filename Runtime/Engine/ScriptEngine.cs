@@ -179,6 +179,7 @@ namespace OneJS {
             if (_uiDocument.rootVisualElement != null) {
                 _uiDocument.rootVisualElement.Clear();
                 _uiDocument.rootVisualElement.styleSheets.Clear();
+                _uiDocument.rootVisualElement.AddToClassList("root");
             }
 
             foreach (var preload in preloads) {
