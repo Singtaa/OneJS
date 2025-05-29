@@ -1,8 +1,10 @@
 ﻿using System;
 using System.IO;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UIElements;
 
 namespace OneJS {
     /// <summary>
@@ -46,7 +48,7 @@ namespace OneJS {
         void OnEnable() {
             Respawn();
             _engine.OnReload += OnReload;
-            
+
             var fullpath = _engine.GetFullPath(entryFile);
             if (!File.Exists(fullpath)) {
                 Debug.LogError($"Entry file not found: {fullpath}");
@@ -71,14 +73,17 @@ namespace OneJS {
             if (Time.time - _lastCheckTime < pollingInterval / 1000f) return;
             _lastCheckTime = Time.time;
             CheckForChanges();
+#if UNITY_EDITOR
+            CheckForStylesheetChanges();
+#endif
         }
-        
+
         public void Reload() {
             _engine.Reload();
             // _engine.EvalFile(entryFile);
             StartCoroutine(DelayEvalFile());
         }
-        
+
         IEnumerator DelayEvalFile() {
             yield return null;
             _engine.EvalFile(entryFile);
@@ -89,12 +94,46 @@ namespace OneJS {
             if (_lastWriteTime == writeTime) return; // No change
             _lastWriteTime = writeTime;
             Reload();
-            
+
             // _engine.OnReload += () => {
             //     _engine.JsEnv.UsingAction<bool>();
             //     // Add more here
             // };
         }
+
+#if UNITY_EDITOR
+        Dictionary<StyleSheet, (string, DateTime)> _trackedStylesheets = new Dictionary<StyleSheet, (string, DateTime)>();
+
+        void CheckForStylesheetChanges() {
+            if (SameAsTrackedStyleSheet(_engine.styleSheets)) return;
+            foreach (var sheet in _engine.styleSheets) {
+                var path = UnityEditor.AssetDatabase.GetAssetPath(sheet);
+                if (string.IsNullOrEmpty(path)) continue;
+                UnityEditor.AssetDatabase.ImportAsset(path, UnityEditor.ImportAssetOptions.ForceUpdate);
+                var lastWriteTime = File.GetLastWriteTime(path);
+                if (_trackedStylesheets.TryGetValue(sheet, out var tracked)) {
+                    if (tracked.Item1.Equals(path, StringComparison.Ordinal) && tracked.Item2 == lastWriteTime) continue;
+                }
+                _trackedStylesheets[sheet] = (path, lastWriteTime);
+            }
+        }
+
+        /// <summary>
+        /// Returns true if the provided StyleSheet array matches the tracked stylesheets.
+        /// Same SS obj, assetPath, and GetLastWriteTime
+        /// </summary>
+        bool SameAsTrackedStyleSheet(StyleSheet[] styleSheets) {
+            if (styleSheets.Length != _trackedStylesheets.Count) return false;
+            for (int i = 0; i < styleSheets.Length; i++) {
+                var sheet = styleSheets[i];
+                if (!_trackedStylesheets.TryGetValue(sheet, out var tracked)) return false;
+                var path = UnityEditor.AssetDatabase.GetAssetPath(sheet);
+                if (!path.Equals(tracked.Item1, StringComparison.Ordinal)) return false;
+                if (File.GetLastWriteTime(path) != tracked.Item2) return false;
+            }
+            return true;
+        }
+#endif
 
         void Respawn() {
             if (_janitor != null) {
