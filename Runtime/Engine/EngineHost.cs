@@ -17,6 +17,7 @@ namespace OneJS {
         // public readonly Interop interop;
         public event Action onReload;
         public event Action onDispose;
+        public event Action<Exception> onError;
 
         // public delegate void JSCallback(object v);
 
@@ -27,6 +28,7 @@ namespace OneJS {
             _engine = engine;
             engine.OnReload += DoReload;
             engine.OnDispose += Dispose;
+            engine.OnError += Error;
         }
 
         public void DoReload() {
@@ -40,6 +42,13 @@ namespace OneJS {
 
             _engine.OnReload -= DoReload;
             onReload = null;
+            
+            _engine.OnError -= Error;
+            onError = null;
+        }
+
+        public void Error(Exception ex) {
+            onError?.Invoke(ex);
         }
 
 #if PUERTS_DISABLE_IL2CPP_OPTIMIZATION || (!PUERTS_IL2CPP_OPTIMIZATION && (UNITY_WEBGL || UNITY_IPHONE)) || !ENABLE_IL2CPP

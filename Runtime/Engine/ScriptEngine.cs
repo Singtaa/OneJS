@@ -44,6 +44,7 @@ namespace OneJS {
         public event Action<JsEnv> OnPostInit;
         public event Action OnReload;
         public event Action OnDispose;
+        public event Action<Exception> OnError;
         #endregion
 
         #region Private Fields
@@ -73,8 +74,13 @@ namespace OneJS {
         }
 
         void Update() {
-            _jsEnv.Tick();
-            _tick++;
+            try {
+                _jsEnv.Tick();
+                _tick++;
+            } catch (Exception e) {
+                Debug.LogError($"OneJS Error: {e.Message}\n{e.StackTrace}");
+                OnError?.Invoke(e);
+            }
         }
         #endregion
 
