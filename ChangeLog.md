@@ -1,4 +1,8 @@
-﻿# [2025-05-28] v2.2.2 - Misc Improvements
+﻿# [2025-06-04] v2.2.3
+
+
+
+# [2025-05-28] v2.2.2 - Misc Improvements
 
 - Delayed EvalFile(). This ensures the inital <App /> mounting happens after the initial UIDocument load (so that the initial layouts are already calculated).
 - Added an extra ".root" css specificity to generated TW classes. 
