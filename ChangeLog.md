@@ -1,6 +1,6 @@
 ﻿# [2025-06-04] v2.2.3
 
-
+- added tick Error handling event to ScriptEngine and EngineHost
 
 # [2025-05-28] v2.2.2 - Misc Improvements
 
