@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using UnityEngine;
@@ -2055,16 +2056,16 @@ namespace OneJS.Dom {
             if (value is string s) {
                 // Attempt to parse the string for length values (e.g., "100px", "50%")
                 if (s.EndsWith("px")) {
-                    if (float.TryParse(s.Substring(0, s.Length - 2), out var pixelValue)) {
+                    if (float.TryParse(s.Substring(0, s.Length - 2), NumberStyles.Float, CultureInfo.InvariantCulture, out var pixelValue)) {
                         lengthValue = new Length(pixelValue);
                         return true;
                     }
                 } else if (s.EndsWith("%")) {
-                    if (float.TryParse(s.Substring(0, s.Length - 1), out var percentValue)) {
+                    if (float.TryParse(s.Substring(0, s.Length - 1), NumberStyles.Float, CultureInfo.InvariantCulture, out var percentValue)) {
                         lengthValue = new Length(percentValue, LengthUnit.Percent);
                         return true;
                     }
-                } else if (float.TryParse(s, out var normalValue)) {
+                } else if (float.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var normalValue)) {
                     lengthValue = new Length(normalValue);
                     return true;
                 }
