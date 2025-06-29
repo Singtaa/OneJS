@@ -46,6 +46,7 @@ namespace OneJS.Editor {
             rootVisualElement.style.height = new StyleLength(new Length(100, LengthUnit.Percent));
 
             rootVisualElement.RegisterCallback<GeometryChangedEvent>(OnGeometryChanged);
+            rootVisualElement.AddToClassList("root");
         }
 
         void OnGeometryChanged(GeometryChangedEvent evt) {
