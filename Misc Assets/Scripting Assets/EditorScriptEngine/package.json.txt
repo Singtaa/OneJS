@@ -15,10 +15,12 @@
         "xml2js": "^0.6.2"
     },
     "dependencies": {
-        "onejs-core": "^1.0.14",
-        "onejs-preact": "^1.0.1",
-        "onejs-editor": "^0.0.14",
+        "onejs-core": "^2.0.15",
+        "onejs-preact": "^2.0.2",
+        "onejs-editor": "^0.0.20",
+        "clsx": "^2.1.1",
         "css-flatten": "^2.0.0",
-        "css-simple-parser": "^3.0.0"
+        "css-simple-parser": "^3.0.0",
+        "tailwind-merge": "^3.3.1"
     }
 }
