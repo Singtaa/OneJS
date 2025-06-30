@@ -1,6 +1,11 @@
-﻿# [2025-06-04] v2.2.3
+﻿# [2025-06-29] v2.2.4
 
-- added tick Error handling event to ScriptEngine and EngineHost
+- CultureInfo.InvariantCulture for Length parsing
+- EditorScriptEngine updates
+
+# [2025-06-04] v2.2.3
+
+- Added tick Error handling event to ScriptEngine and EngineHost
 
 # [2025-05-28] v2.2.2 - Misc Improvements
 
