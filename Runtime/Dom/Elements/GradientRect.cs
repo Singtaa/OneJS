@@ -1,8 +1,6 @@
 ﻿using UnityEngine;
 using UnityEngine.UIElements;
 
-// Custom Controls have to be in the OneJS.Dom namespace if you want them to be automatically
-// included in the OneJS runtime.
 namespace OneJS.Dom {
     public class GradientRect : VisualElement {
         static readonly Vertex[] vertices = new Vertex[4];

@@ -1,10 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-// Custom Controls have to be in the OneJS.Dom namespace if you want them to be automatically
-// included in the OneJS runtime.
 namespace OneJS.Dom {
     public class Img : Image {
         public string Src { get { return _src; } set { SetSrc(value); } }
