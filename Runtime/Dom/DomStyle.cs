@@ -9,6 +9,8 @@ using Cursor = UnityEngine.UIElements.Cursor;
 
 namespace OneJS.Dom {
     public class DomStyle {
+        static readonly Dictionary<string, PropertyInfo> _propCache = new(StringComparer.OrdinalIgnoreCase);
+
         Dom _dom;
         Coroutine _imageCoroutine;
 
@@ -19,17 +21,28 @@ namespace OneJS.Dom {
         public IStyle veStyle => _dom.ve.style;
 
         public object getProperty(string key) {
-            // TODO cache this
-            var pi = this.GetType().GetProperty(key, BindingFlags.Instance | BindingFlags.IgnoreCase | BindingFlags.Public);
-            if (pi != null) {
-                return pi.GetValue(this);
+            if (!_propCache.TryGetValue(key, out var pi)) {
+                pi = GetType().GetProperty(key, BindingFlags.Instance | BindingFlags.IgnoreCase | BindingFlags.Public);
+                if (pi != null) {
+                    _propCache[key] = pi;
+                } else {
+                    Debug.LogWarning($"Dom Style Property \"{key}\" not found in {GetType().Name}");
+                    return null;
+                }
             }
-            return null;
+            return pi.GetValue(this);
         }
 
         public void setProperty(string key, object value) {
-            // TODO cache this
-            var pi = this.GetType().GetProperty(key, BindingFlags.Instance | BindingFlags.IgnoreCase | BindingFlags.Public);
+            if (!_propCache.TryGetValue(key, out var pi)) {
+                pi = this.GetType().GetProperty(key, BindingFlags.Instance | BindingFlags.IgnoreCase | BindingFlags.Public);
+                if (pi != null) {
+                    _propCache[key] = pi;
+                } else {
+                    Debug.LogWarning($"Dom Style Property '{key}' not found in {this.GetType().Name}");
+                    return;
+                }
+            }
             if (pi != null) {
                 pi.SetValue(this, value);
             }
@@ -890,6 +903,7 @@ namespace OneJS.Dom {
         public void SetTransitionProperty(List<StylePropertyName> value) => veStyle.transitionProperty = value;
         public void SetTransitionTimingFunction(List<EasingFunction> value) => veStyle.transitionTimingFunction = value;
         public void SetTranslate(Translate value) => veStyle.translate = value;
+        public void SetTranslate(float x, float y) => veStyle.translate = new Translate(x, y);
         public void SetUnityBackgroundImageTintColor(Color value) => veStyle.unityBackgroundImageTintColor = new StyleColor(value);
         public void SetUnityBackgroundScaleMode(ScaleMode value) => veStyle.unityBackgroundScaleMode = new StyleEnum<ScaleMode>(value);
         public void SetUnityFont(Font value) => veStyle.unityFont = value;
