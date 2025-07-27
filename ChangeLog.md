@@ -1,4 +1,10 @@
-﻿# [2025-06-29] v2.2.4
+﻿# [2025-07-27] v2.2.5
+
+- SimpleGrid bugfix
+- Game UIs CI test
+- DomStyle caching
+
+# [2025-06-29] v2.2.4
 
 - CultureInfo.InvariantCulture for Length parsing
 - EditorScriptEngine updates
