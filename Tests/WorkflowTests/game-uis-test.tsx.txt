@@ -1,0 +1,38 @@
+﻿import { h, render } from "preact"
+import { Grid, GridCol } from "@/comps/echo/grid"
+import { Skeleton } from "@/comps/echo/core"
+
+function makeChild(cls: string) {
+    return ({ text }: { text: string }) => (
+        <Skeleton class={`w-full bold ${cls}`} height={50} radius={6} animate={false} >{text}</Skeleton>
+    )
+}
+
+const Child1 = makeChild("bg-blue-200 text-blue-500")
+const Child2 = makeChild("bg-green-200 text-green-500")
+const Child3 = makeChild("bg-red-200 text-red-500")
+const Child4 = makeChild("bg-orange-200 text-orange-500")
+
+function GridDemo() {
+    return <Grid class="w-[360px]">
+        <GridCol span={{ base: 12, xs: 4 }}><Child1 text="1" /></GridCol>
+        <GridCol span={{ base: 12, xs: 4 }}><Child1 text="2" /></GridCol>
+        <GridCol span={{ base: 12, xs: 4 }}><Child1 text="3" /></GridCol>
+        <GridCol span={4}><Child2 text="A" /></GridCol>
+        <GridCol span={4}><Child2 text="B" /></GridCol>
+        <GridCol span={4}><Child2 text="C" /></GridCol>
+        <GridCol span={6}><Child3 text="Left" /></GridCol>
+        <GridCol span={6}><Child3 text="Right" /></GridCol>
+        <GridCol span={3}><Child4 text="1" /></GridCol>
+        <GridCol span={3}><Child4 text="2" /></GridCol>
+        <GridCol span={3} offset={3}><Child4 text="3" /></GridCol>
+    </Grid>
+}
+
+const App = () => {
+    return <div class="w-full h-full flex items-center justify-center">
+        <GridDemo />
+    </div>
+}
+
+render(<App />, document.body)

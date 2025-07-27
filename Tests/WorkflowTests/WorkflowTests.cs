@@ -20,6 +20,7 @@ namespace OneJS.CI {
         static Runner _runner;
 
         // May consider using `Application.logMessageReceived += Catch` for log catching
+        // Also note that WaitForEndOfFrame is not supported in batchmode (CI)
 
         [OneTimeSetUp]
         public static void OneTimeSetUp() {
@@ -69,19 +70,11 @@ namespace OneJS.CI {
             _runner.enabled = false;
             yield return null;
             yield return null;
-            var indexContent = LoadFromGUID<TextAsset>("a55d96be65534ffa89b4819c967a16ba").text;
-            var indexPath = Path.Combine(_scriptEngine.WorkingDir, "index.tsx");
-            File.WriteAllText(indexPath, indexContent);
 
-            // npx may have PATH issues on linux because each RunCommand creates a new shell
-            // try to avoid "--save-dev" because certain test envs may have NODE_ENV=production set
-            RunCommand(
-                $"npm run setup && " +
-                $"tsc && " +
-                $"node esbuild.mjs --once && " +
-                $"npx postcss input.css -o ../Assets/tailwind.uss");
+            RunCommand($"npm run setup");
+            WriteContent("a55d96be65534ffa89b4819c967a16ba");
+            BuildAndReload();
 
-            _runner.Reload();
             yield return null;
             yield return null;
 
@@ -98,8 +91,51 @@ namespace OneJS.CI {
             yield return null;
         }
 
+#if ONEJS_CI_GAME_UI
+        [UnityTest]
+        public IEnumerator GameUIsTest() {
+            _scriptEngine.gameObject.SetActive(true);
+            _runner.enabled = false;
+            yield return null;
+            RunCommand($"npm run setup && npx postcss input.css -o ../Assets/tailwind.uss");
+            RunCommand($"npx oj add all");
+            yield return null;
+            var twss = AssetDatabase.LoadAssetAtPath<StyleSheet>("Assets/tailwind.uss");
+            _scriptEngine.styleSheets = new[] { _scriptEngine.styleSheets[0], twss };
+            yield return null;
+            WriteContent("a260cf8a72e3468daeec5ea3ffd90842");
+            BuildAndReload();
+            yield return null;
+            yield return null;
+
+            var uiDoc = _scriptEngine.GetComponent<UIDocument>();
+            var root = uiDoc.rootVisualElement;
+            var allNodes = root.Query().ToList();
+            Assert.AreEqual(36, allNodes.Count, "Node Count mismatch");
+
+            yield return null;
+        }
+#endif
+
         #region Static Helpers
         // MARK: - Static Helpers
+        public static void BuildAndReload() {
+            // npx may have PATH issues on linux because each RunCommand creates a new shell
+            // try to avoid "--save-dev" because certain test envs may have NODE_ENV=production set
+            RunCommand(
+                $"tsc && " +
+                $"node esbuild.mjs --once && " +
+                $"npx postcss input.css -o ../Assets/tailwind.uss");
+
+            _runner.Reload();
+        }
+
+        public static void WriteContent(string guid, string path = "index.tsx") {
+            var indexContent = LoadFromGUID<TextAsset>(guid).text;
+            var indexPath = Path.Combine(_scriptEngine.WorkingDir, path);
+            File.WriteAllText(indexPath, indexContent);
+        }
+
         public static T LoadFromGUID<T>(string guid) where T : Object {
             string path = AssetDatabase.GUIDToAssetPath(guid);
             if (string.IsNullOrEmpty(path)) {
