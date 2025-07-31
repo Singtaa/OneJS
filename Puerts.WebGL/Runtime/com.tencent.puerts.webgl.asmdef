@@ -1,0 +1,16 @@
+{
+    "name": "com.tencent.puerts.webgl",
+    "rootNamespace": "",
+    "references": [
+        "com.tencent.puerts.core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
