@@ -1,4 +1,4 @@
-﻿const __addToGlobal = function (name, obj) {
+﻿globalThis.__addToGlobal = function (name, obj) {
     const parts = name.split('.');
     let current = globalThis;
 
@@ -10,11 +10,11 @@
     current[parts[parts.length - 1]] = obj;
 };
 
-const newCsArray = function (type, count) {
+globalThis.newCsArray = function (type, count) {
     return CS.System.Array.CreateInstance(puer.$typeof(type), count)
 }
 
-const toJsArray = function toJsArray(csArr) {
+globalThis.toJsArray = function toJsArray(csArr) {
     if (!csArr) return [];
     let arr = new Array(csArr.Length);
     var i = csArr.Length;
@@ -24,7 +24,7 @@ const toJsArray = function toJsArray(csArr) {
     return arr;
 }
 
-const toCsArray = function toCsArray(jsArr, type) {
+globalThis.toCsArray = function toCsArray(jsArr, type) {
     if (!jsArr) return null;
     let arr = newCsArray(type, jsArr.length);
     for (let i = 0; i < jsArr.length; i++) {
@@ -32,21 +32,21 @@ const toCsArray = function toCsArray(jsArr, type) {
     }
     return arr;
 }
-
-const performance = {
+/*
+globalThis.performance = {
     now: function () {
         return CS.UnityEngine.Time.realtimeSinceStartupAsDouble * 1000
     }
 }
 
-const requestAnimationFrame = function (callback) {
+globalThis.requestAnimationFrame = function (callback) {
     return setTimeout(() => callback(CS.UnityEngine.Time.realtimeSinceStartupAsDouble * 1000), 1)
 }
 
-const cancelAnimationFrame = function (id) {
+globalThis.cancelAnimationFrame = function (id) {
     clearTimeout(id)
 }
-
+*/
 // MARK: - Unity
 
 CS.UnityEngine.GameObject.prototype.GetComp = function (type) {
