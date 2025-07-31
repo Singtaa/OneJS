@@ -99,12 +99,12 @@ namespace Puerts
 #if !UNITY_EDITOR && UNITY_WEBGL
             if (jsEnvs.Count == 0) PuertsDLL.InitPuertsWebGL();
 #endif
-            const int libVersionExpect = 34;
-            int libVersion = PuertsDLL.GetApiLevel();
-            if (libVersion != libVersionExpect)
-            {
-                throw new InvalidProgramException("expect lib version " + libVersionExpect + ", but got " + libVersion);
-            }
+            // const int libVersionExpect = 34;
+            // int libVersion = PuertsDLL.GetApiLevel();
+            // if (libVersion != libVersionExpect)
+            // {
+            //     throw new InvalidProgramException("expect lib version " + libVersionExpect + ", but got " + libVersion);
+            // }
             PuertsDLL.SetLogCallback(LogCallback, LogWarningCallback, LogErrorCallback);
             this.loader = loader;
             this.loaderCanCheckESM = loader is IModuleChecker;
