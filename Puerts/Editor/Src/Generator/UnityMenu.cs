@@ -40,6 +40,13 @@ namespace Puerts.Editor
                 Debug.Log("finished! use " + (DateTime.Now - start).TotalMilliseconds + " ms");
                 AssetDatabase.Refresh();
 
+#if UNITY_WEBGL
+                var cxxOutDir = Path.Combine(Puerts.Configure.GetCodeOutputDirectory(), "Plugins/puerts_il2cpp/");
+                Directory.CreateDirectory(cxxOutDir);
+                PuertsIl2cpp.Editor.Generator.FileExporter.GenMarcoHeader(cxxOutDir);
+                PuertsIl2cpp.Editor.Generator.FileExporter.GenPapi(cxxOutDir);
+#endif
+
                 Utils.SetFilters(null);
             }
 

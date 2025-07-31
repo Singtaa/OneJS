@@ -62,6 +62,9 @@ namespace Puerts
             disposed = true;
             if (!isInitialized)
             {
+#if !UNITY_EDITOR && UNITY_WEBGL
+                PuertsDLL.InitPuertsWebGL();
+#endif
                 lock (jsEnvs)
                 {
                     if (!isInitialized)
@@ -150,9 +153,11 @@ namespace Puerts
             if (debugPort != -1) {
                 Puerts.PuertsDLL.CreateInspector(nativeJsEnv, debugPort);    
             }
+#if !UNITY_WEBGL
             string debugpath;
             string context = loader.ReadFile("puerts/esm_bootstrap.cjs", out debugpath);
             Eval(context, debugpath);
+#endif
             ExecuteModule("puerts/init_il2cpp.mjs");
             ExecuteModule("puerts/log.mjs");
             ExecuteModule("puerts/csharp.mjs");
@@ -197,7 +202,7 @@ namespace Puerts
         }
         
         [MonoPInvokeCallback(typeof(Puerts.NativeAPI.LogCallback))]
-        private static void LogCallback(string msg)
+        public static void LogCallback(string msg)
         {
 #if PUERTS_GENERAL || (UNITY_WSA && !UNITY_EDITOR)
 #else
@@ -206,7 +211,7 @@ namespace Puerts
         }
 
         [MonoPInvokeCallback(typeof(Puerts.NativeAPI.LogCallback))]
-        private static void LogWarningCallback(string msg)
+        public static void LogWarningCallback(string msg)
         {
 #if PUERTS_GENERAL || (UNITY_WSA && !UNITY_EDITOR)
 #else
@@ -215,7 +220,7 @@ namespace Puerts
         }
 
         [MonoPInvokeCallback(typeof(Puerts.NativeAPI.LogCallback))]
-        private static void LogErrorCallback(string msg)
+        public static void LogErrorCallback(string msg)
         {
 #if PUERTS_GENERAL || (UNITY_WSA && !UNITY_EDITOR)
 #else
@@ -226,9 +231,8 @@ namespace Puerts
         static IntPtr storeCallback = IntPtr.Zero;
         
         [MonoPInvokeCallback(typeof(Puerts.pesapi_callback))]
-        static void FooImpl(IntPtr apis, IntPtr info)
+        static void FooImpl(pesapi_ffi ffi, IntPtr info)
         {
-            pesapi_ffi ffi = Marshal.PtrToStructure<pesapi_ffi>(apis);
             var env = ffi.get_env(info);
             
             IntPtr p0 = ffi.get_arg(info, 0);

@@ -14,6 +14,8 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using Puerts.Editor.Generator;
 using Puerts.TypeMapping;
+using UnityEditor;
+using UnityEditor.Build;
 
 #if !PUERTS_GENERAL
 using Mono.Reflection;
@@ -69,6 +71,8 @@ namespace PuertsIl2cpp.Editor
                 public List<SignatureInfo> BridgeInfos;
 
                 public List<SignatureInfo> FieldWrapperInfos;
+
+                public bool IsOptimizeSize = false;
             }
 
             public static Type GetUnrefParameterType(ParameterInfo parameterInfo)
@@ -101,26 +105,28 @@ namespace PuertsIl2cpp.Editor
                 }
             }
 
-            private static bool IterateAllValueType(Type type, List<ValueTypeInfo> list)
+            private static void IterateAllValueType(Type type, List<ValueTypeInfo> list)
             {
-                if (Utils.isDisallowedType(type)) return false;
+                if (Utils.isDisallowedType(type)) return;
                 if (type.IsPrimitive) {
-                    return true;
+                    return;
                 }
                 Type baseType = type.BaseType;
                 while (baseType != null && baseType != typeof(System.Object))
                 {
-                    if (baseType.IsValueType) {
-                        if (!IterateAllValueType(baseType, list)) return false;
-                    }
+                    IterateAllValueType(baseType, list);
                     baseType = baseType.BaseType;
                 }
                 
                 foreach (var field in type.GetFields(BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
                 {
-                    if (field.FieldType.IsValueType && !field.FieldType.IsPrimitive) 
-                        if (!IterateAllValueType(field.FieldType, list)) return false;
+                    if (field.FieldType.IsValueType && !field.FieldType.IsPrimitive)
+                    {
+                        IterateAllValueType(field.FieldType, list);
+                    }
                 }
+
+                if (!type.IsValueType) return;
 
                 int value = -1;
                 if (Nullable.GetUnderlyingType(type) != null)
@@ -142,7 +148,6 @@ namespace PuertsIl2cpp.Editor
                     FieldSignatures = GetValueTypeFieldSignatures(type),
                     NullableHasValuePosition = value
                 });
-                return true;
             }
 
             private static bool IsSelfRefGenericType(Type type, Type typeDef)
@@ -208,6 +213,49 @@ namespace PuertsIl2cpp.Editor
                 }
             }
 
+            public static bool CurrentBuildIsOptimizeSize
+            {
+                get
+                {
+#if UNITY_2022_1_OR_NEWER
+#if UNITY_SERVER
+                    NamedBuildTarget namedBuildTarget = NamedBuildTarget.Server;
+#else
+                    BuildTarget buildTarget = EditorUserBuildSettings.activeBuildTarget;
+                    BuildTargetGroup targetGroup = BuildPipeline.GetBuildTargetGroup(buildTarget);
+                    NamedBuildTarget namedBuildTarget = NamedBuildTarget.FromBuildTargetGroup(targetGroup);
+#endif
+                    bool unityIsOptimizeSize = PlayerSettings.GetIl2CppCodeGeneration(namedBuildTarget) == Il2CppCodeGeneration.OptimizeSize;
+#else
+                    bool unityIsOptimizeSize = EditorUserBuildSettings.il2CppCodeGeneration == Il2CppCodeGeneration.OptimizeSize;
+#endif
+#if UNITY_WEBGL
+                    var minigameConfig = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>("Assets/WX-WASM-SDK-V2/Editor/MiniGameConfig.asset");
+                    if (minigameConfig != null)
+                    {
+                        var fieldOfCompileOptions = minigameConfig.GetType().GetField("CompileOptions");
+                        if (fieldOfCompileOptions != null)
+                        {
+                            var compileOptions = fieldOfCompileOptions.GetValue(minigameConfig);
+                            if (compileOptions != null)
+                            {
+                                var filedOfIl2CppOptimizeSize = compileOptions.GetType().GetField("Il2CppOptimizeSize");
+                                if (filedOfIl2CppOptimizeSize != null && filedOfIl2CppOptimizeSize.FieldType == typeof(bool))
+                                {
+                                    var minigameIsOptimizeSize = (bool)filedOfIl2CppOptimizeSize.GetValue(compileOptions);
+                                    if (unityIsOptimizeSize != minigameIsOptimizeSize)
+                                    {
+                                        Debug.LogWarning("Il2CppOptimizeSize setting conflict use minigame's setting: " + (minigameIsOptimizeSize ? "ON" : "OFF"));
+                                    }
+                                    return minigameIsOptimizeSize;
+                                }
+                            }
+                        }
+                    }
+#endif
+                    return unityIsOptimizeSize;
+                }
+            }
             public static void GenCPPWrap(string saveTo, bool onlyConfigure = false, bool noWrapper = false)
             {
                 Utils.SetFilters(Puerts.Configure.GetFilters());
@@ -459,7 +507,8 @@ namespace PuertsIl2cpp.Editor
                         ValueTypeInfos = valueTypeInfos,
                         WrapperInfos = wrapperInfos,
                         BridgeInfos = bridgeInfos,
-                        FieldWrapperInfos = fieldWrapperInfos
+                        FieldWrapperInfos = fieldWrapperInfos,
+                        IsOptimizeSize = CurrentBuildIsOptimizeSize
                     };
 
                     using (StreamWriter textWriter = new StreamWriter(Path.Combine(saveTo, "PuertsIl2cppWrapper.cpp"), false, Encoding.UTF8))
@@ -598,52 +647,6 @@ namespace PuertsIl2cpp.Editor
                 }
             }
 
-            public static void CopyXIl2cppCPlugin(string outDir)
-            {
-                Dictionary<string, string> cPluginCode = new Dictionary<string, string>()
-                {
-                    { "pesapi_adpt.c", Resources.Load<TextAsset>("puerts/xil2cpp/pesapi_adpt.c").text },
-                    { "pesapi.h", Resources.Load<TextAsset>("puerts/xil2cpp/pesapi.h").text },
-                    { "pesapi_webgl.h", Resources.Load<TextAsset>("puerts/xil2cpp/pesapi_webgl.h").text },
-                    { "pesapi_webgl.cpp", Resources.Load<TextAsset>("puerts/xil2cpp/pesapi_webgl.cpp").text }
-                };
-
-                foreach (var cPlugin in cPluginCode)
-                {
-                    var path = outDir + cPlugin.Key;
-                    using (StreamWriter textWriter = new StreamWriter(path, false, Encoding.UTF8))
-                    {
-                        textWriter.Write(cPlugin.Value);
-                        textWriter.Flush();
-                    }
-                }
-
-                using (var jsEnv = new Puerts.JsEnv())
-                {
-                    jsEnv.ExecuteModule("puerts/templates/il2cpp_snippets.mjs");
-
-#if UNITY_WEBGL
-                    jsEnv.Eval("globalThis.USE_STATIC_PAPI = true");
-#endif
-
-                    string dataTransContent = jsEnv.Eval<string>("`" + Resources.Load<TextAsset>("puerts/xil2cpp/TDataTrans.h").text.Replace("\\", "\\\\") + "`");
-
-                    using (StreamWriter textWriter = new StreamWriter(outDir + "TDataTrans.h", false, Encoding.UTF8))
-                    {
-                        textWriter.Write(dataTransContent);
-                        textWriter.Flush();
-                    }
-
-                    string puertsIl2cppContent = jsEnv.Eval<string>("`" + Resources.Load<TextAsset>("puerts/xil2cpp/Puerts_il2cpp.cpp").text.Replace("\\", "\\\\") + "`");
-
-                    using (StreamWriter textWriter = new StreamWriter(outDir + "Puerts_il2cpp.cpp", false, Encoding.UTF8))
-                    {
-                        textWriter.Write(puertsIl2cppContent);
-                        textWriter.Flush();
-                    }
-                }
-            }
-
             public static void GenMarcoHeader(string outDir)
             {
                 var filePath = outDir + "unityenv_for_puerts.h";
@@ -671,6 +674,57 @@ namespace PuertsIl2cpp.Editor
                     using (StreamWriter textWriter = new StreamWriter(filePath, false, Encoding.UTF8))
                     {
                         textWriter.Write(macroHeaderContent);
+                        textWriter.Flush();
+                    }
+                }
+            }
+
+            public static void GenPapi(string outDir)
+            {
+                Dictionary<string, string> cPluginCode = new Dictionary<string, string>()
+                {
+                    { "pesapi_adpt.c", Resources.Load<TextAsset>("puerts/xil2cpp/pesapi_adpt.c").text },
+                    { "pesapi.h", Resources.Load<TextAsset>("puerts/xil2cpp/pesapi.h").text },
+                    { "pesapi_webgl.h", Resources.Load<TextAsset>("puerts/xil2cpp/pesapi_webgl.h").text },
+                    { "pesapi_webgl.cpp", Resources.Load<TextAsset>("puerts/xil2cpp/pesapi_webgl.cpp").text }
+                };
+
+                foreach (var cPlugin in cPluginCode)
+                {
+                    var path = outDir + cPlugin.Key;
+                    using (StreamWriter textWriter = new StreamWriter(path, false, Encoding.UTF8))
+                    {
+                        textWriter.Write(cPlugin.Value);
+                        textWriter.Flush();
+                    }
+                }
+            }
+
+            public static void CopyXIl2cppCPlugin(string outDir)
+            {
+                GenPapi(outDir);
+
+                using (var jsEnv = new Puerts.JsEnv())
+                {
+                    jsEnv.ExecuteModule("puerts/templates/il2cpp_snippets.mjs");
+
+#if UNITY_WEBGL
+                    jsEnv.Eval("globalThis.USE_STATIC_PAPI = true");
+#endif
+
+                    string dataTransContent = jsEnv.Eval<string>("`" + Resources.Load<TextAsset>("puerts/xil2cpp/TDataTrans.h").text.Replace("\\", "\\\\") + "`");
+
+                    using (StreamWriter textWriter = new StreamWriter(outDir + "TDataTrans.h", false, Encoding.UTF8))
+                    {
+                        textWriter.Write(dataTransContent);
+                        textWriter.Flush();
+                    }
+
+                    string puertsIl2cppContent = jsEnv.Eval<string>("`" + Resources.Load<TextAsset>("puerts/xil2cpp/Puerts_il2cpp.cpp").text.Replace("\\", "\\\\") + "`");
+
+                    using (StreamWriter textWriter = new StreamWriter(outDir + "Puerts_il2cpp.cpp", false, Encoding.UTF8))
+                    {
+                        textWriter.Write(puertsIl2cppContent);
                         textWriter.Flush();
                     }
                 }

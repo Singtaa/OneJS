@@ -96,13 +96,16 @@ namespace Puerts
 
         public JsEnv(ILoader loader, int debugPort, BackendType backend, IntPtr externalRuntime, IntPtr externalContext)
         {
+#if !UNITY_EDITOR && UNITY_WEBGL
+            if (jsEnvs.Count == 0) PuertsDLL.InitPuertsWebGL();
+#endif
             const int libVersionExpect = 34;
             int libVersion = PuertsDLL.GetApiLevel();
             if (libVersion != libVersionExpect)
             {
                 throw new InvalidProgramException("expect lib version " + libVersionExpect + ", but got " + libVersion);
             }
-            // PuertsDLL.SetLogCallback(LogCallback, LogWarningCallback, LogErrorCallback);
+            PuertsDLL.SetLogCallback(LogCallback, LogWarningCallback, LogErrorCallback);
             this.loader = loader;
             this.loaderCanCheckESM = loader is IModuleChecker;
             
@@ -868,32 +871,32 @@ namespace Puerts
         }
 #endif
 
-        //         [MonoPInvokeCallback(typeof(LogCallback))]
-        //         private static void LogCallback(string msg)
-        //         {
-        // #if PUERTS_GENERAL || (UNITY_WSA && !UNITY_EDITOR)
-        // #else
-        //             UnityEngine.Debug.Log(msg);
-        // #endif
-        //         }
+        [MonoPInvokeCallback(typeof(LogCallback))]
+        public static void LogCallback(string msg)
+        {
+#if PUERTS_GENERAL || (UNITY_WSA && !UNITY_EDITOR)
+#else
+            UnityEngine.Debug.Log(msg);
+#endif
+        }
 
-        //         [MonoPInvokeCallback(typeof(LogCallback))]
-        //         private static void LogWarningCallback(string msg)
-        //         {
-        // #if PUERTS_GENERAL || (UNITY_WSA && !UNITY_EDITOR)
-        // #else
-        //             UnityEngine.Debug.Log(msg);
-        // #endif
-        //         }
+        [MonoPInvokeCallback(typeof(LogCallback))]
+        public static void LogWarningCallback(string msg)
+        {
+#if PUERTS_GENERAL || (UNITY_WSA && !UNITY_EDITOR)
+#else
+            UnityEngine.Debug.Log(msg);
+#endif
+        }
 
-        //         [MonoPInvokeCallback(typeof(LogCallback))]
-        //         private static void LogErrorCallback(string msg)
-        //         {
-        // #if PUERTS_GENERAL || (UNITY_WSA && !UNITY_EDITOR)
-        // #else
-        //             UnityEngine.Debug.Log(msg);
-        // #endif
-        //         }
+        [MonoPInvokeCallback(typeof(LogCallback))]
+        public static void LogErrorCallback(string msg)
+        {
+#if PUERTS_GENERAL || (UNITY_WSA && !UNITY_EDITOR)
+#else
+            UnityEngine.Debug.Log(msg);
+#endif
+        }
 
         ~JsEnv()
         {
