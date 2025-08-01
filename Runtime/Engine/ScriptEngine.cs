@@ -162,17 +162,16 @@ namespace OneJS {
             if (_jsEnv != null) {
                 _jsEnv.Dispose();
             }
-            
-            #if UNITY_WEBGL
-            _jsEnv = Puerts.WebGL.MainEnv.Get();
-            _jsEnv.Eval("globalThis.ONEJS_WEBGL = true;");
-            #else
+
             if (debuggerSupport) {
                 _jsEnv = new JsEnv(new DefaultLoader(Path.Combine(WorkingDir, basePath)), port);
             } else {
                 _jsEnv = new JsEnv();
             }
-            #endif
+
+#if UNITY_WEBGL
+            _jsEnv.Eval("globalThis.ONEJS_WEBGL = true;");
+#endif
 
             // Some default UsingActions here. Please use OnPreInit to add more if needed (in your own code).
             _jsEnv.UsingAction<Action>();

@@ -1,80 +1,78 @@
-
-
 var exportDLL = {
     InitPuertsWebGL: function () {
         var global = typeof global != 'undefined' ? global : window;
         if (!global.PuertsWebGL) {
             throw new Error('cannot found PuertsWebGL script. please find some way to load puerts-runtime.js');
         }
+
+        // ---------------------------------------------------------------------------  
+        // Unity 6 / Emscripten 3.x compatibility  
+        // ---------------------------------------------------------------------------  
+        if (typeof updateGlobalBufferAndViews === "undefined") {  
+            var updateGlobalBufferAndViews = function (buf) {  
+                if (typeof updateMemoryViews === "function") {  
+                    return updateMemoryViews(buf);  
+                }  
+                // Fallback – rebuild the typed-array views ourselves.  
+                Module.HEAP8  = HEAP8  = new Int8Array(buf);  
+                Module.HEAPU8 = HEAPU8 = new Uint8Array(buf);  
+                Module.HEAP16 = HEAP16 = new Int16Array(buf);  
+                Module.HEAP32 = HEAP32 = new Int32Array(buf);  
+                Module.HEAPU16 = HEAPU16 = new Uint16Array(buf);  
+                Module.HEAPU32 = HEAPU32 = new Uint32Array(buf);  
+                Module.HEAPF32 = HEAPF32 = new Float32Array(buf);  
+                Module.HEAPF64 = HEAPF64 = new Float64Array(buf);  
+            };  
+        }  
+
+        if (typeof UTF16ToString === "undefined") {  
+            if (Module && Module.UTF16ToString) {  
+                var UTF16ToString = Module.UTF16ToString  
+            } else {  
+                const decoder = new TextDecoder("utf-16le")  
+                var UTF16ToString = function (ptr) {  
+                    let end = ptr  
+                    while (HEAPU16[end >> 1] !== 0) end += 2  
+                    return decoder.decode(HEAPU8.subarray(ptr, end))  
+                }  
+            }  
+        }  
+        if (typeof stringToUTF16 === "undefined") {  
+            var stringToUTF16 = function (str, outPtr, maxBytes) {  
+                const maxChars = maxBytes ? (maxBytes >> 1) - 1 : str.length  
+                for (let i = 0; i < Math.min(str.length, maxChars); i++) HEAPU16[(outPtr >> 1) + i] = str.charCodeAt(i)  
+                HEAPU16[(outPtr >> 1) + Math.min(str.length, maxChars)] = 0  
+            }  
+        }  
+        if (typeof lengthBytesUTF16 === "undefined") {  
+            var lengthBytesUTF16 = str => (str.length << 1) + 2  
+        }  
         
-        // ---------------------------------------------------------------------------
-        // Unity 6 / Emscripten 3.x compatibility
-        // ---------------------------------------------------------------------------
-        if (typeof updateGlobalBufferAndViews === "undefined") {
-            var updateGlobalBufferAndViews = function (buf) {
-                if (typeof updateMemoryViews === "function") {
-                    return updateMemoryViews(buf);
-                }
-                // Fallback – rebuild the typed-array views ourselves.
-                Module.HEAP8  = HEAP8  = new Int8Array(buf);
-                Module.HEAPU8 = HEAPU8 = new Uint8Array(buf);
-                Module.HEAP16 = HEAP16 = new Int16Array(buf);
-                Module.HEAP32 = HEAP32 = new Int32Array(buf);
-                Module.HEAPU16 = HEAPU16 = new Uint16Array(buf);
-                Module.HEAPU32 = HEAPU32 = new Uint32Array(buf);
-                Module.HEAPF32 = HEAPF32 = new Float32Array(buf);
-                Module.HEAPF64 = HEAPF64 = new Float64Array(buf);
-            };
-        }
-        
-        if (typeof UTF16ToString === "undefined") {
-            if (Module && Module.UTF16ToString) {
-                var UTF16ToString = Module.UTF16ToString
-            } else {
-                const decoder = new TextDecoder("utf-16le")
-                var UTF16ToString = function (ptr) {
-                    let end = ptr
-                    while (HEAPU16[end >> 1] !== 0) end += 2
-                    return decoder.decode(HEAPU8.subarray(ptr, end))
-                }
-            }
-        }
-        if (typeof stringToUTF16 === "undefined") {
-            var stringToUTF16 = function (str, outPtr, maxBytes) {
-                const maxChars = maxBytes ? (maxBytes >> 1) - 1 : str.length
-                for (let i = 0; i < Math.min(str.length, maxChars); i++) HEAPU16[(outPtr >> 1) + i] = str.charCodeAt(i)
-                HEAPU16[(outPtr >> 1) + Math.min(str.length, maxChars)] = 0
-            }
-        }
-        if (typeof lengthBytesUTF16 === "undefined") {
-            var lengthBytesUTF16 = str => (str.length << 1) + 2
+        if (typeof _setTempRet0 === "undefined") {  
+            var __tempRet0 = 0  
+            var _setTempRet0 = v => { __tempRet0 = v | 0 }  
+        }  
+        if (typeof _getTempRet0 === "undefined") {  
+            var _getTempRet0 = () => __tempRet0 | 0  
+        }  
+
+        if (typeof addFunction === "undefined") {  
+            const table = Module.wasmTable || wasmTable   // whichever Unity exposes  
+            var addFunction = function (jsFunc /*, sig */) {  
+                const idx = table.length  
+                table.grow(1)  
+                table.set(idx, jsFunc)  
+                return idx  
+            }  
+        }  
+        if (typeof removeFunction === "undefined") {  
+            const table = Module.wasmTable || wasmTable  
+            var removeFunction = function (idx) {  
+                // Emscripten no longer shrinks the table – just replace entry with a noop  
+                table.set(idx, () => {})  
+            }  
         }
 
-        if (typeof _setTempRet0 === "undefined") {
-            var __tempRet0 = 0
-            var _setTempRet0 = v => { __tempRet0 = v | 0 }
-        }
-        if (typeof _getTempRet0 === "undefined") {
-            var _getTempRet0 = () => __tempRet0 | 0
-        }
-        
-        if (typeof addFunction === "undefined") {
-            const table = Module.wasmTable || wasmTable   // whichever Unity exposes
-            var addFunction = function (jsFunc /*, sig */) {
-                const idx = table.length
-                table.grow(1)
-                table.set(idx, jsFunc)
-                return idx
-            }
-        }
-        if (typeof removeFunction === "undefined") {
-            const table = Module.wasmTable || wasmTable
-            var removeFunction = function (idx) {
-                // Emscripten no longer shrinks the table – just replace entry with a noop
-                table.set(idx, () => {})
-            }
-        }
-        
         let oldUpdateGlobalBufferAndViews = updateGlobalBufferAndViews;
         updateGlobalBufferAndViews = function (buf) {
             oldUpdateGlobalBufferAndViews(buf);
@@ -111,6 +109,9 @@ var exportDLL = {
             InjectPapiGLNativeImpl: Module._InjectPapiGLNativeImpl,
             PApiCallbackWithScope: Module._PApiCallbackWithScope,
             PApiConstructorWithScope: Module._PApiConstructorWithScope,
+            WasmAdd: Module._WasmAdd,
+            IndirectWasmAdd: Module._IndirectWasmAdd,
+            GetWasmAddPtr: Module._GetWasmAddPtr,
             
             HEAP8,
             HEAPU8,
@@ -216,7 +217,6 @@ var exportDLL = {
     "InspectorTick",
     "LogicTick",
     "SetLogCallback",
-    "TerminateExecution",
     "GetWebGLFFIApi",
     "GetWebGLPapiEnvRef",
     "GetQjsFFIApi", // declare for compile

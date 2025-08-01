@@ -1,18 +1,22 @@
 {
-    "name": "com.tencent.puerts.webgl",
-    "displayName": "Puerts WebGL Support",
-    "version": "2.2.2",
-    "description": "Use PuerTS in WebGL mode. Javascript code will run in browser's JS environment and get speed up by JIT.",
-    "keywords": [
-        "Script"
-    ],
-    "author": {
-        "name": "Tencent Puerts Group",
-        "email": "johnche@tencent.com",
-        "url": "https://github.com/puerts"
-    },
-    "category": "Libraries",
-    "dependencies": {
-        "com.tencent.puerts.core": "2.2.2"
-    }
+  "name": "com.tencent.puerts.webgl",
+  "displayName": "Puerts WebGL Support",
+  "version": "2.2.2",
+  "description": "Use PuerTS in WebGL mode. Javascript code will run in browser's JS environment and get speed up by JIT.",
+  "keywords": [
+    "Script"
+  ],
+  "author": {
+    "name": "Tencent Puerts Group",
+    "email": "johnche@tencent.com",
+    "url": "https://github.com/puerts"
+  },
+  "category": "Libraries",
+  "dependencies": {
+    "com.tencent.puerts.core": "2.2.2"
+  },
+  "publishConfig": {
+    "registry": "https://package.openupm.com"
+  },
+  "_fingerprint": "e0ccb145c8b2a4f91df125eba64357aa68e48e05"
 }
