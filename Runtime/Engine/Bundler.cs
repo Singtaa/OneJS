@@ -41,7 +41,7 @@ namespace OneJS {
         void Awake() {
             _engine = GetComponent<ScriptEngine>();
             var versionString = PlayerPrefs.GetString("ONEJS_VERSION", "0.0.0");
-#if !UNITY_EDITOR && (UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID)
+#if !UNITY_EDITOR && (UNITY_STANDALONE || UNITY_IOS || UNITY_ANDROID || UNITY_WEBGL)
             ExtractForStandalone();
 #else
             if (versionString != _onejsVersion) {
