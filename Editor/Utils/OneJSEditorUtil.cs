@@ -103,6 +103,8 @@ namespace OneJS.Editor {
                 }
             }
 
+            UnityEngine.Debug.Log("VSCode executable not found. Please ensure VSCode is installed and added to your PATH. In VSCode: Command Palette \u2192 “Shell Command: Install ‘code’ command in PATH”");
+
             return null;
         }
     }
