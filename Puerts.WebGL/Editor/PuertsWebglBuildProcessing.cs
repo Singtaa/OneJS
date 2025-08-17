@@ -86,7 +86,7 @@ public class PuertsWebglBuildProcessing : IPreprocessBuildWithReport, IPostproce
 
         var command = "buildForBrowser";
         var cliEntry = Path.Combine(WebglRoot, "Cli", "Javascripts~", "index.js");
-        var args = $"{cliEntry} {command} -p {string.Join(" ", resourcesPatterns.ConvertAll(p => $"\"{p.Replace("\\", "/")}\""))} -o \"{output}\"";
+        var args = $"\"{cliEntry}\" {command} -p {string.Join(" ", resourcesPatterns.ConvertAll(p => $"\"{p.Replace("\\", "/")}\""))} -o \"{output}\"";
 
         var executeFileName = "node";
 
