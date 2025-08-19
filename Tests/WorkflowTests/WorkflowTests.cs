@@ -149,8 +149,9 @@ namespace OneJS.CI {
 
         private static void RunCommand(string command) {
             bool isWin = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+            bool isMac = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
             var shell = Environment.GetEnvironmentVariable("SHELL");
-            if (string.IsNullOrEmpty(shell)) shell = "/bin/zsh";
+            if (string.IsNullOrEmpty(shell)) shell = isMac ? "/bin/zsh" : "/bin/bash";
 
             var process = new System.Diagnostics.Process {
                 StartInfo = new System.Diagnostics.ProcessStartInfo {
