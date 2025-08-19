@@ -149,11 +149,13 @@ namespace OneJS.CI {
 
         private static void RunCommand(string command) {
             bool isWin = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+            var shell = Environment.GetEnvironmentVariable("SHELL");
+            if (string.IsNullOrEmpty(shell)) shell = "/bin/zsh";
 
             var process = new System.Diagnostics.Process {
                 StartInfo = new System.Diagnostics.ProcessStartInfo {
-                    FileName = isWin ? "cmd.exe" : "/bin/bash",
-                    Arguments = isWin ? $"/c {command}" : $"-lc \"{command}\"",
+                    FileName = isWin ? "cmd.exe" : shell,
+                    Arguments = isWin ? $"/c {command}" : $"-l -i -c \"{command}\"",
                     WorkingDirectory = _scriptEngine.WorkingDir,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,

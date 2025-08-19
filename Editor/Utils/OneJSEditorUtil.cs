@@ -33,18 +33,18 @@ namespace OneJS.Editor {
             var full = Path.GetFullPath(path);
 
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
-        var exe = GetCodeExecutablePathOnWindows();
-        if (string.IsNullOrEmpty(exe)) {
-            UnityEngine.Debug.LogWarning("VSCode not found. Is it installed?");
-            return;
-        }
-        StartProcess(new ProcessStartInfo {
-            FileName = exe,
-            Arguments = $"\"{full}\"",
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            CreateNoWindow = true,
-        });
+            var exe = GetCodeExecutablePathOnWindows();
+            if (string.IsNullOrEmpty(exe)) {
+                UnityEngine.Debug.LogWarning("VSCode not found. Is it installed?");
+                return;
+            }
+            StartProcess(new ProcessStartInfo {
+                FileName = exe,
+                Arguments = $"\"{full}\"",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true,
+            });
 #elif UNITY_EDITOR_OSX
             // Use the user's login shell to get the real PATH, then run `code -n "<dir>"`
             LaunchViaLoginShell($"code -n -- {ShQ(full)}");
