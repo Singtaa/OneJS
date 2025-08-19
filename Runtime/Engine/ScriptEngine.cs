@@ -158,6 +158,20 @@ namespace OneJS {
 #endif
         }
 
+        /**
+         * Performs a lightweight refresh without recreating the JsEnv.
+         * Clears the rootVisualElement and triggers OnReload events,
+         * but does not dispose or reinitialize the JS engine.
+         * Useful on platforms like WebGL where full reloads are not possible.
+         */
+        public void Refresh() {
+            OnReload?.Invoke();
+            if (_uiDocument.rootVisualElement != null) {
+                _uiDocument.rootVisualElement.Clear();
+                _uiDocument.rootVisualElement.styleSheets.Clear();
+            }
+        }
+
         void Init() {
             if (_jsEnv != null) {
                 _jsEnv.Dispose();
