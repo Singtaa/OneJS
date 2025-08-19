@@ -123,6 +123,8 @@ namespace OneJS {
 
         public JsEnv JsEnv => _jsEnv;
 
+        public UIDocument UIDocument => _uiDocument;
+
         public Action<string, object> AddToGlobal => _addToGlobal;
         #endregion
 
@@ -168,7 +170,6 @@ namespace OneJS {
             OnReload?.Invoke();
             if (_uiDocument.rootVisualElement != null) {
                 _uiDocument.rootVisualElement.Clear();
-                _uiDocument.rootVisualElement.styleSheets.Clear();
             }
         }
 
