@@ -56,8 +56,7 @@ namespace OneJS {
         /// <summary>
         /// Use this method to subscribe to an event on an object regardless of JS engine.
         ///
-        /// NOTE: There's now a `subscribe` method on the JS side that does the same thing and also supports static events.
-        /// Use `import { subscribe } from 'onejs-core/utils'` to use it.
+        /// TODO: remove usage of Puerts.GenericDelegate
         /// </summary>
         /// <param name="eventSource">The object containing the event</param>
         /// <param name="eventName">The name of the event</param>
