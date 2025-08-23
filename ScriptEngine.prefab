@@ -84,7 +84,7 @@ MonoBehaviour:
     whitelistedTypes: []
     blacklistedTypes: []
     savePath: app.d.ts
-    strictAssemblies: 0
+    strictAssemblies: 1
     strictNamespaces: 0
     exact: 0
     whitelistOnly: 0
