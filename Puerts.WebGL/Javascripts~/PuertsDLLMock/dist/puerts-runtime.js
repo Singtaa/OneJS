@@ -2757,49 +2757,110 @@ library_1.global.PuertsWebGL = {
                         }
                         function mockRequire(specifier) {
                             const result = { exports: {} };
+
+                            // 1) Cache hit (supports partial exports from ongoing init)
                             const foundCacheSpecifier = tryFindAndGetFindedSpecifier(specifier, executeModuleCache);
                             if (foundCacheSpecifier) {
                                 result.exports = executeModuleCache[foundCacheSpecifier];
+                                return result.exports;
                             }
-                            else {
-                                const foundSpecifier = tryFindAndGetFindedSpecifier(specifier, PUERTS_JS_RESOURCES);
-                                if (!foundSpecifier) {
-                                    throw new Error('module not found: ' + specifier);
-                                }
+
+                            // 2) Built-in bundled module (PUERTS_JS_RESOURCES)
+                            const foundSpecifier = tryFindAndGetFindedSpecifier(specifier, PUERTS_JS_RESOURCES);
+                            if (foundSpecifier) {
                                 specifier = foundSpecifier;
-                                executeModuleCache[specifier] = -1;
+
+                                // Expose partial exports early to support circular deps
+                                executeModuleCache[specifier] = result.exports;
+
                                 try {
-                                    PUERTS_JS_RESOURCES[specifier](result.exports, function mRequire(specifierTo) {
-                                        return mockRequire(loaderResolve ? loaderResolve(specifierTo, specifier) : normalize(specifier, specifierTo));
-                                    }, result);
-                                }
-                                catch (e) {
+                                    PUERTS_JS_RESOURCES[specifier](
+                                        result.exports,
+                                        function mRequire(specifierTo) {
+                                            return mockRequire(
+                                                loaderResolve
+                                                    ? loaderResolve(specifierTo, specifier)
+                                                    : normalize(specifier, specifierTo)
+                                            );
+                                        },
+                                        result
+                                    );
+                                } catch (e) {
                                     delete executeModuleCache[specifier];
                                     throw e;
                                 }
+
+                                // Update cache in case module reassigned module.exports
                                 executeModuleCache[specifier] = result.exports;
+                                return result.exports;
                             }
-                            return result.exports;
-                            function tryFindAndGetFindedSpecifier(specifier, obj) {
-                                let tryFindName = [specifier];
-                                if (specifier.indexOf('.') == -1)
-                                    tryFindName = tryFindName.concat([specifier + '.js', specifier + '.ts', specifier + '.mjs', specifier + '.mts']);
+
+                            // 3) Capitalized module → map to CS.* (mirrors esbuild plugin behavior)
+                            if (/^[A-Z]/.test(specifier)) {
+                                const csObj = getCSModule(specifier); // throws if not found
+                                executeModuleCache[specifier] = csObj; // cache the resolved CS object
+                                return csObj;
+                            }
+
+                            // 4) Nothing matched
+                            throw new Error("module not found: " + specifier);
+
+                            // --- helpers ---
+
+                            // Try exact, common extensions, and directory index forms
+                            function tryFindAndGetFindedSpecifier(spec, obj) {
+                                let tryFindName = [spec];
+
+                                // If no explicit extension, also try common extensions
+                                if (spec.indexOf(".") == -1) {
+                                    tryFindName = tryFindName.concat([
+                                        spec + ".js",
+                                        spec + ".ts",
+                                        spec + ".mjs",
+                                        spec + ".mts"
+                                    ]);
+                                }
+
+                                // Always try directory "index" forms
+                                const indexBase = spec.endsWith("/") ? (spec + "index") : (spec + "/index");
+                                tryFindName = tryFindName.concat([
+                                    indexBase,
+                                    indexBase + ".js",
+                                    indexBase + ".ts",
+                                    indexBase + ".mjs",
+                                    indexBase + ".mts"
+                                ]);
+
                                 let finded = tryFindName.reduce((ret, name, index) => {
-                                    if (ret !== false)
-                                        return ret;
+                                    if (ret !== false) return ret;
                                     if (name in obj) {
-                                        if (obj[name] == -1)
-                                            throw new Error(`circular dependency is detected when requiring "${name}"`);
+                                        // allow partially-initialized exports (supports circular deps)
                                         return index;
                                     }
                                     return false;
                                 }, false);
-                                if (finded === false) {
-                                    return null;
+
+                                if (finded === false) return null;
+                                return tryFindName[finded];
+                            }
+
+                            // Resolve "My/Module" -> CS.My.Module and walk properties
+                            function getCSModule(name) {
+                                if (typeof CS === "undefined") {
+                                    throw new Error('CS is not defined when requiring "' + name + '"');
                                 }
-                                else {
-                                    return tryFindName[finded];
+                                const dotted = name.replace(/\//g, ".");
+                                const parts = dotted.split(".").filter(p => p.length > 0);
+
+                                let cur = CS;
+                                for (let i = 0; i < parts.length; i++) {
+                                    const key = parts[i];
+                                    // if (!(key in cur)) {
+                                    //     throw new Error('CS module not found: "' + name + '" at "' + key + '"');
+                                    // }
+                                    cur = cur[key];
                                 }
+                                return cur;
                             }
                         }
                         const requireRet = mockRequire(fileName);

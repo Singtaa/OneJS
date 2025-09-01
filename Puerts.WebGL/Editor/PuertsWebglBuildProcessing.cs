@@ -72,7 +72,7 @@ public class PuertsWebglBuildProcessing : IPreprocessBuildWithReport, IPostproce
         var resourcesPatterns = new List<string> {
             Application.dataPath + "/**/Resources/**/*.mjs",
             Application.dataPath + "/**/Resources/**/*.cjs",
-            Path.Combine(WebglRoot, "**/Resources/**/*.mjs")
+            Path.Combine(Path.GetDirectoryName(WebglRoot)!, "**/Resources/**/*.mjs")
         };
 
         var unittestPath = Path.GetFullPath("Packages/com.tencent.puerts.unittest/");
