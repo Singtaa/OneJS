@@ -54,6 +54,7 @@ namespace OneJS {
         UIDocument _uiDocument;
         Document _document;
         Resource _resource;
+        ILoader _jsEnvLoader;
         int _tick;
 
         Action<string, object> _addToGlobal;
@@ -63,6 +64,8 @@ namespace OneJS {
         void Awake() {
             _uiDocument = GetComponent<UIDocument>();
             _resource = new Resource(this);
+            if (_jsEnvLoader == null)
+                _jsEnvLoader = new DefaultLoader(Path.Combine(WorkingDir, basePath));
         }
 
         void OnEnable() {
@@ -168,6 +171,7 @@ namespace OneJS {
          */
         public void Refresh() {
             OnReload?.Invoke();
+            _document.clearRuntimeStyleSheets();
             if (_uiDocument.rootVisualElement != null) {
                 _uiDocument.rootVisualElement.Clear();
             }
@@ -178,11 +182,7 @@ namespace OneJS {
                 _jsEnv.Dispose();
             }
 
-            if (debuggerSupport) {
-                _jsEnv = new JsEnv(new DefaultLoader(Path.Combine(WorkingDir, basePath)), port);
-            } else {
-                _jsEnv = new JsEnv();
-            }
+            _jsEnv = new JsEnv(_jsEnvLoader, debuggerSupport ? port : -1);
 
 #if UNITY_WEBGL
             _jsEnv.Eval("globalThis.ONEJS_WEBGL = true;");
@@ -245,6 +245,10 @@ namespace OneJS {
         /// <param name="chunkName">The name of the chunk</param>
         public void Eval(string code, string chunkName = "chunk") {
             _jsEnv.Eval(code, chunkName);
+        }
+
+        public void SetJsEnvLoader(ILoader loader) {
+            _jsEnvLoader = loader;
         }
         #endregion
 
