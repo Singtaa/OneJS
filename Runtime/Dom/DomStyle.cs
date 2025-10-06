@@ -798,7 +798,6 @@ namespace OneJS.Dom {
             set {
                 if (value is string s) {
                     var transitions = s.Split(',');
-
                     var properties = new List<StylePropertyName>();
                     var durations = new List<TimeValue>();
                     var easingFunctions = new List<EasingFunction>();
@@ -1280,23 +1279,23 @@ namespace OneJS.Dom {
             }
 
             if (value is string s) {
-                var parts = s.Replace("px", "").Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                var parts = s.Replace("px", "", StringComparison.OrdinalIgnoreCase).Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 1) {
-                    if (float.TryParse(parts[0], out var l)) {
+                    if (TryParseFloat(parts[0], out var l)) {
                         __setBorderWidths(_dom, l, l, l, l);
                     }
                 } else if (parts.Length == 2) {
-                    if (float.TryParse(parts[0], out var tb) && float.TryParse(parts[1], out var lr)) {
+                    if (TryParseFloat(parts[0], out var tb) && TryParseFloat(parts[1], out var lr)) {
                         __setBorderWidths(_dom, tb, lr, tb, lr);
                     }
                 } else if (parts.Length == 3) {
-                    if (float.TryParse(parts[0], out var t) && float.TryParse(parts[1], out var lr) &&
-                        float.TryParse(parts[2], out var b)) {
+                    if (TryParseFloat(parts[0], out var t) && TryParseFloat(parts[1], out var lr) &&
+                        TryParseFloat(parts[2], out var b)) {
                         __setBorderWidths(_dom, t, lr, b, lr);
                     }
                 } else if (parts.Length == 4) {
-                    if (float.TryParse(parts[0], out var t) && float.TryParse(parts[1], out var r) &&
-                        float.TryParse(parts[2], out var b) && float.TryParse(parts[3], out var l)) {
+                    if (TryParseFloat(parts[0], out var t) && TryParseFloat(parts[1], out var r) &&
+                        TryParseFloat(parts[2], out var b) && TryParseFloat(parts[3], out var l)) {
                         __setBorderWidths(_dom, t, r, b, l);
                     }
                 }
@@ -1600,7 +1599,7 @@ namespace OneJS.Dom {
             if (value is string s) {
                 var match = rotateRegex.Match(s);
                 if (match.Success) {
-                    float f = float.Parse(match.Groups[1].Value);
+                    float f = float.Parse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture);
                     var unit = match.Groups[2].Value.ToLower();
                     AngleUnit angleUnit = AngleUnit.Degree; // Default to Degree
 
@@ -1655,12 +1654,12 @@ namespace OneJS.Dom {
             if (value is string s) {
                 var parts = s.Split(new char[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 1) {
-                    if (float.TryParse(parts[0], out var l)) {
+                    if (TryParseFloat(parts[0], out var l)) {
                         styleScale = new Scale(new Vector2(l, l));
                         return true;
                     }
                 } else if (parts.Length == 2) {
-                    if (float.TryParse(parts[0], out var x) && float.TryParse(parts[1], out var y)) {
+                    if (TryParseFloat(parts[0], out var x) && TryParseFloat(parts[1], out var y)) {
                         styleScale = new Scale(new Vector2(x, y));
                         return true;
                     }
@@ -1792,7 +1791,7 @@ namespace OneJS.Dom {
                 foreach (var part in parts) {
                     var match = timeRegex.Match(part);
                     if (match.Success) {
-                        float f = float.Parse(match.Groups[1].Value);
+                        float f = float.Parse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture);
                         var unit = match.Groups[2].Value.ToLower();
                         TimeUnit timeUnit = TimeUnit.Second; // Default to Second
 
@@ -1818,7 +1817,7 @@ namespace OneJS.Dom {
                 for (int i = 0; i < jsObj.Get<int>("length"); i++) {
                     var match = timeRegex.Match(jsObj.Get<string>(i.ToString()));
                     if (match.Success) {
-                        float f = float.Parse(match.Groups[1].Value);
+                        float f = float.Parse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture);
                         var unit = match.Groups[2].Value.ToLower();
                         TimeUnit timeUnit = TimeUnit.Second; // Default to Second
 
@@ -2114,6 +2113,29 @@ namespace OneJS.Dom {
 
         public static bool TryParseColorString(string s, out Color color) {
             return ColorUtility.TryParseHtmlString(s, out color);
+        }
+        
+        public static bool TryParseFloat(string token, out float value) {
+            token = token.Trim();
+
+            // Primary: CSS-style invariant (dot as decimal point)
+            if (float.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+                return true;
+
+            // Fallback: user's current culture (e.g., comma decimals)
+            if (float.TryParse(token, NumberStyles.Float, CultureInfo.CurrentCulture, out value))
+                return true;
+
+            // Extra tolerant path: if it looks like a comma-decimal, normalize to dot and retry invariant
+            var nfi = CultureInfo.CurrentCulture.NumberFormat;
+            if (token.IndexOf(',') >= 0 && token.IndexOf('.') < 0 && nfi.NumberDecimalSeparator == ",") {
+                var normalized = token.Replace(',', '.');
+                if (float.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+                    return true;
+            }
+
+            value = 0f;
+            return false;
         }
 
         static void __setBorderColors(Dom dom, Color t, Color r, Color b, Color l) {
