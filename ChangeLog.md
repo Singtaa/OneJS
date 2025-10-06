@@ -1,4 +1,12 @@
-﻿# [2025-07-27] v2.2.5
+﻿# [2025-10-05] v2.2.7
+
+- Puerts filepath handling with spaces
+- CI Mac shell fix
+- Added ScriptEngine.Refresh()
+- More webgl build tweaks
+- Tighter GetLength() in DomStyle
+
+# [2025-07-27] v2.2.5
 
 - SimpleGrid bugfix
 - Game UIs CI test
