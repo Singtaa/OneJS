@@ -2067,26 +2067,47 @@ namespace OneJS.Dom {
 
         #region Static Utils
         public static bool GetLength(object value, out Length lengthValue) {
-            if (value is string s) {
-                // Attempt to parse the string for length values (e.g., "100px", "50%")
-                if (s.EndsWith("px")) {
-                    if (float.TryParse(s.Substring(0, s.Length - 2), NumberStyles.Float, CultureInfo.InvariantCulture, out var pixelValue)) {
-                        lengthValue = new Length(pixelValue);
-                        return true;
-                    }
-                } else if (s.EndsWith("%")) {
-                    if (float.TryParse(s.Substring(0, s.Length - 1), NumberStyles.Float, CultureInfo.InvariantCulture, out var percentValue)) {
-                        lengthValue = new Length(percentValue, LengthUnit.Percent);
-                        return true;
-                    }
-                } else if (float.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var normalValue)) {
-                    lengthValue = new Length(normalValue);
-                    return true;
-                }
-            } else if (value is double doubleValue) {
-                lengthValue = new Length((float)doubleValue);
-                return true;
+            static bool TryNum(ReadOnlySpan<char> span, out float v) {
+                const NumberStyles style = NumberStyles.Float;
+                // Try current culture first (handles "12,5"), then invariant (handles "12.5")
+                if (float.TryParse(span, style, CultureInfo.CurrentCulture, out v)) return true;
+                if (float.TryParse(span, style, CultureInfo.InvariantCulture, out v)) return true;
+                return false;
             }
+
+            if (value is string s) {
+                s = s.Trim();
+                var span = s.AsSpan();
+
+                if (span.Length >= 2 && span.EndsWith("px".AsSpan(), StringComparison.OrdinalIgnoreCase)) {
+                    var num = span[..^2].TrimEnd();
+                    if (TryNum(num, out var px)) {
+                        lengthValue = new Length(px);
+                        return true;
+                    }
+                } else if (span.Length >= 1 && span.EndsWith("%".AsSpan(), StringComparison.Ordinal)) {
+                    var num = span[..^1].TrimEnd();
+                    if (TryNum(num, out var pct)) {
+                        lengthValue = new Length(pct, LengthUnit.Percent);
+                        return true;
+                    }
+                } else {
+                    if (TryNum(span, out var val)) {
+                        lengthValue = new Length(val);
+                        return true;
+                    }
+                }
+            } else if (value is IConvertible c) {
+                try {
+                    lengthValue = new Length(Convert.ToSingle(c, CultureInfo.CurrentCulture));
+                    return true;
+                } catch { }
+                try {
+                    lengthValue = new Length(Convert.ToSingle(c, CultureInfo.InvariantCulture));
+                    return true;
+                } catch { }
+            }
+
             lengthValue = default;
             return false;
         }
