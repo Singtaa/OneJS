@@ -3,83 +3,114 @@ using System.Text.RegularExpressions;
 
 namespace OneJS.CustomStyleSheets {
     public static class CSSSpec {
-        private static readonly Regex rgx =
-            new Regex(
-                "(?<id>#[-]?\\w[\\w-]*)|(?<class>\\.[\\w-]+)|(?<pseudoclass>:[\\w-]+(\\((?<param>.+)\\))?)|(?<type>[^\\-]\\w+)|(?<wildcard>\\*)|\\s+",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private const int typeSelectorWeight = 1;
-        private const int classSelectorWeight = 10;
-        private const int idSelectorWeight = 100;
-
         public static int GetSelectorSpecificity(string selector) {
-            int selectorSpecificity = 0;
+            int result = 0;
             StyleSelectorPart[] parts;
-            if (CSSSpec.ParseSelector(selector, out parts))
-                selectorSpecificity = CSSSpec.GetSelectorSpecificity(parts);
-            return selectorSpecificity;
+            bool flag = CSSSpec.ParseSelector(selector, out parts);
+            if (flag) {
+                result = CSSSpec.GetSelectorSpecificity(parts);
+            }
+            return result;
         }
 
+        // Token: 0x06003A6B RID: 14955 RVA: 0x000E4930 File Offset: 0x000E2B30
         public static int GetSelectorSpecificity(StyleSelectorPart[] parts) {
-            int selectorSpecificity = 1;
-            for (int index = 0; index < parts.Length; ++index) {
-                switch (parts[index].type) {
+            int num = 1;
+            for (int i = 0; i < parts.Length; i++) {
+                switch (parts[i].type) {
                     case StyleSelectorType.Type:
-                        ++selectorSpecificity;
+                        num++;
                         break;
                     case StyleSelectorType.Class:
                     case StyleSelectorType.PseudoClass:
-                        selectorSpecificity += 10;
+                        num += 10;
                         break;
                     case StyleSelectorType.RecursivePseudoClass:
                         throw new ArgumentException("Recursive pseudo classes are not supported");
                     case StyleSelectorType.ID:
-                        selectorSpecificity += 100;
+                        num += 100;
                         break;
                 }
             }
-            return selectorSpecificity;
+            return num;
         }
 
+        // Token: 0x06003A6C RID: 14956 RVA: 0x000E49AC File Offset: 0x000E2BAC
+        public static bool ValidateSelector(string selector) {
+            return CSSSpec.rgx.Matches(selector).Count > 0;
+        }
+
+        // Token: 0x06003A6D RID: 14957 RVA: 0x000E49D4 File Offset: 0x000E2BD4
         public static bool ParseSelector(string selector, out StyleSelectorPart[] parts) {
             MatchCollection matchCollection = CSSSpec.rgx.Matches(selector);
             int count = matchCollection.Count;
-            if (count < 1) {
-                parts = (StyleSelectorPart[])null;
-                return false;
-            }
-            parts = new StyleSelectorPart[count];
-            for (int i = 0; i < count; ++i) {
-                Match match = matchCollection[i];
-                StyleSelectorType styleSelectorType = StyleSelectorType.Unknown;
-                string str1 = string.Empty;
-                if (!string.IsNullOrEmpty(match.Groups["wildcard"].Value)) {
-                    str1 = "*";
-                    styleSelectorType = StyleSelectorType.Wildcard;
-                } else if (!string.IsNullOrEmpty(match.Groups["id"].Value)) {
-                    str1 = match.Groups["id"].Value.Substring(1);
-                    styleSelectorType = StyleSelectorType.ID;
-                } else if (!string.IsNullOrEmpty(match.Groups["class"].Value)) {
-                    str1 = match.Groups["class"].Value.Substring(1);
-                    styleSelectorType = StyleSelectorType.Class;
-                } else if (!string.IsNullOrEmpty(match.Groups["pseudoclass"].Value)) {
-                    string str2 = match.Groups["param"].Value;
-                    if (!string.IsNullOrEmpty(str2)) {
-                        str1 = str2;
-                        styleSelectorType = StyleSelectorType.RecursivePseudoClass;
+            bool flag = count < 1;
+            bool result;
+            if (flag) {
+                parts = null;
+                result = false;
+            } else {
+                parts = new StyleSelectorPart[count];
+                for (int i = 0; i < count; i++) {
+                    Match match = matchCollection[i];
+                    StyleSelectorType type = StyleSelectorType.Unknown;
+                    string value = string.Empty;
+                    bool flag2 = !string.IsNullOrEmpty(match.Groups["wildcard"].Value);
+                    if (flag2) {
+                        value = "*";
+                        type = StyleSelectorType.Wildcard;
                     } else {
-                        str1 = match.Groups["pseudoclass"].Value.Substring(1);
-                        styleSelectorType = StyleSelectorType.PseudoClass;
+                        bool flag3 = !string.IsNullOrEmpty(match.Groups["id"].Value);
+                        if (flag3) {
+                            value = match.Groups["id"].Value.Substring(1);
+                            type = StyleSelectorType.ID;
+                        } else {
+                            bool flag4 = !string.IsNullOrEmpty(match.Groups["class"].Value);
+                            if (flag4) {
+                                value = match.Groups["class"].Value.Substring(1);
+                                type = StyleSelectorType.Class;
+                            } else {
+                                bool flag5 = !string.IsNullOrEmpty(match.Groups["pseudoclass"].Value);
+                                if (flag5) {
+                                    string value2 = match.Groups["param"].Value;
+                                    bool flag6 = !string.IsNullOrEmpty(value2);
+                                    if (flag6) {
+                                        value = value2;
+                                        type = StyleSelectorType.RecursivePseudoClass;
+                                    } else {
+                                        value = match.Groups["pseudoclass"].Value.Substring(1);
+                                        type = StyleSelectorType.PseudoClass;
+                                    }
+                                } else {
+                                    bool flag7 = !string.IsNullOrEmpty(match.Groups["type"].Value);
+                                    if (flag7) {
+                                        value = match.Groups["type"].Value;
+                                        type = StyleSelectorType.Type;
+                                    }
+                                }
+                            }
+                        }
                     }
-                } else if (!string.IsNullOrEmpty(match.Groups["type"].Value)) {
-                    str1 = match.Groups["type"].Value;
-                    styleSelectorType = StyleSelectorType.Type;
+                    parts[i] = new StyleSelectorPart {
+                        type = type,
+                        value = value
+                    };
                 }
-                parts[i] = new StyleSelectorPart() {
-                    type = styleSelectorType,
-                    value = str1
-                };
+                result = true;
             }
-            return true;
+            return result;
         }
+
+        // Token: 0x04001D3E RID: 7486
+        private static readonly Regex rgx = new Regex("(?<id>#[-]?\\w[\\w-]*)|(?<class>\\.[\\w-]+)|(?<pseudoclass>:[\\w-]+(\\((?<param>.+)\\))?)|(?<type>([^\\-]\\w+|\\w+))|(?<wildcard>\\*)|\\s+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        // Token: 0x04001D3F RID: 7487
+        private const int typeSelectorWeight = 1;
+
+        // Token: 0x04001D40 RID: 7488
+        private const int classSelectorWeight = 10;
+
+        // Token: 0x04001D41 RID: 7489
+        private const int idSelectorWeight = 100;
     }
 }

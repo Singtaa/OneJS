@@ -7,6 +7,15 @@ namespace OneJS.CustomStyleSheets {
     public class StyleSheetBuilderWrapper {
         Type _type;
         object _instance;
+        
+        // MOD: Expose currentProperty StyleValueImporter
+        public object currentProperty { // StyleProperty is internal
+            get {
+                var propertyInfo = _type.GetProperty("currentProperty");
+                var original = propertyInfo.GetValue(_instance);
+                return original;
+            }
+        }
 
         public StyleSheetBuilderWrapper() {
             _type = typeof(VisualElement).Assembly.GetType("UnityEngine.UIElements.StyleSheets.StyleSheetBuilder");

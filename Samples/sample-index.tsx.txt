@@ -7,6 +7,9 @@ import { Angle, ArcDirection, MeshGenerationContext, RuntimePanelUtils, TextElem
 import { forwardRef } from "onejs-preact/compat"
 import { Slider } from "onejs-comps"
 
+// URP build can strip the default shader if you don't have any MeshRenderer reference
+// in the scene. You can simply add an off screen cube (anything with a MeshRenderer works)
+// to workaround this issue.
 let shader = Shader.Find("Universal Render Pipeline/Lit")
 if (!shader) {
     shader = Shader.Find("Standard")
@@ -36,7 +39,7 @@ function createRandomBall() {
     mat = CS.UnityEngine.Object.Instantiate(mat) as Material
     mat.color = parseColor(palettes[Mathf.RoundToInt(Random.Range(0, 99))][2])
     ball.GetComp(MeshRenderer).material = mat
-    ball.transform.position = Vector3.op_Multiply(Random.insideUnitSphere, 2)
+    ball.transform.position = Vector3.Scale(Random.insideUnitSphere, new Vector3(2, 2, 2))
     let rb = ball.AddComp(Rigidbody)
     rb.collisionDetectionMode = CollisionDetectionMode.Continuous
     rb.drag = 0.3

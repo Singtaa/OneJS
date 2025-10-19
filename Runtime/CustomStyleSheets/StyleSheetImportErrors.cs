@@ -1,7 +1,8 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEditor.UIElements.StyleSheets;
+using UnityEngine;
 
 namespace OneJS.CustomStyleSheets {
     public enum StyleSheetImportErrorType {
@@ -34,33 +35,60 @@ namespace OneJS.CustomStyleSheets {
 
         public string assetPath { get; set; }
 
-        public void AddSyntaxError(string message, int line) => this.m_Errors.Add(
-            new StyleSheetImportError(StyleSheetImportErrorType.Syntax, StyleSheetImportErrorCode.None, this.assetPath,
-                message, line));
+        public StyleSheetImporter.ErrorHandling unsupportedSelectorAction { get; set; }
 
-        public void AddSemanticError(StyleSheetImportErrorCode code, string message, int line) => this.m_Errors.Add(
-            new StyleSheetImportError(StyleSheetImportErrorType.Semantic, code, this.assetPath, message, line));
+        public StyleSheetImporter.ErrorHandling unsupportedTermAction { get; set; }
 
-        public void AddSemanticWarning(StyleSheetImportErrorCode code, string message, int line) => this.m_Errors.Add(
-            new StyleSheetImportError(StyleSheetImportErrorType.Semantic, code, this.assetPath, message, line, true));
+        public bool hasErrors => m_Errors.Any((StyleSheetImportError e) => !e.isWarning);
 
-        public void AddInternalError(string message, int line = -1) => this.m_Errors.Add(
-            new StyleSheetImportError(StyleSheetImportErrorType.Internal, StyleSheetImportErrorCode.None,
-                this.assetPath, message, line));
+        public bool hasWarning => m_Errors.Any((StyleSheetImportError e) => e.isWarning);
 
-        public void AddValidationWarning(string message, int line) => this.m_Errors.Add(
-            new StyleSheetImportError(StyleSheetImportErrorType.Validation, StyleSheetImportErrorCode.InvalidProperty,
-                this.assetPath, message, line, true));
+        private StyleSheetImporter.ErrorHandling GetHandling(StyleSheetImportErrorCode errorType, StyleSheetImporter.ErrorHandling defaultHandling) {
+            switch (errorType) {
+                case StyleSheetImportErrorCode.UnsupportedTerm:
+                    return (StyleSheetImporter.ErrorHandling)Mathf.Max((int)unsupportedTermAction, (int)defaultHandling);
+                default:
+                    if (errorType != StyleSheetImportErrorCode.RecursiveSelectorDetected) {
+                        return defaultHandling;
+                    }
+                    goto case StyleSheetImportErrorCode.UnsupportedSelectorFormat;
+                case StyleSheetImportErrorCode.UnsupportedSelectorFormat:
+                    return (StyleSheetImporter.ErrorHandling)Mathf.Max((int)unsupportedSelectorAction, (int)defaultHandling);
+            }
+        }
 
-        public IEnumerator<StyleSheetImportError> GetEnumerator() =>
-            (IEnumerator<StyleSheetImportError>)this.m_Errors.GetEnumerator();
+        public void AddSyntaxError(string message, int line, int column = -1) {
+            m_Errors.Add(new StyleSheetImportError(StyleSheetImportErrorType.Syntax, StyleSheetImportErrorCode.None, assetPath, message, line, column));
+        }
 
-        IEnumerator IEnumerable.GetEnumerator() => (IEnumerator)this.m_Errors.GetEnumerator();
+        public void AddSemanticError(StyleSheetImportErrorCode code, string message, int line, int column = -1) {
+            StyleSheetImporter.ErrorHandling handling = GetHandling(code, StyleSheetImporter.ErrorHandling.Error);
+            if (handling != StyleSheetImporter.ErrorHandling.Ignore) {
+                m_Errors.Add(new StyleSheetImportError(StyleSheetImportErrorType.Semantic, code, assetPath, message, line, column, handling == StyleSheetImporter.ErrorHandling.Warning));
+            }
+        }
 
-        public bool hasErrors =>
-            this.m_Errors.Any<StyleSheetImportError>((Func<StyleSheetImportError, bool>)(e => !e.isWarning));
+        public void AddSemanticWarning(StyleSheetImportErrorCode code, string message, int line) {
+            StyleSheetImporter.ErrorHandling handling = GetHandling(code, StyleSheetImporter.ErrorHandling.Warning);
+            if (handling != StyleSheetImporter.ErrorHandling.Ignore) {
+                m_Errors.Add(new StyleSheetImportError(StyleSheetImportErrorType.Semantic, code, assetPath, message, line, -1, isWarning: true));
+            }
+        }
 
-        public bool hasWarning =>
-            this.m_Errors.Any<StyleSheetImportError>((Func<StyleSheetImportError, bool>)(e => e.isWarning));
+        public void AddInternalError(string message, int line = -1) {
+            m_Errors.Add(new StyleSheetImportError(StyleSheetImportErrorType.Internal, StyleSheetImportErrorCode.None, assetPath, message, line));
+        }
+
+        public void AddValidationWarning(string message, int line, int column = -1) {
+            m_Errors.Add(new StyleSheetImportError(StyleSheetImportErrorType.Validation, StyleSheetImportErrorCode.InvalidProperty, assetPath, message, line, column, isWarning: true));
+        }
+
+        public IEnumerator<StyleSheetImportError> GetEnumerator() {
+            return m_Errors.GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator() {
+            return m_Errors.GetEnumerator();
+        }
     }
 }
