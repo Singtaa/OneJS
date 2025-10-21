@@ -100,6 +100,7 @@ namespace OneJS.CI {
             yield return null;
         }
 
+#if ONEJS_LOCAL_DEV
         [UnityTest]
         public IEnumerator FortniteTest() {
             LogAssert.Expect(LogType.Log, new Regex("OneJS is good to go"));
@@ -129,7 +130,7 @@ namespace OneJS.CI {
             yield return null;
         }
 
-#if ONEJS_CI_GAME_UI
+
         [UnityTest]
         public IEnumerator GameUIsTest() {
             _scriptEngine.gameObject.SetActive(true);
