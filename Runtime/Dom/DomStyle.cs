@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Text;
 using UnityEngine;
 using UnityEngine.UIElements;
 using Cursor = UnityEngine.UIElements.Cursor;
@@ -287,6 +288,16 @@ namespace OneJS.Dom {
                     veStyle.display = styleEnum;
             }
         }
+
+#if UNITY_6000_3_OR_NEWER
+        public object filter {
+            get => veStyle.filter;
+            set {
+                if (TryParseStyleListFilterFunction(value, out var styleList))
+                    veStyle.filter = styleList;
+            }
+        }
+#endif
 
         public object flexBasis {
             get => veStyle.flexBasis;
@@ -823,6 +834,8 @@ namespace OneJS.Dom {
         }
         #endregion
 
+        // MARK: - Fast Path
+
         #region Fast Path
         public void SetAlignContent(Align value) => veStyle.alignContent = new StyleEnum<Align>(value);
         public void SetAlignItems(Align value) => veStyle.alignItems = new StyleEnum<Align>(value);
@@ -863,6 +876,10 @@ namespace OneJS.Dom {
         public void SetColor(Color value) => veStyle.color = new StyleColor(value);
         public void SetCursor(Cursor value) => veStyle.cursor = new StyleCursor(value);
         public void SetDisplay(DisplayStyle value) => veStyle.display = new StyleEnum<DisplayStyle>(value);
+#if UNITY_6000_3_OR_NEWER
+        public void SetFilter(List<FilterFunction> value) => veStyle.filter = value;
+        public void SetFilter(FilterFunction value) => veStyle.filter = new List<FilterFunction> { value };
+#endif
         public void SetFlexBasis(StyleLength value) => veStyle.flexBasis = value;
         public void SetFlexDirection(FlexDirection value) => veStyle.flexDirection = new StyleEnum<FlexDirection>(value);
         public void SetFlexGrow(float value) => veStyle.flexGrow = new StyleFloat(value);
@@ -929,6 +946,8 @@ namespace OneJS.Dom {
         public void SetWidth(Length value) => veStyle.width = value;
         public void SetWordSpacing(Length value) => veStyle.wordSpacing = value;
         #endregion
+
+        // MARK: - Parse Styles
 
         #region ParseStyles
         bool TryParseStyleEnum<T>(object value, out StyleEnum<T> styleEnum) where T : struct, IConvertible {
@@ -1030,6 +1049,7 @@ namespace OneJS.Dom {
             styleBackground = default;
             return false;
         }
+
 #if UNITY_2022_1_OR_NEWER
         bool TryParseStyleBackgroundSize(object value, out StyleBackgroundSize styleBackgroundSize) {
             if (value is string ss && StyleKeyword.TryParse(ss, true, out StyleKeyword keyword)) {
@@ -2062,6 +2082,250 @@ namespace OneJS.Dom {
             styleInt = default;
             return false;
         }
+
+#if UNITY_6000_3_OR_NEWER
+        bool TryParseStyleListFilterFunction(object value, out StyleList<FilterFunction> styleListFilter) {
+            // Keywords: none, initial, inherit, etc.
+            if (value is string sk && StyleKeyword.TryParse(sk, true, out StyleKeyword kw)) {
+                // styleListFilter = new StyleList<FilterFunction>(kw); // setting kw like this will throw
+                styleListFilter = new List<FilterFunction>(); // so just use empty instead
+                return true;
+            }
+            if (value == null) {
+                styleListFilter = new StyleList<FilterFunction>(StyleKeyword.Null);
+                return true;
+            }
+            if (value is StyleList<FilterFunction> sll) {
+                styleListFilter = sll;
+                return true;
+            }
+            if (value is List<FilterFunction> lf) {
+                styleListFilter = new StyleList<FilterFunction>(lf);
+                return true;
+            }
+
+            // Common case: CSS string like "blur(4px) brightness(0.9) drop-shadow(2px 4px 6px #0008)"
+            if (value is string s) {
+                var list = ParseFilterFunctionsFromString(s);
+                styleListFilter = new StyleList<FilterFunction>(list);
+                return true;
+            }
+
+            // JS array support (accept array of function strings or a single CSS string)
+            if (value is Puerts.JSObject js) {
+                var list = new List<FilterFunction>();
+                int len = js.Get<int>("length");
+                for (int i = 0; i < len; i++) {
+                    // Each element may be "blur(4px)" or a whole "blur(...) brightness(...)" chunk
+                    var part = js.Get<string>(i.ToString());
+                    var sub = ParseFilterFunctionsFromString(part);
+                    list.AddRange(sub);
+                }
+                styleListFilter = new StyleList<FilterFunction>(list);
+                return true;
+            }
+
+            styleListFilter = default;
+            return false;
+        }
+
+        List<FilterFunction> ParseFilterFunctionsFromString(string input) {
+            var results = new List<FilterFunction>();
+            if (string.IsNullOrWhiteSpace(input)) return results;
+
+            // Split by filter functions: name(args)
+            // Matches: "blur(4px)", "brightness(0.5)", "drop-shadow(2px 4px 6px rgba(0,0,0,.35))", etc.
+            var rx = new Regex(@"([a-zA-Z-]+)\(([^)]*)\)");
+            var matches = rx.Matches(input);
+
+            foreach (Match m in matches) {
+                var name = m.Groups[1].Value.Trim().ToLowerInvariant();
+                var args = m.Groups[2].Value.Trim();
+
+                switch (name) {
+                    case "blur": {
+                        // blur(<length>)
+                        if (TryParseLengthFloat(args, out float radius)) {
+                            var ff = new FilterFunction(FilterFunctionType.Blur);
+                            ff.AddParameter(new FilterParameter(radius));
+                            results.Add(ff);
+                        }
+                        break;
+                    }
+                    case "contrast": {
+                        if (TryParsePercentOrFloat(args, out float v)) {
+                            var ff = new FilterFunction(FilterFunctionType.Contrast);
+                            ff.AddParameter(new FilterParameter(v));
+                            results.Add(ff);
+                        }
+                        break;
+                    }
+                    case "grayscale": {
+                        if (TryParsePercentOrFloat(args, out float v)) {
+                            var ff = new FilterFunction(FilterFunctionType.Grayscale);
+                            ff.AddParameter(new FilterParameter(v));
+                            results.Add(ff);
+                        }
+                        break;
+                    }
+                    case "sepia": {
+                        if (TryParsePercentOrFloat(args, out float v)) {
+                            var ff = new FilterFunction(FilterFunctionType.Sepia);
+                            ff.AddParameter(new FilterParameter(v));
+                            results.Add(ff);
+                        }
+                        break;
+                    }
+                    case "invert": {
+                        if (TryParsePercentOrFloat(args, out float v)) {
+                            var ff = new FilterFunction(FilterFunctionType.Invert);
+                            ff.AddParameter(new FilterParameter(v));
+                            results.Add(ff);
+                        }
+                        break;
+                    }
+                    case "opacity": {
+                        if (TryParsePercentOrFloat(args, out float v)) {
+                            var ff = new FilterFunction(FilterFunctionType.Opacity);
+                            ff.AddParameter(new FilterParameter(v));
+                            results.Add(ff);
+                        }
+                        break;
+                    }
+                    case "hue-rotate": {
+                        // hue-rotate(<angle>) supports deg|rad|turn|grad
+                        if (TryParseAngleDegrees(args, out float deg)) {
+                            var ff = new FilterFunction(FilterFunctionType.HueRotate);
+                            ff.AddParameter(new FilterParameter(deg));
+                            results.Add(ff);
+                        }
+                        break;
+                    }
+                    // case "drop-shadow": {
+                    //     // drop-shadow(<offset-x> <offset-y> [<blur-radius>] [<color>])
+                    //     // color can be before/after the lengths, so we need tolerant tokenization
+                    //     var tokens = TokenizeArgs(args);
+                    //     float ox = 0, oy = 0, blur = 0;
+                    //     bool haveOx = false, haveOy = false, haveBlur = false, haveColor = false;
+                    //     Color color = Color.black;
+                    //
+                    //     foreach (var t in tokens) {
+                    //         if (!haveColor && TryParseColorString(t, out var c)) {
+                    //             color = c;
+                    //             haveColor = true;
+                    //             continue;
+                    //         }
+                    //         if (!haveOx && TryParseLengthFloat(t, out var v0)) {
+                    //             ox = v0;
+                    //             haveOx = true;
+                    //             continue;
+                    //         }
+                    //         if (!haveOy && TryParseLengthFloat(t, out var v1)) {
+                    //             oy = v1;
+                    //             haveOy = true;
+                    //             continue;
+                    //         }
+                    //         if (!haveBlur && TryParseLengthFloat(t, out var v2)) {
+                    //             blur = v2;
+                    //             haveBlur = true;
+                    //             continue;
+                    //         }
+                    //     }
+                    //
+                    //     if (haveOx && haveOy) {
+                    //         var ff = new FilterFunction(FilterFunctionType.DropShadow);
+                    //         ff.AddParameter(new FilterParameter(ox));
+                    //         ff.AddParameter(new FilterParameter(oy));
+                    //         ff.AddParameter(new FilterParameter(blur)); // blur may be 0
+                    //         if (haveColor) ff.AddParameter(new FilterParameter(color));
+                    //         results.Add(ff);
+                    //     }
+                    //     break;
+                    // }
+                    default:
+                        // Unknown filter function — ignore gracefully (or you could log once if desired)
+                        break;
+                }
+            }
+
+            return results;
+        }
+
+        static List<string> TokenizeArgs(string s) {
+            // Splits by spaces/commas while respecting nested (...) like rgba(…)
+            var tokens = new List<string>();
+            var sb = new StringBuilder();
+            int depth = 0;
+            for (int i = 0; i < s.Length; i++) {
+                char ch = s[i];
+                if (ch == '(') depth++;
+                if (ch == ')') depth = Math.Max(0, depth - 1);
+
+                if ((char.IsWhiteSpace(ch) || ch == ',') && depth == 0) {
+                    if (sb.Length > 0) {
+                        tokens.Add(sb.ToString());
+                        sb.Clear();
+                    }
+                } else {
+                    sb.Append(ch);
+                }
+            }
+            if (sb.Length > 0) tokens.Add(sb.ToString());
+            return tokens;
+        }
+#endif
+
+        bool TryParseLengthFloat(string token, out float value) {
+            // Accept "4px", "12", "0.5" etc. We just need a float (px assumed).
+            if (GetLength(token, out var l)) {
+                value = l.value;
+                return true;
+            }
+            return TryParseFloat(token, out value);
+        }
+
+        bool TryParsePercentOrFloat(string token, out float value) {
+            token = token.Trim();
+            if (token.EndsWith("%", StringComparison.Ordinal)) {
+                var num = token.Substring(0, token.Length - 1).Trim();
+                if (TryParseFloat(num, out var pct)) {
+                    value = pct / 100f;
+                    return true;
+                }
+                value = 0;
+                return false;
+            }
+            return TryParseFloat(token, out value);
+        }
+
+        bool TryParseAngleDegrees(string token, out float degrees) {
+            // Uses your rotate regex semantics: (-?\d+\.?\d*|\.\d+)(deg|grad|rad|turn)
+            var m = rotateRegex.Match(token);
+            if (!m.Success) {
+                degrees = 0;
+                return false;
+            }
+
+            float f = float.Parse(m.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture);
+            switch (m.Groups[2].Value.ToLowerInvariant()) {
+                case "deg":
+                    degrees = f;
+                    break;
+                case "rad":
+                    degrees = f * (180f / Mathf.PI);
+                    break;
+                case "turn":
+                    degrees = f * 360f;
+                    break;
+                case "grad":
+                    degrees = f * 0.9f;
+                    break; // 400 grad == 360 deg
+                default:
+                    degrees = f;
+                    break;
+            }
+            return true;
+        }
         #endregion
 
         #region Static Utils
@@ -2114,7 +2378,7 @@ namespace OneJS.Dom {
         public static bool TryParseColorString(string s, out Color color) {
             return ColorUtility.TryParseHtmlString(s, out color);
         }
-        
+
         public static bool TryParseFloat(string token, out float value) {
             token = token.Trim();
 

@@ -1,4 +1,9 @@
-﻿OneJS uses the following open source projects:
+﻿OneJS uses the following CC assets:
+
+- wyvern, witch-flight, werewolf, and vile-fluid icons by Lorc under CC BY 3.0
+- vampire-dracula icon by Delapouite under CC BY 3.0
+
+And the following open source projects:
 
 DotNet.Glob (MIT)
 ExCSS (MIT)

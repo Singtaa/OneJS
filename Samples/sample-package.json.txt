@@ -16,10 +16,12 @@
     },
     "dependencies": {
         "@tweenjs/tween.js": "^23.1.2",
-        "onejs-comps": "^0.0.2",
-        "onejs-core": "^1.0.6",
-        "onejs-preact": "^0.3.12",
+        "clsx": "^2.1.1",
         "css-flatten": "^2.0.0",
-        "css-simple-parser": "^3.0.0"
+        "css-simple-parser": "^3.0.0",
+        "onejs-comps": "^0.0.14",
+        "onejs-core": "^2.0.0",
+        "onejs-preact": "^2.0.0",
+        "tailwind-merge": "^2.6.0"
     }
 }

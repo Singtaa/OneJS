@@ -1,0 +1,20 @@
+{
+    "name": "OneJS.CustomStyleSheets.6.3",
+    "rootNamespace": "",
+    "references": [
+        "GUID:7753dd28d63c1784987e886d5a1cce2a"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "ExCSS.Unity.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "UNITY_6000_3_OR_NEWER"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

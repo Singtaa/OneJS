@@ -7,9 +7,6 @@ import { Angle, ArcDirection, MeshGenerationContext, RuntimePanelUtils, TextElem
 import { forwardRef } from "onejs-preact/compat"
 import { Slider } from "onejs-comps"
 
-// URP build can strip the default shader if you don't have any MeshRenderer reference
-// in the scene. You can simply add an off screen cube (anything with a MeshRenderer works)
-// to workaround this issue.
 let shader = Shader.Find("Universal Render Pipeline/Lit")
 if (!shader) {
     shader = Shader.Find("Standard")

@@ -493,6 +493,10 @@ PrefabInstance:
       value: Sample
       objectReference: {fileID: 0}
     - target: {fileID: 9197640398682377884, guid: f99b6aec6fc021f4c9572906776c6555, type: 3}
+      propertyPath: bundleZip
+      value: 
+      objectReference: {fileID: 4900000, guid: 338b48e4e7855774ca7dfc19748ece04, type: 3}
+    - target: {fileID: 9197640398682377884, guid: f99b6aec6fc021f4c9572906776c6555, type: 3}
       propertyPath: outputsZip
       value: 
       objectReference: {fileID: 4900000, guid: 338b48e4e7855774ca7dfc19748ece04, type: 3}

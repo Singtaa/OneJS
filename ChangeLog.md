@@ -1,4 +1,10 @@
-﻿# [2025-10-05] v2.2.7
+﻿# [2025-10-20] v2.3.0 - Updated for Unity 6.3
+
+- Runtime USS rework for Unity 6.3 compat
+- Sample Scene updated for Unity 6.3 (added svg loading and filter usage)
+- Improved float parsing in DomStyle (culture-agnostic)
+
+# [2025-10-05] v2.2.7
 
 - Puerts filepath handling with spaces
 - CI Mac shell fix
