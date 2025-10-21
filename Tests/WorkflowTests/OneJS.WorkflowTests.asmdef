@@ -4,7 +4,9 @@
     "references": [
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
-        "OneJS.Runtime"
+        "OneJS.Runtime",
+        "OneJS.Samples",
+        "com.tencent.puerts.core"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

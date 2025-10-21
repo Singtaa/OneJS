@@ -9,6 +9,7 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UIElements;
 using System.Runtime.InteropServices;
+using OneJS.Samples;
 using Object = UnityEngine.Object;
 
 namespace OneJS.CI {
@@ -18,6 +19,7 @@ namespace OneJS.CI {
         static ScriptEngine _scriptEngine;
         static Bundler _bundler;
         static Runner _runner;
+        static SampleCharacter _sampleCharacter;
 
         // May consider using `Application.logMessageReceived += Catch` for log catching
         // Also note that WaitForEndOfFrame is not supported in batchmode (CI)
@@ -34,21 +36,28 @@ namespace OneJS.CI {
             _mainCamera = cameraGO.AddComponent<Camera>();
             var prefab = LoadFromGUID<GameObject>("f99b6aec6fc021f4c9572906776c6555");
             prefab.SetActive(false);
-            var go = Object.Instantiate(prefab);
+            var scriptEngineGO = Object.Instantiate(prefab);
             prefab.SetActive(true);
 
-            _scriptEngine = go.GetComponent<ScriptEngine>();
-            _bundler = go.GetComponent<Bundler>();
-            _runner = go.GetComponent<Runner>();
+            _scriptEngine = scriptEngineGO.GetComponent<ScriptEngine>();
+            _bundler = scriptEngineGO.GetComponent<Bundler>();
+            _runner = scriptEngineGO.GetComponent<Runner>();
 
             _scriptEngine.editorWorkingDirInfo.relativePath = TMP_TEST_WORKING_DIR;
             _scriptEngine.playerWorkingDirInfo.relativePath = TMP_TEST_WORKING_DIR;
+
+            var samGO = new GameObject("Sample Character");
+            _sampleCharacter = samGO.AddComponent<SampleCharacter>();
+            _scriptEngine.OnPostInit += (jsEnv) => {
+                _scriptEngine.AddToGlobal("sam", _sampleCharacter);
+            };
         }
 
         [OneTimeTearDown]
         public static void OneTimeTearDown() {
             Object.DestroyImmediate(_scriptEngine.gameObject);
             Object.DestroyImmediate(_mainCamera.gameObject);
+            Object.DestroyImmediate(_sampleCharacter.gameObject);
 
             Directory.Delete(_scriptEngine.WorkingDir, true);
         }
@@ -87,6 +96,35 @@ namespace OneJS.CI {
             Assert.AreEqual(20f, allNodes[8].resolvedStyle.borderBottomLeftRadius, "BottomLeftRadius mismatch");
             Assert.AreEqual(30f, allNodes[8].resolvedStyle.rotate.angle.value, "BottomLeftRadius mismatch");
             Assert.AreEqual(Color.red, allNodes[8].resolvedStyle.backgroundColor, "BackgroundColor mismatch");
+
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator FortniteTest() {
+            LogAssert.Expect(LogType.Log, new Regex("OneJS is good to go"));
+            _scriptEngine.gameObject.SetActive(true);
+            _runner.enabled = false;
+            yield return null;
+            yield return null;
+
+            RunCommand($"npm run setup && npx postcss input.css -o ../Assets/tailwind.uss");
+            RunCommand($"npm install fortnite-sample");
+            yield return null;
+            var twss = AssetDatabase.LoadAssetAtPath<StyleSheet>("Assets/tailwind.uss");
+            _scriptEngine.styleSheets = new[] { _scriptEngine.styleSheets[0], twss };
+            yield return null;
+
+            WriteContent("b17b25d1b82a4af2a3eb62785de08671");
+            BuildAndReload();
+
+            yield return null;
+            yield return null;
+
+            var uiDoc = _scriptEngine.GetComponent<UIDocument>();
+            var root = uiDoc.rootVisualElement;
+            var allNodes = root.Query().ToList();
+            Assert.AreEqual(76, allNodes.Count, "Node Count mismatch");
 
             yield return null;
         }

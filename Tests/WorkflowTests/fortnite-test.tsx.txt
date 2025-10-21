@@ -1,0 +1,8 @@
+﻿import { h, render } from "preact"
+import { FortniteSample } from "fortnite-sample"
+ 
+const App = () => {
+    return <FortniteSample />
+}
+ 
+render(<App />, document.body)
