@@ -1,4 +1,10 @@
-﻿# [2025-10-20] v2.3.0 - Updated for Unity 6.3
+﻿# [2025-11-17] v2.3.1
+
+- Fixed regressions in Unity 6.3 Runtime USS where UnityEditor namespaces were still referenced in runtime code.
+
+# [2025-10-20] v2.3.0 - Updated for Unity 6.3
+
+SVG support and uss filters are now built-in!
 
 - Runtime USS rework for Unity 6.3 compat
 - Sample Scene updated for Unity 6.3 (added svg loading and filter usage)
