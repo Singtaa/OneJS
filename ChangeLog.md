@@ -1,4 +1,9 @@
-﻿# [2025-11-17] v2.3.1
+﻿# [2025-11-28] v2.3.2 - Minor Fixes
+
+- Fixed ExCSS.Unity issue on Unity 2022.3
+- Fixed WebGL Playmode issue with `document` not being set
+
+# [2025-11-17] v2.3.1
 
 - Fixed regressions in Unity 6.3 Runtime USS where UnityEditor namespaces were still referenced in runtime code.
 
