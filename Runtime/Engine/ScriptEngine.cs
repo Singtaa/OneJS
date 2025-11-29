@@ -184,7 +184,7 @@ namespace OneJS {
 
             _jsEnv = new JsEnv(_jsEnvLoader, debuggerSupport ? port : -1);
 
-#if UNITY_WEBGL
+#if UNITY_WEBGL && UNITY_STANDALONE
             _jsEnv.Eval("globalThis.ONEJS_WEBGL = true;");
 #endif
 
