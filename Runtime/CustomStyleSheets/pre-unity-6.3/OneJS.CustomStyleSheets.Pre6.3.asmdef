@@ -7,8 +7,10 @@
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
-    "overrideReferences": false,
-    "precompiledReferences": [],
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "ExCSS.Unity.dll"
+    ],
     "autoReferenced": true,
     "defineConstraints": [
         "!UNITY_6000_3_OR_NEWER"
