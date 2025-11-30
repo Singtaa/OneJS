@@ -1,4 +1,9 @@
-﻿# [2025-11-28] v2.3.2 - Minor Fixes
+﻿# [2025-11-30] v2.3.3 - Bug Fixes
+
+- Make Sample code to use "PhysicMaterial" for pre Unity 6 versions
+- Guard Coroutine Eval in Runner
+
+# [2025-11-28] v2.3.2 - Minor Fixes
 
 - Fixed ExCSS.Unity issue on Unity 2022.3
 - Fixed WebGL Playmode issue with `document` not being set
