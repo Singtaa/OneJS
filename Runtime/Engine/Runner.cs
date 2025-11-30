@@ -35,6 +35,7 @@ namespace OneJS {
 
         float _lastCheckTime;
         DateTime _lastWriteTime;
+        Coroutine _evalCoroutine;
 
         void Awake() {
             _engine = GetComponent<ScriptEngine>();
@@ -57,7 +58,7 @@ namespace OneJS {
             _lastWriteTime = File.GetLastWriteTime(fullpath); // This needs to be before EvalFile in case EvalFile crashes
             if (runOnStart) {
                 // _engine.EvalFile(entryFile);
-                StartCoroutine(DelayEvalFile());
+                _evalCoroutine = StartCoroutine(DelayEvalFile());
             }
         }
 
@@ -79,9 +80,11 @@ namespace OneJS {
         }
 
         public void Reload() {
+            if (_evalCoroutine != null)
+                StopCoroutine(_evalCoroutine);
             _engine.Reload();
             // _engine.EvalFile(entryFile);
-            StartCoroutine(DelayEvalFile());
+            _evalCoroutine = StartCoroutine(DelayEvalFile());
         }
 
         IEnumerator DelayEvalFile() {
