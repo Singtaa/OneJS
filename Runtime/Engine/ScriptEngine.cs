@@ -177,6 +177,10 @@ namespace OneJS {
             }
         }
 
+        /// MARK: Init
+        /// <summary>
+        /// Initializes the JS environment, sets up the DOM bridge, and exposes global objects to JavaScript.
+        /// </summary>
         void Init() {
             if (_jsEnv != null) {
                 _jsEnv.Dispose();
@@ -186,6 +190,9 @@ namespace OneJS {
 
 #if UNITY_WEBGL && UNITY_STANDALONE
             _jsEnv.Eval("globalThis.ONEJS_WEBGL = true;");
+#endif
+#if UNITY_6000_0_OR_NEWER
+            _jsEnv.Eval("globalThis.UNITY_6000_0_OR_NEWER = true;");
 #endif
 
             // Some default UsingActions here. Please use OnPreInit to add more if needed (in your own code).
