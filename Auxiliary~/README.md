@@ -1,1 +1,0 @@
-The Auxiliary~/ folder is for containing non-Unity files. It'll generally include native code and codegen stuff.

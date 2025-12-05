@@ -1,0 +1,175 @@
+// MARK: Interop
+if (typeof globalThis.__cs === "undefined") {
+    const inv = globalThis.__cs_invoke;
+    globalThis.__cs = {
+        invoke: inv
+    };
+}
+
+// MARK: Utils
+function __wrapResultFromCs(typeHint, raw) {
+    if (raw == null) return raw;
+
+    // Object handles come back as { __csHandle: number }
+    if (typeof raw === "object" && raw.__csHandle) {
+        return __wrapObject(typeHint, raw.__csHandle);
+    }
+
+    return raw;
+}
+
+// MARK: Objects
+function __wrapObject(typeName, handle) {
+    if (handle == null || handle === 0) return null;
+
+    const target = {
+        __csType: typeName,
+        __csHandle: handle
+    };
+
+    return new Proxy(target, {
+        get(obj, prop) {
+            if (prop === "__csType" || prop === "__csHandle") return obj[prop];
+
+            if (prop === "toString") {
+                return function () {
+                    return "[CSObject " + (obj.__csType || "?") + "#" + obj.__csHandle + "]";
+                };
+            }
+
+            if (typeof prop === "symbol") {
+                // Ignore Symbol.toPrimitive etc
+                return undefined;
+            }
+
+            const propName = String(prop);
+            const typeName = obj.__csType || "";
+            const handle = obj.__csHandle || 0;
+
+            // Heuristic:
+            // - lowerCamelCase => treat as property (transform, position, tag, name, etc.)
+            // - PascalCase     => treat as method (SetActive, AddComponent, etc.)
+            const firstChar = propName.charAt(0);
+            const isUpper = firstChar >= "A" && firstChar <= "Z";
+
+            if (isUpper) {
+                // Method call: go.SetActive(false)
+                return function (...args) {
+                    const raw = __cs.invoke(typeName, propName, 1 /* Method */, 0 /* instance */, handle, args);
+                    return __wrapResultFromCs(null, raw);
+                };
+            }
+
+            // Property get: go.transform, go.transform.position, etc.
+            const value = __cs.invoke(typeName, propName, 2 /* GetProp */, 0 /* instance */, handle, []);
+            return __wrapResultFromCs(null, value);
+        },
+        set(obj, prop, value) {
+            if (typeof prop === "symbol") {
+                return false;
+            }
+            __cs.invoke(obj.__csType || "", String(prop), 3 /* SetProp */, 0 /* instance */, obj.__csHandle, [value]);
+            return true;
+        }
+    });
+}
+
+
+// MARK: Helpers
+function newObject(typeName, ...args) {
+    const raw = __cs.invoke(typeName, "ctor", 0, 0, 0, args);
+    if (raw && typeof raw === "object" && raw.__csHandle) {
+        return __wrapObject(typeName, raw.__csHandle);
+    }
+    return raw;
+}
+
+function callMethod(obj, methodName, ...args) {
+    if (!obj) throw new Error("callMethod: obj is null");
+    const typeName = obj.__csType || "";
+    const handle = obj.__csHandle || 0;
+    const raw = __cs.invoke(typeName, methodName, 1, 0, handle, args);
+    return __wrapResultFromCs(null, raw);
+}
+
+function callStatic(typeName, methodName, ...args) {
+    const raw = __cs.invoke(typeName, methodName, 1, 1, 0, args);
+    return __wrapResultFromCs(null, raw);
+}
+
+globalThis.__csHelpers = {
+    newObject,
+    callMethod,
+    callStatic,
+    wrapObject: __wrapObject
+};
+
+// MARK: CS
+function __createCsPathProxy(path) {
+    const typeName = path.join(".");
+
+    function CsType(...args) {
+        // new CS.UnityEngine.GameObject("foo") or CS.UnityEngine.GameObject("foo")
+        return newObject(typeName, ...args);
+    }
+
+    return new Proxy(CsType, {
+        construct(target, args) {
+            // new CS.UnityEngine.GameObject(...)
+            return newObject(typeName, ...args);
+        },
+        apply(target, thisArg, args) {
+            // CS.UnityEngine.GameObject(...)
+            return newObject(typeName, ...args);
+        },
+        get(target, prop) {
+            if (typeof prop === "symbol") {
+                // Ignore Symbol.toPrimitive / Symbol.toStringTag on CS.* proxies
+                return undefined;
+            }
+
+            if (prop === "toString") {
+                return function () {
+                    return "[CSType " + typeName + "]";
+                };
+            }
+
+            const propName = String(prop);
+
+            if (path.length >= 2) {
+                // We consider path >= 2 as a *type* (e.g. UnityEngine.Debug, UnityEngine.GameObject)
+                // so further properties are treated as static methods:
+                //
+                // CS.UnityEngine.Debug.Log("hi")
+                //   => __cs.invoke("UnityEngine.Debug", "Log", Method, isStatic = 1)
+                //
+                return function (...args) {
+                    const raw = __cs.invoke(typeName, propName, 1 /* Method */, 1 /* static */, 0, args);
+                    return __wrapResultFromCs(null, raw);
+                };
+            }
+
+            // path.length < 2: still building the type name (namespace -> type)
+            // CS.UnityEngine.GameObject => ["UnityEngine","GameObject"]
+            const nextPath = path.concat(propName);
+            return __createCsPathProxy(nextPath);
+        }
+    });
+}
+
+if (typeof globalThis.CS === "undefined") {
+    globalThis.CS = new Proxy({}, {
+        get(target, prop) {
+            if (typeof prop === "symbol") {
+                return undefined;
+            }
+            if (prop === "toString") {
+                return function () {
+                    return "[CSRoot]";
+                };
+            }
+            // First segment: "UnityEngine", "System", etc.
+            return __createCsPathProxy([String(prop)]);
+        }
+    });
+}
