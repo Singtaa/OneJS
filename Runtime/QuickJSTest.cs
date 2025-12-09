@@ -2,12 +2,12 @@ using UnityEngine;
 
 // MARK: Main
 public class QuickJSTest : MonoBehaviour {
-    QuickJSNative.Context _ctx;
+    QuickJSContext _ctx;
     int _passed;
     int _failed;
 
     void Awake() {
-        _ctx = new QuickJSNative.Context();
+        _ctx = new QuickJSContext();
     }
 
     void Start() {
