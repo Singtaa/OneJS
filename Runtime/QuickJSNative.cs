@@ -58,6 +58,13 @@ public static class QuickJSNative {
         InteropValue* outResult
     );
 
+    // Callback for releasing object handles from JS
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void CsReleaseHandleCallback(int handle);
+
+    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+    static extern void qjs_set_cs_release_handle_callback(CsReleaseHandleCallback cb);
+
     // MARK: Interop
 
     public enum InteropType : int {
@@ -66,7 +73,9 @@ public static class QuickJSNative {
         Int32 = 2,
         Double = 3,
         String = 4,
-        ObjectHandle = 5
+        ObjectHandle = 5,
+        Int64 = 6,
+        Float32 = 7
     }
 
     public enum InteropInvokeCallKind : int {
@@ -98,6 +107,12 @@ public static class QuickJSNative {
         public int handle;
 
         [FieldOffset(8)]
+        public long i64;
+
+        [FieldOffset(8)]
+        public float f32;
+
+        [FieldOffset(8)]
         public double f64;
 
         [FieldOffset(8)]
@@ -125,18 +140,66 @@ public static class QuickJSNative {
     // MARK: Handles
     static int _nextHandle = 1;
     static readonly Dictionary<int, object> _handleTable = new Dictionary<int, object>();
+    static readonly Dictionary<object, int> _reverseHandleTable = new Dictionary<object, int>();
     static readonly Dictionary<string, Type> _typeCache = new Dictionary<string, Type>();
+    static readonly object _handleLock = new object();
 
     static int RegisterObject(object obj) {
         if (obj == null) return 0;
-        int handle = _nextHandle++;
-        _handleTable[handle] = obj;
-        return handle;
+        
+        lock (_handleLock) {
+            // Check if object already has a handle (avoid duplicates)
+            if (_reverseHandleTable.TryGetValue(obj, out int existingHandle)) {
+                return existingHandle;
+            }
+            
+            int handle = _nextHandle++;
+            _handleTable[handle] = obj;
+            _reverseHandleTable[obj] = handle;
+            return handle;
+        }
+    }
+
+    static bool UnregisterObject(int handle) {
+        if (handle == 0) return false;
+        
+        lock (_handleLock) {
+            if (_handleTable.TryGetValue(handle, out var obj)) {
+                _handleTable.Remove(handle);
+                _reverseHandleTable.Remove(obj);
+                return true;
+            }
+            return false;
+        }
     }
 
     static object GetObjectByHandle(int handle) {
         if (handle == 0) return null;
-        return _handleTable.TryGetValue(handle, out var obj) ? obj : null;
+        lock (_handleLock) {
+            return _handleTable.TryGetValue(handle, out var obj) ? obj : null;
+        }
+    }
+    
+    /// <summary>
+    /// Returns the number of currently registered object handles.
+    /// Useful for debugging memory leaks.
+    /// </summary>
+    public static int GetHandleCount() {
+        lock (_handleLock) {
+            return _handleTable.Count;
+        }
+    }
+    
+    /// <summary>
+    /// Clears all registered object handles.
+    /// Call this when disposing all contexts to prevent memory leaks.
+    /// </summary>
+    public static void ClearAllHandles() {
+        lock (_handleLock) {
+            _handleTable.Clear();
+            _reverseHandleTable.Clear();
+            _nextHandle = 1;
+        }
     }
 
     static Type ResolveType(string fullName) {
@@ -243,14 +306,30 @@ public static class QuickJSNative {
                 resPtr->returnValue.b = (bool)value ? 1 : 0;
                 return;
 
+            case TypeCode.SByte:
+            case TypeCode.Byte:
+            case TypeCode.Int16:
+            case TypeCode.UInt16:
             case TypeCode.Int32:
                 resPtr->returnValue.type = InteropType.Int32;
-                resPtr->returnValue.i32 = (int)value;
+                resPtr->returnValue.i32 = Convert.ToInt32(value);
+                return;
+
+            case TypeCode.UInt32:
+            case TypeCode.Int64:
+                resPtr->returnValue.type = InteropType.Int64;
+                resPtr->returnValue.i64 = Convert.ToInt64(value);
+                return;
+
+            case TypeCode.UInt64:
+                // UInt64 may overflow Int64, treat as double for safety
+                resPtr->returnValue.type = InteropType.Double;
+                resPtr->returnValue.f64 = Convert.ToDouble(value);
                 return;
 
             case TypeCode.Single:
-                resPtr->returnValue.type = InteropType.Double;
-                resPtr->returnValue.f64 = (float)value;
+                resPtr->returnValue.type = InteropType.Float32;
+                resPtr->returnValue.f32 = (float)value;
                 return;
 
             case TypeCode.Double:
@@ -259,7 +338,6 @@ public static class QuickJSNative {
                 return;
 
             case TypeCode.String:
-                // If you want string return support, wire it up later.
                 resPtr->returnValue.type = InteropType.String;
                 resPtr->returnValue.str = StringToUtf8(value.ToString());
                 return;
@@ -279,11 +357,23 @@ public static class QuickJSNative {
     // MARK: Log / Dispatch
     static readonly CsLogCallback _logCallback = HandleLogFromJs;
     static readonly unsafe CsInvokeCallback _invokeCallback = DispatchFromJs;
+    static readonly CsReleaseHandleCallback _releaseHandleCallback = HandleReleaseFromJs;
 
     static QuickJSNative() {
         // Register native -> C# callbacks once per process
         qjs_set_cs_log_callback(_logCallback);
         qjs_set_cs_invoke_callback(_invokeCallback);
+        qjs_set_cs_release_handle_callback(_releaseHandleCallback);
+    }
+
+    static void HandleReleaseFromJs(int handle) {
+        if (handle == 0) return;
+        bool released = UnregisterObject(handle);
+        #if UNITY_EDITOR
+        if (released) {
+            // Debug.Log($"[QuickJS] Released handle {handle}");
+        }
+        #endif
     }
 
     static void HandleLogFromJs(IntPtr msgPtr) {
@@ -478,6 +568,10 @@ public static class QuickJSNative {
                 return v.b != 0;
             case InteropType.Int32:
                 return v.i32;
+            case InteropType.Int64:
+                return v.i64;
+            case InteropType.Float32:
+                return v.f32;
             case InteropType.Double:
                 return v.f64;
             case InteropType.String:
@@ -649,9 +743,13 @@ public static class QuickJSNative {
                     v.type = InteropType.Int32;
                     v.i32 = i;
                     break;
+                case long l:
+                    v.type = InteropType.Int64;
+                    v.i64 = l;
+                    break;
                 case float f:
-                    v.type = InteropType.Double;
-                    v.f64 = f;
+                    v.type = InteropType.Float32;
+                    v.f32 = f;
                     break;
                 case double d:
                     v.type = InteropType.Double;

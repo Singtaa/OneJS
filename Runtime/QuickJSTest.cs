@@ -37,11 +37,23 @@ public class QuickJSTest : MonoBehaviour {
 
             go.SetActive(false);
             CS.UnityEngine.Debug.Log(""ggg"");
-            CS.UnityEngine.Debug.Log(CS.UnityEngine.Time.deltaTime); // doesn't work yet
+            
+            // Static property access (now works!)
+            var dt = CS.UnityEngine.Time.deltaTime;
+            console.log('deltaTime:', dt);
+            
+            var frameCount = CS.UnityEngine.Time.frameCount;
+            console.log('frameCount:', frameCount);
 
             console.log('Finished go.transform.position = v in JS');
+            
+            // Explicit cleanup example
+            go.release();
         ";
         _ctx.Eval(interopScript, "gameobject_prop_test.js");
+        
+        // Show handle count for debugging
+        Debug.Log($"[QuickJS] Handle count after interop: {QuickJSNative.GetHandleCount()}");
 
         // MARK: Callback Test
         var callbackTest = @"
@@ -71,7 +83,11 @@ public class QuickJSTest : MonoBehaviour {
     }
 
     void OnDestroy() {
+        Debug.Log($"[QuickJS] Final handle count: {QuickJSNative.GetHandleCount()}");
         _ctx?.Dispose();
         _ctx = null;
+        
+        // Clear all handles when done (optional - useful for editor reloads)
+        QuickJSNative.ClearAllHandles();
     }
 }

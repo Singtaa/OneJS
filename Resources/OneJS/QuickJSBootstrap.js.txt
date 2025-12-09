@@ -6,6 +6,22 @@ if (typeof globalThis.__cs === "undefined") {
     };
 }
 
+// MARK: Handle Cleanup
+// FinalizationRegistry to automatically release C# object handles when JS wrappers are GC'd
+const __handleRegistry = new FinalizationRegistry((handle) => {
+    if (handle > 0 && typeof __releaseHandle === "function") {
+        __releaseHandle(handle);
+    }
+});
+
+// Manual release function for explicit cleanup
+function releaseObject(obj) {
+    if (obj && typeof obj.__csHandle === "number" && obj.__csHandle > 0) {
+        __releaseHandle(obj.__csHandle);
+        obj.__csHandle = 0;
+    }
+}
+
 // MARK: Utils
 function __wrapResultFromCs(typeHint, raw) {
     if (raw == null) return raw;
@@ -27,13 +43,20 @@ function __wrapObject(typeName, handle) {
         __csHandle: handle
     };
 
-    return new Proxy(target, {
+    const proxy = new Proxy(target, {
         get(obj, prop) {
             if (prop === "__csType" || prop === "__csHandle") return obj[prop];
 
             if (prop === "toString") {
                 return function () {
                     return "[CSObject " + (obj.__csType || "?") + "#" + obj.__csHandle + "]";
+                };
+            }
+            
+            // Allow explicit release
+            if (prop === "release" || prop === "dispose") {
+                return function() {
+                    releaseObject(obj);
                 };
             }
 
@@ -72,6 +95,11 @@ function __wrapObject(typeName, handle) {
             return true;
         }
     });
+    
+    // Register for automatic cleanup when proxy is garbage collected
+    __handleRegistry.register(proxy, handle);
+    
+    return proxy;
 }
 
 
@@ -101,10 +129,29 @@ globalThis.__csHelpers = {
     newObject,
     callMethod,
     callStatic,
-    wrapObject: __wrapObject
+    wrapObject: __wrapObject,
+    releaseObject
 };
 
 // MARK: CS
+// Static property names - these are accessed as properties, not methods
+const __staticPropertyNames = new Set([
+    // Time
+    "time", "deltaTime", "fixedDeltaTime", "unscaledTime", "unscaledDeltaTime",
+    "fixedTime", "timeScale", "frameCount", "realtimeSinceStartup",
+    // Screen
+    "width", "height", "dpi", "fullScreen",
+    // Application
+    "platform", "isPlaying", "isEditor", "dataPath", "persistentDataPath",
+    "streamingAssetsPath", "temporaryCachePath", "version", "productName",
+    // Input (legacy)
+    "mousePosition", "anyKey", "anyKeyDown",
+    // Cursor
+    "visible", "lockState",
+    // Physics
+    "gravity"
+]);
+
 function __createCsPathProxy(path) {
     const typeName = path.join(".");
 
@@ -138,11 +185,18 @@ function __createCsPathProxy(path) {
 
             if (path.length >= 2) {
                 // We consider path >= 2 as a *type* (e.g. UnityEngine.Debug, UnityEngine.GameObject)
-                // so further properties are treated as static methods:
-                //
-                // CS.UnityEngine.Debug.Log("hi")
-                //   => __cs.invoke("UnityEngine.Debug", "Log", Method, isStatic = 1)
-                //
+                // Determine if this is a static property or method
+                const firstChar = propName.charAt(0);
+                const isLower = firstChar >= "a" && firstChar <= "z";
+                
+                // Check if it's a known static property or starts with lowercase
+                if (isLower || __staticPropertyNames.has(propName)) {
+                    // Static property getter: CS.UnityEngine.Time.deltaTime
+                    const raw = __cs.invoke(typeName, propName, 2 /* GetProp */, 1 /* static */, 0, []);
+                    return __wrapResultFromCs(null, raw);
+                }
+                
+                // Static method: CS.UnityEngine.Debug.Log("hi")
                 return function (...args) {
                     const raw = __cs.invoke(typeName, propName, 1 /* Method */, 1 /* static */, 0, args);
                     return __wrapResultFromCs(null, raw);
@@ -153,6 +207,19 @@ function __createCsPathProxy(path) {
             // CS.UnityEngine.GameObject => ["UnityEngine","GameObject"]
             const nextPath = path.concat(propName);
             return __createCsPathProxy(nextPath);
+        },
+        set(target, prop, value) {
+            if (typeof prop === "symbol") {
+                return false;
+            }
+            
+            if (path.length >= 2) {
+                // Static property setter: CS.UnityEngine.Time.timeScale = 0.5
+                __cs.invoke(typeName, String(prop), 3 /* SetProp */, 1 /* static */, 0, [value]);
+                return true;
+            }
+            
+            return false;
         }
     });
 }
