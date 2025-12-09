@@ -2,6 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Reflection;
 
 public static class QuickJSNative {
@@ -149,20 +150,39 @@ public static class QuickJSNative {
     static readonly Dictionary<object, int> _reverseHandleTable = new Dictionary<object, int>();
     static readonly Dictionary<string, Type> _typeCache = new Dictionary<string, Type>();
     static readonly object _handleLock = new object();
-    
+
+    // MARK: Callback GC Roots
+    // These GCHandles prevent the GC from collecting the delegates while native code holds references
+    static GCHandle _logCallbackHandle;
+    static GCHandle _invokeCallbackHandle;
+    static GCHandle _releaseCallbackHandle;
+
     // MARK: Cache
-    static readonly Dictionary<(Type, string, bool), MethodInfo> _methodCache = new Dictionary<(Type, string, bool), MethodInfo>();
-    static readonly Dictionary<(Type, string, bool), PropertyInfo> _propertyCache = new Dictionary<(Type, string, bool), PropertyInfo>();
-    static readonly Dictionary<(Type, string, bool), FieldInfo> _fieldCache = new Dictionary<(Type, string, bool), FieldInfo>();
+    // Using ConcurrentDictionary for thread-safe cache access without explicit locking
+    // Method cache key includes argument type hash to handle overloads correctly
+    static readonly ConcurrentDictionary<(Type, string, bool, int), MethodInfo> _methodCache = new();
+    static readonly ConcurrentDictionary<(Type, string, bool), PropertyInfo> _propertyCache = new();
+    static readonly ConcurrentDictionary<(Type, string, bool), FieldInfo> _fieldCache = new();
 
     static int RegisterObject(object obj) {
         if (obj == null) return 0;
-        
+
+        // Value types should not go through the handle table - they should be serialized directly.
+        // Boxing creates new objects each time, breaking reverse lookup and causing handle leaks.
+        var objType = obj.GetType();
+        if (objType.IsValueType && !objType.IsPrimitive && !objType.IsEnum) {
+            // This is a struct like Vector3, Color, Quaternion, etc.
+            // These should be serialized specially, not registered as handles.
+            throw new ArgumentException(
+                $"Value types should not be registered as handles: {objType.FullName}. " +
+                "Serialize them directly using SetReturnValueForStruct.");
+        }
+
         lock (_handleLock) {
             if (_reverseHandleTable.TryGetValue(obj, out int existingHandle)) {
                 return existingHandle;
             }
-            
+
             // Find next available handle, wrapping safely
             int startHandle = _nextHandle;
             while (_handleTable.ContainsKey(_nextHandle)) {
@@ -172,10 +192,10 @@ public static class QuickJSNative {
                     throw new InvalidOperationException("Handle table exhausted");
                 }
             }
-            
+
             int handle = _nextHandle++;
             if (_nextHandle <= 0) _nextHandle = 1;
-            
+
             _handleTable[handle] = obj;
             _reverseHandleTable[obj] = handle;
             return handle;
@@ -184,7 +204,7 @@ public static class QuickJSNative {
 
     static bool UnregisterObject(int handle) {
         if (handle == 0) return false;
-        
+
         lock (_handleLock) {
             if (_handleTable.TryGetValue(handle, out var obj)) {
                 _handleTable.Remove(handle);
@@ -201,7 +221,7 @@ public static class QuickJSNative {
             return _handleTable.TryGetValue(handle, out var obj) ? obj : null;
         }
     }
-    
+
     /// <summary>
     /// Returns the number of currently registered object handles.
     /// Useful for debugging memory leaks.
@@ -211,7 +231,7 @@ public static class QuickJSNative {
             return _handleTable.Count;
         }
     }
-    
+
     /// <summary>
     /// Clears all registered object handles.
     /// Call this when disposing all contexts to prevent memory leaks.
@@ -312,65 +332,196 @@ public static class QuickJSNative {
         return null;
     }
 
-    static MethodInfo FindMethodCached(Type type, string name, bool isStatic, object[] args) {
-        var key = (type, name, isStatic);
-        lock (_methodCache) {
-            if (_methodCache.TryGetValue(key, out var cached)) {
-                // Verify arg count still matches (overloads are a problem here)
-                var parms = cached.GetParameters();
-                if (parms.Length == args.Length) return cached;
+    /// <summary>
+    /// Computes a hash based on argument types to distinguish method overloads.
+    /// </summary>
+    static int ComputeArgTypeHash(object[] args) {
+        if (args == null || args.Length == 0) return 0;
+
+        int hash = args.Length;
+        for (int i = 0; i < args.Length; i++) {
+            if (args[i] != null) {
+                hash = hash * 31 + args[i].GetType().GetHashCode();
+            } else {
+                hash = hash * 31; // null contributes 0 to distinguish from non-null
             }
         }
-        
+        return hash;
+    }
+
+    static MethodInfo FindMethodCached(Type type, string name, bool isStatic, object[] args) {
+        var argHash = ComputeArgTypeHash(args);
+        var key = (type, name, isStatic, argHash);
+
+        if (_methodCache.TryGetValue(key, out var cached)) {
+            // Verify arg count still matches as a sanity check
+            var parms = cached.GetParameters();
+            if (parms.Length == args.Length) return cached;
+        }
+
         BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic;
         flags |= isStatic ? BindingFlags.Static : BindingFlags.Instance;
-        
+
         var method = FindMethod(type, name, flags, args);
         if (method != null) {
-            lock (_methodCache) {
-                _methodCache[key] = method;
-            }
+            _methodCache[key] = method;
         }
         return method;
     }
 
     static PropertyInfo FindPropertyCached(Type type, string name, bool isStatic) {
         var key = (type, name, isStatic);
-        lock (_propertyCache) {
-            if (_propertyCache.TryGetValue(key, out var cached)) return cached;
-        }
-        
+        if (_propertyCache.TryGetValue(key, out var cached)) return cached;
+
         BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic;
         flags |= isStatic ? BindingFlags.Static : BindingFlags.Instance;
-        
+
         var prop = FindProperty(type, name, flags);
         if (prop != null) {
-            lock (_propertyCache) {
-                _propertyCache[key] = prop;
-            }
+            _propertyCache[key] = prop;
         }
         return prop;
     }
 
     static FieldInfo FindFieldCached(Type type, string name, bool isStatic) {
         var key = (type, name, isStatic);
-        lock (_fieldCache) {
-            if (_fieldCache.TryGetValue(key, out var cached)) return cached;
-        }
-        
+        if (_fieldCache.TryGetValue(key, out var cached)) return cached;
+
         BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic;
         flags |= isStatic ? BindingFlags.Static : BindingFlags.Instance;
-        
+
         var field = FindField(type, name, flags);
         if (field != null) {
-            lock (_fieldCache) {
-                _fieldCache[key] = field;
-            }
+            _fieldCache[key] = field;
         }
         return field;
     }
 
     // MARK: Return
+
+    /// <summary>
+    /// Known Unity struct types that should be serialized directly instead of using handles.
+    /// Handles for value types cause issues because boxing creates new objects each time.
+    /// </summary>
+    static readonly HashSet<Type> _serializableStructTypes = new HashSet<Type> {
+        typeof(Vector2),
+        typeof(Vector3),
+        typeof(Vector4),
+        typeof(Vector2Int),
+        typeof(Vector3Int),
+        typeof(Quaternion),
+        typeof(Color),
+        typeof(Color32),
+        typeof(Rect),
+        typeof(RectInt),
+        typeof(Bounds),
+        typeof(BoundsInt),
+        typeof(Matrix4x4),
+        typeof(Ray),
+        typeof(Ray2D),
+        typeof(Plane)
+    };
+
+    /// <summary>
+    /// Serializes a Unity struct value to a JSON string for transfer to JS.
+    /// JS will deserialize this back into a plain object.
+    /// </summary>
+    static string SerializeStructToJson(object value) {
+        var t = value.GetType();
+
+        // Vector2
+        if (t == typeof(Vector2)) {
+            var v = (Vector2)value;
+            return $"{{\"__struct\":\"Vector2\",\"x\":{v.x},\"y\":{v.y}}}";
+        }
+        // Vector3
+        if (t == typeof(Vector3)) {
+            var v = (Vector3)value;
+            return $"{{\"__struct\":\"Vector3\",\"x\":{v.x},\"y\":{v.y},\"z\":{v.z}}}";
+        }
+        // Vector4
+        if (t == typeof(Vector4)) {
+            var v = (Vector4)value;
+            return $"{{\"__struct\":\"Vector4\",\"x\":{v.x},\"y\":{v.y},\"z\":{v.z},\"w\":{v.w}}}";
+        }
+        // Vector2Int
+        if (t == typeof(Vector2Int)) {
+            var v = (Vector2Int)value;
+            return $"{{\"__struct\":\"Vector2Int\",\"x\":{v.x},\"y\":{v.y}}}";
+        }
+        // Vector3Int
+        if (t == typeof(Vector3Int)) {
+            var v = (Vector3Int)value;
+            return $"{{\"__struct\":\"Vector3Int\",\"x\":{v.x},\"y\":{v.y},\"z\":{v.z}}}";
+        }
+        // Quaternion
+        if (t == typeof(Quaternion)) {
+            var q = (Quaternion)value;
+            return $"{{\"__struct\":\"Quaternion\",\"x\":{q.x},\"y\":{q.y},\"z\":{q.z},\"w\":{q.w}}}";
+        }
+        // Color
+        if (t == typeof(Color)) {
+            var c = (Color)value;
+            return $"{{\"__struct\":\"Color\",\"r\":{c.r},\"g\":{c.g},\"b\":{c.b},\"a\":{c.a}}}";
+        }
+        // Color32
+        if (t == typeof(Color32)) {
+            var c = (Color32)value;
+            return $"{{\"__struct\":\"Color32\",\"r\":{c.r},\"g\":{c.g},\"b\":{c.b},\"a\":{c.a}}}";
+        }
+        // Rect
+        if (t == typeof(Rect)) {
+            var r = (Rect)value;
+            return
+                $"{{\"__struct\":\"Rect\",\"x\":{r.x},\"y\":{r.y},\"width\":{r.width},\"height\":{r.height}}}";
+        }
+        // RectInt
+        if (t == typeof(RectInt)) {
+            var r = (RectInt)value;
+            return
+                $"{{\"__struct\":\"RectInt\",\"x\":{r.x},\"y\":{r.y},\"width\":{r.width},\"height\":{r.height}}}";
+        }
+        // Bounds
+        if (t == typeof(Bounds)) {
+            var b = (Bounds)value;
+            return
+                $"{{\"__struct\":\"Bounds\",\"centerX\":{b.center.x},\"centerY\":{b.center.y},\"centerZ\":{b.center.z},\"sizeX\":{b.size.x},\"sizeY\":{b.size.y},\"sizeZ\":{b.size.z}}}";
+        }
+        // BoundsInt
+        if (t == typeof(BoundsInt)) {
+            var b = (BoundsInt)value;
+            return
+                $"{{\"__struct\":\"BoundsInt\",\"positionX\":{b.position.x},\"positionY\":{b.position.y},\"positionZ\":{b.position.z},\"sizeX\":{b.size.x},\"sizeY\":{b.size.y},\"sizeZ\":{b.size.z}}}";
+        }
+        // Matrix4x4
+        if (t == typeof(Matrix4x4)) {
+            var m = (Matrix4x4)value;
+            return
+                $"{{\"__struct\":\"Matrix4x4\",\"m00\":{m.m00},\"m01\":{m.m01},\"m02\":{m.m02},\"m03\":{m.m03},\"m10\":{m.m10},\"m11\":{m.m11},\"m12\":{m.m12},\"m13\":{m.m13},\"m20\":{m.m20},\"m21\":{m.m21},\"m22\":{m.m22},\"m23\":{m.m23},\"m30\":{m.m30},\"m31\":{m.m31},\"m32\":{m.m32},\"m33\":{m.m33}}}";
+        }
+        // Ray
+        if (t == typeof(Ray)) {
+            var r = (Ray)value;
+            return
+                $"{{\"__struct\":\"Ray\",\"originX\":{r.origin.x},\"originY\":{r.origin.y},\"originZ\":{r.origin.z},\"directionX\":{r.direction.x},\"directionY\":{r.direction.y},\"directionZ\":{r.direction.z}}}";
+        }
+        // Ray2D
+        if (t == typeof(Ray2D)) {
+            var r = (Ray2D)value;
+            return
+                $"{{\"__struct\":\"Ray2D\",\"originX\":{r.origin.x},\"originY\":{r.origin.y},\"directionX\":{r.direction.x},\"directionY\":{r.direction.y}}}";
+        }
+        // Plane
+        if (t == typeof(Plane)) {
+            var p = (Plane)value;
+            return
+                $"{{\"__struct\":\"Plane\",\"normalX\":{p.normal.x},\"normalY\":{p.normal.y},\"normalZ\":{p.normal.z},\"distance\":{p.distance}}}";
+        }
+
+        // Fallback for unknown structs - use reflection
+        return null;
+    }
+
     static unsafe void SetReturnValue(InteropInvokeResult* resPtr, object value) {
         resPtr->returnValue = default;
 
@@ -423,7 +574,18 @@ public static class QuickJSNative {
                 return;
         }
 
-        // Fallback: treat as object handle
+        // Check for known serializable Unity structs (Vector3, Color, etc.)
+        // These should be serialized directly to avoid handle table issues with value types
+        if (_serializableStructTypes.Contains(t)) {
+            string json = SerializeStructToJson(value);
+            if (json != null) {
+                resPtr->returnValue.type = InteropType.String;
+                resPtr->returnValue.str = StringToUtf8(json);
+                return;
+            }
+        }
+
+        // Fallback: treat as object handle (only for reference types)
         int handle = RegisterObject(value);
         resPtr->returnValue.type = InteropType.ObjectHandle;
         resPtr->returnValue.handle = handle;
@@ -441,6 +603,13 @@ public static class QuickJSNative {
     static readonly CsReleaseHandleCallback _releaseHandleCallback = HandleReleaseFromJs;
 
     static QuickJSNative() {
+        // CRITICAL: Pin the delegates with GCHandle to prevent GC from collecting them.
+        // The readonly modifier prevents reassignment but doesn't prevent GC collection.
+        // Native code holds references to these delegates, but GC doesn't see that.
+        _logCallbackHandle = GCHandle.Alloc(_logCallback);
+        _invokeCallbackHandle = GCHandle.Alloc(_invokeCallback);
+        _releaseCallbackHandle = GCHandle.Alloc(_releaseHandleCallback);
+
         // Register native -> C# callbacks once per process
         qjs_set_cs_log_callback(_logCallback);
         qjs_set_cs_invoke_callback(_invokeCallback);
@@ -450,11 +619,11 @@ public static class QuickJSNative {
     static void HandleReleaseFromJs(int handle) {
         if (handle == 0) return;
         bool released = UnregisterObject(handle);
-        #if UNITY_EDITOR
+#if UNITY_EDITOR
         if (released) {
             // Debug.Log($"[QuickJS] Released handle {handle}");
         }
-        #endif
+#endif
     }
 
     static void HandleLogFromJs(IntPtr msgPtr) {
@@ -467,7 +636,8 @@ public static class QuickJSNative {
     }
 
     // MARK: Invoke
-    static unsafe void DispatchFromJs(IntPtr ctxPtr, InteropInvokeRequest* reqPtr, InteropInvokeResult* resPtr) {
+    static unsafe void DispatchFromJs(IntPtr ctxPtr, InteropInvokeRequest* reqPtr,
+        InteropInvokeResult* resPtr) {
         // ctxPtr is the QjsContext* pointer - can be used for context-specific handling if needed
         resPtr->errorCode = 0;
         resPtr->errorMsg = IntPtr.Zero;
@@ -524,8 +694,33 @@ public static class QuickJSNative {
                     return;
                 }
 
-                object instance = Activator.CreateInstance(type, args);
-                SetReturnValue(resPtr, instance);
+                // Find matching constructor and convert args
+                var ctors = type.GetConstructors();
+                foreach (var ctor in ctors) {
+                    var parms = ctor.GetParameters();
+                    if (parms.Length != args.Length) continue;
+
+                    bool match = true;
+                    object[] convertedArgs = new object[args.Length];
+                    for (int i = 0; i < parms.Length; i++) {
+                        try {
+                            convertedArgs[i] = Convert.ChangeType(args[i], parms[i].ParameterType);
+                        } catch {
+                            match = false;
+                            break;
+                        }
+                    }
+
+                    if (match) {
+                        object instance = ctor.Invoke(convertedArgs);
+                        SetReturnValue(resPtr, instance);
+                        return;
+                    }
+                }
+
+                resPtr->errorCode = 1;
+                Debug.LogError(
+                    $"[QuickJS] No matching constructor found for {typeName} with {args.Length} args");
                 return;
             }
 
@@ -573,12 +768,7 @@ public static class QuickJSNative {
 
                     object value = args.Length > 0 ? args[0] : null;
                     var pType = prop.PropertyType;
-                    if (value != null && !pType.IsAssignableFrom(value.GetType())) {
-                        try {
-                            value = Convert.ChangeType(value, pType);
-                        } catch {
-                        }
-                    }
+                    value = ConvertToTargetType(value, pType);
 
                     prop.SetValue(isStatic ? null : target, value);
                     resPtr->returnValue.type = InteropType.Null;
@@ -609,12 +799,7 @@ public static class QuickJSNative {
 
                     object value = args.Length > 0 ? args[0] : null;
                     var fType = field.FieldType;
-                    if (value != null && !fType.IsAssignableFrom(value.GetType())) {
-                        try {
-                            value = Convert.ChangeType(value, fType);
-                        } catch {
-                        }
-                    }
+                    value = ConvertToTargetType(value, fType);
 
                     field.SetValue(isStatic ? null : target, value);
                     resPtr->returnValue.type = InteropType.Null;
@@ -639,6 +824,196 @@ public static class QuickJSNative {
         return System.Runtime.InteropServices.Marshal.PtrToStringUTF8(ptr);
     }
 
+    /// <summary>
+    /// Attempts to convert a value to the target type, with special handling for Unity structs.
+    /// This is needed because JS may send plain objects that need to be converted to Vector3, Color, etc.
+    /// </summary>
+    static object ConvertToTargetType(object value, Type targetType) {
+        if (value == null) return null;
+
+        var valueType = value.GetType();
+        if (targetType.IsAssignableFrom(valueType)) {
+            return value;
+        }
+
+        // Handle primitive type conversions
+        if (targetType.IsPrimitive || targetType == typeof(decimal)) {
+            try {
+                return Convert.ChangeType(value, targetType);
+            } catch {
+                return value;
+            }
+        }
+
+        // Special handling for Unity struct types - the value might already be the correct type
+        // if it was created via new CS.UnityEngine.Vector3() in JS
+        if (_serializableStructTypes.Contains(targetType) && targetType == valueType) {
+            return value;
+        }
+        
+        // Handle JSON struct strings - these come from JS when passing Unity structs back
+        // Format: {"__struct":"Vector3","x":10,"y":20,"z":30}
+        if (value is string jsonStr && jsonStr.StartsWith("{\"__struct\":")) {
+            var deserialized = DeserializeJsonToStruct(jsonStr, targetType);
+            if (deserialized != null) {
+                return deserialized;
+            }
+        }
+
+        return value;
+    }
+    
+    /// <summary>
+    /// Deserializes a JSON string with __struct marker back to a Unity struct.
+    /// This is the inverse of SerializeStructToJson.
+    /// </summary>
+    static object DeserializeJsonToStruct(string json, Type targetType) {
+        if (string.IsNullOrEmpty(json)) return null;
+        
+        try {
+            // Simple JSON parsing without external dependencies
+            // Extract values using string manipulation (faster than full JSON parser for simple structs)
+            
+            if (targetType == typeof(Vector2)) {
+                float x = ExtractFloat(json, "\"x\":");
+                float y = ExtractFloat(json, "\"y\":");
+                return new Vector2(x, y);
+            }
+            if (targetType == typeof(Vector3)) {
+                float x = ExtractFloat(json, "\"x\":");
+                float y = ExtractFloat(json, "\"y\":");
+                float z = ExtractFloat(json, "\"z\":");
+                return new Vector3(x, y, z);
+            }
+            if (targetType == typeof(Vector4)) {
+                float x = ExtractFloat(json, "\"x\":");
+                float y = ExtractFloat(json, "\"y\":");
+                float z = ExtractFloat(json, "\"z\":");
+                float w = ExtractFloat(json, "\"w\":");
+                return new Vector4(x, y, z, w);
+            }
+            if (targetType == typeof(Vector2Int)) {
+                int x = ExtractInt(json, "\"x\":");
+                int y = ExtractInt(json, "\"y\":");
+                return new Vector2Int(x, y);
+            }
+            if (targetType == typeof(Vector3Int)) {
+                int x = ExtractInt(json, "\"x\":");
+                int y = ExtractInt(json, "\"y\":");
+                int z = ExtractInt(json, "\"z\":");
+                return new Vector3Int(x, y, z);
+            }
+            if (targetType == typeof(Quaternion)) {
+                float x = ExtractFloat(json, "\"x\":");
+                float y = ExtractFloat(json, "\"y\":");
+                float z = ExtractFloat(json, "\"z\":");
+                float w = ExtractFloat(json, "\"w\":");
+                return new Quaternion(x, y, z, w);
+            }
+            if (targetType == typeof(Color)) {
+                float r = ExtractFloat(json, "\"r\":");
+                float g = ExtractFloat(json, "\"g\":");
+                float b = ExtractFloat(json, "\"b\":");
+                float a = ExtractFloat(json, "\"a\":");
+                return new Color(r, g, b, a);
+            }
+            if (targetType == typeof(Color32)) {
+                byte r = (byte)ExtractInt(json, "\"r\":");
+                byte g = (byte)ExtractInt(json, "\"g\":");
+                byte b = (byte)ExtractInt(json, "\"b\":");
+                byte a = (byte)ExtractInt(json, "\"a\":");
+                return new Color32(r, g, b, a);
+            }
+            if (targetType == typeof(Rect)) {
+                float x = ExtractFloat(json, "\"x\":");
+                float y = ExtractFloat(json, "\"y\":");
+                float w = ExtractFloat(json, "\"width\":");
+                float h = ExtractFloat(json, "\"height\":");
+                return new Rect(x, y, w, h);
+            }
+            if (targetType == typeof(RectInt)) {
+                int x = ExtractInt(json, "\"x\":");
+                int y = ExtractInt(json, "\"y\":");
+                int w = ExtractInt(json, "\"width\":");
+                int h = ExtractInt(json, "\"height\":");
+                return new RectInt(x, y, w, h);
+            }
+            if (targetType == typeof(Bounds)) {
+                float cx = ExtractFloat(json, "\"centerX\":");
+                float cy = ExtractFloat(json, "\"centerY\":");
+                float cz = ExtractFloat(json, "\"centerZ\":");
+                float sx = ExtractFloat(json, "\"sizeX\":");
+                float sy = ExtractFloat(json, "\"sizeY\":");
+                float sz = ExtractFloat(json, "\"sizeZ\":");
+                return new Bounds(new Vector3(cx, cy, cz), new Vector3(sx, sy, sz));
+            }
+            if (targetType == typeof(BoundsInt)) {
+                int px = ExtractInt(json, "\"positionX\":");
+                int py = ExtractInt(json, "\"positionY\":");
+                int pz = ExtractInt(json, "\"positionZ\":");
+                int sx = ExtractInt(json, "\"sizeX\":");
+                int sy = ExtractInt(json, "\"sizeY\":");
+                int sz = ExtractInt(json, "\"sizeZ\":");
+                return new BoundsInt(new Vector3Int(px, py, pz), new Vector3Int(sx, sy, sz));
+            }
+            if (targetType == typeof(Ray)) {
+                float ox = ExtractFloat(json, "\"originX\":");
+                float oy = ExtractFloat(json, "\"originY\":");
+                float oz = ExtractFloat(json, "\"originZ\":");
+                float dx = ExtractFloat(json, "\"directionX\":");
+                float dy = ExtractFloat(json, "\"directionY\":");
+                float dz = ExtractFloat(json, "\"directionZ\":");
+                return new Ray(new Vector3(ox, oy, oz), new Vector3(dx, dy, dz));
+            }
+            if (targetType == typeof(Ray2D)) {
+                float ox = ExtractFloat(json, "\"originX\":");
+                float oy = ExtractFloat(json, "\"originY\":");
+                float dx = ExtractFloat(json, "\"directionX\":");
+                float dy = ExtractFloat(json, "\"directionY\":");
+                return new Ray2D(new Vector2(ox, oy), new Vector2(dx, dy));
+            }
+            if (targetType == typeof(Plane)) {
+                float nx = ExtractFloat(json, "\"normalX\":");
+                float ny = ExtractFloat(json, "\"normalY\":");
+                float nz = ExtractFloat(json, "\"normalZ\":");
+                float d = ExtractFloat(json, "\"distance\":");
+                return new Plane(new Vector3(nx, ny, nz), d);
+            }
+        } catch (Exception ex) {
+            Debug.LogWarning($"[QuickJS] Failed to deserialize struct JSON: {ex.Message}");
+        }
+        
+        return null;
+    }
+    
+    static float ExtractFloat(string json, string key) {
+        int idx = json.IndexOf(key);
+        if (idx < 0) return 0f;
+        idx += key.Length;
+        int end = idx;
+        while (end < json.Length && (char.IsDigit(json[end]) || json[end] == '.' || json[end] == '-' || json[end] == 'e' || json[end] == 'E' || json[end] == '+')) {
+            end++;
+        }
+        if (float.TryParse(json.Substring(idx, end - idx), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float result)) {
+            return result;
+        }
+        return 0f;
+    }
+    
+    static int ExtractInt(string json, string key) {
+        int idx = json.IndexOf(key);
+        if (idx < 0) return 0;
+        idx += key.Length;
+        int end = idx;
+        while (end < json.Length && (char.IsDigit(json[end]) || json[end] == '-')) {
+            end++;
+        }
+        if (int.TryParse(json.Substring(idx, end - idx), out int result)) {
+            return result;
+        }
+        return 0;
+    }
+
     static object InteropValueToObject(InteropValue v) {
         switch (v.type) {
             case InteropType.Null:
@@ -661,7 +1036,8 @@ public static class QuickJSNative {
                 // For now, arrays are detected but full element serialization is not yet implemented.
                 // The i32 field contains the array length. Full array support requires
                 // element-by-element serialization in the JS bootstrap or C code.
-                Debug.LogWarning("[QuickJS] Array argument detected (length=" + v.i32 + ") but full array serialization is not yet implemented.");
+                Debug.LogWarning("[QuickJS] Array argument detected (length=" + v.i32 +
+                                 ") but full array serialization is not yet implemented.");
                 return null;
             default:
                 return null;
@@ -672,6 +1048,7 @@ public static class QuickJSNative {
     public sealed class Context : IDisposable {
         const string DefaultBootstrapResourcePath = "OneJS/QuickJSBootstrap.js";
         const int GCInterval = 100; // Run GC every N evals
+        const int HandleCountThreshold = 100; // Also run GC if handles exceed this count
         static string _cachedBootstrap;
 
         IntPtr _ptr;
@@ -681,7 +1058,7 @@ public static class QuickJSNative {
 
         static string LoadBootstrapFromResources() {
             if (_cachedBootstrap != null) return _cachedBootstrap;
-            
+
             var asset = Resources.Load<TextAsset>(DefaultBootstrapResourcePath);
             if (!asset) {
                 Debug.LogWarning("[QuickJS] Bootstrap script not found at Resources/" +
@@ -737,7 +1114,10 @@ public static class QuickJSNative {
                 }
 
                 // Run GC periodically to trigger FinalizationRegistry callbacks
-                if (++_evalCount >= GCInterval) {
+                // Also run if handle count exceeds threshold to prevent leaks from chained property access
+                // (e.g., go.transform.position creates intermediate handles that need cleanup)
+                _evalCount++;
+                if (_evalCount >= GCInterval || GetHandleCount() > HandleCountThreshold) {
                     _evalCount = 0;
                     qjs_run_gc(_ptr);
                 }

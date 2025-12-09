@@ -88,8 +88,18 @@ public class QuickJSTest : MonoBehaviour {
                 var go = new CS.UnityEngine.GameObject('PositionTest');
                 var pos = new CS.UnityEngine.Vector3(10, 20, 30);
                 go.transform.position = pos;
-                go.release();
             ");
+            // Verify the position was actually set
+            var go = GameObject.Find("PositionTest");
+            if (go == null) {
+                throw new System.Exception("GameObject not found");
+            }
+            var pos = go.transform.position;
+            if (Mathf.Abs(pos.x - 10) > 0.001f || Mathf.Abs(pos.y - 20) > 0.001f || Mathf.Abs(pos.z - 30) > 0.001f) {
+                throw new System.Exception($"Position mismatch: expected (10,20,30), got ({pos.x},{pos.y},{pos.z})");
+            }
+            // Cleanup
+            _ctx.Eval("CS.UnityEngine.Object.Destroy(CS.UnityEngine.GameObject.Find('PositionTest'));");
         });
 
         _ctx.RunGC();

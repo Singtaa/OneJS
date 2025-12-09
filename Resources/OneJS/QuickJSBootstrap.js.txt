@@ -22,6 +22,91 @@ function releaseObject(obj) {
     }
 }
 
+// MARK: Struct Deserialization
+// Unity structs (Vector3, Color, etc.) are serialized as JSON by C#
+// We deserialize them back to plain objects with helper methods
+
+function __deserializeStruct(jsonStr) {
+    if (typeof jsonStr !== "string" || !jsonStr.startsWith("{")) {
+        return null;
+    }
+    
+    try {
+        const obj = JSON.parse(jsonStr);
+        if (!obj || !obj.__struct) return null;
+        
+        // Add helper methods based on struct type
+        switch (obj.__struct) {
+            case "Vector2":
+            case "Vector3":
+            case "Vector4":
+            case "Vector2Int":
+            case "Vector3Int":
+                // Add magnitude, normalized, etc. helpers
+                Object.defineProperty(obj, "magnitude", {
+                    get() {
+                        let sum = 0;
+                        if ("x" in this) sum += this.x * this.x;
+                        if ("y" in this) sum += this.y * this.y;
+                        if ("z" in this) sum += this.z * this.z;
+                        if ("w" in this) sum += this.w * this.w;
+                        return Math.sqrt(sum);
+                    }
+                });
+                break;
+        }
+        
+        return obj;
+    } catch (e) {
+        return null;
+    }
+}
+
+// Check if a value looks like a struct that should be converted to Vector3, Color, etc.
+function __isPlainVectorLike(value) {
+    return typeof value === "object" && value !== null && 
+           !value.__csHandle && !value.__struct &&
+           ("x" in value || "r" in value);
+}
+
+// Convert a plain object to the appropriate Unity struct type for property setting
+function __convertToUnityStruct(value, propertyName) {
+    if (!__isPlainVectorLike(value)) return value;
+    
+    // Infer type from property name or value shape
+    const lowerProp = propertyName.toLowerCase();
+    
+    // Color properties
+    if (lowerProp.includes("color") || "r" in value && "g" in value && "b" in value) {
+        if ("a" in value) {
+            return new CS.UnityEngine.Color(value.r, value.g, value.b, value.a);
+        }
+        return new CS.UnityEngine.Color(value.r, value.g, value.b, 1);
+    }
+    
+    // Quaternion properties
+    if (lowerProp.includes("rotation") && "w" in value) {
+        return new CS.UnityEngine.Quaternion(value.x, value.y, value.z, value.w);
+    }
+    
+    // Vector4
+    if ("w" in value && "x" in value) {
+        return new CS.UnityEngine.Vector4(value.x, value.y, value.z || 0, value.w);
+    }
+    
+    // Vector3 (most common case for position, scale, etc.)
+    if ("z" in value) {
+        return new CS.UnityEngine.Vector3(value.x, value.y, value.z);
+    }
+    
+    // Vector2
+    if ("x" in value && "y" in value) {
+        return new CS.UnityEngine.Vector2(value.x, value.y);
+    }
+    
+    return value;
+}
+
 // MARK: Utils
 function __wrapResultFromCs(typeHint, raw) {
     if (raw == null) return raw;
@@ -31,6 +116,13 @@ function __wrapResultFromCs(typeHint, raw) {
         // Prefer __csType from raw object (set by C# typeHint), fallback to typeHint parameter
         const resolvedType = raw.__csType || typeHint || "";
         return __wrapObject(resolvedType, raw.__csHandle);
+    }
+
+    // Unity structs (Vector3, Color, etc.) are serialized as JSON strings by C#
+    // Check if this is a serialized struct and deserialize it
+    if (typeof raw === "string" && raw.startsWith("{\"__struct\":")) {
+        const deserialized = __deserializeStruct(raw);
+        if (deserialized) return deserialized;
     }
 
     return raw;
@@ -93,7 +185,24 @@ function __wrapObject(typeName, handle) {
             if (typeof prop === "symbol") {
                 return false;
             }
-            __cs.invoke(obj.__csType || "", String(prop), 3 /* SetProp */, 0 /* instance */, obj.__csHandle, [value]);
+            
+            const propName = String(prop);
+            
+            // IMPORTANT: Struct copy semantics warning
+            // In C#, structs like Vector3 have copy semantics. This means:
+            //   go.transform.position.x = 10  // Does NOTHING - modifies a copy
+            // You must set the entire struct:
+            //   go.transform.position = { x: 10, y: 0, z: 0 }
+            //   go.transform.position = new CS.UnityEngine.Vector3(10, 0, 0)
+            
+            // If value is a plain object with vector-like properties (x/y/z or r/g/b),
+            // convert it to the appropriate Unity struct type
+            let convertedValue = value;
+            if (__isPlainVectorLike(value)) {
+                convertedValue = __convertToUnityStruct(value, propName);
+            }
+            
+            __cs.invoke(obj.__csType || "", propName, 3 /* SetProp */, 0 /* instance */, obj.__csHandle, [convertedValue]);
             return true;
         }
     });
@@ -108,10 +217,7 @@ function __wrapObject(typeName, handle) {
 // MARK: Helpers
 function newObject(typeName, ...args) {
     const raw = __cs.invoke(typeName, "ctor", 0, 0, 0, args);
-    if (raw && typeof raw === "object" && raw.__csHandle) {
-        return __wrapObject(typeName, raw.__csHandle);
-    }
-    return raw;
+    return __wrapResultFromCs(typeName, raw);
 }
 
 function callMethod(obj, methodName, ...args) {
@@ -124,7 +230,7 @@ function callMethod(obj, methodName, ...args) {
 
 function callStatic(typeName, methodName, ...args) {
     const raw = __cs.invoke(typeName, methodName, 1, 1, 0, args);
-    return __wrapResultFromCs(null, raw);
+    return __wrapResultFromCs(typeName, raw);
 }
 
 globalThis.__csHelpers = {
@@ -132,7 +238,10 @@ globalThis.__csHelpers = {
     callMethod,
     callStatic,
     wrapObject: __wrapObject,
-    releaseObject
+    releaseObject,
+    deserializeStruct: __deserializeStruct,
+    isPlainVectorLike: __isPlainVectorLike,
+    convertToUnityStruct: __convertToUnityStruct
 };
 
 // MARK: CS
