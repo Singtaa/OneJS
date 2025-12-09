@@ -42,6 +42,32 @@ public class QuickJSTest : MonoBehaviour {
             console.log('Finished go.transform.position = v in JS');
         ";
         _ctx.Eval(interopScript, "gameobject_prop_test.js");
+
+        // MARK: Callback Test
+        var callbackTest = @"
+            function myCallback(x, y) {
+                console.log('JS callback called with: ' + x + ', ' + y);
+                return x + y;
+            }
+            __registerCallback(myCallback);
+        ";
+
+        var handleStr = _ctx.Eval(callbackTest, "callback_test.js");
+        int handle = int.Parse(handleStr);
+        Debug.Log($"Registered JS callback with handle: {handle}");
+
+        var result = _ctx.InvokeCallback(handle, 10, 20);
+        Debug.Log($"Result from JS callback: {result}"); // Should log 30
+
+        // Test with strings
+        var strCallbackTest = @"
+            __registerCallback(function(name) {
+                return 'Hello, ' + name + '!';
+            });
+        ";
+        var strHandle = int.Parse(_ctx.Eval(strCallbackTest));
+        var greeting = _ctx.InvokeCallback(strHandle, "David");
+        Debug.Log($"String callback result: {greeting}"); // "Hello, David!"
     }
 
     void OnDestroy() {

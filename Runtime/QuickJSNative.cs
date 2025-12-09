@@ -49,6 +49,15 @@ public static class QuickJSNative {
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     static extern void qjs_set_cs_invoke_callback(CsInvokeCallback cb);
 
+    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+    static extern unsafe int qjs_invoke_callback(
+        IntPtr ctx,
+        int callbackHandle,
+        InteropValue* args,
+        int argCount,
+        InteropValue* outResult
+    );
+
     // MARK: Interop
 
     public enum InteropType : int {
@@ -388,7 +397,8 @@ public static class QuickJSNative {
                     PropertyInfo prop = FindProperty(type, memberName, flags);
                     if (prop == null) {
                         resPtr->errorCode = 1;
-                        Debug.LogError("[QuickJS] Property not found (set): " + type.FullName + "." + memberName);
+                        Debug.LogError("[QuickJS] Property not found (set): " + type.FullName + "." +
+                                       memberName);
                         return;
                     }
 
@@ -423,7 +433,8 @@ public static class QuickJSNative {
                     FieldInfo field = FindField(type, memberName, flags);
                     if (field == null) {
                         resPtr->errorCode = 1;
-                        Debug.LogError("[QuickJS] Field not found (set): " + type.FullName + "." + memberName);
+                        Debug.LogError("[QuickJS] Field not found (set): " + type.FullName + "." +
+                                       memberName);
                         return;
                     }
 
@@ -443,7 +454,8 @@ public static class QuickJSNative {
 
                 default:
                     resPtr->errorCode = 1;
-                    Debug.LogError("[QuickJS] Unsupported call kind: " + reqPtr->callKind + " for " + typeName + "." +
+                    Debug.LogError("[QuickJS] Unsupported call kind: " + reqPtr->callKind + " for " +
+                                   typeName + "." +
                                    memberName);
                     return;
             }
@@ -488,7 +500,8 @@ public static class QuickJSNative {
         static string LoadBootstrapFromResources() {
             var asset = Resources.Load<TextAsset>(DefaultBootstrapResourcePath);
             if (!asset) {
-                Debug.LogWarning("[QuickJS] Bootstrap script not found at Resources/" + DefaultBootstrapResourcePath);
+                Debug.LogWarning("[QuickJS] Bootstrap script not found at Resources/" +
+                                 DefaultBootstrapResourcePath);
                 return null;
             }
             return asset.text;
@@ -567,6 +580,98 @@ public static class QuickJSNative {
                 qjs_destroy(_ptr);
                 _ptr = IntPtr.Zero;
             }
+        }
+
+        // MARK: Callbacks
+        public object InvokeCallback(int handle, params object[] args) {
+            if (_disposed) throw new ObjectDisposedException(nameof(Context));
+            if (_ptr == IntPtr.Zero) throw new InvalidOperationException("Context is null");
+
+            unsafe {
+                int argCount = args?.Length ?? 0;
+                InteropValue* nativeArgs = null;
+                IntPtr[] stringPtrs = null;
+
+                try {
+                    if (argCount > 0) {
+                        nativeArgs = (InteropValue*)Marshal.AllocHGlobal(sizeof(InteropValue) * argCount);
+                        stringPtrs = new IntPtr[argCount];
+
+                        for (int i = 0; i < argCount; i++) {
+                            stringPtrs[i] = IntPtr.Zero;
+                            nativeArgs[i] = ObjectToInteropValue(args[i], ref stringPtrs[i]);
+                        }
+                    }
+
+                    InteropValue result = default;
+                    int code = qjs_invoke_callback(_ptr, handle, nativeArgs, argCount, &result);
+
+                    if (code != 0) {
+                        throw new Exception($"qjs_invoke_callback failed with code {code}");
+                    }
+
+                    object ret = InteropValueToObject(result);
+
+                    // Free string result if allocated by native
+                    if (result.type == InteropType.String && result.str != IntPtr.Zero) {
+                        Marshal.FreeCoTaskMem(result.str);
+                    }
+
+                    return ret;
+                } finally {
+                    if (nativeArgs != null) {
+                        Marshal.FreeHGlobal((IntPtr)nativeArgs);
+                    }
+
+                    if (stringPtrs != null) {
+                        for (int i = 0; i < stringPtrs.Length; i++) {
+                            if (stringPtrs[i] != IntPtr.Zero) {
+                                Marshal.FreeCoTaskMem(stringPtrs[i]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        static unsafe InteropValue ObjectToInteropValue(object obj, ref IntPtr stringPtr) {
+            InteropValue v = default;
+            v.type = InteropType.Null;
+
+            if (obj == null) return v;
+
+            switch (obj) {
+                case bool b:
+                    v.type = InteropType.Bool;
+                    v.b = b ? 1 : 0;
+                    break;
+                case int i:
+                    v.type = InteropType.Int32;
+                    v.i32 = i;
+                    break;
+                case float f:
+                    v.type = InteropType.Double;
+                    v.f64 = f;
+                    break;
+                case double d:
+                    v.type = InteropType.Double;
+                    v.f64 = d;
+                    break;
+                case string s:
+                    v.type = InteropType.String;
+                    stringPtr = Marshal.StringToCoTaskMemUTF8(s);
+                    v.str = stringPtr;
+                    break;
+                default:
+                    // Check if it's already a registered handle
+                    // For now, register new objects
+                    int handle = RegisterObject(obj);
+                    v.type = InteropType.ObjectHandle;
+                    v.handle = handle;
+                    break;
+            }
+
+            return v;
         }
     }
 }
