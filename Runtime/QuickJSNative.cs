@@ -42,6 +42,7 @@ public static class QuickJSNative {
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public unsafe delegate void CsInvokeCallback(
+        IntPtr ctx,
         InteropInvokeRequest* req,
         InteropInvokeResult* res
     );
@@ -75,7 +76,8 @@ public static class QuickJSNative {
         String = 4,
         ObjectHandle = 5,
         Int64 = 6,
-        Float32 = 7
+        Float32 = 7,
+        Array = 8
     }
 
     public enum InteropInvokeCallKind : int {
@@ -117,6 +119,10 @@ public static class QuickJSNative {
 
         [FieldOffset(8)]
         public IntPtr str; // UTF-8 char* from native
+
+        // typeHint is at offset 16 (after the 8-byte union)
+        [FieldOffset(16)]
+        public IntPtr typeHint; // for OBJECT_HANDLE, nullable type name
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -143,17 +149,33 @@ public static class QuickJSNative {
     static readonly Dictionary<object, int> _reverseHandleTable = new Dictionary<object, int>();
     static readonly Dictionary<string, Type> _typeCache = new Dictionary<string, Type>();
     static readonly object _handleLock = new object();
+    
+    // MARK: Cache
+    static readonly Dictionary<(Type, string, bool), MethodInfo> _methodCache = new Dictionary<(Type, string, bool), MethodInfo>();
+    static readonly Dictionary<(Type, string, bool), PropertyInfo> _propertyCache = new Dictionary<(Type, string, bool), PropertyInfo>();
+    static readonly Dictionary<(Type, string, bool), FieldInfo> _fieldCache = new Dictionary<(Type, string, bool), FieldInfo>();
 
     static int RegisterObject(object obj) {
         if (obj == null) return 0;
         
         lock (_handleLock) {
-            // Check if object already has a handle (avoid duplicates)
             if (_reverseHandleTable.TryGetValue(obj, out int existingHandle)) {
                 return existingHandle;
             }
             
+            // Find next available handle, wrapping safely
+            int startHandle = _nextHandle;
+            while (_handleTable.ContainsKey(_nextHandle)) {
+                _nextHandle++;
+                if (_nextHandle <= 0) _nextHandle = 1; // wrap around, skip 0
+                if (_nextHandle == startHandle) {
+                    throw new InvalidOperationException("Handle table exhausted");
+                }
+            }
+            
             int handle = _nextHandle++;
+            if (_nextHandle <= 0) _nextHandle = 1;
+            
             _handleTable[handle] = obj;
             _reverseHandleTable[obj] = handle;
             return handle;
@@ -290,6 +312,64 @@ public static class QuickJSNative {
         return null;
     }
 
+    static MethodInfo FindMethodCached(Type type, string name, bool isStatic, object[] args) {
+        var key = (type, name, isStatic);
+        lock (_methodCache) {
+            if (_methodCache.TryGetValue(key, out var cached)) {
+                // Verify arg count still matches (overloads are a problem here)
+                var parms = cached.GetParameters();
+                if (parms.Length == args.Length) return cached;
+            }
+        }
+        
+        BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic;
+        flags |= isStatic ? BindingFlags.Static : BindingFlags.Instance;
+        
+        var method = FindMethod(type, name, flags, args);
+        if (method != null) {
+            lock (_methodCache) {
+                _methodCache[key] = method;
+            }
+        }
+        return method;
+    }
+
+    static PropertyInfo FindPropertyCached(Type type, string name, bool isStatic) {
+        var key = (type, name, isStatic);
+        lock (_propertyCache) {
+            if (_propertyCache.TryGetValue(key, out var cached)) return cached;
+        }
+        
+        BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic;
+        flags |= isStatic ? BindingFlags.Static : BindingFlags.Instance;
+        
+        var prop = FindProperty(type, name, flags);
+        if (prop != null) {
+            lock (_propertyCache) {
+                _propertyCache[key] = prop;
+            }
+        }
+        return prop;
+    }
+
+    static FieldInfo FindFieldCached(Type type, string name, bool isStatic) {
+        var key = (type, name, isStatic);
+        lock (_fieldCache) {
+            if (_fieldCache.TryGetValue(key, out var cached)) return cached;
+        }
+        
+        BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic;
+        flags |= isStatic ? BindingFlags.Static : BindingFlags.Instance;
+        
+        var field = FindField(type, name, flags);
+        if (field != null) {
+            lock (_fieldCache) {
+                _fieldCache[key] = field;
+            }
+        }
+        return field;
+    }
+
     // MARK: Return
     static unsafe void SetReturnValue(InteropInvokeResult* resPtr, object value) {
         resPtr->returnValue = default;
@@ -347,6 +427,7 @@ public static class QuickJSNative {
         int handle = RegisterObject(value);
         resPtr->returnValue.type = InteropType.ObjectHandle;
         resPtr->returnValue.handle = handle;
+        resPtr->returnValue.typeHint = StringToUtf8(t.FullName);
     }
 
     static IntPtr StringToUtf8(string s) {
@@ -386,7 +467,8 @@ public static class QuickJSNative {
     }
 
     // MARK: Invoke
-    static unsafe void DispatchFromJs(InteropInvokeRequest* reqPtr, InteropInvokeResult* resPtr) {
+    static unsafe void DispatchFromJs(IntPtr ctxPtr, InteropInvokeRequest* reqPtr, InteropInvokeResult* resPtr) {
+        // ctxPtr is the QjsContext* pointer - can be used for context-specific handling if needed
         resPtr->errorCode = 0;
         resPtr->errorMsg = IntPtr.Zero;
         resPtr->returnValue = default;
@@ -453,12 +535,9 @@ public static class QuickJSNative {
                 return;
             }
 
-            BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic;
-            flags |= isStatic ? BindingFlags.Static : BindingFlags.Instance;
-
             switch (reqPtr->callKind) {
                 case InteropInvokeCallKind.Method: {
-                    MethodInfo method = FindMethod(type, memberName, flags, args);
+                    MethodInfo method = FindMethodCached(type, memberName, isStatic, args);
                     if (method == null) {
                         resPtr->errorCode = 1;
                         Debug.LogError("[QuickJS] Method not found: " + type.FullName + "." + memberName);
@@ -471,7 +550,7 @@ public static class QuickJSNative {
                 }
 
                 case InteropInvokeCallKind.GetProp: {
-                    PropertyInfo prop = FindProperty(type, memberName, flags);
+                    PropertyInfo prop = FindPropertyCached(type, memberName, isStatic);
                     if (prop == null) {
                         resPtr->errorCode = 1;
                         Debug.LogError("[QuickJS] Property not found: " + type.FullName + "." + memberName);
@@ -484,7 +563,7 @@ public static class QuickJSNative {
                 }
 
                 case InteropInvokeCallKind.SetProp: {
-                    PropertyInfo prop = FindProperty(type, memberName, flags);
+                    PropertyInfo prop = FindPropertyCached(type, memberName, isStatic);
                     if (prop == null) {
                         resPtr->errorCode = 1;
                         Debug.LogError("[QuickJS] Property not found (set): " + type.FullName + "." +
@@ -507,7 +586,7 @@ public static class QuickJSNative {
                 }
 
                 case InteropInvokeCallKind.GetField: {
-                    FieldInfo field = FindField(type, memberName, flags);
+                    FieldInfo field = FindFieldCached(type, memberName, isStatic);
                     if (field == null) {
                         resPtr->errorCode = 1;
                         Debug.LogError("[QuickJS] Field not found: " + type.FullName + "." + memberName);
@@ -520,7 +599,7 @@ public static class QuickJSNative {
                 }
 
                 case InteropInvokeCallKind.SetField: {
-                    FieldInfo field = FindField(type, memberName, flags);
+                    FieldInfo field = FindFieldCached(type, memberName, isStatic);
                     if (field == null) {
                         resPtr->errorCode = 1;
                         Debug.LogError("[QuickJS] Field not found (set): " + type.FullName + "." +
@@ -578,6 +657,12 @@ public static class QuickJSNative {
                 return PtrToStringUtf8(v.str);
             case InteropType.ObjectHandle:
                 return GetObjectByHandle(v.handle);
+            case InteropType.Array:
+                // For now, arrays are detected but full element serialization is not yet implemented.
+                // The i32 field contains the array length. Full array support requires
+                // element-by-element serialization in the JS bootstrap or C code.
+                Debug.LogWarning("[QuickJS] Array argument detected (length=" + v.i32 + ") but full array serialization is not yet implemented.");
+                return null;
             default:
                 return null;
         }
@@ -586,19 +671,25 @@ public static class QuickJSNative {
     // MARK: Context class
     public sealed class Context : IDisposable {
         const string DefaultBootstrapResourcePath = "OneJS/QuickJSBootstrap.js";
+        const int GCInterval = 100; // Run GC every N evals
+        static string _cachedBootstrap;
 
         IntPtr _ptr;
         byte[] _buffer;
         bool _disposed;
+        int _evalCount;
 
         static string LoadBootstrapFromResources() {
+            if (_cachedBootstrap != null) return _cachedBootstrap;
+            
             var asset = Resources.Load<TextAsset>(DefaultBootstrapResourcePath);
             if (!asset) {
                 Debug.LogWarning("[QuickJS] Bootstrap script not found at Resources/" +
                                  DefaultBootstrapResourcePath);
                 return null;
             }
-            return asset.text;
+            _cachedBootstrap = asset.text;
+            return _cachedBootstrap;
         }
 
         public Context(int bufferSize = 16 * 1024) {
@@ -645,6 +736,12 @@ public static class QuickJSNative {
                     throw new Exception("QuickJS error: " + str);
                 }
 
+                // Run GC periodically to trigger FinalizationRegistry callbacks
+                if (++_evalCount >= GCInterval) {
+                    _evalCount = 0;
+                    qjs_run_gc(_ptr);
+                }
+
                 return str;
             } finally {
                 handle.Free();
@@ -654,6 +751,19 @@ public static class QuickJSNative {
         public void RunGC() {
             if (_disposed || _ptr == IntPtr.Zero) return;
             qjs_run_gc(_ptr);
+        }
+
+        /// <summary>
+        /// Runs GC if the handle table exceeds the given threshold.
+        /// Call this from Update() if you need more aggressive cleanup.
+        /// </summary>
+        public void MaybeRunGC(int threshold = 50) {
+            if (_disposed || _ptr == IntPtr.Zero) return;
+            lock (_handleLock) {
+                if (_handleTable.Count > threshold) {
+                    qjs_run_gc(_ptr);
+                }
+            }
         }
 
         public void Dispose() {

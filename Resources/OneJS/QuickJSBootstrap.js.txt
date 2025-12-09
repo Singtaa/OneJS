@@ -26,9 +26,11 @@ function releaseObject(obj) {
 function __wrapResultFromCs(typeHint, raw) {
     if (raw == null) return raw;
 
-    // Object handles come back as { __csHandle: number }
+    // Object handles come back as { __csHandle: number, __csType?: string }
     if (typeof raw === "object" && raw.__csHandle) {
-        return __wrapObject(typeHint, raw.__csHandle);
+        // Prefer __csType from raw object (set by C# typeHint), fallback to typeHint parameter
+        const resolvedType = raw.__csType || typeHint || "";
+        return __wrapObject(resolvedType, raw.__csHandle);
     }
 
     return raw;
