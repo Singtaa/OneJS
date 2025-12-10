@@ -124,12 +124,24 @@ public static partial class QuickJSNative {
                     bool match = true;
                     object[] convertedArgs = new object[args.Length];
                     for (int i = 0; i < parms.Length; i++) {
-                        try {
-                            convertedArgs[i] = Convert.ChangeType(args[i], parms[i].ParameterType);
-                        } catch {
+                        var pType = parms[i].ParameterType;
+                        var arg = args[i];
+
+                        // Use the same conversion logic as property setters
+                        var converted = ConvertToTargetType(arg, pType);
+
+                        // Verify conversion produced compatible type
+                        if (converted == null) {
+                            if (pType.IsValueType && Nullable.GetUnderlyingType(pType) == null) {
+                                match = false;
+                                break;
+                            }
+                        } else if (!pType.IsAssignableFrom(converted.GetType())) {
                             match = false;
                             break;
                         }
+
+                        convertedArgs[i] = converted;
                     }
 
                     if (match) {
@@ -227,12 +239,6 @@ public static partial class QuickJSNative {
                     return;
                 }
 
-                case InteropInvokeCallKind.IsEnumType: {
-                    resPtr->returnValue.type = InteropType.Bool;
-                    resPtr->returnValue.b = type != null && type.IsEnum ? 1 : 0;
-                    return;
-                }
-
                 default:
                     resPtr->errorCode = 1;
                     Debug.LogError("[QuickJS] Unsupported call kind: " + reqPtr->callKind + " for " +
@@ -301,13 +307,10 @@ public static partial class QuickJSNative {
 
         // Check for known serializable Unity structs (Vector3, Color, etc.)
         // These should be serialized directly to avoid handle table issues with value types
-        if (_serializableStructTypes.Contains(t)) {
-            string json = SerializeStructToJson(value);
-            if (json != null) {
-                resPtr->returnValue.type = InteropType.String;
-                resPtr->returnValue.str = StringToUtf8(json);
-                return;
-            }
+        if (_structSerializers.TryGetValue(t, out var serializer)) {
+            resPtr->returnValue.type = InteropType.String;
+            resPtr->returnValue.str = StringToUtf8(serializer(value));
+            return;
         }
 
         // Fallback: treat as object handle (only for reference types)

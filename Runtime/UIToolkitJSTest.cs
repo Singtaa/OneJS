@@ -21,11 +21,13 @@ public class UIToolkitJSTest : MonoBehaviour {
         RunElementCreationTests();
         RunPropertyTests();
         RunStyleTests();
+        
+        // These three aren't working fully yet
         // RunHierarchyTests();
         // RunQueryTests();
         // RunEventTests();
 
-        // LogSummary();
+        LogSummary();
     }
 
     void OnDestroy() {

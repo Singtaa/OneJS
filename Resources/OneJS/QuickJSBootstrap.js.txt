@@ -22,6 +22,18 @@ function releaseObject(obj) {
     }
 }
 
+// MARK: Args
+// Resolve all arguments before passing to C# - handles path proxies (enums) and struct conversions
+function __resolveArgs(args) {
+    if (!args || args.length === 0) return args;
+    
+    const resolved = new Array(args.length);
+    for (let i = 0; i < args.length; i++) {
+        resolved[i] = __resolvePathProxy(args[i]);
+    }
+    return resolved;
+}
+
 // MARK: Struct Deserialization
 // Unity structs (Vector3, Color, etc.) are serialized as JSON by C#
 // We deserialize them back to plain objects with helper methods
@@ -155,6 +167,7 @@ function __wrapObject(typeName, handle) {
     const proxy = new Proxy(target, {
         get(obj, prop) {
             if (prop === "__csType" || prop === "__csHandle") return obj[prop];
+            if (prop === "__csPathProxy") return false;
 
             if (prop === "toString") {
                 return function () {
@@ -187,7 +200,7 @@ function __wrapObject(typeName, handle) {
             if (isUpper) {
                 // Method call: go.SetActive(false)
                 return function (...args) {
-                    const raw = __cs.invoke(typeName, propName, 1 /* Method */, 0 /* instance */, handle, args);
+                    const raw = __cs.invoke(typeName, propName, 1 /* Method */, 0 /* instance */, handle, __resolveArgs(args));
                     return __wrapResultFromCs(null, raw);
                 };
             }
@@ -231,7 +244,7 @@ function __wrapObject(typeName, handle) {
 
 // MARK: Helpers
 function newObject(typeName, ...args) {
-    const raw = __cs.invoke(typeName, "ctor", 0, 0, 0, args);
+    const raw = __cs.invoke(typeName, "ctor", 0, 0, 0, __resolveArgs(args));
     return __wrapResultFromCs(typeName, raw);
 }
 
@@ -239,12 +252,12 @@ function callMethod(obj, methodName, ...args) {
     if (!obj) throw new Error("callMethod: obj is null");
     const typeName = obj.__csType || "";
     const handle = obj.__csHandle || 0;
-    const raw = __cs.invoke(typeName, methodName, 1, 0, handle, args);
+    const raw = __cs.invoke(typeName, methodName, 1, 0, handle, __resolveArgs(args));
     return __wrapResultFromCs(null, raw);
 }
 
 function callStatic(typeName, methodName, ...args) {
-    const raw = __cs.invoke(typeName, methodName, 1, 1, 0, args);
+    const raw = __cs.invoke(typeName, methodName, 1, 1, 0, __resolveArgs(args));
     return __wrapResultFromCs(typeName, raw);
 }
 
@@ -308,7 +321,7 @@ function __createCsPathProxy(path) {
                     // Not a type - treat last segment as method on parent type
                     const parentPath = path.slice(0, -1).join(".");
                     const methodName = path[path.length - 1];
-                    const raw = __cs.invoke(parentPath, methodName, 1 /* Method */, 1 /* static */, 0, args);
+                    const raw = __cs.invoke(parentPath, methodName, 1 /* Method */, 1 /* static */, 0, __resolveArgs(args));
                     return __wrapResultFromCs(null, raw);
                 }
             }

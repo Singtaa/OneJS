@@ -6,7 +6,7 @@ using System.Reflection;
 public static partial class QuickJSNative {
     // MARK: Type and Member Caches
     static readonly Dictionary<string, Type> _typeCache = new Dictionary<string, Type>();
-    
+
     // Using ConcurrentDictionary for thread-safe cache access without explicit locking
     // Method cache key includes argument type hash to handle overloads correctly
     static readonly ConcurrentDictionary<(Type, string, bool, int), MethodInfo> _methodCache = new();
@@ -86,7 +86,8 @@ public static partial class QuickJSNative {
     /// <summary>
     /// Generic member finder that walks the type hierarchy with a common pattern.
     /// </summary>
-    static T FindMember<T>(Type type, string name, BindingFlags flags, Func<Type, string, BindingFlags, T> getter) where T : class {
+    static T FindMember<T>(Type type, string name, BindingFlags flags,
+        Func<Type, string, BindingFlags, T> getter) where T : class {
         while (type != null) {
             var member = getter(type, name, flags | BindingFlags.DeclaredOnly);
             if (member != null) return member;
@@ -95,10 +96,21 @@ public static partial class QuickJSNative {
         return null;
     }
 
-    static PropertyInfo FindProperty(Type type, string name, BindingFlags flags) => 
-        FindMember(type, name, flags, (t, n, f) => t.GetProperty(n, f));
+    static PropertyInfo FindProperty(Type type, string name, BindingFlags flags) {
+        // First try the class hierarchy
+        var prop = FindMember(type, name, flags, (t, n, f) => t.GetProperty(n, f));
+        if (prop != null) return prop;
 
-    static FieldInfo FindField(Type type, string name, BindingFlags flags) => 
+        // Then search implemented interfaces (needed for IStyle, etc.)
+        var interfaces = type.GetInterfaces();
+        for (int i = 0; i < interfaces.Length; i++) {
+            prop = interfaces[i].GetProperty(name);
+            if (prop != null) return prop;
+        }
+        return null;
+    }
+
+    static FieldInfo FindField(Type type, string name, BindingFlags flags) =>
         FindMember(type, name, flags, (t, n, f) => t.GetField(n, f));
 
     /// <summary>
@@ -166,4 +178,3 @@ public static partial class QuickJSNative {
         return field;
     }
 }
-

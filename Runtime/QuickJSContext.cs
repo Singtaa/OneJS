@@ -16,9 +16,9 @@ public sealed class QuickJSContext : IDisposable {
     byte[] _buffer;
     bool _disposed;
     int _evalCount;
-
+    
     static string LoadBootstrapFromResources() {
-        if (_cachedBootstrap != null) return _cachedBootstrap;
+        // if (_cachedBootstrap != null) return _cachedBootstrap;
 
         var asset = Resources.Load<TextAsset>(DefaultBootstrapResourcePath);
         if (!asset) {
