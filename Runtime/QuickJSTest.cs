@@ -72,6 +72,7 @@ public class QuickJSTest : MonoBehaviour {
             _ctx.Eval(@"
                 var testGo = new CS.UnityEngine.GameObject('QuickJSTestObject');
                 testGo.SetActive(false);
+                CS.UnityEngine.Object.Destroy(testGo);
                 testGo.release();
             ");
         });
@@ -142,10 +143,10 @@ public class QuickJSTest : MonoBehaviour {
     void Assert(string name, string actual, string expected) {
         if (actual == expected) {
             _passed++;
-            Log($"  ✓ {name}");
+            Log($"  [PASS] {name}");
         } else {
             _failed++;
-            Debug.LogError($"  ✗ {name}: expected '{expected}', got '{actual}'");
+            Debug.LogError($"  [FAIL] {name}: expected '{expected}', got '{actual}'");
         }
     }
 
@@ -153,10 +154,10 @@ public class QuickJSTest : MonoBehaviour {
         try {
             action();
             _passed++;
-            Log($"  ✓ {name}");
+            Log($"  [PASS] {name}");
         } catch (System.Exception ex) {
             _failed++;
-            Debug.LogError($"  ✗ {name}: {ex.Message}");
+            Debug.LogError($"  [FAIL] {name}: {ex.Message}");
         }
     }
 
@@ -164,14 +165,14 @@ public class QuickJSTest : MonoBehaviour {
         try {
             if (predicate()) {
                 _passed++;
-                Log($"  ✓ {name}");
+                Log($"  [PASS] {name}");
             } else {
                 _failed++;
-                Debug.LogError($"  ✗ {name}: assertion failed");
+                Debug.LogError($"  [FAIL] {name}: assertion failed");
             }
         } catch (System.Exception ex) {
             _failed++;
-            Debug.LogError($"  ✗ {name}: {ex.Message}");
+            Debug.LogError($"  [FAIL] {name}: {ex.Message}");
         }
     }
 

@@ -83,23 +83,23 @@ public static partial class QuickJSNative {
         return null;
     }
 
-    static PropertyInfo FindProperty(Type type, string name, BindingFlags flags) {
+    /// <summary>
+    /// Generic member finder that walks the type hierarchy with a common pattern.
+    /// </summary>
+    static T FindMember<T>(Type type, string name, BindingFlags flags, Func<Type, string, BindingFlags, T> getter) where T : class {
         while (type != null) {
-            var p = type.GetProperty(name, flags | BindingFlags.DeclaredOnly);
-            if (p != null) return p;
+            var member = getter(type, name, flags | BindingFlags.DeclaredOnly);
+            if (member != null) return member;
             type = type.BaseType;
         }
         return null;
     }
 
-    static FieldInfo FindField(Type type, string name, BindingFlags flags) {
-        while (type != null) {
-            var f = type.GetField(name, flags | BindingFlags.DeclaredOnly);
-            if (f != null) return f;
-            type = type.BaseType;
-        }
-        return null;
-    }
+    static PropertyInfo FindProperty(Type type, string name, BindingFlags flags) => 
+        FindMember(type, name, flags, (t, n, f) => t.GetProperty(n, f));
+
+    static FieldInfo FindField(Type type, string name, BindingFlags flags) => 
+        FindMember(type, name, flags, (t, n, f) => t.GetField(n, f));
 
     /// <summary>
     /// Computes a hash based on argument types to distinguish method overloads.

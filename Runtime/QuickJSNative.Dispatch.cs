@@ -214,6 +214,13 @@ public static partial class QuickJSNative {
                     return;
                 }
 
+                case InteropInvokeCallKind.TypeExists: {
+                    Type checkType = ResolveType(typeName);
+                    resPtr->returnValue.type = InteropType.Bool;
+                    resPtr->returnValue.b = checkType != null ? 1 : 0;
+                    return;
+                }
+
                 default:
                     resPtr->errorCode = 1;
                     Debug.LogError("[QuickJS] Unsupported call kind: " + reqPtr->callKind + " for " +
@@ -372,4 +379,3 @@ public static partial class QuickJSNative {
         return v;
     }
 }
-

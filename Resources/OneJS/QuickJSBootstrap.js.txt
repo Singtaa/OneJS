@@ -263,26 +263,46 @@ const __staticPropertyNames = new Set([
     "gravity"
 ]);
 
+// Check if a type name resolves to an actual C# type
+function __typeExists(typeName) {
+    if (!typeName) return false;
+    const raw = __cs.invoke(typeName, "", 6 /* TypeExists */, 0, 0, []);
+    return raw === true || raw === 1;
+}
+
 function __createCsPathProxy(path) {
     const typeName = path.join(".");
 
     function CsType(...args) {
-        // new CS.UnityEngine.GameObject("foo") or CS.UnityEngine.GameObject("foo")
         return newObject(typeName, ...args);
     }
 
     return new Proxy(CsType, {
         construct(target, args) {
-            // new CS.UnityEngine.GameObject(...)
+            // Always treat construct as type instantiation
             return newObject(typeName, ...args);
         },
         apply(target, thisArg, args) {
-            // CS.UnityEngine.GameObject(...)
+            // For paths with 3+ segments, could be:
+            // - Constructor: CS.UnityEngine.UIElements.VisualElement()
+            // - Static method: CS.UnityEngine.Debug.Log()
+            
+            if (path.length >= 3) {
+                // Check if full path is actually a type
+                if (!__typeExists(typeName)) {
+                    // Not a type - treat last segment as method on parent type
+                    const parentPath = path.slice(0, -1).join(".");
+                    const methodName = path[path.length - 1];
+                    const raw = __cs.invoke(parentPath, methodName, 1 /* Method */, 1 /* static */, 0, args);
+                    return __wrapResultFromCs(null, raw);
+                }
+            }
+            
+            // It's a type (or short path) - instantiate
             return newObject(typeName, ...args);
         },
         get(target, prop) {
             if (typeof prop === "symbol") {
-                // Ignore Symbol.toPrimitive / Symbol.toStringTag on CS.* proxies
                 return undefined;
             }
 
@@ -293,29 +313,17 @@ function __createCsPathProxy(path) {
             }
 
             const propName = String(prop);
+            const firstChar = propName.charAt(0);
+            const isLower = firstChar >= "a" && firstChar <= "z";
 
-            if (path.length >= 2) {
-                // We consider path >= 2 as a *type* (e.g. UnityEngine.Debug, UnityEngine.GameObject)
-                // Determine if this is a static property or method
-                const firstChar = propName.charAt(0);
-                const isLower = firstChar >= "a" && firstChar <= "z";
-                
-                // Check if it's a known static property or starts with lowercase
-                if (isLower || __staticPropertyNames.has(propName)) {
-                    // Static property getter: CS.UnityEngine.Time.deltaTime
-                    const raw = __cs.invoke(typeName, propName, 2 /* GetProp */, 1 /* static */, 0, []);
-                    return __wrapResultFromCs(null, raw);
-                }
-                
-                // Static method: CS.UnityEngine.Debug.Log("hi")
-                return function (...args) {
-                    const raw = __cs.invoke(typeName, propName, 1 /* Method */, 1 /* static */, 0, args);
-                    return __wrapResultFromCs(null, raw);
-                };
+            // Lowercase OR known static property => immediate property getter
+            if (isLower || __staticPropertyNames.has(propName)) {
+                const raw = __cs.invoke(typeName, propName, 2 /* GetProp */, 1 /* static */, 0, []);
+                return __wrapResultFromCs(null, raw);
             }
 
-            // path.length < 2: still building the type name (namespace -> type)
-            // CS.UnityEngine.GameObject => ["UnityEngine","GameObject"]
+            // PascalCase => could be nested namespace, nested type, or method
+            // Always return new proxy to defer resolution until invocation
             const nextPath = path.concat(propName);
             return __createCsPathProxy(nextPath);
         },
@@ -324,13 +332,9 @@ function __createCsPathProxy(path) {
                 return false;
             }
             
-            if (path.length >= 2) {
-                // Static property setter: CS.UnityEngine.Time.timeScale = 0.5
-                __cs.invoke(typeName, String(prop), 3 /* SetProp */, 1 /* static */, 0, [value]);
-                return true;
-            }
-            
-            return false;
+            // Static property setter
+            __cs.invoke(typeName, String(prop), 3 /* SetProp */, 1 /* static */, 0, [value]);
+            return true;
         }
     });
 }
