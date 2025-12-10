@@ -19,8 +19,8 @@ public class UIToolkitJSTest : MonoBehaviour {
         Log("=== UI Toolkit JS Interop Tests ===");
 
         RunElementCreationTests();
-        // RunPropertyTests();
-        // RunStyleTests();
+        RunPropertyTests();
+        RunStyleTests();
         // RunHierarchyTests();
         // RunQueryTests();
         // RunEventTests();

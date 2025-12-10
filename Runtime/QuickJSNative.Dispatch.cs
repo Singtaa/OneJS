@@ -95,6 +95,19 @@ public static partial class QuickJSNative {
                 type = ResolveType(typeName);
             }
 
+            // Handle type queries early - these don't require type to exist
+            if (reqPtr->callKind == InteropInvokeCallKind.TypeExists) {
+                resPtr->returnValue.type = InteropType.Bool;
+                resPtr->returnValue.b = type != null ? 1 : 0;
+                return;
+            }
+
+            if (reqPtr->callKind == InteropInvokeCallKind.IsEnumType) {
+                resPtr->returnValue.type = InteropType.Bool;
+                resPtr->returnValue.b = type != null && type.IsEnum ? 1 : 0;
+                return;
+            }
+
             if (reqPtr->callKind == InteropInvokeCallKind.Ctor) {
                 if (type == null) {
                     resPtr->errorCode = 1;
@@ -214,10 +227,9 @@ public static partial class QuickJSNative {
                     return;
                 }
 
-                case InteropInvokeCallKind.TypeExists: {
-                    Type checkType = ResolveType(typeName);
+                case InteropInvokeCallKind.IsEnumType: {
                     resPtr->returnValue.type = InteropType.Bool;
-                    resPtr->returnValue.b = checkType != null ? 1 : 0;
+                    resPtr->returnValue.b = type != null && type.IsEnum ? 1 : 0;
                     return;
                 }
 

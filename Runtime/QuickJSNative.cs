@@ -93,7 +93,8 @@ public static partial class QuickJSNative {
         SetProp = 3,
         GetField = 4,
         SetField = 5,
-        TypeExists = 6
+        TypeExists = 6,
+        IsEnumType = 7
     }
 
     // MARK: Interop Structs

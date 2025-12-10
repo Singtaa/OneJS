@@ -107,6 +107,21 @@ function __convertToUnityStruct(value, propertyName) {
     return value;
 }
 
+// Resolve path proxies (e.g., enum values) to their actual values
+function __resolvePathProxy(value) {
+    if (value && value.__csPathProxy) {
+        const path = value.__csPath;
+        if (path && path.length >= 3) {
+            const parentPath = path.slice(0, -1).join(".");
+            const memberName = path[path.length - 1];
+            if (__typeExists(parentPath) && __cs.invoke(parentPath, "", 7 /* IsEnumType */, 0, 0, [])) {
+                return __cs.invoke(parentPath, memberName, 4 /* GetField */, 1 /* static */, 0, []);
+            }
+        }
+    }
+    return value;
+}
+
 // MARK: Utils
 function __wrapResultFromCs(typeHint, raw) {
     if (raw == null) return raw;
@@ -197,9 +212,9 @@ function __wrapObject(typeName, handle) {
             
             // If value is a plain object with vector-like properties (x/y/z or r/g/b),
             // convert it to the appropriate Unity struct type
-            let convertedValue = value;
-            if (__isPlainVectorLike(value)) {
-                convertedValue = __convertToUnityStruct(value, propName);
+            let convertedValue = __resolvePathProxy(value);
+            if (__isPlainVectorLike(convertedValue)) {
+                convertedValue = __convertToUnityStruct(convertedValue, propName);
             }
             
             __cs.invoke(obj.__csType || "", propName, 3 /* SetProp */, 0 /* instance */, obj.__csHandle, [convertedValue]);
@@ -305,25 +320,52 @@ function __createCsPathProxy(path) {
             if (typeof prop === "symbol") {
                 return undefined;
             }
-
+        
+            // Internal properties - return directly without calling C#
+            if (prop === "__csHandle") {
+                return 0; // Type proxies aren't object instances
+            }
+            if (prop === "__csType") {
+                return typeName;
+            }
+            if (prop === "__csPathProxy") {
+                return true;
+            }
+            if (prop === "__csPath") {
+                return path;
+            }
+        
             if (prop === "toString") {
                 return function () {
                     return "[CSType " + typeName + "]";
                 };
             }
-
+            
+            // valueOf - resolve enum value if this is an enum member
+            if (prop === "valueOf") {
+                return function() {
+                    if (path.length >= 3) {
+                        const parentPath = path.slice(0, -1).join(".");
+                        const memberName = path[path.length - 1];
+                        if (__typeExists(parentPath) && __cs.invoke(parentPath, "", 7 /* IsEnumType */, 0, 0, [])) {
+                            return __cs.invoke(parentPath, memberName, 4 /* GetField */, 1 /* static */, 0, []);
+                        }
+                    }
+                    return 0;
+                };
+            }
+        
             const propName = String(prop);
             const firstChar = propName.charAt(0);
             const isLower = firstChar >= "a" && firstChar <= "z";
-
+        
             // Lowercase OR known static property => immediate property getter
             if (isLower || __staticPropertyNames.has(propName)) {
                 const raw = __cs.invoke(typeName, propName, 2 /* GetProp */, 1 /* static */, 0, []);
                 return __wrapResultFromCs(null, raw);
             }
-
-            // PascalCase => could be nested namespace, nested type, or method
-            // Always return new proxy to defer resolution until invocation
+        
+            // PascalCase => nested namespace, nested type, or static member (resolved lazily)
             const nextPath = path.concat(propName);
             return __createCsPathProxy(nextPath);
         },
