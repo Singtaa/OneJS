@@ -83,7 +83,8 @@ public static partial class QuickJSNative {
         ObjectHandle = 5,
         Int64 = 6,
         Float32 = 7,
-        Array = 8
+        Array = 8,
+        JsonObject = 9  // Plain JS object serialized as JSON - for struct conversion
     }
 
     public enum InteropInvokeCallKind : int {
@@ -100,14 +101,12 @@ public static partial class QuickJSNative {
     // MARK: Interop Structs
     [StructLayout(LayoutKind.Explicit)]
     public struct InteropValue {
-        // type + padding (matches C: int32 type; int32 _pad;)
         [FieldOffset(0)]
         public InteropType type;
 
         [FieldOffset(4)]
-        public int pad; // not used directly, just keeps alignment
+        public int pad;
 
-        // Union starts at offset 8
         [FieldOffset(8)]
         public int i32;
 
@@ -127,29 +126,28 @@ public static partial class QuickJSNative {
         public double f64;
 
         [FieldOffset(8)]
-        public IntPtr str; // UTF-8 char* from native
+        public IntPtr str;
 
-        // typeHint is at offset 16 (after the 8-byte union)
         [FieldOffset(16)]
-        public IntPtr typeHint; // for OBJECT_HANDLE, nullable type name
+        public IntPtr typeHint;
     }
 
     [StructLayout(LayoutKind.Sequential)]
     public struct InteropInvokeRequest {
-        public IntPtr typeName; // const char* utf8
-        public IntPtr memberName; // const char* utf8
+        public IntPtr typeName;
+        public IntPtr memberName;
         public InteropInvokeCallKind callKind;
         public int isStatic;
         public int targetHandle;
         public int argCount;
-        public IntPtr args; // InteropValue* (we'll cast this in unsafe code)
+        public IntPtr args;
     }
 
     [StructLayout(LayoutKind.Sequential)]
     public struct InteropInvokeResult {
         public InteropValue returnValue;
         public int errorCode;
-        public IntPtr errorMsg; // const char* utf8 (optional)
+        public IntPtr errorMsg;
     }
 
     // MARK: String Helpers

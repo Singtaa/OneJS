@@ -3,286 +3,580 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Reflection;
+using System.Text;
 using UnityEngine;
 
 public static partial class QuickJSNative {
     // MARK: Struct Registry
-    static readonly Dictionary<Type, Func<object, string>> _structSerializers = new() {
-        [typeof(Vector2)] = o => {
-            var v = (Vector2)o;
-            return $"{{\"__struct\":\"Vector2\",\"x\":{v.x},\"y\":{v.y}}}";
-        },
-        [typeof(Vector3)] = o => {
-            var v = (Vector3)o;
-            return $"{{\"__struct\":\"Vector3\",\"x\":{v.x},\"y\":{v.y},\"z\":{v.z}}}";
-        },
-        [typeof(Vector4)] = o => {
-            var v = (Vector4)o;
-            return $"{{\"__struct\":\"Vector4\",\"x\":{v.x},\"y\":{v.y},\"z\":{v.z},\"w\":{v.w}}}";
-        },
-        [typeof(Vector2Int)] = o => {
-            var v = (Vector2Int)o;
-            return $"{{\"__struct\":\"Vector2Int\",\"x\":{v.x},\"y\":{v.y}}}";
-        },
-        [typeof(Vector3Int)] = o => {
-            var v = (Vector3Int)o;
-            return $"{{\"__struct\":\"Vector3Int\",\"x\":{v.x},\"y\":{v.y},\"z\":{v.z}}}";
-        },
-        [typeof(Quaternion)] = o => {
-            var q = (Quaternion)o;
-            return $"{{\"__struct\":\"Quaternion\",\"x\":{q.x},\"y\":{q.y},\"z\":{q.z},\"w\":{q.w}}}";
-        },
-        [typeof(Color)] = o => {
-            var c = (Color)o;
-            return $"{{\"__struct\":\"Color\",\"r\":{c.r},\"g\":{c.g},\"b\":{c.b},\"a\":{c.a}}}";
-        },
-        [typeof(Color32)] = o => {
-            var c = (Color32)o;
-            return $"{{\"__struct\":\"Color32\",\"r\":{c.r},\"g\":{c.g},\"b\":{c.b},\"a\":{c.a}}}";
-        },
-        [typeof(Rect)] = o => {
-            var r = (Rect)o;
-            return
-                $"{{\"__struct\":\"Rect\",\"x\":{r.x},\"y\":{r.y},\"width\":{r.width},\"height\":{r.height}}}";
-        },
-        [typeof(RectInt)] = o => {
-            var r = (RectInt)o;
-            return
-                $"{{\"__struct\":\"RectInt\",\"x\":{r.x},\"y\":{r.y},\"width\":{r.width},\"height\":{r.height}}}";
-        },
-        [typeof(Bounds)] = o => {
-            var b = (Bounds)o;
-            return
-                $"{{\"__struct\":\"Bounds\",\"centerX\":{b.center.x},\"centerY\":{b.center.y},\"centerZ\":{b.center.z},\"sizeX\":{b.size.x},\"sizeY\":{b.size.y},\"sizeZ\":{b.size.z}}}";
-        },
-        [typeof(BoundsInt)] = o => {
-            var b = (BoundsInt)o;
-            return
-                $"{{\"__struct\":\"BoundsInt\",\"positionX\":{b.position.x},\"positionY\":{b.position.y},\"positionZ\":{b.position.z},\"sizeX\":{b.size.x},\"sizeY\":{b.size.y},\"sizeZ\":{b.size.z}}}";
-        },
-        [typeof(Matrix4x4)] = o => {
-            var m = (Matrix4x4)o;
-            return
-                $"{{\"__struct\":\"Matrix4x4\",\"m00\":{m.m00},\"m01\":{m.m01},\"m02\":{m.m02},\"m03\":{m.m03},\"m10\":{m.m10},\"m11\":{m.m11},\"m12\":{m.m12},\"m13\":{m.m13},\"m20\":{m.m20},\"m21\":{m.m21},\"m22\":{m.m22},\"m23\":{m.m23},\"m30\":{m.m30},\"m31\":{m.m31},\"m32\":{m.m32},\"m33\":{m.m33}}}";
-        },
-        [typeof(Ray)] = o => {
-            var r = (Ray)o;
-            return
-                $"{{\"__struct\":\"Ray\",\"originX\":{r.origin.x},\"originY\":{r.origin.y},\"originZ\":{r.origin.z},\"directionX\":{r.direction.x},\"directionY\":{r.direction.y},\"directionZ\":{r.direction.z}}}";
-        },
-        [typeof(Ray2D)] = o => {
-            var r = (Ray2D)o;
-            return
-                $"{{\"__struct\":\"Ray2D\",\"originX\":{r.origin.x},\"originY\":{r.origin.y},\"directionX\":{r.direction.x},\"directionY\":{r.direction.y}}}";
-        },
-        [typeof(Plane)] = o => {
-            var p = (Plane)o;
-            return
-                $"{{\"__struct\":\"Plane\",\"normalX\":{p.normal.x},\"normalY\":{p.normal.y},\"normalZ\":{p.normal.z},\"distance\":{p.distance}}}";
-        },
-        [typeof(UnityEngine.UIElements.Length)] = o => {
-            var l = (UnityEngine.UIElements.Length)o;
-            return $"{{\"__struct\":\"Length\",\"value\":{l.value},\"unit\":{(int)l.unit}}}";
-        },
-        [typeof(UnityEngine.UIElements.StyleLength)] = o => {
-            var sl = (UnityEngine.UIElements.StyleLength)o;
-            if (sl.keyword != UnityEngine.UIElements.StyleKeyword.Undefined)
-                return $"{{\"__struct\":\"StyleLength\",\"keyword\":{(int)sl.keyword}}}";
-            var l = sl.value;
-            return $"{{\"__struct\":\"StyleLength\",\"value\":{l.value},\"unit\":{(int)l.unit}}}";
-        },
-        [typeof(UnityEngine.UIElements.StyleFloat)] = o => {
-            var sf = (UnityEngine.UIElements.StyleFloat)o;
-            return $"{{\"__struct\":\"StyleFloat\",\"value\":{sf.value},\"keyword\":{(int)sf.keyword}}}";
-        },
-        [typeof(UnityEngine.UIElements.StyleInt)] = o => {
-            var si = (UnityEngine.UIElements.StyleInt)o;
-            return $"{{\"__struct\":\"StyleInt\",\"value\":{si.value},\"keyword\":{(int)si.keyword}}}";
-        },
-        [typeof(UnityEngine.UIElements.StyleColor)] = o => {
-            var sc = (UnityEngine.UIElements.StyleColor)o;
-            var c = sc.value;
-            return
-                $"{{\"__struct\":\"StyleColor\",\"r\":{c.r},\"g\":{c.g},\"b\":{c.b},\"a\":{c.a},\"keyword\":{(int)sc.keyword}}}";
-        },
-    };
+    // Custom serializers take priority over reflection-based generic handling
+    static readonly Dictionary<Type, Func<object, string>> _customSerializers = new();
+    static readonly Dictionary<Type, Func<Dictionary<string, object>, object>> _customDeserializers = new();
 
-    static readonly Dictionary<Type, Func<string, object>> _structDeserializers = new() {
-        [typeof(Vector2)] = json => new Vector2(ExtractFloat(json, "\"x\":"), ExtractFloat(json, "\"y\":")),
-        [typeof(Vector3)] = json => new Vector3(ExtractFloat(json, "\"x\":"), ExtractFloat(json, "\"y\":"),
-            ExtractFloat(json, "\"z\":")),
-        [typeof(Vector4)] = json => new Vector4(ExtractFloat(json, "\"x\":"), ExtractFloat(json, "\"y\":"),
-            ExtractFloat(json, "\"z\":"), ExtractFloat(json, "\"w\":")),
-        [typeof(Vector2Int)] = json => new Vector2Int(ExtractInt(json, "\"x\":"), ExtractInt(json, "\"y\":")),
-        [typeof(Vector3Int)] = json => new Vector3Int(ExtractInt(json, "\"x\":"), ExtractInt(json, "\"y\":"),
-            ExtractInt(json, "\"z\":")),
-        [typeof(Quaternion)] = json => new Quaternion(ExtractFloat(json, "\"x\":"),
-            ExtractFloat(json, "\"y\":"), ExtractFloat(json, "\"z\":"), ExtractFloat(json, "\"w\":")),
-        [typeof(Color)] = json => new Color(ExtractFloat(json, "\"r\":"), ExtractFloat(json, "\"g\":"),
-            ExtractFloat(json, "\"b\":"), ExtractFloat(json, "\"a\":")),
-        [typeof(Color32)] = json => new Color32((byte)ExtractInt(json, "\"r\":"),
-            (byte)ExtractInt(json, "\"g\":"), (byte)ExtractInt(json, "\"b\":"),
-            (byte)ExtractInt(json, "\"a\":")),
-        [typeof(Rect)] = json => new Rect(ExtractFloat(json, "\"x\":"), ExtractFloat(json, "\"y\":"),
-            ExtractFloat(json, "\"width\":"), ExtractFloat(json, "\"height\":")),
-        [typeof(RectInt)] = json => new RectInt(ExtractInt(json, "\"x\":"), ExtractInt(json, "\"y\":"),
-            ExtractInt(json, "\"width\":"), ExtractInt(json, "\"height\":")),
-        [typeof(Bounds)] = json =>
-            new Bounds(
-                new Vector3(ExtractFloat(json, "\"centerX\":"), ExtractFloat(json, "\"centerY\":"),
-                    ExtractFloat(json, "\"centerZ\":")),
-                new Vector3(ExtractFloat(json, "\"sizeX\":"), ExtractFloat(json, "\"sizeY\":"),
-                    ExtractFloat(json, "\"sizeZ\":"))),
-        [typeof(BoundsInt)] = json =>
-            new BoundsInt(
-                new Vector3Int(ExtractInt(json, "\"positionX\":"), ExtractInt(json, "\"positionY\":"),
-                    ExtractInt(json, "\"positionZ\":")),
-                new Vector3Int(ExtractInt(json, "\"sizeX\":"), ExtractInt(json, "\"sizeY\":"),
-                    ExtractInt(json, "\"sizeZ\":"))),
-        [typeof(Matrix4x4)] = json => {
-            var m = new Matrix4x4();
-            m.m00 = ExtractFloat(json, "\"m00\":");
-            m.m01 = ExtractFloat(json, "\"m01\":");
-            m.m02 = ExtractFloat(json, "\"m02\":");
-            m.m03 = ExtractFloat(json, "\"m03\":");
-            m.m10 = ExtractFloat(json, "\"m10\":");
-            m.m11 = ExtractFloat(json, "\"m11\":");
-            m.m12 = ExtractFloat(json, "\"m12\":");
-            m.m13 = ExtractFloat(json, "\"m13\":");
-            m.m20 = ExtractFloat(json, "\"m20\":");
-            m.m21 = ExtractFloat(json, "\"m21\":");
-            m.m22 = ExtractFloat(json, "\"m22\":");
-            m.m23 = ExtractFloat(json, "\"m23\":");
-            m.m30 = ExtractFloat(json, "\"m30\":");
-            m.m31 = ExtractFloat(json, "\"m31\":");
-            m.m32 = ExtractFloat(json, "\"m32\":");
-            m.m33 = ExtractFloat(json, "\"m33\":");
-            return m;
-        },
-        [typeof(Ray)] = json =>
-            new Ray(
-                new Vector3(ExtractFloat(json, "\"originX\":"), ExtractFloat(json, "\"originY\":"),
-                    ExtractFloat(json, "\"originZ\":")),
-                new Vector3(ExtractFloat(json, "\"directionX\":"), ExtractFloat(json, "\"directionY\":"),
-                    ExtractFloat(json, "\"directionZ\":"))),
-        [typeof(Ray2D)] = json =>
-            new Ray2D(new Vector2(ExtractFloat(json, "\"originX\":"), ExtractFloat(json, "\"originY\":")),
-                new Vector2(ExtractFloat(json, "\"directionX\":"), ExtractFloat(json, "\"directionY\":"))),
-        [typeof(Plane)] = json =>
-            new Plane(
-                new Vector3(ExtractFloat(json, "\"normalX\":"), ExtractFloat(json, "\"normalY\":"),
-                    ExtractFloat(json, "\"normalZ\":")), ExtractFloat(json, "\"distance\":")),
-        [typeof(UnityEngine.UIElements.Length)] = json => {
-            var value = ExtractFloat(json, "\"value\":");
-            var unit = (UnityEngine.UIElements.LengthUnit)ExtractInt(json, "\"unit\":");
-            return new UnityEngine.UIElements.Length(value, unit);
-        },
-        [typeof(UnityEngine.UIElements.StyleLength)] = json => {
-            var keyword = (UnityEngine.UIElements.StyleKeyword)ExtractInt(json, "\"keyword\":");
-            if (keyword != UnityEngine.UIElements.StyleKeyword.Undefined)
-                return new UnityEngine.UIElements.StyleLength(keyword);
-            var value = ExtractFloat(json, "\"value\":");
-            var unit = (UnityEngine.UIElements.LengthUnit)ExtractInt(json, "\"unit\":");
-            return new UnityEngine.UIElements.StyleLength(new UnityEngine.UIElements.Length(value, unit));
-        },
-        [typeof(UnityEngine.UIElements.StyleFloat)] = json => {
-            var keyword = (UnityEngine.UIElements.StyleKeyword)ExtractInt(json, "\"keyword\":");
-            if (keyword != UnityEngine.UIElements.StyleKeyword.Undefined)
-                return new UnityEngine.UIElements.StyleFloat(keyword);
-            return new UnityEngine.UIElements.StyleFloat(ExtractFloat(json, "\"value\":"));
-        },
-        [typeof(UnityEngine.UIElements.StyleInt)] = json => {
-            var keyword = (UnityEngine.UIElements.StyleKeyword)ExtractInt(json, "\"keyword\":");
-            if (keyword != UnityEngine.UIElements.StyleKeyword.Undefined)
-                return new UnityEngine.UIElements.StyleInt(keyword);
-            return new UnityEngine.UIElements.StyleInt(ExtractInt(json, "\"value\":"));
-        },
-        [typeof(UnityEngine.UIElements.StyleColor)] = json => {
-            var keyword = (UnityEngine.UIElements.StyleKeyword)ExtractInt(json, "\"keyword\":");
-            if (keyword != UnityEngine.UIElements.StyleKeyword.Undefined)
-                return new UnityEngine.UIElements.StyleColor(keyword);
-            var c = new Color(
-                ExtractFloat(json, "\"r\":"),
-                ExtractFloat(json, "\"g\":"),
-                ExtractFloat(json, "\"b\":"),
-                ExtractFloat(json, "\"a\":")
-            );
-            return new UnityEngine.UIElements.StyleColor(c);
-        },
-    };
+    // Types registered for generic reflection-based handling
+    static readonly HashSet<Type> _registeredStructTypes = new();
+
+    // Cache for struct field/property info (performance optimization)
+    static readonly ConcurrentDictionary<Type, StructFieldInfo[]> _structFieldCache = new();
+
+    struct StructFieldInfo {
+        public string Name;
+        public Func<object, object> Getter;
+        public Func<object, object, object> Setter; // Returns modified instance for struct copy semantics
+        public Type FieldType;
+    }
+
+    // MARK: Registration API
+    /// <summary>
+    /// Registers a struct type for automatic reflection-based serialization.
+    /// Call this for any custom struct types you want to pass between JS and C#.
+    /// </summary>
+    public static void RegisterStructType<T>() where T : struct {
+        RegisterStructType(typeof(T));
+    }
+
+    public static void RegisterStructType(Type type) {
+        if (!type.IsValueType || type.IsPrimitive || type.IsEnum) {
+            Debug.LogWarning($"[QuickJS] RegisterStructType: {type.FullName} is not a struct");
+            return;
+        }
+        _registeredStructTypes.Add(type);
+        // Pre-cache field info for performance
+        GetStructFields(type);
+    }
 
     /// <summary>
-    /// Deserializes a JSON string with __struct marker back to a Unity struct.
-    /// This is the inverse of SerializeStructToJson.
+    /// Registers a struct type with custom serialization/deserialization handlers.
+    /// Use this for structs that need special handling (e.g., private fields, computed properties).
     /// </summary>
-    static object DeserializeJsonToStruct(string json, Type targetType) {
-        if (string.IsNullOrEmpty(json)) return null;
-
-        try {
-            return _structDeserializers.TryGetValue(targetType, out var fn) ? fn(json) : null;
-        } catch (Exception ex) {
-            Debug.LogWarning($"[QuickJS] Failed to deserialize struct JSON: {ex.Message}");
-        }
-
-        return null;
+    public static void RegisterStructType<T>(
+        Func<T, string> serializer,
+        Func<Dictionary<string, object>, T> deserializer
+    ) where T : struct {
+        var type = typeof(T);
+        _registeredStructTypes.Add(type);
+        _customSerializers[type] = obj => serializer((T)obj);
+        _customDeserializers[type] = dict => deserializer(dict);
     }
 
-    static float ExtractFloat(string json, string key) {
-        int idx = json.IndexOf(key);
-        if (idx < 0) return 0f;
-        idx += key.Length;
-        int end = idx;
-        while (end < json.Length) {
-            char c = json[end];
-            if (!char.IsDigit(c) && c != '.' && c != '-' && c != 'e' && c != 'E' && c != '+') break;
-            end++;
+    /// <summary>
+    /// Checks if a type should be serialized as a struct (vs object handle).
+    /// Auto-registers unknown struct types on first encounter.
+    /// </summary>
+    public static bool IsSerializableStruct(Type type) {
+        if (type == null || !type.IsValueType || type.IsPrimitive || type.IsEnum) return false;
+        EnsureStructsInitialized();
+
+        // Already registered?
+        if (_registeredStructTypes.Contains(type) || _customSerializers.ContainsKey(type)) return true;
+
+        // Auto-register any struct type on first encounter
+        // This allows user structs to work without explicit registration
+        if (ShouldAutoRegister(type)) {
+            RegisterStructType(type);
+            return true;
         }
-        return float.TryParse(json.AsSpan(idx, end - idx), NumberStyles.Float, CultureInfo.InvariantCulture,
-            out float result)
-            ? result
-            : 0f;
+
+        return false;
     }
 
-    static int ExtractInt(string json, string key) {
-        int idx = json.IndexOf(key);
-        if (idx < 0) return 0;
-        idx += key.Length;
-        int end = idx;
-        while (end < json.Length && (char.IsDigit(json[end]) || json[end] == '-')) {
-            end++;
-        }
-        return int.TryParse(json.AsSpan(idx, end - idx), NumberStyles.Integer, CultureInfo.InvariantCulture,
-            out int result)
-            ? result
-            : 0;
+    /// <summary>
+    /// Determines if a struct type should be auto-registered.
+    /// Filters out types that shouldn't be serialized (internal Unity types, etc.)
+    /// </summary>
+    static bool ShouldAutoRegister(Type type) {
+        // Must be a struct
+        if (!type.IsValueType || type.IsPrimitive || type.IsEnum) return false;
+
+        // Skip Nullable<T>
+        if (Nullable.GetUnderlyingType(type) != null) return false;
+
+        // Skip compiler-generated types
+        if (type.Name.StartsWith("<")) return false;
+
+        // Skip types without public fields/properties (nothing to serialize)
+        var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance);
+        var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        if (fields.Length == 0 && props.Length == 0) return false;
+
+        return true;
     }
 
+    // MARK: Init
+    static bool _structsInitialized;
 
-    // MARK: Type Conversion
-    static readonly ConcurrentDictionary<(Type, Type), MethodInfo> _implicitOpCache = new();
+    static void EnsureStructsInitialized() {
+        if (_structsInitialized) return;
+        _structsInitialized = true;
 
-    static object ConvertToTargetType(object value, Type targetType) {
+        // Register common Unity structs
+        RegisterStructType<Vector2>();
+        RegisterStructType<Vector3>();
+        RegisterStructType<Vector4>();
+        RegisterStructType<Vector2Int>();
+        RegisterStructType<Vector3Int>();
+        RegisterStructType<Quaternion>();
+        RegisterStructType<Color>();
+        RegisterStructType<Color32>();
+        RegisterStructType<Rect>();
+        RegisterStructType<RectInt>();
+        RegisterStructType<Bounds>();
+        RegisterStructType<BoundsInt>();
+        RegisterStructType<Matrix4x4>();
+        RegisterStructType<Ray>();
+        RegisterStructType<Ray2D>();
+        RegisterStructType<Plane>();
+        RegisterStructType<UnityEngine.UIElements.Length>();
+
+        // Style types need custom handling due to keyword field
+        RegisterStyleTypes();
+    }
+
+    static void RegisterStyleTypes() {
+        // StyleLength - has keyword that changes semantics
+        RegisterStructType<UnityEngine.UIElements.StyleLength>(
+            sl => {
+                if (sl.keyword != UnityEngine.UIElements.StyleKeyword.Undefined)
+                    return
+                        $"{{\"__type\":\"UnityEngine.UIElements.StyleLength\",\"keyword\":{(int)sl.keyword}}}";
+                var l = sl.value;
+                return
+                    $"{{\"__type\":\"UnityEngine.UIElements.StyleLength\",\"value\":{F(l.value)},\"unit\":{(int)l.unit}}}";
+            },
+            dict => {
+                if (dict.TryGetValue("keyword", out var kw) && Convert.ToInt32(kw) != 0)
+                    return new UnityEngine.UIElements.StyleLength(
+                        (UnityEngine.UIElements.StyleKeyword)Convert.ToInt32(kw));
+                var val = dict.TryGetValue("value", out var v) ? Convert.ToSingle(v) : 0f;
+                var unit = dict.TryGetValue("unit", out var u)
+                    ? (UnityEngine.UIElements.LengthUnit)Convert.ToInt32(u)
+                    : default;
+                return new UnityEngine.UIElements.StyleLength(new UnityEngine.UIElements.Length(val, unit));
+            }
+        );
+
+        RegisterStructType<UnityEngine.UIElements.StyleFloat>(
+            sf =>
+                $"{{\"__type\":\"UnityEngine.UIElements.StyleFloat\",\"value\":{F(sf.value)},\"keyword\":{(int)sf.keyword}}}",
+            dict => {
+                var val = dict.TryGetValue("value", out var v) ? Convert.ToSingle(v) : 0f;
+                var kw = dict.TryGetValue("keyword", out var k)
+                    ? (UnityEngine.UIElements.StyleKeyword)Convert.ToInt32(k)
+                    : default;
+                if (kw != UnityEngine.UIElements.StyleKeyword.Undefined)
+                    return new UnityEngine.UIElements.StyleFloat(kw);
+                return new UnityEngine.UIElements.StyleFloat(val);
+            }
+        );
+
+        RegisterStructType<UnityEngine.UIElements.StyleInt>(
+            si =>
+                $"{{\"__type\":\"UnityEngine.UIElements.StyleInt\",\"value\":{si.value},\"keyword\":{(int)si.keyword}}}",
+            dict => {
+                var val = dict.TryGetValue("value", out var v) ? Convert.ToInt32(v) : 0;
+                var kw = dict.TryGetValue("keyword", out var k)
+                    ? (UnityEngine.UIElements.StyleKeyword)Convert.ToInt32(k)
+                    : default;
+                if (kw != UnityEngine.UIElements.StyleKeyword.Undefined)
+                    return new UnityEngine.UIElements.StyleInt(kw);
+                return new UnityEngine.UIElements.StyleInt(val);
+            }
+        );
+
+        RegisterStructType<UnityEngine.UIElements.StyleColor>(
+            sc => {
+                var c = sc.value;
+                return
+                    $"{{\"__type\":\"UnityEngine.UIElements.StyleColor\",\"r\":{F(c.r)},\"g\":{F(c.g)},\"b\":{F(c.b)},\"a\":{F(c.a)},\"keyword\":{(int)sc.keyword}}}";
+            },
+            dict => {
+                var kw = dict.TryGetValue("keyword", out var k)
+                    ? (UnityEngine.UIElements.StyleKeyword)Convert.ToInt32(k)
+                    : default;
+                if (kw != UnityEngine.UIElements.StyleKeyword.Undefined)
+                    return new UnityEngine.UIElements.StyleColor(kw);
+                var r = dict.TryGetValue("r", out var rv) ? Convert.ToSingle(rv) : 0f;
+                var g = dict.TryGetValue("g", out var gv) ? Convert.ToSingle(gv) : 0f;
+                var b = dict.TryGetValue("b", out var bv) ? Convert.ToSingle(bv) : 0f;
+                var a = dict.TryGetValue("a", out var av) ? Convert.ToSingle(av) : 1f;
+                return new UnityEngine.UIElements.StyleColor(new Color(r, g, b, a));
+            }
+        );
+    }
+
+    // Float formatting helper - invariant culture, no trailing zeros
+    static string F(float v) => v.ToString("G", CultureInfo.InvariantCulture);
+    static string F(double v) => v.ToString("G", CultureInfo.InvariantCulture);
+
+    // MARK: Serialization (C# -> JS)
+    /// <summary>
+    /// Serializes a struct to JSON string for transfer to JS.
+    /// Returns null if the type is not a serializable struct type.
+    /// </summary>
+    public static string SerializeStruct(object value) {
+        if (value == null) return null;
+
+        var type = value.GetType();
+
+        // This call handles initialization and auto-registration
+        if (!IsSerializableStruct(type)) return null;
+
+        // Custom serializer takes priority
+        if (_customSerializers.TryGetValue(type, out var customSerializer)) {
+            return customSerializer(value);
+        }
+
+        // Generic reflection-based serialization
+        return SerializeStructGeneric(value, type);
+    }
+
+    static string SerializeStructGeneric(object value, Type type) {
+        var fields = GetStructFields(type);
+        var sb = new StringBuilder(128);
+        sb.Append("{\"__type\":\"");
+        sb.Append(type.FullName);
+        sb.Append('"');
+
+        for (int i = 0; i < fields.Length; i++) {
+            var field = fields[i];
+            var fieldValue = field.Getter(value);
+            sb.Append(",\"");
+            sb.Append(char.ToLowerInvariant(field.Name[0]));
+            if (field.Name.Length > 1) sb.Append(field.Name, 1, field.Name.Length - 1);
+            sb.Append("\":");
+            AppendJsonValue(sb, fieldValue, field.FieldType);
+        }
+
+        sb.Append('}');
+        return sb.ToString();
+    }
+
+    static void AppendJsonValue(StringBuilder sb, object value, Type type) {
+        if (value == null) {
+            sb.Append("null");
+            return;
+        }
+
+        if (type == typeof(float)) {
+            sb.Append(F((float)value));
+        } else if (type == typeof(double)) {
+            sb.Append(F((double)value));
+        } else if (type == typeof(int) || type == typeof(short) || type == typeof(byte) ||
+                   type == typeof(sbyte) || type == typeof(ushort)) {
+            sb.Append(Convert.ToInt32(value));
+        } else if (type == typeof(long) || type == typeof(uint)) {
+            sb.Append(Convert.ToInt64(value));
+        } else if (type == typeof(bool)) {
+            sb.Append((bool)value ? "true" : "false");
+        } else if (type == typeof(string)) {
+            sb.Append('"');
+            sb.Append(EscapeJsonString((string)value));
+            sb.Append('"');
+        } else if (type.IsEnum) {
+            sb.Append(Convert.ToInt32(value));
+        } else if (IsSerializableStruct(type)) {
+            // Nested struct
+            sb.Append(SerializeStruct(value));
+        } else {
+            // Fallback to ToString
+            sb.Append('"');
+            sb.Append(EscapeJsonString(value.ToString()));
+            sb.Append('"');
+        }
+    }
+
+    static string EscapeJsonString(string s) {
+        if (string.IsNullOrEmpty(s)) return s;
+        // Simple escape - extend if needed
+        return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r");
+    }
+
+    // MARK: Deserialization (JS -> C#)
+    /// <summary>
+    /// Deserializes a JSON string to a struct of the target type.
+    /// Used when JS passes struct data back to C# and we know the expected type.
+    /// </summary>
+    public static object DeserializeStruct(string json, Type targetType) {
+        if (string.IsNullOrEmpty(json) || targetType == null) return null;
+
+        var dict = ParseSimpleJson(json);
+        if (dict == null) return null;
+
+        return DeserializeFromDict(dict, targetType);
+    }
+
+    /// <summary>
+    /// Deserializes from a pre-parsed dictionary to target type.
+    /// This is the main entry point when C# receives a plain object from JS.
+    /// </summary>
+    public static object DeserializeFromDict(Dictionary<string, object> dict, Type targetType) {
+        if (dict == null || targetType == null) return null;
+
+        // This call handles initialization and auto-registration
+        if (!IsSerializableStruct(targetType)) return null;
+
+        // Custom deserializer takes priority
+        if (_customDeserializers.TryGetValue(targetType, out var customDeserializer)) {
+            return customDeserializer(dict);
+        }
+
+        // If dict specifies __type and it's a registered type, use that
+        if (dict.TryGetValue("__type", out var typeNameObj) && typeNameObj is string typeName) {
+            var specifiedType = ResolveType(typeName);
+            if (specifiedType != null && targetType.IsAssignableFrom(specifiedType)) {
+                targetType = specifiedType;
+            }
+        }
+
+        // Generic reflection-based deserialization
+        return DeserializeStructGeneric(dict, targetType);
+    }
+
+    static object DeserializeStructGeneric(Dictionary<string, object> dict, Type type) {
+        var fields = GetStructFields(type);
+        object instance = Activator.CreateInstance(type);
+
+        for (int i = 0; i < fields.Length; i++) {
+            var field = fields[i];
+            // Try lowercase first (JS convention), then original name
+            var lowerName = char.ToLowerInvariant(field.Name[0]) + field.Name.Substring(1);
+
+            object rawValue = null;
+            if (!dict.TryGetValue(lowerName, out rawValue) && !dict.TryGetValue(field.Name, out rawValue)) {
+                continue;
+            }
+
+            var convertedValue = ConvertJsonValue(rawValue, field.FieldType);
+            if (convertedValue != null) {
+                instance = field.Setter(instance, convertedValue);
+            }
+        }
+
+        return instance;
+    }
+
+    static object ConvertJsonValue(object value, Type targetType) {
         if (value == null) return null;
 
         var sourceType = value.GetType();
         if (targetType.IsAssignableFrom(sourceType)) return value;
 
-        // 1. Handle JSON struct strings first
-        if (value is string jsonStr && jsonStr.StartsWith("{\"__struct\":")) {
-            var deserialized = DeserializeJsonToStruct(jsonStr, targetType);
-            if (deserialized != null) return deserialized;
+        // Handle nested dictionary (nested struct from JS)
+        if (value is Dictionary<string, object> nestedDict && IsSerializableStruct(targetType)) {
+            return DeserializeFromDict(nestedDict, targetType);
         }
 
-        // 2. Try implicit conversion operators (op_Implicit)
+        // Numeric conversions
+        if (IsNumericType(sourceType) && (IsNumericType(targetType) || targetType.IsEnum)) {
+            if (targetType.IsEnum) {
+                return Enum.ToObject(targetType, Convert.ToInt64(value));
+            }
+            return Convert.ChangeType(value, targetType, CultureInfo.InvariantCulture);
+        }
+
+        // String to enum
+        if (sourceType == typeof(string) && targetType.IsEnum) {
+            return Enum.Parse(targetType, (string)value);
+        }
+
+        return value;
+    }
+
+    // MARK: Field Cache
+    static StructFieldInfo[] GetStructFields(Type type) {
+        if (_structFieldCache.TryGetValue(type, out var cached)) return cached;
+
+        var list = new List<StructFieldInfo>();
+
+        // Get public instance fields
+        var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance);
+        foreach (var f in fields) {
+            if (f.IsStatic || f.IsLiteral) continue;
+            var fieldCopy = f;
+            list.Add(new StructFieldInfo {
+                Name = f.Name,
+                FieldType = f.FieldType,
+                Getter = obj => fieldCopy.GetValue(obj),
+                Setter = (obj, val) => {
+                    // For structs: unbox, set, return modified copy
+                    fieldCopy.SetValue(obj, val);
+                    return obj;
+                }
+            });
+        }
+
+        // Get public instance properties with both getter and setter
+        var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        foreach (var p in props) {
+            if (!p.CanRead || !p.CanWrite) continue;
+            if (p.GetIndexParameters().Length > 0) continue;
+            if (list.Exists(f => string.Equals(f.Name, p.Name, StringComparison.OrdinalIgnoreCase))) continue;
+
+            var propCopy = p;
+            list.Add(new StructFieldInfo {
+                Name = p.Name,
+                FieldType = p.PropertyType,
+                Getter = obj => propCopy.GetValue(obj),
+                Setter = (obj, val) => {
+                    propCopy.SetValue(obj, val);
+                    return obj;
+                }
+            });
+        }
+
+        var result = list.ToArray();
+        _structFieldCache[type] = result;
+        return result;
+    }
+
+    // MARK: JSON Parsing
+    // Simple JSON parser for struct data - handles numbers, strings, bools, nested objects
+    static Dictionary<string, object> ParseSimpleJson(string json) {
+        if (string.IsNullOrEmpty(json) || json[0] != '{') return null;
+
+        var dict = new Dictionary<string, object>();
+        int i = 1; // Skip opening brace
+
+        while (i < json.Length) {
+            SkipWhitespace(json, ref i);
+            if (i >= json.Length) break;
+            if (json[i] == '}') break;
+            if (json[i] == ',') {
+                i++;
+                continue;
+            }
+
+            // Parse key
+            if (json[i] != '"') break;
+            var key = ParseJsonString(json, ref i);
+            if (key == null) break;
+
+            SkipWhitespace(json, ref i);
+            if (i >= json.Length || json[i] != ':') break;
+            i++; // Skip colon
+
+            SkipWhitespace(json, ref i);
+            var value = ParseJsonValue(json, ref i);
+            dict[key] = value;
+        }
+
+        return dict;
+    }
+
+    static object ParseJsonValue(string json, ref int i) {
+        if (i >= json.Length) return null;
+
+        char c = json[i];
+
+        if (c == '"') return ParseJsonString(json, ref i);
+        if (c == '{') return ParseSimpleJson(json.Substring(i, FindMatchingBrace(json, i) - i + 1));
+        if (c == 't' && json.Substring(i, 4) == "true") {
+            i += 4;
+            return true;
+        }
+        if (c == 'f' && json.Substring(i, 5) == "false") {
+            i += 5;
+            return false;
+        }
+        if (c == 'n' && json.Substring(i, 4) == "null") {
+            i += 4;
+            return null;
+        }
+
+        // Number
+        int start = i;
+        bool hasDecimal = false;
+        if (json[i] == '-') i++;
+        while (i < json.Length && (char.IsDigit(json[i]) || json[i] == '.' || json[i] == 'e' ||
+                                   json[i] == 'E' || json[i] == '+' || json[i] == '-')) {
+            if (json[i] == '.') hasDecimal = true;
+            i++;
+        }
+        var numStr = json.Substring(start, i - start);
+        if (hasDecimal || numStr.Contains("e") || numStr.Contains("E")) {
+            return double.TryParse(numStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
+                ? d
+                : 0.0;
+        }
+        return int.TryParse(numStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : 0;
+    }
+
+    static string ParseJsonString(string json, ref int i) {
+        if (json[i] != '"') return null;
+        i++; // Skip opening quote
+
+        var sb = new StringBuilder();
+        while (i < json.Length && json[i] != '"') {
+            if (json[i] == '\\' && i + 1 < json.Length) {
+                i++;
+                switch (json[i]) {
+                    case 'n': sb.Append('\n'); break;
+                    case 'r': sb.Append('\r'); break;
+                    case 't': sb.Append('\t'); break;
+                    case '"': sb.Append('"'); break;
+                    case '\\': sb.Append('\\'); break;
+                    default: sb.Append(json[i]); break;
+                }
+            } else {
+                sb.Append(json[i]);
+            }
+            i++;
+        }
+        if (i < json.Length) i++; // Skip closing quote
+        return sb.ToString();
+    }
+
+    static int FindMatchingBrace(string json, int start) {
+        int depth = 0;
+        for (int i = start; i < json.Length; i++) {
+            if (json[i] == '{') depth++;
+            else if (json[i] == '}') {
+                depth--;
+                if (depth == 0) return i;
+            }
+        }
+        return json.Length - 1;
+    }
+
+    static void SkipWhitespace(string json, ref int i) {
+        while (i < json.Length && char.IsWhiteSpace(json[i])) i++;
+    }
+
+    // MARK: Type Conversion (updated)
+    static readonly ConcurrentDictionary<(Type, Type), MethodInfo> _implicitOpCache = new();
+
+    internal static object ConvertToTargetType(object value, Type targetType) {
+        if (value == null) return null;
+        EnsureStructsInitialized();
+
+        var sourceType = value.GetType();
+        if (targetType.IsAssignableFrom(sourceType)) return value;
+
+        // 1. Dictionary from JS -> struct
+        if (value is Dictionary<string, object> dict && IsSerializableStruct(targetType)) {
+            return DeserializeFromDict(dict, targetType);
+        }
+
+        // 2. JSON string -> struct (legacy support)
+        if (value is string jsonStr && jsonStr.StartsWith("{\"__")) {
+            var parsed = ParseSimpleJson(jsonStr);
+            if (parsed != null) {
+                var deserialized = DeserializeFromDict(parsed, targetType);
+                if (deserialized != null && targetType.IsAssignableFrom(deserialized.GetType())) {
+                    return deserialized;
+                }
+            }
+        }
+
+        // 3. Try implicit conversion operators
         var converted = TryImplicitConversion(value, sourceType, targetType);
         if (converted != null) return converted;
 
-        // 3. Enum from numeric
+        // 4. Enum from numeric
         if (targetType.IsEnum && IsNumericType(sourceType)) {
             return Enum.ToObject(targetType, Convert.ToInt64(value));
         }
 
-        // 4. StyleEnum<T> - convert int to enum, then wrap
+        // 5. StyleEnum<T>
         if (targetType.IsGenericType) {
             var genDef = targetType.GetGenericTypeDefinition();
             if (genDef.FullName == "UnityEngine.UIElements.StyleEnum`1") {
@@ -297,16 +591,15 @@ public static partial class QuickJSNative {
             }
         }
 
-        // 5. Primitive/numeric conversions
+        // 6. Primitive/numeric conversions
         if ((targetType.IsPrimitive || targetType == typeof(decimal)) && IsNumericType(sourceType)) {
             try {
-                return Convert.ChangeType(value, targetType);
+                return Convert.ChangeType(value, targetType, CultureInfo.InvariantCulture);
             } catch {
-                // Fall through
             }
         }
 
-        // 6. Single-parameter constructor fallback
+        // 7. Single-parameter constructor fallback
         converted = TryConstructorConversion(value, sourceType, targetType);
         if (converted != null) return converted;
 
@@ -318,7 +611,7 @@ public static partial class QuickJSNative {
 
         if (!_implicitOpCache.TryGetValue(cacheKey, out var method)) {
             method = FindImplicitOperator(sourceType, targetType);
-            _implicitOpCache[cacheKey] = method; // Cache even if null
+            _implicitOpCache[cacheKey] = method;
         }
 
         if (method == null) return null;
@@ -329,7 +622,7 @@ public static partial class QuickJSNative {
             if (parmType.IsAssignableFrom(sourceType)) {
                 arg = value;
             } else if (IsNumericType(sourceType) && IsNumericType(parmType)) {
-                arg = Convert.ChangeType(value, parmType);
+                arg = Convert.ChangeType(value, parmType, CultureInfo.InvariantCulture);
             } else {
                 return null;
             }
@@ -340,15 +633,12 @@ public static partial class QuickJSNative {
     }
 
     static MethodInfo FindImplicitOperator(Type sourceType, Type targetType) {
-        // Check target type for op_Implicit(sourceType) -> targetType
         var method = FindOpImplicitIn(targetType, sourceType, targetType);
         if (method != null) return method;
 
-        // Check source type for op_Implicit(sourceType) -> targetType
         method = FindOpImplicitIn(sourceType, sourceType, targetType);
         if (method != null) return method;
 
-        // Try numeric widening: int -> float -> double
         if (IsNumericType(sourceType)) {
             foreach (var wideType in new[] { typeof(float), typeof(double), typeof(long) }) {
                 if (wideType == sourceType) continue;
@@ -390,8 +680,8 @@ public static partial class QuickJSNative {
 
             if (IsNumericType(sourceType) && IsNumericType(parmType)) {
                 try {
-                    var converted = Convert.ChangeType(value, parmType);
-                    return ctors[i].Invoke(new[] { converted });
+                    var conv = Convert.ChangeType(value, parmType, CultureInfo.InvariantCulture);
+                    return ctors[i].Invoke(new[] { conv });
                 } catch {
                     continue;
                 }

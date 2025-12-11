@@ -7,14 +7,12 @@ if (typeof globalThis.__cs === "undefined") {
 }
 
 // MARK: Handle Cleanup
-// FinalizationRegistry to automatically release C# object handles when JS wrappers are GC'd
 const __handleRegistry = new FinalizationRegistry((handle) => {
     if (handle > 0 && typeof __releaseHandle === "function") {
         __releaseHandle(handle);
     }
 });
 
-// Manual release function for explicit cleanup
 function releaseObject(obj) {
     if (obj && typeof obj.__csHandle === "number" && obj.__csHandle > 0) {
         __releaseHandle(obj.__csHandle);
@@ -23,97 +21,36 @@ function releaseObject(obj) {
 }
 
 // MARK: Args
-// Resolve all arguments before passing to C# - handles path proxies (enums) and struct conversions
+// Resolve arguments before passing to C# - handles path proxies (enums) and plain objects
 function __resolveArgs(args) {
     if (!args || args.length === 0) return args;
     
     const resolved = new Array(args.length);
     for (let i = 0; i < args.length; i++) {
-        resolved[i] = __resolvePathProxy(args[i]);
+        resolved[i] = __resolveValue(args[i]);
     }
     return resolved;
 }
 
-// MARK: Struct Deserialization
-// Unity structs (Vector3, Color, etc.) are serialized as JSON by C#
-// We deserialize them back to plain objects with helper methods
-
-function __deserializeStruct(jsonStr) {
-    if (typeof jsonStr !== "string" || !jsonStr.startsWith("{")) {
-        return null;
+// Resolve a single value - handles path proxies, CS objects, and plain objects
+function __resolveValue(value) {
+    if (value == null) return value;
+    
+    // Path proxy (enum value) - resolve to int
+    if (value.__csPathProxy) {
+        return __resolvePathProxy(value);
     }
     
-    try {
-        const obj = JSON.parse(jsonStr);
-        if (!obj || !obj.__struct) return null;
-        
-        // Add helper methods based on struct type
-        switch (obj.__struct) {
-            case "Vector2":
-            case "Vector3":
-            case "Vector4":
-            case "Vector2Int":
-            case "Vector3Int":
-                // Add magnitude, normalized, etc. helpers
-                Object.defineProperty(obj, "magnitude", {
-                    get() {
-                        let sum = 0;
-                        if ("x" in this) sum += this.x * this.x;
-                        if ("y" in this) sum += this.y * this.y;
-                        if ("z" in this) sum += this.z * this.z;
-                        if ("w" in this) sum += this.w * this.w;
-                        return Math.sqrt(sum);
-                    }
-                });
-                break;
-        }
-        
-        return obj;
-    } catch (e) {
-        return null;
-    }
-}
-
-// Check if a value looks like a struct that should be converted to Vector3, Color, etc.
-function __isPlainVectorLike(value) {
-    return typeof value === "object" && value !== null && 
-           !value.__csHandle && !value.__struct &&
-           ("x" in value || "r" in value);
-}
-
-// Convert a plain object to the appropriate Unity struct type for property setting
-function __convertToUnityStruct(value, propertyName) {
-    if (!__isPlainVectorLike(value)) return value;
-    
-    // Infer type from property name or value shape
-    const lowerProp = propertyName.toLowerCase();
-    
-    // Color properties
-    if (lowerProp.includes("color") || "r" in value && "g" in value && "b" in value) {
-        if ("a" in value) {
-            return new CS.UnityEngine.Color(value.r, value.g, value.b, value.a);
-        }
-        return new CS.UnityEngine.Color(value.r, value.g, value.b, 1);
+    // CS object - already has handle
+    if (value.__csHandle) {
+        return value;
     }
     
-    // Quaternion properties
-    if (lowerProp.includes("rotation") && "w" in value) {
-        return new CS.UnityEngine.Quaternion(value.x, value.y, value.z, value.w);
-    }
-    
-    // Vector4
-    if ("w" in value && "x" in value) {
-        return new CS.UnityEngine.Vector4(value.x, value.y, value.z || 0, value.w);
-    }
-    
-    // Vector3 (most common case for position, scale, etc.)
-    if ("z" in value) {
-        return new CS.UnityEngine.Vector3(value.x, value.y, value.z);
-    }
-    
-    // Vector2
-    if ("x" in value && "y" in value) {
-        return new CS.UnityEngine.Vector2(value.x, value.y);
+    // Plain object - could be struct data like {x: 1, y: 2, z: 3}
+    // C# will handle type-aware conversion based on target property/parameter type
+    if (typeof value === "object" && !Array.isArray(value)) {
+        // Pass as-is - C# knows the target type and will convert
+        return value;
     }
     
     return value;
@@ -121,35 +58,41 @@ function __convertToUnityStruct(value, propertyName) {
 
 // Resolve path proxies (e.g., enum values) to their actual values
 function __resolvePathProxy(value) {
-    if (value && value.__csPathProxy) {
-        const path = value.__csPath;
-        if (path && path.length >= 3) {
-            const parentPath = path.slice(0, -1).join(".");
-            const memberName = path[path.length - 1];
-            if (__typeExists(parentPath) && __cs.invoke(parentPath, "", 7 /* IsEnumType */, 0, 0, [])) {
-                return __cs.invoke(parentPath, memberName, 4 /* GetField */, 1 /* static */, 0, []);
-            }
+    if (!value || !value.__csPathProxy) return value;
+    
+    const path = value.__csPath;
+    if (path && path.length >= 3) {
+        const parentPath = path.slice(0, -1).join(".");
+        const memberName = path[path.length - 1];
+        if (__typeExists(parentPath) && __cs.invoke(parentPath, "", 7 /* IsEnumType */, 0, 0, [])) {
+            return __cs.invoke(parentPath, memberName, 4 /* GetField */, 1 /* static */, 0, []);
         }
     }
     return value;
 }
 
-// MARK: Utils
+// MARK: Results
+// Process return values from C#
 function __wrapResultFromCs(typeHint, raw) {
     if (raw == null) return raw;
 
-    // Object handles come back as { __csHandle: number, __csType?: string }
+    // Object handle - wrap in proxy
     if (typeof raw === "object" && raw.__csHandle) {
-        // Prefer __csType from raw object (set by C# typeHint), fallback to typeHint parameter
         const resolvedType = raw.__csType || typeHint || "";
         return __wrapObject(resolvedType, raw.__csHandle);
     }
 
-    // Unity structs (Vector3, Color, etc.) are serialized as JSON strings by C#
-    // Check if this is a serialized struct and deserialize it
-    if (typeof raw === "string" && raw.startsWith("{\"__struct\":")) {
-        const deserialized = __deserializeStruct(raw);
-        if (deserialized) return deserialized;
+    // Struct data from C# comes as JSON with __type field
+    // Parse it to plain object for easy JS usage
+    if (typeof raw === "string" && raw.startsWith("{\"__type\":")) {
+        try {
+            const obj = JSON.parse(raw);
+            // Remove __type - it's internal metadata
+            // User can still check obj constructor or add type guards
+            return obj;
+        } catch (e) {
+            return raw;
+        }
     }
 
     return raw;
@@ -175,72 +118,51 @@ function __wrapObject(typeName, handle) {
                 };
             }
             
-            // Allow explicit release
             if (prop === "release" || prop === "dispose") {
                 return function() {
                     releaseObject(obj);
                 };
             }
 
-            if (typeof prop === "symbol") {
-                // Ignore Symbol.toPrimitive etc
-                return undefined;
-            }
+            if (typeof prop === "symbol") return undefined;
 
             const propName = String(prop);
             const typeName = obj.__csType || "";
             const handle = obj.__csHandle || 0;
 
-            // Heuristic:
-            // - lowerCamelCase => treat as property (transform, position, tag, name, etc.)
-            // - PascalCase     => treat as method (SetActive, AddComponent, etc.)
+            // Heuristic: lowerCamelCase => property, PascalCase => method
             const firstChar = propName.charAt(0);
             const isUpper = firstChar >= "A" && firstChar <= "Z";
 
             if (isUpper) {
-                // Method call: go.SetActive(false)
+                // Method
                 return function (...args) {
-                    const raw = __cs.invoke(typeName, propName, 1 /* Method */, 0 /* instance */, handle, __resolveArgs(args));
+                    const raw = __cs.invoke(typeName, propName, 1, 0, handle, __resolveArgs(args));
                     return __wrapResultFromCs(null, raw);
                 };
             }
 
-            // Property get: go.transform, go.transform.position, etc.
-            const value = __cs.invoke(typeName, propName, 2 /* GetProp */, 0 /* instance */, handle, []);
+            // Property get
+            const value = __cs.invoke(typeName, propName, 2, 0, handle, []);
             return __wrapResultFromCs(null, value);
         },
         set(obj, prop, value) {
-            if (typeof prop === "symbol") {
-                return false;
-            }
+            if (typeof prop === "symbol") return false;
             
             const propName = String(prop);
             
-            // IMPORTANT: Struct copy semantics warning
-            // In C#, structs like Vector3 have copy semantics. This means:
-            //   go.transform.position.x = 10  // Does NOTHING - modifies a copy
-            // You must set the entire struct:
-            //   go.transform.position = { x: 10, y: 0, z: 0 }
-            //   go.transform.position = new CS.UnityEngine.Vector3(10, 0, 0)
+            // Resolve the value (handles enums, etc.)
+            // Plain objects like {x:1, y:2, z:3} pass through - C# knows target type
+            const resolvedValue = __resolveValue(value);
             
-            // If value is a plain object with vector-like properties (x/y/z or r/g/b),
-            // convert it to the appropriate Unity struct type
-            let convertedValue = __resolvePathProxy(value);
-            if (__isPlainVectorLike(convertedValue)) {
-                convertedValue = __convertToUnityStruct(convertedValue, propName);
-            }
-            
-            __cs.invoke(obj.__csType || "", propName, 3 /* SetProp */, 0 /* instance */, obj.__csHandle, [convertedValue]);
+            __cs.invoke(obj.__csType || "", propName, 3, 0, obj.__csHandle, [resolvedValue]);
             return true;
         }
     });
     
-    // Register for automatic cleanup when proxy is garbage collected
     __handleRegistry.register(proxy, handle);
-    
     return proxy;
 }
-
 
 // MARK: Helpers
 function newObject(typeName, ...args) {
@@ -266,35 +188,24 @@ globalThis.__csHelpers = {
     callMethod,
     callStatic,
     wrapObject: __wrapObject,
-    releaseObject,
-    deserializeStruct: __deserializeStruct,
-    isPlainVectorLike: __isPlainVectorLike,
-    convertToUnityStruct: __convertToUnityStruct
+    releaseObject
 };
 
-// MARK: CS
-// Static property names - these are accessed as properties, not methods
+// MARK: CS Proxy
 const __staticPropertyNames = new Set([
-    // Time
     "time", "deltaTime", "fixedDeltaTime", "unscaledTime", "unscaledDeltaTime",
     "fixedTime", "timeScale", "frameCount", "realtimeSinceStartup",
-    // Screen
     "width", "height", "dpi", "fullScreen",
-    // Application
     "platform", "isPlaying", "isEditor", "dataPath", "persistentDataPath",
     "streamingAssetsPath", "temporaryCachePath", "version", "productName",
-    // Input (legacy)
     "mousePosition", "anyKey", "anyKeyDown",
-    // Cursor
     "visible", "lockState",
-    // Physics
     "gravity"
 ]);
 
-// Check if a type name resolves to an actual C# type
 function __typeExists(typeName) {
     if (!typeName) return false;
-    const raw = __cs.invoke(typeName, "", 6 /* TypeExists */, 0, 0, []);
+    const raw = __cs.invoke(typeName, "", 6, 0, 0, []);
     return raw === true || raw === 1;
 }
 
@@ -307,61 +218,38 @@ function __createCsPathProxy(path) {
 
     return new Proxy(CsType, {
         construct(target, args) {
-            // Always treat construct as type instantiation
             return newObject(typeName, ...args);
         },
         apply(target, thisArg, args) {
-            // For paths with 3+ segments, could be:
-            // - Constructor: CS.UnityEngine.UIElements.VisualElement()
-            // - Static method: CS.UnityEngine.Debug.Log()
-            
             if (path.length >= 3) {
-                // Check if full path is actually a type
                 if (!__typeExists(typeName)) {
-                    // Not a type - treat last segment as method on parent type
                     const parentPath = path.slice(0, -1).join(".");
                     const methodName = path[path.length - 1];
-                    const raw = __cs.invoke(parentPath, methodName, 1 /* Method */, 1 /* static */, 0, __resolveArgs(args));
+                    const raw = __cs.invoke(parentPath, methodName, 1, 1, 0, __resolveArgs(args));
                     return __wrapResultFromCs(null, raw);
                 }
             }
-            
-            // It's a type (or short path) - instantiate
             return newObject(typeName, ...args);
         },
         get(target, prop) {
-            if (typeof prop === "symbol") {
-                return undefined;
-            }
+            if (typeof prop === "symbol") return undefined;
         
-            // Internal properties - return directly without calling C#
-            if (prop === "__csHandle") {
-                return 0; // Type proxies aren't object instances
-            }
-            if (prop === "__csType") {
-                return typeName;
-            }
-            if (prop === "__csPathProxy") {
-                return true;
-            }
-            if (prop === "__csPath") {
-                return path;
-            }
+            if (prop === "__csHandle") return 0;
+            if (prop === "__csType") return typeName;
+            if (prop === "__csPathProxy") return true;
+            if (prop === "__csPath") return path;
         
             if (prop === "toString") {
-                return function () {
-                    return "[CSType " + typeName + "]";
-                };
+                return function () { return "[CSType " + typeName + "]"; };
             }
             
-            // valueOf - resolve enum value if this is an enum member
             if (prop === "valueOf") {
                 return function() {
                     if (path.length >= 3) {
                         const parentPath = path.slice(0, -1).join(".");
                         const memberName = path[path.length - 1];
-                        if (__typeExists(parentPath) && __cs.invoke(parentPath, "", 7 /* IsEnumType */, 0, 0, [])) {
-                            return __cs.invoke(parentPath, memberName, 4 /* GetField */, 1 /* static */, 0, []);
+                        if (__typeExists(parentPath) && __cs.invoke(parentPath, "", 7, 0, 0, [])) {
+                            return __cs.invoke(parentPath, memberName, 4, 1, 0, []);
                         }
                     }
                     return 0;
@@ -372,23 +260,17 @@ function __createCsPathProxy(path) {
             const firstChar = propName.charAt(0);
             const isLower = firstChar >= "a" && firstChar <= "z";
         
-            // Lowercase OR known static property => immediate property getter
             if (isLower || __staticPropertyNames.has(propName)) {
-                const raw = __cs.invoke(typeName, propName, 2 /* GetProp */, 1 /* static */, 0, []);
+                const raw = __cs.invoke(typeName, propName, 2, 1, 0, []);
                 return __wrapResultFromCs(null, raw);
             }
         
-            // PascalCase => nested namespace, nested type, or static member (resolved lazily)
             const nextPath = path.concat(propName);
             return __createCsPathProxy(nextPath);
         },
         set(target, prop, value) {
-            if (typeof prop === "symbol") {
-                return false;
-            }
-            
-            // Static property setter
-            __cs.invoke(typeName, String(prop), 3 /* SetProp */, 1 /* static */, 0, [value]);
+            if (typeof prop === "symbol") return false;
+            __cs.invoke(typeName, String(prop), 3, 1, 0, [__resolveValue(value)]);
             return true;
         }
     });
@@ -397,15 +279,10 @@ function __createCsPathProxy(path) {
 if (typeof globalThis.CS === "undefined") {
     globalThis.CS = new Proxy({}, {
         get(target, prop) {
-            if (typeof prop === "symbol") {
-                return undefined;
-            }
+            if (typeof prop === "symbol") return undefined;
             if (prop === "toString") {
-                return function () {
-                    return "[CSRoot]";
-                };
+                return function () { return "[CSRoot]"; };
             }
-            // First segment: "UnityEngine", "System", etc.
             return __createCsPathProxy([String(prop)]);
         }
     });

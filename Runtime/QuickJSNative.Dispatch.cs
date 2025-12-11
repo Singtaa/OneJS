@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using UnityEngine;
@@ -10,20 +11,15 @@ public static partial class QuickJSNative {
     static readonly CsReleaseHandleCallback _releaseHandleCallback = HandleReleaseFromJs;
 
     // MARK: Callback GC Roots
-    // These GCHandles prevent the GC from collecting the delegates while native code holds references
     static GCHandle _logCallbackHandle;
     static GCHandle _invokeCallbackHandle;
     static GCHandle _releaseCallbackHandle;
 
     static QuickJSNative() {
-        // CRITICAL: Pin the delegates with GCHandle to prevent GC from collecting them.
-        // The readonly modifier prevents reassignment but doesn't prevent GC collection.
-        // Native code holds references to these delegates, but GC doesn't see that.
         _logCallbackHandle = GCHandle.Alloc(_logCallback);
         _invokeCallbackHandle = GCHandle.Alloc(_invokeCallback);
         _releaseCallbackHandle = GCHandle.Alloc(_releaseHandleCallback);
 
-        // Register native -> C# callbacks once per process
         qjs_set_cs_log_callback(_logCallback);
         qjs_set_cs_invoke_callback(_invokeCallback);
         qjs_set_cs_release_handle_callback(_releaseHandleCallback);
@@ -36,17 +32,14 @@ public static partial class QuickJSNative {
 
     static void HandleLogFromJs(IntPtr msgPtr) {
         if (msgPtr == IntPtr.Zero) return;
-
         string msg = Marshal.PtrToStringUTF8(msgPtr);
         if (msg == null) return;
-
         Debug.Log("[QuickJS] " + msg);
     }
 
     // MARK: Dispatch
     static unsafe void DispatchFromJs(IntPtr ctxPtr, InteropInvokeRequest* reqPtr,
         InteropInvokeResult* resPtr) {
-        // ctxPtr is the QjsContext* pointer - can be used for context-specific handling if needed
         resPtr->errorCode = 0;
         resPtr->errorMsg = IntPtr.Zero;
         resPtr->returnValue = default;
@@ -66,16 +59,11 @@ public static partial class QuickJSNative {
                 }
             }
 
-            // Keep the explicit Debug.Log shortcut
+            // Debug.Log shortcut
             if (typeName == "UnityEngine.Debug" &&
                 memberName == "Log" &&
                 reqPtr->callKind == InteropInvokeCallKind.Method) {
-                if (args.Length > 0) {
-                    Debug.Log(args[0]?.ToString());
-                } else {
-                    Debug.Log("(null)");
-                }
-
+                Debug.Log(args.Length > 0 ? args[0]?.ToString() : "(null)");
                 resPtr->returnValue.type = InteropType.Null;
                 return;
             }
@@ -86,16 +74,12 @@ public static partial class QuickJSNative {
 
             if (!isStatic && reqPtr->targetHandle != 0) {
                 target = GetObjectByHandle(reqPtr->targetHandle);
-                if (target != null) {
-                    type = target.GetType();
-                }
+                if (target != null) type = target.GetType();
             }
 
-            if (type == null) {
-                type = ResolveType(typeName);
-            }
+            if (type == null) type = ResolveType(typeName);
 
-            // Handle type queries early - these don't require type to exist
+            // Type queries
             if (reqPtr->callKind == InteropInvokeCallKind.TypeExists) {
                 resPtr->returnValue.type = InteropType.Bool;
                 resPtr->returnValue.b = type != null ? 1 : 0;
@@ -108,6 +92,7 @@ public static partial class QuickJSNative {
                 return;
             }
 
+            // Constructor
             if (reqPtr->callKind == InteropInvokeCallKind.Ctor) {
                 if (type == null) {
                     resPtr->errorCode = 1;
@@ -115,7 +100,6 @@ public static partial class QuickJSNative {
                     return;
                 }
 
-                // Find matching constructor and convert args
                 var ctors = type.GetConstructors();
                 foreach (var ctor in ctors) {
                     var parms = ctor.GetParameters();
@@ -125,12 +109,8 @@ public static partial class QuickJSNative {
                     object[] convertedArgs = new object[args.Length];
                     for (int i = 0; i < parms.Length; i++) {
                         var pType = parms[i].ParameterType;
-                        var arg = args[i];
+                        var converted = ConvertToTargetType(args[i], pType);
 
-                        // Use the same conversion logic as property setters
-                        var converted = ConvertToTargetType(arg, pType);
-
-                        // Verify conversion produced compatible type
                         if (converted == null) {
                             if (pType.IsValueType && Nullable.GetUnderlyingType(pType) == null) {
                                 match = false;
@@ -152,8 +132,7 @@ public static partial class QuickJSNative {
                 }
 
                 resPtr->errorCode = 1;
-                Debug.LogError(
-                    $"[QuickJS] No matching constructor found for {typeName} with {args.Length} args");
+                Debug.LogError($"[QuickJS] No matching ctor for {typeName} with {args.Length} args");
                 return;
             }
 
@@ -170,6 +149,12 @@ public static partial class QuickJSNative {
                         resPtr->errorCode = 1;
                         Debug.LogError("[QuickJS] Method not found: " + type.FullName + "." + memberName);
                         return;
+                    }
+
+                    // Convert args to match parameter types
+                    var parms = method.GetParameters();
+                    for (int i = 0; i < parms.Length; i++) {
+                        args[i] = ConvertToTargetType(args[i], parms[i].ParameterType);
                     }
 
                     object result = method.Invoke(isStatic ? null : target, args);
@@ -194,15 +179,12 @@ public static partial class QuickJSNative {
                     PropertyInfo prop = FindPropertyCached(type, memberName, isStatic);
                     if (prop == null) {
                         resPtr->errorCode = 1;
-                        Debug.LogError("[QuickJS] Property not found (set): " + type.FullName + "." +
-                                       memberName);
+                        Debug.LogError("[QuickJS] Property not found (set): " + type.FullName + "." + memberName);
                         return;
                     }
 
                     object value = args.Length > 0 ? args[0] : null;
-                    var pType = prop.PropertyType;
-                    value = ConvertToTargetType(value, pType);
-
+                    value = ConvertToTargetType(value, prop.PropertyType);
                     prop.SetValue(isStatic ? null : target, value);
                     resPtr->returnValue.type = InteropType.Null;
                     return;
@@ -225,15 +207,12 @@ public static partial class QuickJSNative {
                     FieldInfo field = FindFieldCached(type, memberName, isStatic);
                     if (field == null) {
                         resPtr->errorCode = 1;
-                        Debug.LogError("[QuickJS] Field not found (set): " + type.FullName + "." +
-                                       memberName);
+                        Debug.LogError("[QuickJS] Field not found (set): " + type.FullName + "." + memberName);
                         return;
                     }
 
                     object value = args.Length > 0 ? args[0] : null;
-                    var fType = field.FieldType;
-                    value = ConvertToTargetType(value, fType);
-
+                    value = ConvertToTargetType(value, field.FieldType);
                     field.SetValue(isStatic ? null : target, value);
                     resPtr->returnValue.type = InteropType.Null;
                     return;
@@ -241,9 +220,7 @@ public static partial class QuickJSNative {
 
                 default:
                     resPtr->errorCode = 1;
-                    Debug.LogError("[QuickJS] Unsupported call kind: " + reqPtr->callKind + " for " +
-                                   typeName + "." +
-                                   memberName);
+                    Debug.LogError("[QuickJS] Unsupported call kind: " + reqPtr->callKind);
                     return;
             }
         } catch (Exception ex) {
@@ -252,7 +229,7 @@ public static partial class QuickJSNative {
         }
     }
 
-    // MARK: Value Conversion
+    // MARK: Return Value
     static unsafe void SetReturnValue(InteropInvokeResult* resPtr, object value) {
         resPtr->returnValue = default;
 
@@ -262,6 +239,8 @@ public static partial class QuickJSNative {
         }
 
         var t = value.GetType();
+
+        // Primitives
         switch (Type.GetTypeCode(t)) {
             case TypeCode.Boolean:
                 resPtr->returnValue.type = InteropType.Bool;
@@ -284,7 +263,6 @@ public static partial class QuickJSNative {
                 return;
 
             case TypeCode.UInt64:
-                // UInt64 may overflow Int64, treat as double for safety
                 resPtr->returnValue.type = InteropType.Double;
                 resPtr->returnValue.f64 = Convert.ToDouble(value);
                 return;
@@ -305,21 +283,24 @@ public static partial class QuickJSNative {
                 return;
         }
 
-        // Check for known serializable Unity structs (Vector3, Color, etc.)
-        // These should be serialized directly to avoid handle table issues with value types
-        if (_structSerializers.TryGetValue(t, out var serializer)) {
-            resPtr->returnValue.type = InteropType.String;
-            resPtr->returnValue.str = StringToUtf8(serializer(value));
-            return;
+        // Serializable struct - use the new generic system
+        if (IsSerializableStruct(t)) {
+            var json = SerializeStruct(value);
+            if (json != null) {
+                resPtr->returnValue.type = InteropType.String;
+                resPtr->returnValue.str = StringToUtf8(json);
+                return;
+            }
         }
 
-        // Fallback: treat as object handle (only for reference types)
+        // Reference type - register as handle
         int handle = RegisterObject(value);
         resPtr->returnValue.type = InteropType.ObjectHandle;
         resPtr->returnValue.handle = handle;
         resPtr->returnValue.typeHint = StringToUtf8(t.FullName);
     }
 
+    // MARK: Value Conversion
     internal static object InteropValueToObject(InteropValue v) {
         switch (v.type) {
             case InteropType.Null:
@@ -338,12 +319,16 @@ public static partial class QuickJSNative {
                 return PtrToStringUtf8(v.str);
             case InteropType.ObjectHandle:
                 return GetObjectByHandle(v.handle);
+            case InteropType.JsonObject:
+                // Plain JS object serialized as JSON - parse to dictionary
+                // ConvertToTargetType will convert to proper struct type
+                var json = PtrToStringUtf8(v.str);
+                if (!string.IsNullOrEmpty(json)) {
+                    return ParseSimpleJson(json);
+                }
+                return null;
             case InteropType.Array:
-                // For now, arrays are detected but full element serialization is not yet implemented.
-                // The i32 field contains the array length. Full array support requires
-                // element-by-element serialization in the JS bootstrap or C code.
-                Debug.LogWarning("[QuickJS] Array argument detected (length=" + v.i32 +
-                                 ") but full array serialization is not yet implemented.");
+                Debug.LogWarning("[QuickJS] Array deserialization not yet implemented");
                 return null;
             default:
                 return null;
@@ -383,8 +368,6 @@ public static partial class QuickJSNative {
                 v.str = stringPtr;
                 break;
             default:
-                // Check if it's already a registered handle
-                // For now, register new objects
                 int handle = RegisterObject(obj);
                 v.type = InteropType.ObjectHandle;
                 v.handle = handle;
