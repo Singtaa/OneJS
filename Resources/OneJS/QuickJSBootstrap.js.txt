@@ -21,7 +21,6 @@ function releaseObject(obj) {
 }
 
 // MARK: Args
-// Resolve arguments before passing to C# - handles path proxies (enums) and plain objects
 function __resolveArgs(args) {
     if (!args || args.length === 0) return args;
     
@@ -32,68 +31,53 @@ function __resolveArgs(args) {
     return resolved;
 }
 
-// Resolve a single value - handles path proxies, CS objects, and plain objects
 function __resolveValue(value) {
     if (value == null) return value;
     
-    // Path proxy (enum value) - resolve to int
     if (value.__csPathProxy) {
         return __resolvePathProxy(value);
     }
     
-    // CS object - already has handle
     if (value.__csHandle) {
         return value;
     }
     
-    // Plain object - could be struct data like {x: 1, y: 2, z: 3}
-    // C# will handle type-aware conversion based on target property/parameter type
     if (typeof value === "object" && !Array.isArray(value)) {
-        // Pass as-is - C# knows the target type and will convert
         return value;
     }
     
     return value;
 }
 
-// Resolve path proxies (e.g., enum values or type references) to their actual values
 function __resolvePathProxy(value) {
     if (!value || !value.__csPathProxy) return value;
     
     const path = value.__csPath;
     if (!path || path.length === 0) return value;
     
-    // Check if it's an enum value (parent type exists and is enum)
     if (path.length >= 2) {
         const parentPath = path.slice(0, -1).join(".");
         const memberName = path[path.length - 1];
-        if (__typeExists(parentPath) && __cs.invoke(parentPath, "", 7 /* IsEnumType */, 0, 0, [])) {
-            return __cs.invoke(parentPath, memberName, 4 /* GetField */, 1 /* static */, 0, []);
+        if (__typeExists(parentPath) && __cs.invoke(parentPath, "", 7, 0, 0, [])) {
+            return __cs.invoke(parentPath, memberName, 4, 1, 0, []);
         }
     }
     
-    // Not an enum - return type reference marker (C# converts to System.Type)
     return { __csTypeRef: path.join(".") };
 }
 
 // MARK: Results
-// Process return values from C#
 function __wrapResultFromCs(typeHint, raw) {
     if (raw == null) return raw;
 
-    // Object handle - wrap in proxy
     if (typeof raw === "object" && raw.__csHandle) {
         const resolvedType = raw.__csType || typeHint || "";
         return __wrapObject(resolvedType, raw.__csHandle);
     }
 
-    // Struct data from C# comes as JSON with __type field
-    // Parse it to plain object for easy JS usage
     if (typeof raw === "string" && raw.startsWith("{\"__type\":")) {
         try {
             const obj = JSON.parse(raw);
-            // Remove __type - it's internal metadata
-            // User can still check obj constructor or add type guards
             return obj;
         } catch (e) {
             return raw;
@@ -141,19 +125,16 @@ function __wrapObject(typeName, handle) {
             const typeName = obj.__csType || "";
             const handle = obj.__csHandle || 0;
 
-            // Heuristic: lowerCamelCase => property, PascalCase => method
             const firstChar = propName.charAt(0);
             const isUpper = firstChar >= "A" && firstChar <= "Z";
 
             if (isUpper) {
-                // Method
                 return function (...args) {
                     const raw = __cs.invoke(typeName, propName, 1, 0, handle, __resolveArgs(args));
                     return __wrapResultFromCs(null, raw);
                 };
             }
 
-            // Property get
             const value = __cs.invoke(typeName, propName, 2, 0, handle, []);
             return __wrapResultFromCs(null, value);
         },
@@ -161,9 +142,6 @@ function __wrapObject(typeName, handle) {
             if (typeof prop === "symbol") return false;
             
             const propName = String(prop);
-            
-            // Resolve the value (handles enums, etc.)
-            // Plain objects like {x:1, y:2, z:3} pass through - C# knows target type
             const resolvedValue = __resolveValue(value);
             
             __cs.invoke(obj.__csType || "", propName, 3, 0, obj.__csHandle, [resolvedValue]);
@@ -297,4 +275,218 @@ if (typeof globalThis.CS === "undefined") {
             return __createCsPathProxy([String(prop)]);
         }
     });
+}
+
+// MARK: Events
+// Event handler registry - maps elementHandle -> { eventType -> callback }
+const __eventHandlers = new Map();
+
+/**
+ * Register an event handler for an element.
+ * Called by user code or React reconciler.
+ * @param {object} element - CS object proxy with __csHandle
+ * @param {string} eventType - Event name: click, pointerdown, change, etc.
+ * @param {function} callback - Handler function receiving event data
+ */
+function addEventListener(element, eventType, callback) {
+    if (!element || !element.__csHandle) {
+        throw new Error("addEventListener: element must be a CS object");
+    }
+    const handle = element.__csHandle;
+    
+    if (!__eventHandlers.has(handle)) {
+        __eventHandlers.set(handle, new Map());
+    }
+    
+    const handlers = __eventHandlers.get(handle);
+    
+    // Support multiple handlers per event type
+    if (!handlers.has(eventType)) {
+        handlers.set(eventType, new Set());
+    }
+    handlers.get(eventType).add(callback);
+}
+
+/**
+ * Remove an event handler.
+ */
+function removeEventListener(element, eventType, callback) {
+    if (!element || !element.__csHandle) return;
+    const handle = element.__csHandle;
+    
+    const handlers = __eventHandlers.get(handle);
+    if (!handlers) return;
+    
+    const callbacks = handlers.get(eventType);
+    if (!callbacks) return;
+    
+    callbacks.delete(callback);
+    
+    if (callbacks.size === 0) {
+        handlers.delete(eventType);
+    }
+    if (handlers.size === 0) {
+        __eventHandlers.delete(handle);
+    }
+}
+
+/**
+ * Remove all event handlers for an element.
+ * Call this when element is destroyed/unmounted.
+ */
+function removeAllEventListeners(element) {
+    if (!element || !element.__csHandle) return;
+    __eventHandlers.delete(element.__csHandle);
+}
+
+/**
+ * Called from C# when an event fires.
+ * Dispatches to registered JS handlers.
+ */
+globalThis.__dispatchEvent = function(elementHandle, eventType, eventData) {
+    const handlers = __eventHandlers.get(elementHandle);
+    if (!handlers) return;
+    
+    const callbacks = handlers.get(eventType);
+    if (!callbacks || callbacks.size === 0) return;
+    
+    // Create synthetic event object
+    const event = {
+        type: eventType,
+        target: elementHandle,
+        ...eventData,
+        preventDefault() { this.defaultPrevented = true; },
+        stopPropagation() { this.propagationStopped = true; },
+        defaultPrevented: false,
+        propagationStopped: false
+    };
+    
+    for (const cb of callbacks) {
+        try {
+            cb(event);
+        } catch (e) {
+            console.error("Event handler error:", e);
+        }
+    }
+};
+
+// Expose event API
+globalThis.__eventAPI = {
+    addEventListener,
+    removeEventListener,
+    removeAllEventListeners
+};
+
+// MARK: Scheduling
+let __rafId = 0;
+const __rafCallbacks = new Map();
+
+let __timerId = 0;
+const __timeouts = new Map();
+const __intervals = new Map();
+
+// Timestamp from last tick - used as unified time base
+let __currentTime = 0;
+
+globalThis.performance = {
+    now() { return __currentTime; }
+};
+
+globalThis.requestAnimationFrame = function(callback) {
+    const id = ++__rafId;
+    __rafCallbacks.set(id, callback);
+    return id;
+};
+
+globalThis.cancelAnimationFrame = function(id) {
+    __rafCallbacks.delete(id);
+};
+
+globalThis.setTimeout = function(callback, delay, ...args) {
+    const id = ++__timerId;
+    const due = __currentTime + (delay || 0);
+    __timeouts.set(id, { callback, due, args });
+    return id;
+};
+
+globalThis.clearTimeout = function(id) {
+    __timeouts.delete(id);
+};
+
+globalThis.setInterval = function(callback, interval, ...args) {
+    const id = ++__timerId;
+    const int = Math.max(interval || 0, 1);
+    __intervals.set(id, { callback, interval: int, next: __currentTime + int, args });
+    return id;
+};
+
+globalThis.clearInterval = function(id) {
+    __intervals.delete(id);
+};
+
+globalThis.__tick = function(timestamp) {
+    __currentTime = timestamp;
+    
+    // RAF callbacks
+    const rafSnapshot = Array.from(__rafCallbacks.entries());
+    __rafCallbacks.clear();
+    
+    for (const [id, cb] of rafSnapshot) {
+        try {
+            cb(timestamp);
+        } catch (e) {
+            console.error("RAF callback error:", e);
+        }
+    }
+    
+    // Timeouts
+    for (const [id, t] of __timeouts) {
+        if (timestamp >= t.due) {
+            __timeouts.delete(id);
+            try {
+                t.callback(...t.args);
+            } catch (e) {
+                console.error("Timeout callback error:", e);
+            }
+        }
+    }
+    
+    // Intervals
+    for (const [id, t] of __intervals) {
+        while (timestamp >= t.next) {
+            t.next += t.interval;
+            try {
+                t.callback(...t.args);
+            } catch (e) {
+                console.error("Interval callback error:", e);
+            }
+        }
+    }
+};
+
+// MARK: Microtasks
+// Simple microtask queue for Promise-like behavior
+const __microtaskQueue = [];
+let __microtaskScheduled = false;
+
+globalThis.queueMicrotask = function(callback) {
+    __microtaskQueue.push(callback);
+    
+    if (!__microtaskScheduled) {
+        __microtaskScheduled = true;
+        // QuickJS has native Promise, use it to flush microtasks
+        Promise.resolve().then(__flushMicrotasks);
+    }
+};
+
+function __flushMicrotasks() {
+    __microtaskScheduled = false;
+    const tasks = __microtaskQueue.splice(0);
+    for (const task of tasks) {
+        try {
+            task();
+        } catch (e) {
+            console.error("Microtask error:", e);
+        }
+    }
 }

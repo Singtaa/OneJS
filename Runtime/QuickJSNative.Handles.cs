@@ -66,6 +66,13 @@ public static partial class QuickJSNative {
         }
     }
 
+    public static int GetHandleForObject(object obj) {
+        if (obj == null) return 0;
+        lock (_handleLock) {
+            return _reverseHandleTable.TryGetValue(obj, out int handle) ? handle : 0;
+        }
+    }
+
     /// <summary>
     /// Returns the number of currently registered object handles.
     /// Useful for debugging memory leaks.
@@ -88,4 +95,3 @@ public static partial class QuickJSNative {
         }
     }
 }
-
