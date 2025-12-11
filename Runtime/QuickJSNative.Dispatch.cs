@@ -320,11 +320,17 @@ public static partial class QuickJSNative {
             case InteropType.ObjectHandle:
                 return GetObjectByHandle(v.handle);
             case InteropType.JsonObject:
-                // Plain JS object serialized as JSON - parse to dictionary
-                // ConvertToTargetType will convert to proper struct type
+                // Plain JS object serialized as JSON
                 var json = PtrToStringUtf8(v.str);
                 if (!string.IsNullOrEmpty(json)) {
-                    return ParseSimpleJson(json);
+                    var dict = ParseSimpleJson(json);
+                    if (dict != null) {
+                        // Type reference marker - convert to System.Type immediately
+                        if (dict.TryGetValue("__csTypeRef", out var typeRefName) && typeRefName is string tn) {
+                            return ResolveType(tn);
+                        }
+                        return dict;
+                    }
                 }
                 return null;
             case InteropType.Array:

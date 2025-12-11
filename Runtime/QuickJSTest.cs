@@ -7,6 +7,12 @@ public struct CustomPoint {
     public string label;
 }
 
+public struct CustomSerializerTestPoint {
+    public float x;
+    public float y;
+    public string label;
+}
+
 public struct NestedStruct {
     public Vector3 position;
     public Color color;
@@ -120,6 +126,18 @@ public class QuickJSTest : MonoBehaviour {
                     $"Position mismatch: expected (10,20,30), got ({pos.x},{pos.y},{pos.z})");
             }
             _ctx.Eval("CS.UnityEngine.Object.Destroy(CS.UnityEngine.GameObject.Find('PositionTest'));");
+        });
+
+        Assert("AddComponent/GetComponent with Type arg", () => {
+            _ctx.Eval(@"
+                var go = new CS.UnityEngine.GameObject('ComponentTest');
+                var collider = go.AddComponent(CS.UnityEngine.BoxCollider);
+                console.log('Added: ' + collider);
+                var retrieved = go.GetComponent(CS.UnityEngine.BoxCollider);
+                console.log('Retrieved: ' + retrieved);
+                CS.UnityEngine.Object.Destroy(go);
+                go.release();
+            ");
         });
 
         _ctx.RunGC();
@@ -304,19 +322,20 @@ public class QuickJSTest : MonoBehaviour {
 
         // Test explicit registration with custom serializer
         Assert("Custom serializer registration", () => {
-            QuickJSNative.RegisterStructType<CustomPoint>(
-                cp => $"{{\"__type\":\"CustomPoint\",\"coords\":\"{cp.x},{cp.y}\",\"name\":\"{cp.label}\"}}",
+            QuickJSNative.RegisterStructType<CustomSerializerTestPoint>(
+                cp =>
+                    $"{{\"__type\":\"CustomSerializerTestPoint\",\"coords\":\"{cp.x},{cp.y}\",\"name\":\"{cp.label}\"}}",
                 dict => {
                     var coords = dict.TryGetValue("coords", out var c) ? (string)c : "0,0";
                     var parts = coords.Split(',');
-                    return new CustomPoint {
+                    return new CustomSerializerTestPoint {
                         x = float.Parse(parts[0]),
                         y = float.Parse(parts[1]),
                         label = dict.TryGetValue("name", out var n) ? (string)n : ""
                     };
                 }
             );
-            var point = new CustomPoint { x = 7, y = 8, label = "custom" };
+            var point = new CustomSerializerTestPoint { x = 7, y = 8, label = "custom" };
             var json = QuickJSNative.SerializeStruct(point);
             return json.Contains("coords") && json.Contains("7,8");
         });

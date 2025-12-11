@@ -56,19 +56,24 @@ function __resolveValue(value) {
     return value;
 }
 
-// Resolve path proxies (e.g., enum values) to their actual values
+// Resolve path proxies (e.g., enum values or type references) to their actual values
 function __resolvePathProxy(value) {
     if (!value || !value.__csPathProxy) return value;
     
     const path = value.__csPath;
-    if (path && path.length >= 3) {
+    if (!path || path.length === 0) return value;
+    
+    // Check if it's an enum value (parent type exists and is enum)
+    if (path.length >= 2) {
         const parentPath = path.slice(0, -1).join(".");
         const memberName = path[path.length - 1];
         if (__typeExists(parentPath) && __cs.invoke(parentPath, "", 7 /* IsEnumType */, 0, 0, [])) {
             return __cs.invoke(parentPath, memberName, 4 /* GetField */, 1 /* static */, 0, []);
         }
     }
-    return value;
+    
+    // Not an enum - return type reference marker (C# converts to System.Type)
+    return { __csTypeRef: path.join(".") };
 }
 
 // MARK: Results
@@ -115,6 +120,12 @@ function __wrapObject(typeName, handle) {
             if (prop === "toString") {
                 return function () {
                     return "[CSObject " + (obj.__csType || "?") + "#" + obj.__csHandle + "]";
+                };
+            }
+            
+            if (prop === "valueOf") {
+                return function () {
+                    return obj.__csHandle || 0;
                 };
             }
             
