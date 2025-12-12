@@ -48,27 +48,11 @@ public static partial class QuickJSNative {
         try {
             string typeName = PtrToStringUtf8(reqPtr->typeName);
             string memberName = PtrToStringUtf8(reqPtr->memberName);
-
-            int argCount = reqPtr->argCount;
-            object[] args = argCount > 0 ? new object[argCount] : Array.Empty<object>();
-
-            if (argCount > 0 && reqPtr->args != IntPtr.Zero) {
-                var nativeArgs = (InteropValue*)reqPtr->args;
-                for (int i = 0; i < argCount; i++) {
-                    args[i] = InteropValueToObject(nativeArgs[i]);
-                }
-            }
-
-            // Debug.Log shortcut
-            if (typeName == "UnityEngine.Debug" &&
-                memberName == "Log" &&
-                reqPtr->callKind == InteropInvokeCallKind.Method) {
-                Debug.Log(args.Length > 0 ? args[0]?.ToString() : "(null)");
-                resPtr->returnValue.type = InteropType.Null;
-                return;
-            }
-
             bool isStatic = reqPtr->isStatic != 0;
+            int argCount = reqPtr->argCount;
+            var argsPtr = (InteropValue*)reqPtr->args;
+
+            // Resolve type/target FIRST (needed for fast path lookup)
             object target = null;
             Type type = null;
 
@@ -79,7 +63,7 @@ public static partial class QuickJSNative {
 
             if (type == null) type = ResolveType(typeName);
 
-            // Type queries
+            // Type queries - handle before fast path (cheap operations)
             if (reqPtr->callKind == InteropInvokeCallKind.TypeExists) {
                 resPtr->returnValue.type = InteropType.Bool;
                 resPtr->returnValue.b = type != null ? 1 : 0;
@@ -89,6 +73,32 @@ public static partial class QuickJSNative {
             if (reqPtr->callKind == InteropInvokeCallKind.IsEnumType) {
                 resPtr->returnValue.type = InteropType.Bool;
                 resPtr->returnValue.b = type != null && type.IsEnum ? 1 : 0;
+                return;
+            }
+
+            // FAST PATH - zero allocation for registered methods/properties
+            // Reads directly from InteropValue* without creating object[]
+            if (TryFastPath(type, memberName, reqPtr->callKind, isStatic, target,
+                    argsPtr, argCount, &resPtr->returnValue)) {
+                return;
+            }
+
+            // SLOW PATH - reflection with object[] allocation
+            // Only reached for unregistered paths
+            object[] args = argCount > 0 ? new object[argCount] : Array.Empty<object>();
+
+            if (argCount > 0 && argsPtr != null) {
+                for (int i = 0; i < argCount; i++) {
+                    args[i] = InteropValueToObject(argsPtr[i]);
+                }
+            }
+
+            // Debug.Log shortcut (still useful for unregistered Debug.Log calls)
+            if (typeName == "UnityEngine.Debug" &&
+                memberName == "Log" &&
+                reqPtr->callKind == InteropInvokeCallKind.Method) {
+                Debug.Log(args.Length > 0 ? args[0]?.ToString() : "(null)");
+                resPtr->returnValue.type = InteropType.Null;
                 return;
             }
 
@@ -179,7 +189,8 @@ public static partial class QuickJSNative {
                     PropertyInfo prop = FindPropertyCached(type, memberName, isStatic);
                     if (prop == null) {
                         resPtr->errorCode = 1;
-                        Debug.LogError("[QuickJS] Property not found (set): " + type.FullName + "." + memberName);
+                        Debug.LogError("[QuickJS] Property not found (set): " + type.FullName + "." +
+                                       memberName);
                         return;
                     }
 
@@ -207,7 +218,8 @@ public static partial class QuickJSNative {
                     FieldInfo field = FindFieldCached(type, memberName, isStatic);
                     if (field == null) {
                         resPtr->errorCode = 1;
-                        Debug.LogError("[QuickJS] Field not found (set): " + type.FullName + "." + memberName);
+                        Debug.LogError("[QuickJS] Field not found (set): " + type.FullName + "." +
+                                       memberName);
                         return;
                     }
 
@@ -326,7 +338,8 @@ public static partial class QuickJSNative {
                     var dict = ParseSimpleJson(json);
                     if (dict != null) {
                         // Type reference marker - convert to System.Type immediately
-                        if (dict.TryGetValue("__csTypeRef", out var typeRefName) && typeRefName is string tn) {
+                        if (dict.TryGetValue("__csTypeRef", out var typeRefName) &&
+                            typeRefName is string tn) {
                             return ResolveType(tn);
                         }
                         return dict;
