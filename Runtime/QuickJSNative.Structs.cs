@@ -563,6 +563,18 @@ public static partial class QuickJSNative {
             return new Color(v.x, v.y, v.z, v.w);
         }
 
+        // Vector4 -> StyleColor (convert via Color first)
+        if (sourceType == typeof(Vector4) && targetType.FullName == "UnityEngine.UIElements.StyleColor") {
+            var v = (Vector4)value;
+            var color = new Color(v.x, v.y, v.z, v.w);
+            return Activator.CreateInstance(targetType, color);
+        }
+
+        // Color -> StyleColor (StyleColor has implicit conversion from Color)
+        // if (sourceType == typeof(Color) && targetType.FullName == "UnityEngine.UIElements.StyleColor") {
+        //     return Activator.CreateInstance(targetType, value);
+        // }
+
         // Vector3 -> Vector3 (already correct type, but handle any edge cases)
         if (sourceType == typeof(Vector3) && targetType == typeof(Vector3)) {
             return value;
