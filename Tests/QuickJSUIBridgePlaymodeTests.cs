@@ -1,5 +1,6 @@
 using System.Collections;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UIElements;
@@ -19,6 +20,10 @@ public class QuickJSUIBridgePlaymodeTests {
     public IEnumerator SetUp() {
         // Create PanelSettings at runtime
         _panelSettings = ScriptableObject.CreateInstance<PanelSettings>();
+        _panelSettings.themeStyleSheet =
+            AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(
+                "Assets/UI Toolkit/UnityThemes/UnityDefaultRuntimeTheme.tss");
+
 
         // Create GameObject with UIDocument
         _go = new GameObject("UIBridgeTestHost");
@@ -310,4 +315,3 @@ public class QuickJSUIBridgePlaymodeTests {
         yield return null;
     }
 }
-
