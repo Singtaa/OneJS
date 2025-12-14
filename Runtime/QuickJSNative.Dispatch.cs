@@ -46,13 +46,11 @@ public static partial class QuickJSNative {
         resPtr->returnValue.type = InteropType.Null;
 
         try {
-            string typeName = PtrToStringUtf8(reqPtr->typeName);
-            string memberName = PtrToStringUtf8(reqPtr->memberName);
             bool isStatic = reqPtr->isStatic != 0;
             int argCount = reqPtr->argCount;
             var argsPtr = (InteropValue*)reqPtr->args;
 
-            // Resolve type/target FIRST (needed for fast path lookup)
+            // Get target/type from handle (no string allocation needed)
             object target = null;
             Type type = null;
 
@@ -61,9 +59,32 @@ public static partial class QuickJSNative {
                 if (target != null) type = target.GetType();
             }
 
+            // ============================================================
+            // ZERO-ALLOC FAST PATH - checked BEFORE any string allocation
+            // ============================================================
+            if (TryFastPathZeroAlloc(
+                    type,
+                    reqPtr->typeName,
+                    reqPtr->memberName,
+                    reqPtr->callKind,
+                    isStatic,
+                    target,
+                    argsPtr,
+                    argCount,
+                    &resPtr->returnValue)) {
+                return; // Handled without any managed allocation!
+            }
+
+            // ============================================================
+            // SLOW PATH - now we allocate strings for reflection
+            // ============================================================
+            string typeName = PtrToStringUtf8(reqPtr->typeName);
+            string memberName = PtrToStringUtf8(reqPtr->memberName);
+
+            // Resolve type if not already resolved from handle
             if (type == null) type = ResolveType(typeName);
 
-            // Type queries - handle before fast path (cheap operations)
+            // Type queries
             if (reqPtr->callKind == InteropInvokeCallKind.TypeExists) {
                 resPtr->returnValue.type = InteropType.Bool;
                 resPtr->returnValue.b = type != null ? 1 : 0;
@@ -76,15 +97,7 @@ public static partial class QuickJSNative {
                 return;
             }
 
-            // FAST PATH - zero allocation for registered methods/properties
-            // Reads directly from InteropValue* without creating object[]
-            if (TryFastPath(type, memberName, reqPtr->callKind, isStatic, target,
-                    argsPtr, argCount, &resPtr->returnValue)) {
-                return;
-            }
-
-            // SLOW PATH - reflection with object[] allocation
-            // Only reached for unregistered paths
+            // Convert args to object[] (allocates)
             object[] args = argCount > 0 ? new object[argCount] : Array.Empty<object>();
 
             if (argCount > 0 && argsPtr != null) {
@@ -93,7 +106,7 @@ public static partial class QuickJSNative {
                 }
             }
 
-            // Debug.Log shortcut (still useful for unregistered Debug.Log calls)
+            // Debug.Log shortcut
             if (typeName == "UnityEngine.Debug" &&
                 memberName == "Log" &&
                 reqPtr->callKind == InteropInvokeCallKind.Method) {
@@ -161,7 +174,6 @@ public static partial class QuickJSNative {
                         return;
                     }
 
-                    // Convert args to match parameter types
                     var parms = method.GetParameters();
                     for (int i = 0; i < parms.Length; i++) {
                         args[i] = ConvertToTargetType(args[i], parms[i].ParameterType);
@@ -252,6 +264,55 @@ public static partial class QuickJSNative {
 
         var t = value.GetType();
 
+        // Check for Vector3/Quaternion/Color FIRST (zero-alloc path)
+        if (t == typeof(Vector3)) {
+            var v = (Vector3)value;
+            resPtr->returnValue.type = InteropType.Vector3;
+            resPtr->returnValue.vecX = v.x;
+            resPtr->returnValue.vecY = v.y;
+            resPtr->returnValue.vecZ = v.z;
+            return;
+        }
+
+        if (t == typeof(Quaternion)) {
+            var q = (Quaternion)value;
+            resPtr->returnValue.type = InteropType.Vector4;
+            resPtr->returnValue.vecX = q.x;
+            resPtr->returnValue.vecY = q.y;
+            resPtr->returnValue.vecZ = q.z;
+            resPtr->returnValue.vecW = q.w;
+            return;
+        }
+
+        if (t == typeof(Color)) {
+            var c = (Color)value;
+            resPtr->returnValue.type = InteropType.Vector4;
+            resPtr->returnValue.vecX = c.r;
+            resPtr->returnValue.vecY = c.g;
+            resPtr->returnValue.vecZ = c.b;
+            resPtr->returnValue.vecW = c.a;
+            return;
+        }
+
+        if (t == typeof(Vector4)) {
+            var v = (Vector4)value;
+            resPtr->returnValue.type = InteropType.Vector4;
+            resPtr->returnValue.vecX = v.x;
+            resPtr->returnValue.vecY = v.y;
+            resPtr->returnValue.vecZ = v.z;
+            resPtr->returnValue.vecW = v.w;
+            return;
+        }
+
+        if (t == typeof(Vector2)) {
+            var v = (Vector2)value;
+            resPtr->returnValue.type = InteropType.Vector3;
+            resPtr->returnValue.vecX = v.x;
+            resPtr->returnValue.vecY = v.y;
+            resPtr->returnValue.vecZ = 0;
+            return;
+        }
+
         // Primitives
         switch (Type.GetTypeCode(t)) {
             case TypeCode.Boolean:
@@ -295,7 +356,7 @@ public static partial class QuickJSNative {
                 return;
         }
 
-        // Serializable struct - use the new generic system
+        // Serializable struct - use the generic system
         if (IsSerializableStruct(t)) {
             var json = SerializeStruct(value);
             if (json != null) {
@@ -331,13 +392,19 @@ public static partial class QuickJSNative {
                 return PtrToStringUtf8(v.str);
             case InteropType.ObjectHandle:
                 return GetObjectByHandle(v.handle);
+            case InteropType.Vector3:
+                return new Vector3(v.vecX, v.vecY, v.vecZ);
+            case InteropType.Vector4:
+                var hint = PtrToStringUtf8(v.typeHint);
+                if (hint == "color") {
+                    return new Color(v.vecX, v.vecY, v.vecZ, v.vecW);
+                }
+                return new Vector4(v.vecX, v.vecY, v.vecZ, v.vecW);
             case InteropType.JsonObject:
-                // Plain JS object serialized as JSON
                 var json = PtrToStringUtf8(v.str);
                 if (!string.IsNullOrEmpty(json)) {
                     var dict = ParseSimpleJson(json);
                     if (dict != null) {
-                        // Type reference marker - convert to System.Type immediately
                         if (dict.TryGetValue("__csTypeRef", out var typeRefName) &&
                             typeRefName is string tn) {
                             return ResolveType(tn);
@@ -385,6 +452,26 @@ public static partial class QuickJSNative {
                 v.type = InteropType.String;
                 stringPtr = Marshal.StringToCoTaskMemUTF8(s);
                 v.str = stringPtr;
+                break;
+            case Vector3 vec:
+                v.type = InteropType.Vector3;
+                v.vecX = vec.x;
+                v.vecY = vec.y;
+                v.vecZ = vec.z;
+                break;
+            case Quaternion q:
+                v.type = InteropType.Vector4;
+                v.vecX = q.x;
+                v.vecY = q.y;
+                v.vecZ = q.z;
+                v.vecW = q.w;
+                break;
+            case Color c:
+                v.type = InteropType.Vector4;
+                v.vecX = c.r;
+                v.vecY = c.g;
+                v.vecZ = c.b;
+                v.vecW = c.a;
                 break;
             default:
                 int handle = RegisterObject(obj);

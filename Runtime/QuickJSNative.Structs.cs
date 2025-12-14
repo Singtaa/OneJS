@@ -551,6 +551,23 @@ public static partial class QuickJSNative {
         var sourceType = value.GetType();
         if (targetType.IsAssignableFrom(sourceType)) return value;
 
+        // Vector4 -> Quaternion (from binary packed {x,y,z,w})
+        if (sourceType == typeof(Vector4) && targetType == typeof(Quaternion)) {
+            var v = (Vector4)value;
+            return new Quaternion(v.x, v.y, v.z, v.w);
+        }
+
+        // Vector4 -> Color (from binary packed {r,g,b,a})
+        if (sourceType == typeof(Vector4) && targetType == typeof(Color)) {
+            var v = (Vector4)value;
+            return new Color(v.x, v.y, v.z, v.w);
+        }
+
+        // Vector3 -> Vector3 (already correct type, but handle any edge cases)
+        if (sourceType == typeof(Vector3) && targetType == typeof(Vector3)) {
+            return value;
+        }
+
         // 1. Dictionary from JS -> struct
         if (value is Dictionary<string, object> dict && IsSerializableStruct(targetType)) {
             return DeserializeFromDict(dict, targetType);

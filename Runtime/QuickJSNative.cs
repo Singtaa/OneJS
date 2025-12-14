@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 /// - QuickJSNative.Reflection.cs: Type resolution and member caching
 /// - QuickJSNative.Structs.cs: Unity struct serialization/deserialization
 /// - QuickJSNative.Dispatch.cs: JS->C# dispatch and value conversion
+/// - QuickJSNative.FastPath.cs: Zero-allocation fast path for hot methods
 /// </summary>
 public static partial class QuickJSNative {
     // MARK: Native Library Name
@@ -84,7 +85,9 @@ public static partial class QuickJSNative {
         Int64 = 6,
         Float32 = 7,
         Array = 8,
-        JsonObject = 9  // Plain JS object serialized as JSON - for struct conversion
+        JsonObject = 9,
+        Vector3 = 10,  // Binary packed x,y,z floats - zero alloc!
+        Vector4 = 11   // Binary packed x,y,z,w floats (Quaternion, Color) - zero alloc!
     }
 
     public enum InteropInvokeCallKind : int {
@@ -99,7 +102,9 @@ public static partial class QuickJSNative {
     }
 
     // MARK: Interop Structs
-    [StructLayout(LayoutKind.Explicit)]
+    // Layout must match C struct exactly:
+    // - type (4) + pad (4) + union (16) + typeHint (8) = 32 bytes
+    [StructLayout(LayoutKind.Explicit, Size = 32)]
     public struct InteropValue {
         [FieldOffset(0)]
         public InteropType type;
@@ -107,6 +112,7 @@ public static partial class QuickJSNative {
         [FieldOffset(4)]
         public int pad;
 
+        // Union members - all start at offset 8
         [FieldOffset(8)]
         public int i32;
 
@@ -128,7 +134,21 @@ public static partial class QuickJSNative {
         [FieldOffset(8)]
         public IntPtr str;
 
+        // Vector components - for Vector3/Vector4/Color/Quaternion
+        [FieldOffset(8)]
+        public float vecX;
+
+        [FieldOffset(12)]
+        public float vecY;
+
         [FieldOffset(16)]
+        public float vecZ;
+
+        [FieldOffset(20)]
+        public float vecW;
+
+        // typeHint now at offset 24 (after 16-byte union)
+        [FieldOffset(24)]
         public IntPtr typeHint;
     }
 
