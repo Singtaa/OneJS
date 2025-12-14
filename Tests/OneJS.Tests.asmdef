@@ -1,7 +1,11 @@
 {
     "name": "OneJS.Tests",
     "rootNamespace": "",
-    "references": [],
+    "references": [
+        "OneJS.Runtime",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": true,
