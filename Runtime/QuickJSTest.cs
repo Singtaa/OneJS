@@ -206,19 +206,24 @@ public class QuickJSTest : MonoBehaviour {
         });
 
         Assert("Color from plain object", () => {
-            // Test Color by creating a material and setting its color
+            // Test Color by creating a GameObject and modifying a Light's color
+            // Note: We use Light.color instead of Material.color because
+            // Material.color may have gamma/linear conversion depending on color space settings
             _ctx.Eval(@"
-                var mat = new CS.UnityEngine.Material(CS.UnityEngine.Shader.Find('Standard'));
-                mat.color = { r: 0.5, g: 0.25, b: 0.75, a: 1.0 };
-                globalThis.__testMat = mat;
+                var go = new CS.UnityEngine.GameObject('ColorTest');
+                var light = go.AddComponent(CS.UnityEngine.Light);
+                light.color = { r: 0.5, g: 0.25, b: 0.75, a: 1.0 };
             ");
-            // Retrieve and verify via another eval
-            var result = _ctx.Eval(@"
-                var c = globalThis.__testMat.color;
-                Math.abs(c.r - 0.5) < 0.01 && Math.abs(c.g - 0.25) < 0.01 && Math.abs(c.b - 0.75) < 0.01;
-            ");
-            _ctx.Eval("CS.UnityEngine.Object.Destroy(globalThis.__testMat);");
-            return result == "true";
+            var go = GameObject.Find("ColorTest");
+            if (go == null) throw new System.Exception("GameObject not found");
+            var light = go.GetComponent<Light>();
+            if (light == null) throw new System.Exception("Light not found");
+            var c = light.color;
+            Object.Destroy(go);
+            // Check values with tolerance
+            return Mathf.Abs(c.r - 0.5f) < 0.01f &&
+                   Mathf.Abs(c.g - 0.25f) < 0.01f &&
+                   Mathf.Abs(c.b - 0.75f) < 0.01f;
         });
 
         Assert("Quaternion from plain object", () => {
