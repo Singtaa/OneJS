@@ -25,8 +25,7 @@ public class UIToolkitJSPlaymodeTests {
         _panelSettings.themeStyleSheet =
             AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(
                 "Assets/UI Toolkit/UnityThemes/UnityDefaultRuntimeTheme.tss");
-        // Debug.Log("XXXX");
-        // Debug.Log(AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>("Assets/UI Toolkit/UnityThemes/UnityDefaultRuntimeTheme.tss"));
+
         // Create GameObject with UIDocument
         _go = new GameObject("UIToolkitTestHost");
         _uiDocument = _go.AddComponent<UIDocument>();
@@ -492,4 +491,3 @@ public class UIToolkitJSPlaymodeTests {
         throw new System.Exception("Could not find RegisterObject method");
     }
 }
-
