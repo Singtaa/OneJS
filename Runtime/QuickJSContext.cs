@@ -97,6 +97,16 @@ public sealed class QuickJSContext : IDisposable {
     }
 
     /// <summary>
+    /// Execute all pending Promise jobs (microtasks).
+    /// Must be called periodically to process Promise callbacks and React scheduler work.
+    /// Returns the number of jobs executed, or -1 on error.
+    /// </summary>
+    public int ExecutePendingJobs() {
+        if (_disposed || _ptr == IntPtr.Zero) return 0;
+        return QuickJSNative.qjs_execute_pending_jobs(_ptr);
+    }
+
+    /// <summary>
     /// Runs GC if the handle table exceeds the given threshold.
     /// Call this from Update() if you need more aggressive cleanup.
     /// </summary>

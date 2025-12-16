@@ -60,6 +60,9 @@ public static partial class QuickJSNative {
     internal static extern void qjs_run_gc(IntPtr ctx);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern int qjs_execute_pending_jobs(IntPtr ctx);
+
+    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     static extern void qjs_set_cs_invoke_callback(CsInvokeCallback cb);
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]

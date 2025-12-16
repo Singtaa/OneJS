@@ -293,13 +293,13 @@ function addEventListener(element, eventType, callback) {
         throw new Error("addEventListener: element must be a CS object");
     }
     const handle = element.__csHandle;
-    
+
     if (!__eventHandlers.has(handle)) {
         __eventHandlers.set(handle, new Map());
     }
-    
+
     const handlers = __eventHandlers.get(handle);
-    
+
     // Support multiple handlers per event type
     if (!handlers.has(eventType)) {
         handlers.set(eventType, new Set());
@@ -313,15 +313,15 @@ function addEventListener(element, eventType, callback) {
 function removeEventListener(element, eventType, callback) {
     if (!element || !element.__csHandle) return;
     const handle = element.__csHandle;
-    
+
     const handlers = __eventHandlers.get(handle);
     if (!handlers) return;
-    
+
     const callbacks = handlers.get(eventType);
     if (!callbacks) return;
-    
+
     callbacks.delete(callback);
-    
+
     if (callbacks.size === 0) {
         handlers.delete(eventType);
     }
@@ -346,10 +346,10 @@ function removeAllEventListeners(element) {
 globalThis.__dispatchEvent = function(elementHandle, eventType, eventData) {
     const handlers = __eventHandlers.get(elementHandle);
     if (!handlers) return;
-    
+
     const callbacks = handlers.get(eventType);
     if (!callbacks || callbacks.size === 0) return;
-    
+
     // Create synthetic event object
     const event = {
         type: eventType,
@@ -360,7 +360,7 @@ globalThis.__dispatchEvent = function(elementHandle, eventType, eventData) {
         defaultPrevented: false,
         propagationStopped: false
     };
-    
+
     for (const cb of callbacks) {
         try {
             cb(event);
@@ -490,3 +490,33 @@ function __flushMicrotasks() {
         }
     }
 }
+
+// MARK: setImmediate
+// setImmediate - executes callback via microtask queue (synchronously in same tick)
+// This is needed by React's scheduler as a priority over setTimeout
+const __immediateCallbacks = new Map();
+let __immediateId = 0;
+
+globalThis.setImmediate = function(callback, ...args) {
+    const id = ++__immediateId;
+    __immediateCallbacks.set(id, { callback, args });
+
+    // Schedule via microtask to run "immediately" but after current execution
+    queueMicrotask(() => {
+        const item = __immediateCallbacks.get(id);
+        if (item) {
+            __immediateCallbacks.delete(id);
+            try {
+                item.callback(...item.args);
+            } catch (e) {
+                console.error("setImmediate callback error:", e);
+            }
+        }
+    });
+
+    return id;
+};
+
+globalThis.clearImmediate = function(id) {
+    __immediateCallbacks.delete(id);
+};

@@ -8,7 +8,7 @@ public static partial class QuickJSNative {
     static readonly Dictionary<object, int> _reverseHandleTable = new Dictionary<object, int>();
     internal static readonly object _handleLock = new object();
 
-    internal static int RegisterObject(object obj) {
+    public static int RegisterObject(object obj) {
         if (obj == null) return 0;
 
         // Value types should not go through the handle table - they should be serialized directly.

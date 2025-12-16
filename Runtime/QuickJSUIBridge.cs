@@ -47,12 +47,15 @@ public class QuickJSUIBridge : IDisposable {
     }
 
     /// <summary>
-    /// Call every frame from Update() to drive RAF and timers.
+    /// Call every frame from Update() to drive RAF, timers, and Promise microtasks.
     /// </summary>
     public void Tick() {
         if (_disposed) return;
         float timestamp = (Time.realtimeSinceStartup - _startTime) * 1000f;
         _ctx.Eval($"globalThis.__tick && __tick({timestamp.ToString("F2", CultureInfo.InvariantCulture)})");
+
+        // Execute pending Promise jobs (microtasks) - critical for React scheduler
+        _ctx.ExecutePendingJobs();
     }
 
     // MARK: Events
@@ -153,6 +156,7 @@ public class QuickJSUIBridge : IDisposable {
 
         try {
             _ctx.Eval(_sb.ToString());
+            _ctx.ExecutePendingJobs(); // Process microtasks scheduled by React
         } catch (Exception ex) {
             Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error: {ex.Message}");
         }
@@ -180,6 +184,7 @@ public class QuickJSUIBridge : IDisposable {
 
         try {
             _ctx.Eval(_sb.ToString());
+            _ctx.ExecutePendingJobs(); // Process microtasks scheduled by React
         } catch (Exception ex) {
             Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error: {ex.Message}");
         }
@@ -213,6 +218,7 @@ public class QuickJSUIBridge : IDisposable {
 
         try {
             _ctx.Eval(_sb.ToString());
+            _ctx.ExecutePendingJobs(); // Process microtasks scheduled by React
         } catch (Exception ex) {
             Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error: {ex.Message}");
         }
@@ -233,6 +239,7 @@ public class QuickJSUIBridge : IDisposable {
 
         try {
             _ctx.Eval(_sb.ToString());
+            _ctx.ExecutePendingJobs(); // Process microtasks scheduled by React
         } catch (Exception ex) {
             Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error: {ex.Message}");
         }
