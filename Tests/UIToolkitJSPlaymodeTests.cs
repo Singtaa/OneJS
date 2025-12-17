@@ -483,11 +483,7 @@ public class UIToolkitJSPlaymodeTests {
     // MARK: Helper Methods
 
     int RegisterTestContainer(VisualElement container) {
-        var method = typeof(QuickJSNative).GetMethod("RegisterObject",
-            BindingFlags.NonPublic | BindingFlags.Static);
-        if (method != null) {
-            return (int)method.Invoke(null, new object[] { container });
-        }
-        throw new System.Exception("Could not find RegisterObject method");
+        // RegisterObject is public, so use Public binding flag
+        return QuickJSNative.RegisterObject(container);
     }
 }
