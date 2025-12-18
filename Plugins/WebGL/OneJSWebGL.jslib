@@ -85,6 +85,19 @@ var OneJSWebGLLib = {
         init: function() {
             if (OneJS.initialized) return;
             OneJS.initialized = true;
+
+            // Global error handler for debugging
+            window.onerror = function(message, source, lineno, colno, error) {
+                console.error("[OneJS] Global error:", message, "at", source, lineno + ":" + colno);
+                if (error && error.stack) {
+                    console.error("[OneJS] Stack:", error.stack);
+                }
+                return false; // Don't prevent default handling
+            };
+
+            window.onunhandledrejection = function(event) {
+                console.error("[OneJS] Unhandled promise rejection:", event.reason);
+            };
         },
 
         // =====================================================================
@@ -425,6 +438,9 @@ var OneJSWebGLLib = {
 
         } catch (e) {
             var errorMsg = e.message || String(e);
+            if (e.stack) {
+                console.error("[OneJS] JS Error in " + filename + ":", e.stack);
+            }
             if (filename && filename !== "<input>") {
                 errorMsg = filename + ": " + errorMsg;
             }
@@ -489,6 +505,26 @@ var OneJSWebGLLib = {
         // For now, this shouldn't be called in WebGL since we use native browser APIs
         console.warn("[OneJS] qjs_invoke_callback called - this should not happen in WebGL");
         return 0;
+    },
+
+    // =========================================================================
+    // Fast Event Dispatch (WebGL optimization)
+    // =========================================================================
+
+    qjs_dispatch_event__deps: ["$OneJS"],
+    qjs_dispatch_event: function(elementHandle, eventTypePtr, eventDataPtr) {
+        // Fast path for event dispatch - avoids eval overhead
+        var eventType = UTF8ToString(eventTypePtr);
+        var eventDataJson = UTF8ToString(eventDataPtr);
+
+        try {
+            var eventData = eventDataJson ? JSON.parse(eventDataJson) : {};
+            if (typeof __dispatchEvent === "function") {
+                __dispatchEvent(elementHandle, eventType, eventData);
+            }
+        } catch (e) {
+            console.error("[OneJS] Event dispatch error:", e);
+        }
     }
 };
 

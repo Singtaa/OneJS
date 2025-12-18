@@ -43,6 +43,18 @@ In WebGL builds, JavaScript runs directly in the browser's JS engine (V8/SpiderM
 4. C# processes request via reflection (same as native QuickJS path)
 5. Result marshaled back to JS
 
+### Event Dispatch (optimized)
+1. C# calls `qjs_dispatch_event()` directly (not eval)
+2. jslib calls `__dispatchEvent()` with parsed JSON
+3. Avoids eval overhead for high-frequency events
+
+### Tick Loop (RAF)
+In WebGL, the tick loop uses browser's native `requestAnimationFrame` instead of Unity's Update:
+1. `__startWebGLTick()` called after script loads
+2. Browser RAF drives `__webglTick()` at 60fps
+3. Processes RAF callbacks, timeouts, intervals
+4. Avoids PlayerLoop recursion (C# Update → JS → C# interop)
+
 ## Target Platform
 
 - **Unity 6+** (Emscripten 3.1.38+)
@@ -55,6 +67,13 @@ No special setup required:
 - Plugin automatically included only in WebGL builds (via .meta settings)
 - Editor/Play Mode continues using native QuickJS
 - Just press Ctrl+B / Cmd+B to build
+
+### StreamingAssets Loading
+For WebGL, the app bundle is loaded from StreamingAssets using browser's native `fetch()`:
+1. JSRunner defers loading to Update (browser needs to be ready)
+2. Uses native `fetch()` instead of `UnityWebRequest` (more reliable in WebGL)
+3. Script executed directly in JS via `eval()` to avoid buffer size limits
+4. `__startWebGLTick()` called after successful execution
 
 ## Implementation Status
 
@@ -73,8 +92,28 @@ No special setup required:
 - [x] Support for all InteropType values (primitives, strings, handles, vectors)
 - [x] Memory management (alloc/free for strings, args, results)
 
-### Phase 3 - Production Ready
-- [ ] Error handling and recovery
-- [ ] Performance optimization
-- [ ] Testing across browsers
-- [ ] `qjs_invoke_callback` (C#→JS callbacks, if needed)
+### Phase 3 - Production Ready ✅
+- [x] `qjs_dispatch_event` - Fast event dispatch (avoids eval)
+- [x] Native RAF tick loop (avoids PlayerLoop recursion)
+- [x] Platform defines injection (UNITY_WEBGL, etc.)
+- [x] StreamingAssets loading via native fetch
+
+## Key Differences from Native QuickJS
+
+| Aspect | Native QuickJS | WebGL |
+|--------|---------------|-------|
+| JS Engine | QuickJS (interpreter) | Browser V8/SpiderMonkey (JIT) |
+| Tick Loop | Unity Update → `__tick()` | Browser RAF → `__webglTick()` |
+| Microtasks | `ExecutePendingJobs()` | Browser handles natively |
+| GC | QuickJS GC | Browser GC |
+| Event Dispatch | `qjs_eval()` | `qjs_dispatch_event()` (fast path) |
+
+## Gotchas
+
+1. **Bootstrap timing**: The bootstrap runs before platform defines are set. Check for `__nativeRequestAnimationFrame` instead of `UNITY_WEBGL`.
+
+2. **PlayerLoop recursion**: Never call back into C# from Unity's Update loop in a way that triggers more JS execution. Use native RAF instead.
+
+3. **Large scripts**: Don't return large scripts through C# eval buffer. Execute directly in JS via `eval()`.
+
+4. **performance.now()**: Don't override browser's `performance` object - Unity WebGL uses it.

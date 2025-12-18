@@ -403,10 +403,24 @@ const __intervals = new Map();
 // Timestamp from last tick - used as unified time base
 let __currentTime = 0;
 
-globalThis.performance = {
-    now() { return __currentTime; }
-};
+// Only polyfill performance.now if it doesn't exist (QuickJS)
+// In WebGL, the browser already has performance.now() and we shouldn't override it
+if (typeof globalThis.performance === "undefined") {
+    globalThis.performance = {
+        now() { return __currentTime; }
+    };
+}
 
+// Store original browser APIs before overriding (for WebGL compatibility)
+const __nativeSetTimeout = globalThis.setTimeout;
+const __nativeClearTimeout = globalThis.clearTimeout;
+const __nativeSetInterval = globalThis.setInterval;
+const __nativeClearInterval = globalThis.clearInterval;
+const __nativeRequestAnimationFrame = globalThis.requestAnimationFrame;
+const __nativeCancelAnimationFrame = globalThis.cancelAnimationFrame;
+
+// Custom scheduling driven by Unity's Update loop via __tick
+// These replace browser APIs so React uses Unity's frame timing
 globalThis.requestAnimationFrame = function(callback) {
     const id = ++__rafId;
     __rafCallbacks.set(id, callback);
@@ -441,11 +455,11 @@ globalThis.clearInterval = function(id) {
 
 globalThis.__tick = function(timestamp) {
     __currentTime = timestamp;
-    
+
     // RAF callbacks
     const rafSnapshot = Array.from(__rafCallbacks.entries());
     __rafCallbacks.clear();
-    
+
     for (const [id, cb] of rafSnapshot) {
         try {
             cb(timestamp);
@@ -453,7 +467,7 @@ globalThis.__tick = function(timestamp) {
             console.error("RAF callback error:", e);
         }
     }
-    
+
     // Timeouts
     for (const [id, t] of __timeouts) {
         if (timestamp >= t.due) {
@@ -465,7 +479,7 @@ globalThis.__tick = function(timestamp) {
             }
         }
     }
-    
+
     // Intervals
     for (const [id, t] of __intervals) {
         while (timestamp >= t.next) {
@@ -478,6 +492,71 @@ globalThis.__tick = function(timestamp) {
         }
     }
 };
+
+// WebGL: Use browser's native RAF to drive tick instead of Unity's Update
+// This avoids PlayerLoop recursion issues when C# Update calls JS which calls back to C#
+// Note: We check for native RAF existence rather than UNITY_WEBGL because
+// the platform defines aren't set until after bootstrap runs
+if (__nativeRequestAnimationFrame) {
+    let __webglTickRunning = false;
+
+    function __webglTick(browserTimestamp) {
+        if (!__webglTickRunning) return;
+
+        // Update current time using browser's high-precision timestamp
+        __currentTime = browserTimestamp;
+
+        // Process RAF callbacks
+        const rafSnapshot = Array.from(__rafCallbacks.entries());
+        __rafCallbacks.clear();
+
+        for (const [id, cb] of rafSnapshot) {
+            try {
+                cb(browserTimestamp);
+            } catch (e) {
+                console.error("RAF callback error:", e);
+            }
+        }
+
+        // Process timeouts
+        for (const [id, t] of __timeouts) {
+            if (browserTimestamp >= t.due) {
+                __timeouts.delete(id);
+                try {
+                    t.callback(...t.args);
+                } catch (e) {
+                    console.error("Timeout callback error:", e);
+                }
+            }
+        }
+
+        // Process intervals
+        for (const [id, t] of __intervals) {
+            while (browserTimestamp >= t.next) {
+                t.next += t.interval;
+                try {
+                    t.callback(...t.args);
+                } catch (e) {
+                    console.error("Interval callback error:", e);
+                }
+            }
+        }
+
+        // Schedule next tick
+        __nativeRequestAnimationFrame(__webglTick);
+    }
+
+    // Start the WebGL tick loop (called from C# in WebGL builds)
+    globalThis.__startWebGLTick = function() {
+        if (__webglTickRunning) return;
+        __webglTickRunning = true;
+        __nativeRequestAnimationFrame(__webglTick);
+    };
+
+    globalThis.__stopWebGLTick = function() {
+        __webglTickRunning = false;
+    };
+}
 
 // MARK: Microtasks
 // Simple microtask queue for Promise-like behavior

@@ -89,6 +89,16 @@ public static partial class QuickJSNative {
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     static extern void qjs_set_cs_release_handle_callback(CsReleaseHandleCallback cb);
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+    // Fast event dispatch for WebGL - avoids eval overhead
+    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void qjs_dispatch_event(
+        int elementHandle,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string eventType,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string eventDataJson
+    );
+#endif
+
     // MARK: Interop Enums
     public enum InteropType : int {
         Null = 0,

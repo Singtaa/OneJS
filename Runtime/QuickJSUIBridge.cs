@@ -14,6 +14,7 @@ public class QuickJSUIBridge : IDisposable {
     readonly StringBuilder _sb = new(256);
     bool _disposed;
     float _startTime;
+    bool _inEval; // Recursion guard for WebGL
 
     public QuickJSContext Context => _ctx;
     public VisualElement Root => _root;
@@ -47,15 +48,39 @@ public class QuickJSUIBridge : IDisposable {
     }
 
     /// <summary>
+    /// Safe eval that prevents recursive calls (important for WebGL).
+    /// Returns null if already in an eval call.
+    /// </summary>
+    string SafeEval(string code) {
+        if (_inEval) {
+            Debug.LogWarning("[QuickJSUIBridge] Prevented recursive eval");
+            return null;
+        }
+        _inEval = true;
+        try {
+            return _ctx.Eval(code);
+        } finally {
+            _inEval = false;
+        }
+    }
+
+    /// <summary>
     /// Call every frame from Update() to drive RAF, timers, and Promise microtasks.
     /// </summary>
     public void Tick() {
-        if (_disposed) return;
-        float timestamp = (Time.realtimeSinceStartup - _startTime) * 1000f;
-        _ctx.Eval($"globalThis.__tick && __tick({timestamp.ToString("F2", CultureInfo.InvariantCulture)})");
+        if (_disposed || _inEval) return;
+        _inEval = true;
+        try {
+            float timestamp = (Time.realtimeSinceStartup - _startTime) * 1000f;
+            _ctx.Eval($"globalThis.__tick && __tick({timestamp.ToString("F2", CultureInfo.InvariantCulture)})");
 
-        // Execute pending Promise jobs (microtasks) - critical for React scheduler
-        _ctx.ExecutePendingJobs();
+            // Execute pending Promise jobs (microtasks) - critical for React scheduler
+            _ctx.ExecutePendingJobs();
+        } catch (System.Exception ex) {
+            UnityEngine.Debug.LogError($"[QuickJSUIBridge] Tick error: {ex.Message}");
+        } finally {
+            _inEval = false;
+        }
     }
 
     // MARK: Events
@@ -147,6 +172,10 @@ public class QuickJSUIBridge : IDisposable {
         int handle = FindElementHandle(target);
         if (handle == 0) return;
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+        // Fast path for WebGL - direct function call instead of eval
+        QuickJSNative.qjs_dispatch_event(handle, eventType, "{}");
+#else
         _sb.Clear();
         _sb.Append("globalThis.__dispatchEvent && __dispatchEvent(");
         _sb.Append(handle);
@@ -155,11 +184,12 @@ public class QuickJSUIBridge : IDisposable {
         _sb.Append("\",{})");
 
         try {
-            _ctx.Eval(_sb.ToString());
+            SafeEval(_sb.ToString());
             _ctx.ExecutePendingJobs(); // Process microtasks scheduled by React
         } catch (Exception ex) {
             Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error: {ex.Message}");
         }
+#endif
     }
 
     void DispatchPointerEvent(string eventType, IEventHandler target, Vector2 position, int button,
@@ -167,6 +197,20 @@ public class QuickJSUIBridge : IDisposable {
         int handle = FindElementHandle(target);
         if (handle == 0) return;
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+        // Fast path for WebGL - direct function call instead of eval
+        _sb.Clear();
+        _sb.Append("{\"x\":");
+        _sb.Append(position.x.ToString("F2", CultureInfo.InvariantCulture));
+        _sb.Append(",\"y\":");
+        _sb.Append(position.y.ToString("F2", CultureInfo.InvariantCulture));
+        _sb.Append(",\"button\":");
+        _sb.Append(button);
+        _sb.Append(",\"pointerId\":");
+        _sb.Append(pointerId);
+        _sb.Append("}");
+        QuickJSNative.qjs_dispatch_event(handle, eventType, _sb.ToString());
+#else
         _sb.Clear();
         _sb.Append("globalThis.__dispatchEvent && __dispatchEvent(");
         _sb.Append(handle);
@@ -183,11 +227,12 @@ public class QuickJSUIBridge : IDisposable {
         _sb.Append("})");
 
         try {
-            _ctx.Eval(_sb.ToString());
+            SafeEval(_sb.ToString());
             _ctx.ExecutePendingJobs(); // Process microtasks scheduled by React
         } catch (Exception ex) {
             Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error: {ex.Message}");
         }
+#endif
     }
 
     void DispatchKeyEvent(string eventType, IEventHandler target, KeyCode keyCode, char character,
@@ -196,6 +241,25 @@ public class QuickJSUIBridge : IDisposable {
         if (handle == 0) return;
 
         _sb.Clear();
+#if UNITY_WEBGL && !UNITY_EDITOR
+        // Fast path for WebGL
+        _sb.Append("{\"keyCode\":");
+        _sb.Append((int)keyCode);
+        _sb.Append(",\"key\":\"");
+        _sb.Append(keyCode.ToString());
+        _sb.Append("\",\"char\":\"");
+        if (character != '\0') _sb.Append(EscapeChar(character));
+        _sb.Append("\",\"shift\":");
+        _sb.Append((modifiers & EventModifiers.Shift) != 0 ? "true" : "false");
+        _sb.Append(",\"ctrl\":");
+        _sb.Append((modifiers & EventModifiers.Control) != 0 ? "true" : "false");
+        _sb.Append(",\"alt\":");
+        _sb.Append((modifiers & EventModifiers.Alt) != 0 ? "true" : "false");
+        _sb.Append(",\"meta\":");
+        _sb.Append((modifiers & EventModifiers.Command) != 0 ? "true" : "false");
+        _sb.Append("}");
+        QuickJSNative.qjs_dispatch_event(handle, eventType, _sb.ToString());
+#else
         _sb.Append("globalThis.__dispatchEvent && __dispatchEvent(");
         _sb.Append(handle);
         _sb.Append(",\"");
@@ -217,17 +281,26 @@ public class QuickJSUIBridge : IDisposable {
         _sb.Append("})");
 
         try {
-            _ctx.Eval(_sb.ToString());
+            SafeEval(_sb.ToString());
             _ctx.ExecutePendingJobs(); // Process microtasks scheduled by React
         } catch (Exception ex) {
             Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error: {ex.Message}");
         }
+#endif
     }
 
     void DispatchChangeEvent(string eventType, IEventHandler target, string valueJson) {
         int handle = FindElementHandle(target);
         if (handle == 0) return;
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+        // Fast path for WebGL
+        _sb.Clear();
+        _sb.Append("{\"value\":");
+        _sb.Append(valueJson);
+        _sb.Append("}");
+        QuickJSNative.qjs_dispatch_event(handle, eventType, _sb.ToString());
+#else
         _sb.Clear();
         _sb.Append("globalThis.__dispatchEvent && __dispatchEvent(");
         _sb.Append(handle);
@@ -238,11 +311,12 @@ public class QuickJSUIBridge : IDisposable {
         _sb.Append("})");
 
         try {
-            _ctx.Eval(_sb.ToString());
+            SafeEval(_sb.ToString());
             _ctx.ExecutePendingJobs(); // Process microtasks scheduled by React
         } catch (Exception ex) {
             Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error: {ex.Message}");
         }
+#endif
     }
 
     // MARK: Utils
