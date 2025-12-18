@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using AOT;
 using UnityEngine;
 
 public static partial class QuickJSNative {
@@ -25,11 +26,13 @@ public static partial class QuickJSNative {
         qjs_set_cs_release_handle_callback(_releaseHandleCallback);
     }
 
+    [MonoPInvokeCallback(typeof(CsReleaseHandleCallback))]
     static void HandleReleaseFromJs(int handle) {
         if (handle == 0) return;
         UnregisterObject(handle);
     }
 
+    [MonoPInvokeCallback(typeof(CsLogCallback))]
     static void HandleLogFromJs(IntPtr msgPtr) {
         if (msgPtr == IntPtr.Zero) return;
         string msg = Marshal.PtrToStringUTF8(msgPtr);
@@ -38,6 +41,7 @@ public static partial class QuickJSNative {
     }
 
     // MARK: Dispatch
+    [MonoPInvokeCallback(typeof(CsInvokeCallback))]
     static unsafe void DispatchFromJs(IntPtr ctxPtr, InteropInvokeRequest* reqPtr,
         InteropInvokeResult* resPtr) {
         resPtr->errorCode = 0;

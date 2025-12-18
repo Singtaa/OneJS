@@ -112,7 +112,15 @@ function __wrapObject(typeName, handle) {
                     return obj.__csHandle || 0;
                 };
             }
-            
+
+            // Handle toJSON for JSON.stringify compatibility
+            // Return a simple object that represents the C# handle
+            if (prop === "toJSON") {
+                return function () {
+                    return { __csHandle: obj.__csHandle, __csType: obj.__csType };
+                };
+            }
+
             if (prop === "release" || prop === "dispose") {
                 return function() {
                     releaseObject(obj);
@@ -244,7 +252,14 @@ function __createCsPathProxy(path) {
                     return 0;
                 };
             }
-        
+
+            // Handle toJSON for JSON.stringify compatibility
+            if (prop === "toJSON") {
+                return function() {
+                    return { __csTypeRef: typeName };
+                };
+            }
+
             const propName = String(prop);
             const firstChar = propName.charAt(0);
             const isLower = firstChar >= "a" && firstChar <= "z";

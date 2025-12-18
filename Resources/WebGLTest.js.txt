@@ -1,0 +1,58 @@
+// WebGL Test Script
+// This tests that the basic OneJS WebGL bridge is working
+
+console.log("=== OneJS WebGL Test ===");
+console.log("1. Basic eval: OK");
+
+// Test simple arithmetic
+var result = 1 + 2 + 3;
+console.log("2. Arithmetic (1+2+3=" + result + "): " + (result === 6 ? "OK" : "FAIL"));
+
+// Test that globalThis exists
+console.log("3. globalThis exists: " + (typeof globalThis !== "undefined" ? "OK" : "FAIL"));
+
+// Test that __root was set up
+console.log("4. __root exists: " + (typeof __root !== "undefined" ? "OK" : "FAIL"));
+
+// Test __csHelpers
+console.log("5. __csHelpers exists: " + (typeof __csHelpers !== "undefined" ? "OK" : "FAIL"));
+
+// Test setTimeout (should work via bootstrap polyfill or browser native)
+console.log("6. setTimeout exists: " + (typeof setTimeout !== "undefined" ? "OK" : "FAIL"));
+
+console.log("=== Test Complete ===");
+
+// ============================================
+// UI Test - Create actual visible elements
+// ============================================
+console.log("=== Creating UI Elements ===");
+
+try {
+    // Create a Label using C# interop
+    var Label = CS.UnityEngine.UIElements.Label;
+    var label = new Label("Hello from WebGL!");
+    console.log("7. Created Label: " + (label ? "OK" : "FAIL"));
+
+    // Set some styles
+    label.style.fontSize = 48;
+    label.style.color = CS.UnityEngine.Color.white;
+    label.style.unityTextAlign = CS.UnityEngine.TextAnchor.MiddleCenter;
+    label.style.marginTop = 100;
+
+    // Add to root
+    __root.Add(label);
+    console.log("8. Added Label to root: OK");
+
+    // Create another label with different style
+    var label2 = new Label("OneJS WebGL Bridge Working!");
+    label2.style.fontSize = 24;
+    label2.style.color = CS.UnityEngine.Color.green;
+    label2.style.unityTextAlign = CS.UnityEngine.TextAnchor.MiddleCenter;
+    label2.style.marginTop = 20;
+    __root.Add(label2);
+    console.log("9. Added second Label: OK");
+
+    console.log("=== UI Test Complete ===");
+} catch (e) {
+    console.error("UI Test Error:", e);
+}

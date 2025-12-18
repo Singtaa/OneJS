@@ -2,6 +2,16 @@
 
 Core C# runtime for QuickJS integration with Unity.
 
+## Platform Support
+
+| Platform | JS Engine | Notes |
+|----------|-----------|-------|
+| Editor/Standalone | Native QuickJS | `quickjs_unity.dylib/.dll/.so` |
+| iOS | Native QuickJS | Statically linked (`__Internal`) |
+| WebGL | Browser JS | Via `OneJSWebGL.jslib` - runs with JIT! |
+
+For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
+
 ## Files
 
 | File | Purpose |
@@ -15,7 +25,7 @@ Core C# runtime for QuickJS integration with Unity.
 
 | File | Purpose |
 |------|---------|
-| `QuickJSNative.cs` | DllImports, enums, structs, string helpers |
+| `QuickJSNative.cs` | DllImports, enums, structs, string helpers (platform-conditional) |
 | `QuickJSNative.Handles.cs` | Handle table for C# object references |
 | `QuickJSNative.Reflection.cs` | Type/method/property resolution and caching |
 | `QuickJSNative.Structs.cs` | Struct serialization (Vector3, Color, etc.) |

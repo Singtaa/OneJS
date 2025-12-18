@@ -10,14 +10,26 @@ using System.Runtime.InteropServices;
 /// - QuickJSNative.Structs.cs: Unity struct serialization/deserialization
 /// - QuickJSNative.Dispatch.cs: JS->C# dispatch and value conversion
 /// - QuickJSNative.FastPath.cs: Zero-allocation fast path for hot methods
+///
+/// Platform behavior:
+/// - Editor/Standalone: Uses native QuickJS library (quickjs_unity.dylib/.dll/.so)
+/// - iOS: Uses statically linked QuickJS (__Internal)
+/// - WebGL: Uses browser's JS engine via OneJSWebGL.jslib (__Internal)
+///   In WebGL builds, JavaScript runs directly in the browser with JIT optimization
+///   rather than in QuickJS compiled to WASM.
 /// </summary>
 public static partial class QuickJSNative {
     // MARK: Native Library Name
+    // WebGL uses __Internal which routes to OneJSWebGL.jslib
+    // iOS uses __Internal for static linking
+    // All other platforms use the native QuickJS library
     const string LibName =
-#if UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
-        "quickjs_unity";
+#if UNITY_WEBGL && !UNITY_EDITOR
+        "__Internal";
 #elif UNITY_IOS
         "__Internal";
+#elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
+        "quickjs_unity";
 #else
         "quickjs_unity";
 #endif
