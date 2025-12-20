@@ -31,6 +31,7 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `QuickJSNative.Structs.cs` | Struct serialization (Vector3, Color, etc.) |
 | `QuickJSNative.Dispatch.cs` | JS→C# callback dispatch, value conversion |
 | `QuickJSNative.FastPath.cs` | Zero-allocation fast path for hot properties/methods |
+| `QuickJSNative.Tasks.cs` | C# Task/Promise bridging for async/await support |
 
 ## Profiling (in `Profiling/` folder)
 
@@ -122,3 +123,40 @@ The proxy uses naming conventions to determine access type:
 - **Known properties** → Explicit property access (`Count`, `Length`, etc.)
 - **Numeric string** → Indexer access (`obj[0]`)
 - **`get_`/`set_` prefix** → Method call (e.g., `obj.get_Item(0)`)
+
+### Async/Await Support
+C# `Task` and `Task<T>` are automatically converted to JS Promises:
+```javascript
+// Using .then()
+CS.MyClass.GetDataAsync().then(function(result) {
+    console.log("Got:", result)
+}).catch(function(error) {
+    console.error("Failed:", error.message)
+})
+
+// Using async/await
+async function loadData() {
+    try {
+        var result = await CS.MyClass.GetDataAsync()
+        console.log("Got:", result)
+    } catch (error) {
+        console.error("Failed:", error.message)
+    }
+}
+```
+
+**How it works**:
+1. When a C# async method returns `Task`/`Task<T>`, it's registered with a unique ID
+2. JS receives a Promise keyed to that ID
+3. When the Task completes, `QuickJSUIBridge.Tick()` resolves/rejects the Promise
+4. The Promise result is wrapped as a C# object proxy if needed
+
+**Supported return types**:
+- `Task` → Promise resolving to `null`
+- `Task<T>` → Promise resolving to the result value
+- Primitives (`int`, `string`, `bool`, etc.) are converted directly
+- Reference types (`GameObject`, custom classes) become C# object proxies
+
+**Error handling**:
+- Faulted tasks reject the Promise with the exception message
+- Canceled tasks reject with "Task was canceled"

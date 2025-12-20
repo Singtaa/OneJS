@@ -82,6 +82,7 @@ public class QuickJSUIBridge : IDisposable {
         _disposed = true;
 
         UnregisterEventDelegation();
+        QuickJSNative.ClearPendingTasks();
         _ctx?.Dispose();
 
         GC.SuppressFinalize(this);
@@ -120,6 +121,9 @@ public class QuickJSUIBridge : IDisposable {
         if (_disposed || _inEval) return;
         _inEval = true;
         try {
+            // Process completed C# Tasks and resolve/reject their JS Promises
+            QuickJSNative.ProcessCompletedTasks(_ctx);
+
             float timestamp = (Time.realtimeSinceStartup - _startTime) * 1000f;
             _ctx.Eval($"globalThis.__tick && __tick({timestamp.ToString("F2", CultureInfo.InvariantCulture)})");
 

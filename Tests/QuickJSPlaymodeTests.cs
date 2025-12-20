@@ -1,7 +1,49 @@
 using System.Collections;
+using System.Threading.Tasks;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
+
+// MARK: Async Test Helpers
+public static class AsyncTestHelper {
+    /// <summary>
+    /// Simple async method that completes immediately with an int result.
+    /// </summary>
+    public static Task<int> GetValueAsync(int value) {
+        return Task.FromResult(value);
+    }
+
+    /// <summary>
+    /// Async method that delays for specified milliseconds then returns a string.
+    /// </summary>
+    public static async Task<string> DelayedMessageAsync(string message, int delayMs) {
+        await Task.Delay(delayMs);
+        return message;
+    }
+
+    /// <summary>
+    /// Async method with no return value (Task, not Task<T>).
+    /// </summary>
+    public static async Task DoWorkAsync(int delayMs) {
+        await Task.Delay(delayMs);
+    }
+
+    /// <summary>
+    /// Async method that throws an exception.
+    /// </summary>
+    public static async Task<int> FailingAsync(string errorMessage) {
+        await Task.Delay(10);
+        throw new System.Exception(errorMessage);
+    }
+
+    /// <summary>
+    /// Async method that returns a complex object.
+    /// </summary>
+    public static Task<GameObject> CreateGameObjectAsync(string name) {
+        var go = new GameObject(name);
+        return Task.FromResult(go);
+    }
+}
 
 // MARK: Custom Structs for Tests
 public struct TestCustomPoint {
@@ -619,6 +661,193 @@ public class QuickJSPlaymodeTests {
             list[0];
         ");
         Assert.AreEqual("20", result);
+        yield return null;
+    }
+
+    // MARK: Async/Await Tests (C# Task to JS Promise)
+
+    [UnityTest]
+    public IEnumerator Async_ImmediateTaskInt_ReturnsDirectly() {
+        // Task.FromResult returns an already-completed task
+        // For already-completed tasks, we return the result directly (not a Promise)
+        var result = _ctx.Eval(@"
+            CS.AsyncTestHelper.GetValueAsync(42);
+        ");
+        Assert.AreEqual("42", result, "Result should be 42");
+
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Async_DelayedTaskString_ResolvesAfterDelay() {
+        // Call a C# async method that completes after a delay
+        _ctx.Eval(@"
+            var __asyncResult = null;
+            var __asyncDone = false;
+            var promise = CS.AsyncTestHelper.DelayedMessageAsync('Hello Async', 50);
+            promise.then(function(result) {
+                __asyncResult = result;
+                __asyncDone = true;
+            });
+        ");
+        _ctx.ExecutePendingJobs();
+
+        // Wait for the Task to complete
+        yield return new WaitForSeconds(0.1f);
+
+        // Process completed tasks
+        QuickJSNative.ProcessCompletedTasks(_ctx);
+        _ctx.ExecutePendingJobs();
+
+        var done = _ctx.Eval("__asyncDone");
+        Assert.AreEqual("true", done, "Promise should have resolved");
+
+        var result = _ctx.Eval("__asyncResult");
+        Assert.AreEqual("Hello Async", result, "Result should match the message");
+
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Async_TaskVoid_ResolvesWithNull() {
+        // Call a C# async method with no return value
+        _ctx.Eval(@"
+            var __asyncResult = 'not_set';
+            var __asyncDone = false;
+            var promise = CS.AsyncTestHelper.DoWorkAsync(50);
+            promise.then(function(result) {
+                __asyncResult = result;
+                __asyncDone = true;
+            });
+        ");
+        _ctx.ExecutePendingJobs();
+
+        // Wait for the Task to complete
+        yield return new WaitForSeconds(0.1f);
+
+        // Process completed tasks
+        QuickJSNative.ProcessCompletedTasks(_ctx);
+        _ctx.ExecutePendingJobs();
+
+        var done = _ctx.Eval("__asyncDone");
+        Assert.AreEqual("true", done, "Promise should have resolved");
+
+        var result = _ctx.Eval("__asyncResult");
+        Assert.AreEqual("null", result, "Task without return value should resolve to null");
+
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Async_FailingTask_Rejects() {
+        // Call a C# async method that throws an exception
+        _ctx.Eval(@"
+            var __asyncError = null;
+            var __asyncDone = false;
+            var promise = CS.AsyncTestHelper.FailingAsync('Test error message');
+            promise.then(function(result) {
+                __asyncDone = true;
+            }).catch(function(error) {
+                __asyncError = error.message;
+                __asyncDone = true;
+            });
+        ");
+        _ctx.ExecutePendingJobs();
+
+        // Wait for the Task to fail
+        yield return new WaitForSeconds(0.1f);
+
+        // Process completed tasks
+        QuickJSNative.ProcessCompletedTasks(_ctx);
+        _ctx.ExecutePendingJobs();
+
+        var done = _ctx.Eval("__asyncDone");
+        Assert.AreEqual("true", done, "Promise should have settled");
+
+        var error = _ctx.Eval("__asyncError");
+        Assert.IsTrue(error.Contains("Test error message"), $"Error should contain the message, got: {error}");
+
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Async_TaskReturnsGameObject_WrapsAsHandle() {
+        // Task.FromResult returns an already-completed task
+        // For already-completed tasks, we return the result directly (not a Promise)
+        // This is more efficient and matches synchronous behavior
+        _ctx.Eval(@"
+            var result = CS.AsyncTestHelper.CreateGameObjectAsync('AsyncTestGO');
+        ");
+        _ctx.ExecutePendingJobs();
+
+        var name = _ctx.Eval("result.name");
+        Assert.AreEqual("AsyncTestGO", name, "Should be able to access GameObject properties directly");
+
+        // Cleanup
+        _ctx.Eval("CS.UnityEngine.Object.Destroy(result)");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Async_AwaitSyntax_Works() {
+        // Test using async/await syntax in JS (wrapped in async IIFE)
+        _ctx.Eval(@"
+            var __asyncResult = null;
+            var __asyncDone = false;
+            (async function() {
+                try {
+                    var result = await CS.AsyncTestHelper.GetValueAsync(100);
+                    __asyncResult = result;
+                    __asyncDone = true;
+                } catch (e) {
+                    __asyncResult = 'error: ' + e.message;
+                    __asyncDone = true;
+                }
+            })();
+        ");
+        _ctx.ExecutePendingJobs();
+
+        // Process completed tasks
+        QuickJSNative.ProcessCompletedTasks(_ctx);
+        _ctx.ExecutePendingJobs();
+
+        var done = _ctx.Eval("__asyncDone");
+        Assert.AreEqual("true", done, "Async function should have completed");
+
+        var result = _ctx.Eval("__asyncResult");
+        Assert.AreEqual("100", result, "Result should be 100");
+
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Async_MultipleAwaits_Work() {
+        // Test chaining multiple async calls
+        _ctx.Eval(@"
+            var __asyncResult = null;
+            var __asyncDone = false;
+            (async function() {
+                var a = await CS.AsyncTestHelper.GetValueAsync(10);
+                var b = await CS.AsyncTestHelper.GetValueAsync(20);
+                var c = await CS.AsyncTestHelper.GetValueAsync(30);
+                __asyncResult = a + b + c;
+                __asyncDone = true;
+            })();
+        ");
+        _ctx.ExecutePendingJobs();
+
+        // Process tasks multiple times (one per await)
+        for (int i = 0; i < 5; i++) {
+            QuickJSNative.ProcessCompletedTasks(_ctx);
+            _ctx.ExecutePendingJobs();
+        }
+
+        var done = _ctx.Eval("__asyncDone");
+        Assert.AreEqual("true", done, "Async function should have completed");
+
+        var result = _ctx.Eval("__asyncResult");
+        Assert.AreEqual("60", result, "Sum should be 60");
+
         yield return null;
     }
 }

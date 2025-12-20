@@ -180,6 +180,19 @@ function __wrapResultFromCs(typeHint, raw) {
         return __wrapObject(resolvedType, raw.__csHandle);
     }
 
+    // Check for Task marker - C# returns JSON string with __csTaskId
+    if (typeof raw === "string" && raw.startsWith("{\"__csTaskId\":")) {
+        try {
+            const obj = JSON.parse(raw);
+            if (obj.__csTaskId !== undefined) {
+                // Create and return a Promise that will be resolved when Task completes
+                return __createTaskPromise(obj.__csTaskId);
+            }
+        } catch (e) {
+            // Fall through to return raw
+        }
+    }
+
     if (typeof raw === "string" && raw.startsWith("{\"__type\":")) {
         try {
             const obj = JSON.parse(raw);
@@ -370,13 +383,13 @@ function __createCsPathProxy(path) {
             }
 
             // Check if this is a static method call on parent type
-            if (path.length >= 3) {
-                if (!__typeExists(typeName)) {
-                    const parentPath = path.slice(0, -1).join(".");
-                    const methodName = path[path.length - 1];
-                    const raw = __cs.invoke(parentPath, methodName, 1, 1, 0, __resolveArgs(args));
-                    return __wrapResultFromCs(null, raw);
-                }
+            // For paths like AsyncTestHelper.GetValueAsync (length 2) or UnityEngine.Debug.Log (length 3)
+            // If the full path is not a type, try calling as static method on parent
+            if (path.length >= 2 && !__typeExists(typeName)) {
+                const parentPath = path.slice(0, -1).join(".");
+                const methodName = path[path.length - 1];
+                const raw = __cs.invoke(parentPath, methodName, 1, 1, 0, __resolveArgs(args));
+                return __wrapResultFromCs(null, raw);
             }
 
             // Default: constructor call
@@ -711,6 +724,51 @@ if (__nativeRequestAnimationFrame) {
         __webglTickRunning = false;
     };
 }
+
+// MARK: Tasks (C# async/await support)
+// Maps taskId -> { resolve, reject } for pending C# Tasks
+const __pendingTaskPromises = new Map();
+
+/**
+ * Create a Promise for a C# Task.
+ * Called from __wrapResultFromCs when receiving InteropType.TaskHandle.
+ */
+function __createTaskPromise(taskId) {
+    return new Promise((resolve, reject) => {
+        __pendingTaskPromises.set(taskId, { resolve, reject });
+    });
+}
+
+/**
+ * Called from C# when a Task completes successfully.
+ * Resolves the corresponding JS Promise.
+ */
+globalThis.__resolveTask = function(taskId, result) {
+    const pending = __pendingTaskPromises.get(taskId);
+    if (!pending) {
+        console.warn("__resolveTask: No pending promise for taskId", taskId);
+        return;
+    }
+    __pendingTaskPromises.delete(taskId);
+
+    // Wrap result if it's a C# object handle
+    const wrapped = __wrapResultFromCs(null, result);
+    pending.resolve(wrapped);
+};
+
+/**
+ * Called from C# when a Task fails or is canceled.
+ * Rejects the corresponding JS Promise.
+ */
+globalThis.__rejectTask = function(taskId, errorMessage) {
+    const pending = __pendingTaskPromises.get(taskId);
+    if (!pending) {
+        console.warn("__rejectTask: No pending promise for taskId", taskId);
+        return;
+    }
+    __pendingTaskPromises.delete(taskId);
+    pending.reject(new Error(errorMessage));
+};
 
 // MARK: Microtasks
 // Simple microtask queue for Promise-like behavior

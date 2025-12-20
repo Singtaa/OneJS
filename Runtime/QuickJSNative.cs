@@ -112,7 +112,8 @@ public static partial class QuickJSNative {
         Array = 8,
         JsonObject = 9,
         Vector3 = 10,  // Binary packed x,y,z floats - zero alloc!
-        Vector4 = 11   // Binary packed x,y,z,w floats (Quaternion, Color) - zero alloc!
+        Vector4 = 11,  // Binary packed x,y,z,w floats (Quaternion, Color) - zero alloc!
+        TaskHandle = 12 // Pending C# Task - JS receives Promise
     }
 
     public enum InteropInvokeCallKind : int {

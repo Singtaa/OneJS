@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using AOT;
 using UnityEngine;
 
@@ -421,11 +422,86 @@ public static partial class QuickJSNative {
             }
         }
 
+        // Task/Task<T> - handle async completion
+        // For already-completed tasks, return the result directly
+        // For pending tasks, return a task marker so JS can create a Promise
+        if (value is Task task) {
+            if (task.IsCompleted) {
+                // Task already completed - extract and return result directly
+                if (task.IsFaulted) {
+                    // Return error info - JS can check for __csError
+                    string errorMsg = task.Exception?.InnerException?.Message ??
+                                      task.Exception?.Message ?? "Task faulted";
+                    resPtr->returnValue.type = InteropType.String;
+                    resPtr->returnValue.str = StringToUtf8($"{{\"__csError\":\"{EscapeJsString(errorMsg)}\"}}");
+                    return;
+                }
+                if (task.IsCanceled) {
+                    resPtr->returnValue.type = InteropType.String;
+                    resPtr->returnValue.str = StringToUtf8("{\"__csError\":\"Task was canceled\"}");
+                    return;
+                }
+
+                // Task succeeded - return the result
+                object result = GetTaskResultDirect(task);
+                if (result == null) {
+                    resPtr->returnValue.type = InteropType.Null;
+                    return;
+                }
+                // Recursively set the return value with the actual result
+                SetReturnValue(resPtr, result);
+                return;
+            }
+
+            // Task is still pending - register for async completion
+            int taskId = RegisterTask(task);
+            // Return as JSON object so JS can detect it without native layer changes
+            resPtr->returnValue.type = InteropType.String;
+            resPtr->returnValue.str = StringToUtf8($"{{\"__csTaskId\":{taskId}}}");
+            return;
+        }
+
         // Reference type - register as handle
         int handle = RegisterObject(value);
         resPtr->returnValue.type = InteropType.ObjectHandle;
         resPtr->returnValue.handle = handle;
         resPtr->returnValue.typeHint = StringToUtf8(t.FullName);
+    }
+
+    // MARK: Task Result Extraction
+    /// <summary>
+    /// Extract result from a completed Task for direct return (not async).
+    /// Returns null for void tasks or non-generic tasks.
+    /// </summary>
+    static object GetTaskResultDirect(Task task) {
+        var taskType = task.GetType();
+        if (!taskType.IsGenericType) return null;
+
+        var typeArgs = taskType.GetGenericArguments();
+        if (typeArgs.Length == 0) return null;
+
+        var resultType = typeArgs[0];
+        // VoidTaskResult indicates a void async method
+        if (resultType.Name == "VoidTaskResult") return null;
+
+        var resultProp = taskType.GetProperty("Result");
+        if (resultProp == null) return null;
+
+        try {
+            return resultProp.GetValue(task);
+        } catch {
+            return null;
+        }
+    }
+
+    static string EscapeJsString(string s) {
+        if (string.IsNullOrEmpty(s)) return s;
+        return s
+            .Replace("\\", "\\\\")
+            .Replace("\"", "\\\"")
+            .Replace("\n", "\\n")
+            .Replace("\r", "\\r")
+            .Replace("\t", "\\t");
     }
 
     // MARK: Value Conversion
