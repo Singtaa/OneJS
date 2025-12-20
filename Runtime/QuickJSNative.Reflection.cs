@@ -177,4 +177,48 @@ public static partial class QuickJSNative {
         }
         return field;
     }
+
+    // MARK: Generic Type Helpers
+
+    /// <summary>
+    /// Extracts a string from an InteropValue. Used for type argument names in generic binding.
+    /// </summary>
+    static string InteropValueToString(InteropValue v) {
+        // Use InteropValueToObject to handle all types that can be converted to string
+        var obj = InteropValueToObject(v);
+        if (obj == null) return null;
+        return obj.ToString();
+    }
+
+    /// <summary>
+    /// Generates a unique type name for a constructed generic type.
+    /// Example: List`1[System.Int32] for List&lt;int&gt;
+    /// </summary>
+    static string GetGenericTypeName(Type constructedType) {
+        if (constructedType == null) return null;
+
+        // Use FullName which already has the proper format for generics
+        // e.g. "System.Collections.Generic.List`1[[System.Int32, mscorlib, ...]]"
+        // But we want a cleaner format for our cache key
+        var genericDef = constructedType.GetGenericTypeDefinition();
+        var typeArgs = constructedType.GetGenericArguments();
+
+        var sb = new System.Text.StringBuilder();
+        sb.Append(genericDef.FullName);
+        sb.Append('[');
+        for (int i = 0; i < typeArgs.Length; i++) {
+            if (i > 0) sb.Append(',');
+            sb.Append(typeArgs[i].FullName);
+        }
+        sb.Append(']');
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Caches a type by name for future lookups.
+    /// </summary>
+    static void CacheType(string typeName, Type type) {
+        if (string.IsNullOrEmpty(typeName) || type == null) return;
+        _typeCache[typeName] = type;
+    }
 }

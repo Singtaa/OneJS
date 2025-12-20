@@ -51,10 +51,10 @@ function __resolveValue(value) {
 
 function __resolvePathProxy(value) {
     if (!value || !value.__csPathProxy) return value;
-    
+
     const path = value.__csPath;
     if (!path || path.length === 0) return value;
-    
+
     if (path.length >= 2) {
         const parentPath = path.slice(0, -1).join(".");
         const memberName = path[path.length - 1];
@@ -62,8 +62,113 @@ function __resolvePathProxy(value) {
             return __cs.invoke(parentPath, memberName, 4, 1, 0, []);
         }
     }
-    
+
     return { __csTypeRef: path.join(".") };
+}
+
+// MARK: Generics Support
+/**
+ * Check if a value represents a C# type reference
+ */
+function __isTypeRef(value) {
+    if (value == null) return false;
+    // Type proxy from CS.Some.Type
+    if (value.__csPathProxy) return true;
+    // Bound generic type
+    if (value.__csBoundGeneric) return true;
+    // Explicit type reference
+    if (value.__csTypeRef) return true;
+    return false;
+}
+
+/**
+ * Extract type name from a type reference
+ */
+function __getTypeName(typeRef) {
+    if (typeRef == null) return null;
+    if (typeof typeRef === "string") return typeRef;
+    // Check path proxy FIRST - accessing other props on path proxy creates nested proxies
+    if (typeRef.__csPathProxy && typeRef.__csPath) return typeRef.__csPath.join(".");
+    if (typeRef.__csBoundGeneric) return typeRef.__csBoundTypeName;
+    // Only check __csTypeRef for plain objects with explicit type refs
+    if (typeRef.__csTypeRef && typeof typeRef.__csTypeRef === "string") return typeRef.__csTypeRef;
+    if (typeRef.__csType) return typeRef.__csType;
+    return null;
+}
+
+/**
+ * Create a bound generic type proxy.
+ * e.g., List(Int32) returns a proxy for List<Int32>
+ */
+function __createBoundGenericType(genericDefName, typeArgs) {
+    // Build the bound type name: "System.Collections.Generic.List`1" + type args
+    const typeArgNames = typeArgs.map(__getTypeName);
+
+    // Append arity suffix if not already present (e.g., List -> List`1)
+    let fullGenericDefName = genericDefName;
+    if (!genericDefName.includes("`")) {
+        fullGenericDefName = genericDefName + "`" + typeArgs.length;
+    }
+
+    // Call C# to construct the generic type and get back the full type name
+    // CallKind 8 = MakeGenericType
+    const boundTypeName = __cs.invoke(fullGenericDefName, "", 8, 0, 0, typeArgNames);
+
+    if (!boundTypeName) {
+        throw new Error(`Failed to create generic type: ${genericDefName}<${typeArgNames.join(", ")}>`);
+    }
+
+    // Create a proxy for the bound type
+    function BoundGenericType(...args) {
+        return newObject(boundTypeName, ...args);
+    }
+
+    return new Proxy(BoundGenericType, {
+        construct(target, args) {
+            return newObject(boundTypeName, ...args);
+        },
+        apply(target, thisArg, args) {
+            // Nested generics: Dict(String, List(Int32))
+            if (args.length > 0 && args.every(__isTypeRef)) {
+                return __createBoundGenericType(boundTypeName, args);
+            }
+            return newObject(boundTypeName, ...args);
+        },
+        get(target, prop) {
+            if (typeof prop === "symbol") return undefined;
+            if (prop === "__csBoundGeneric") return true;
+            if (prop === "__csBoundTypeName") return boundTypeName;
+            if (prop === "__csType") return boundTypeName;
+            if (prop === "__csHandle") return 0;
+            if (prop === "toString") {
+                return function() { return "[CSGenericType " + boundTypeName + "]"; };
+            }
+            if (prop === "toJSON") {
+                return function() { return { __csTypeRef: boundTypeName }; };
+            }
+
+            // Static member access on bound generic type
+            const propName = String(prop);
+            const firstChar = propName.charAt(0);
+            const isLower = firstChar >= "a" && firstChar <= "z";
+
+            if (isLower || __staticPropertyNames.has(propName)) {
+                const raw = __cs.invoke(boundTypeName, propName, 2, 1, 0, []);
+                return __wrapResultFromCs(null, raw);
+            }
+
+            // Static method
+            return function(...args) {
+                const raw = __cs.invoke(boundTypeName, propName, 1, 1, 0, __resolveArgs(args));
+                return __wrapResultFromCs(null, raw);
+            };
+        },
+        set(target, prop, value) {
+            if (typeof prop === "symbol") return false;
+            __cs.invoke(boundTypeName, String(prop), 3, 1, 0, [__resolveValue(value)]);
+            return true;
+        }
+    });
 }
 
 // MARK: Results
@@ -100,6 +205,10 @@ function __wrapObject(typeName, handle) {
         get(obj, prop) {
             if (prop === "__csType" || prop === "__csHandle") return obj[prop];
             if (prop === "__csPathProxy") return false;
+            if (prop === "__csBoundGeneric") return false;
+            if (prop === "__csTypeRef") return undefined;
+            if (prop === "__csPath") return undefined;
+            if (prop === "__csBoundTypeName") return undefined;
 
             if (prop === "toString") {
                 return function () {
@@ -135,6 +244,21 @@ function __wrapObject(typeName, handle) {
 
             const firstChar = propName.charAt(0);
             const isUpper = firstChar >= "A" && firstChar <= "Z";
+
+            // Check if it's a known instance property (like Count, Length)
+            if (__instancePropertyNames.has(propName)) {
+                const value = __cs.invoke(typeName, propName, 2, 0, handle, []);
+                return __wrapResultFromCs(null, value);
+            }
+
+            // Indexer methods (get_Item, set_Item) and event methods (add_, remove_) should be treated as methods
+            if (propName.startsWith("get_") || propName.startsWith("set_") ||
+                propName.startsWith("add_") || propName.startsWith("remove_")) {
+                return function (...args) {
+                    const raw = __cs.invoke(typeName, propName, 1, 0, handle, __resolveArgs(args));
+                    return __wrapResultFromCs(null, raw);
+                };
+            }
 
             if (isUpper) {
                 return function (...args) {
@@ -200,6 +324,11 @@ const __staticPropertyNames = new Set([
     "gravity"
 ]);
 
+// Common instance properties that start with uppercase
+const __instancePropertyNames = new Set([
+    "Count", "Length", "Capacity", "Keys", "Values", "IsReadOnly"
+]);
+
 function __typeExists(typeName) {
     if (!typeName) return false;
     const raw = __cs.invoke(typeName, "", 6, 0, 0, []);
@@ -218,6 +347,13 @@ function __createCsPathProxy(path) {
             return newObject(typeName, ...args);
         },
         apply(target, thisArg, args) {
+            // Check if this is a generic type binding: List(Int32), Dict(String, Int32)
+            // All args must be type references
+            if (args.length > 0 && args.every(__isTypeRef)) {
+                return __createBoundGenericType(typeName, args);
+            }
+
+            // Check if this is a static method call on parent type
             if (path.length >= 3) {
                 if (!__typeExists(typeName)) {
                     const parentPath = path.slice(0, -1).join(".");
@@ -226,6 +362,8 @@ function __createCsPathProxy(path) {
                     return __wrapResultFromCs(null, raw);
                 }
             }
+
+            // Default: constructor call
             return newObject(typeName, ...args);
         },
         get(target, prop) {
@@ -613,4 +751,32 @@ globalThis.setImmediate = function(callback, ...args) {
 
 globalThis.clearImmediate = function(id) {
     __immediateCallbacks.delete(id);
+};
+
+// MARK: StyleSheet API
+/**
+ * Load a USS file from the working directory and apply it to the root element.
+ * @param {string} path - Path relative to working directory (e.g., "styles/main.uss")
+ * @returns {boolean} True if successful
+ */
+globalThis.loadStyleSheet = function(path) {
+    if (!globalThis.__bridge) {
+        console.error("loadStyleSheet: __bridge not available");
+        return false;
+    }
+    return globalThis.__bridge.LoadStyleSheet(path);
+};
+
+/**
+ * Compile a USS string and apply it to the root element.
+ * @param {string} ussContent - USS content string
+ * @param {string} [name] - Optional name for debugging
+ * @returns {boolean} True if successful
+ */
+globalThis.compileStyleSheet = function(ussContent, name) {
+    if (!globalThis.__bridge) {
+        console.error("compileStyleSheet: __bridge not available");
+        return false;
+    }
+    return globalThis.__bridge.CompileStyleSheet(ussContent, name || "inline");
 };

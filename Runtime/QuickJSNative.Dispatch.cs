@@ -101,6 +101,57 @@ public static partial class QuickJSNative {
                 return;
             }
 
+            // MakeGenericType: List`1 + [Int32] => List<Int32>
+            if (reqPtr->callKind == InteropInvokeCallKind.MakeGenericType) {
+                if (type == null) {
+                    resPtr->errorCode = 1;
+                    Debug.LogError("[QuickJS] Generic type definition not found: " + typeName);
+                    return;
+                }
+
+                if (!type.IsGenericTypeDefinition) {
+                    resPtr->errorCode = 1;
+                    Debug.LogError("[QuickJS] Type is not a generic definition: " + typeName);
+                    return;
+                }
+
+                // Parse type arguments from args
+                var typeArgs = new Type[argCount];
+                for (int i = 0; i < argCount; i++) {
+                    string typeArgName = InteropValueToString(argsPtr[i]);
+                    if (string.IsNullOrEmpty(typeArgName)) {
+                        resPtr->errorCode = 1;
+                        Debug.LogError($"[QuickJS] Invalid type argument at index {i}");
+                        return;
+                    }
+
+                    Type typeArg = ResolveType(typeArgName);
+                    if (typeArg == null) {
+                        resPtr->errorCode = 1;
+                        Debug.LogError("[QuickJS] Type argument not found: " + typeArgName);
+                        return;
+                    }
+                    typeArgs[i] = typeArg;
+                }
+
+                try {
+                    Type constructedType = type.MakeGenericType(typeArgs);
+
+                    // Cache the constructed type for future lookups
+                    string constructedTypeName = GetGenericTypeName(constructedType);
+                    CacheType(constructedTypeName, constructedType);
+
+                    // Return the type name as a string
+                    resPtr->returnValue.type = InteropType.String;
+                    resPtr->returnValue.str = StringToUtf8(constructedTypeName);
+                    return;
+                } catch (Exception ex) {
+                    resPtr->errorCode = 1;
+                    Debug.LogError($"[QuickJS] Failed to make generic type: {ex.Message}");
+                    return;
+                }
+            }
+
             // Convert args to object[] (allocates)
             object[] args = argCount > 0 ? new object[argCount] : Array.Empty<object>();
 

@@ -405,5 +405,90 @@ public class QuickJSPlaymodeTests {
         StringAssert.Contains("7,8", json);
         yield return null;
     }
+
+    // MARK: Generic Type Tests
+
+    [UnityTest]
+    public IEnumerator Generics_ListInt_CreateAndAdd_Works() {
+        var result = _ctx.Eval(@"
+            var IntList = CS.System.Collections.Generic.List(CS.System.Int32);
+            var list = new IntList();
+            list.Add(10);
+            list.Add(20);
+            list.Add(30);
+            list.Count;
+        ");
+        Assert.AreEqual("3", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Generics_ListString_CreateAndAdd_Works() {
+        var result = _ctx.Eval(@"
+            var StringList = CS.System.Collections.Generic.List(CS.System.String);
+            var list = new StringList();
+            list.Add('hello');
+            list.Add('world');
+            list.get_Item(0) + ' ' + list.get_Item(1);
+        ");
+        Assert.AreEqual("hello world", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Generics_Dictionary_CreateAndAdd_Works() {
+        var result = _ctx.Eval(@"
+            var StringIntDict = CS.System.Collections.Generic.Dictionary(CS.System.String, CS.System.Int32);
+            var dict = new StringIntDict();
+            dict.Add('one', 1);
+            dict.Add('two', 2);
+            dict.get_Item('one') + dict.get_Item('two');
+        ");
+        Assert.AreEqual("3", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Generics_ListVector3_Works() {
+        _ctx.Eval(@"
+            var Vector3List = CS.System.Collections.Generic.List(CS.UnityEngine.Vector3);
+            var list = new Vector3List();
+            list.Add(new CS.UnityEngine.Vector3(1, 2, 3));
+            list.Add(new CS.UnityEngine.Vector3(4, 5, 6));
+        ");
+
+        var result = _ctx.Eval("list.Count");
+        Assert.AreEqual("2", result);
+
+        var first = _ctx.Eval("list.get_Item(0).x");
+        Assert.AreEqual("1", first);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Generics_BoundTypeIsCallable_Works() {
+        var result = _ctx.Eval(@"
+            var IntList = CS.System.Collections.Generic.List(CS.System.Int32);
+            var list = new IntList();
+            list.Add(42);
+            list.get_Item(0);
+        ");
+        Assert.AreEqual("42", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Generics_HashSet_Works() {
+        var result = _ctx.Eval(@"
+            var IntSet = CS.System.Collections.Generic.HashSet(CS.System.Int32);
+            var set = new IntSet();
+            set.Add(1);
+            set.Add(2);
+            set.Add(1);  // duplicate
+            set.Count;
+        ");
+        Assert.AreEqual("2", result);
+        yield return null;
+    }
 }
 
