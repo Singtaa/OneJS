@@ -242,6 +242,14 @@ function __wrapObject(typeName, handle) {
             const typeName = obj.__csType || "";
             const handle = obj.__csHandle || 0;
 
+            // Numeric indexer support: obj[0], obj[1], etc.
+            // Routes to get_Item(int) for List<T>, arrays, and other indexed collections
+            if (/^\d+$/.test(propName)) {
+                const index = parseInt(propName, 10);
+                const raw = __cs.invoke(typeName, "get_Item", 1, 0, handle, [index]);
+                return __wrapResultFromCs(null, raw);
+            }
+
             const firstChar = propName.charAt(0);
             const isUpper = firstChar >= "A" && firstChar <= "Z";
 
@@ -272,10 +280,18 @@ function __wrapObject(typeName, handle) {
         },
         set(obj, prop, value) {
             if (typeof prop === "symbol") return false;
-            
+
             const propName = String(prop);
             const resolvedValue = __resolveValue(value);
-            
+
+            // Numeric indexer support: obj[0] = value, obj[1] = value, etc.
+            // Routes to set_Item(int, value) for List<T>, arrays, and other indexed collections
+            if (/^\d+$/.test(propName)) {
+                const index = parseInt(propName, 10);
+                __cs.invoke(obj.__csType || "", "set_Item", 1, 0, obj.__csHandle, [index, resolvedValue]);
+                return true;
+            }
+
             __cs.invoke(obj.__csType || "", propName, 3, 0, obj.__csHandle, [resolvedValue]);
             return true;
         }

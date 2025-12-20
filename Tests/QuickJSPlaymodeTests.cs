@@ -490,5 +490,136 @@ public class QuickJSPlaymodeTests {
         Assert.AreEqual("2", result);
         yield return null;
     }
+
+    // MARK: Indexer Tests
+
+    [UnityTest]
+    public IEnumerator Indexer_ListInt_GetByIndex_Works() {
+        var result = _ctx.Eval(@"
+            var IntList = CS.System.Collections.Generic.List(CS.System.Int32);
+            var list = new IntList();
+            list.Add(100);
+            list.Add(200);
+            list.Add(300);
+            list[0] + ',' + list[1] + ',' + list[2];
+        ");
+        Assert.AreEqual("100,200,300", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Indexer_ListInt_SetByIndex_Works() {
+        var result = _ctx.Eval(@"
+            var IntList = CS.System.Collections.Generic.List(CS.System.Int32);
+            var list = new IntList();
+            list.Add(0);
+            list.Add(0);
+            list.Add(0);
+            list[0] = 111;
+            list[1] = 222;
+            list[2] = 333;
+            list[0] + ',' + list[1] + ',' + list[2];
+        ");
+        Assert.AreEqual("111,222,333", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Indexer_ListString_GetSetByIndex_Works() {
+        var result = _ctx.Eval(@"
+            var StringList = CS.System.Collections.Generic.List(CS.System.String);
+            var list = new StringList();
+            list.Add('a');
+            list.Add('b');
+            list[0] = 'hello';
+            list[1] = 'world';
+            list[0] + ' ' + list[1];
+        ");
+        Assert.AreEqual("hello world", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Indexer_ListGameObject_Works() {
+        _ctx.Eval(@"
+            var GOList = CS.System.Collections.Generic.List(CS.UnityEngine.GameObject);
+            var list = new GOList();
+            var go1 = new CS.UnityEngine.GameObject('IndexerTestGO1');
+            var go2 = new CS.UnityEngine.GameObject('IndexerTestGO2');
+            list.Add(go1);
+            list.Add(go2);
+        ");
+
+        var result = _ctx.Eval("list[0].name + ',' + list[1].name");
+        Assert.AreEqual("IndexerTestGO1,IndexerTestGO2", result);
+
+        // Cleanup
+        _ctx.Eval(@"
+            CS.UnityEngine.Object.Destroy(list[0]);
+            CS.UnityEngine.Object.Destroy(list[1]);
+        ");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Indexer_ListVector3_Works() {
+        var result = _ctx.Eval(@"
+            var V3List = CS.System.Collections.Generic.List(CS.UnityEngine.Vector3);
+            var list = new V3List();
+            list.Add(new CS.UnityEngine.Vector3(1, 2, 3));
+            list.Add(new CS.UnityEngine.Vector3(4, 5, 6));
+            var first = list[0];
+            var second = list[1];
+            first.x + ',' + first.y + ',' + second.z;
+        ");
+        Assert.AreEqual("1,2,6", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Indexer_WithLoop_Works() {
+        var result = _ctx.Eval(@"
+            var IntList = CS.System.Collections.Generic.List(CS.System.Int32);
+            var list = new IntList();
+            for (var i = 0; i < 5; i++) {
+                list.Add(i * 10);
+            }
+            var sum = 0;
+            for (var i = 0; i < list.Count; i++) {
+                sum += list[i];
+            }
+            sum;
+        ");
+        Assert.AreEqual("100", result); // 0 + 10 + 20 + 30 + 40 = 100
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Indexer_CountAndLengthStillWork_Works() {
+        // Ensure that Count property still works alongside indexer
+        var result = _ctx.Eval(@"
+            var IntList = CS.System.Collections.Generic.List(CS.System.Int32);
+            var list = new IntList();
+            list.Add(1);
+            list.Add(2);
+            list.Add(3);
+            'count=' + list.Count + ',first=' + list[0] + ',last=' + list[list.Count - 1];
+        ");
+        Assert.AreEqual("count=3,first=1,last=3", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Indexer_ModifyInPlace_Works() {
+        var result = _ctx.Eval(@"
+            var IntList = CS.System.Collections.Generic.List(CS.System.Int32);
+            var list = new IntList();
+            list.Add(10);
+            list[0] = list[0] * 2;  // Double the value
+            list[0];
+        ");
+        Assert.AreEqual("20", result);
+        yield return null;
+    }
 }
 
