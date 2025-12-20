@@ -60,7 +60,7 @@ public class JSRunner : MonoBehaviour {
                 return;
             }
 
-            _bridge = new QuickJSUIBridge(_uiDocument.rootVisualElement);
+            _bridge = new QuickJSUIBridge(_uiDocument.rootVisualElement, WorkingDirFullPath);
 
             // Inject platform defines before any user code runs
             InjectPlatformDefines();
@@ -68,6 +68,10 @@ public class JSRunner : MonoBehaviour {
             // Expose the root element to JS as globalThis.__root
             var rootHandle = QuickJSNative.RegisterObject(_uiDocument.rootVisualElement);
             _bridge.Eval($"globalThis.__root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle})");
+
+            // Expose the bridge to JS for USS loading
+            var bridgeHandle = QuickJSNative.RegisterObject(_bridge);
+            _bridge.Eval($"globalThis.__bridge = __csHelpers.wrapObject('QuickJSUIBridge', {bridgeHandle})");
 
 #if UNITY_WEBGL && !UNITY_EDITOR
             // WebGL: Load from embedded TextAsset or StreamingAssets

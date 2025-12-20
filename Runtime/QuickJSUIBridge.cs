@@ -1,6 +1,8 @@
 using System;
 using System.Globalization;
+using System.IO;
 using System.Text;
+using OneJS.CustomStyleSheets;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -12,20 +14,67 @@ public class QuickJSUIBridge : IDisposable {
     readonly QuickJSContext _ctx;
     readonly VisualElement _root;
     readonly StringBuilder _sb = new(256);
+    readonly string _workingDir;
+    readonly UssCompiler _ussCompiler;
     bool _disposed;
     float _startTime;
     bool _inEval; // Recursion guard for WebGL
 
     public QuickJSContext Context => _ctx;
     public VisualElement Root => _root;
+    public string WorkingDir => _workingDir;
 
     // MARK: Lifecycle
-    public QuickJSUIBridge(VisualElement root, int bufferSize = 16 * 1024) {
+    public QuickJSUIBridge(VisualElement root, string workingDir = null, int bufferSize = 16 * 1024) {
         _root = root ?? throw new ArgumentNullException(nameof(root));
+        _workingDir = workingDir ?? "";
         _ctx = new QuickJSContext(bufferSize);
+        _ussCompiler = new UssCompiler(_workingDir);
         _startTime = Time.realtimeSinceStartup;
 
         RegisterEventDelegation();
+    }
+
+    // MARK: StyleSheet API
+
+    /// <summary>
+    /// Load a USS file from the working directory and apply it to the root element.
+    /// </summary>
+    /// <param name="path">Path relative to working directory</param>
+    /// <returns>True if successful</returns>
+    public bool LoadStyleSheet(string path) {
+        try {
+            string fullPath = Path.Combine(_workingDir, path);
+            if (!File.Exists(fullPath)) {
+                Debug.LogWarning($"[QuickJSUIBridge] StyleSheet not found: {fullPath}");
+                return false;
+            }
+
+            string content = File.ReadAllText(fullPath);
+            return CompileStyleSheet(content, path);
+        } catch (Exception ex) {
+            Debug.LogError($"[QuickJSUIBridge] LoadStyleSheet error: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Compile a USS string and apply it to the root element.
+    /// </summary>
+    /// <param name="ussContent">USS content</param>
+    /// <param name="name">Optional name for debugging</param>
+    /// <returns>True if successful</returns>
+    public bool CompileStyleSheet(string ussContent, string name = "inline") {
+        try {
+            var styleSheet = ScriptableObject.CreateInstance<StyleSheet>();
+            styleSheet.name = name;
+            _ussCompiler.Compile(styleSheet, ussContent);
+            _root.styleSheets.Add(styleSheet);
+            return true;
+        } catch (Exception ex) {
+            Debug.LogError($"[QuickJSUIBridge] CompileStyleSheet error ({name}): {ex.Message}");
+            return false;
+        }
     }
 
     public void Dispose() {
