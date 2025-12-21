@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using AOT;
@@ -303,9 +304,30 @@ public static partial class QuickJSNative {
                     Debug.LogError("[QuickJS] Unsupported call kind: " + reqPtr->callKind);
                     return;
             }
+        } catch (TargetInvocationException tie) {
+            // Unwrap reflection exceptions to get the actual error
+            // TargetInvocationException wraps the real exception from reflected method calls
+            var innerEx = tie.InnerException ?? tie;
+            resPtr->errorCode = 1;
+
+            string typeName = PtrToStringUtf8(reqPtr->typeName) ?? "<unknown>";
+            string memberName = PtrToStringUtf8(reqPtr->memberName) ?? "<unknown>";
+
+            Debug.LogError(
+                $"[QuickJS Invoke Error] {reqPtr->callKind} on {typeName}.{memberName} failed:\n" +
+                $"  Exception: {innerEx.GetType().Name}: {innerEx.Message}\n" +
+                $"  Stack trace:\n{innerEx.StackTrace}");
         } catch (Exception ex) {
             resPtr->errorCode = 1;
-            Debug.LogError("[QuickJS Invoke Error] " + ex);
+
+            // Preserve full exception context
+            string typeName = PtrToStringUtf8(reqPtr->typeName) ?? "<unknown>";
+            string memberName = PtrToStringUtf8(reqPtr->memberName) ?? "<unknown>";
+
+            Debug.LogError(
+                $"[QuickJS Invoke Error] {reqPtr->callKind} on {typeName}.{memberName} failed:\n" +
+                $"  Exception: {ex.GetType().Name}: {ex.Message}\n" +
+                $"  Stack trace:\n{ex.StackTrace}");
         }
     }
 

@@ -18,7 +18,7 @@ public class QuickJSUIBridge : IDisposable {
     readonly UssCompiler _ussCompiler;
     bool _disposed;
     float _startTime;
-    bool _inEval; // Recursion guard for WebGL
+    bool _inEval; // Recursion guard to prevent re-entrant JS execution (all platforms)
 
     public QuickJSContext Context => _ctx;
     public VisualElement Root => _root;
@@ -225,6 +225,9 @@ public class QuickJSUIBridge : IDisposable {
         int handle = FindElementHandle(target);
         if (handle == 0) return;
 
+        // Recursion guard - prevent event dispatch during eval/tick
+        if (_inEval) return;
+
 #if UNITY_WEBGL && !UNITY_EDITOR
         // Fast path for WebGL - direct function call instead of eval
         QuickJSNative.qjs_dispatch_event(handle, eventType, "{}");
@@ -249,6 +252,9 @@ public class QuickJSUIBridge : IDisposable {
         int pointerId = 0) {
         int handle = FindElementHandle(target);
         if (handle == 0) return;
+
+        // Recursion guard - prevent event dispatch during eval/tick
+        if (_inEval) return;
 
 #if UNITY_WEBGL && !UNITY_EDITOR
         // Fast path for WebGL - direct function call instead of eval
@@ -292,6 +298,9 @@ public class QuickJSUIBridge : IDisposable {
         EventModifiers modifiers) {
         int handle = FindElementHandle(target);
         if (handle == 0) return;
+
+        // Recursion guard - prevent event dispatch during eval/tick
+        if (_inEval) return;
 
         _sb.Clear();
 #if UNITY_WEBGL && !UNITY_EDITOR
@@ -345,6 +354,9 @@ public class QuickJSUIBridge : IDisposable {
     void DispatchChangeEvent(string eventType, IEventHandler target, string valueJson) {
         int handle = FindElementHandle(target);
         if (handle == 0) return;
+
+        // Recursion guard - prevent event dispatch during eval/tick
+        if (_inEval) return;
 
 #if UNITY_WEBGL && !UNITY_EDITOR
         // Fast path for WebGL

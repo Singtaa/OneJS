@@ -84,12 +84,71 @@ void ForceReload();  // Manually trigger reload (Editor only)
 | File | Purpose |
 |------|---------|
 | `QuickJSNative.cs` | DllImports, enums, structs, string helpers (platform-conditional) |
-| `QuickJSNative.Handles.cs` | Handle table for C# object references |
+| `QuickJSNative.Handles.cs` | Handle table for C# object references with monitoring |
 | `QuickJSNative.Reflection.cs` | Type/method/property resolution and caching |
 | `QuickJSNative.Structs.cs` | Struct serialization (Vector3, Color, etc.) |
-| `QuickJSNative.Dispatch.cs` | JS→C# callback dispatch, value conversion |
+| `QuickJSNative.Dispatch.cs` | JS→C# callback dispatch, value conversion, exception handling |
 | `QuickJSNative.FastPath.cs` | Zero-allocation fast path for hot properties/methods |
-| `QuickJSNative.Tasks.cs` | C# Task/Promise bridging for async/await support |
+| `QuickJSNative.Tasks.cs` | C# Task/Promise bridging with queue monitoring |
+
+## Stability & Monitoring
+
+The runtime includes built-in monitoring to detect potential issues early.
+
+### Buffer Overflow Detection (QuickJSContext)
+Eval output is limited by buffer size (default 16KB). If output fills the buffer, a warning is logged:
+```
+[QuickJSContext] Eval output may have been truncated at 16384 bytes.
+```
+**Solution**: Increase buffer size in constructor or avoid returning large values from eval.
+
+### Handle Table Monitoring (QuickJSNative)
+C# objects referenced from JS use integer handles. The handle table is monitored:
+
+| Threshold | Level | Action |
+|-----------|-------|--------|
+| 10,000 | Warning | Logs potential memory leak warning |
+| 100,000 | Critical | Logs critical error |
+
+```csharp
+// Monitoring API
+int count = QuickJSNative.GetHandleCount();       // Current handle count
+int peak = QuickJSNative.GetPeakHandleCount();    // Peak since last reset
+QuickJSNative.ResetHandleMonitoring();            // Reset peak and warnings
+QuickJSNative.ClearAllHandles();                  // Clear all (on context dispose)
+```
+
+### Task Queue Monitoring (QuickJSNative)
+Async C# methods create pending task completions. The queue is monitored:
+
+| Threshold | Action |
+|-----------|--------|
+| 100 pending | Logs warning about queue growth |
+| 50 per tick | Max tasks processed per frame to prevent blocking |
+
+```csharp
+// Monitoring API
+int pending = QuickJSNative.GetPendingTaskCount();    // Current queue size
+int peak = QuickJSNative.GetPeakTaskQueueSize();      // Peak since last reset
+QuickJSNative.ResetTaskQueueMonitoring();             // Reset peak and warnings
+QuickJSNative.ClearPendingTasks();                    // Clear queue (on dispose)
+```
+
+### Recursion Guard (QuickJSUIBridge)
+All JS execution is protected by a recursion guard (`_inEval` flag) to prevent:
+- Event handlers triggering during Tick()
+- Nested eval calls causing stack overflow
+- WebGL-specific recursion issues
+
+Events dispatched during active JS execution are silently dropped.
+
+### WebGL Fetch State Machine (JSRunner)
+WebGL script loading uses an explicit state machine to prevent race conditions:
+```
+NotStarted → Fetching → Ready → Executed
+                    ↘ Error
+```
+Script execution only occurs after the `Ready` state confirms fetch completion.
 
 ## Profiling (in `Profiling/` folder)
 

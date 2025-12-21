@@ -16,6 +16,7 @@ public sealed class QuickJSContext : IDisposable {
     byte[] _buffer;
     bool _disposed;
     int _evalCount;
+    bool _bufferOverflowWarned; // Only warn once per context to avoid log spam
 
     public IntPtr NativePtr => _ptr;
 
@@ -74,6 +75,16 @@ public sealed class QuickJSContext : IDisposable {
 
             if (result != 0) {
                 throw new Exception("QuickJS error: " + str);
+            }
+
+            // Check for potential buffer overflow (output truncation)
+            // If the result fills the entire buffer (or nearly so), it was likely truncated
+            if (len >= _buffer.Length - 1 && !_bufferOverflowWarned) {
+                _bufferOverflowWarned = true;
+                Debug.LogWarning(
+                    $"[QuickJSContext] Eval output may have been truncated at {_buffer.Length} bytes. " +
+                    "Consider increasing buffer size or avoiding large return values from eval. " +
+                    "File: {filename}");
             }
 
             // Run GC periodically to trigger FinalizationRegistry callbacks

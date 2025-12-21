@@ -44,6 +44,18 @@ public class JSRunner : MonoBehaviour {
     float _nextPollTime;
     int _reloadCount;
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+    // WebGL fetch state machine for safe async loading
+    enum WebGLFetchState {
+        NotStarted,
+        Fetching,
+        Ready,      // Script fetched, waiting to execute
+        Executed,
+        Error
+    }
+    WebGLFetchState _fetchState = WebGLFetchState.NotStarted;
+#endif
+
     // Public API
     public string WorkingDir {
         get => _workingDir;
@@ -327,10 +339,6 @@ public class JSRunner : MonoBehaviour {
     }
 
     static int _updateCount = 0;
-    bool _loadStarted;
-#if !UNITY_EDITOR
-    bool _asyncLoadStarted;
-#endif
 
     void Update() {
         _updateCount++;
@@ -342,19 +350,31 @@ public class JSRunner : MonoBehaviour {
             CheckForFileChanges();
         }
 #elif UNITY_WEBGL
-        // WebGL: Use native fetch for loading, then native RAF loop handles ticking
-        if (!_loadStarted && !_scriptLoaded && _embeddedScript == null && !string.IsNullOrEmpty(_streamingAssetsPath)) {
-            if (_updateCount >= 3) {
-                _loadStarted = true;
-                StartJSFetch();
-            }
-        }
+        // WebGL: State machine for safe async loading
+        switch (_fetchState) {
+            case WebGLFetchState.NotStarted:
+                // Wait a few frames for Unity to stabilize before fetching
+                if (_updateCount >= 3 && _embeddedScript == null && !string.IsNullOrEmpty(_streamingAssetsPath)) {
+                    _fetchState = WebGLFetchState.Fetching;
+                    StartJSFetch();
+                }
+                break;
 
-        // Check if fetch completed by polling JS globals
-        if (_asyncLoadStarted && !_scriptLoaded) {
-            PollFetchResult();
+            case WebGLFetchState.Fetching:
+                // Poll for fetch completion - state transitions happen in PollFetchResult
+                PollFetchResult();
+                break;
+
+            case WebGLFetchState.Ready:
+                // Script is fetched and ready - execute it
+                ExecuteFetchedScript();
+                break;
+
+            case WebGLFetchState.Executed:
+            case WebGLFetchState.Error:
+                // Terminal states - native RAF loop handles ticking for Executed
+                break;
         }
-        // Once script is loaded, native RAF loop handles all ticking
 #else
         // Standalone/Mobile builds: Use Unity's Update loop
         if (_scriptLoaded) {
@@ -429,12 +449,17 @@ public class JSRunner : MonoBehaviour {
     }
 
     void StartJSFetch() {
-        _asyncLoadStarted = true;
         var url = Path.Combine(Application.streamingAssetsPath, _streamingAssetsPath);
         Debug.Log($"[JSRunner] Fetching from: {url}");
 
+        // Use atomic state flags to prevent race conditions
+        // __fetchState: 0 = fetching, 1 = ready, 2 = error
         var fetchCode = $@"
 (function() {{
+    globalThis.__fetchState = 0;  // Fetching
+    globalThis.__fetchedScript = null;
+    globalThis.__fetchError = null;
+
     var url = '{url}';
     console.log('[JSRunner] JS fetch starting for: ' + url);
     fetch(url)
@@ -446,39 +471,62 @@ public class JSRunner : MonoBehaviour {
         .then(function(text) {{
             console.log('[JSRunner] fetch success, length:', text.length);
             globalThis.__fetchedScript = text;
+            globalThis.__fetchState = 1;  // Ready - atomic state transition
         }})
         .catch(function(err) {{
             console.error('[JSRunner] fetch error:', err);
             globalThis.__fetchError = err.message || String(err);
+            globalThis.__fetchState = 2;  // Error - atomic state transition
         }});
 }})();
 ";
         try {
             _bridge.Eval(fetchCode, "fetch-loader.js");
-            Debug.Log("[JSRunner] Fetch code executed");
+            Debug.Log("[JSRunner] Fetch initiated");
         } catch (Exception ex) {
             Debug.LogError($"[JSRunner] Fetch eval error: {ex}");
-            try {
-                _bridge.Eval($"globalThis.__fetchError = '{ex.Message.Replace("'", "\\'")}'");
-            } catch { }
+            _fetchState = WebGLFetchState.Error;
+            RunScript(DefaultEntryContent, "default.js");
         }
     }
 
     void PollFetchResult() {
         try {
-            var errorCheck = _bridge.Eval("globalThis.__fetchError || ''");
-            if (!string.IsNullOrEmpty(errorCheck)) {
-                Debug.LogError($"[JSRunner] Fetch failed: {errorCheck}");
-                _bridge.Eval("globalThis.__fetchError = null");
-                RunScript(DefaultEntryContent, "default.js");
-                return;
-            }
+            // Check the atomic state flag
+            var stateStr = _bridge.Eval("globalThis.__fetchState");
+            if (!int.TryParse(stateStr, out int state)) return;
 
+            switch (state) {
+                case 0: // Still fetching
+                    return;
+
+                case 1: // Ready
+                    _fetchState = WebGLFetchState.Ready;
+                    break;
+
+                case 2: // Error
+                    var errorMsg = _bridge.Eval("globalThis.__fetchError || 'Unknown fetch error'");
+                    Debug.LogError($"[JSRunner] Fetch failed: {errorMsg}");
+                    _fetchState = WebGLFetchState.Error;
+                    _bridge.Eval("globalThis.__fetchError = null; globalThis.__fetchState = -1;");
+                    RunScript(DefaultEntryContent, "default.js");
+                    break;
+            }
+        } catch (Exception ex) {
+            Debug.LogError($"[JSRunner] Poll fetch error: {ex}");
+            _fetchState = WebGLFetchState.Error;
+        }
+    }
+
+    void ExecuteFetchedScript() {
+        try {
+            // Execute the fetched script in a separate step for clean state transitions
             var result = _bridge.Eval(@"
 (function() {
-    if (!globalThis.__fetchedScript) return '';
     var script = globalThis.__fetchedScript;
     globalThis.__fetchedScript = null;
+    globalThis.__fetchState = -1;  // Clear state
+    if (!script) return 'error:No script content';
     try {
         (0, eval)(script);
         return 'ok';
@@ -488,19 +536,21 @@ public class JSRunner : MonoBehaviour {
     }
 })()
 ");
-            if (!string.IsNullOrEmpty(result)) {
-                if (result == "ok") {
-                    _bridge.Context.ExecutePendingJobs();
-                    _scriptLoaded = true;
-                    StartWebGLTick();
-                } else if (result.StartsWith("error:")) {
-                    var error = result.Substring(6);
-                    Debug.LogError($"[JSRunner] Script execution failed: {error}");
-                    RunScript(DefaultEntryContent, "default.js");
-                }
+            if (result == "ok") {
+                _bridge.Context.ExecutePendingJobs();
+                _scriptLoaded = true;
+                _fetchState = WebGLFetchState.Executed;
+                StartWebGLTick();
+                Debug.Log("[JSRunner] Script executed successfully");
+            } else if (result.StartsWith("error:")) {
+                var error = result.Substring(6);
+                Debug.LogError($"[JSRunner] Script execution failed: {error}");
+                _fetchState = WebGLFetchState.Error;
+                RunScript(DefaultEntryContent, "default.js");
             }
         } catch (Exception ex) {
-            Debug.LogError($"[JSRunner] Poll fetch error: {ex}");
+            Debug.LogError($"[JSRunner] Execute script error: {ex}");
+            _fetchState = WebGLFetchState.Error;
         }
     }
 #endif

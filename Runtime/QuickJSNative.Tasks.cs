@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
+using UnityEngine;
 
 /// <summary>
 /// Partial class for Task/Promise bridging between C# and JS.
@@ -16,6 +17,12 @@ public static partial class QuickJSNative {
     // Completed task results waiting to be dispatched to JS
     // Using ConcurrentQueue because Task continuations run on thread pool
     static readonly ConcurrentQueue<TaskCompletionInfo> _completedTasks = new();
+
+    // Task queue monitoring
+    const int TaskQueueWarningThreshold = 100;    // Warn when queue exceeds this
+    const int MaxTasksPerTick = 50;               // Process at most this many per tick to avoid blocking
+    static bool _taskQueueWarningLogged;
+    static int _peakTaskQueueSize;
 
     struct TaskCompletionInfo {
         public int TaskId;
@@ -99,8 +106,26 @@ public static partial class QuickJSNative {
     public static int ProcessCompletedTasks(QuickJSContext ctx) {
         if (ctx == null) return 0;
 
+        // Check queue size for monitoring
+        int queueSize = _completedTasks.Count;
+        if (queueSize > _peakTaskQueueSize) _peakTaskQueueSize = queueSize;
+
+        // Warn if queue is growing unbounded
+        if (queueSize >= TaskQueueWarningThreshold && !_taskQueueWarningLogged) {
+            _taskQueueWarningLogged = true;
+            Debug.LogWarning(
+                $"[QuickJSNative] Task completion queue size ({queueSize}) exceeded {TaskQueueWarningThreshold}. " +
+                "Tasks may be completing faster than they can be processed. " +
+                "Consider reducing async operation frequency or checking for runaway task creation.");
+        }
+
+        // Reset warning flag when queue drains
+        if (queueSize < TaskQueueWarningThreshold / 2) {
+            _taskQueueWarningLogged = false;
+        }
+
         int processed = 0;
-        while (_completedTasks.TryDequeue(out var info)) {
+        while (processed < MaxTasksPerTick && _completedTasks.TryDequeue(out var info)) {
             try {
                 if (info.IsSuccess) {
                     // Call __resolveTask(taskId, result)
@@ -111,7 +136,7 @@ public static partial class QuickJSNative {
                 }
                 processed++;
             } catch (Exception ex) {
-                UnityEngine.Debug.LogError($"[QuickJS] Error processing task {info.TaskId}: {ex.Message}");
+                Debug.LogError($"[QuickJS] Error processing task {info.TaskId}: {ex.Message}");
             }
         }
 
@@ -164,5 +189,29 @@ public static partial class QuickJSNative {
     /// </summary>
     public static void ClearPendingTasks() {
         while (_completedTasks.TryDequeue(out _)) { }
+        _taskQueueWarningLogged = false;
+    }
+
+    /// <summary>
+    /// Returns the current number of pending task completions waiting to be processed.
+    /// </summary>
+    public static int GetPendingTaskCount() {
+        return _completedTasks.Count;
+    }
+
+    /// <summary>
+    /// Returns the peak task queue size since last reset.
+    /// Useful for debugging async operation patterns.
+    /// </summary>
+    public static int GetPeakTaskQueueSize() {
+        return _peakTaskQueueSize;
+    }
+
+    /// <summary>
+    /// Resets task queue monitoring statistics.
+    /// </summary>
+    public static void ResetTaskQueueMonitoring() {
+        _peakTaskQueueSize = _completedTasks.Count;
+        _taskQueueWarningLogged = false;
     }
 }
