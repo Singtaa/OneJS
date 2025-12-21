@@ -13,8 +13,8 @@ using UnityEngine.UIElements;
 /// - Hard Reload: Disposes context and recreates fresh on file change
 ///
 /// Platform behavior:
-/// - Editor/Standalone: Loads JS from filesystem with live reload support
-/// - WebGL: Loads from StreamingAssets or uses embedded TextAsset (no live reload)
+/// - Editor: Loads JS from filesystem with live reload support
+/// - Builds (Standalone/WebGL/Mobile): Loads from StreamingAssets or embedded TextAsset
 /// </summary>
 [RequireComponent(typeof(UIDocument))]
 public class JSRunner : MonoBehaviour {
@@ -29,11 +29,11 @@ public class JSRunner : MonoBehaviour {
     [Tooltip("How often to check for file changes (in seconds)")]
     [SerializeField] float _pollInterval = 0.5f;
 
-    [Header("WebGL")]
-    [Tooltip("For WebGL: TextAsset containing the bundled JS. If set, this is used instead of loading from StreamingAssets.")]
+    [Header("Build Settings")]
+    [Tooltip("TextAsset containing the bundled JS. If set, used instead of StreamingAssets in builds.")]
     [SerializeField] TextAsset _embeddedScript;
-    [Tooltip("For WebGL: Path relative to StreamingAssets (e.g., 'app.js'). Used if Embedded Script is not set.")]
-    [SerializeField] string _streamingAssetsPath = "app.js";
+    [Tooltip("Path relative to StreamingAssets for the JS bundle in builds (auto-copied during build).")]
+    [SerializeField] string _streamingAssetsPath = "onejs/app.js";
 
     QuickJSUIBridge _bridge;
     UIDocument _uiDocument;
@@ -82,17 +82,17 @@ public class JSRunner : MonoBehaviour {
                 return;
             }
 
-#if UNITY_WEBGL && !UNITY_EDITOR
-            InitializeWebGL();
-#else
+#if UNITY_EDITOR
             InitializeEditor();
+#else
+            InitializeBuild();
 #endif
         } catch (Exception ex) {
             Debug.LogError($"[JSRunner] Start() exception: {ex}");
         }
     }
 
-#if !UNITY_WEBGL || UNITY_EDITOR
+#if UNITY_EDITOR
     void InitializeEditor() {
         // Check if we need to scaffold the project
         if (!Directory.Exists(WorkingDirFullPath) || IsDirectoryEmpty(WorkingDirFullPath)) {
@@ -164,7 +164,7 @@ public class JSRunner : MonoBehaviour {
         var fullPath = Path.Combine(WorkingDirFullPath, relativePath);
         File.WriteAllText(fullPath, content);
     }
-#endif
+#endif // UNITY_EDITOR
 
     void InitializeBridge() {
         _bridge = new QuickJSUIBridge(_uiDocument.rootVisualElement, WorkingDirFullPath);
@@ -196,16 +196,17 @@ public class JSRunner : MonoBehaviour {
     /// <summary>
     /// Force a reload of the JavaScript context.
     /// Disposes the current context, clears UI, and recreates everything.
+    /// Only works in Editor.
     /// </summary>
     public void ForceReload() {
-#if !UNITY_WEBGL || UNITY_EDITOR
+#if UNITY_EDITOR
         Reload();
 #else
-        Debug.LogWarning("[JSRunner] Live reload is not supported on WebGL");
+        Debug.LogWarning("[JSRunner] Live reload is only supported in the Editor");
 #endif
     }
 
-#if !UNITY_WEBGL || UNITY_EDITOR
+#if UNITY_EDITOR
     void Reload() {
         if (!File.Exists(EntryFileFullPath)) {
             Debug.LogWarning($"[JSRunner] Entry file not found: {EntryFileFullPath}");
@@ -257,7 +258,7 @@ public class JSRunner : MonoBehaviour {
             Debug.LogWarning($"[JSRunner] Error checking file: {ex.Message}");
         }
     }
-#endif
+#endif // UNITY_EDITOR
 
     /// <summary>
     /// Inject Unity platform defines as JavaScript globals.
@@ -327,14 +328,20 @@ public class JSRunner : MonoBehaviour {
 
     static int _updateCount = 0;
     bool _loadStarted;
-#if UNITY_WEBGL && !UNITY_EDITOR
-    bool _fetchStarted;
+#if !UNITY_EDITOR
+    bool _asyncLoadStarted;
 #endif
 
     void Update() {
         _updateCount++;
 
-#if UNITY_WEBGL && !UNITY_EDITOR
+#if UNITY_EDITOR
+        // Editor: Use Unity's Update loop to drive the tick
+        if (_scriptLoaded) {
+            _bridge?.Tick();
+            CheckForFileChanges();
+        }
+#elif UNITY_WEBGL
         // WebGL: Use native fetch for loading, then native RAF loop handles ticking
         if (!_loadStarted && !_scriptLoaded && _embeddedScript == null && !string.IsNullOrEmpty(_streamingAssetsPath)) {
             if (_updateCount >= 3) {
@@ -344,47 +351,85 @@ public class JSRunner : MonoBehaviour {
         }
 
         // Check if fetch completed by polling JS globals
-        if (_fetchStarted && !_scriptLoaded) {
+        if (_asyncLoadStarted && !_scriptLoaded) {
             PollFetchResult();
         }
-        // Once script is loaded, native RAF loop handles all ticking - nothing to do here
+        // Once script is loaded, native RAF loop handles all ticking
 #else
-        // Editor/Standalone: Use Unity's Update loop to drive the tick
+        // Standalone/Mobile builds: Use Unity's Update loop
         if (_scriptLoaded) {
             _bridge?.Tick();
-            CheckForFileChanges();
         }
 #endif
     }
 
-    // MARK: WebGL-specific code
-#if UNITY_WEBGL && !UNITY_EDITOR
-    void InitializeWebGL() {
+    // MARK: Build-specific code (non-Editor)
+#if !UNITY_EDITOR
+    void InitializeBuild() {
         InitializeBridge();
 
         if (_embeddedScript != null) {
+            // Use pre-assigned TextAsset
             RunScript(_embeddedScript.text, "embedded.js");
-        } else if (!string.IsNullOrEmpty(_streamingAssetsPath)) {
-            // Loading is deferred to Update and uses browser's native fetch API
-        } else {
-            // Fallback test script
-            RunScript(@"
-                console.log('Inline test script running');
-                var label = new CS.UnityEngine.UIElements.Label('WebGL Inline Test');
-                label.style.fontSize = 32;
-                label.style.color = CS.UnityEngine.Color.yellow;
-                __root.Add(label);
-                console.log('Inline test complete');
-            ", "inline-test.js");
+            return;
         }
+
+        if (string.IsNullOrEmpty(_streamingAssetsPath)) {
+            Debug.LogError("[JSRunner] No embedded script or streaming assets path configured");
+            RunScript(DefaultEntryContent, "default.js");
+            return;
+        }
+
+#if UNITY_WEBGL
+        // WebGL: Loading is deferred to Update and uses browser's native fetch API
+#elif UNITY_ANDROID
+        // Android: StreamingAssets is inside APK, needs async loading
+        StartCoroutine(LoadFromStreamingAssetsAsync());
+#else
+        // Desktop/iOS: Direct file access
+        LoadFromStreamingAssetsSync();
+#endif
     }
 
+#if !UNITY_WEBGL && !UNITY_ANDROID
+    void LoadFromStreamingAssetsSync() {
+        var path = Path.Combine(Application.streamingAssetsPath, _streamingAssetsPath);
+        if (File.Exists(path)) {
+            var code = File.ReadAllText(path);
+            RunScript(code, _streamingAssetsPath);
+            Debug.Log($"[JSRunner] Loaded from StreamingAssets: {_streamingAssetsPath}");
+        } else {
+            Debug.LogError($"[JSRunner] Bundle not found: {path}");
+            RunScript(DefaultEntryContent, "default.js");
+        }
+    }
+#endif
+
+#if UNITY_ANDROID
+    System.Collections.IEnumerator LoadFromStreamingAssetsAsync() {
+        var path = Path.Combine(Application.streamingAssetsPath, _streamingAssetsPath);
+        using (var request = UnityEngine.Networking.UnityWebRequest.Get(path)) {
+            yield return request.SendWebRequest();
+
+            if (request.result == UnityEngine.Networking.UnityWebRequest.Result.Success) {
+                var code = request.downloadHandler.text;
+                RunScript(code, _streamingAssetsPath);
+                Debug.Log($"[JSRunner] Loaded from StreamingAssets: {_streamingAssetsPath}");
+            } else {
+                Debug.LogError($"[JSRunner] Failed to load: {request.error}");
+                RunScript(DefaultEntryContent, "default.js");
+            }
+        }
+    }
+#endif
+
+#if UNITY_WEBGL
     void StartWebGLTick() {
         _bridge.Eval("if (typeof __startWebGLTick === 'function') __startWebGLTick();", "webgl-tick-start.js");
     }
 
     void StartJSFetch() {
-        _fetchStarted = true;
+        _asyncLoadStarted = true;
         var url = Path.Combine(Application.streamingAssetsPath, _streamingAssetsPath);
         Debug.Log($"[JSRunner] Fetching from: {url}");
 
@@ -459,14 +504,15 @@ public class JSRunner : MonoBehaviour {
         }
     }
 #endif
+#endif // !UNITY_EDITOR
 
     void OnDestroy() {
         _bridge?.Dispose();
         _bridge = null;
     }
 
-    // MARK: Template Generators
-#if !UNITY_WEBGL || UNITY_EDITOR
+    // MARK: Template Generators (Editor only)
+#if UNITY_EDITOR
     string GetPackageJsonTemplate() {
         return @"{
   ""name"": ""onejs-app"",
@@ -709,5 +755,5 @@ render(<App />, __root)
 }
 ";
     }
-#endif
+#endif // UNITY_EDITOR
 }

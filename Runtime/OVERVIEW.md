@@ -25,7 +25,17 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 
 The `JSRunner` MonoBehaviour is the primary way to run JavaScript apps in Unity.
 
-### Auto-Scaffolding
+### Platform Behavior
+
+| Context | JS Loading | Live Reload |
+|---------|------------|-------------|
+| Editor | From disk (`App/@outputs/esbuild/app.js`) | Yes (polling) |
+| Standalone | StreamingAssets (auto-copied during build) | No |
+| WebGL | StreamingAssets via fetch API | No |
+| Android | StreamingAssets via UnityWebRequest | No |
+| iOS | StreamingAssets | No |
+
+### Auto-Scaffolding (Editor Only)
 On first run, if the working directory is empty, JSRunner creates a complete project:
 - `package.json` - npm configuration with React and onejs-react dependencies
 - `esbuild.config.mjs` - Build configuration for bundling
@@ -35,11 +45,16 @@ On first run, if the working directory is empty, JSRunner creates a complete pro
 - `styles/main.uss` - Sample USS stylesheet
 - `@outputs/esbuild/app.js` - Default entry file
 
-### Live Reload
+### Live Reload (Editor Only)
 - Polls the entry file for changes (Mono-compatible, no FileSystemWatcher)
 - Configurable poll interval (default: 0.5s)
 - Hard reload: disposes context, clears UI, recreates fresh
-- Only available in Editor/Standalone (not WebGL)
+
+### Build Support
+For standalone/mobile builds, JSRunner loads from StreamingAssets:
+- **Auto-copy**: `JSRunnerBuildProcessor` copies entry file to StreamingAssets during build
+- **Default path**: `StreamingAssets/onejs/app.js`
+- **Override**: Assign a TextAsset to `Embedded Script` to skip StreamingAssets
 
 ### Custom Inspector
 The `JSRunnerEditor` provides:
@@ -48,6 +63,7 @@ The `JSRunnerEditor` provides:
 - **Build** button - Run `npm run build`
 - **Open Folder** - Open working directory in file explorer
 - **Open Terminal** - Open terminal at working directory
+- Build info showing where bundle will be copied
 
 ### Public API
 ```csharp
@@ -60,7 +76,7 @@ string WorkingDirFullPath { get; }
 string EntryFileFullPath { get; }
 
 // Methods
-void ForceReload();  // Manually trigger reload
+void ForceReload();  // Manually trigger reload (Editor only)
 ```
 
 ## QuickJSNative Partial Classes

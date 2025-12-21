@@ -54,9 +54,17 @@ public class JSRunnerEditor : Editor {
 
         EditorGUILayout.Space(10);
 
-        // WebGL Section (Header comes from [Header] attribute)
+        // Build Settings Section (Header comes from [Header] attribute)
         EditorGUILayout.PropertyField(_embeddedScript);
         EditorGUILayout.PropertyField(_streamingAssetsPath);
+
+        // Show build info
+        if (_embeddedScript.objectReferenceValue == null) {
+            EditorGUILayout.HelpBox(
+                $"Bundle will be auto-copied to StreamingAssets/{_streamingAssetsPath.stringValue} during build.",
+                MessageType.Info
+            );
+        }
 
         EditorGUILayout.Space(10);
 
