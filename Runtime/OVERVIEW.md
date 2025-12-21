@@ -18,8 +18,50 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 |------|---------|
 | `QuickJSContext.cs` | Managed wrapper for QuickJS context (Eval, ExecutePendingJobs, callbacks) |
 | `QuickJSUIBridge.cs` | UI Toolkit integration, event delegation, scheduling (RAF, timers) |
-| `JSRunner.cs` | MonoBehaviour entry point for running JS apps |
+| `JSRunner.cs` | MonoBehaviour entry point with auto-scaffolding and live reload |
 | `ScriptEngine.cs` | Placeholder/stub |
+
+## JSRunner Features
+
+The `JSRunner` MonoBehaviour is the primary way to run JavaScript apps in Unity.
+
+### Auto-Scaffolding
+On first run, if the working directory is empty, JSRunner creates a complete project:
+- `package.json` - npm configuration with React and onejs-react dependencies
+- `esbuild.config.mjs` - Build configuration for bundling
+- `tsconfig.json` - TypeScript configuration
+- `global.d.ts` - TypeScript declarations for OneJS globals
+- `index.tsx` - Sample React application
+- `styles/main.uss` - Sample USS stylesheet
+- `@outputs/esbuild/app.js` - Default entry file
+
+### Live Reload
+- Polls the entry file for changes (Mono-compatible, no FileSystemWatcher)
+- Configurable poll interval (default: 0.5s)
+- Hard reload: disposes context, clears UI, recreates fresh
+- Only available in Editor/Standalone (not WebGL)
+
+### Custom Inspector
+The `JSRunnerEditor` provides:
+- Status display (running/stopped, reload count)
+- **Reload Now** button - Force reload in Play mode
+- **Build** button - Run `npm run build`
+- **Open Folder** - Open working directory in file explorer
+- **Open Terminal** - Open terminal at working directory
+
+### Public API
+```csharp
+// Properties
+bool IsRunning { get; }
+bool IsLiveReloadEnabled { get; }
+int ReloadCount { get; }
+DateTime LastModifiedTime { get; }
+string WorkingDirFullPath { get; }
+string EntryFileFullPath { get; }
+
+// Methods
+void ForceReload();  // Manually trigger reload
+```
 
 ## QuickJSNative Partial Classes
 
