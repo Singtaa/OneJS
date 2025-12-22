@@ -20,6 +20,10 @@ public class QuickJSUIBridge : IDisposable {
     float _startTime;
     bool _inEval; // Recursion guard to prevent re-entrant JS execution (all platforms)
 
+    // Viewport tracking for responsive design
+    float _lastViewportWidth;
+    float _lastViewportHeight;
+
     public QuickJSContext Context => _ctx;
     public VisualElement Root => _root;
     public string WorkingDir => _workingDir;
@@ -154,6 +158,9 @@ public class QuickJSUIBridge : IDisposable {
         _root.RegisterCallback<ChangeEvent<bool>>(OnChangeBool, TrickleDown.TrickleDown);
         _root.RegisterCallback<ChangeEvent<float>>(OnChangeFloat, TrickleDown.TrickleDown);
         _root.RegisterCallback<ChangeEvent<int>>(OnChangeInt, TrickleDown.TrickleDown);
+
+        // Geometry changed for responsive design (only on root)
+        _root.RegisterCallback<GeometryChangedEvent>(OnGeometryChanged);
     }
 
     void UnregisterEventDelegation() {
@@ -171,6 +178,7 @@ public class QuickJSUIBridge : IDisposable {
         _root.UnregisterCallback<ChangeEvent<bool>>(OnChangeBool, TrickleDown.TrickleDown);
         _root.UnregisterCallback<ChangeEvent<float>>(OnChangeFloat, TrickleDown.TrickleDown);
         _root.UnregisterCallback<ChangeEvent<int>>(OnChangeInt, TrickleDown.TrickleDown);
+        _root.UnregisterCallback<GeometryChangedEvent>(OnGeometryChanged);
     }
 
     // MARK: Handlers
@@ -209,6 +217,22 @@ public class QuickJSUIBridge : IDisposable {
         e.newValue.ToString("G", CultureInfo.InvariantCulture));
 
     void OnChangeInt(ChangeEvent<int> e) => DispatchChangeEvent("change", e.target, e.newValue.ToString());
+
+    void OnGeometryChanged(GeometryChangedEvent e) {
+        // Only dispatch if size actually changed (avoid spurious events)
+        float newWidth = e.newRect.width;
+        float newHeight = e.newRect.height;
+
+        if (Mathf.Approximately(newWidth, _lastViewportWidth) &&
+            Mathf.Approximately(newHeight, _lastViewportHeight)) {
+            return;
+        }
+
+        _lastViewportWidth = newWidth;
+        _lastViewportHeight = newHeight;
+
+        DispatchViewportEvent(newWidth, newHeight);
+    }
 
     // MARK: Dispatch
     int FindElementHandle(IEventHandler target) {
@@ -380,6 +404,40 @@ public class QuickJSUIBridge : IDisposable {
             _ctx.ExecutePendingJobs(); // Process microtasks scheduled by React
         } catch (Exception ex) {
             Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error: {ex.Message}");
+        }
+#endif
+    }
+
+    void DispatchViewportEvent(float width, float height) {
+        // Recursion guard - prevent event dispatch during eval/tick
+        if (_inEval) return;
+
+        int handle = QuickJSNative.GetHandleForObject(_root);
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+        // Fast path for WebGL
+        _sb.Clear();
+        _sb.Append("{\"width\":");
+        _sb.Append(width.ToString("F0", CultureInfo.InvariantCulture));
+        _sb.Append(",\"height\":");
+        _sb.Append(height.ToString("F0", CultureInfo.InvariantCulture));
+        _sb.Append("}");
+        QuickJSNative.qjs_dispatch_event(handle, "viewportchange", _sb.ToString());
+#else
+        _sb.Clear();
+        _sb.Append("globalThis.__dispatchEvent && __dispatchEvent(");
+        _sb.Append(handle);
+        _sb.Append(",\"viewportchange\",{\"width\":");
+        _sb.Append(width.ToString("F0", CultureInfo.InvariantCulture));
+        _sb.Append(",\"height\":");
+        _sb.Append(height.ToString("F0", CultureInfo.InvariantCulture));
+        _sb.Append("})");
+
+        try {
+            SafeEval(_sb.ToString());
+            _ctx.ExecutePendingJobs(); // Process microtasks scheduled by React
+        } catch (Exception ex) {
+            Debug.LogWarning($"[QuickJSUIBridge] Viewport event dispatch error: {ex.Message}");
         }
 #endif
     }
