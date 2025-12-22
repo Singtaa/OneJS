@@ -19,6 +19,7 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `QuickJSContext.cs` | Managed wrapper for QuickJS context (Eval, ExecutePendingJobs, callbacks) |
 | `QuickJSUIBridge.cs` | UI Toolkit integration, event delegation, scheduling (RAF, timers) |
 | `JSRunner.cs` | MonoBehaviour entry point with auto-scaffolding and live reload |
+| `Network.cs` | Fetch API implementation using UnityWebRequest |
 | `ScriptEngine.cs` | Placeholder/stub |
 
 ## JSRunner Features
@@ -316,3 +317,36 @@ async function loadData() {
 **Error handling**:
 - Faulted tasks reject the Promise with the exception message
 - Canceled tasks reject with "Task was canceled"
+
+### Fetch API
+The runtime provides a web-compatible `fetch()` API for making HTTP requests:
+```javascript
+// Simple GET request
+const response = await fetch("https://api.example.com/data");
+const data = await response.json();
+
+// POST with JSON body
+const response = await fetch("https://api.example.com/data", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "test" })
+});
+
+// Check response status
+if (response.ok) {
+    const text = await response.text();
+}
+```
+
+**Supported features**:
+- `fetch(url, options)` - Returns Promise<Response>
+- Options: `method`, `headers`, `body`
+- Response properties: `ok`, `status`, `statusText`, `url`, `headers`
+- Response methods: `text()`, `json()`, `clone()`
+- Headers class: `get()`, `set()`, `has()`, `append()`, `delete()`, `keys()`, `values()`, `entries()`, `forEach()`
+
+**Implementation details**:
+- Uses `UnityWebRequest` under the hood (works on all platforms)
+- Supports GET, POST, PUT, DELETE, HEAD methods
+- Auto-stringifies object bodies and sets Content-Type header
+- Response body is fetched as text; use `json()` to parse

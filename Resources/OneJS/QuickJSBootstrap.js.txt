@@ -885,3 +885,185 @@ globalThis.compileStyleSheet = function(ussContent, name) {
     }
     return globalThis.__bridge.CompileStyleSheet(ussContent, name || "inline");
 };
+
+// MARK: Fetch API
+/**
+ * Fetch API implementation using Unity's UnityWebRequest.
+ * Matches the web fetch() API signature and returns a Promise.
+ *
+ * @param {string} url - The URL to fetch
+ * @param {Object} [options] - Request options
+ * @param {string} [options.method="GET"] - HTTP method
+ * @param {Object} [options.headers] - Request headers
+ * @param {string|Object} [options.body] - Request body (auto-stringified if object)
+ * @returns {Promise<Response>} Promise resolving to a Response object
+ *
+ * @example
+ * // Simple GET
+ * const response = await fetch("https://api.example.com/data");
+ * const data = await response.json();
+ *
+ * @example
+ * // POST with JSON
+ * const response = await fetch("https://api.example.com/data", {
+ *     method: "POST",
+ *     headers: { "Content-Type": "application/json" },
+ *     body: JSON.stringify({ name: "test" })
+ * });
+ */
+globalThis.fetch = function(url, options) {
+    options = options || {};
+    var method = options.method || "GET";
+    var headers = options.headers || null;
+    var body = options.body || null;
+
+    // Auto-stringify body if it's an object
+    if (body && typeof body === "object") {
+        body = JSON.stringify(body);
+        // Set Content-Type if not already set
+        if (!headers) headers = {};
+        if (!headers["Content-Type"]) {
+            headers["Content-Type"] = "application/json";
+        }
+    }
+
+    var headersJson = headers ? JSON.stringify(headers) : null;
+
+    // Call C# FetchAsync and wrap result in Response object
+    return CS.OneJS.Network.FetchAsync(url, method, body, headersJson)
+        .then(function(result) {
+            return new Response(result);
+        });
+};
+
+/**
+ * Response class matching the web Response API.
+ * Wraps the C# FetchResponse object.
+ */
+class Response {
+    constructor(fetchResult) {
+        // Parse JSON if it's a string (from C# FetchAsync)
+        if (typeof fetchResult === "string") {
+            fetchResult = JSON.parse(fetchResult);
+        }
+        this._body = fetchResult.body || "";
+        this._headers = new Headers(fetchResult.headers);
+        this.ok = fetchResult.ok;
+        this.status = fetchResult.status;
+        this.statusText = fetchResult.statusText || "";
+        this.url = fetchResult.url || "";
+        this._bodyUsed = false;
+    }
+
+    get bodyUsed() {
+        return this._bodyUsed;
+    }
+
+    get headers() {
+        return this._headers;
+    }
+
+    /**
+     * Returns the body as text.
+     * @returns {Promise<string>}
+     */
+    text() {
+        if (this._bodyUsed) {
+            return Promise.reject(new TypeError("Body has already been consumed"));
+        }
+        this._bodyUsed = true;
+        return Promise.resolve(this._body);
+    }
+
+    /**
+     * Parses the body as JSON.
+     * @returns {Promise<any>}
+     */
+    json() {
+        return this.text().then(function(text) {
+            return JSON.parse(text);
+        });
+    }
+
+    /**
+     * Returns a clone of the response.
+     * @returns {Response}
+     */
+    clone() {
+        if (this._bodyUsed) {
+            throw new TypeError("Cannot clone a Response whose body has been consumed");
+        }
+        var cloned = new Response({
+            body: this._body,
+            headers: this._headers._headers,
+            ok: this.ok,
+            status: this.status,
+            statusText: this.statusText,
+            url: this.url
+        });
+        return cloned;
+    }
+}
+
+/**
+ * Headers class matching the web Headers API.
+ */
+class Headers {
+    constructor(init) {
+        this._headers = {};
+        if (init) {
+            // Handle both plain objects and Headers instances
+            var source = init._headers || init;
+            for (var key in source) {
+                if (source.hasOwnProperty(key)) {
+                    this._headers[key.toLowerCase()] = source[key];
+                }
+            }
+        }
+    }
+
+    get(name) {
+        return this._headers[name.toLowerCase()] || null;
+    }
+
+    has(name) {
+        return name.toLowerCase() in this._headers;
+    }
+
+    set(name, value) {
+        this._headers[name.toLowerCase()] = value;
+    }
+
+    append(name, value) {
+        var key = name.toLowerCase();
+        if (key in this._headers) {
+            this._headers[key] += ", " + value;
+        } else {
+            this._headers[key] = value;
+        }
+    }
+
+    delete(name) {
+        delete this._headers[name.toLowerCase()];
+    }
+
+    forEach(callback) {
+        for (var key in this._headers) {
+            if (this._headers.hasOwnProperty(key)) {
+                callback(this._headers[key], key, this);
+            }
+        }
+    }
+
+    keys() {
+        return Object.keys(this._headers);
+    }
+
+    values() {
+        return Object.values(this._headers);
+    }
+
+    entries() {
+        return Object.entries(this._headers);
+    }
+}
