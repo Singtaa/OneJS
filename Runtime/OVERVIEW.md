@@ -350,3 +350,37 @@ if (response.ok) {
 - Supports GET, POST, PUT, DELETE, HEAD methods
 - Auto-stringifies object bodies and sets Content-Type header
 - Response body is fetched as text; use `json()` to parse
+
+### Storage API (localStorage/sessionStorage)
+Web-compatible storage API using Unity's PlayerPrefs:
+```javascript
+// Store and retrieve values
+localStorage.setItem("theme", "dark");
+const theme = localStorage.getItem("theme"); // "dark"
+
+// Store objects as JSON
+localStorage.setItem("user", JSON.stringify({ name: "Alice", level: 5 }));
+const user = JSON.parse(localStorage.getItem("user"));
+
+// Remove items
+localStorage.removeItem("theme");
+localStorage.clear(); // WARNING: Clears ALL PlayerPrefs
+```
+
+**Supported methods**:
+- `getItem(key)` - Returns value or null
+- `setItem(key, value)` - Stores value (converted to string)
+- `removeItem(key)` - Removes item
+- `clear()` - Clears all PlayerPrefs (use with caution)
+
+**Limitations** (due to PlayerPrefs):
+- `key(index)` - Always returns null (enumeration not supported)
+- `length` - Always returns 0 (counting not supported)
+
+**sessionStorage**: Alias to localStorage. Unlike web browsers, data persists across app restarts since Unity has no session concept.
+
+**Implementation details**:
+- Uses `PlayerPrefs` under the hood (cross-platform)
+- Synchronous API (matches web localStorage)
+- Values are automatically converted to strings
+- `Save()` is called after each write for reliability
