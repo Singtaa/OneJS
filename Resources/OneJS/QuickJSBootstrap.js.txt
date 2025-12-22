@@ -1548,3 +1548,64 @@ class URL {
 // Expose globally
 globalThis.URL = URL;
 globalThis.URLSearchParams = URLSearchParams;
+
+// ============================================================================
+// Base64 Encoding/Decoding (atob/btoa)
+// ============================================================================
+
+var __base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+globalThis.btoa = function(str) {
+    if (str === undefined || str === null) {
+        throw new Error("btoa: argument required");
+    }
+    str = String(str);
+    if (str.length === 0) return "";
+    var result = "";
+    for (var i = 0; i < str.length; i += 3) {
+        var a = str.charCodeAt(i);
+        var b = i + 1 < str.length ? str.charCodeAt(i + 1) : 0;
+        var c = i + 2 < str.length ? str.charCodeAt(i + 2) : 0;
+
+        // Check for characters outside Latin1 range
+        if (a > 255 || b > 255 || c > 255) {
+            throw new Error("btoa: string contains characters outside Latin1 range");
+        }
+
+        var n = (a << 16) | (b << 8) | c;
+        result += __base64Chars[(n >> 18) & 63];
+        result += __base64Chars[(n >> 12) & 63];
+        result += (i + 1 < str.length) ? __base64Chars[(n >> 6) & 63] : "=";
+        result += (i + 2 < str.length) ? __base64Chars[n & 63] : "=";
+    }
+    return result;
+};
+
+globalThis.atob = function(str) {
+    if (str === undefined || str === null) {
+        throw new Error("atob: argument required");
+    }
+    str = String(str).replace(/=+$/, "");
+    if (str.length === 0) return "";
+    if (str.length % 4 === 1) {
+        throw new Error("atob: invalid base64 string");
+    }
+    var result = "";
+    for (var i = 0; i < str.length; i += 4) {
+        var a = __base64Chars.indexOf(str.charAt(i));
+        var b = i + 1 < str.length ? __base64Chars.indexOf(str.charAt(i + 1)) : 0;
+        var c = i + 2 < str.length ? __base64Chars.indexOf(str.charAt(i + 2)) : 0;
+        var d = i + 3 < str.length ? __base64Chars.indexOf(str.charAt(i + 3)) : 0;
+
+        if (a === -1 || (i + 1 < str.length && b === -1) ||
+            (i + 2 < str.length && c === -1) || (i + 3 < str.length && d === -1)) {
+            throw new Error("atob: invalid character in base64 string");
+        }
+
+        var n = (a << 18) | (b << 12) | (c << 6) | d;
+        result += String.fromCharCode((n >> 16) & 255);
+        if (i + 2 < str.length) result += String.fromCharCode((n >> 8) & 255);
+        if (i + 3 < str.length) result += String.fromCharCode(n & 255);
+    }
+    return result;
+};

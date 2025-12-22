@@ -420,3 +420,29 @@ params.toString();  // "foo=1&bar=2"
 - WHATWG URL Standard compliant (common cases)
 - Supports relative URL resolution with base URL
 - Automatic encoding/decoding of special characters
+
+### Base64 Encoding (atob/btoa)
+Web-compatible Base64 encoding and decoding:
+```javascript
+// Encode string to Base64
+btoa("Hello, World!")  // "SGVsbG8sIFdvcmxkIQ=="
+
+// Decode Base64 to string
+atob("SGVsbG8sIFdvcmxkIQ==")  // "Hello, World!"
+
+// Common use cases
+const encoded = btoa(JSON.stringify({ user: "alice", id: 123 }));
+const decoded = JSON.parse(atob(encoded));
+
+// JWT-like payload handling
+const payload = atob(token.split('.')[1]);
+```
+
+**Limitations**:
+- Only supports Latin1 characters (0-255). For Unicode, encode to UTF-8 first.
+- `btoa()` throws if string contains characters outside Latin1 range.
+
+**Implementation details**:
+- Pure JavaScript implementation
+- Handles padding correctly (=, ==)
+- Validates input characters
