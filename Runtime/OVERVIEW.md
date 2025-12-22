@@ -134,6 +134,45 @@ QuickJSNative.ResetTaskQueueMonitoring();             // Reset peak and warnings
 QuickJSNative.ClearPendingTasks();                    // Clear queue (on dispose)
 ```
 
+### Event Handler Cleanup (QuickJSBootstrap.js)
+When C# objects are released (either manually via `releaseObject()` or automatically via garbage collection), event handlers registered for that element are automatically cleaned up:
+
+```javascript
+// Event handlers are stored per-handle
+__eventHandlers.get(handle)  // Map of eventType -> Set<callback>
+
+// Automatic cleanup when handle is released
+__cleanupHandle(handle);     // Called before releasing to C#
+```
+
+This prevents memory leaks where stale event handlers could accumulate for destroyed UI elements.
+
+### Double-Free Prevention (QuickJSBootstrap.js)
+The `FinalizationRegistry` callback can race with manual `releaseObject()` calls. A tracking Set prevents double-free:
+
+```javascript
+// Track manually released handles
+const __releasedHandles = new Set();
+
+// Safe manual release
+function releaseObject(obj) {
+    if (!__releasedHandles.has(handle)) {
+        __releasedHandles.add(handle);
+        __cleanupHandle(handle);
+        __releaseHandle(handle);
+    }
+}
+
+// FinalizationRegistry skips already-released handles
+const __handleRegistry = new FinalizationRegistry((handle) => {
+    if (__releasedHandles.has(handle)) {
+        __releasedHandles.delete(handle);  // Clean up tracking
+        return;
+    }
+    // ... release handle
+});
+```
+
 ### Recursion Guard (QuickJSUIBridge)
 All JS execution is protected by a recursion guard (`_inEval` flag) to prevent:
 - Event handlers triggering during Tick()

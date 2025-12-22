@@ -7,15 +7,45 @@ if (typeof globalThis.__cs === "undefined") {
 }
 
 // MARK: Handle Cleanup
+// Track released handles to prevent double-free from FinalizationRegistry
+const __releasedHandles = new Set();
+
+// Forward declaration - actual Map created in Events section
+// This allows __cleanupHandle to reference it before initialization
+let __eventHandlers = new Map();
+
 const __handleRegistry = new FinalizationRegistry((handle) => {
-    if (handle > 0 && typeof __releaseHandle === "function") {
+    // Skip if already released manually or handle is invalid
+    if (handle <= 0 || __releasedHandles.has(handle)) {
+        __releasedHandles.delete(handle); // Clean up the tracking set
+        return;
+    }
+    if (typeof __releaseHandle === "function") {
+        __cleanupHandle(handle);
         __releaseHandle(handle);
     }
 });
 
+/**
+ * Clean up all JS-side resources associated with a handle.
+ * Called before releasing the handle to C#.
+ */
+function __cleanupHandle(handle) {
+    // Clean up event handlers for this element
+    __eventHandlers.delete(handle);
+}
+
+/**
+ * Manually release a C# object. Safe to call multiple times.
+ */
 function releaseObject(obj) {
     if (obj && typeof obj.__csHandle === "number" && obj.__csHandle > 0) {
-        __releaseHandle(obj.__csHandle);
+        const handle = obj.__csHandle;
+        if (!__releasedHandles.has(handle)) {
+            __releasedHandles.add(handle);
+            __cleanupHandle(handle);
+            __releaseHandle(handle);
+        }
         obj.__csHandle = 0;
     }
 }
@@ -460,8 +490,8 @@ if (typeof globalThis.CS === "undefined") {
 }
 
 // MARK: Events
-// Event handler registry - maps elementHandle -> { eventType -> callback }
-const __eventHandlers = new Map();
+// Event handler registry - maps elementHandle -> { eventType -> Set<callback> }
+// Note: __eventHandlers is declared at top of file for use by __cleanupHandle
 
 /**
  * Register an event handler for an element.
@@ -746,7 +776,8 @@ function __createTaskPromise(taskId) {
 globalThis.__resolveTask = function(taskId, result) {
     const pending = __pendingTaskPromises.get(taskId);
     if (!pending) {
-        console.warn("__resolveTask: No pending promise for taskId", taskId);
+        // No pending promise - task was registered from C# without JS involvement.
+        // This is valid for C#-only async operations and monitoring tests.
         return;
     }
     __pendingTaskPromises.delete(taskId);
@@ -763,7 +794,7 @@ globalThis.__resolveTask = function(taskId, result) {
 globalThis.__rejectTask = function(taskId, errorMessage) {
     const pending = __pendingTaskPromises.get(taskId);
     if (!pending) {
-        console.warn("__rejectTask: No pending promise for taskId", taskId);
+        // No pending promise - task was registered from C# without JS involvement.
         return;
     }
     __pendingTaskPromises.delete(taskId);
