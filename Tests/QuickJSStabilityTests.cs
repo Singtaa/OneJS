@@ -248,6 +248,7 @@ public class QuickJSStabilityTests {
     [UnityTest]
     public IEnumerator ExceptionContext_MethodNotFound_ThrowsWithContext() {
         // Try to call a non-existent method - should throw with error info
+        Debug.Log("[Test] The following red error is EXPECTED - testing error handling for non-existent methods");
         LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex(@"\[QuickJS\] Method not found"));
 
         bool exceptionThrown = false;
@@ -266,6 +267,7 @@ public class QuickJSStabilityTests {
     [UnityTest]
     public IEnumerator ExceptionContext_TypeNotFound_ThrowsWithContext() {
         // Try to access a non-existent type - should throw with error info
+        Debug.Log("[Test] The following red error is EXPECTED - testing error handling for non-existent types");
         LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex(@"\[QuickJS\] Type not found"));
 
         bool exceptionThrown = false;
