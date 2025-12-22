@@ -384,3 +384,39 @@ localStorage.clear(); // WARNING: Clears ALL PlayerPrefs
 - Synchronous API (matches web localStorage)
 - Values are automatically converted to strings
 - `Save()` is called after each write for reliability
+
+### URL API (URL/URLSearchParams)
+Web-compatible URL parsing and query string manipulation:
+```javascript
+// Parse URLs
+const url = new URL("https://example.com:8080/path?query=1#hash");
+url.hostname;  // "example.com"
+url.port;      // "8080"
+url.pathname;  // "/path"
+url.search;    // "?query=1"
+url.hash;      // "#hash"
+url.origin;    // "https://example.com:8080"
+
+// Resolve relative URLs
+const abs = new URL("/api/data", "https://example.com");
+abs.href;  // "https://example.com/api/data"
+
+// Work with query parameters
+url.searchParams.get("query");     // "1"
+url.searchParams.set("query", "2");
+url.searchParams.append("new", "value");
+
+// Build query strings
+const params = new URLSearchParams({ foo: "1", bar: "2" });
+params.toString();  // "foo=1&bar=2"
+```
+
+**URL properties**: `href`, `protocol`, `hostname`, `port`, `host`, `pathname`, `search`, `searchParams`, `hash`, `origin`, `username`, `password`
+
+**URLSearchParams methods**: `get()`, `getAll()`, `set()`, `append()`, `delete()`, `has()`, `toString()`, `keys()`, `values()`, `entries()`, `forEach()`, `sort()`, `size`
+
+**Implementation details**:
+- Pure JavaScript implementation (~250 lines)
+- WHATWG URL Standard compliant (common cases)
+- Supports relative URL resolution with base URL
+- Automatic encoding/decoding of special characters

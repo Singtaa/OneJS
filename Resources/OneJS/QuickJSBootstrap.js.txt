@@ -1156,3 +1156,395 @@ globalThis.localStorage = {
  * Use a prefix like "session_" if you need to manually clear on app start.
  */
 globalThis.sessionStorage = globalThis.localStorage;
+
+// MARK: URL API
+/**
+ * URLSearchParams implementation matching the WHATWG URL Standard.
+ * Provides methods for working with query strings.
+ *
+ * @example
+ * const params = new URLSearchParams("foo=1&bar=2");
+ * params.get("foo"); // "1"
+ * params.append("baz", "3");
+ * params.toString(); // "foo=1&bar=2&baz=3"
+ */
+class URLSearchParams {
+    constructor(init) {
+        this._params = [];
+
+        if (!init) {
+            return;
+        }
+
+        if (typeof init === "string") {
+            // Remove leading "?" if present
+            if (init.startsWith("?")) {
+                init = init.slice(1);
+            }
+            if (init.length > 0) {
+                var pairs = init.split("&");
+                for (var i = 0; i < pairs.length; i++) {
+                    var pair = pairs[i];
+                    var eqIdx = pair.indexOf("=");
+                    if (eqIdx === -1) {
+                        this._params.push([decodeURIComponent(pair), ""]);
+                    } else {
+                        var key = decodeURIComponent(pair.slice(0, eqIdx).replace(/\+/g, " "));
+                        var value = decodeURIComponent(pair.slice(eqIdx + 1).replace(/\+/g, " "));
+                        this._params.push([key, value]);
+                    }
+                }
+            }
+        } else if (Array.isArray(init)) {
+            // Array of [key, value] pairs
+            for (var i = 0; i < init.length; i++) {
+                this._params.push([String(init[i][0]), String(init[i][1])]);
+            }
+        } else if (typeof init === "object") {
+            // Object with key-value pairs
+            for (var key in init) {
+                if (init.hasOwnProperty(key)) {
+                    this._params.push([key, String(init[key])]);
+                }
+            }
+        }
+    }
+
+    append(name, value) {
+        this._params.push([String(name), String(value)]);
+    }
+
+    delete(name) {
+        name = String(name);
+        this._params = this._params.filter(function(p) { return p[0] !== name; });
+    }
+
+    get(name) {
+        name = String(name);
+        for (var i = 0; i < this._params.length; i++) {
+            if (this._params[i][0] === name) {
+                return this._params[i][1];
+            }
+        }
+        return null;
+    }
+
+    getAll(name) {
+        name = String(name);
+        var result = [];
+        for (var i = 0; i < this._params.length; i++) {
+            if (this._params[i][0] === name) {
+                result.push(this._params[i][1]);
+            }
+        }
+        return result;
+    }
+
+    has(name) {
+        name = String(name);
+        for (var i = 0; i < this._params.length; i++) {
+            if (this._params[i][0] === name) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    set(name, value) {
+        name = String(name);
+        value = String(value);
+        var found = false;
+        var newParams = [];
+        for (var i = 0; i < this._params.length; i++) {
+            if (this._params[i][0] === name) {
+                if (!found) {
+                    newParams.push([name, value]);
+                    found = true;
+                }
+                // Skip duplicates
+            } else {
+                newParams.push(this._params[i]);
+            }
+        }
+        if (!found) {
+            newParams.push([name, value]);
+        }
+        this._params = newParams;
+    }
+
+    sort() {
+        this._params.sort(function(a, b) {
+            return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0;
+        });
+    }
+
+    toString() {
+        return this._params.map(function(p) {
+            return encodeURIComponent(p[0]) + "=" + encodeURIComponent(p[1]);
+        }).join("&");
+    }
+
+    keys() {
+        return this._params.map(function(p) { return p[0]; });
+    }
+
+    values() {
+        return this._params.map(function(p) { return p[1]; });
+    }
+
+    entries() {
+        return this._params.slice();
+    }
+
+    forEach(callback, thisArg) {
+        for (var i = 0; i < this._params.length; i++) {
+            callback.call(thisArg, this._params[i][1], this._params[i][0], this);
+        }
+    }
+
+    get size() {
+        return this._params.length;
+    }
+}
+
+/**
+ * URL implementation matching the WHATWG URL Standard.
+ * Parses and manipulates URLs.
+ *
+ * @example
+ * const url = new URL("https://example.com:8080/path?query=1#hash");
+ * url.hostname; // "example.com"
+ * url.port; // "8080"
+ * url.pathname; // "/path"
+ * url.searchParams.get("query"); // "1"
+ */
+class URL {
+    constructor(url, base) {
+        if (base !== undefined) {
+            // Resolve relative URL against base
+            var baseUrl = new URL(base);
+            url = this._resolveRelative(baseUrl, url);
+        }
+
+        this._parse(url);
+        this._searchParams = new URLSearchParams(this._search);
+    }
+
+    _parse(url) {
+        // Default values
+        this._protocol = "";
+        this._username = "";
+        this._password = "";
+        this._hostname = "";
+        this._port = "";
+        this._pathname = "/";
+        this._search = "";
+        this._hash = "";
+
+        if (!url || typeof url !== "string") {
+            throw new TypeError("Invalid URL");
+        }
+
+        var remaining = url;
+
+        // Extract hash
+        var hashIdx = remaining.indexOf("#");
+        if (hashIdx !== -1) {
+            this._hash = remaining.slice(hashIdx);
+            remaining = remaining.slice(0, hashIdx);
+        }
+
+        // Extract search/query
+        var searchIdx = remaining.indexOf("?");
+        if (searchIdx !== -1) {
+            this._search = remaining.slice(searchIdx);
+            remaining = remaining.slice(0, searchIdx);
+        }
+
+        // Extract protocol
+        var protoMatch = remaining.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):\/\//);
+        if (protoMatch) {
+            this._protocol = protoMatch[1].toLowerCase() + ":";
+            remaining = remaining.slice(protoMatch[0].length);
+        } else {
+            throw new TypeError("Invalid URL: missing protocol");
+        }
+
+        // Extract auth (username:password@)
+        var authEnd = remaining.indexOf("@");
+        if (authEnd !== -1) {
+            var auth = remaining.slice(0, authEnd);
+            remaining = remaining.slice(authEnd + 1);
+            var colonIdx = auth.indexOf(":");
+            if (colonIdx !== -1) {
+                this._username = decodeURIComponent(auth.slice(0, colonIdx));
+                this._password = decodeURIComponent(auth.slice(colonIdx + 1));
+            } else {
+                this._username = decodeURIComponent(auth);
+            }
+        }
+
+        // Extract pathname
+        var pathIdx = remaining.indexOf("/");
+        if (pathIdx !== -1) {
+            this._pathname = remaining.slice(pathIdx);
+            remaining = remaining.slice(0, pathIdx);
+        }
+
+        // Extract port
+        var portMatch = remaining.match(/:(\d+)$/);
+        if (portMatch) {
+            this._port = portMatch[1];
+            remaining = remaining.slice(0, -portMatch[0].length);
+        }
+
+        // Remaining is hostname
+        this._hostname = remaining.toLowerCase();
+
+        if (!this._hostname) {
+            throw new TypeError("Invalid URL: missing hostname");
+        }
+    }
+
+    _resolveRelative(base, relative) {
+        if (!relative) {
+            return base.href;
+        }
+
+        // Absolute URL
+        if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(relative)) {
+            return relative;
+        }
+
+        // Protocol-relative
+        if (relative.startsWith("//")) {
+            return base.protocol + relative;
+        }
+
+        // Absolute path
+        if (relative.startsWith("/")) {
+            return base.origin + relative;
+        }
+
+        // Query or hash only
+        if (relative.startsWith("?")) {
+            return base.origin + base.pathname + relative;
+        }
+        if (relative.startsWith("#")) {
+            return base.origin + base.pathname + base.search + relative;
+        }
+
+        // Relative path
+        var basePath = base.pathname;
+        var lastSlash = basePath.lastIndexOf("/");
+        var newPath = basePath.slice(0, lastSlash + 1) + relative;
+
+        return base.origin + newPath;
+    }
+
+    get protocol() { return this._protocol; }
+    set protocol(value) {
+        value = String(value);
+        if (!value.endsWith(":")) value += ":";
+        this._protocol = value.toLowerCase();
+    }
+
+    get username() { return this._username; }
+    set username(value) { this._username = String(value); }
+
+    get password() { return this._password; }
+    set password(value) { this._password = String(value); }
+
+    get hostname() { return this._hostname; }
+    set hostname(value) { this._hostname = String(value).toLowerCase(); }
+
+    get port() { return this._port; }
+    set port(value) {
+        value = String(value);
+        if (value && !/^\d+$/.test(value)) return;
+        this._port = value;
+    }
+
+    get host() {
+        return this._port ? this._hostname + ":" + this._port : this._hostname;
+    }
+    set host(value) {
+        value = String(value);
+        var colonIdx = value.lastIndexOf(":");
+        if (colonIdx !== -1 && /^\d+$/.test(value.slice(colonIdx + 1))) {
+            this._hostname = value.slice(0, colonIdx).toLowerCase();
+            this._port = value.slice(colonIdx + 1);
+        } else {
+            this._hostname = value.toLowerCase();
+            this._port = "";
+        }
+    }
+
+    get pathname() { return this._pathname; }
+    set pathname(value) {
+        value = String(value);
+        if (!value.startsWith("/")) value = "/" + value;
+        this._pathname = value;
+    }
+
+    get search() { return this._search; }
+    set search(value) {
+        value = String(value);
+        if (value && !value.startsWith("?")) value = "?" + value;
+        this._search = value;
+        this._searchParams = new URLSearchParams(value);
+    }
+
+    get searchParams() {
+        return this._searchParams;
+    }
+
+    get hash() { return this._hash; }
+    set hash(value) {
+        value = String(value);
+        if (value && !value.startsWith("#")) value = "#" + value;
+        this._hash = value;
+    }
+
+    get origin() {
+        var defaultPorts = { "http:": "80", "https:": "443", "ws:": "80", "wss:": "443" };
+        var port = this._port;
+        if (port === defaultPorts[this._protocol]) {
+            port = "";
+        }
+        return this._protocol + "//" + (port ? this._hostname + ":" + port : this._hostname);
+    }
+
+    get href() {
+        var auth = "";
+        if (this._username) {
+            auth = encodeURIComponent(this._username);
+            if (this._password) {
+                auth += ":" + encodeURIComponent(this._password);
+            }
+            auth += "@";
+        }
+
+        // Sync search from searchParams
+        var search = this._searchParams.toString();
+        if (search) search = "?" + search;
+
+        return this._protocol + "//" + auth + this.host + this._pathname + search + this._hash;
+    }
+    set href(value) {
+        this._parse(value);
+        this._searchParams = new URLSearchParams(this._search);
+    }
+
+    toString() {
+        return this.href;
+    }
+
+    toJSON() {
+        return this.href;
+    }
+}
+
+// Expose globally
+globalThis.URL = URL;
+globalThis.URLSearchParams = URLSearchParams;
