@@ -1,7 +1,44 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using UnityEngine.UIElements;
+
+/// <summary>
+/// Attribute for configuring how pair fields are displayed in the inspector.
+/// </summary>
+[AttributeUsage(AttributeTargets.Field)]
+public class PairDrawerAttribute : PropertyAttribute {
+    public string Separator { get; }
+
+    public PairDrawerAttribute(string separator = "→") {
+        Separator = separator;
+    }
+}
+
+/// <summary>
+/// A key-value pair for exposing Unity objects as JavaScript globals.
+/// Key is the global variable name, Value is any UnityEngine.Object.
+/// </summary>
+[Serializable]
+public class GlobalEntry {
+    [Tooltip("The global variable name (e.g., 'myTexture' becomes globalThis.myTexture)")]
+    public string key;
+    [Tooltip("Any Unity object to expose to JavaScript")]
+    public UnityEngine.Object value;
+}
+
+/// <summary>
+/// A key-value pair for default files to scaffold.
+/// Key is the target path (relative to WorkingDir), Value is the TextAsset content.
+/// </summary>
+[Serializable]
+public class DefaultFileEntry {
+    [Tooltip("Target path relative to WorkingDir (e.g., 'index.tsx' or '@outputs/esbuild/app.js')")]
+    public string path;
+    [Tooltip("TextAsset containing the file content")]
+    public TextAsset content;
+}
 
 /// <summary>
 /// MonoBehaviour that runs JavaScript from a file path under the project root.
@@ -34,6 +71,20 @@ public class JSRunner : MonoBehaviour {
     [SerializeField] TextAsset _embeddedScript;
     [Tooltip("Path relative to StreamingAssets for the JS bundle in builds (auto-copied during build).")]
     [SerializeField] string _streamingAssetsPath = "onejs/app.js";
+
+    [Header("Scaffolding")]
+    [Tooltip("Default files to create in WorkingDir if missing. Path is relative to WorkingDir.")]
+    [PairDrawer("←")]
+    [SerializeField] List<DefaultFileEntry> _defaultFiles = new List<DefaultFileEntry>();
+
+    [Header("Advanced")]
+    [Tooltip("USS stylesheets to apply to the root element on init/reload.")]
+    [SerializeField] List<StyleSheet> _stylesheets = new List<StyleSheet>();
+    [Tooltip("TextAssets to load and evaluate before the entry file. Useful for polyfills or shared libraries.")]
+    [SerializeField] List<TextAsset> _preloads = new List<TextAsset>();
+    [Tooltip("Unity objects to expose as JavaScript globals (globalThis[key] = value).")]
+    [PairDrawer("→")]
+    [SerializeField] List<GlobalEntry> _globals = new List<GlobalEntry>();
 
     QuickJSUIBridge _bridge;
     UIDocument _uiDocument;
@@ -106,22 +157,17 @@ public class JSRunner : MonoBehaviour {
 
 #if UNITY_EDITOR
     void InitializeEditor() {
-        // Check if we need to scaffold the project
-        if (!Directory.Exists(WorkingDirFullPath) || IsDirectoryEmpty(WorkingDirFullPath)) {
-            ScaffoldProject();
+        // Ensure working directory exists
+        if (!Directory.Exists(WorkingDirFullPath)) {
+            Directory.CreateDirectory(WorkingDirFullPath);
+            Debug.Log($"[JSRunner] Created working directory: {WorkingDirFullPath}");
         }
 
-        // Ensure entry directory exists
-        var entryDir = Path.GetDirectoryName(EntryFileFullPath);
-        if (!Directory.Exists(entryDir)) {
-            Directory.CreateDirectory(entryDir);
-        }
+        // Scaffold any missing default files
+        ScaffoldDefaultFiles();
 
-        // Create default entry file if missing
-        if (!File.Exists(EntryFileFullPath)) {
-            File.WriteAllText(EntryFileFullPath, DefaultEntryContent);
-            Debug.Log($"[JSRunner] Created default entry file at: {EntryFileFullPath}");
-        }
+        // Ensure entry file exists (fallback if not in defaultFiles)
+        EnsureEntryFile();
 
         // Initialize bridge and run script
         InitializeBridge();
@@ -135,51 +181,56 @@ public class JSRunner : MonoBehaviour {
         }
     }
 
-    bool IsDirectoryEmpty(string path) {
-        return Directory.GetFiles(path).Length == 0 && Directory.GetDirectories(path).Length == 0;
+    /// <summary>
+    /// Scaffold any missing default files from the _defaultFiles list.
+    /// Existing files are left untouched.
+    /// </summary>
+    void ScaffoldDefaultFiles() {
+        if (_defaultFiles == null || _defaultFiles.Count == 0) return;
+
+        foreach (var entry in _defaultFiles) {
+            if (string.IsNullOrEmpty(entry.path) || entry.content == null) continue;
+
+            var fullPath = Path.Combine(WorkingDirFullPath, entry.path);
+
+            // Skip if file already exists
+            if (File.Exists(fullPath)) continue;
+
+            // Ensure directory exists
+            var dir = Path.GetDirectoryName(fullPath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) {
+                Directory.CreateDirectory(dir);
+            }
+
+            // Write file content
+            File.WriteAllText(fullPath, entry.content.text);
+            Debug.Log($"[JSRunner] Created default file: {entry.path}");
+        }
     }
 
-    void ScaffoldProject() {
-        Debug.Log($"[JSRunner] Scaffolding new project at: {WorkingDirFullPath}");
+    /// <summary>
+    /// Ensure entry file exists. Creates a minimal fallback if missing.
+    /// </summary>
+    void EnsureEntryFile() {
+        if (File.Exists(EntryFileFullPath)) return;
 
-        // Create working directory
-        Directory.CreateDirectory(WorkingDirFullPath);
+        // Ensure directory exists
+        var entryDir = Path.GetDirectoryName(EntryFileFullPath);
+        if (!string.IsNullOrEmpty(entryDir) && !Directory.Exists(entryDir)) {
+            Directory.CreateDirectory(entryDir);
+        }
 
-        // Create @outputs/esbuild directory
-        var outputDir = Path.Combine(WorkingDirFullPath, "@outputs", "esbuild");
-        Directory.CreateDirectory(outputDir);
-
-        // Create styles directory
-        var stylesDir = Path.Combine(WorkingDirFullPath, "styles");
-        Directory.CreateDirectory(stylesDir);
-
-        // Write template files
-        WriteTemplateFile("package.json", GetPackageJsonTemplate());
-        WriteTemplateFile("esbuild.config.mjs", GetEsbuildConfigTemplate());
-        WriteTemplateFile("tsconfig.json", GetTsConfigTemplate());
-        WriteTemplateFile("global.d.ts", GetGlobalDtsTemplate());
-        WriteTemplateFile("index.tsx", GetIndexTsxTemplate());
-        WriteTemplateFile("styles/main.uss", GetMainUssTemplate());
-
-        // Create default entry file
-        var entryPath = Path.Combine(outputDir, "app.js");
-        File.WriteAllText(entryPath, DefaultEntryContent);
-
-        Debug.Log("[JSRunner] Project scaffolded successfully!");
-        Debug.Log("[JSRunner] Next steps:");
-        Debug.Log($"  1. cd {WorkingDirFullPath}");
-        Debug.Log("  2. npm install");
-        Debug.Log("  3. npm run build");
-    }
-
-    void WriteTemplateFile(string relativePath, string content) {
-        var fullPath = Path.Combine(WorkingDirFullPath, relativePath);
-        File.WriteAllText(fullPath, content);
+        // Create minimal entry file
+        File.WriteAllText(EntryFileFullPath, DefaultEntryContent);
+        Debug.Log($"[JSRunner] Created default entry file: {_entryFile}");
     }
 #endif // UNITY_EDITOR
 
     void InitializeBridge() {
         _bridge = new QuickJSUIBridge(_uiDocument.rootVisualElement, WorkingDirFullPath);
+
+        // Apply stylesheets first so styles are ready when JS runs
+        ApplyStylesheets();
 
         // Inject platform defines before any user code runs
         InjectPlatformDefines();
@@ -191,6 +242,64 @@ public class JSRunner : MonoBehaviour {
         // Expose the bridge to JS for USS loading
         var bridgeHandle = QuickJSNative.RegisterObject(_bridge);
         _bridge.Eval($"globalThis.__bridge = __csHelpers.wrapObject('QuickJSUIBridge', {bridgeHandle})");
+
+        // Inject custom globals
+        InjectGlobals();
+
+        // Run preload scripts
+        RunPreloads();
+    }
+
+    /// <summary>
+    /// Apply configured USS stylesheets to the root element.
+    /// </summary>
+    void ApplyStylesheets() {
+        if (_stylesheets == null || _stylesheets.Count == 0) return;
+
+        foreach (var stylesheet in _stylesheets) {
+            if (stylesheet == null) continue;
+            _uiDocument.rootVisualElement.styleSheets.Add(stylesheet);
+        }
+    }
+
+    /// <summary>
+    /// Inject custom Unity objects as JavaScript globals.
+    /// </summary>
+    void InjectGlobals() {
+        if (_globals == null || _globals.Count == 0) return;
+
+        foreach (var entry in _globals) {
+            if (string.IsNullOrEmpty(entry.key) || entry.value == null) continue;
+
+            var handle = QuickJSNative.RegisterObject(entry.value);
+            var typeName = entry.value.GetType().FullName;
+            _bridge.Eval($"globalThis['{EscapeJsString(entry.key)}'] = __csHelpers.wrapObject('{typeName}', {handle})");
+        }
+    }
+
+    /// <summary>
+    /// Execute preload scripts before the main entry file.
+    /// </summary>
+    void RunPreloads() {
+        if (_preloads == null || _preloads.Count == 0) return;
+
+        foreach (var preload in _preloads) {
+            if (preload == null) continue;
+
+            try {
+                _bridge.Eval(preload.text, preload.name);
+                _bridge.Context.ExecutePendingJobs();
+            } catch (Exception ex) {
+                Debug.LogError($"[JSRunner] Preload '{preload.name}' failed: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Escape a string for safe use in JavaScript string literals.
+    /// </summary>
+    static string EscapeJsString(string s) {
+        return s.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "\\r");
     }
 
     void RunScript(string code, string filename) {
@@ -226,8 +335,9 @@ public class JSRunner : MonoBehaviour {
         }
 
         try {
-            // 1. Clear UI
+            // 1. Clear UI and stylesheets
             _uiDocument.rootVisualElement.Clear();
+            _uiDocument.rootVisualElement.styleSheets.Clear();
 
             // 2. Dispose old bridge/context
             _bridge?.Dispose();
@@ -560,250 +670,4 @@ public class JSRunner : MonoBehaviour {
         _bridge?.Dispose();
         _bridge = null;
     }
-
-    // MARK: Template Generators (Editor only)
-#if UNITY_EDITOR
-    string GetPackageJsonTemplate() {
-        return @"{
-  ""name"": ""onejs-app"",
-  ""version"": ""1.0.0"",
-  ""private"": true,
-  ""type"": ""module"",
-  ""scripts"": {
-    ""build"": ""node esbuild.config.mjs"",
-    ""watch"": ""node esbuild.config.mjs --watch"",
-    ""typecheck"": ""tsc --noEmit""
-  },
-  ""dependencies"": {
-    ""react"": ""^19.0.0"",
-    ""onejs-react"": ""file:../JSModules/onejs-react""
-  },
-  ""devDependencies"": {
-    ""@types/react"": ""^19.0.0"",
-    ""esbuild"": ""^0.24.0"",
-    ""typescript"": ""^5.7.0""
-  }
-}
-";
-    }
-
-    string GetEsbuildConfigTemplate() {
-        return @"import * as esbuild from 'esbuild';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// Resolve react to the App's node_modules to prevent duplicate copies
-const reactPath = path.resolve(__dirname, 'node_modules/react');
-const reactJsxPath = path.resolve(__dirname, 'node_modules/react/jsx-runtime');
-const reactJsxDevPath = path.resolve(__dirname, 'node_modules/react/jsx-dev-runtime');
-
-const isWatch = process.argv.includes('--watch');
-
-const config = {
-  entryPoints: ['index.tsx'],
-  bundle: true,
-  outfile: '@outputs/esbuild/app.js',
-  format: 'esm',
-  target: 'es2022',
-  jsx: 'automatic',
-  alias: {
-    // Force all react imports to use the App's copy
-    'react': reactPath,
-    'react/jsx-runtime': reactJsxPath,
-    'react/jsx-dev-runtime': reactJsxDevPath,
-  },
-  // Ensure packages from node_modules are bundled, not externalized
-  packages: 'bundle',
-};
-
-if (isWatch) {
-  const ctx = await esbuild.context(config);
-  await ctx.watch();
-  console.log('Watching for changes...');
-} else {
-  await esbuild.build(config);
-  console.log('Build complete!');
-}
-";
-    }
-
-    string GetTsConfigTemplate() {
-        return @"{
-  ""compilerOptions"": {
-    ""target"": ""ES2022"",
-    ""lib"": [""ES2022""],
-    ""module"": ""ESNext"",
-    ""moduleResolution"": ""Bundler"",
-
-    ""allowJs"": true,
-    ""checkJs"": false,
-    ""noEmit"": true,
-
-    ""strict"": true,
-    ""skipLibCheck"": true,
-
-    ""isolatedModules"": true,
-    ""verbatimModuleSyntax"": true,
-    ""esModuleInterop"": true,
-    ""resolveJsonModule"": true,
-    ""forceConsistentCasingInFileNames"": true,
-
-    ""jsx"": ""react-jsx"",
-    ""baseUrl"": ""."",
-    ""paths"": {
-      ""onejs-react"": [""../JSModules/onejs-react/src""]
-    }
-  },
-  ""include"": [""**/*"", ""global.d.ts""],
-  ""exclude"": [""node_modules"", ""@outputs""]
-}
-";
-    }
-
-    string GetGlobalDtsTemplate() {
-        return @"// OneJS globals provided by QuickJSBootstrap.js
-
-declare const CS: {
-  UnityEngine: {
-    Debug: {
-      Log: (message: string) => void;
-    };
-    UIElements: {
-      VisualElement: new () => CSObject;
-      Label: new () => CSObject;
-      Button: new () => CSObject;
-      TextField: new () => CSObject;
-      Toggle: new () => CSObject;
-      Slider: new () => CSObject;
-      ScrollView: new () => CSObject;
-      Image: new () => CSObject;
-    };
-  };
-};
-
-declare const __root: CSObject;
-
-declare const __eventAPI: {
-  addEventListener: (element: CSObject, eventType: string, callback: Function) => void;
-  removeEventListener: (element: CSObject, eventType: string, callback: Function) => void;
-  removeAllEventListeners: (element: CSObject) => void;
-};
-
-declare const __csHelpers: {
-  newObject: (typeName: string, ...args: unknown[]) => CSObject;
-  callMethod: (obj: CSObject, methodName: string, ...args: unknown[]) => unknown;
-  callStatic: (typeName: string, methodName: string, ...args: unknown[]) => unknown;
-  wrapObject: (typeName: string, handle: number) => CSObject;
-  releaseObject: (obj: CSObject) => void;
-};
-
-interface CSObject {
-  __csHandle: number;
-  __csType: string;
-  Add: (child: CSObject) => void;
-  Insert: (index: number, child: CSObject) => void;
-  Remove: (child: CSObject) => void;
-  RemoveAt: (index: number) => void;
-  IndexOf: (child: CSObject) => number;
-  Clear: () => void;
-  style: Record<string, unknown>;
-  text?: string;
-  value?: unknown;
-  label?: string;
-  AddToClassList: (className: string) => void;
-  RemoveFromClassList: (className: string) => void;
-  ClearClassList: () => void;
-}
-
-// Console (provided by QuickJS)
-declare const console: {
-  log: (...args: unknown[]) => void;
-  error: (...args: unknown[]) => void;
-  warn: (...args: unknown[]) => void;
-};
-
-// Timers (provided by QuickJSBootstrap.js)
-declare function setTimeout(callback: () => void, ms?: number): number;
-declare function clearTimeout(id: number): void;
-declare function setInterval(callback: () => void, ms?: number): number;
-declare function clearInterval(id: number): void;
-declare function requestAnimationFrame(callback: (timestamp: number) => void): number;
-declare function cancelAnimationFrame(id: number): void;
-declare function queueMicrotask(callback: () => void): void;
-
-declare const performance: {
-  now: () => number;
-};
-
-// StyleSheet API
-declare function loadStyleSheet(path: string): boolean;
-declare function compileStyleSheet(ussContent: string, name?: string): boolean;
-";
-    }
-
-    string GetIndexTsxTemplate() {
-        return @"import { useState } from ""react""
-import { render, View, Label, Button } from ""onejs-react""
-
-// Load USS stylesheet
-loadStyleSheet(""styles/main.uss"")
-
-function App() {
-    const [count, setCount] = useState(0)
-
-    return (
-        <View className=""container"">
-            <Label className=""title"" text=""Hello from OneJS!"" />
-            <Label className=""counter"" text={`Count: ${count}`} />
-            <Button
-                className=""button""
-                text=""Click me!""
-                onClick={() => setCount(c => c + 1)}
-            />
-        </View>
-    )
-}
-
-render(<App />, __root)
-";
-    }
-
-    string GetMainUssTemplate() {
-        return @".container {
-    flex-grow: 1;
-    padding: 20px;
-    background-color: #1a1a2e;
-}
-
-.title {
-    font-size: 32px;
-    color: #eee;
-    margin-bottom: 20px;
-}
-
-.counter {
-    color: #a0a0a0;
-    font-size: 18px;
-    margin-bottom: 10px;
-}
-
-.button {
-    background-color: #e94560;
-    padding: 12px 24px;
-    border-radius: 8px;
-    margin: 5px;
-}
-
-.button:hover {
-    background-color: #ff6b6b;
-}
-
-.button:active {
-    background-color: #c73e54;
-}
-";
-    }
-#endif // UNITY_EDITOR
 }
