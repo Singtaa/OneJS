@@ -1,0 +1,38 @@
+// Simple compute shader for testing OneJS GPU bridge
+#pragma kernel CSMain
+#pragma kernel CSMultiply
+#pragma kernel CSAddVectors
+
+// Simple float buffer
+RWStructuredBuffer<float> data;
+float multiplier;
+uint dataCount; // For bounds checking
+
+// Vector buffer (float3)
+RWStructuredBuffer<float3> positions;
+float3 offset;
+uint positionsCount; // For bounds checking
+
+// CSMain: Multiply each element by multiplier
+[numthreads(64, 1, 1)]
+void CSMain(uint id : SV_DispatchThreadID)
+{
+    if (id < dataCount)
+        data[id] = data[id] * multiplier;
+}
+
+// CSMultiply: Multiply each element by 2 (no parameters)
+[numthreads(64, 1, 1)]
+void CSMultiply(uint id : SV_DispatchThreadID)
+{
+    if (id < dataCount)
+        data[id] = data[id] * 2.0;
+}
+
+// CSAddVectors: Add offset to each position
+[numthreads(64, 1, 1)]
+void CSAddVectors(uint id : SV_DispatchThreadID)
+{
+    if (id < positionsCount)
+        positions[id] = positions[id] + offset;
+}

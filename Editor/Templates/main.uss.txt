@@ -1,0 +1,32 @@
+.container {
+    flex-grow: 1;
+    padding: 20px;
+    background-color: #1a1a2e;
+}
+
+.title {
+    font-size: 32px;
+    color: #eee;
+    margin-bottom: 20px;
+}
+
+.counter {
+    color: #a0a0a0;
+    font-size: 18px;
+    margin-bottom: 10px;
+}
+
+.button {
+    background-color: #e94560;
+    padding: 12px 24px;
+    border-radius: 8px;
+    margin: 5px;
+}
+
+.button:hover {
+    background-color: #ff6b6b;
+}
+
+.button:active {
+    background-color: #c73e54;
+}

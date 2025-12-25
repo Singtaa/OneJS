@@ -1,0 +1,77 @@
+// OneJS globals provided by QuickJSBootstrap.js
+
+declare const CS: {
+  UnityEngine: {
+    Debug: {
+      Log: (message: string) => void;
+    };
+    UIElements: {
+      VisualElement: new () => CSObject;
+      Label: new () => CSObject;
+      Button: new () => CSObject;
+      TextField: new () => CSObject;
+      Toggle: new () => CSObject;
+      Slider: new () => CSObject;
+      ScrollView: new () => CSObject;
+      Image: new () => CSObject;
+    };
+  };
+};
+
+declare const __root: CSObject;
+
+declare const __eventAPI: {
+  addEventListener: (element: CSObject, eventType: string, callback: Function) => void;
+  removeEventListener: (element: CSObject, eventType: string, callback: Function) => void;
+  removeAllEventListeners: (element: CSObject) => void;
+};
+
+declare const __csHelpers: {
+  newObject: (typeName: string, ...args: unknown[]) => CSObject;
+  callMethod: (obj: CSObject, methodName: string, ...args: unknown[]) => unknown;
+  callStatic: (typeName: string, methodName: string, ...args: unknown[]) => unknown;
+  wrapObject: (typeName: string, handle: number) => CSObject;
+  releaseObject: (obj: CSObject) => void;
+};
+
+interface CSObject {
+  __csHandle: number;
+  __csType: string;
+  Add: (child: CSObject) => void;
+  Insert: (index: number, child: CSObject) => void;
+  Remove: (child: CSObject) => void;
+  RemoveAt: (index: number) => void;
+  IndexOf: (child: CSObject) => number;
+  Clear: () => void;
+  style: Record<string, unknown>;
+  text?: string;
+  value?: unknown;
+  label?: string;
+  AddToClassList: (className: string) => void;
+  RemoveFromClassList: (className: string) => void;
+  ClearClassList: () => void;
+}
+
+// Console (provided by QuickJS)
+declare const console: {
+  log: (...args: unknown[]) => void;
+  error: (...args: unknown[]) => void;
+  warn: (...args: unknown[]) => void;
+};
+
+// Timers (provided by QuickJSBootstrap.js)
+declare function setTimeout(callback: () => void, ms?: number): number;
+declare function clearTimeout(id: number): void;
+declare function setInterval(callback: () => void, ms?: number): number;
+declare function clearInterval(id: number): void;
+declare function requestAnimationFrame(callback: (timestamp: number) => void): number;
+declare function cancelAnimationFrame(id: number): void;
+declare function queueMicrotask(callback: () => void): void;
+
+declare const performance: {
+  now: () => number;
+};
+
+// StyleSheet API
+declare function loadStyleSheet(path: string): boolean;
+declare function compileStyleSheet(ussContent: string, name?: string): boolean;

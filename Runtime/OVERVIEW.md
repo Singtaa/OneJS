@@ -19,8 +19,11 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `QuickJSContext.cs` | Managed wrapper for QuickJS context (Eval, ExecutePendingJobs, callbacks) |
 | `QuickJSUIBridge.cs` | UI Toolkit integration, event delegation, scheduling (RAF, timers) |
 | `JSRunner.cs` | MonoBehaviour entry point with auto-scaffolding and live reload |
+| `JSPad.cs` | Inline TSX runner with no external working directory |
 | `Network.cs` | Fetch API implementation using UnityWebRequest |
 | `ScriptEngine.cs` | Placeholder/stub |
+| `GPU/GPUBridge.cs` | Compute shader API for JavaScript |
+| `GPU/ComputeShaderProvider.cs` | MonoBehaviour for registering shaders via inspector |
 
 ## JSRunner Features
 
@@ -36,15 +39,48 @@ The `JSRunner` MonoBehaviour is the primary way to run JavaScript apps in Unity.
 | Android | StreamingAssets via UnityWebRequest | No |
 | iOS | StreamingAssets | No |
 
+### Zero-Config UI Setup
+JSRunner automatically creates `UIDocument` and `PanelSettings` at runtime if not present. No manual asset creation required.
+
+**Setup options:**
+1. **Zero-config**: Just add JSRunner to any GameObject and hit Play
+2. **Custom PanelSettings**: Drag a PanelSettings asset to override defaults
+3. **Inline settings**: Configure scale mode, resolution, etc. directly in the inspector
+
 ### Auto-Scaffolding (Editor Only)
-On first run, if the working directory is empty, JSRunner creates a complete project:
-- `package.json` - npm configuration with React and onejs-react dependencies
-- `esbuild.config.mjs` - Build configuration for bundling
-- `tsconfig.json` - TypeScript configuration
-- `global.d.ts` - TypeScript declarations for OneJS globals
-- `index.tsx` - Sample React application
-- `styles/main.uss` - Sample USS stylesheet
-- `@outputs/esbuild/app.js` - Default entry file
+On first run, JSRunner creates missing files from its **Default Files** list. This is non-destructive - existing files are never overwritten.
+
+Configure scaffolding in the inspector:
+- **Default Files**: List of `path → TextAsset` pairs. Each path is relative to Working Dir.
+- Files are created only if missing, preserving user modifications.
+
+Default template files (in `Assets/Singtaa/OneJS/Editor/Templates/`):
+- `package.json.txt` - npm configuration with React and onejs-react dependencies
+- `esbuild.config.mjs.txt` - Build configuration with CSS Modules and Tailwind support
+- `tsconfig.json.txt` - TypeScript configuration
+- `global.d.ts.txt` - TypeScript declarations for OneJS globals
+- `index.tsx.txt` - Sample React application
+- `main.uss.txt` - Sample USS stylesheet
+- `app.js.txt` - Minimal fallback entry file
+- `gitignore.txt` - Git ignore for node_modules and @outputs
+
+### Inspector Fields
+
+| Field | Purpose |
+|-------|---------|
+| **UI Panel** | |
+| Panel Settings | Optional PanelSettings asset. If null, uses inline settings below |
+| Scale Mode | `ConstantPixelSize`, `ConstantPhysicalSize`, or `ScaleWithScreenSize` |
+| Reference Resolution | Design resolution (for ScaleWithScreenSize) |
+| Screen Match Mode | `MatchWidthOrHeight`, `Expand`, or `Shrink` |
+| Match | 0=width, 1=height (for MatchWidthOrHeight) |
+| Sort Order | Rendering order relative to other panels |
+| **Scaffolding** | |
+| Default Files | `path → TextAsset` pairs for auto-scaffolding on first run |
+| **Advanced** | |
+| Stylesheets | List of USS StyleSheets applied on init/reload |
+| Preloads | List of TextAssets eval'd before entry file |
+| Globals | `key → Object` pairs injected as `globalThis[key]` |
 
 ### Live Reload (Editor Only)
 - Polls the entry file for changes (Mono-compatible, no FileSystemWatcher)
@@ -78,6 +114,48 @@ string EntryFileFullPath { get; }
 
 // Methods
 void ForceReload();  // Manually trigger reload (Editor only)
+```
+
+## JSPad (Inline TSX Runner)
+
+`JSPad` is a simpler alternative to `JSRunner` for quick experimentation. Write TSX directly in the inspector with no external working directory.
+
+### Key Differences from JSRunner
+
+| Aspect | JSRunner | JSPad |
+|--------|----------|-------|
+| Source | External files | Inline TextArea |
+| Working Dir | User-facing | Hidden in `Temp/OneJSPad/` |
+| Live Reload | Yes (polling) | No |
+| Build | User runs npm | Editor runs esbuild |
+| Scaffolding | Full project | Minimal essentials |
+
+### Usage
+1. Add `JSPad` component to a GameObject with `UIDocument`
+2. Write TSX code in the Source Code text area
+3. Enter Play Mode
+4. Click **Build & Run**
+
+First build installs dependencies (~10s), subsequent builds are fast.
+
+### Custom Inspector
+- **Build & Run** - Build and execute immediately
+- **Build Only** - Build without running
+- **Run** - Execute previously built output
+- **Stop** - Stop execution and clear UI
+- **Open Temp Folder** - Reveal build directory
+- **Clean** - Delete temp directory and node_modules
+
+### Temp Directory Structure
+```
+Temp/OneJSPad/{instanceId}/
+├── package.json        # Auto-generated
+├── tsconfig.json       # Auto-generated
+├── esbuild.config.mjs  # Auto-generated
+├── global.d.ts         # TypeScript declarations
+├── index.tsx           # Written from Source Code
+├── node_modules/       # npm install (cached)
+└── @outputs/app.js     # Build output
 ```
 
 ## QuickJSNative Partial Classes

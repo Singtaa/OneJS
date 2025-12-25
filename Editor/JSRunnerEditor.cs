@@ -1,8 +1,16 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
+using System.Net.Http;
+using System.Text;
+using System.Threading.Tasks;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
+using UnityEngine.UIElements;
+using PanelScaleMode = UnityEngine.UIElements.PanelScaleMode;
+using PanelScreenMatchMode = UnityEngine.UIElements.PanelScreenMatchMode;
 using Debug = UnityEngine.Debug;
 
 [CustomEditor(typeof(JSRunner))]
@@ -11,157 +19,680 @@ public class JSRunnerEditor : Editor {
     bool _buildInProgress;
     string _buildOutput;
 
-    SerializedProperty _workingDir;
-    SerializedProperty _entryFile;
-    SerializedProperty _liveReload;
-    SerializedProperty _pollInterval;
-    SerializedProperty _embeddedScript;
-    SerializedProperty _streamingAssetsPath;
+    // License activation
+    string _licenseKey = "";
+    string _licenseStatus = "";
+    bool _activationInProgress;
+
+    // UI Elements that need updating
+    Label _statusLabel;
+    Label _liveReloadStatusLabel;
+    Label _reloadCountLabel;
+    Label _entryFileStatusLabel;
+    Button _reloadButton;
+    Button _buildButton;
+    HelpBox _buildOutputBox;
+    VisualElement _liveReloadInfo;
+    TextField _licenseKeyField;
+    Button _activateButton;
+    HelpBox _licenseStatusBox;
 
     void OnEnable() {
         _target = (JSRunner)target;
-
-        _workingDir = serializedObject.FindProperty("_workingDir");
-        _entryFile = serializedObject.FindProperty("_entryFile");
-        _liveReload = serializedObject.FindProperty("_liveReload");
-        _pollInterval = serializedObject.FindProperty("_pollInterval");
-        _embeddedScript = serializedObject.FindProperty("_embeddedScript");
-        _streamingAssetsPath = serializedObject.FindProperty("_streamingAssetsPath");
+        EditorApplication.update += UpdateDynamicUI;
     }
 
-    public override void OnInspectorGUI() {
-        serializedObject.Update();
+    void OnDisable() {
+        EditorApplication.update -= UpdateDynamicUI;
+    }
+
+    public override VisualElement CreateInspectorGUI() {
+        var root = new VisualElement();
+        root.styleSheets.Add(CreateStyleSheet());
 
         // Status Section
-        DrawStatusSection();
+        root.Add(CreateStatusSection());
 
-        EditorGUILayout.Space(10);
+        // Settings Section
+        root.Add(CreateSettingsSection());
 
-        // Main Settings
-        EditorGUILayout.LabelField("Settings", EditorStyles.boldLabel);
-        EditorGUILayout.PropertyField(_workingDir);
-        EditorGUILayout.PropertyField(_entryFile);
-
-        EditorGUILayout.Space(5);
+        // UI Panel Section
+        root.Add(CreateUIPanelSection());
 
         // Live Reload Section
-        EditorGUILayout.PropertyField(_liveReload);
-        if (_liveReload.boolValue) {
-            EditorGUI.indentLevel++;
-            EditorGUILayout.PropertyField(_pollInterval);
-            EditorGUI.indentLevel--;
-        }
+        root.Add(CreateLiveReloadSection());
 
-        EditorGUILayout.Space(10);
+        // Build Settings Section
+        root.Add(CreateBuildSettingsSection());
 
-        // Build Settings Section (Header comes from [Header] attribute)
-        EditorGUILayout.PropertyField(_embeddedScript);
-        EditorGUILayout.PropertyField(_streamingAssetsPath);
+        // Scaffolding Section
+        root.Add(CreateScaffoldingSection());
 
-        // Show build info
-        if (_embeddedScript.objectReferenceValue == null) {
-            EditorGUILayout.HelpBox(
-                $"Bundle will be auto-copied to StreamingAssets/{_streamingAssetsPath.stringValue} during build.",
-                MessageType.Info
-            );
-        }
-
-        EditorGUILayout.Space(10);
+        // Advanced Section
+        root.Add(CreateAdvancedSection());
 
         // Actions Section
-        DrawActionsSection();
+        root.Add(CreateActionsSection());
 
-        serializedObject.ApplyModifiedProperties();
+        // Premium Components Section
+        root.Add(CreatePremiumSection());
+
+        return root;
     }
 
-    void DrawStatusSection() {
-        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+    StyleSheet CreateStyleSheet() {
+        var styleSheet = ScriptableObject.CreateInstance<StyleSheet>();
+        return styleSheet;
+    }
 
-        // Status indicator
-        EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField("Status", EditorStyles.boldLabel, GUILayout.Width(50));
+    VisualElement CreateStatusSection() {
+        var container = new VisualElement();
+        container.style.backgroundColor = new Color(0.24f, 0.24f, 0.24f);
+        container.style.borderTopWidth = container.style.borderBottomWidth =
+            container.style.borderLeftWidth = container.style.borderRightWidth = 1;
+        container.style.borderTopColor = container.style.borderBottomColor =
+            container.style.borderLeftColor = container.style.borderRightColor = new Color(0.14f, 0.14f, 0.14f);
+        container.style.borderTopLeftRadius = container.style.borderTopRightRadius =
+            container.style.borderBottomLeftRadius = container.style.borderBottomRightRadius = 3;
+        container.style.paddingTop = container.style.paddingBottom = 8;
+        container.style.paddingLeft = container.style.paddingRight = 10;
+        container.style.marginTop = 2;
+        container.style.marginBottom = 10;
 
+        // Status row
+        var statusRow = new VisualElement();
+        statusRow.style.flexDirection = FlexDirection.Row;
+        statusRow.style.alignItems = Align.Center;
+
+        var statusTitle = new Label("Status");
+        statusTitle.style.unityFontStyleAndWeight = FontStyle.Bold;
+        statusTitle.style.width = 50;
+        statusRow.Add(statusTitle);
+
+        _statusLabel = new Label("Stopped (Enter Play Mode to run)");
+        statusRow.Add(_statusLabel);
+        container.Add(statusRow);
+
+        // Live reload info (shown in play mode)
+        _liveReloadInfo = new VisualElement();
+        _liveReloadInfo.style.display = DisplayStyle.None;
+        _liveReloadInfo.style.marginTop = 4;
+
+        _liveReloadStatusLabel = new Label();
+        _liveReloadInfo.Add(_liveReloadStatusLabel);
+
+        _reloadCountLabel = new Label();
+        _reloadCountLabel.style.display = DisplayStyle.None;
+        _liveReloadInfo.Add(_reloadCountLabel);
+
+        container.Add(_liveReloadInfo);
+
+        // Entry file status
+        var entryRow = new VisualElement();
+        entryRow.style.flexDirection = FlexDirection.Row;
+        entryRow.style.alignItems = Align.Center;
+        entryRow.style.marginTop = 4;
+
+        var entryTitle = new Label("Entry File:");
+        entryTitle.style.width = 70;
+        entryRow.Add(entryTitle);
+
+        _entryFileStatusLabel = new Label("Checking...");
+        entryRow.Add(_entryFileStatusLabel);
+        container.Add(entryRow);
+
+        return container;
+    }
+
+    VisualElement CreateSettingsSection() {
+        var container = new VisualElement();
+        container.style.marginBottom = 10;
+
+        var header = new Label("Settings");
+        header.style.unityFontStyleAndWeight = FontStyle.Bold;
+        header.style.marginBottom = 4;
+        container.Add(header);
+
+        var workingDirField = new PropertyField(serializedObject.FindProperty("_workingDir"));
+        container.Add(workingDirField);
+
+        var entryFileField = new PropertyField(serializedObject.FindProperty("_entryFile"));
+        container.Add(entryFileField);
+
+        return container;
+    }
+
+    VisualElement CreateUIPanelSection() {
+        var container = new VisualElement();
+        container.style.marginBottom = 10;
+
+        var header = new Label("UI Panel");
+        header.style.unityFontStyleAndWeight = FontStyle.Bold;
+        header.style.marginBottom = 4;
+        header.style.marginTop = 6;
+        container.Add(header);
+
+        // Panel Settings asset field
+        var panelSettingsProp = serializedObject.FindProperty("_panelSettings");
+        var panelSettingsField = new PropertyField(panelSettingsProp, "Panel Settings");
+        container.Add(panelSettingsField);
+
+        // Inline settings container (shown when _panelSettings is null)
+        var inlineSettings = new VisualElement();
+        inlineSettings.style.marginLeft = 15;
+        inlineSettings.style.marginTop = 4;
+        inlineSettings.style.paddingLeft = 10;
+        inlineSettings.style.borderLeftWidth = 2;
+        inlineSettings.style.borderLeftColor = new Color(0.3f, 0.3f, 0.3f);
+
+        // Theme Stylesheet
+        var themeStylesheetField = new PropertyField(serializedObject.FindProperty("_defaultThemeStylesheet"), "Theme Stylesheet");
+        inlineSettings.Add(themeStylesheetField);
+
+        // Scale Mode
+        var scaleModeProp = serializedObject.FindProperty("_scaleMode");
+        var scaleModeField = new PropertyField(scaleModeProp, "Scale Mode");
+        inlineSettings.Add(scaleModeField);
+
+        // ConstantPixelSize settings
+        var constantPixelContainer = new VisualElement();
+        var scaleField = new PropertyField(serializedObject.FindProperty("_scale"), "Scale");
+        constantPixelContainer.Add(scaleField);
+        inlineSettings.Add(constantPixelContainer);
+
+        // ConstantPhysicalSize settings
+        var constantPhysicalContainer = new VisualElement();
+        var referenceDpiField = new PropertyField(serializedObject.FindProperty("_referenceDpi"), "Reference DPI");
+        var fallbackDpiField = new PropertyField(serializedObject.FindProperty("_fallbackDpi"), "Fallback DPI");
+        constantPhysicalContainer.Add(referenceDpiField);
+        constantPhysicalContainer.Add(fallbackDpiField);
+        inlineSettings.Add(constantPhysicalContainer);
+
+        // ScaleWithScreenSize settings
+        var scaleWithScreenContainer = new VisualElement();
+        var referenceResolutionField = new PropertyField(serializedObject.FindProperty("_referenceResolution"), "Reference Resolution");
+        var screenMatchModeField = new PropertyField(serializedObject.FindProperty("_screenMatchMode"), "Screen Match Mode");
+        var matchField = new PropertyField(serializedObject.FindProperty("_match"), "Match");
+        scaleWithScreenContainer.Add(referenceResolutionField);
+        scaleWithScreenContainer.Add(screenMatchModeField);
+        scaleWithScreenContainer.Add(matchField);
+        inlineSettings.Add(scaleWithScreenContainer);
+
+        // Sort Order (always visible when inline)
+        var sortOrderField = new PropertyField(serializedObject.FindProperty("_sortOrder"), "Sort Order");
+        inlineSettings.Add(sortOrderField);
+
+        container.Add(inlineSettings);
+
+        // Helper to update visibility based on scale mode
+        void UpdateScaleModeVisibility() {
+            var mode = (PanelScaleMode)scaleModeProp.enumValueIndex;
+            constantPixelContainer.style.display = mode == PanelScaleMode.ConstantPixelSize ? DisplayStyle.Flex : DisplayStyle.None;
+            constantPhysicalContainer.style.display = mode == PanelScaleMode.ConstantPhysicalSize ? DisplayStyle.Flex : DisplayStyle.None;
+            scaleWithScreenContainer.style.display = mode == PanelScaleMode.ScaleWithScreenSize ? DisplayStyle.Flex : DisplayStyle.None;
+
+            // Match slider only visible for MatchWidthOrHeight
+            if (mode == PanelScaleMode.ScaleWithScreenSize) {
+                var screenMatchProp = serializedObject.FindProperty("_screenMatchMode");
+                var matchMode = (PanelScreenMatchMode)screenMatchProp.enumValueIndex;
+                matchField.style.display = matchMode == PanelScreenMatchMode.MatchWidthOrHeight ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+        }
+
+        // Helper to update inline settings visibility
+        void UpdateInlineVisibility() {
+            var hasPanelSettings = panelSettingsProp.objectReferenceValue != null;
+            inlineSettings.style.display = hasPanelSettings ? DisplayStyle.None : DisplayStyle.Flex;
+            if (!hasPanelSettings) {
+                UpdateScaleModeVisibility();
+            }
+        }
+
+        // Initial visibility
+        UpdateInlineVisibility();
+
+        // Register callbacks for dynamic updates
+        panelSettingsField.RegisterValueChangeCallback(evt => {
+            serializedObject.Update();
+            UpdateInlineVisibility();
+        });
+
+        scaleModeField.RegisterValueChangeCallback(evt => {
+            serializedObject.Update();
+            UpdateScaleModeVisibility();
+        });
+
+        screenMatchModeField.RegisterValueChangeCallback(evt => {
+            serializedObject.Update();
+            var screenMatchProp = serializedObject.FindProperty("_screenMatchMode");
+            var matchMode = (PanelScreenMatchMode)screenMatchProp.enumValueIndex;
+            matchField.style.display = matchMode == PanelScreenMatchMode.MatchWidthOrHeight ? DisplayStyle.Flex : DisplayStyle.None;
+        });
+
+        // Help box
+        var helpBox = new HelpBox(
+            "No Panel Settings asset assigned. A PanelSettings will be created at runtime using the settings above.",
+            HelpBoxMessageType.Info
+        );
+        helpBox.style.marginTop = 4;
+        helpBox.style.display = panelSettingsProp.objectReferenceValue == null ? DisplayStyle.Flex : DisplayStyle.None;
+
+        panelSettingsField.RegisterValueChangeCallback(evt => {
+            helpBox.style.display = panelSettingsProp.objectReferenceValue == null ? DisplayStyle.Flex : DisplayStyle.None;
+        });
+
+        container.Add(helpBox);
+
+        return container;
+    }
+
+    VisualElement CreateLiveReloadSection() {
+        var container = new VisualElement();
+        container.style.marginBottom = 10;
+
+        var liveReloadProp = serializedObject.FindProperty("_liveReload");
+        var liveReloadField = new PropertyField(liveReloadProp);
+        container.Add(liveReloadField);
+
+        var pollIntervalContainer = new VisualElement();
+        pollIntervalContainer.style.marginLeft = 15;
+        var pollIntervalField = new PropertyField(serializedObject.FindProperty("_pollInterval"));
+        pollIntervalContainer.Add(pollIntervalField);
+        container.Add(pollIntervalContainer);
+
+        // Update visibility based on liveReload value
+        pollIntervalContainer.style.display = liveReloadProp.boolValue ? DisplayStyle.Flex : DisplayStyle.None;
+        liveReloadField.RegisterValueChangeCallback(evt => {
+            pollIntervalContainer.style.display = liveReloadProp.boolValue ? DisplayStyle.Flex : DisplayStyle.None;
+        });
+
+        return container;
+    }
+
+    VisualElement CreateBuildSettingsSection() {
+        var container = new VisualElement();
+        container.style.marginBottom = 10;
+
+        var header = new Label("Build Settings");
+        header.style.unityFontStyleAndWeight = FontStyle.Bold;
+        header.style.marginBottom = 4;
+        header.style.marginTop = 6;
+        container.Add(header);
+
+        var embeddedScriptField = new PropertyField(serializedObject.FindProperty("_embeddedScript"));
+        container.Add(embeddedScriptField);
+
+        var streamingAssetsPathField = new PropertyField(serializedObject.FindProperty("_streamingAssetsPath"));
+        container.Add(streamingAssetsPathField);
+
+        // Help box for build info
+        var embeddedScriptProp = serializedObject.FindProperty("_embeddedScript");
+        var streamingAssetsPathProp = serializedObject.FindProperty("_streamingAssetsPath");
+
+        var helpBox = new HelpBox(
+            $"Bundle will be auto-copied to StreamingAssets/{streamingAssetsPathProp.stringValue} during build.",
+            HelpBoxMessageType.Info
+        );
+        helpBox.style.marginTop = 4;
+        helpBox.style.display = embeddedScriptProp.objectReferenceValue == null ? DisplayStyle.Flex : DisplayStyle.None;
+        container.Add(helpBox);
+
+        embeddedScriptField.RegisterValueChangeCallback(evt => {
+            helpBox.style.display = embeddedScriptProp.objectReferenceValue == null ? DisplayStyle.Flex : DisplayStyle.None;
+        });
+
+        streamingAssetsPathField.RegisterValueChangeCallback(evt => {
+            helpBox.text = $"Bundle will be auto-copied to StreamingAssets/{streamingAssetsPathProp.stringValue} during build.";
+        });
+
+        return container;
+    }
+
+    VisualElement CreateScaffoldingSection() {
+        var container = new VisualElement();
+        container.style.marginBottom = 10;
+
+        var header = new Label("Scaffolding");
+        header.style.unityFontStyleAndWeight = FontStyle.Bold;
+        header.style.marginBottom = 4;
+        header.style.marginTop = 6;
+        container.Add(header);
+
+        // Default files list
+        var defaultFilesField = new PropertyField(serializedObject.FindProperty("_defaultFiles"));
+        defaultFilesField.label = "Default Files";
+        container.Add(defaultFilesField);
+
+        return container;
+    }
+
+    VisualElement CreateAdvancedSection() {
+        var container = new VisualElement();
+        container.style.marginBottom = 10;
+
+        var header = new Label("Advanced");
+        header.style.unityFontStyleAndWeight = FontStyle.Bold;
+        header.style.marginBottom = 4;
+        header.style.marginTop = 6;
+        container.Add(header);
+
+        // Stylesheets list
+        var stylesheetsField = new PropertyField(serializedObject.FindProperty("_stylesheets"));
+        stylesheetsField.label = "Stylesheets";
+        container.Add(stylesheetsField);
+
+        // Preloads list
+        var preloadsField = new PropertyField(serializedObject.FindProperty("_preloads"));
+        preloadsField.label = "Preloads";
+        container.Add(preloadsField);
+
+        // Globals list
+        var globalsField = new PropertyField(serializedObject.FindProperty("_globals"));
+        globalsField.label = "Globals";
+        container.Add(globalsField);
+
+        return container;
+    }
+
+    VisualElement CreateActionsSection() {
+        var container = new VisualElement();
+        container.style.marginBottom = 10;
+
+        var header = new Label("Actions");
+        header.style.unityFontStyleAndWeight = FontStyle.Bold;
+        header.style.marginBottom = 4;
+        container.Add(header);
+
+        // First row: Reload and Build
+        var row1 = new VisualElement();
+        row1.style.flexDirection = FlexDirection.Row;
+        row1.style.marginBottom = 4;
+
+        _reloadButton = new Button(() => _target.ForceReload()) { text = "Reload Now" };
+        _reloadButton.style.height = 30;
+        _reloadButton.style.flexGrow = 1;
+        _reloadButton.SetEnabled(false);
+        row1.Add(_reloadButton);
+
+        _buildButton = new Button(RunBuild) { text = "Build" };
+        _buildButton.style.height = 30;
+        _buildButton.style.flexGrow = 1;
+        row1.Add(_buildButton);
+
+        container.Add(row1);
+
+        // Second row: Open Folder and Open Terminal
+        var row2 = new VisualElement();
+        row2.style.flexDirection = FlexDirection.Row;
+
+        var openFolderButton = new Button(OpenWorkingDirectory) { text = "Open Folder" };
+        openFolderButton.style.height = 24;
+        openFolderButton.style.flexGrow = 1;
+        row2.Add(openFolderButton);
+
+        var openTerminalButton = new Button(OpenTerminal) { text = "Open Terminal" };
+        openTerminalButton.style.height = 24;
+        openTerminalButton.style.flexGrow = 1;
+        row2.Add(openTerminalButton);
+
+        container.Add(row2);
+
+        // Build output box
+        _buildOutputBox = new HelpBox("", HelpBoxMessageType.Info);
+        _buildOutputBox.style.marginTop = 5;
+        _buildOutputBox.style.display = DisplayStyle.None;
+        container.Add(_buildOutputBox);
+
+        return container;
+    }
+
+    VisualElement CreatePremiumSection() {
+        var container = new VisualElement();
+        container.style.marginTop = 10;
+
+        var header = new Label("Premium Components");
+        header.style.unityFontStyleAndWeight = FontStyle.Bold;
+        header.style.marginBottom = 4;
+        container.Add(header);
+
+        var box = new VisualElement();
+        box.style.backgroundColor = new Color(0.24f, 0.24f, 0.24f);
+        box.style.borderTopWidth = box.style.borderBottomWidth =
+            box.style.borderLeftWidth = box.style.borderRightWidth = 1;
+        box.style.borderTopColor = box.style.borderBottomColor =
+            box.style.borderLeftColor = box.style.borderRightColor = new Color(0.14f, 0.14f, 0.14f);
+        box.style.borderTopLeftRadius = box.style.borderTopRightRadius =
+            box.style.borderBottomLeftRadius = box.style.borderBottomRightRadius = 3;
+        box.style.paddingTop = box.style.paddingBottom = 8;
+        box.style.paddingLeft = box.style.paddingRight = 10;
+
+        // License key row
+        var keyRow = new VisualElement();
+        keyRow.style.flexDirection = FlexDirection.Row;
+        keyRow.style.alignItems = Align.Center;
+        keyRow.style.marginBottom = 5;
+
+        var keyLabel = new Label("License Key");
+        keyLabel.style.width = 80;
+        keyRow.Add(keyLabel);
+
+        _licenseKeyField = new TextField();
+        _licenseKeyField.style.flexGrow = 1;
+        _licenseKeyField.RegisterValueChangedCallback(evt => _licenseKey = evt.newValue);
+        keyRow.Add(_licenseKeyField);
+
+        box.Add(keyRow);
+
+        // Buttons row
+        var buttonsRow = new VisualElement();
+        buttonsRow.style.flexDirection = FlexDirection.Row;
+        buttonsRow.style.marginBottom = 5;
+
+        _activateButton = new Button(ActivateLicense) { text = "Activate" };
+        _activateButton.style.height = 24;
+        _activateButton.style.flexGrow = 1;
+        buttonsRow.Add(_activateButton);
+
+        var checkUpdatesButton = new Button(CheckForUpdates) { text = "Check Updates" };
+        checkUpdatesButton.style.height = 24;
+        checkUpdatesButton.style.flexGrow = 1;
+        buttonsRow.Add(checkUpdatesButton);
+
+        box.Add(buttonsRow);
+
+        // License status box
+        _licenseStatusBox = new HelpBox("", HelpBoxMessageType.None);
+        _licenseStatusBox.style.display = DisplayStyle.None;
+        _licenseStatusBox.style.marginBottom = 5;
+        box.Add(_licenseStatusBox);
+
+        // Info text
+        var infoLabel = new Label("Premium components will be downloaded to: comps/");
+        infoLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+        infoLabel.style.fontSize = 10;
+        box.Add(infoLabel);
+
+        container.Add(box);
+        return container;
+    }
+
+    void UpdateDynamicUI() {
+        if (_statusLabel == null) return;
+
+        // Update status
         if (Application.isPlaying) {
             if (_target.IsRunning) {
-                var style = new GUIStyle(EditorStyles.label);
-                style.normal.textColor = new Color(0.2f, 0.8f, 0.2f);
-                EditorGUILayout.LabelField("Running", style);
+                _statusLabel.text = "Running";
+                _statusLabel.style.color = new Color(0.2f, 0.8f, 0.2f);
             } else {
-                var style = new GUIStyle(EditorStyles.label);
-                style.normal.textColor = new Color(0.8f, 0.6f, 0.2f);
-                EditorGUILayout.LabelField("Loading...", style);
+                _statusLabel.text = "Loading...";
+                _statusLabel.style.color = new Color(0.8f, 0.6f, 0.2f);
             }
         } else {
-            EditorGUILayout.LabelField("Stopped (Enter Play Mode to run)");
+            _statusLabel.text = "Stopped (Enter Play Mode to run)";
+            _statusLabel.style.color = Color.white;
         }
-        EditorGUILayout.EndHorizontal();
 
-        // Additional info in Play mode
+        // Update live reload info
         if (Application.isPlaying && _target.IsRunning) {
+            _liveReloadInfo.style.display = DisplayStyle.Flex;
+
+            var pollInterval = serializedObject.FindProperty("_pollInterval").floatValue;
             if (_target.IsLiveReloadEnabled) {
-                EditorGUILayout.LabelField($"Live Reload: Enabled (polling every {_pollInterval.floatValue}s)");
+                _liveReloadStatusLabel.text = $"Live Reload: Enabled (polling every {pollInterval}s)";
             } else {
-                EditorGUILayout.LabelField("Live Reload: Disabled");
+                _liveReloadStatusLabel.text = "Live Reload: Disabled";
             }
 
             if (_target.ReloadCount > 0) {
-                EditorGUILayout.LabelField($"Reloads: {_target.ReloadCount}");
+                _reloadCountLabel.style.display = DisplayStyle.Flex;
+                _reloadCountLabel.text = $"Reloads: {_target.ReloadCount}";
+            } else {
+                _reloadCountLabel.style.display = DisplayStyle.None;
             }
+        } else {
+            _liveReloadInfo.style.display = DisplayStyle.None;
         }
 
-        // Entry file path
+        // Update entry file status
         var entryPath = _target.EntryFileFullPath;
         var fileExists = File.Exists(entryPath);
-        EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField("Entry File:", GUILayout.Width(70));
-        var pathStyle = new GUIStyle(EditorStyles.label);
-        pathStyle.normal.textColor = fileExists ? Color.white : new Color(0.8f, 0.4f, 0.4f);
-        EditorGUILayout.LabelField(fileExists ? "Found" : "Not Found", pathStyle, GUILayout.Width(80));
-        EditorGUILayout.EndHorizontal();
+        _entryFileStatusLabel.text = fileExists ? "Found" : "Not Found";
+        _entryFileStatusLabel.style.color = fileExists ? Color.white : new Color(0.8f, 0.4f, 0.4f);
 
-        EditorGUILayout.EndVertical();
+        // Update reload button state
+        _reloadButton.SetEnabled(Application.isPlaying && _target.IsRunning);
+
+        // Update build button state
+        _buildButton.SetEnabled(!_buildInProgress);
+        _buildButton.text = _buildInProgress ? "Building..." : "Build";
+
+        // Update build output
+        if (!string.IsNullOrEmpty(_buildOutput)) {
+            _buildOutputBox.style.display = DisplayStyle.Flex;
+            _buildOutputBox.text = _buildOutput;
+        }
+
+        // Update activate button state
+        _activateButton.SetEnabled(!_activationInProgress && !string.IsNullOrEmpty(_licenseKey));
+        _activateButton.text = _activationInProgress ? "Activating..." : "Activate";
+
+        // Update license status
+        if (!string.IsNullOrEmpty(_licenseStatus)) {
+            _licenseStatusBox.style.display = DisplayStyle.Flex;
+            _licenseStatusBox.text = _licenseStatus;
+            _licenseStatusBox.messageType = _licenseStatus.StartsWith("Error") ? HelpBoxMessageType.Error :
+                                            _licenseStatus.StartsWith("Success") ? HelpBoxMessageType.Info :
+                                            HelpBoxMessageType.None;
+        }
     }
 
-    void DrawActionsSection() {
-        EditorGUILayout.LabelField("Actions", EditorStyles.boldLabel);
+    async void ActivateLicense() {
+        if (string.IsNullOrEmpty(_licenseKey)) return;
 
-        EditorGUILayout.BeginHorizontal();
+        _activationInProgress = true;
+        _licenseStatus = "Contacting server...";
 
-        // Reload button (only in Play mode)
-        EditorGUI.BeginDisabledGroup(!Application.isPlaying || !_target.IsRunning);
-        if (GUILayout.Button("Reload Now", GUILayout.Height(30))) {
-            _target.ForceReload();
+        try {
+            // TODO: Make API URL configurable
+            var apiUrl = "http://localhost:8790/api/activate";
+            var payload = $"{{\"key\":\"{_licenseKey}\"}}";
+
+            using var client = new HttpClient();
+            client.Timeout = TimeSpan.FromSeconds(30);
+
+            var content = new StringContent(payload, Encoding.UTF8, "application/json");
+            var response = await client.PostAsync(apiUrl, content);
+            var responseBody = await response.Content.ReadAsStringAsync();
+
+            // Parse response (simple JSON parsing)
+            if (responseBody.Contains("\"success\":true")) {
+                // Extract download URL
+                var downloadUrlStart = responseBody.IndexOf("\"downloadUrl\":\"") + 15;
+                var downloadUrlEnd = responseBody.IndexOf("\"", downloadUrlStart);
+                var downloadPath = responseBody.Substring(downloadUrlStart, downloadUrlEnd - downloadUrlStart);
+
+                // Build full download URL
+                var baseUrl = apiUrl.Substring(0, apiUrl.LastIndexOf("/api/"));
+                var downloadUrl = baseUrl + downloadPath;
+
+                _licenseStatus = "Downloading components...";
+
+                await DownloadAndExtract(downloadUrl);
+            } else {
+                // Extract error message
+                var errorStart = responseBody.IndexOf("\"error\":\"");
+                if (errorStart >= 0) {
+                    errorStart += 9;
+                    var errorEnd = responseBody.IndexOf("\"", errorStart);
+                    var error = responseBody.Substring(errorStart, errorEnd - errorStart);
+                    _licenseStatus = $"Error: {error}";
+                } else {
+                    _licenseStatus = "Error: Activation failed";
+                }
+            }
+        } catch (HttpRequestException ex) {
+            _licenseStatus = $"Error: Could not connect to server. Is the website running?\n{ex.Message}";
+        } catch (TaskCanceledException) {
+            _licenseStatus = "Error: Request timed out";
+        } catch (Exception ex) {
+            _licenseStatus = $"Error: {ex.Message}";
+        } finally {
+            _activationInProgress = false;
         }
-        EditorGUI.EndDisabledGroup();
+    }
 
-        // Build button
-        EditorGUI.BeginDisabledGroup(_buildInProgress);
-        if (GUILayout.Button(_buildInProgress ? "Building..." : "Build", GUILayout.Height(30))) {
-            RunBuild();
+    async Task DownloadAndExtract(string downloadUrl) {
+        try {
+            using var client = new HttpClient();
+            client.Timeout = TimeSpan.FromMinutes(5);
+
+            var response = await client.GetAsync(downloadUrl);
+
+            if (!response.IsSuccessStatusCode) {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                if (errorBody.Contains("Asset not found")) {
+                    _licenseStatus = "Error: Component package not yet available. Please contact support.";
+                } else {
+                    _licenseStatus = $"Error: Download failed ({response.StatusCode})";
+                }
+                return;
+            }
+
+            var zipBytes = await response.Content.ReadAsByteArrayAsync();
+
+            // Save to temp file
+            var tempPath = Path.Combine(Application.temporaryCachePath, "onejs-comps.zip");
+            File.WriteAllBytes(tempPath, zipBytes);
+
+            // Extract to working directory
+            var extractPath = Path.Combine(_target.WorkingDirFullPath, "comps");
+
+            // Delete existing directory to allow overwrite
+            if (Directory.Exists(extractPath)) {
+                Directory.Delete(extractPath, recursive: true);
+            }
+            Directory.CreateDirectory(extractPath);
+
+            // Extract
+            ZipFile.ExtractToDirectory(tempPath, extractPath);
+
+            // Clean up temp file
+            File.Delete(tempPath);
+
+            _licenseStatus = $"Success! Components installed to: comps/";
+
+            // Refresh asset database
+            AssetDatabase.Refresh();
+
+        } catch (Exception ex) {
+            _licenseStatus = $"Error extracting: {ex.Message}";
         }
-        EditorGUI.EndDisabledGroup();
+    }
 
-        EditorGUILayout.EndHorizontal();
-
-        EditorGUILayout.BeginHorizontal();
-
-        // Open folder button
-        if (GUILayout.Button("Open Folder", GUILayout.Height(24))) {
-            OpenWorkingDirectory();
-        }
-
-        // Open terminal button
-        if (GUILayout.Button("Open Terminal", GUILayout.Height(24))) {
-            OpenTerminal();
-        }
-
-        EditorGUILayout.EndHorizontal();
-
-        // Show build output if available
-        if (!string.IsNullOrEmpty(_buildOutput)) {
-            EditorGUILayout.Space(5);
-            EditorGUILayout.HelpBox(_buildOutput, MessageType.Info);
-        }
+    void CheckForUpdates() {
+        // TODO: Implement version checking
+        _licenseStatus = "Update checking not yet implemented";
     }
 
     void RunBuild() {
@@ -225,7 +756,6 @@ public class JSRunnerEditor : Editor {
                         _buildOutput = $"Build failed with exit code {process.ExitCode}";
                         Debug.LogError($"[JSRunner] Build failed with exit code {process.ExitCode}");
                     }
-                    Repaint();
                 };
             };
 

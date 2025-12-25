@@ -315,10 +315,11 @@ public class QuickJSNetworkTests {
 
     [UnityTest]
     public IEnumerator Fetch_404_SetsOkFalse() {
+        // Use jsonplaceholder - a reliable fake REST API that returns 404 for non-existent resources
         _bridge.Eval(@"
             globalThis.__fetchTestDone = false;
             globalThis.__fetchTestResult = null;
-            fetch('https://httpbin.org/status/404')
+            fetch('https://jsonplaceholder.typicode.com/posts/99999999')
                 .then(function(response) {
                     globalThis.__fetchTestResult = {
                         ok: response.ok,

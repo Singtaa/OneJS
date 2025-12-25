@@ -1,0 +1,20 @@
+{
+  "name": "onejs-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "onejs-react": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.0"
+  }
+}
