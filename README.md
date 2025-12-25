@@ -9,7 +9,7 @@ This is the V3 branch. Key changes from V2:
 | | V2 | V3 |
 |---|---|---|
 | UI Framework | Preact | React 19 |
-| JS Engine | Jint | QuickJS |
+| JS Engine | PuerTS | QuickJS |
 | Setup | Manual UIDocument/PanelSettings | Zero-config (auto-created) |
 | Styling | USS only | USS + CSS Modules + Tailwind |
 
