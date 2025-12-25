@@ -2,6 +2,19 @@
 
 JavaScript runtime for Unity UI Toolkit. Write UI with React and TypeScript, render natively through Unity's GPU-accelerated UI system.
 
+## V3 vs V2
+
+This is the V3 branch. Key changes from V2:
+
+| | V2 | V3 |
+|---|---|---|
+| UI Framework | Preact | React 19 |
+| JS Engine | Jint | QuickJS |
+| Setup | Manual UIDocument/PanelSettings | Zero-config (auto-created) |
+| Styling | USS only | USS + CSS Modules + Tailwind |
+
+V3 requires Unity 6.3+. For older Unity versions, use the `main` branch (V2).
+
 ## Requirements
 
 - Unity 6.3+
@@ -9,10 +22,16 @@ JavaScript runtime for Unity UI Toolkit. Write UI with React and TypeScript, ren
 
 ## Installation
 
-Clone or add as submodule to your Unity project's Assets folder:
+**Package Manager (recommended):**
+
+1. Open Window > Package Manager
+2. Click + > Add package from git URL
+3. Enter: `https://github.com/Singtaa/OneJS.git#onejs-v3`
+
+**Manual:**
 
 ```bash
-git clone https://github.com/nicktgn/OneJS.git Assets/OneJS
+git clone -b onejs-v3 https://github.com/Singtaa/OneJS.git Assets/OneJS
 ```
 
 ## Quick Start
