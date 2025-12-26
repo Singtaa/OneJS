@@ -140,10 +140,8 @@ public class QuickJSUIBridge : IDisposable {
         }
     }
 
-    // MARK: Events
+    // MARK: Event Registration
     void RegisterEventDelegation() {
-        // Use TrickleDown to catch events during capture phase
-        // This ensures we see events even if a child stops propagation during bubble
         _root.RegisterCallback<ClickEvent>(OnClick, TrickleDown.TrickleDown);
         _root.RegisterCallback<PointerDownEvent>(OnPointerDown, TrickleDown.TrickleDown);
         _root.RegisterCallback<PointerUpEvent>(OnPointerUp, TrickleDown.TrickleDown);
@@ -158,8 +156,6 @@ public class QuickJSUIBridge : IDisposable {
         _root.RegisterCallback<ChangeEvent<bool>>(OnChangeBool, TrickleDown.TrickleDown);
         _root.RegisterCallback<ChangeEvent<float>>(OnChangeFloat, TrickleDown.TrickleDown);
         _root.RegisterCallback<ChangeEvent<int>>(OnChangeInt, TrickleDown.TrickleDown);
-
-        // Geometry changed for responsive design (only on root)
         _root.RegisterCallback<GeometryChangedEvent>(OnGeometryChanged);
     }
 
@@ -181,48 +177,27 @@ public class QuickJSUIBridge : IDisposable {
         _root.UnregisterCallback<GeometryChangedEvent>(OnGeometryChanged);
     }
 
-    // MARK: Handlers
+    // MARK: Event Handlers
     void OnClick(ClickEvent e) => DispatchPointerEvent("click", e.target, e.position, e.button);
-
-    void OnPointerDown(PointerDownEvent e) =>
-        DispatchPointerEvent("pointerdown", e.target, e.position, e.button, e.pointerId);
-
-    void OnPointerUp(PointerUpEvent e) =>
-        DispatchPointerEvent("pointerup", e.target, e.position, e.button, e.pointerId);
-
-    void OnPointerMove(PointerMoveEvent e) =>
-        DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
-
-    void OnPointerEnter(PointerEnterEvent e) =>
-        DispatchPointerEvent("pointerenter", e.target, e.position, 0, e.pointerId);
-
-    void OnPointerLeave(PointerLeaveEvent e) =>
-        DispatchPointerEvent("pointerleave", e.target, e.position, 0, e.pointerId);
-
-    void OnFocusIn(FocusInEvent e) => DispatchSimpleEvent("focus", e.target);
-    void OnFocusOut(FocusOutEvent e) => DispatchSimpleEvent("blur", e.target);
-
-    void OnKeyDown(KeyDownEvent e) =>
-        DispatchKeyEvent("keydown", e.target, e.keyCode, e.character, e.modifiers);
-
+    void OnPointerDown(PointerDownEvent e) => DispatchPointerEvent("pointerdown", e.target, e.position, e.button, e.pointerId);
+    void OnPointerUp(PointerUpEvent e) => DispatchPointerEvent("pointerup", e.target, e.position, e.button, e.pointerId);
+    void OnPointerMove(PointerMoveEvent e) => DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
+    void OnPointerEnter(PointerEnterEvent e) => DispatchPointerEvent("pointerenter", e.target, e.position, 0, e.pointerId);
+    void OnPointerLeave(PointerLeaveEvent e) => DispatchPointerEvent("pointerleave", e.target, e.position, 0, e.pointerId);
+    void OnFocusIn(FocusInEvent e) => DispatchEvent("focus", e.target, "{}");
+    void OnFocusOut(FocusOutEvent e) => DispatchEvent("blur", e.target, "{}");
+    void OnKeyDown(KeyDownEvent e) => DispatchKeyEvent("keydown", e.target, e.keyCode, e.character, e.modifiers);
     void OnKeyUp(KeyUpEvent e) => DispatchKeyEvent("keyup", e.target, e.keyCode, '\0', e.modifiers);
-
-    void OnChangeString(ChangeEvent<string> e) =>
-        DispatchChangeEvent("change", e.target, $"\"{EscapeString(e.newValue)}\"");
-
-    void OnChangeBool(ChangeEvent<bool> e) =>
-        DispatchChangeEvent("change", e.target, e.newValue ? "true" : "false");
-
-    void OnChangeFloat(ChangeEvent<float> e) => DispatchChangeEvent("change", e.target,
-        e.newValue.ToString("G", CultureInfo.InvariantCulture));
-
-    void OnChangeInt(ChangeEvent<int> e) => DispatchChangeEvent("change", e.target, e.newValue.ToString());
+    void OnChangeString(ChangeEvent<string> e) => DispatchEvent("change", e.target, BuildChangeData($"\"{EscapeForJson(e.newValue)}\""));
+    void OnChangeBool(ChangeEvent<bool> e) => DispatchEvent("change", e.target, BuildChangeData(e.newValue ? "true" : "false"));
+    void OnChangeFloat(ChangeEvent<float> e) => DispatchEvent("change", e.target, BuildChangeData(e.newValue.ToString("G", CultureInfo.InvariantCulture)));
+    void OnChangeInt(ChangeEvent<int> e) => DispatchEvent("change", e.target, BuildChangeData(e.newValue.ToString()));
 
     void OnGeometryChanged(GeometryChangedEvent e) {
-        // Only dispatch if size actually changed (avoid spurious events)
         float newWidth = e.newRect.width;
         float newHeight = e.newRect.height;
 
+        // Only dispatch if size actually changed (avoid spurious events)
         if (Mathf.Approximately(newWidth, _lastViewportWidth) &&
             Mathf.Approximately(newHeight, _lastViewportHeight)) {
             return;
@@ -231,10 +206,12 @@ public class QuickJSUIBridge : IDisposable {
         _lastViewportWidth = newWidth;
         _lastViewportHeight = newHeight;
 
-        DispatchViewportEvent(newWidth, newHeight);
+        int handle = QuickJSNative.GetHandleForObject(_root);
+        string data = $"{{\"width\":{newWidth:F0},\"height\":{newHeight:F0}}}";
+        DispatchEventInternal(handle, "viewportchange", data);
     }
 
-    // MARK: Dispatch
+    // MARK: Event Dispatch - Core
     int FindElementHandle(IEventHandler target) {
         var el = target as VisualElement;
         while (el != null) {
@@ -245,217 +222,108 @@ public class QuickJSUIBridge : IDisposable {
         return 0;
     }
 
-    void DispatchSimpleEvent(string eventType, IEventHandler target) {
-        int handle = FindElementHandle(target);
-        if (handle == 0) return;
-
-        // Recursion guard - prevent event dispatch during eval/tick
-        if (_inEval) return;
+    /// <summary>
+    /// Core dispatch method - all event dispatching goes through here.
+    /// </summary>
+    void DispatchEventInternal(int handle, string eventType, string dataJson) {
+        if (handle == 0 || _inEval) return;
 
 #if UNITY_WEBGL && !UNITY_EDITOR
-        // Fast path for WebGL - direct function call instead of eval
-        QuickJSNative.qjs_dispatch_event(handle, eventType, "{}");
+        QuickJSNative.qjs_dispatch_event(handle, eventType, dataJson);
 #else
         _sb.Clear();
         _sb.Append("globalThis.__dispatchEvent && __dispatchEvent(");
         _sb.Append(handle);
         _sb.Append(",\"");
         _sb.Append(eventType);
-        _sb.Append("\",{})");
+        _sb.Append("\",");
+        _sb.Append(dataJson);
+        _sb.Append(")");
 
         try {
             SafeEval(_sb.ToString());
-            _ctx.ExecutePendingJobs(); // Process microtasks scheduled by React
+            _ctx.ExecutePendingJobs();
         } catch (Exception ex) {
             Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error: {ex.Message}");
         }
 #endif
     }
 
-    void DispatchPointerEvent(string eventType, IEventHandler target, Vector2 position, int button,
-        int pointerId = 0) {
+    /// <summary>
+    /// Dispatch an event with pre-built JSON data.
+    /// </summary>
+    void DispatchEvent(string eventType, IEventHandler target, string dataJson) {
+        int handle = FindElementHandle(target);
+        DispatchEventInternal(handle, eventType, dataJson);
+    }
+
+    /// <summary>
+    /// Dispatch a pointer event with position and button data.
+    /// </summary>
+    void DispatchPointerEvent(string eventType, IEventHandler target, Vector2 position, int button, int pointerId = 0) {
         int handle = FindElementHandle(target);
         if (handle == 0) return;
 
-        // Recursion guard - prevent event dispatch during eval/tick
-        if (_inEval) return;
+        string data = string.Format(CultureInfo.InvariantCulture,
+            "{{\"x\":{0:F2},\"y\":{1:F2},\"button\":{2},\"pointerId\":{3}}}",
+            position.x, position.y, button, pointerId);
 
-#if UNITY_WEBGL && !UNITY_EDITOR
-        // Fast path for WebGL - direct function call instead of eval
-        _sb.Clear();
-        _sb.Append("{\"x\":");
-        _sb.Append(position.x.ToString("F2", CultureInfo.InvariantCulture));
-        _sb.Append(",\"y\":");
-        _sb.Append(position.y.ToString("F2", CultureInfo.InvariantCulture));
-        _sb.Append(",\"button\":");
-        _sb.Append(button);
-        _sb.Append(",\"pointerId\":");
-        _sb.Append(pointerId);
-        _sb.Append("}");
-        QuickJSNative.qjs_dispatch_event(handle, eventType, _sb.ToString());
-#else
-        _sb.Clear();
-        _sb.Append("globalThis.__dispatchEvent && __dispatchEvent(");
-        _sb.Append(handle);
-        _sb.Append(",\"");
-        _sb.Append(eventType);
-        _sb.Append("\",{\"x\":");
-        _sb.Append(position.x.ToString("F2", CultureInfo.InvariantCulture));
-        _sb.Append(",\"y\":");
-        _sb.Append(position.y.ToString("F2", CultureInfo.InvariantCulture));
-        _sb.Append(",\"button\":");
-        _sb.Append(button);
-        _sb.Append(",\"pointerId\":");
-        _sb.Append(pointerId);
-        _sb.Append("})");
-
-        try {
-            SafeEval(_sb.ToString());
-            _ctx.ExecutePendingJobs(); // Process microtasks scheduled by React
-        } catch (Exception ex) {
-            Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error: {ex.Message}");
-        }
-#endif
+        DispatchEventInternal(handle, eventType, data);
     }
 
-    void DispatchKeyEvent(string eventType, IEventHandler target, KeyCode keyCode, char character,
-        EventModifiers modifiers) {
+    /// <summary>
+    /// Dispatch a keyboard event with key and modifier data.
+    /// </summary>
+    void DispatchKeyEvent(string eventType, IEventHandler target, KeyCode keyCode, char character, EventModifiers modifiers) {
         int handle = FindElementHandle(target);
         if (handle == 0) return;
 
-        // Recursion guard - prevent event dispatch during eval/tick
-        if (_inEval) return;
+        string charEscaped = character != '\0' ? EscapeForJson(character.ToString()) : "";
+        string data = string.Format(CultureInfo.InvariantCulture,
+            "{{\"keyCode\":{0},\"key\":\"{1}\",\"char\":\"{2}\",\"shift\":{3},\"ctrl\":{4},\"alt\":{5},\"meta\":{6}}}",
+            (int)keyCode,
+            keyCode.ToString(),
+            charEscaped,
+            (modifiers & EventModifiers.Shift) != 0 ? "true" : "false",
+            (modifiers & EventModifiers.Control) != 0 ? "true" : "false",
+            (modifiers & EventModifiers.Alt) != 0 ? "true" : "false",
+            (modifiers & EventModifiers.Command) != 0 ? "true" : "false");
 
-        _sb.Clear();
-#if UNITY_WEBGL && !UNITY_EDITOR
-        // Fast path for WebGL
-        _sb.Append("{\"keyCode\":");
-        _sb.Append((int)keyCode);
-        _sb.Append(",\"key\":\"");
-        _sb.Append(keyCode.ToString());
-        _sb.Append("\",\"char\":\"");
-        if (character != '\0') _sb.Append(EscapeChar(character));
-        _sb.Append("\",\"shift\":");
-        _sb.Append((modifiers & EventModifiers.Shift) != 0 ? "true" : "false");
-        _sb.Append(",\"ctrl\":");
-        _sb.Append((modifiers & EventModifiers.Control) != 0 ? "true" : "false");
-        _sb.Append(",\"alt\":");
-        _sb.Append((modifiers & EventModifiers.Alt) != 0 ? "true" : "false");
-        _sb.Append(",\"meta\":");
-        _sb.Append((modifiers & EventModifiers.Command) != 0 ? "true" : "false");
-        _sb.Append("}");
-        QuickJSNative.qjs_dispatch_event(handle, eventType, _sb.ToString());
-#else
-        _sb.Append("globalThis.__dispatchEvent && __dispatchEvent(");
-        _sb.Append(handle);
-        _sb.Append(",\"");
-        _sb.Append(eventType);
-        _sb.Append("\",{\"keyCode\":");
-        _sb.Append((int)keyCode);
-        _sb.Append(",\"key\":\"");
-        _sb.Append(keyCode.ToString());
-        _sb.Append("\",\"char\":\"");
-        if (character != '\0') _sb.Append(EscapeChar(character));
-        _sb.Append("\",\"shift\":");
-        _sb.Append((modifiers & EventModifiers.Shift) != 0 ? "true" : "false");
-        _sb.Append(",\"ctrl\":");
-        _sb.Append((modifiers & EventModifiers.Control) != 0 ? "true" : "false");
-        _sb.Append(",\"alt\":");
-        _sb.Append((modifiers & EventModifiers.Alt) != 0 ? "true" : "false");
-        _sb.Append(",\"meta\":");
-        _sb.Append((modifiers & EventModifiers.Command) != 0 ? "true" : "false");
-        _sb.Append("})");
-
-        try {
-            SafeEval(_sb.ToString());
-            _ctx.ExecutePendingJobs(); // Process microtasks scheduled by React
-        } catch (Exception ex) {
-            Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error: {ex.Message}");
-        }
-#endif
+        DispatchEventInternal(handle, eventType, data);
     }
 
-    void DispatchChangeEvent(string eventType, IEventHandler target, string valueJson) {
-        int handle = FindElementHandle(target);
-        if (handle == 0) return;
+    // MARK: Data Builders
+    static string BuildChangeData(string valueJson) => $"{{\"value\":{valueJson}}}";
 
-        // Recursion guard - prevent event dispatch during eval/tick
-        if (_inEval) return;
-
-#if UNITY_WEBGL && !UNITY_EDITOR
-        // Fast path for WebGL
-        _sb.Clear();
-        _sb.Append("{\"value\":");
-        _sb.Append(valueJson);
-        _sb.Append("}");
-        QuickJSNative.qjs_dispatch_event(handle, eventType, _sb.ToString());
-#else
-        _sb.Clear();
-        _sb.Append("globalThis.__dispatchEvent && __dispatchEvent(");
-        _sb.Append(handle);
-        _sb.Append(",\"");
-        _sb.Append(eventType);
-        _sb.Append("\",{\"value\":");
-        _sb.Append(valueJson);
-        _sb.Append("})");
-
-        try {
-            SafeEval(_sb.ToString());
-            _ctx.ExecutePendingJobs(); // Process microtasks scheduled by React
-        } catch (Exception ex) {
-            Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error: {ex.Message}");
-        }
-#endif
-    }
-
-    void DispatchViewportEvent(float width, float height) {
-        // Recursion guard - prevent event dispatch during eval/tick
-        if (_inEval) return;
-
-        int handle = QuickJSNative.GetHandleForObject(_root);
-
-#if UNITY_WEBGL && !UNITY_EDITOR
-        // Fast path for WebGL
-        _sb.Clear();
-        _sb.Append("{\"width\":");
-        _sb.Append(width.ToString("F0", CultureInfo.InvariantCulture));
-        _sb.Append(",\"height\":");
-        _sb.Append(height.ToString("F0", CultureInfo.InvariantCulture));
-        _sb.Append("}");
-        QuickJSNative.qjs_dispatch_event(handle, "viewportchange", _sb.ToString());
-#else
-        _sb.Clear();
-        _sb.Append("globalThis.__dispatchEvent && __dispatchEvent(");
-        _sb.Append(handle);
-        _sb.Append(",\"viewportchange\",{\"width\":");
-        _sb.Append(width.ToString("F0", CultureInfo.InvariantCulture));
-        _sb.Append(",\"height\":");
-        _sb.Append(height.ToString("F0", CultureInfo.InvariantCulture));
-        _sb.Append("})");
-
-        try {
-            SafeEval(_sb.ToString());
-            _ctx.ExecutePendingJobs(); // Process microtasks scheduled by React
-        } catch (Exception ex) {
-            Debug.LogWarning($"[QuickJSUIBridge] Viewport event dispatch error: {ex.Message}");
-        }
-#endif
-    }
-
-    // MARK: Utils
-    static string EscapeString(string s) {
+    // MARK: String Escaping
+    /// <summary>
+    /// Escape a string for safe inclusion in JSON.
+    /// </summary>
+    static string EscapeForJson(string s) {
         if (string.IsNullOrEmpty(s)) return "";
-        return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r");
-    }
 
-    static string EscapeChar(char c) {
-        return c switch {
-            '\\' => "\\\\",
-            '"' => "\\\"",
-            '\n' => "\\n",
-            '\r' => "\\r",
-            '\t' => "\\t",
-            _ => c.ToString()
-        };
+        // Fast path: check if escaping is needed
+        bool needsEscape = false;
+        foreach (char c in s) {
+            if (c == '\\' || c == '"' || c == '\n' || c == '\r' || c == '\t') {
+                needsEscape = true;
+                break;
+            }
+        }
+        if (!needsEscape) return s;
+
+        // Slow path: build escaped string
+        var sb = new StringBuilder(s.Length + 8);
+        foreach (char c in s) {
+            switch (c) {
+                case '\\': sb.Append("\\\\"); break;
+                case '"': sb.Append("\\\""); break;
+                case '\n': sb.Append("\\n"); break;
+                case '\r': sb.Append("\\r"); break;
+                case '\t': sb.Append("\\t"); break;
+                default: sb.Append(c); break;
+            }
+        }
+        return sb.ToString();
     }
 }

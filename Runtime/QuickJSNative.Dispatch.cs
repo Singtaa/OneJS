@@ -342,99 +342,13 @@ public static partial class QuickJSNative {
 
         var t = value.GetType();
 
-        // Check for Vector3/Quaternion/Color FIRST (zero-alloc path)
-        if (t == typeof(Vector3)) {
-            var v = (Vector3)value;
-            resPtr->returnValue.type = InteropType.Vector3;
-            resPtr->returnValue.vecX = v.x;
-            resPtr->returnValue.vecY = v.y;
-            resPtr->returnValue.vecZ = v.z;
-            return;
-        }
-
-        if (t == typeof(Quaternion)) {
-            var q = (Quaternion)value;
-            resPtr->returnValue.type = InteropType.Vector4;
-            resPtr->returnValue.vecX = q.x;
-            resPtr->returnValue.vecY = q.y;
-            resPtr->returnValue.vecZ = q.z;
-            resPtr->returnValue.vecW = q.w;
-            return;
-        }
-
-        if (t == typeof(Color)) {
-            var c = (Color)value;
-            resPtr->returnValue.type = InteropType.Vector4;
-            resPtr->returnValue.vecX = c.r;
-            resPtr->returnValue.vecY = c.g;
-            resPtr->returnValue.vecZ = c.b;
-            resPtr->returnValue.vecW = c.a;
-            return;
-        }
-
-        if (t == typeof(Vector4)) {
-            var v = (Vector4)value;
-            resPtr->returnValue.type = InteropType.Vector4;
-            resPtr->returnValue.vecX = v.x;
-            resPtr->returnValue.vecY = v.y;
-            resPtr->returnValue.vecZ = v.z;
-            resPtr->returnValue.vecW = v.w;
-            return;
-        }
-
-        if (t == typeof(Vector2)) {
-            var v = (Vector2)value;
-            resPtr->returnValue.type = InteropType.Vector3;
-            resPtr->returnValue.vecX = v.x;
-            resPtr->returnValue.vecY = v.y;
-            resPtr->returnValue.vecZ = 0;
-            return;
-        }
+        // Unity structs (zero-alloc path)
+        if (TrySetReturnValueForUnityStruct(resPtr, value, t)) return;
 
         // Primitives
-        switch (Type.GetTypeCode(t)) {
-            case TypeCode.Boolean:
-                resPtr->returnValue.type = InteropType.Bool;
-                resPtr->returnValue.b = (bool)value ? 1 : 0;
-                return;
+        if (TrySetReturnValueForPrimitive(resPtr, value, t)) return;
 
-            case TypeCode.SByte:
-            case TypeCode.Byte:
-            case TypeCode.Int16:
-            case TypeCode.UInt16:
-            case TypeCode.Int32:
-                resPtr->returnValue.type = InteropType.Int32;
-                resPtr->returnValue.i32 = Convert.ToInt32(value);
-                return;
-
-            case TypeCode.UInt32:
-            case TypeCode.Int64:
-                resPtr->returnValue.type = InteropType.Int64;
-                resPtr->returnValue.i64 = Convert.ToInt64(value);
-                return;
-
-            case TypeCode.UInt64:
-                resPtr->returnValue.type = InteropType.Double;
-                resPtr->returnValue.f64 = Convert.ToDouble(value);
-                return;
-
-            case TypeCode.Single:
-                resPtr->returnValue.type = InteropType.Float32;
-                resPtr->returnValue.f32 = (float)value;
-                return;
-
-            case TypeCode.Double:
-                resPtr->returnValue.type = InteropType.Double;
-                resPtr->returnValue.f64 = (double)value;
-                return;
-
-            case TypeCode.String:
-                resPtr->returnValue.type = InteropType.String;
-                resPtr->returnValue.str = StringToUtf8(value.ToString());
-                return;
-        }
-
-        // Serializable struct - use the generic system
+        // Serializable structs
         if (IsSerializableStruct(t)) {
             var json = SerializeStruct(value);
             if (json != null) {
@@ -444,42 +358,9 @@ public static partial class QuickJSNative {
             }
         }
 
-        // Task/Task<T> - handle async completion
-        // For already-completed tasks, return the result directly
-        // For pending tasks, return a task marker so JS can create a Promise
+        // Tasks (async)
         if (value is Task task) {
-            if (task.IsCompleted) {
-                // Task already completed - extract and return result directly
-                if (task.IsFaulted) {
-                    // Return error info - JS can check for __csError
-                    string errorMsg = task.Exception?.InnerException?.Message ??
-                                      task.Exception?.Message ?? "Task faulted";
-                    resPtr->returnValue.type = InteropType.String;
-                    resPtr->returnValue.str = StringToUtf8($"{{\"__csError\":\"{EscapeJsString(errorMsg)}\"}}");
-                    return;
-                }
-                if (task.IsCanceled) {
-                    resPtr->returnValue.type = InteropType.String;
-                    resPtr->returnValue.str = StringToUtf8("{\"__csError\":\"Task was canceled\"}");
-                    return;
-                }
-
-                // Task succeeded - return the result
-                object result = GetTaskResultDirect(task);
-                if (result == null) {
-                    resPtr->returnValue.type = InteropType.Null;
-                    return;
-                }
-                // Recursively set the return value with the actual result
-                SetReturnValue(resPtr, result);
-                return;
-            }
-
-            // Task is still pending - register for async completion
-            int taskId = RegisterTask(task);
-            // Return as JSON object so JS can detect it without native layer changes
-            resPtr->returnValue.type = InteropType.String;
-            resPtr->returnValue.str = StringToUtf8($"{{\"__csTaskId\":{taskId}}}");
+            SetReturnValueForTask(resPtr, task);
             return;
         }
 
@@ -488,6 +369,148 @@ public static partial class QuickJSNative {
         resPtr->returnValue.type = InteropType.ObjectHandle;
         resPtr->returnValue.handle = handle;
         resPtr->returnValue.typeHint = StringToUtf8(t.FullName);
+    }
+
+    /// <summary>
+    /// Handle Unity vector/color structs. Returns true if handled.
+    /// </summary>
+    static unsafe bool TrySetReturnValueForUnityStruct(InteropInvokeResult* resPtr, object value, Type t) {
+        if (t == typeof(Vector2)) {
+            var v = (Vector2)value;
+            resPtr->returnValue.type = InteropType.Vector3;
+            resPtr->returnValue.vecX = v.x;
+            resPtr->returnValue.vecY = v.y;
+            resPtr->returnValue.vecZ = 0;
+            return true;
+        }
+
+        if (t == typeof(Vector3)) {
+            var v = (Vector3)value;
+            resPtr->returnValue.type = InteropType.Vector3;
+            resPtr->returnValue.vecX = v.x;
+            resPtr->returnValue.vecY = v.y;
+            resPtr->returnValue.vecZ = v.z;
+            return true;
+        }
+
+        if (t == typeof(Vector4)) {
+            var v = (Vector4)value;
+            resPtr->returnValue.type = InteropType.Vector4;
+            resPtr->returnValue.vecX = v.x;
+            resPtr->returnValue.vecY = v.y;
+            resPtr->returnValue.vecZ = v.z;
+            resPtr->returnValue.vecW = v.w;
+            return true;
+        }
+
+        if (t == typeof(Quaternion)) {
+            var q = (Quaternion)value;
+            resPtr->returnValue.type = InteropType.Vector4;
+            resPtr->returnValue.vecX = q.x;
+            resPtr->returnValue.vecY = q.y;
+            resPtr->returnValue.vecZ = q.z;
+            resPtr->returnValue.vecW = q.w;
+            return true;
+        }
+
+        if (t == typeof(Color)) {
+            var c = (Color)value;
+            resPtr->returnValue.type = InteropType.Vector4;
+            resPtr->returnValue.vecX = c.r;
+            resPtr->returnValue.vecY = c.g;
+            resPtr->returnValue.vecZ = c.b;
+            resPtr->returnValue.vecW = c.a;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Handle primitive types. Returns true if handled.
+    /// </summary>
+    static unsafe bool TrySetReturnValueForPrimitive(InteropInvokeResult* resPtr, object value, Type t) {
+        switch (Type.GetTypeCode(t)) {
+            case TypeCode.Boolean:
+                resPtr->returnValue.type = InteropType.Bool;
+                resPtr->returnValue.b = (bool)value ? 1 : 0;
+                return true;
+
+            case TypeCode.SByte:
+            case TypeCode.Byte:
+            case TypeCode.Int16:
+            case TypeCode.UInt16:
+            case TypeCode.Int32:
+                resPtr->returnValue.type = InteropType.Int32;
+                resPtr->returnValue.i32 = Convert.ToInt32(value);
+                return true;
+
+            case TypeCode.UInt32:
+            case TypeCode.Int64:
+                resPtr->returnValue.type = InteropType.Int64;
+                resPtr->returnValue.i64 = Convert.ToInt64(value);
+                return true;
+
+            case TypeCode.UInt64:
+                resPtr->returnValue.type = InteropType.Double;
+                resPtr->returnValue.f64 = Convert.ToDouble(value);
+                return true;
+
+            case TypeCode.Single:
+                resPtr->returnValue.type = InteropType.Float32;
+                resPtr->returnValue.f32 = (float)value;
+                return true;
+
+            case TypeCode.Double:
+                resPtr->returnValue.type = InteropType.Double;
+                resPtr->returnValue.f64 = (double)value;
+                return true;
+
+            case TypeCode.String:
+                resPtr->returnValue.type = InteropType.String;
+                resPtr->returnValue.str = StringToUtf8(value.ToString());
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Handle Task/Task&lt;T&gt; for async completion.
+    /// </summary>
+    static unsafe void SetReturnValueForTask(InteropInvokeResult* resPtr, Task task) {
+        if (task.IsCompleted) {
+            if (task.IsFaulted) {
+                string errorMsg = task.Exception?.InnerException?.Message ??
+                                  task.Exception?.Message ?? "Task faulted";
+                resPtr->returnValue.type = InteropType.String;
+                resPtr->returnValue.str = StringToUtf8($"{{\"__csError\":\"{EscapeJsString(errorMsg)}\"}}");
+                return;
+            }
+
+            if (task.IsCanceled) {
+                resPtr->returnValue.type = InteropType.String;
+                resPtr->returnValue.str = StringToUtf8("{\"__csError\":\"Task was canceled\"}");
+                return;
+            }
+
+            // Task succeeded - return the result
+            object result = GetTaskResultDirect(task);
+            if (result == null) {
+                resPtr->returnValue.type = InteropType.Null;
+                return;
+            }
+
+            // Recursively set the return value with the actual result
+            SetReturnValue(resPtr, result);
+            return;
+        }
+
+        // Task is still pending - register for async completion
+        int taskId = RegisterTask(task);
+        resPtr->returnValue.type = InteropType.String;
+        resPtr->returnValue.str = StringToUtf8($"{{\"__csTaskId\":{taskId}}}");
     }
 
     // MARK: Task Result Extraction
