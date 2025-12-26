@@ -489,65 +489,74 @@ public class JSRunner : MonoBehaviour {
     /// These can be used for conditional code: if (UNITY_WEBGL) { ... }
     /// </summary>
     void InjectPlatformDefines() {
-        var defines = new System.Text.StringBuilder();
-        defines.AppendLine("// Unity Platform Defines");
-
-        // Platform flags
+        // Compile-time platform flags (cannot be simplified further due to preprocessor requirements)
+        const bool isEditor =
 #if UNITY_EDITOR
-        defines.AppendLine("globalThis.UNITY_EDITOR = true;");
+            true;
 #else
-        defines.AppendLine("globalThis.UNITY_EDITOR = false;");
+            false;
 #endif
-
+        const bool isWebGL =
 #if UNITY_WEBGL
-        defines.AppendLine("globalThis.UNITY_WEBGL = true;");
+            true;
 #else
-        defines.AppendLine("globalThis.UNITY_WEBGL = false;");
+            false;
 #endif
-
+        const bool isStandalone =
 #if UNITY_STANDALONE
-        defines.AppendLine("globalThis.UNITY_STANDALONE = true;");
+            true;
 #else
-        defines.AppendLine("globalThis.UNITY_STANDALONE = false;");
+            false;
 #endif
-
+        const bool isOSX =
 #if UNITY_STANDALONE_OSX
-        defines.AppendLine("globalThis.UNITY_STANDALONE_OSX = true;");
+            true;
 #else
-        defines.AppendLine("globalThis.UNITY_STANDALONE_OSX = false;");
+            false;
 #endif
-
+        const bool isWindows =
 #if UNITY_STANDALONE_WIN
-        defines.AppendLine("globalThis.UNITY_STANDALONE_WIN = true;");
+            true;
 #else
-        defines.AppendLine("globalThis.UNITY_STANDALONE_WIN = false;");
+            false;
 #endif
-
+        const bool isLinux =
 #if UNITY_STANDALONE_LINUX
-        defines.AppendLine("globalThis.UNITY_STANDALONE_LINUX = true;");
+            true;
 #else
-        defines.AppendLine("globalThis.UNITY_STANDALONE_LINUX = false;");
+            false;
 #endif
-
+        const bool isIOS =
 #if UNITY_IOS
-        defines.AppendLine("globalThis.UNITY_IOS = true;");
+            true;
 #else
-        defines.AppendLine("globalThis.UNITY_IOS = false;");
+            false;
 #endif
-
+        const bool isAndroid =
 #if UNITY_ANDROID
-        defines.AppendLine("globalThis.UNITY_ANDROID = true;");
+            true;
 #else
-        defines.AppendLine("globalThis.UNITY_ANDROID = false;");
+            false;
 #endif
-
+        const bool isDebug =
 #if DEBUG || DEVELOPMENT_BUILD
-        defines.AppendLine("globalThis.DEBUG = true;");
+            true;
 #else
-        defines.AppendLine("globalThis.DEBUG = false;");
+            false;
 #endif
 
-        _bridge.Eval(defines.ToString(), "platform-defines.js");
+        // Single eval with all defines
+        _bridge.Eval($@"Object.assign(globalThis, {{
+    UNITY_EDITOR: {(isEditor ? "true" : "false")},
+    UNITY_WEBGL: {(isWebGL ? "true" : "false")},
+    UNITY_STANDALONE: {(isStandalone ? "true" : "false")},
+    UNITY_STANDALONE_OSX: {(isOSX ? "true" : "false")},
+    UNITY_STANDALONE_WIN: {(isWindows ? "true" : "false")},
+    UNITY_STANDALONE_LINUX: {(isLinux ? "true" : "false")},
+    UNITY_IOS: {(isIOS ? "true" : "false")},
+    UNITY_ANDROID: {(isAndroid ? "true" : "false")},
+    DEBUG: {(isDebug ? "true" : "false")}
+}});", "platform-defines.js");
     }
 
     static int _updateCount = 0;
