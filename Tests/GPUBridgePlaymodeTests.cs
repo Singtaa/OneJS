@@ -144,6 +144,9 @@ public class GPUBridgePlaymodeTests {
 
         GPUBridge.Register("TestShader", _testShader);
         int shaderHandle = GPUBridge.LoadShader("TestShader");
+
+        // NOTE: The following error log is expected - Unity logs when FindKernel fails
+        Debug.Log("[GPUBridgePlaymodeTests] Intentionally requesting non-existent kernel (expect error below)");
         int kernelIndex = GPUBridge.FindKernel(shaderHandle, "NonExistentKernel");
 
         Assert.AreEqual(-1, kernelIndex);
