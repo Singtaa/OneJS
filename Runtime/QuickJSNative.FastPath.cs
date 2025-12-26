@@ -251,83 +251,80 @@ public static partial class QuickJSNative {
 
         public static void BlittableStruct<T>() where T : struct {
             var type = typeof(T);
-            var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance);
+            var fields = GetNumericFields(type);
 
-            var numericFields = new List<FieldInfo>();
-            foreach (var f in fields) {
-                if (f.FieldType == typeof(float) || f.FieldType == typeof(int) ||
-                    f.FieldType == typeof(double) || f.FieldType == typeof(bool)) {
-                    numericFields.Add(f);
-                }
-            }
-
-            if (numericFields.Count == 0) {
+            if (fields.Length == 0) {
                 Debug.LogWarning($"[QuickJS] BlittableStruct<{type.Name}>: No numeric fields found");
                 return;
             }
-            if (numericFields.Count > 4) {
-                Debug.LogWarning(
-                    $"[QuickJS] BlittableStruct<{type.Name}>: Max 4 fields supported, using first 4.");
-                numericFields = numericFields.GetRange(0, 4);
+            if (fields.Length > 4) {
+                Debug.LogWarning($"[QuickJS] BlittableStruct<{type.Name}>: Max 4 fields, using first 4.");
+                fields = fields[..4];
             }
 
-            var fieldsCopy = numericFields.ToArray();
-            var fieldCount = fieldsCopy.Length;
+            var camelNames = new string[fields.Length];
+            for (int i = 0; i < fields.Length; i++)
+                camelNames[i] = char.ToLowerInvariant(fields[i].Name[0]) + fields[i].Name[1..];
 
-            unsafe {
-                _structPackers[type] = new StructPackerRaw((obj, result) => {
-                    result->type = fieldCount <= 3 ? InteropType.Vector3 : InteropType.Vector4;
-                    result->vecX = fieldsCopy.Length > 0 ? Convert.ToSingle(fieldsCopy[0].GetValue(obj)) : 0;
-                    result->vecY = fieldsCopy.Length > 1 ? Convert.ToSingle(fieldsCopy[1].GetValue(obj)) : 0;
-                    result->vecZ = fieldsCopy.Length > 2 ? Convert.ToSingle(fieldsCopy[2].GetValue(obj)) : 0;
-                    result->vecW = fieldsCopy.Length > 3 ? Convert.ToSingle(fieldsCopy[3].GetValue(obj)) : 0;
-                });
+            RegisterBlittablePacker(type, fields);
+            RegisterBlittableUnpacker(type, fields);
+            RegisterBlittableDictConverter(type, fields, camelNames);
+        }
+
+        static FieldInfo[] GetNumericFields(Type type) {
+            var allFields = type.GetFields(BindingFlags.Public | BindingFlags.Instance);
+            var numeric = new List<FieldInfo>();
+            foreach (var f in allFields) {
+                if (f.FieldType == typeof(float) || f.FieldType == typeof(int) ||
+                    f.FieldType == typeof(double) || f.FieldType == typeof(bool))
+                    numeric.Add(f);
             }
+            return numeric.ToArray();
+        }
 
-            unsafe {
-                _structUnpackers[type] = new StructUnpackerRaw((source) => {
-                    object boxed = Activator.CreateInstance(type);
-                    if (fieldsCopy.Length > 0)
-                        fieldsCopy[0].SetValue(boxed,
-                            ConvertToFieldType(source->vecX, fieldsCopy[0].FieldType));
-                    if (fieldsCopy.Length > 1)
-                        fieldsCopy[1].SetValue(boxed,
-                            ConvertToFieldType(source->vecY, fieldsCopy[1].FieldType));
-                    if (fieldsCopy.Length > 2)
-                        fieldsCopy[2].SetValue(boxed,
-                            ConvertToFieldType(source->vecZ, fieldsCopy[2].FieldType));
-                    if (fieldsCopy.Length > 3)
-                        fieldsCopy[3].SetValue(boxed,
-                            ConvertToFieldType(source->vecW, fieldsCopy[3].FieldType));
-                    return boxed;
-                });
-            }
+        static unsafe void RegisterBlittablePacker(Type type, FieldInfo[] fields) {
+            _structPackers[type] = new StructPackerRaw((obj, result) => {
+                result->type = fields.Length <= 3 ? InteropType.Vector3 : InteropType.Vector4;
+                result->vecX = fields.Length > 0 ? Convert.ToSingle(fields[0].GetValue(obj)) : 0;
+                result->vecY = fields.Length > 1 ? Convert.ToSingle(fields[1].GetValue(obj)) : 0;
+                result->vecZ = fields.Length > 2 ? Convert.ToSingle(fields[2].GetValue(obj)) : 0;
+                result->vecW = fields.Length > 3 ? Convert.ToSingle(fields[3].GetValue(obj)) : 0;
+            });
+        }
 
-            var fieldNames = new string[fieldsCopy.Length];
-            for (int i = 0; i < fieldsCopy.Length; i++) {
-                fieldNames[i] = char.ToLowerInvariant(fieldsCopy[i].Name[0]) +
-                                fieldsCopy[i].Name.Substring(1);
-            }
+        static unsafe void RegisterBlittableUnpacker(Type type, FieldInfo[] fields) {
+            float[] vecComponents = null; // Captured for lambda
+            _structUnpackers[type] = new StructUnpackerRaw((source) => {
+                vecComponents ??= new float[4];
+                vecComponents[0] = source->vecX;
+                vecComponents[1] = source->vecY;
+                vecComponents[2] = source->vecZ;
+                vecComponents[3] = source->vecW;
 
+                object boxed = Activator.CreateInstance(type);
+                for (int i = 0; i < fields.Length; i++)
+                    fields[i].SetValue(boxed, ConvertToFieldType(vecComponents[i], fields[i].FieldType));
+                return boxed;
+            });
+        }
+
+        static void RegisterBlittableDictConverter(Type type, FieldInfo[] fields, string[] camelNames) {
             _dictConverters[type] = new DictConverterRaw((dict) => {
                 object boxed = Activator.CreateInstance(type);
-                for (int i = 0; i < fieldsCopy.Length; i++) {
-                    if (dict.TryGetValue(fieldNames[i], out var val) ||
-                        dict.TryGetValue(fieldsCopy[i].Name, out val)) {
-                        fieldsCopy[i].SetValue(boxed, ConvertToFieldType(val, fieldsCopy[i].FieldType));
-                    }
+                for (int i = 0; i < fields.Length; i++) {
+                    if (dict.TryGetValue(camelNames[i], out var val) ||
+                        dict.TryGetValue(fields[i].Name, out val))
+                        fields[i].SetValue(boxed, ConvertToFieldType(val, fields[i].FieldType));
                 }
                 return boxed;
             });
         }
 
-        static object ConvertToFieldType(object value, Type fieldType) {
-            if (fieldType == typeof(float)) return Convert.ToSingle(value);
-            if (fieldType == typeof(int)) return Convert.ToInt32(value);
-            if (fieldType == typeof(double)) return Convert.ToDouble(value);
-            if (fieldType == typeof(bool)) return Convert.ToBoolean(value);
-            return value;
-        }
+        static object ConvertToFieldType(object value, Type fieldType) =>
+            fieldType == typeof(float) ? Convert.ToSingle(value) :
+            fieldType == typeof(int) ? Convert.ToInt32(value) :
+            fieldType == typeof(double) ? Convert.ToDouble(value) :
+            fieldType == typeof(bool) ? Convert.ToBoolean(value) : value;
 
         public static bool HasStructHandler<T>() where T : struct => _structPackers.ContainsKey(typeof(T));
         public static bool HasStructHandler(Type type) => _structPackers.ContainsKey(type);

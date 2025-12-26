@@ -206,243 +206,116 @@ public sealed class QuickJSContext : IDisposable {
     }
 
     // MARK: Zero-Alloc Callbacks
-    /// <summary>
-    /// Invoke a callback with no arguments. ZERO ALLOCATION.
-    /// Use this for per-frame tick callbacks.
-    /// </summary>
-    public void InvokeCallbackNoAlloc(int handle) {
+    // Common validation - inlined for performance
+    void ThrowIfInvalid() {
         if (_disposed) throw new ObjectDisposedException(nameof(QuickJSContext));
         if (_ptr == IntPtr.Zero) throw new InvalidOperationException("Context is null");
-
-        unsafe {
-            int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, null, 0, null);
-            if (code != 0) {
-                throw new Exception($"qjs_invoke_callback failed with code {code}");
-            }
-        }
     }
 
-    /// <summary>
-    /// Invoke a callback with 1 float argument. ZERO ALLOCATION.
-    /// </summary>
+    unsafe void InvokeAndCheck(int handle, QuickJSNative.InteropValue* args, int count) {
+        int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, args, count, null);
+        if (code != 0) throw new Exception($"qjs_invoke_callback failed with code {code}");
+    }
+
+    // InteropValue helpers for common types
+    static QuickJSNative.InteropValue MakeFloat(float v) =>
+        new() { type = QuickJSNative.InteropType.Float32, f32 = v };
+
+    static QuickJSNative.InteropValue MakeInt(int v) =>
+        new() { type = QuickJSNative.InteropType.Int32, i32 = v };
+
+    static QuickJSNative.InteropValue MakeDouble(double v) =>
+        new() { type = QuickJSNative.InteropType.Double, f64 = v };
+
+    static QuickJSNative.InteropValue MakeBool(bool v) =>
+        new() { type = QuickJSNative.InteropType.Bool, b = v ? 1 : 0 };
+
+    static QuickJSNative.InteropValue MakeVec3(Vector3 v) =>
+        new() { type = QuickJSNative.InteropType.Vector3, vecX = v.x, vecY = v.y, vecZ = v.z };
+
+    static QuickJSNative.InteropValue MakeVec4(float x, float y, float z, float w) =>
+        new() { type = QuickJSNative.InteropType.Vector4, vecX = x, vecY = y, vecZ = z, vecW = w };
+
+    /// <summary>Invoke a callback with no arguments. ZERO ALLOCATION.</summary>
+    public unsafe void InvokeCallbackNoAlloc(int handle) {
+        ThrowIfInvalid();
+        InvokeAndCheck(handle, null, 0);
+    }
+
+    /// <summary>Invoke a callback with 1 float argument. ZERO ALLOCATION.</summary>
     public unsafe void InvokeCallbackNoAlloc(int handle, float arg0) {
-        if (_disposed) throw new ObjectDisposedException(nameof(QuickJSContext));
-        if (_ptr == IntPtr.Zero) throw new InvalidOperationException("Context is null");
-
-        QuickJSNative.InteropValue* args = stackalloc QuickJSNative.InteropValue[1];
-        args[0] = default;
-        args[0].type = QuickJSNative.InteropType.Float32;
-        args[0].f32 = arg0;
-
-        int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, args, 1, null);
-        if (code != 0) {
-            throw new Exception($"qjs_invoke_callback failed with code {code}");
-        }
+        ThrowIfInvalid();
+        var args = stackalloc QuickJSNative.InteropValue[1] { MakeFloat(arg0) };
+        InvokeAndCheck(handle, args, 1);
     }
 
-    /// <summary>
-    /// Invoke a callback with 2 float arguments. ZERO ALLOCATION.
-    /// </summary>
+    /// <summary>Invoke a callback with 2 float arguments. ZERO ALLOCATION.</summary>
     public unsafe void InvokeCallbackNoAlloc(int handle, float arg0, float arg1) {
-        if (_disposed) throw new ObjectDisposedException(nameof(QuickJSContext));
-        if (_ptr == IntPtr.Zero) throw new InvalidOperationException("Context is null");
-
-        QuickJSNative.InteropValue* args = stackalloc QuickJSNative.InteropValue[2];
-        args[0] = default;
-        args[0].type = QuickJSNative.InteropType.Float32;
-        args[0].f32 = arg0;
-        args[1] = default;
-        args[1].type = QuickJSNative.InteropType.Float32;
-        args[1].f32 = arg1;
-
-        int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, args, 2, null);
-        if (code != 0) {
-            throw new Exception($"qjs_invoke_callback failed with code {code}");
-        }
+        ThrowIfInvalid();
+        var args = stackalloc QuickJSNative.InteropValue[2] { MakeFloat(arg0), MakeFloat(arg1) };
+        InvokeAndCheck(handle, args, 2);
     }
 
-    /// <summary>
-    /// Invoke a callback with 3 float arguments. ZERO ALLOCATION.
-    /// </summary>
+    /// <summary>Invoke a callback with 3 float arguments. ZERO ALLOCATION.</summary>
     public unsafe void InvokeCallbackNoAlloc(int handle, float arg0, float arg1, float arg2) {
-        if (_disposed) throw new ObjectDisposedException(nameof(QuickJSContext));
-        if (_ptr == IntPtr.Zero) throw new InvalidOperationException("Context is null");
-
-        QuickJSNative.InteropValue* args = stackalloc QuickJSNative.InteropValue[3];
-        args[0] = default;
-        args[0].type = QuickJSNative.InteropType.Float32;
-        args[0].f32 = arg0;
-        args[1] = default;
-        args[1].type = QuickJSNative.InteropType.Float32;
-        args[1].f32 = arg1;
-        args[2] = default;
-        args[2].type = QuickJSNative.InteropType.Float32;
-        args[2].f32 = arg2;
-
-        int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, args, 3, null);
-        if (code != 0) {
-            throw new Exception($"qjs_invoke_callback failed with code {code}");
-        }
+        ThrowIfInvalid();
+        var args = stackalloc QuickJSNative.InteropValue[3] { MakeFloat(arg0), MakeFloat(arg1), MakeFloat(arg2) };
+        InvokeAndCheck(handle, args, 3);
     }
 
-    /// <summary>
-    /// Invoke a callback with 1 int argument. ZERO ALLOCATION.
-    /// </summary>
+    /// <summary>Invoke a callback with 1 int argument. ZERO ALLOCATION.</summary>
     public unsafe void InvokeCallbackNoAlloc(int handle, int arg0) {
-        if (_disposed) throw new ObjectDisposedException(nameof(QuickJSContext));
-        if (_ptr == IntPtr.Zero) throw new InvalidOperationException("Context is null");
-
-        QuickJSNative.InteropValue* args = stackalloc QuickJSNative.InteropValue[1];
-        args[0] = default;
-        args[0].type = QuickJSNative.InteropType.Int32;
-        args[0].i32 = arg0;
-
-        int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, args, 1, null);
-        if (code != 0) {
-            throw new Exception($"qjs_invoke_callback failed with code {code}");
-        }
+        ThrowIfInvalid();
+        var args = stackalloc QuickJSNative.InteropValue[1] { MakeInt(arg0) };
+        InvokeAndCheck(handle, args, 1);
     }
 
-    /// <summary>
-    /// Invoke a callback with 2 int arguments. ZERO ALLOCATION.
-    /// </summary>
+    /// <summary>Invoke a callback with 2 int arguments. ZERO ALLOCATION.</summary>
     public unsafe void InvokeCallbackNoAlloc(int handle, int arg0, int arg1) {
-        if (_disposed) throw new ObjectDisposedException(nameof(QuickJSContext));
-        if (_ptr == IntPtr.Zero) throw new InvalidOperationException("Context is null");
-
-        QuickJSNative.InteropValue* args = stackalloc QuickJSNative.InteropValue[2];
-        args[0] = default;
-        args[0].type = QuickJSNative.InteropType.Int32;
-        args[0].i32 = arg0;
-        args[1] = default;
-        args[1].type = QuickJSNative.InteropType.Int32;
-        args[1].i32 = arg1;
-
-        int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, args, 2, null);
-        if (code != 0) {
-            throw new Exception($"qjs_invoke_callback failed with code {code}");
-        }
+        ThrowIfInvalid();
+        var args = stackalloc QuickJSNative.InteropValue[2] { MakeInt(arg0), MakeInt(arg1) };
+        InvokeAndCheck(handle, args, 2);
     }
 
-    /// <summary>
-    /// Invoke a callback with 1 double argument. ZERO ALLOCATION.
-    /// </summary>
+    /// <summary>Invoke a callback with 1 double argument. ZERO ALLOCATION.</summary>
     public unsafe void InvokeCallbackNoAlloc(int handle, double arg0) {
-        if (_disposed) throw new ObjectDisposedException(nameof(QuickJSContext));
-        if (_ptr == IntPtr.Zero) throw new InvalidOperationException("Context is null");
-
-        QuickJSNative.InteropValue* args = stackalloc QuickJSNative.InteropValue[1];
-        args[0] = default;
-        args[0].type = QuickJSNative.InteropType.Double;
-        args[0].f64 = arg0;
-
-        int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, args, 1, null);
-        if (code != 0) {
-            throw new Exception($"qjs_invoke_callback failed with code {code}");
-        }
+        ThrowIfInvalid();
+        var args = stackalloc QuickJSNative.InteropValue[1] { MakeDouble(arg0) };
+        InvokeAndCheck(handle, args, 1);
     }
 
-    /// <summary>
-    /// Invoke a callback with 1 bool argument. ZERO ALLOCATION.
-    /// </summary>
+    /// <summary>Invoke a callback with 1 bool argument. ZERO ALLOCATION.</summary>
     public unsafe void InvokeCallbackNoAlloc(int handle, bool arg0) {
-        if (_disposed) throw new ObjectDisposedException(nameof(QuickJSContext));
-        if (_ptr == IntPtr.Zero) throw new InvalidOperationException("Context is null");
-
-        QuickJSNative.InteropValue* args = stackalloc QuickJSNative.InteropValue[1];
-        args[0] = default;
-        args[0].type = QuickJSNative.InteropType.Bool;
-        args[0].b = arg0 ? 1 : 0;
-
-        int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, args, 1, null);
-        if (code != 0) {
-            throw new Exception($"qjs_invoke_callback failed with code {code}");
-        }
+        ThrowIfInvalid();
+        var args = stackalloc QuickJSNative.InteropValue[1] { MakeBool(arg0) };
+        InvokeAndCheck(handle, args, 1);
     }
 
-    /// <summary>
-    /// Invoke a callback with a Vector3 argument. ZERO ALLOCATION.
-    /// </summary>
+    /// <summary>Invoke a callback with a Vector3 argument. ZERO ALLOCATION.</summary>
     public unsafe void InvokeCallbackNoAlloc(int handle, Vector3 arg0) {
-        if (_disposed) throw new ObjectDisposedException(nameof(QuickJSContext));
-        if (_ptr == IntPtr.Zero) throw new InvalidOperationException("Context is null");
-
-        QuickJSNative.InteropValue* args = stackalloc QuickJSNative.InteropValue[1];
-        args[0] = default;
-        args[0].type = QuickJSNative.InteropType.Vector3;
-        args[0].vecX = arg0.x;
-        args[0].vecY = arg0.y;
-        args[0].vecZ = arg0.z;
-
-        int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, args, 1, null);
-        if (code != 0) {
-            throw new Exception($"qjs_invoke_callback failed with code {code}");
-        }
+        ThrowIfInvalid();
+        var args = stackalloc QuickJSNative.InteropValue[1] { MakeVec3(arg0) };
+        InvokeAndCheck(handle, args, 1);
     }
 
-    /// <summary>
-    /// Invoke a callback with a Quaternion argument. ZERO ALLOCATION.
-    /// </summary>
+    /// <summary>Invoke a callback with a Quaternion argument. ZERO ALLOCATION.</summary>
     public unsafe void InvokeCallbackNoAlloc(int handle, Quaternion arg0) {
-        if (_disposed) throw new ObjectDisposedException(nameof(QuickJSContext));
-        if (_ptr == IntPtr.Zero) throw new InvalidOperationException("Context is null");
-
-        QuickJSNative.InteropValue* args = stackalloc QuickJSNative.InteropValue[1];
-        args[0] = default;
-        args[0].type = QuickJSNative.InteropType.Vector4;
-        args[0].vecX = arg0.x;
-        args[0].vecY = arg0.y;
-        args[0].vecZ = arg0.z;
-        args[0].vecW = arg0.w;
-
-        int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, args, 1, null);
-        if (code != 0) {
-            throw new Exception($"qjs_invoke_callback failed with code {code}");
-        }
+        ThrowIfInvalid();
+        var args = stackalloc QuickJSNative.InteropValue[1] { MakeVec4(arg0.x, arg0.y, arg0.z, arg0.w) };
+        InvokeAndCheck(handle, args, 1);
     }
 
-    /// <summary>
-    /// Invoke a callback with a Color argument. ZERO ALLOCATION.
-    /// </summary>
+    /// <summary>Invoke a callback with a Color argument. ZERO ALLOCATION.</summary>
     public unsafe void InvokeCallbackNoAlloc(int handle, Color arg0) {
-        if (_disposed) throw new ObjectDisposedException(nameof(QuickJSContext));
-        if (_ptr == IntPtr.Zero) throw new InvalidOperationException("Context is null");
-
-        QuickJSNative.InteropValue* args = stackalloc QuickJSNative.InteropValue[1];
-        args[0] = default;
-        args[0].type = QuickJSNative.InteropType.Vector4;
-        args[0].vecX = arg0.r;
-        args[0].vecY = arg0.g;
-        args[0].vecZ = arg0.b;
-        args[0].vecW = arg0.a;
-
-        int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, args, 1, null);
-        if (code != 0) {
-            throw new Exception($"qjs_invoke_callback failed with code {code}");
-        }
+        ThrowIfInvalid();
+        var args = stackalloc QuickJSNative.InteropValue[1] { MakeVec4(arg0.r, arg0.g, arg0.b, arg0.a) };
+        InvokeAndCheck(handle, args, 1);
     }
 
-    /// <summary>
-    /// Invoke a callback with float + Vector3 arguments. ZERO ALLOCATION.
-    /// Useful for passing deltaTime + position in one call.
-    /// </summary>
+    /// <summary>Invoke a callback with float + Vector3 arguments. ZERO ALLOCATION.</summary>
     public unsafe void InvokeCallbackNoAlloc(int handle, float arg0, Vector3 arg1) {
-        if (_disposed) throw new ObjectDisposedException(nameof(QuickJSContext));
-        if (_ptr == IntPtr.Zero) throw new InvalidOperationException("Context is null");
-
-        QuickJSNative.InteropValue* args = stackalloc QuickJSNative.InteropValue[2];
-        args[0] = default;
-        args[0].type = QuickJSNative.InteropType.Float32;
-        args[0].f32 = arg0;
-        args[1] = default;
-        args[1].type = QuickJSNative.InteropType.Vector3;
-        args[1].vecX = arg1.x;
-        args[1].vecY = arg1.y;
-        args[1].vecZ = arg1.z;
-
-        int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, args, 2, null);
-        if (code != 0) {
-            throw new Exception($"qjs_invoke_callback failed with code {code}");
-        }
+        ThrowIfInvalid();
+        var args = stackalloc QuickJSNative.InteropValue[2] { MakeFloat(arg0), MakeVec3(arg1) };
+        InvokeAndCheck(handle, args, 2);
     }
 }

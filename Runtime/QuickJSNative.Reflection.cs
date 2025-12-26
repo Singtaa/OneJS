@@ -5,86 +5,38 @@ using System.Reflection;
 
 public static partial class QuickJSNative {
     // MARK: Type and Member Caches
-    static readonly Dictionary<string, Type> _typeCache = new Dictionary<string, Type>();
-
-    // Using ConcurrentDictionary for thread-safe cache access without explicit locking
-    // Method cache key includes argument type hash to handle overloads correctly
+    static readonly Dictionary<string, Type> _typeCache = new();
     static readonly ConcurrentDictionary<(Type, string, bool, int), MethodInfo> _methodCache = new();
     static readonly ConcurrentDictionary<(Type, string, bool), PropertyInfo> _propertyCache = new();
     static readonly ConcurrentDictionary<(Type, string, bool), FieldInfo> _fieldCache = new();
 
+    // MARK: BindingFlags Helpers
+    const BindingFlags PublicNonPublic = BindingFlags.Public | BindingFlags.NonPublic;
+    static BindingFlags GetFlags(bool isStatic) =>
+        PublicNonPublic | (isStatic ? BindingFlags.Static : BindingFlags.Instance);
+
+    // MARK: Type Resolution
     static Type ResolveType(string fullName) {
         if (string.IsNullOrEmpty(fullName)) return null;
+        if (_typeCache.TryGetValue(fullName, out var cached)) return cached;
 
-        if (_typeCache.TryGetValue(fullName, out var cached)) {
-            return cached;
-        }
-
-        Type type = Type.GetType(fullName);
+        var type = Type.GetType(fullName);
         if (type == null) {
-            var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-            for (int i = 0; i < assemblies.Length; i++) {
-                var asm = assemblies[i];
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies()) {
                 try {
-                    var t = asm.GetType(fullName);
-                    if (t != null) {
-                        type = t;
-                        break;
-                    }
-                } catch {
-                }
+                    type = asm.GetType(fullName);
+                    if (type != null) break;
+                } catch { }
             }
         }
 
-        if (type != null) {
-            _typeCache[fullName] = type;
-        }
-
+        if (type != null) _typeCache[fullName] = type;
         return type;
     }
 
-    static MethodInfo FindMethod(Type type, string name, BindingFlags flags, object[] args) {
-        while (type != null) {
-            var methods = type.GetMethods(flags | BindingFlags.DeclaredOnly);
-            for (int i = 0; i < methods.Length; i++) {
-                var m = methods[i];
-                if (m.Name != name) continue;
-
-                var parameters = m.GetParameters();
-                if (parameters.Length != args.Length) continue;
-
-                bool match = true;
-                for (int j = 0; j < parameters.Length; j++) {
-                    var pType = parameters[j].ParameterType;
-                    var arg = args[j];
-
-                    if (arg == null) {
-                        if (pType.IsValueType && Nullable.GetUnderlyingType(pType) == null) {
-                            match = false;
-                            break;
-                        }
-                    } else {
-                        var aType = arg.GetType();
-                        if (!pType.IsAssignableFrom(aType)) {
-                            if (!(pType.IsPrimitive && aType.IsPrimitive)) {
-                                match = false;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (match) return m;
-            }
-
-            type = type.BaseType;
-        }
-
-        return null;
-    }
-
+    // MARK: Member Finders
     /// <summary>
-    /// Generic member finder that walks the type hierarchy with a common pattern.
+    /// Generic member finder that walks the type hierarchy.
     /// </summary>
     static T FindMember<T>(Type type, string name, BindingFlags flags,
         Func<Type, string, BindingFlags, T> getter) where T : class {
@@ -96,15 +48,42 @@ public static partial class QuickJSNative {
         return null;
     }
 
+    /// <summary>
+    /// Check if an argument matches a parameter type.
+    /// </summary>
+    static bool IsArgCompatible(Type paramType, object arg) {
+        if (arg == null)
+            return !paramType.IsValueType || Nullable.GetUnderlyingType(paramType) != null;
+
+        var argType = arg.GetType();
+        return paramType.IsAssignableFrom(argType) || (paramType.IsPrimitive && argType.IsPrimitive);
+    }
+
+    static MethodInfo FindMethod(Type type, string name, BindingFlags flags, object[] args) {
+        while (type != null) {
+            foreach (var m in type.GetMethods(flags | BindingFlags.DeclaredOnly)) {
+                if (m.Name != name) continue;
+                var parameters = m.GetParameters();
+                if (parameters.Length != args.Length) continue;
+
+                bool match = true;
+                for (int j = 0; j < parameters.Length && match; j++)
+                    match = IsArgCompatible(parameters[j].ParameterType, args[j]);
+
+                if (match) return m;
+            }
+            type = type.BaseType;
+        }
+        return null;
+    }
+
     static PropertyInfo FindProperty(Type type, string name, BindingFlags flags) {
-        // First try the class hierarchy
         var prop = FindMember(type, name, flags, (t, n, f) => t.GetProperty(n, f));
         if (prop != null) return prop;
 
-        // Then search implemented interfaces (needed for IStyle, etc.)
-        var interfaces = type.GetInterfaces();
-        for (int i = 0; i < interfaces.Length; i++) {
-            prop = interfaces[i].GetProperty(name);
+        // Search interfaces (needed for IStyle, etc.)
+        foreach (var iface in type.GetInterfaces()) {
+            prop = iface.GetProperty(name);
             if (prop != null) return prop;
         }
         return null;
@@ -113,40 +92,23 @@ public static partial class QuickJSNative {
     static FieldInfo FindField(Type type, string name, BindingFlags flags) =>
         FindMember(type, name, flags, (t, n, f) => t.GetField(n, f));
 
-    /// <summary>
-    /// Computes a hash based on argument types to distinguish method overloads.
-    /// </summary>
+    // MARK: Argument Hash
     static int ComputeArgTypeHash(object[] args) {
         if (args == null || args.Length == 0) return 0;
-
         int hash = args.Length;
-        for (int i = 0; i < args.Length; i++) {
-            if (args[i] != null) {
-                hash = hash * 31 + args[i].GetType().GetHashCode();
-            } else {
-                hash = hash * 31; // null contributes 0 to distinguish from non-null
-            }
-        }
+        foreach (var arg in args)
+            hash = hash * 31 + (arg?.GetType().GetHashCode() ?? 0);
         return hash;
     }
 
+    // MARK: Cached Lookups
     static MethodInfo FindMethodCached(Type type, string name, bool isStatic, object[] args) {
-        var argHash = ComputeArgTypeHash(args);
-        var key = (type, name, isStatic, argHash);
+        var key = (type, name, isStatic, ComputeArgTypeHash(args));
+        if (_methodCache.TryGetValue(key, out var cached) && cached.GetParameters().Length == args.Length)
+            return cached;
 
-        if (_methodCache.TryGetValue(key, out var cached)) {
-            // Verify arg count still matches as a sanity check
-            var parms = cached.GetParameters();
-            if (parms.Length == args.Length) return cached;
-        }
-
-        BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic;
-        flags |= isStatic ? BindingFlags.Static : BindingFlags.Instance;
-
-        var method = FindMethod(type, name, flags, args);
-        if (method != null) {
-            _methodCache[key] = method;
-        }
+        var method = FindMethod(type, name, GetFlags(isStatic), args);
+        if (method != null) _methodCache[key] = method;
         return method;
     }
 
@@ -154,13 +116,8 @@ public static partial class QuickJSNative {
         var key = (type, name, isStatic);
         if (_propertyCache.TryGetValue(key, out var cached)) return cached;
 
-        BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic;
-        flags |= isStatic ? BindingFlags.Static : BindingFlags.Instance;
-
-        var prop = FindProperty(type, name, flags);
-        if (prop != null) {
-            _propertyCache[key] = prop;
-        }
+        var prop = FindProperty(type, name, GetFlags(isStatic));
+        if (prop != null) _propertyCache[key] = prop;
         return prop;
     }
 
@@ -168,13 +125,8 @@ public static partial class QuickJSNative {
         var key = (type, name, isStatic);
         if (_fieldCache.TryGetValue(key, out var cached)) return cached;
 
-        BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic;
-        flags |= isStatic ? BindingFlags.Static : BindingFlags.Instance;
-
-        var field = FindField(type, name, flags);
-        if (field != null) {
-            _fieldCache[key] = field;
-        }
+        var field = FindField(type, name, GetFlags(isStatic));
+        if (field != null) _fieldCache[key] = field;
         return field;
     }
 
