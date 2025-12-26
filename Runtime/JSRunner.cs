@@ -60,7 +60,6 @@ public class JSRunner : MonoBehaviour {
     [SerializeField] string _workingDir = "App";
     [SerializeField] string _entryFile = "@outputs/esbuild/app.js";
 
-    [Header("UI Panel")]
     [Tooltip("Optional: Drag in a custom PanelSettings asset. If null, settings below are used to create one at runtime.")]
     [SerializeField] PanelSettings _panelSettings;
     

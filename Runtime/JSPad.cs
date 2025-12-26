@@ -9,8 +9,8 @@ using UnityEngine.UIElements;
 ///
 /// Uses a temp directory (Temp/OneJSPad/) for build artifacts.
 /// No live-reload - manual Build & Run only.
+/// Automatically creates UIDocument and PanelSettings if not present.
 /// </summary>
-[RequireComponent(typeof(UIDocument))]
 public class JSPad : MonoBehaviour {
     const string DefaultSourceCode = @"import { useState } from ""react""
 import { render, View, Label, Button } from ""onejs-react""
@@ -50,8 +50,23 @@ render(<App />, __root)
     [SerializeField, HideInInspector]
     string _instanceId;
 
+    [Tooltip("Optional: Drag in a custom PanelSettings asset. If null, settings below are used to create one at runtime.")]
+    [SerializeField] PanelSettings _panelSettings;
+
+    [SerializeField] ThemeStyleSheet _defaultThemeStylesheet;
+
+    // Inline panel settings (used when _panelSettings is null)
+    [SerializeField] PanelScaleMode _scaleMode = PanelScaleMode.ScaleWithScreenSize;
+    [SerializeField] Vector2Int _referenceResolution = new Vector2Int(1920, 1080);
+    [SerializeField] PanelScreenMatchMode _screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight;
+    [Range(0f, 1f)]
+    [SerializeField] float _match = 0.5f;
+    [SerializeField] float _scale = 1f;
+    [SerializeField] int _sortOrder = 0;
+
     QuickJSUIBridge _bridge;
     UIDocument _uiDocument;
+    PanelSettings _runtimePanelSettings; // Track runtime-created PanelSettings for cleanup
     bool _scriptLoaded;
     bool _initialized;
 
@@ -93,9 +108,37 @@ render(<App />, __root)
     public bool HasBuiltOutput => File.Exists(OutputFile);
 
     void Start() {
+        // Get or create UIDocument
         _uiDocument = GetComponent<UIDocument>();
-        if (_uiDocument == null || _uiDocument.rootVisualElement == null) {
-            Debug.LogError("[JSPad] UIDocument or rootVisualElement is null");
+        bool createdUIDocument = false;
+
+        if (_uiDocument == null) {
+            _uiDocument = gameObject.AddComponent<UIDocument>();
+            createdUIDocument = true;
+        }
+
+        // Ensure PanelSettings is assigned
+        if (_uiDocument.panelSettings == null) {
+            if (_panelSettings != null) {
+                // Use the assigned PanelSettings asset
+                _uiDocument.panelSettings = _panelSettings;
+            } else {
+                // Create PanelSettings at runtime from inline fields
+                _runtimePanelSettings = CreateRuntimePanelSettings();
+                _uiDocument.panelSettings = _runtimePanelSettings;
+            }
+        }
+
+        // If we created the UIDocument at runtime, defer initialization by one frame
+        // to allow Unity to fully set up the visual tree
+        if (createdUIDocument) {
+            StartCoroutine(DeferredStart());
+            return;
+        }
+
+        // Verify we have a valid root element
+        if (_uiDocument.rootVisualElement == null) {
+            Debug.LogError("[JSPad] UIDocument rootVisualElement is null after setup");
             return;
         }
 
@@ -103,6 +146,52 @@ render(<App />, __root)
         if (HasBuiltOutput) {
             RunBuiltScript();
         }
+    }
+
+    System.Collections.IEnumerator DeferredStart() {
+        // Wait one frame for Unity to fully initialize the UIDocument
+        yield return null;
+
+        if (_uiDocument == null || _uiDocument.rootVisualElement == null) {
+            Debug.LogError("[JSPad] UIDocument rootVisualElement is null after deferred setup");
+            yield break;
+        }
+
+        // Auto-run if we have a built output
+        if (HasBuiltOutput) {
+            RunBuiltScript();
+        }
+    }
+
+    /// <summary>
+    /// Create a PanelSettings instance at runtime using the inline settings.
+    /// </summary>
+    PanelSettings CreateRuntimePanelSettings() {
+        var ps = ScriptableObject.CreateInstance<PanelSettings>();
+
+        ps.scaleMode = _scaleMode;
+        ps.sortingOrder = _sortOrder;
+
+        // Apply theme stylesheet if provided
+        if (_defaultThemeStylesheet != null) {
+            ps.themeStyleSheet = _defaultThemeStylesheet;
+        }
+
+        switch (_scaleMode) {
+            case PanelScaleMode.ConstantPixelSize:
+                ps.scale = _scale;
+                break;
+
+            case PanelScaleMode.ScaleWithScreenSize:
+                ps.referenceResolution = _referenceResolution;
+                ps.screenMatchMode = _screenMatchMode;
+                if (_screenMatchMode == PanelScreenMatchMode.MatchWidthOrHeight) {
+                    ps.match = _match;
+                }
+                break;
+        }
+
+        return ps;
     }
 
     void Update() {
@@ -113,6 +202,12 @@ render(<App />, __root)
 
     void OnDestroy() {
         Stop();
+
+        // Clean up runtime-created PanelSettings
+        if (_runtimePanelSettings != null) {
+            Destroy(_runtimePanelSettings);
+            _runtimePanelSettings = null;
+        }
     }
 
     /// <summary>

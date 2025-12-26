@@ -1,2 +1,13 @@
 fileFormatVersion: 2
 guid: e24ffaae35e214c85bd06aebbf84193b
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - _panelSettings: {instanceID: 0}
+  - _defaultThemeStylesheet: {fileID: -4733365628477956816, guid: d134caeb9dc27437193943e2515f3d24, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

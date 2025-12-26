@@ -196,6 +196,77 @@ public class JSPadEditor : Editor {
 
         _root.Add(row2);
 
+        // UI Panel Settings foldout
+        var panelFoldout = new Foldout { text = "UI Panel", value = false };
+        panelFoldout.style.marginTop = 10;
+
+        var panelSettingsProp = serializedObject.FindProperty("_panelSettings");
+        var panelSettingsField = new PropertyField(panelSettingsProp);
+        panelSettingsField.BindProperty(panelSettingsProp);
+        panelFoldout.Add(panelSettingsField);
+
+        var themeStylesheetProp = serializedObject.FindProperty("_defaultThemeStylesheet");
+        var themeStylesheetField = new PropertyField(themeStylesheetProp, "Theme Stylesheet");
+        themeStylesheetField.BindProperty(themeStylesheetProp);
+        panelFoldout.Add(themeStylesheetField);
+
+        var scaleModeProp = serializedObject.FindProperty("_scaleMode");
+        var scaleModeField = new PropertyField(scaleModeProp, "Scale Mode");
+        scaleModeField.BindProperty(scaleModeProp);
+        panelFoldout.Add(scaleModeField);
+
+        // Container for conditional fields
+        var scaleWithScreenSizeFields = new VisualElement();
+        var constantPixelSizeFields = new VisualElement();
+
+        // Scale With Screen Size fields
+        var referenceResolutionProp = serializedObject.FindProperty("_referenceResolution");
+        var referenceResolutionField = new PropertyField(referenceResolutionProp, "Reference Resolution");
+        referenceResolutionField.BindProperty(referenceResolutionProp);
+        scaleWithScreenSizeFields.Add(referenceResolutionField);
+
+        var screenMatchModeProp = serializedObject.FindProperty("_screenMatchMode");
+        var screenMatchModeField = new PropertyField(screenMatchModeProp, "Screen Match Mode");
+        screenMatchModeField.BindProperty(screenMatchModeProp);
+        scaleWithScreenSizeFields.Add(screenMatchModeField);
+
+        var matchProp = serializedObject.FindProperty("_match");
+        var matchField = new PropertyField(matchProp, "Match");
+        matchField.BindProperty(matchProp);
+        scaleWithScreenSizeFields.Add(matchField);
+
+        panelFoldout.Add(scaleWithScreenSizeFields);
+
+        // Constant Pixel Size fields
+        var scaleProp = serializedObject.FindProperty("_scale");
+        var scaleField = new PropertyField(scaleProp, "Scale");
+        scaleField.BindProperty(scaleProp);
+        constantPixelSizeFields.Add(scaleField);
+
+        panelFoldout.Add(constantPixelSizeFields);
+
+        var sortOrderProp = serializedObject.FindProperty("_sortOrder");
+        var sortOrderField = new PropertyField(sortOrderProp, "Sort Order");
+        sortOrderField.BindProperty(sortOrderProp);
+        panelFoldout.Add(sortOrderField);
+
+        // Update visibility based on scale mode
+        void UpdateScaleModeVisibility() {
+            var mode = (PanelScaleMode)scaleModeProp.enumValueIndex;
+            scaleWithScreenSizeFields.style.display = mode == PanelScaleMode.ScaleWithScreenSize
+                ? DisplayStyle.Flex : DisplayStyle.None;
+            constantPixelSizeFields.style.display = mode == PanelScaleMode.ConstantPixelSize
+                ? DisplayStyle.Flex : DisplayStyle.None;
+        }
+
+        UpdateScaleModeVisibility();
+        scaleModeField.RegisterValueChangeCallback(_ => {
+            serializedObject.Update();
+            UpdateScaleModeVisibility();
+        });
+
+        _root.Add(panelFoldout);
+
         // Schedule status updates
         _root.schedule.Execute(UpdateUI).Every(100);
 
