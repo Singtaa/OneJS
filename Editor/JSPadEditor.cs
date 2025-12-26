@@ -27,10 +27,45 @@ public class JSPadEditor : Editor {
     void OnEnable() {
         _target = (JSPad)target;
         _sourceCode = serializedObject.FindProperty("_sourceCode");
+        EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
     }
 
     void OnDisable() {
+        EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
         KillCurrentProcess();
+    }
+
+    // Use GlobalObjectId for a stable key that persists across Play Mode
+    string EditorPrefsKey {
+        get {
+            var globalId = GlobalObjectId.GetGlobalObjectIdSlow(_target);
+            return $"JSPad_SourceCode_{globalId}";
+        }
+    }
+
+    void OnPlayModeStateChanged(PlayModeStateChange state) {
+        if (state == PlayModeStateChange.EnteredEditMode) {
+            // Delay restoration to ensure editor is fully initialized
+            EditorApplication.delayCall += RestoreSourceCodeFromPrefs;
+        }
+    }
+
+    void RestoreSourceCodeFromPrefs() {
+        if (_target == null) return;
+
+        var savedCode = EditorPrefs.GetString(EditorPrefsKey, null);
+        if (!string.IsNullOrEmpty(savedCode)) {
+            Undo.RecordObject(_target, "Restore JSPad Source Code");
+            _target.SourceCode = savedCode;
+            EditorUtility.SetDirty(_target);
+            EditorPrefs.DeleteKey(EditorPrefsKey);
+        }
+    }
+
+    void SaveSourceCodeToPrefs() {
+        if (Application.isPlaying && _target != null) {
+            EditorPrefs.SetString(EditorPrefsKey, _target.SourceCode);
+        }
     }
 
     public override VisualElement CreateInspectorGUI() {
@@ -66,7 +101,8 @@ public class JSPadEditor : Editor {
         var tempTitle = new Label("Temp:");
         tempTitle.style.width = 50;
         tempTitle.style.color = new Color(0.6f, 0.6f, 0.6f);
-        var tempPath = new Label(_target.TempDir);
+        var relativeTempPath = Path.Combine("Temp", "OneJSPad", Path.GetFileName(_target.TempDir));
+        var tempPath = new Label(relativeTempPath);
         tempPath.style.color = new Color(0.5f, 0.5f, 0.5f);
         tempPath.style.fontSize = 10;
         tempPath.style.overflow = Overflow.Hidden;
@@ -105,9 +141,10 @@ public class JSPadEditor : Editor {
 
         _codeField.BindProperty(_sourceCode);
 
-        // Auto-resize height based on content
+        // Auto-resize height based on content, and save to EditorPrefs during Play Mode
         _codeField.RegisterValueChangedCallback(evt => {
             UpdateCodeFieldHeight();
+            SaveSourceCodeToPrefs();
         });
         _root.schedule.Execute(UpdateCodeFieldHeight).ExecuteLater(100);
 
@@ -416,6 +453,8 @@ public class JSPadEditor : Editor {
             } catch (Exception ex) {
                 Debug.LogError($"[JSPad] Failed to clean: {ex.Message}");
             }
+        } else {
+            Debug.Log("[JSPad] Nothing to clean");
         }
 
         _target.SetBuildState(JSPad.BuildState.Idle);
