@@ -615,6 +615,7 @@ const __nativeSetInterval = globalThis.setInterval;
 const __nativeClearInterval = globalThis.clearInterval;
 const __nativeRequestAnimationFrame = globalThis.requestAnimationFrame;
 const __nativeCancelAnimationFrame = globalThis.cancelAnimationFrame;
+const __nativeFetch = globalThis.fetch;
 
 // Custom scheduling driven by Unity's Update loop via __tick
 // These replace browser APIs so React uses Unity's frame timing
@@ -888,8 +889,9 @@ globalThis.compileStyleSheet = function(ussContent, name) {
 
 // MARK: Fetch API
 /**
- * Fetch API implementation using Unity's UnityWebRequest.
- * Matches the web fetch() API signature and returns a Promise.
+ * Fetch API implementation.
+ * - WebGL: Uses browser's native fetch (JIT-optimized, full CORS support)
+ * - Native: Uses Unity's UnityWebRequest via C#
  *
  * @param {string} url - The URL to fetch
  * @param {Object} [options] - Request options
@@ -911,30 +913,36 @@ globalThis.compileStyleSheet = function(ussContent, name) {
  *     body: JSON.stringify({ name: "test" })
  * });
  */
-globalThis.fetch = function(url, options) {
-    options = options || {};
-    var method = options.method || "GET";
-    var headers = options.headers || null;
-    var body = options.body || null;
+if (__nativeFetch) {
+    // WebGL: Use browser's native fetch directly for best performance
+    globalThis.fetch = __nativeFetch;
+} else {
+    // Native platforms: Use C# UnityWebRequest
+    globalThis.fetch = function(url, options) {
+        options = options || {};
+        var method = options.method || "GET";
+        var headers = options.headers || null;
+        var body = options.body || null;
 
-    // Auto-stringify body if it's an object
-    if (body && typeof body === "object") {
-        body = JSON.stringify(body);
-        // Set Content-Type if not already set
-        if (!headers) headers = {};
-        if (!headers["Content-Type"]) {
-            headers["Content-Type"] = "application/json";
+        // Auto-stringify body if it's an object
+        if (body && typeof body === "object") {
+            body = JSON.stringify(body);
+            // Set Content-Type if not already set
+            if (!headers) headers = {};
+            if (!headers["Content-Type"]) {
+                headers["Content-Type"] = "application/json";
+            }
         }
-    }
 
-    var headersJson = headers ? JSON.stringify(headers) : null;
+        var headersJson = headers ? JSON.stringify(headers) : null;
 
-    // Call C# FetchAsync and wrap result in Response object
-    return CS.OneJS.Network.FetchAsync(url, method, body, headersJson)
-        .then(function(result) {
-            return new Response(result);
-        });
-};
+        // Call C# FetchAsync and wrap result in Response object
+        return CS.OneJS.Network.FetchAsync(url, method, body, headersJson)
+            .then(function(result) {
+                return new Response(result);
+            });
+    };
+}
 
 /**
  * Response class matching the web Response API.
