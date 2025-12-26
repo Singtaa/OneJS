@@ -9,7 +9,8 @@ using UnityEngine;
 
 namespace OneJS.Editor.TypeGenerator {
     /// <summary>
-    /// Editor window for generating TypeScript declarations from C# types
+    /// Editor window for generating TypeScript declarations from C# types.
+    /// Uses virtualized TreeView for efficient display of large type lists.
     /// </summary>
     public class TypeGeneratorWindow : EditorWindow {
         // Assembly panel
@@ -18,11 +19,14 @@ namespace OneJS.Editor.TypeGenerator {
         private List<AssemblyEntry> _assemblies = new();
         private HashSet<string> _selectedAssemblies = new();
 
-        // Type panel
-        private Vector2 _typeScroll;
+        // Type panel - TreeView based
+        private TypeTreeView _typeTreeView;
+        private TreeViewState _typeTreeViewState;
+        private SearchField _typeSearchField;
+        private List<TypeEntry> _allTypes = new();
+        private List<TypeEntry> _filteredTypes = new();
         private string _typeFilter = "";
-        private List<TypeEntry> _types = new();
-        private HashSet<Type> _selectedTypes = new();
+        private string _lastAppliedFilter = "";
 
         // Preview panel
         private Vector2 _previewScroll;
@@ -34,9 +38,19 @@ namespace OneJS.Editor.TypeGenerator {
         private bool _includeObsolete = false;
         private bool _autoRefreshPreview = true;
 
-        // State
-        private bool _needsRefresh = true;
+        // State flags
+        private bool _needsTypeRefresh = true;
         private bool _needsPreviewUpdate = true;
+
+        // Debouncing
+        private double _filterDebounceTime;
+        private double _previewDebounceTime;
+        private const double FilterDebounceDelay = 0.15;   // 150ms
+        private const double PreviewDebounceDelay = 0.3;   // 300ms
+
+        // Cached GUI styles
+        private static GUIStyle s_monoStyle;
+        private static bool s_stylesInitialized;
 
         [MenuItem("OneJS/Type Generator")]
         public static void ShowWindow() {
@@ -46,10 +60,41 @@ namespace OneJS.Editor.TypeGenerator {
         }
 
         private void OnEnable() {
+            _typeTreeViewState = new TreeViewState();
+            _typeSearchField = new SearchField();
             RefreshAssemblies();
         }
 
+        private void OnDisable() {
+            // Clean up TreeView
+            _typeTreeView = null;
+        }
+
+        private static void InitializeStyles() {
+            if (s_stylesInitialized) return;
+            s_stylesInitialized = true;
+
+            s_monoStyle = new GUIStyle(EditorStyles.textArea) {
+                wordWrap = false,
+                richText = false
+            };
+
+            // Try to use a monospace font
+            var monoFont = EditorGUIUtility.Load("Fonts/RobotoMono/RobotoMono-Regular.ttf") as Font;
+            if (monoFont == null) {
+                monoFont = Font.CreateDynamicFontFromOSFont("Menlo", 11);
+            }
+            if (monoFont == null) {
+                monoFont = Font.CreateDynamicFontFromOSFont("Consolas", 11);
+            }
+            if (monoFont != null) {
+                s_monoStyle.font = monoFont;
+            }
+        }
+
         private void OnGUI() {
+            InitializeStyles();
+
             // Toolbar
             DrawToolbar();
 
@@ -60,8 +105,8 @@ namespace OneJS.Editor.TypeGenerator {
             DrawAssemblyPanel();
             EditorGUILayout.EndVertical();
 
-            // Middle panel - Types
-            EditorGUILayout.BeginVertical(GUILayout.Width(300));
+            // Middle panel - Types (TreeView)
+            EditorGUILayout.BeginVertical(GUILayout.Width(350));
             DrawTypePanel();
             EditorGUILayout.EndVertical();
 
@@ -75,15 +120,49 @@ namespace OneJS.Editor.TypeGenerator {
             // Bottom panel - Settings and actions
             DrawBottomPanel();
 
-            // Handle deferred updates
-            if (_needsRefresh) {
-                _needsRefresh = false;
+            // Handle deferred updates with debouncing
+            ProcessDeferredUpdates();
+        }
+
+        private void ProcessDeferredUpdates() {
+            var now = EditorApplication.timeSinceStartup;
+
+            // Type refresh (immediate, no debounce)
+            if (_needsTypeRefresh) {
+                _needsTypeRefresh = false;
                 RefreshTypes();
             }
 
+            // Filter debounce
+            if (_typeFilter != _lastAppliedFilter) {
+                if (_filterDebounceTime == 0) {
+                    _filterDebounceTime = now + FilterDebounceDelay;
+                    Repaint();  // Ensure we get called again
+                }
+
+                if (now >= _filterDebounceTime) {
+                    _filterDebounceTime = 0;
+                    ApplyTypeFilter();
+                }
+            }
+
+            // Preview debounce
             if (_needsPreviewUpdate && _autoRefreshPreview) {
-                _needsPreviewUpdate = false;
-                UpdatePreview();
+                if (_previewDebounceTime == 0) {
+                    _previewDebounceTime = now + PreviewDebounceDelay;
+                    Repaint();
+                }
+
+                if (now >= _previewDebounceTime) {
+                    _previewDebounceTime = 0;
+                    _needsPreviewUpdate = false;
+                    UpdatePreview();
+                }
+            }
+
+            // Request repaint if we're waiting for debounce
+            if (_filterDebounceTime > 0 || _previewDebounceTime > 0) {
+                Repaint();
             }
         }
 
@@ -112,7 +191,7 @@ namespace OneJS.Editor.TypeGenerator {
             EditorGUI.BeginChangeCheck();
             _assemblyFilter = EditorGUILayout.TextField(_assemblyFilter, EditorStyles.toolbarSearchField);
             if (EditorGUI.EndChangeCheck()) {
-                // Filter changed
+                // Filter changed - will be applied inline
             }
 
             // Quick select buttons
@@ -125,7 +204,7 @@ namespace OneJS.Editor.TypeGenerator {
             }
             if (GUILayout.Button("Clear", EditorStyles.miniButtonRight)) {
                 _selectedAssemblies.Clear();
-                _needsRefresh = true;
+                _needsTypeRefresh = true;
             }
             EditorGUILayout.EndHorizontal();
 
@@ -146,7 +225,7 @@ namespace OneJS.Editor.TypeGenerator {
                     } else {
                         _selectedAssemblies.Remove(asm.Name);
                     }
-                    _needsRefresh = true;
+                    _needsTypeRefresh = true;
                 }
             }
 
@@ -158,70 +237,69 @@ namespace OneJS.Editor.TypeGenerator {
         private void DrawTypePanel() {
             EditorGUILayout.LabelField("Types", EditorStyles.boldLabel);
 
-            // Filter
-            EditorGUI.BeginChangeCheck();
-            _typeFilter = EditorGUILayout.TextField(_typeFilter, EditorStyles.toolbarSearchField);
-            if (EditorGUI.EndChangeCheck()) {
-                // Filter changed
+            // Search field with debouncing
+            var searchRect = GUILayoutUtility.GetRect(0, 18, GUILayout.ExpandWidth(true));
+            var newFilter = _typeSearchField.OnGUI(searchRect, _typeFilter);
+            if (newFilter != _typeFilter) {
+                _typeFilter = newFilter;
+                // Will be applied after debounce
             }
 
             // Quick select buttons
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("All", EditorStyles.miniButtonLeft)) {
-                foreach (var t in _types) {
-                    if (PassesTypeFilter(t)) {
-                        _selectedTypes.Add(t.Type);
-                    }
-                }
-                _needsPreviewUpdate = true;
+                _typeTreeView?.SelectAll();
             }
             if (GUILayout.Button("None", EditorStyles.miniButtonMid)) {
-                _selectedTypes.Clear();
-                _needsPreviewUpdate = true;
+                _typeTreeView?.SelectNone();
             }
             if (GUILayout.Button("Classes", EditorStyles.miniButtonRight)) {
-                foreach (var t in _types) {
-                    if (t.Type.IsClass && !t.Type.IsAbstract) {
-                        _selectedTypes.Add(t.Type);
-                    }
-                }
-                _needsPreviewUpdate = true;
+                _typeTreeView?.SelectByPredicate(e => e.Kind == TypeKind.Class && !e.Type.IsAbstract);
             }
             EditorGUILayout.EndHorizontal();
 
-            // Type list
-            _typeScroll = EditorGUILayout.BeginScrollView(_typeScroll, GUILayout.ExpandHeight(true));
+            // TreeView
+            EnsureTreeViewInitialized();
 
-            var filter = _typeFilter.ToLowerInvariant();
-            foreach (var entry in _types) {
-                if (!PassesTypeFilter(entry, filter)) {
-                    continue;
-                }
+            var treeRect = GUILayoutUtility.GetRect(0, 10000, 0, 10000);
+            _typeTreeView?.OnGUI(treeRect);
 
-                EditorGUILayout.BeginHorizontal();
+            // Stats
+            var selectedCount = _typeTreeView?.GetSelectedTypes().Count ?? 0;
+            EditorGUILayout.LabelField($"Selected: {selectedCount} / {_filteredTypes.Count}", EditorStyles.miniLabel);
+        }
 
-                EditorGUI.BeginChangeCheck();
-                var selected = EditorGUILayout.Toggle(_selectedTypes.Contains(entry.Type), GUILayout.Width(20));
-                if (EditorGUI.EndChangeCheck()) {
-                    if (selected) {
-                        _selectedTypes.Add(entry.Type);
-                    } else {
-                        _selectedTypes.Remove(entry.Type);
-                    }
+        private void EnsureTreeViewInitialized() {
+            if (_typeTreeView == null) {
+                _typeTreeView = new TypeTreeView(_typeTreeViewState);
+                _typeTreeView.OnSelectionChanged += () => {
                     _needsPreviewUpdate = true;
-                }
+                    _previewDebounceTime = 0;  // Reset debounce timer
+                };
+                UpdateTreeViewData();
+            }
+        }
 
-                // Type icon and name
-                var icon = GetTypeIcon(entry.Type);
-                GUILayout.Label(icon, GUILayout.Width(16), GUILayout.Height(16));
-                EditorGUILayout.LabelField(entry.DisplayName, GUILayout.ExpandWidth(true));
+        private void UpdateTreeViewData() {
+            if (_typeTreeView == null) return;
 
-                EditorGUILayout.EndHorizontal();
+            var selectedTypes = _typeTreeView.GetSelectedTypes();
+            _typeTreeView.SetData(_filteredTypes, selectedTypes);
+        }
+
+        private void ApplyTypeFilter() {
+            _lastAppliedFilter = _typeFilter;
+
+            if (string.IsNullOrEmpty(_typeFilter)) {
+                _filteredTypes = new List<TypeEntry>(_allTypes);
+            } else {
+                var filterLower = _typeFilter.ToLowerInvariant();
+                _filteredTypes = _allTypes
+                    .Where(e => e.DisplayNameLower.Contains(filterLower))
+                    .ToList();
             }
 
-            EditorGUILayout.EndScrollView();
-
-            EditorGUILayout.LabelField($"Selected: {_selectedTypes.Count} / {_types.Count}", EditorStyles.miniLabel);
+            UpdateTreeViewData();
         }
 
         private void DrawPreviewPanel() {
@@ -229,13 +307,8 @@ namespace OneJS.Editor.TypeGenerator {
 
             _previewScroll = EditorGUILayout.BeginScrollView(_previewScroll, GUILayout.ExpandHeight(true));
 
-            // Use a monospace style for code
-            var style = new GUIStyle(EditorStyles.textArea) {
-                font = Font.CreateDynamicFontFromOSFont("Menlo", 11),
-                wordWrap = false
-            };
-
-            EditorGUILayout.TextArea(_previewContent, style, GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
+            EditorGUILayout.TextArea(_previewContent, s_monoStyle ?? EditorStyles.textArea,
+                GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
 
             EditorGUILayout.EndScrollView();
 
@@ -275,7 +348,8 @@ namespace OneJS.Editor.TypeGenerator {
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
 
-            GUI.enabled = _selectedTypes.Count > 0;
+            var selectedCount = _typeTreeView?.GetSelectedTypes().Count ?? 0;
+            GUI.enabled = selectedCount > 0;
             if (GUILayout.Button("Generate", GUILayout.Width(120), GUILayout.Height(30))) {
                 Generate();
             }
@@ -310,12 +384,13 @@ namespace OneJS.Editor.TypeGenerator {
                 }
             }
 
-            _needsRefresh = true;
+            _needsTypeRefresh = true;
         }
 
         private void RefreshTypes() {
-            _types.Clear();
-            _selectedTypes.Clear();
+            TypeEntry.ResetIdCounter();
+            _allTypes.Clear();
+            var failedAssemblies = new List<string>();
 
             foreach (var asmName in _selectedAssemblies) {
                 var asmEntry = _assemblies.FirstOrDefault(a => a.Name == asmName);
@@ -328,31 +403,35 @@ namespace OneJS.Editor.TypeGenerator {
                         .OrderBy(t => t.FullName);
 
                     foreach (var type in types) {
-                        _types.Add(new TypeEntry {
-                            Type = type,
-                            DisplayName = type.FullName ?? type.Name
-                        });
+                        _allTypes.Add(TypeEntry.Create(type));
                     }
                 } catch (ReflectionTypeLoadException ex) {
+                    failedAssemblies.Add($"{asmName} (partial load)");
                     // Load what we can
                     foreach (var type in ex.Types.Where(t => t != null)) {
                         if (type.IsPublic && !TypeMapper.ShouldSkipType(type)) {
-                            _types.Add(new TypeEntry {
-                                Type = type,
-                                DisplayName = type.FullName ?? type.Name
-                            });
+                            _allTypes.Add(TypeEntry.Create(type));
                         }
                     }
-                } catch {
-                    // Skip problematic assemblies
+                } catch (Exception ex) {
+                    failedAssemblies.Add($"{asmName}: {ex.Message}");
                 }
             }
+
+            // Log failed assemblies
+            if (failedAssemblies.Count > 0) {
+                Debug.LogWarning($"[TypeGenerator] Some assemblies had loading issues:\n• {string.Join("\n• ", failedAssemblies)}");
+            }
+
+            // Apply current filter to new types
+            ApplyTypeFilter();
 
             _needsPreviewUpdate = true;
         }
 
         private void UpdatePreview() {
-            if (_selectedTypes.Count == 0) {
+            var selectedTypes = _typeTreeView?.GetSelectedTypes();
+            if (selectedTypes == null || selectedTypes.Count == 0) {
                 _previewContent = "// Select types to preview the generated TypeScript declarations";
                 return;
             }
@@ -362,7 +441,7 @@ namespace OneJS.Editor.TypeGenerator {
                     IncludeObsolete = _includeObsolete
                 });
 
-                var typeInfos = analyzer.AnalyzeTypes(_selectedTypes);
+                var typeInfos = analyzer.AnalyzeTypes(selectedTypes);
 
                 var emitter = new TypeScriptEmitter(new EmitterOptions {
                     IncludeDocumentation = _includeDocumentation,
@@ -376,7 +455,8 @@ namespace OneJS.Editor.TypeGenerator {
         }
 
         private void Generate() {
-            if (_selectedTypes.Count == 0) {
+            var selectedTypes = _typeTreeView?.GetSelectedTypes();
+            if (selectedTypes == null || selectedTypes.Count == 0) {
                 EditorUtility.DisplayDialog("No Types Selected", "Please select at least one type to generate.", "OK");
                 return;
             }
@@ -392,7 +472,7 @@ namespace OneJS.Editor.TypeGenerator {
                     IncludeObsolete = _includeObsolete
                 });
 
-                var typeInfos = analyzer.AnalyzeTypes(_selectedTypes);
+                var typeInfos = analyzer.AnalyzeTypes(selectedTypes);
 
                 var emitter = new TypeScriptEmitter(new EmitterOptions {
                     IncludeDocumentation = _includeDocumentation,
@@ -419,26 +499,7 @@ namespace OneJS.Editor.TypeGenerator {
                     _selectedAssemblies.Add(asm.Name);
                 }
             }
-            _needsRefresh = true;
-        }
-
-        private bool PassesTypeFilter(TypeEntry entry, string filter = null) {
-            if (string.IsNullOrEmpty(filter)) {
-                filter = _typeFilter.ToLowerInvariant();
-            }
-            if (string.IsNullOrEmpty(filter)) return true;
-            return entry.DisplayName.ToLowerInvariant().Contains(filter);
-        }
-
-        private GUIContent GetTypeIcon(Type type) {
-            string iconName;
-            if (type.IsInterface) iconName = "d_cs Script Icon";
-            else if (type.IsEnum) iconName = "d_FilterByType";
-            else if (type.IsValueType) iconName = "d_PreMatCube";
-            else iconName = "d_cs Script Icon";
-
-            var icon = EditorGUIUtility.IconContent(iconName);
-            return icon ?? GUIContent.none;
+            _needsTypeRefresh = true;
         }
 
         private string FormatBytes(int bytes) {
@@ -450,11 +511,6 @@ namespace OneJS.Editor.TypeGenerator {
         private class AssemblyEntry {
             public string Name;
             public Assembly Assembly;
-        }
-
-        private class TypeEntry {
-            public Type Type;
-            public string DisplayName;
         }
     }
 }
