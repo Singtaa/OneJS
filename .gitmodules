@@ -1,0 +1,3 @@
+[submodule "Auxiliary~/quickjs-unity/quickjs"]
+	path = Auxiliary~/quickjs-unity/quickjs
+	url = https://github.com/bellard/quickjs
