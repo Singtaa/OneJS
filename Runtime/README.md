@@ -21,9 +21,17 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `JSRunner.cs` | MonoBehaviour entry point with auto-scaffolding and live reload |
 | `JSPad.cs` | Inline TSX runner with no external working directory |
 | `Network.cs` | Fetch API implementation using UnityWebRequest |
-| `ScriptEngine.cs` | Placeholder/stub |
 | `GPU/GPUBridge.cs` | Compute shader API for JavaScript |
 | `GPU/ComputeShaderProvider.cs` | MonoBehaviour for registering shaders via inspector |
+| `Controls/CodeField.cs` | TextField with syntax highlighting via per-glyph vertex coloring |
+
+## Controls (`Controls/` folder)
+
+Custom UI Toolkit controls for OneJS applications. See `Controls/README.md` for details.
+
+| Control | Description |
+|---------|-------------|
+| `CodeField` | TextField with syntax highlighting. Uses `PostProcessTextVertices` to colorize glyphs without affecting cursor positioning. Includes built-in JS/TS highlighter. |
 
 ## JSRunner Features
 
