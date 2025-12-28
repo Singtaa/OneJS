@@ -52,7 +52,7 @@ namespace OneJS.Editor.TypeGenerator {
         private static GUIStyle s_monoStyle;
         private static bool s_stylesInitialized;
 
-        [MenuItem("OneJS/Type Generator")]
+        [MenuItem("Tools/OneJS/Type Generator")]
         public static void ShowWindow() {
             var window = GetWindow<TypeGeneratorWindow>("Type Generator");
             window.minSize = new Vector2(900, 600);
