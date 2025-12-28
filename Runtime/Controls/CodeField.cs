@@ -259,20 +259,103 @@ namespace OneJS
 
         private void OnKeyDown(KeyDownEvent evt)
         {
-            if (evt.keyCode != KeyCode.Tab)
-                return;
-
-            evt.StopPropagation();
-            evt.PreventDefault();
-
-            if (evt.shiftKey)
+            if (evt.keyCode == KeyCode.Tab)
             {
-                HandleDedent();
+                evt.StopPropagation();
+                evt.PreventDefault();
+
+                if (evt.shiftKey)
+                {
+                    HandleDedent();
+                }
+                else
+                {
+                    HandleIndent();
+                }
+            }
+            else if (evt.keyCode == KeyCode.Backspace && _indentUsingSpaces)
+            {
+                if (HandleSmartBackspace())
+                {
+                    evt.StopPropagation();
+                    evt.PreventDefault();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Handles smart backspace: when cursor is in leading whitespace, delete back to previous indent level.
+        /// Returns true if handled, false if default backspace behavior should apply.
+        /// </summary>
+        private bool HandleSmartBackspace()
+        {
+            // Only apply when there's no selection
+            if (selectIndex != cursorIndex)
+                return false;
+
+            int cursorPos = cursorIndex;
+            if (cursorPos == 0)
+                return false;
+
+            int lineStart = GetLineStart(value, cursorPos);
+
+            // Check if cursor is within leading whitespace
+            bool inLeadingWhitespace = true;
+            for (int i = lineStart; i < cursorPos; i++)
+            {
+                if (value[i] != ' ' && value[i] != '\t')
+                {
+                    inLeadingWhitespace = false;
+                    break;
+                }
+            }
+
+            if (!inLeadingWhitespace)
+                return false;
+
+            // Count spaces from line start to cursor
+            int spacesBeforeCursor = 0;
+            for (int i = lineStart; i < cursorPos; i++)
+            {
+                if (value[i] == ' ')
+                    spacesBeforeCursor++;
+                else if (value[i] == '\t')
+                    spacesBeforeCursor += _indentSize; // Treat tab as IndentSize spaces for alignment
+                else
+                    break;
+            }
+
+            if (spacesBeforeCursor == 0)
+                return false;
+
+            // Calculate previous indent level
+            int currentIndentLevel = spacesBeforeCursor / _indentSize;
+            int remainder = spacesBeforeCursor % _indentSize;
+
+            int spacesToDelete;
+            if (remainder > 0)
+            {
+                // Delete just the remainder to align to indent level
+                spacesToDelete = remainder;
             }
             else
             {
-                HandleIndent();
+                // Delete full indent
+                spacesToDelete = _indentSize;
             }
+
+            // Make sure we don't delete more than available
+            spacesToDelete = Math.Min(spacesToDelete, cursorPos - lineStart);
+
+            if (spacesToDelete <= 0)
+                return false;
+
+            // Delete the spaces
+            value = value.Remove(cursorPos - spacesToDelete, spacesToDelete);
+            cursorIndex = cursorPos - spacesToDelete;
+            selectIndex = cursorIndex;
+
+            return true;
         }
 
         private void HandleIndent()
