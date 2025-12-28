@@ -1,0 +1,24 @@
+{
+    "name": "OneJS.Editor.TypeGenerator.Tests",
+    "rootNamespace": "OneJS.Editor.TypeGenerator.Tests",
+    "references": [
+        "OneJS.Editor.TypeGenerator",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

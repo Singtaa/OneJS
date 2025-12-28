@@ -9,7 +9,7 @@ Editor scripts for OneJS Unity integration.
 | `JSRunnerEditor.cs` | Custom inspector for JSRunner component |
 | `JSPadEditor.cs` | Custom inspector for JSPad inline runner |
 | `JSRunnerBuildProcessor.cs` | Build hook for auto-copying JS bundles |
-| `TypeGenerator/` | Code generation tools |
+| `TypeGenerator/` | TypeScript declaration generator (see [TypeGenerator/README.md](TypeGenerator/README.md)) |
 
 ## JSRunnerEditor
 
@@ -66,3 +66,30 @@ This ensures JS bundles are included in builds without manual steps.
 To skip auto-copy for a specific JSRunner:
 - Assign a TextAsset to the `Embedded Script` field
 - The build processor will use that instead
+
+## TypeGenerator
+
+Generates TypeScript declaration files (`.d.ts`) from C# types. Provides:
+
+- **Interactive UI**: `OneJS > Type Generator` menu
+- **Quick menu items**: `OneJS > Generate Typings > ...`
+- **Programmatic API**: Static facade, fluent builder, presets
+
+### Quick Start
+
+```csharp
+// One-liner
+TypeGenerator.Generate("output.d.ts", typeof(Vector3), typeof(GameObject));
+
+// Fluent builder
+TypeGenerator.Create()
+    .AddType<Vector3>()
+    .AddNamespace("UnityEngine.UIElements")
+    .Build()
+    .WriteTo("output.d.ts");
+
+// Presets
+TypeGenerator.Presets.UnityCore.WriteTo("unity-core.d.ts");
+```
+
+See [TypeGenerator/README.md](TypeGenerator/README.md) for full documentation.
