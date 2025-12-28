@@ -178,8 +178,12 @@ namespace OneJS
         private Color32[] _characterColors;
         private Color32[] _visibleCharacterColors; // Colors for visible glyphs only
         private TextElement _textElement;
+        private ScrollView _scrollView;
         private int _indentSize = 4;
         private bool _indentUsingSpaces = true;
+        private bool _autoHeight = false;
+        private float _lineHeight = 18f;
+        private int _minLines = 3;
 
         /// <summary>
         /// Gets a monospace font from the system. Caches the result.
@@ -280,6 +284,46 @@ namespace OneJS
             set => _indentSize = Math.Max(1, value);
         }
 
+        /// <summary>
+        /// When true, automatically adjusts height based on content line count.
+        /// Default is false.
+        /// </summary>
+        public bool AutoHeight
+        {
+            get => _autoHeight;
+            set
+            {
+                _autoHeight = value;
+                if (_autoHeight) UpdateAutoHeight();
+            }
+        }
+
+        /// <summary>
+        /// Height per line in pixels when AutoHeight is enabled. Default is 18.
+        /// </summary>
+        public float LineHeight
+        {
+            get => _lineHeight;
+            set
+            {
+                _lineHeight = Math.Max(1f, value);
+                if (_autoHeight) UpdateAutoHeight();
+            }
+        }
+
+        /// <summary>
+        /// Minimum number of lines to display when AutoHeight is enabled. Default is 3.
+        /// </summary>
+        public int MinLines
+        {
+            get => _minLines;
+            set
+            {
+                _minLines = Math.Max(1, value);
+                if (_autoHeight) UpdateAutoHeight();
+            }
+        }
+
         public CodeField() : this(null, -1, false, false, default) { }
 
         public CodeField(string label) : this(label, -1, false, false, default) { }
@@ -289,6 +333,10 @@ namespace OneJS
         {
             // Default to multiline for code
             this.multiline = true;
+
+            // Disable select-all-on-focus (not useful for code editing)
+            this.selectAllOnFocus = false;
+            this.selectAllOnMouseUp = false;
 
             // Use a simple keyword highlighter by default
             _highlighter = new SimpleKeywordHighlighter();
@@ -300,13 +348,20 @@ namespace OneJS
                 _textElement.PostProcessTextVertices = ColorizeGlyphs;
             }
 
+            // Configure horizontal scrolling
+            ConfigureScrolling();
+
             // Apply monospace font to all text elements
             ApplyMonospaceFont(this);
 
-            // Refresh highlighting when value changes
-            this.RegisterValueChangedCallback(evt => RefreshHighlighting());
+            // Refresh highlighting and auto-height when value changes
+            this.RegisterValueChangedCallback(evt =>
+            {
+                RefreshHighlighting();
+                if (_autoHeight) UpdateAutoHeight();
+            });
 
-            // Trigger initial highlighting after the element is attached
+            // Trigger initial setup after the element is attached
             RegisterCallback<AttachToPanelEvent>(evt =>
             {
                 // Re-query in case hierarchy wasn't ready in constructor
@@ -319,11 +374,18 @@ namespace OneJS
                     }
                 }
 
+                // Configure scrolling (may need to reapply after attach)
+                ConfigureScrolling();
+
                 // Apply monospace font (may need to reapply after attach)
                 ApplyMonospaceFont(this);
 
                 // Schedule to ensure layout is complete
-                schedule.Execute(() => RefreshHighlighting());
+                schedule.Execute(() =>
+                {
+                    RefreshHighlighting();
+                    if (_autoHeight) UpdateAutoHeight();
+                });
             });
 
             // Handle Tab key for space indentation
@@ -331,6 +393,85 @@ namespace OneJS
 
             // Add USS class for styling
             AddToClassList("code-field");
+        }
+
+        /// <summary>
+        /// Configures the internal ScrollView for horizontal scrolling.
+        /// </summary>
+        private void ConfigureScrolling()
+        {
+            // Find the ScrollView inside TextField (if it exists)
+            _scrollView = this.Q<ScrollView>();
+            if (_scrollView != null)
+            {
+                _scrollView.mode = ScrollViewMode.Horizontal;
+                _scrollView.horizontalScrollerVisibility = ScrollerVisibility.Auto;
+                _scrollView.verticalScrollerVisibility = ScrollerVisibility.Hidden;
+                _scrollView.elasticity = 0; // Disable elastic scrolling for code
+            }
+
+            // Prevent text wrapping in the text input
+            var textInput = this.Q(className: "unity-text-field__input");
+            if (textInput != null)
+            {
+                textInput.style.whiteSpace = WhiteSpace.NoWrap;
+                textInput.style.overflow = Overflow.Hidden;
+
+                // Handle wheel events for horizontal scrolling (trackpad support)
+                textInput.RegisterCallback<WheelEvent>(OnWheel);
+            }
+
+            // Ensure the text element doesn't wrap
+            if (_textElement != null)
+            {
+                _textElement.style.whiteSpace = WhiteSpace.NoWrap;
+            }
+        }
+
+        private void OnWheel(WheelEvent evt)
+        {
+            // Find the scrollable container
+            var textInput = this.Q(className: "unity-text-field__input");
+            if (textInput == null) return;
+
+            // Get the content container (TextElement's parent)
+            var contentContainer = _textElement?.parent;
+            if (contentContainer == null) return;
+
+            // Calculate new scroll position
+            // Use horizontal delta directly, or vertical delta for horizontal scroll if shift is held
+            float deltaX = evt.delta.x;
+            if (Math.Abs(evt.delta.y) > Math.Abs(evt.delta.x))
+            {
+                // Vertical scroll gesture - convert to horizontal
+                deltaX = evt.delta.y;
+            }
+
+            // Apply scroll by adjusting the content's left position
+            var currentLeft = contentContainer.style.left.value.value;
+            var newLeft = currentLeft - deltaX * 20f; // Multiply for reasonable scroll speed
+
+            // Clamp to valid range
+            var maxScroll = Math.Max(0, contentContainer.resolvedStyle.width - textInput.resolvedStyle.width);
+            newLeft = Math.Max(-maxScroll, Math.Min(0, newLeft));
+
+            contentContainer.style.left = newLeft;
+
+            evt.StopPropagation();
+        }
+
+        /// <summary>
+        /// Updates the height of the control based on content line count.
+        /// </summary>
+        private void UpdateAutoHeight()
+        {
+            if (!_autoHeight) return;
+
+            var lineCount = string.IsNullOrEmpty(value) ? 1 : value.Split('\n').Length;
+            var numLines = Math.Max(lineCount, _minLines);
+            var height = numLines * _lineHeight + 16; // 16 for padding
+
+            style.height = height;
         }
 
         private void OnKeyDown(KeyDownEvent evt)

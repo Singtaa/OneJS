@@ -12,8 +12,12 @@ A `TextField` with built-in syntax highlighting support. Uses UI Toolkit's `Post
 - **Correct cursor positioning** - colors are applied at render time, not via rich text tags
 - **Pluggable highlighters** - implement `ISyntaxHighlighter` for custom languages
 - **Built-in JavaScript highlighter** - keywords, strings, numbers, comments
+- **Monospace font** - automatically loads system monospace font (Menlo/Consolas/DejaVu Sans Mono)
+- **Horizontal scrolling** - trackpad/mouse wheel support for long lines
+- **Auto-height** - optionally resize based on content line count
 - **Tab-to-spaces indentation** - Tab inserts spaces, Shift+Tab dedents
 - **Multi-line indent/dedent** - Select multiple lines and Tab/Shift+Tab to indent/dedent all
+- **No select-all-on-focus** - disabled by default for code editing convenience
 
 ### Usage
 
@@ -34,6 +38,11 @@ codeField.Highlighter = null;
 // Configure indentation
 codeField.IndentUsingSpaces = true;  // true = spaces (default), false = tab character
 codeField.IndentSize = 2;            // number of spaces when IndentUsingSpaces is true
+
+// Enable auto-height (resizes based on content)
+codeField.AutoHeight = true;
+codeField.MinLines = 10;             // minimum lines to display
+codeField.LineHeight = 18f;          // pixels per line
 ```
 
 ### Indentation
@@ -54,6 +63,16 @@ CodeField handles Tab key specially for code editing:
 | Backspace (in leading whitespace) | Delete back to previous indent level (spaces mode only) |
 
 Note: Cmd+Backspace, Ctrl+Backspace, and Alt+Backspace retain their default behavior.
+
+### Auto-Height
+
+When `AutoHeight` is enabled, CodeField automatically adjusts its height based on content:
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `AutoHeight` | `false` | Enable automatic height adjustment |
+| `MinLines` | `3` | Minimum number of lines to display |
+| `LineHeight` | `18` | Pixels per line |
 
 ### Custom Highlighter
 

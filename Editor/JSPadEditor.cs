@@ -117,35 +117,23 @@ public class JSPadEditor : Editor {
         // Code editor (with syntax highlighting, monospace font, and proper indentation)
         _codeField = new CodeField();
         _codeField.bindingPath = "_sourceCode";
-        _codeField.style.minHeight = 300;
-        _codeField.style.whiteSpace = WhiteSpace.NoWrap;
-        _codeField.style.overflow = Overflow.Hidden;
+        _codeField.AutoHeight = true;
+        _codeField.MinLines = 15;
+        _codeField.LineHeight = 15f;
 
         // Style the text input
         var textInput = _codeField.Q<TextElement>();
         if (textInput != null) {
             textInput.style.fontSize = 12;
-            textInput.style.whiteSpace = WhiteSpace.NoWrap;
             textInput.style.backgroundColor = new Color(0.15f, 0.15f, 0.15f);
             textInput.style.paddingTop = textInput.style.paddingBottom = 8;
             textInput.style.paddingLeft = textInput.style.paddingRight = 8;
         }
 
-        // Style the scroll view inside CodeField
-        var scrollView = _codeField.Q<ScrollView>();
-        if (scrollView != null) {
-            scrollView.verticalScrollerVisibility = ScrollerVisibility.Hidden;
-            scrollView.horizontalScrollerVisibility = ScrollerVisibility.Auto;
-        }
-
         _codeField.BindProperty(_sourceCode);
 
-        // Auto-resize height based on content, and save to EditorPrefs during Play Mode
-        _codeField.RegisterValueChangedCallback(evt => {
-            UpdateCodeFieldHeight();
-            SaveSourceCodeToPrefs();
-        });
-        _root.schedule.Execute(UpdateCodeFieldHeight).ExecuteLater(100);
+        // Save to EditorPrefs during Play Mode
+        _codeField.RegisterValueChangedCallback(evt => SaveSourceCodeToPrefs());
 
         _root.Add(_codeField);
 
@@ -270,18 +258,6 @@ public class JSPadEditor : Editor {
         _root.schedule.Execute(UpdateUI).Every(100);
 
         return _root;
-    }
-
-    void UpdateCodeFieldHeight() {
-        if (_codeField == null) return;
-
-        var lines = _codeField.value.Split('\n');
-        var lineHeight = 15f;
-        var minLines = 10;
-        var numLines = Mathf.Max(lines.Length, minLines);
-        var height = numLines * lineHeight;
-
-        _codeField.style.height = height;
     }
 
     void UpdateUI() {
