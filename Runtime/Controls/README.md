@@ -51,7 +51,6 @@ CodeField handles Tab key specially for code editing:
 | Tab (with selection) | Indent all selected lines |
 | Shift+Tab | Remove leading whitespace (tab or up to `IndentSize` spaces) |
 | Shift+Tab (with selection) | Dedent all selected lines |
-| Backspace (in leading whitespace) | Delete back to previous indent level (smart backspace, spaces mode only) |
 
 ### Custom Highlighter
 
