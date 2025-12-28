@@ -175,6 +175,8 @@ namespace OneJS
         private Color32[] _characterColors;
         private Color32[] _visibleCharacterColors; // Colors for visible glyphs only
         private TextElement _textElement;
+        private int _indentSize = 4;
+        private bool _indentUsingSpaces = true;
 
         /// <summary>
         /// The syntax highlighter to use. Set to null to disable highlighting.
@@ -187,6 +189,26 @@ namespace OneJS
                 _highlighter = value;
                 RefreshHighlighting();
             }
+        }
+
+        /// <summary>
+        /// When true, pressing Tab inserts spaces. When false, inserts a tab character.
+        /// Default is true (spaces).
+        /// </summary>
+        public bool IndentUsingSpaces
+        {
+            get => _indentUsingSpaces;
+            set => _indentUsingSpaces = value;
+        }
+
+        /// <summary>
+        /// Number of spaces to insert when pressing Tab (only applies when IndentUsingSpaces is true).
+        /// Also controls how many spaces to remove when dedenting. Default is 4.
+        /// </summary>
+        public int IndentSize
+        {
+            get => _indentSize;
+            set => _indentSize = Math.Max(1, value);
         }
 
         public CodeField() : this(null, -1, false, false, default) { }
@@ -228,8 +250,177 @@ namespace OneJS
                 schedule.Execute(() => RefreshHighlighting());
             });
 
+            // Handle Tab key for space indentation
+            RegisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
+
             // Add USS class for styling
             AddToClassList("code-field");
+        }
+
+        private void OnKeyDown(KeyDownEvent evt)
+        {
+            if (evt.keyCode != KeyCode.Tab)
+                return;
+
+            evt.StopPropagation();
+            evt.PreventDefault();
+
+            if (evt.shiftKey)
+            {
+                HandleDedent();
+            }
+            else
+            {
+                HandleIndent();
+            }
+        }
+
+        private void HandleIndent()
+        {
+            string indentString = _indentUsingSpaces ? new string(' ', _indentSize) : "\t";
+            int indentLength = indentString.Length;
+            int cursorPos = cursorIndex;
+
+            // Check if there's a selection
+            if (selectIndex != cursorIndex)
+            {
+                // Indent all selected lines
+                int selStart = Math.Min(cursorIndex, selectIndex);
+                int selEnd = Math.Max(cursorIndex, selectIndex);
+
+                int lineStart = GetLineStart(value, selStart);
+                int lineEnd = GetLineEnd(value, selEnd);
+
+                // Find all line starts in the selection range
+                var newText = new System.Text.StringBuilder();
+                int addedChars = 0;
+                int lastPos = 0;
+
+                for (int i = lineStart; i <= lineEnd && i < value.Length; i++)
+                {
+                    if (i == lineStart || (i > 0 && value[i - 1] == '\n'))
+                    {
+                        newText.Append(value.Substring(lastPos, i - lastPos));
+                        newText.Append(indentString);
+                        lastPos = i;
+                        addedChars += indentLength;
+                    }
+                }
+                newText.Append(value.Substring(lastPos));
+
+                value = newText.ToString();
+                // Adjust selection
+                selectIndex = selStart + indentLength;
+                cursorIndex = selEnd + addedChars;
+            }
+            else
+            {
+                // No selection - just insert indent at cursor
+                value = value.Insert(cursorPos, indentString);
+                cursorIndex = cursorPos + indentLength;
+                selectIndex = cursorIndex;
+            }
+        }
+
+        private void HandleDedent()
+        {
+            int cursorPos = cursorIndex;
+            int selStart = Math.Min(cursorIndex, selectIndex);
+            int selEnd = Math.Max(cursorIndex, selectIndex);
+            bool hasSelection = selectIndex != cursorIndex;
+
+            int lineStart = GetLineStart(value, selStart);
+            int lineEnd = hasSelection ? GetLineEnd(value, selEnd) : GetLineEnd(value, cursorPos);
+
+            var newText = new System.Text.StringBuilder();
+            int removedBeforeCursor = 0;
+            int removedTotal = 0;
+            int lastPos = 0;
+
+            for (int i = lineStart; i <= lineEnd && i < value.Length; i++)
+            {
+                if (i == lineStart || (i > 0 && value[i - 1] == '\n'))
+                {
+                    // Found a line start, check for leading whitespace
+                    newText.Append(value.Substring(lastPos, i - lastPos));
+
+                    int charsToRemove = 0;
+
+                    // Check for tab character first
+                    if (i < value.Length && value[i] == '\t')
+                    {
+                        charsToRemove = 1;
+                    }
+                    else
+                    {
+                        // Check for spaces (up to IndentSize)
+                        for (int j = i; j < value.Length && j < i + _indentSize; j++)
+                        {
+                            if (value[j] == ' ')
+                                charsToRemove++;
+                            else
+                                break;
+                        }
+                    }
+
+                    if (charsToRemove > 0)
+                    {
+                        lastPos = i + charsToRemove;
+                        if (i < selStart)
+                            removedBeforeCursor += charsToRemove;
+                        removedTotal += charsToRemove;
+                    }
+                    else
+                    {
+                        lastPos = i;
+                    }
+                }
+            }
+            newText.Append(value.Substring(lastPos));
+
+            if (removedTotal > 0)
+            {
+                value = newText.ToString();
+                if (hasSelection)
+                {
+                    selectIndex = Math.Max(0, selStart - removedBeforeCursor);
+                    cursorIndex = Math.Max(selectIndex, selEnd - removedTotal);
+                }
+                else
+                {
+                    cursorIndex = Math.Max(GetLineStart(value, Math.Max(0, cursorPos - removedBeforeCursor)),
+                                          cursorPos - removedBeforeCursor);
+                    selectIndex = cursorIndex;
+                }
+            }
+        }
+
+        private static int GetLineStart(string text, int position)
+        {
+            if (string.IsNullOrEmpty(text) || position <= 0)
+                return 0;
+
+            position = Math.Min(position, text.Length);
+            for (int i = position - 1; i >= 0; i--)
+            {
+                if (text[i] == '\n')
+                    return i + 1;
+            }
+            return 0;
+        }
+
+        private static int GetLineEnd(string text, int position)
+        {
+            if (string.IsNullOrEmpty(text))
+                return 0;
+
+            position = Math.Min(position, text.Length - 1);
+            for (int i = position; i < text.Length; i++)
+            {
+                if (text[i] == '\n')
+                    return i;
+            }
+            return text.Length;
         }
 
         private void RefreshHighlighting()

@@ -12,6 +12,8 @@ A `TextField` with built-in syntax highlighting support. Uses UI Toolkit's `Post
 - **Correct cursor positioning** - colors are applied at render time, not via rich text tags
 - **Pluggable highlighters** - implement `ISyntaxHighlighter` for custom languages
 - **Built-in JavaScript highlighter** - keywords, strings, numbers, comments
+- **Tab-to-spaces indentation** - Tab inserts spaces, Shift+Tab dedents
+- **Multi-line indent/dedent** - Select multiple lines and Tab/Shift+Tab to indent/dedent all
 
 ### Usage
 
@@ -28,7 +30,27 @@ codeField.Highlighter = new MyCustomHighlighter();
 
 // Disable highlighting
 codeField.Highlighter = null;
+
+// Configure indentation
+codeField.IndentUsingSpaces = true;  // true = spaces (default), false = tab character
+codeField.IndentSize = 2;            // number of spaces when IndentUsingSpaces is true
 ```
+
+### Indentation
+
+CodeField handles Tab key specially for code editing:
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `IndentUsingSpaces` | `true` | When true, Tab inserts spaces. When false, inserts tab character. |
+| `IndentSize` | `4` | Number of spaces to insert (only applies when `IndentUsingSpaces` is true) |
+
+| Key | Action |
+|-----|--------|
+| Tab | Insert indent (spaces or tab based on settings) |
+| Tab (with selection) | Indent all selected lines |
+| Shift+Tab | Remove leading whitespace (tab or up to `IndentSize` spaces) |
+| Shift+Tab (with selection) | Dedent all selected lines |
 
 ### Custom Highlighter
 
