@@ -1,38 +1,46 @@
-import * as esbuild from 'esbuild';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import * as esbuild from "esbuild"
+import path from "path"
+import { fileURLToPath } from "url"
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Optional: Import plugins for Tailwind CSS and USS Modules support
+// import { ussModulesPlugin, tailwindPlugin } from "onejs-unity/esbuild"
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // Resolve react to the App's node_modules to prevent duplicate copies
-const reactPath = path.resolve(__dirname, 'node_modules/react');
-const reactJsxPath = path.resolve(__dirname, 'node_modules/react/jsx-runtime');
-const reactJsxDevPath = path.resolve(__dirname, 'node_modules/react/jsx-dev-runtime');
+const reactPath = path.resolve(__dirname, "node_modules/react")
+const reactJsxPath = path.resolve(__dirname, "node_modules/react/jsx-runtime")
+const reactJsxDevPath = path.resolve(__dirname, "node_modules/react/jsx-dev-runtime")
 
-const isWatch = process.argv.includes('--watch');
+const isWatch = process.argv.includes("--watch")
 
 const config = {
-  entryPoints: ['index.tsx'],
-  bundle: true,
-  outfile: '@outputs/esbuild/app.js',
-  format: 'esm',
-  target: 'es2022',
-  jsx: 'automatic',
-  alias: {
-    // Force all react imports to use the App's copy
-    'react': reactPath,
-    'react/jsx-runtime': reactJsxPath,
-    'react/jsx-dev-runtime': reactJsxDevPath,
-  },
-  // Ensure packages from node_modules are bundled, not externalized
-  packages: 'bundle',
-};
+    entryPoints: ["index.tsx"],
+    bundle: true,
+    outfile: "@outputs/esbuild/app.js",
+    format: "esm",
+    target: "es2022",
+    jsx: "automatic",
+    alias: {
+        // Force all react imports to use the App's copy
+        "react": reactPath,
+        "react/jsx-runtime": reactJsxPath,
+        "react/jsx-dev-runtime": reactJsxDevPath,
+    },
+    // Ensure packages from node_modules are bundled, not externalized
+    packages: "bundle",
+    // Optional: Add plugins for Tailwind CSS and USS Modules
+    // plugins: [
+    //     tailwindPlugin({ tailwindConfig: "./tailwind.config.js" }),
+    //     ussModulesPlugin({ generateTypes: true }),
+    // ],
+}
 
 if (isWatch) {
-  const ctx = await esbuild.context(config);
-  await ctx.watch();
-  console.log('Watching for changes...');
+    const ctx = await esbuild.context(config)
+    await ctx.watch()
+    console.log("Watching for changes...")
 } else {
-  await esbuild.build(config);
-  console.log('Build complete!');
+    await esbuild.build(config)
+    console.log("Build complete!")
 }

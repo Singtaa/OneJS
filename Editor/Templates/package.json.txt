@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "react": "^19.0.0",
-    "onejs-react": "^0.1.0"
+    "onejs-react": "^0.1.0",
+    "onejs-unity": "^0.1.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
