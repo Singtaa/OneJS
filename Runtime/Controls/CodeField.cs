@@ -171,12 +171,81 @@ namespace OneJS
             }
         }
 
+        private static Font _monospaceFont;
+        private static bool _fontLoadAttempted;
+
         private ISyntaxHighlighter _highlighter;
         private Color32[] _characterColors;
         private Color32[] _visibleCharacterColors; // Colors for visible glyphs only
         private TextElement _textElement;
         private int _indentSize = 4;
         private bool _indentUsingSpaces = true;
+
+        /// <summary>
+        /// Gets a monospace font from the system. Caches the result.
+        /// </summary>
+        private static Font GetMonospaceFont()
+        {
+            if (_fontLoadAttempted)
+                return _monospaceFont;
+
+            _fontLoadAttempted = true;
+
+            // Try common monospace fonts in order of preference
+            string[] fontNames;
+#if UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX || UNITY_IOS
+            fontNames = new[] { "Menlo", "SF Mono", "Monaco", "Courier New", "Courier" };
+#elif UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+            fontNames = new[] { "Consolas", "Cascadia Code", "Courier New", "Lucida Console" };
+#else
+            fontNames = new[] { "DejaVu Sans Mono", "Liberation Mono", "Consolas", "Courier New", "monospace" };
+#endif
+
+            foreach (var fontName in fontNames)
+            {
+                try
+                {
+                    var font = Font.CreateDynamicFontFromOSFont(fontName, 14);
+                    if (font != null)
+                    {
+                        _monospaceFont = font;
+                        Debug.Log($"[CodeField] Loaded monospace font: {fontName}");
+                        return font;
+                    }
+                }
+                catch
+                {
+                    // Font not available, try next
+                }
+            }
+
+            Debug.LogWarning("[CodeField] Could not load any monospace font");
+            return null;
+        }
+
+        /// <summary>
+        /// Applies the monospace font to a VisualElement and all its TextElement children.
+        /// </summary>
+        private static void ApplyMonospaceFont(VisualElement element)
+        {
+            var font = GetMonospaceFont();
+            if (font == null || element == null)
+                return;
+
+            var fontDef = new StyleFontDefinition(FontDefinition.FromFont(font));
+
+            // Apply to all TextElements in the hierarchy
+            element.Query<TextElement>().ForEach(te =>
+            {
+                te.style.unityFontDefinition = fontDef;
+            });
+
+            // Also set on the element itself in case it's a TextElement
+            if (element is TextElement textElement)
+            {
+                textElement.style.unityFontDefinition = fontDef;
+            }
+        }
 
         /// <summary>
         /// The syntax highlighter to use. Set to null to disable highlighting.
@@ -224,12 +293,15 @@ namespace OneJS
             // Use a simple keyword highlighter by default
             _highlighter = new SimpleKeywordHighlighter();
 
-            // Find the TextElement child
+            // Find the TextElement child and configure it
             _textElement = this.Q<TextElement>();
             if (_textElement != null)
             {
                 _textElement.PostProcessTextVertices = ColorizeGlyphs;
             }
+
+            // Apply monospace font to all text elements
+            ApplyMonospaceFont(this);
 
             // Refresh highlighting when value changes
             this.RegisterValueChangedCallback(evt => RefreshHighlighting());
@@ -246,6 +318,10 @@ namespace OneJS
                         _textElement.PostProcessTextVertices = ColorizeGlyphs;
                     }
                 }
+
+                // Apply monospace font (may need to reapply after attach)
+                ApplyMonospaceFont(this);
+
                 // Schedule to ensure layout is complete
                 schedule.Execute(() => RefreshHighlighting());
             });
@@ -284,6 +360,40 @@ namespace OneJS
                 {
                     evt.StopPropagation();
                     evt.PreventDefault();
+                }
+            }
+            // Fix Cmd+Arrow navigation for multiline (UI Toolkit quirk)
+            else if (evt.commandKey && !evt.shiftKey && !evt.altKey && !evt.ctrlKey)
+            {
+                if (evt.keyCode == KeyCode.RightArrow)
+                {
+                    evt.StopPropagation();
+                    evt.PreventDefault();
+                    cursorIndex = GetLineEnd(value, cursorIndex);
+                    selectIndex = cursorIndex;
+                }
+                else if (evt.keyCode == KeyCode.LeftArrow)
+                {
+                    evt.StopPropagation();
+                    evt.PreventDefault();
+                    cursorIndex = GetLineStart(value, cursorIndex);
+                    selectIndex = cursorIndex;
+                }
+            }
+            // Fix Cmd+Shift+Arrow selection for multiline
+            else if (evt.commandKey && evt.shiftKey && !evt.altKey && !evt.ctrlKey)
+            {
+                if (evt.keyCode == KeyCode.RightArrow)
+                {
+                    evt.StopPropagation();
+                    evt.PreventDefault();
+                    cursorIndex = GetLineEnd(value, cursorIndex);
+                }
+                else if (evt.keyCode == KeyCode.LeftArrow)
+                {
+                    evt.StopPropagation();
+                    evt.PreventDefault();
+                    cursorIndex = GetLineStart(value, cursorIndex);
                 }
             }
         }
