@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using OneJS;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -18,7 +19,7 @@ public class JSPadEditor : Editor {
 
     // UI Toolkit elements
     VisualElement _root;
-    TextField _codeField;
+    CodeField _codeField;
     Label _statusLabel;
     Button _buildRunButton;
     Button _buildOnlyButton;
@@ -113,9 +114,8 @@ public class JSPadEditor : Editor {
 
         _root.Add(statusBox);
 
-        // Code editor
-        _codeField = new TextField();
-        _codeField.multiline = true;
+        // Code editor (with syntax highlighting, monospace font, and proper indentation)
+        _codeField = new CodeField();
         _codeField.bindingPath = "_sourceCode";
         _codeField.style.minHeight = 300;
         _codeField.style.whiteSpace = WhiteSpace.NoWrap;
@@ -124,7 +124,6 @@ public class JSPadEditor : Editor {
         // Style the text input
         var textInput = _codeField.Q<TextElement>();
         if (textInput != null) {
-            textInput.style.unityFontDefinition = new StyleFontDefinition(GetMonospaceFont());
             textInput.style.fontSize = 12;
             textInput.style.whiteSpace = WhiteSpace.NoWrap;
             textInput.style.backgroundColor = new Color(0.15f, 0.15f, 0.15f);
@@ -132,7 +131,7 @@ public class JSPadEditor : Editor {
             textInput.style.paddingLeft = textInput.style.paddingRight = 8;
         }
 
-        // Style the scroll view inside TextField
+        // Style the scroll view inside CodeField
         var scrollView = _codeField.Q<ScrollView>();
         if (scrollView != null) {
             scrollView.verticalScrollerVisibility = ScrollerVisibility.Hidden;
@@ -271,13 +270,6 @@ public class JSPadEditor : Editor {
         _root.schedule.Execute(UpdateUI).Every(100);
 
         return _root;
-    }
-
-    Font GetMonospaceFont() {
-        var font = Font.CreateDynamicFontFromOSFont("Menlo", 12);
-        if (font == null) font = Font.CreateDynamicFontFromOSFont("Consolas", 12);
-        if (font == null) font = Font.CreateDynamicFontFromOSFont("Courier New", 12);
-        return font;
     }
 
     void UpdateCodeFieldHeight() {
