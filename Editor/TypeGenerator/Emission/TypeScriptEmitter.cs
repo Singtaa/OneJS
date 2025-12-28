@@ -223,6 +223,20 @@ namespace OneJS.Editor.TypeGenerator {
 
             _indent--;
             AppendLine("}");
+
+            // Emit nested types in a companion namespace (TypeScript doesn't support nested types in interfaces)
+            if (type.NestedTypes?.Count > 0) {
+                AppendLine($"namespace {type.Name} {{");
+                _indent++;
+
+                foreach (var nested in type.NestedTypes) {
+                    EmitType(nested);
+                    AppendLine();
+                }
+
+                _indent--;
+                AppendLine("}");
+            }
         }
 
         private void EmitClass(TsTypeInfo type) {
@@ -254,6 +268,20 @@ namespace OneJS.Editor.TypeGenerator {
 
             _indent--;
             AppendLine("}");
+
+            // Emit nested types in a companion namespace (TypeScript doesn't support nested classes)
+            if (type.NestedTypes?.Count > 0) {
+                AppendLine($"namespace {type.Name} {{");
+                _indent++;
+
+                foreach (var nested in type.NestedTypes) {
+                    EmitType(nested);
+                    AppendLine();
+                }
+
+                _indent--;
+                AppendLine("}");
+            }
         }
 
         private void EmitMembers(TsTypeInfo type, bool isInterface) {
@@ -287,12 +315,6 @@ namespace OneJS.Editor.TypeGenerator {
             // Indexers
             foreach (var indexer in type.Indexers) {
                 EmitIndexer(indexer, isInterface);
-            }
-
-            // Nested types
-            foreach (var nested in type.NestedTypes) {
-                AppendLine();
-                EmitType(nested);
             }
         }
 
