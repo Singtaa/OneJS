@@ -39,10 +39,9 @@ namespace OneJS.Editor.TypeGenerator {
             AppendLine("declare namespace CS {");
             _indent++;
 
-            // Emit keep_incompatibility symbol (unless skipped for package mode)
-            if (!_options.SkipHeader) {
-                AppendLine("// Keep type incompatibility");
-                AppendLine("const __keep_incompatibility: unique symbol;");
+            // Emit keep_incompatibility symbol if we're emitting the marker in classes
+            if (_options.EmitIncompatibilityMarker) {
+                AppendLine("const __keep_incompatibility: symbol;");
                 AppendLine();
             }
 
