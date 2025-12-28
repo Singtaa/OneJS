@@ -279,6 +279,16 @@ namespace OneJS.Editor.TypeGenerator {
             return this;
         }
 
+        /// <summary>
+        /// Skips emitting the header, helper types, and __keep_incompatibility symbol.
+        /// Use this when generating files that will be combined into a package with shared declarations.
+        /// </summary>
+        /// <returns>This builder for chaining</returns>
+        public TypeGeneratorBuilder SkipHeader() {
+            _emitterOptions.SkipHeader = true;
+            return this;
+        }
+
         #endregion
 
         #region Build

@@ -26,8 +26,10 @@ namespace OneJS.Editor.TypeGenerator {
             _indent = 0;
             _atLineStart = true;
 
-            EmitHeader();
-            EmitHelperTypes();
+            if (!_options.SkipHeader) {
+                EmitHeader();
+                EmitHelperTypes();
+            }
 
             // Group types by namespace
             var namespaces = types
@@ -37,10 +39,12 @@ namespace OneJS.Editor.TypeGenerator {
             AppendLine("declare namespace CS {");
             _indent++;
 
-            // Emit keep_incompatibility symbol
-            AppendLine("// Keep type incompatibility");
-            AppendLine("const __keep_incompatibility: unique symbol;");
-            AppendLine();
+            // Emit keep_incompatibility symbol (unless skipped for package mode)
+            if (!_options.SkipHeader) {
+                AppendLine("// Keep type incompatibility");
+                AppendLine("const __keep_incompatibility: unique symbol;");
+                AppendLine();
+            }
 
             foreach (var ns in namespaces) {
                 EmitNamespace(ns.Key, ns.ToList());
@@ -481,5 +485,11 @@ namespace OneJS.Editor.TypeGenerator {
         public bool EmitModuleDeclaration { get; set; } = false;
         public bool EmitIncompatibilityMarker { get; set; } = true;
         public bool UseAccessorSyntax { get; set; } = true;
+
+        /// <summary>
+        /// When true, skips emitting the header comment, helper types ($Ref, $Out, $Task),
+        /// and __keep_incompatibility symbol. Use for files that will be combined into a package.
+        /// </summary>
+        public bool SkipHeader { get; set; } = false;
     }
 }
