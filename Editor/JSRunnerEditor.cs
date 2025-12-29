@@ -664,6 +664,95 @@ public class JSRunnerEditor : Editor {
 #endif
     }
 
+    // MARK: Context Menu
+
+    [MenuItem("CONTEXT/JSRunner/Reset Working Directory")]
+    static void ResetWorkingDirectory(MenuCommand command) {
+        var runner = (JSRunner)command.context;
+        var workingDir = runner.WorkingDirFullPath;
+
+        if (!Directory.Exists(workingDir)) {
+            EditorUtility.DisplayDialog(
+                "Reset Working Directory",
+                $"Working directory does not exist:\n{workingDir}\n\nNothing to reset.",
+                "OK"
+            );
+            return;
+        }
+
+        // Count files to give user an idea of what will be deleted
+        int fileCount = 0;
+        int dirCount = 0;
+        try {
+            fileCount = Directory.GetFiles(workingDir, "*", SearchOption.AllDirectories).Length;
+            dirCount = Directory.GetDirectories(workingDir, "*", SearchOption.AllDirectories).Length;
+        } catch { }
+
+        var confirmed = EditorUtility.DisplayDialog(
+            "⚠️ Reset Working Directory",
+            $"WARNING: This will PERMANENTLY DELETE everything in:\n\n" +
+            $"{workingDir}\n\n" +
+            $"This includes:\n" +
+            $"• {fileCount} files\n" +
+            $"• {dirCount} folders\n" +
+            $"• All your source code, node_modules, and configuration\n\n" +
+            $"After deletion, the directory will be re-scaffolded with default files.\n\n" +
+            $"THIS CANNOT BE UNDONE!\n\n" +
+            $"Are you absolutely sure?",
+            "DELETE EVERYTHING",
+            "Cancel"
+        );
+
+        if (!confirmed) return;
+
+        // Double confirmation for safety
+        var doubleConfirmed = EditorUtility.DisplayDialog(
+            "🛑 Final Warning",
+            "You are about to delete all files in the working directory.\n\n" +
+            "Type 'DELETE' mentally and click confirm only if you're certain.",
+            "Yes, Delete Everything",
+            "Cancel"
+        );
+
+        if (!doubleConfirmed) return;
+
+        try {
+            // Delete all contents but keep the directory
+            foreach (var file in Directory.GetFiles(workingDir)) {
+                File.Delete(file);
+            }
+            foreach (var dir in Directory.GetDirectories(workingDir)) {
+                Directory.Delete(dir, true);
+            }
+
+            Debug.Log($"[JSRunner] Deleted all contents from: {workingDir}");
+
+            // Trigger re-scaffolding by calling Initialize (which calls ScaffoldDefaultFiles)
+            // Since ScaffoldDefaultFiles is private, we need to use reflection or make it accessible
+            var method = typeof(JSRunner).GetMethod("ScaffoldDefaultFiles",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            method?.Invoke(runner, null);
+
+            Debug.Log("[JSRunner] Re-scaffolded default files");
+
+            AssetDatabase.Refresh();
+
+            EditorUtility.DisplayDialog(
+                "Reset Complete",
+                "Working directory has been reset and re-scaffolded with default files.\n\n" +
+                "Run 'npm install' to restore dependencies.",
+                "OK"
+            );
+        } catch (Exception ex) {
+            Debug.LogError($"[JSRunner] Reset failed: {ex.Message}");
+            EditorUtility.DisplayDialog(
+                "Reset Failed",
+                $"Failed to reset working directory:\n\n{ex.Message}",
+                "OK"
+            );
+        }
+    }
+
     // MARK: Utilities
 
     void OpenWorkingDirectory() {

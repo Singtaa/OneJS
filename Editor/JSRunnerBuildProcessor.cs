@@ -214,7 +214,7 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
         return result;
     }
 
-    T GetSerializedField<T>(Object obj, string fieldName) {
+    T GetSerializedField<T>(UnityEngine.Object obj, string fieldName) {
         var so = new SerializedObject(obj);
         var prop = so.FindProperty(fieldName);
         if (prop == null) return default;
