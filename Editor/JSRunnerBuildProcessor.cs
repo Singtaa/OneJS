@@ -4,12 +4,13 @@ using System.IO;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Build processor that automatically copies JS bundles and assets to StreamingAssets before build.
-/// This ensures the JS code and assets are included in standalone builds without manual steps.
+/// Scans all enabled scenes in Build Settings for JSRunner components.
 /// Assets are only copied during builds to keep StreamingAssets clean during development.
 /// </summary>
 public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBuildWithReport {
@@ -17,24 +18,55 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
 
     static List<string> _copiedFiles = new List<string>();
 
+    // Track processed items to avoid duplicates
+    static HashSet<string> _processedBundles = new HashSet<string>();
+    static HashSet<string> _processedWorkingDirs = new HashSet<string>();
 
     public void OnPreprocessBuild(BuildReport report) {
         _copiedFiles.Clear();
+        _processedBundles.Clear();
+        _processedWorkingDirs.Clear();
 
-        var jsRunners = FindJSRunnersInBuildScenes();
-        if (jsRunners.Count == 0) {
-            return;
+        Debug.Log("[JSRunner] Processing JSRunner components in build scenes...");
+
+        var originalScenePath = SceneManager.GetActiveScene().path;
+        var buildScenes = EditorBuildSettings.scenes;
+
+        // If no enabled scenes in build settings, process current scene
+        if (buildScenes.Length == 0 || !Array.Exists(buildScenes, s => s.enabled)) {
+            ProcessScene(SceneManager.GetActiveScene());
+        } else {
+            // Process each enabled scene
+            foreach (var buildScene in buildScenes) {
+                if (!buildScene.enabled) continue;
+
+                EditorSceneManager.OpenScene(buildScene.path);
+                ProcessScene(SceneManager.GetActiveScene());
+            }
         }
 
-        Debug.Log($"[JSRunner] Found {jsRunners.Count} JSRunner(s) in build scenes");
-
-        foreach (var runner in jsRunners) {
-            ProcessJSRunner(runner);
-            CopyAssets(runner);
+        // Restore original scene
+        if (!string.IsNullOrWhiteSpace(originalScenePath)) {
+            EditorSceneManager.OpenScene(originalScenePath);
         }
 
         if (_copiedFiles.Count > 0) {
             AssetDatabase.Refresh();
+        }
+
+        Debug.Log($"[JSRunner] Build preprocessing complete. Processed {_processedBundles.Count} bundle(s), {_processedWorkingDirs.Count} working dir(s).");
+    }
+
+    void ProcessScene(Scene scene) {
+        foreach (var rootObj in scene.GetRootGameObjects()) {
+            var runners = rootObj.GetComponentsInChildren<JSRunner>(true);
+            foreach (var runner in runners) {
+                // Only process enabled runners on active GameObjects
+                if (!runner.enabled || !runner.gameObject.activeInHierarchy) continue;
+
+                ProcessJSRunner(runner);
+                ProcessAssets(runner);
+            }
         }
     }
 
@@ -52,6 +84,13 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
             return;
         }
 
+        // Skip if already processed this bundle path (multiple runners might share same bundle)
+        var destPath = Path.Combine(Application.streamingAssetsPath, streamingAssetsPath);
+        if (_processedBundles.Contains(destPath)) {
+            Debug.Log($"[JSRunner] Bundle already processed: {streamingAssetsPath}");
+            return;
+        }
+
         // Get entry file path
         var entryFilePath = runner.EntryFileFullPath;
         if (!File.Exists(entryFilePath)) {
@@ -60,7 +99,6 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
         }
 
         // Ensure StreamingAssets directory exists
-        var destPath = Path.Combine(Application.streamingAssetsPath, streamingAssetsPath);
         var destDir = Path.GetDirectoryName(destPath);
         if (!Directory.Exists(destDir)) {
             Directory.CreateDirectory(destDir);
@@ -69,22 +107,23 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
         // Copy the bundle
         File.Copy(entryFilePath, destPath, overwrite: true);
         _copiedFiles.Add(destPath);
+        _processedBundles.Add(destPath);
 
-        // Also create .meta file if it doesn't exist (Unity needs this)
-        var metaPath = destPath + ".meta";
-        if (!File.Exists(metaPath)) {
-            _copiedFiles.Add(metaPath);
-        }
-
-        Debug.Log($"[JSRunner] Copied bundle to StreamingAssets: {streamingAssetsPath}");
+        Debug.Log($"[JSRunner] Copied bundle: {streamingAssetsPath}");
     }
 
-    void CopyAssets(JSRunner runner) {
-        // Get working directory from JSRunner
-        var workingDir = runner.WorkingDir;
+    void ProcessAssets(JSRunner runner) {
+        var workingDir = runner.WorkingDirFullPath;
         if (string.IsNullOrEmpty(workingDir) || !Directory.Exists(workingDir)) {
             return;
         }
+
+        // Skip if already processed this working directory
+        var normalizedPath = Path.GetFullPath(workingDir);
+        if (_processedWorkingDirs.Contains(normalizedPath)) {
+            return;
+        }
+        _processedWorkingDirs.Add(normalizedPath);
 
         var destBasePath = Path.Combine(Application.streamingAssetsPath, "onejs", "assets");
         int assetsCopied = 0;
@@ -95,14 +134,14 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
             assetsCopied += CopyDirectory(userAssetsPath, destBasePath);
         }
 
-        // 2. Scan node_modules for packages with onejs.assets
+        // 2. Scan node_modules for packages with assets/@namespace/ folders
         var nodeModulesPath = Path.Combine(workingDir, "node_modules");
         if (Directory.Exists(nodeModulesPath)) {
             assetsCopied += CopyPackageAssets(nodeModulesPath, destBasePath);
         }
 
         if (assetsCopied > 0) {
-            Debug.Log($"[JSRunner] Copied {assetsCopied} asset files to StreamingAssets/onejs/assets");
+            Debug.Log($"[JSRunner] Copied {assetsCopied} asset file(s) from: {runner.WorkingDir}");
         }
     }
 
@@ -168,50 +207,10 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
     }
 
     public void OnPostprocessBuild(BuildReport report) {
-        // Optionally clean up copied files after build
-        // For now, we leave them for faster subsequent builds
-        // Users can manually delete StreamingAssets/onejs if they want
-
         if (_copiedFiles.Count > 0) {
             Debug.Log($"[JSRunner] Build complete. {_copiedFiles.Count} file(s) copied to StreamingAssets.");
-            Debug.Log("[JSRunner] These files will be included in subsequent builds. Delete StreamingAssets/onejs to remove them.");
+            Debug.Log("[JSRunner] These files persist for faster subsequent builds. Delete StreamingAssets/onejs to remove them.");
         }
-    }
-
-    List<JSRunner> FindJSRunnersInBuildScenes() {
-        var result = new List<JSRunner>();
-
-        // Get all scenes in build settings
-        var buildScenes = EditorBuildSettings.scenes;
-
-        foreach (var buildScene in buildScenes) {
-            if (!buildScene.enabled) continue;
-
-            // Load scene additively to inspect it
-            var scene = SceneManager.GetSceneByPath(buildScene.path);
-            bool wasLoaded = scene.isLoaded;
-
-            if (!wasLoaded) {
-                scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene(
-                    buildScene.path,
-                    UnityEditor.SceneManagement.OpenSceneMode.Additive
-                );
-            }
-
-            // Find all JSRunners in the scene
-            var rootObjects = scene.GetRootGameObjects();
-            foreach (var root in rootObjects) {
-                var runners = root.GetComponentsInChildren<JSRunner>(true);
-                result.AddRange(runners);
-            }
-
-            // Unload if we loaded it
-            if (!wasLoaded) {
-                UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
-            }
-        }
-
-        return result;
     }
 
     T GetSerializedField<T>(UnityEngine.Object obj, string fieldName) {
