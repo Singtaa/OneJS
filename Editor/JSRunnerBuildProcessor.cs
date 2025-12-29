@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
@@ -7,13 +8,15 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Build processor that automatically copies JS bundles to StreamingAssets before build.
-/// This ensures the JS code is included in standalone builds without manual steps.
+/// Build processor that automatically copies JS bundles and assets to StreamingAssets before build.
+/// This ensures the JS code and assets are included in standalone builds without manual steps.
+/// Assets are only copied during builds to keep StreamingAssets clean during development.
 /// </summary>
 public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBuildWithReport {
     public int callbackOrder => 0;
 
     static List<string> _copiedFiles = new List<string>();
+
 
     public void OnPreprocessBuild(BuildReport report) {
         _copiedFiles.Clear();
@@ -27,6 +30,7 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
 
         foreach (var runner in jsRunners) {
             ProcessJSRunner(runner);
+            CopyAssets(runner);
         }
 
         if (_copiedFiles.Count > 0) {
@@ -73,6 +77,102 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
         }
 
         Debug.Log($"[JSRunner] Copied bundle to StreamingAssets: {streamingAssetsPath}");
+    }
+
+    void CopyAssets(JSRunner runner) {
+        // Get working directory from JSRunner
+        var workingDir = runner.WorkingDir;
+        if (string.IsNullOrEmpty(workingDir) || !Directory.Exists(workingDir)) {
+            return;
+        }
+
+        var destBasePath = Path.Combine(Application.streamingAssetsPath, "onejs", "assets");
+        int assetsCopied = 0;
+
+        // 1. Copy user assets from {workingDir}/assets/
+        var userAssetsPath = Path.Combine(workingDir, "assets");
+        if (Directory.Exists(userAssetsPath)) {
+            assetsCopied += CopyDirectory(userAssetsPath, destBasePath);
+        }
+
+        // 2. Scan node_modules for packages with onejs.assets
+        var nodeModulesPath = Path.Combine(workingDir, "node_modules");
+        if (Directory.Exists(nodeModulesPath)) {
+            assetsCopied += CopyPackageAssets(nodeModulesPath, destBasePath);
+        }
+
+        if (assetsCopied > 0) {
+            Debug.Log($"[JSRunner] Copied {assetsCopied} asset files to StreamingAssets/onejs/assets");
+        }
+    }
+
+    int CopyPackageAssets(string nodeModulesPath, string destBasePath) {
+        int copied = 0;
+
+        foreach (var pkgDir in Directory.GetDirectories(nodeModulesPath)) {
+            var dirName = Path.GetFileName(pkgDir);
+
+            // Handle scoped packages (@scope/name)
+            if (dirName.StartsWith("@")) {
+                foreach (var scopedPkgDir in Directory.GetDirectories(pkgDir)) {
+                    copied += TryCopyPackageAssets(scopedPkgDir, destBasePath);
+                }
+            } else {
+                copied += TryCopyPackageAssets(pkgDir, destBasePath);
+            }
+        }
+
+        return copied;
+    }
+
+    int TryCopyPackageAssets(string pkgDir, string destBasePath) {
+        var pkgJsonPath = Path.Combine(pkgDir, "package.json");
+        if (!File.Exists(pkgJsonPath)) return 0;
+
+        try {
+            var json = File.ReadAllText(pkgJsonPath);
+
+            // Simple regex to extract onejs.assets value
+            var match = System.Text.RegularExpressions.Regex.Match(
+                json,
+                @"""onejs""\s*:\s*\{\s*""assets""\s*:\s*""([^""]+)"""
+            );
+
+            if (!match.Success) return 0;
+
+            var assetsDir = match.Groups[1].Value;
+            var assetsPath = Path.Combine(pkgDir, assetsDir);
+
+            if (!Directory.Exists(assetsPath)) return 0;
+
+            // Copy all contents (including @namespace folders) flat to dest
+            return CopyDirectory(assetsPath, destBasePath);
+        } catch {
+            return 0;
+        }
+    }
+
+    int CopyDirectory(string srcDir, string destDir) {
+        if (!Directory.Exists(srcDir)) return 0;
+
+        Directory.CreateDirectory(destDir);
+        int copied = 0;
+
+        // Copy files
+        foreach (var file in Directory.GetFiles(srcDir)) {
+            var destFile = Path.Combine(destDir, Path.GetFileName(file));
+            File.Copy(file, destFile, overwrite: true);
+            _copiedFiles.Add(destFile);
+            copied++;
+        }
+
+        // Copy subdirectories recursively
+        foreach (var subDir in Directory.GetDirectories(srcDir)) {
+            var destSubDir = Path.Combine(destDir, Path.GetFileName(subDir));
+            copied += CopyDirectory(subDir, destSubDir);
+        }
+
+        return copied;
     }
 
     public void OnPostprocessBuild(BuildReport report) {
