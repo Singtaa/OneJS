@@ -126,30 +126,22 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
     }
 
     int TryCopyPackageAssets(string pkgDir, string destBasePath) {
-        var pkgJsonPath = Path.Combine(pkgDir, "package.json");
-        if (!File.Exists(pkgJsonPath)) return 0;
+        // Look for assets/ folder with @namespace/ subfolders
+        var assetsPath = Path.Combine(pkgDir, "assets");
+        if (!Directory.Exists(assetsPath)) return 0;
 
-        try {
-            var json = File.ReadAllText(pkgJsonPath);
+        int copied = 0;
 
-            // Simple regex to extract onejs.assets value
-            var match = System.Text.RegularExpressions.Regex.Match(
-                json,
-                @"""onejs""\s*:\s*\{\s*""assets""\s*:\s*""([^""]+)"""
-            );
-
-            if (!match.Success) return 0;
-
-            var assetsDir = match.Groups[1].Value;
-            var assetsPath = Path.Combine(pkgDir, assetsDir);
-
-            if (!Directory.Exists(assetsPath)) return 0;
-
-            // Copy all contents (including @namespace folders) flat to dest
-            return CopyDirectory(assetsPath, destBasePath);
-        } catch {
-            return 0;
+        // Only copy @namespace/ folders (convention-based detection)
+        foreach (var subDir in Directory.GetDirectories(assetsPath)) {
+            var subDirName = Path.GetFileName(subDir);
+            if (subDirName.StartsWith("@")) {
+                var destPath = Path.Combine(destBasePath, subDirName);
+                copied += CopyDirectory(subDir, destPath);
+            }
         }
+
+        return copied;
     }
 
     int CopyDirectory(string srcDir, string destDir) {
