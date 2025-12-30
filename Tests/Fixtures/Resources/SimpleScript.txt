@@ -1,0 +1,10 @@
+// Simple test script - validates basic JS execution
+console.log("SimpleScript executing");
+
+globalThis.__simpleScriptResult = {
+    executed: true,
+    timestamp: Date.now(),
+    hasRoot: typeof __root !== 'undefined',
+    hasBridge: typeof __bridge !== 'undefined',
+    hasCS: typeof CS !== 'undefined'
+};

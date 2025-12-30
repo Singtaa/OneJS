@@ -1,0 +1,31 @@
+// Event Test - validates event registration and dispatch
+(function() {
+    globalThis.__eventTestResults = {
+        clickHandlerCalled: false,
+        pointerDownHandlerCalled: false,
+        eventDataReceived: null
+    };
+
+    // Create button
+    var button = new CS.UnityEngine.UIElements.Button();
+    button.name = "EventTestButton";
+    button.text = "Test Events";
+    __root.Add(button);
+
+    // Register click handler
+    __eventAPI.addEventListener(button, "click", function(e) {
+        globalThis.__eventTestResults.clickHandlerCalled = true;
+        globalThis.__eventTestResults.eventDataReceived = {
+            type: e.type,
+            hasPreventDefault: typeof e.preventDefault === "function"
+        };
+    });
+
+    // Register pointer down handler
+    __eventAPI.addEventListener(button, "pointerdown", function(e) {
+        globalThis.__eventTestResults.pointerDownHandlerCalled = true;
+    });
+
+    // Store button handle for dispatch testing
+    globalThis.__eventTestButton = button;
+})();

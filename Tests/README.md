@@ -1,105 +1,154 @@
 # OneJS Tests
 
-PlayMode tests for the OneJS runtime. Run via Unity Test Runner (Window > General > Test Runner).
+PlayMode and EditMode tests for the OneJS runtime. Run via Unity Test Runner (Window > General > Test Runner).
 
-## Test Files
+## Test Structure
 
-| File | Purpose | Coverage |
-|------|---------|----------|
-| `QuickJSPlaymodeTests.cs` | Core QuickJS functionality | Eval, static calls, constructors, generics, async/await, structs |
-| `QuickJSFastPathPlaymodeTests.cs` | Zero-allocation fast path | Property access, method calls, allocation verification |
-| `QuickJSUIBridgePlaymodeTests.cs` | UI Toolkit integration | Event delegation, scheduling, Promise processing |
-| `UIToolkitJSPlaymodeTests.cs` | React component rendering | Button, Label, TextField, state updates |
-| `QuickJSStabilityTests.cs` | Stability & monitoring | Handle monitoring, task queue, buffer overflow, exceptions |
+```
+Tests/
+├── OneJS.Tests.asmdef           # PlayMode test assembly
+├── QuickJSPlaymodeTests.cs      # Core QuickJS functionality
+├── QuickJSFastPathPlaymodeTests.cs
+├── QuickJSUIBridgePlaymodeTests.cs
+├── UIToolkitJSPlaymodeTests.cs
+├── QuickJSStabilityTests.cs
+├── QuickJSNetworkTests.cs
+├── QuickJSStorageTests.cs
+├── QuickJSURLTests.cs
+├── QuickJSBase64Tests.cs
+├── GPUBridgePlaymodeTests.cs
+├── JSRunnerPlaymodeTests.cs     # JSRunner MonoBehaviour tests
+├── JSPadPlaymodeTests.cs        # JSPad MonoBehaviour tests
+├── Editor/                      # EditMode tests
+│   ├── OneJS.Tests.Editor.asmdef
+│   ├── JSRunnerBuildProcessorTests.cs
+│   └── BuildValidationTests.cs
+├── BuildValidation/             # Standalone build testing
+│   ├── BuildValidationRunner.cs
+│   └── README.md
+├── Fixtures/                    # Test fixtures (no GUIDs!)
+│   ├── README.md
+│   └── Resources/
+│       ├── SimpleScript.txt
+│       ├── UICreation.txt
+│       └── EventTest.txt
+└── Resources/
+    └── TestShaders/
+```
 
 ## Running Tests
 
 1. Open Unity Test Runner: `Window > General > Test Runner`
-2. Select `PlayMode` tab
+2. Select `PlayMode` or `EditMode` tab
 3. Click `Run All` or select specific tests
+
+## Test Files
+
+| File | Type | Purpose |
+|------|------|---------|
+| `QuickJSPlaymodeTests.cs` | PlayMode | Core eval, static calls, constructors, generics, async |
+| `QuickJSFastPathPlaymodeTests.cs` | PlayMode | Zero-allocation property access, method calls |
+| `QuickJSUIBridgePlaymodeTests.cs` | PlayMode | Event delegation, scheduling, Promises |
+| `UIToolkitJSPlaymodeTests.cs` | PlayMode | React component rendering |
+| `QuickJSStabilityTests.cs` | PlayMode | Handle monitoring, task queue, exceptions |
+| `JSRunnerPlaymodeTests.cs` | PlayMode | JSRunner scaffolding, init, reload, globals |
+| `JSPadPlaymodeTests.cs` | PlayMode | JSPad temp dirs, build state, execution |
+| `JSRunnerBuildProcessorTests.cs` | EditMode | Asset copying, namespace detection |
+| `BuildValidationTests.cs` | EditMode | Full build + run validation (slow) |
 
 ## Test Categories
 
-### Core Functionality (QuickJSPlaymodeTests)
-- Basic eval and arithmetic
-- Static method calls (`CS.UnityEngine.Debug.Log`)
-- Constructor invocation (`new CS.UnityEngine.GameObject`)
-- Generic types (`List<T>`, `Dictionary<K,V>`)
-- Property and field access
-- Indexer access (`list[0]`)
-- Async/await with C# Tasks
-- Struct serialization (Vector3, Color, custom)
+### JSRunner Tests (JSRunnerPlaymodeTests)
+- **Scaffolding**: Working directory creation, default files
+- **Initialization**: UIDocument/PanelSettings auto-creation
+- **Execution**: Entry file execution, globals injection
+- **Reload**: Hot reload, UI clearing, state preservation
 
-### Fast Path (QuickJSFastPathPlaymodeTests)
-- Zero-allocation property getters
-- Zero-allocation method calls
-- Time.deltaTime hot path
-- Transform.position access
+### JSPad Tests (JSPadPlaymodeTests)
+- **Temp Directory**: Instance ID generation, config file creation
+- **Source Code**: Index.tsx writing, content preservation
+- **Build State**: State transitions, output detection
+- **Execution**: Script execution, stop/cleanup
 
-### UI Bridge (QuickJSUIBridgePlaymodeTests)
-- Click event delegation
-- Pointer events (down, up, move)
-- Key events
-- Change events (TextField, Toggle, Slider)
-- Promise/microtask processing
+### Build Processor Tests (JSRunnerBuildProcessorTests)
+- **File Copying**: Recursive copy, content preservation
+- **Asset Detection**: `@namespace/` folder detection
+- **Scoped Packages**: `@scope/package` handling
+- **Deduplication**: Multiple JSRunner handling
 
-### React Integration (UIToolkitJSPlaymodeTests)
-- React component mounting
-- Button click handlers
-- Label text updates
-- TextField value binding
-- State-driven re-renders
+### Build Validation (BuildValidationTests)
+- **End-to-End**: Builds player, runs, validates output
+- Marked `[Explicit]` due to 30-60 second runtime
 
-### Stability & Monitoring (QuickJSStabilityTests)
-- Handle count tracking (`GetHandleCount`, `GetPeakHandleCount`)
-- Handle deduplication (same object = same handle)
-- Task queue monitoring (`GetPendingTaskCount`, `GetPeakTaskQueueSize`)
-- Buffer overflow detection (16KB limit warning)
-- Exception context preservation
-- Context disposal cleanup
+## Test Fixtures
 
-## Test Helpers
+Test fixtures are stored as `.txt` files in `Fixtures/Resources/` to avoid GUID dependencies.
 
-### AsyncTestHelper
 ```csharp
-Task<int> GetValueAsync(int value)                    // Immediate completion
-Task<string> DelayedMessageAsync(string msg, int ms)  // Delayed completion
-Task DoWorkAsync(int delayMs)                         // Void async
-Task<int> FailingAsync(string errorMessage)           // Throws exception
-Task<GameObject> CreateGameObjectAsync(string name)   // Returns Unity object
+// Load fixture
+var fixture = Resources.Load<TextAsset>("SimpleScript");
+var code = fixture.text;
 ```
 
-### Custom Test Structs
-```csharp
-TestCustomPoint { float x, y; string label; }
-TestNestedStruct { Vector3 position; Color color; int id; }
-TestPropertyStruct { float X { get; set; } float Y { get; set; } }
-```
+Available fixtures:
+- `SimpleScript.txt` - Basic execution validation
+- `UICreation.txt` - CS proxy and UI element creation
+- `EventTest.txt` - Event registration and dispatch
 
 ## Writing New Tests
 
-Follow these patterns:
-
+### PlayMode Test Pattern
 ```csharp
 [UnityTest]
 public IEnumerator MyTest_Condition_ExpectedResult() {
     // Arrange
-    var ctx = new QuickJSContext();
+    CreateJSRunner("console.log('test');");
 
     // Act
-    var result = ctx.Eval("1 + 1");
+    yield return null; // Wait for Start()
+    yield return null; // Extra frame for initialization
 
     // Assert
-    Assert.AreEqual("2", result);
-
-    // Cleanup
-    ctx.Dispose();
-    yield return null;
+    Assert.IsTrue(_runner.IsRunning);
 }
 ```
 
-For expected log messages:
+### Using Inline Test Code (Preferred)
+```csharp
+const string TestScript = @"
+globalThis.__result = 'success';
+";
+
+CreateJSRunner(TestScript);
+```
+
+### Using Fixtures (For Complex Tests)
+```csharp
+var fixture = Resources.Load<TextAsset>("UICreation");
+CreateJSRunner(fixture.text);
+```
+
+### Expected Log Messages
 ```csharp
 LogAssert.Expect(LogType.Warning, new Regex(@"pattern"));
 LogAssert.Expect(LogType.Error, "exact message");
 ```
+
+## Test Design Decisions
+
+1. **No GUIDs**: All fixtures are named files, not Unity asset references
+2. **Temp Directories**: Tests use `Temp/` to avoid project pollution
+3. **Frame Yields**: UIDocument requires frame delays for initialization
+4. **Proper Cleanup**: Always dispose bridge, destroy GameObjects, clear handles
+5. **Inline Code**: Prefer `const string` for simple test scripts
+
+## Build Validation Setup
+
+To run `BuildValidationTests`:
+1. Create `BuildValidation/BuildValidationScene.unity`
+2. Add `BuildValidationRunner` component to a GameObject
+3. Configure a JSRunner in the scene
+4. Add scene to Build Settings
+5. Run test from EditMode tab (marked Explicit)
+
+See `BuildValidation/README.md` for details.

@@ -1,0 +1,31 @@
+// UI Creation test - validates CS proxy and UI Toolkit integration
+(function() {
+    // Create a container
+    var container = new CS.UnityEngine.UIElements.VisualElement();
+    container.name = "TestContainer";
+    container.style.backgroundColor = CS.UnityEngine.Color.black;
+    container.style.padding = new CS.UnityEngine.UIElements.StyleLength(20);
+
+    // Create a label
+    var label = new CS.UnityEngine.UIElements.Label();
+    label.name = "TestLabel";
+    label.text = "Test UI Created";
+    label.style.color = CS.UnityEngine.Color.white;
+
+    // Create a button
+    var button = new CS.UnityEngine.UIElements.Button();
+    button.name = "TestButton";
+    button.text = "Click Me";
+
+    // Build hierarchy
+    container.Add(label);
+    container.Add(button);
+    __root.Add(container);
+
+    // Store result
+    globalThis.__uiCreationResult = {
+        containerCreated: container.__csHandle > 0,
+        labelCreated: label.__csHandle > 0,
+        buttonCreated: button.__csHandle > 0
+    };
+})();
