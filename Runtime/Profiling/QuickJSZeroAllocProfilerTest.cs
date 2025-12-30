@@ -1,11 +1,12 @@
+#if UNITY_EDITOR
 using UnityEngine;
 using UnityEngine.Profiling;
 
 /// <summary>
-/// Production zero-allocation profiler test.
+/// Zero-allocation profiler test for development.
 /// Exercises: Time.deltaTime (static) + transform.position get/set (instance + Vector3)
-/// 
 /// Expected: 0 B allocation per frame in Update()
+/// Editor-only: excluded from builds.
 /// </summary>
 public class QuickJSZeroAllocProfilerTest : MonoBehaviour {
     QuickJSContext _ctx;
@@ -69,3 +70,4 @@ public class QuickJSZeroAllocProfilerTest : MonoBehaviour {
         GUILayout.EndArea();
     }
 }
+#endif

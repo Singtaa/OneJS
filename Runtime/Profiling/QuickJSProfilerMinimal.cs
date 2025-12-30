@@ -1,9 +1,11 @@
+#if UNITY_EDITOR
 using UnityEngine;
 using UnityEngine.Profiling;
 
 /// <summary>
 /// Ultra-minimal test to isolate zero-alloc issues.
 /// Tests ONLY Time.deltaTime which should hit the fast path.
+/// Editor-only: excluded from builds.
 /// </summary>
 public class QuickJSProfilerMinimal : MonoBehaviour {
     QuickJSContext _ctx;
@@ -67,3 +69,4 @@ public class QuickJSProfilerMinimal : MonoBehaviour {
         GUILayout.EndArea();
     }
 }
+#endif

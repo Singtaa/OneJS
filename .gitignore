@@ -1,1 +1,6 @@
 .DS_Store
+
+# Build outputs in Auxiliary~
+Auxiliary~/quickjs-unity/*.dylib
+Auxiliary~/quickjs-unity/*.dll
+Auxiliary~/quickjs-unity/*.so

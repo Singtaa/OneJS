@@ -18,6 +18,7 @@ For basic tests that don't need React or npm packages:
 - **SimpleScript.txt** - Basic console.log and global assignment
 - **UICreation.txt** - Creates UI elements via CS proxy
 - **EventTest.txt** - Tests event registration and dispatch
+- **WebGLTest.txt** - WebGL bridge validation script
 
 ### React Apps (Require npm build)
 
