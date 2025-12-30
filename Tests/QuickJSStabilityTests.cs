@@ -282,6 +282,43 @@ public class QuickJSStabilityTests {
         Assert.IsTrue(exceptionThrown, "Should have thrown an exception");
         yield return null;
     }
+
+    [UnityTest]
+    public IEnumerator ExceptionContext_SyntaxError_ThrowsWithContext() {
+        // Try to evaluate malformed JavaScript - should throw with syntax error info
+        // Note: QuickJS throws exceptions but doesn't log syntax errors to Unity console
+        bool exceptionThrown = false;
+        try {
+            _ctx.Eval("if (true { console.log('missing paren'); }");
+        } catch (System.Exception ex) {
+            exceptionThrown = true;
+            // Exception should contain error info
+            Assert.IsTrue(
+                ex.Message.Contains("QuickJS error") || ex.Message.Contains("SyntaxError"),
+                $"Exception should contain error info, got: {ex.Message}");
+        }
+
+        Assert.IsTrue(exceptionThrown, "Should have thrown an exception for syntax error");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator ExceptionContext_RuntimeError_ThrowsWithContext() {
+        // Try to throw an error from JS - should propagate properly
+        // Note: QuickJS throws exceptions but doesn't log JS runtime errors to Unity console
+        bool exceptionThrown = false;
+        try {
+            _ctx.Eval("throw new Error('Intentional test error');");
+        } catch (System.Exception ex) {
+            exceptionThrown = true;
+            Assert.IsTrue(
+                ex.Message.Contains("Intentional test error") || ex.Message.Contains("QuickJS error"),
+                $"Exception should contain error message, got: {ex.Message}");
+        }
+
+        Assert.IsTrue(exceptionThrown, "Should have thrown an exception for runtime error");
+        yield return null;
+    }
 }
 
 /// <summary>

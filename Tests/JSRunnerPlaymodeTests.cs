@@ -331,6 +331,45 @@ __root.Add(el);
         Assert.AreNotEqual("-1", reloadHandle, "Global should be re-injected after reload");
     }
 
+    [UnityTest]
+    public IEnumerator Reload_CleansUpHandles() {
+        // Script that creates objects with handles
+        const string CreateObjectsScript = @"
+var elements = [];
+for (var i = 0; i < 10; i++) {
+    var el = new CS.UnityEngine.UIElements.VisualElement();
+    el.name = 'TestEl' + i;
+    __root.Add(el);
+    elements.push(el);
+}
+globalThis.__elementsCreated = elements.length;
+";
+
+        CreateJSRunner(CreateObjectsScript);
+
+        // Wait for initial load
+        yield return null;
+        yield return null;
+
+        // Get handle count after initial load
+        var handleCountAfterLoad = QuickJSNative.GetHandleCount();
+        Assert.IsTrue(handleCountAfterLoad >= 10, $"Should have at least 10 handles, got {handleCountAfterLoad}");
+
+        // Force reload (clears UI and reinitializes)
+        _runner.ForceReload();
+        yield return null;
+
+        // Handle count should be similar or lower after reload
+        // (not accumulating with each reload)
+        var handleCountAfterReload = QuickJSNative.GetHandleCount();
+
+        // Allow some tolerance - new handles are created for the new session
+        // but we shouldn't have double the handles
+        Assert.IsTrue(
+            handleCountAfterReload < handleCountAfterLoad * 2,
+            $"Handles should not accumulate excessively. Before: {handleCountAfterLoad}, After: {handleCountAfterReload}");
+    }
+
     // MARK: Scaffolding Tests
 
     [UnityTest]
