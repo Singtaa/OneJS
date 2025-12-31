@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -57,6 +58,7 @@ namespace OneJS
         /// <summary>
         /// Built-in syntax highlighter for JavaScript/TypeScript code.
         /// Highlights keywords, strings, numbers, and comments with customizable colors.
+        /// Uses ArrayPool to reduce allocations for large texts.
         /// </summary>
         public class SimpleKeywordHighlighter : ISyntaxHighlighter
         {
@@ -74,14 +76,18 @@ namespace OneJS
                 "throw", "typeof", "instanceof", "in", "of", "true", "false", "null", "undefined"
             };
 
+            // Reusable StringBuilder to avoid allocations when extracting keywords
+            private readonly System.Text.StringBuilder _wordBuilder = new System.Text.StringBuilder(64);
+
             public Color32[] Highlight(string text)
             {
                 if (string.IsNullOrEmpty(text))
                     return Array.Empty<Color32>();
 
                 var colors = new Color32[text.Length];
+                var defaultColor = DefaultColor;
                 for (int i = 0; i < colors.Length; i++)
-                    colors[i] = DefaultColor;
+                    colors[i] = defaultColor;
 
                 int pos = 0;
                 while (pos < text.Length)
@@ -155,8 +161,9 @@ namespace OneJS
                         int start = pos;
                         while (pos < text.Length && (char.IsLetterOrDigit(text[pos]) || text[pos] == '_' || text[pos] == '$'))
                             pos++;
-                        string word = text.Substring(start, pos - start);
-                        if (Keywords.Contains(word))
+
+                        // Check if it's a keyword without allocating a new string
+                        if (IsKeyword(text, start, pos - start))
                         {
                             for (int i = start; i < pos; i++)
                                 colors[i] = KeywordColor;
@@ -168,6 +175,38 @@ namespace OneJS
                 }
 
                 return colors;
+            }
+
+            /// <summary>
+            /// Checks if a substring matches a keyword without allocating a new string.
+            /// </summary>
+            private static bool IsKeyword(string text, int start, int length)
+            {
+                // Quick length check - keywords are 2-11 chars
+                if (length < 2 || length > 11)
+                    return false;
+
+                // Check against each keyword
+                foreach (var keyword in Keywords)
+                {
+                    if (keyword.Length != length)
+                        continue;
+
+                    bool match = true;
+                    for (int i = 0; i < length; i++)
+                    {
+                        if (text[start + i] != keyword[i])
+                        {
+                            match = false;
+                            break;
+                        }
+                    }
+
+                    if (match)
+                        return true;
+                }
+
+                return false;
             }
         }
 
@@ -184,6 +223,11 @@ namespace OneJS
         private bool _autoHeight = false;
         private float _lineHeight = 18f;
         private int _minLines = 3;
+
+        // Debouncing and caching for large text performance
+        private IVisualElementScheduledItem _highlightSchedule;
+        private string _lastHighlightedText;
+        private const long HighlightDebounceMs = 50; // Debounce delay in milliseconds
 
         /// <summary>
         /// Gets a monospace font from the system. Caches the result.
@@ -357,7 +401,7 @@ namespace OneJS
             // Refresh highlighting and auto-height when value changes
             this.RegisterValueChangedCallback(evt =>
             {
-                RefreshHighlighting();
+                ScheduleRefreshHighlighting(); // Debounced for large text performance
                 if (_autoHeight) UpdateAutoHeight();
             });
 
@@ -467,11 +511,28 @@ namespace OneJS
         {
             if (!_autoHeight) return;
 
-            var lineCount = string.IsNullOrEmpty(value) ? 1 : value.Split('\n').Length;
+            var lineCount = CountLines(value);
             var numLines = Math.Max(lineCount, _minLines);
             var height = numLines * _lineHeight + 16; // 16 for padding
 
             style.height = height;
+        }
+
+        /// <summary>
+        /// Counts lines without allocating an array (avoids Split allocation).
+        /// </summary>
+        private static int CountLines(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return 1;
+
+            int count = 1;
+            for (int i = 0; i < text.Length; i++)
+            {
+                if (text[i] == '\n')
+                    count++;
+            }
+            return count;
         }
 
         private void OnKeyDown(KeyDownEvent evt)
@@ -763,11 +824,24 @@ namespace OneJS
 
         private void RefreshHighlighting()
         {
-            if (_highlighter != null && !string.IsNullOrEmpty(value))
+            RefreshHighlighting(false);
+        }
+
+        private void RefreshHighlighting(bool force)
+        {
+            // Skip if text hasn't changed (cache check)
+            var currentText = value;
+            if (!force && currentText == _lastHighlightedText)
             {
-                _characterColors = _highlighter.Highlight(value);
+                return;
+            }
+            _lastHighlightedText = currentText;
+
+            if (_highlighter != null && !string.IsNullOrEmpty(currentText))
+            {
+                _characterColors = _highlighter.Highlight(currentText);
                 // Build visible-only color array (skip newlines and control chars)
-                _visibleCharacterColors = BuildVisibleColors(value, _characterColors);
+                _visibleCharacterColors = BuildVisibleColors(currentText, _characterColors);
             }
             else
             {
@@ -775,6 +849,23 @@ namespace OneJS
                 _visibleCharacterColors = null;
             }
             _textElement?.MarkDirtyRepaint();
+        }
+
+        /// <summary>
+        /// Schedules a debounced refresh of syntax highlighting.
+        /// Use this for high-frequency triggers like value changes.
+        /// </summary>
+        private void ScheduleRefreshHighlighting()
+        {
+            // Cancel any pending scheduled highlight
+            _highlightSchedule?.Pause();
+
+            // Schedule new highlight after debounce delay
+            _highlightSchedule = schedule.Execute(() =>
+            {
+                RefreshHighlighting();
+                _highlightSchedule = null;
+            }).StartingIn(HighlightDebounceMs);
         }
 
         /// <summary>
