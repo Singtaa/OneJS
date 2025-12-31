@@ -5,6 +5,7 @@ using System.IO.Compression;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using OneJS.Editor.TypeGenerator;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -37,6 +38,10 @@ public class JSRunnerEditor : Editor {
     Button _activateButton;
     HelpBox _licenseStatusBox;
 
+    // Type generation
+    Button _generateTypesButton;
+    Label _typeGenStatusLabel;
+
     void OnEnable() {
         _target = (JSRunner)target;
         EditorApplication.update += UpdateDynamicUI;
@@ -54,6 +59,7 @@ public class JSRunnerEditor : Editor {
         root.Add(CreateUIPanelSection());
         root.Add(CreateLiveReloadSection());
         root.Add(CreateSection("Build Settings", BuildBuildSettingsContent));
+        root.Add(CreateTypeGenerationSection());
         root.Add(CreateSection("Scaffolding", BuildScaffoldingContent));
         root.Add(CreateSection("Advanced", BuildAdvancedContent));
         root.Add(CreateActionsSection());
@@ -287,6 +293,79 @@ public class JSRunnerEditor : Editor {
             pollIntervalContainer.style.display = liveReloadProp.boolValue ? DisplayStyle.Flex : DisplayStyle.None);
 
         return container;
+    }
+
+    VisualElement CreateTypeGenerationSection() {
+        var container = new VisualElement { style = { marginBottom = 10 } };
+
+        var header = new Label("Type Generation");
+        header.style.unityFontStyleAndWeight = FontStyle.Bold;
+        header.style.marginBottom = 4;
+        header.style.marginTop = 6;
+        container.Add(header);
+
+        // Assemblies list
+        var assembliesField = new PropertyField(serializedObject.FindProperty("_typingAssemblies"));
+        assembliesField.label = "Assemblies";
+        assembliesField.tooltip = "C# assemblies to generate TypeScript typings for (e.g., 'Assembly-CSharp')";
+        container.Add(assembliesField);
+
+        // Auto-generate toggle
+        var autoGenerateProp = serializedObject.FindProperty("_autoGenerateTypings");
+        var autoGenerateField = new PropertyField(autoGenerateProp);
+        autoGenerateField.label = "Auto Generate";
+        container.Add(autoGenerateField);
+
+        // Output path
+        var outputPathProp = serializedObject.FindProperty("_typingsOutputPath");
+        var outputPathField = new PropertyField(outputPathProp);
+        outputPathField.label = "Output Path";
+        container.Add(outputPathField);
+
+        // Generate button row
+        var buttonRow = CreateRow();
+        buttonRow.style.marginTop = 5;
+
+        _generateTypesButton = new Button(GenerateTypings) { text = "Generate Types Now" };
+        _generateTypesButton.style.height = 24;
+        _generateTypesButton.style.flexGrow = 1;
+        buttonRow.Add(_generateTypesButton);
+
+        container.Add(buttonRow);
+
+        // Status label
+        _typeGenStatusLabel = new Label();
+        _typeGenStatusLabel.style.marginTop = 4;
+        _typeGenStatusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+        _typeGenStatusLabel.style.fontSize = 10;
+        container.Add(_typeGenStatusLabel);
+
+        // Update status label
+        UpdateTypeGenStatus();
+
+        return container;
+    }
+
+    void GenerateTypings() {
+        if (TypeGeneratorService.GenerateTypingsFor(_target, silent: false)) {
+            _typeGenStatusLabel.text = $"Generated at {DateTime.Now:HH:mm:ss}";
+            _typeGenStatusLabel.style.color = new Color(0.2f, 0.8f, 0.2f);
+        } else {
+            _typeGenStatusLabel.text = "Generation failed - check console";
+            _typeGenStatusLabel.style.color = new Color(0.8f, 0.4f, 0.4f);
+        }
+    }
+
+    void UpdateTypeGenStatus() {
+        if (_typeGenStatusLabel == null) return;
+
+        var outputPath = _target.TypingsFullPath;
+        if (File.Exists(outputPath)) {
+            var lastWrite = File.GetLastWriteTime(outputPath);
+            _typeGenStatusLabel.text = $"Output: {_target.TypingsOutputPath} (last updated: {lastWrite:g})";
+        } else {
+            _typeGenStatusLabel.text = $"Output: {_target.TypingsOutputPath} (not yet generated)";
+        }
     }
 
     VisualElement CreateActionsSection() {

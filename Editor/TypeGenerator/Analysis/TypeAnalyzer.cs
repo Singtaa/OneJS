@@ -32,6 +32,11 @@ namespace OneJS.Editor.TypeGenerator {
                 return null;
             }
 
+            // Handle edge case types by emitting as 'any' type alias
+            if (TypeMapper.ShouldEmitAsAny(type)) {
+                return CreateAnyTypeAlias(type);
+            }
+
             var info = new TsTypeInfo {
                 Name = GetTypeName(type),
                 Namespace = GetTypeNamespace(type),
@@ -87,6 +92,20 @@ namespace OneJS.Editor.TypeGenerator {
                 }
             }
             return results;
+        }
+
+        /// <summary>
+        /// Creates a type alias to 'any' for problematic types that can't be properly represented.
+        /// </summary>
+        private TsTypeInfo CreateAnyTypeAlias(Type type) {
+            var sanitizedName = TypeMapper.SanitizeTypeName(type.Name);
+            return new TsTypeInfo {
+                Name = sanitizedName,
+                Namespace = GetTypeNamespace(type),
+                Kind = TsTypeKind.TypeAlias,
+                OriginalType = type,
+                AliasedType = new TsTypeRef { Name = "any", IsPrimitive = true, PrimitiveTypeName = "any" }
+            };
         }
 
         private string GetTypeName(Type type) {

@@ -140,6 +140,9 @@ namespace OneJS.Editor.TypeGenerator {
                 case TsTypeKind.Interface:
                     EmitInterface(type);
                     break;
+                case TsTypeKind.TypeAlias:
+                    EmitTypeAlias(type);
+                    break;
                 default:
                     EmitClass(type);
                     break;
@@ -196,6 +199,12 @@ namespace OneJS.Editor.TypeGenerator {
 
                 AppendLine($"var {type.Name}: {{ new (func: ({paramList}) => {returnType}): {type.Name}; }};");
             }
+        }
+
+        private void EmitTypeAlias(TsTypeInfo type) {
+            // Emit type alias (e.g., for problematic types emitted as 'any')
+            var aliasedType = type.AliasedType?.ToTypeScript() ?? "any";
+            AppendLine($"type {type.Name} = {aliasedType};");
         }
 
         private void EmitInterface(TsTypeInfo type) {

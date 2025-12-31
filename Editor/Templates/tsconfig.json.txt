@@ -24,6 +24,6 @@
       "onejs-react": ["./node_modules/onejs-react/src"]
     }
   },
-  "include": ["**/*", "global.d.ts"],
+  "include": ["**/*", "global.d.ts", "types/**/*.d.ts"],
   "exclude": ["node_modules", "@outputs"]
 }

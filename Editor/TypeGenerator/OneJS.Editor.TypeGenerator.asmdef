@@ -1,7 +1,9 @@
 {
     "name": "OneJS.Editor.TypeGenerator",
     "rootNamespace": "OneJS.Editor.TypeGenerator",
-    "references": [],
+    "references": [
+        "OneJS.Runtime"
+    ],
     "includePlatforms": [
         "Editor"
     ],

@@ -11,7 +11,8 @@ namespace OneJS.Editor.TypeGenerator {
         Interface,
         Enum,
         Delegate,
-        Struct
+        Struct,
+        TypeAlias
     }
 
     /// <summary>
@@ -56,6 +57,9 @@ namespace OneJS.Editor.TypeGenerator {
         // For enums
         public List<TsEnumMember> EnumMembers { get; set; } = new();
         public bool IsEnumFlags { get; set; }
+
+        // For type aliases (e.g., problematic types emitted as 'any')
+        public TsTypeRef AliasedType { get; set; }
 
         // Documentation
         public string Documentation { get; set; }

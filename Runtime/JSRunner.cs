@@ -93,6 +93,14 @@ public class JSRunner : MonoBehaviour {
     [PairDrawer("←")]
     [SerializeField] List<DefaultFileEntry> _defaultFiles = new List<DefaultFileEntry>();
 
+    [Header("Type Generation")]
+    [Tooltip("C# assemblies to generate TypeScript typings for (e.g., 'Assembly-CSharp').")]
+    [SerializeField] List<string> _typingAssemblies = new List<string>();
+    [Tooltip("Automatically regenerate typings when C# scripts are recompiled.")]
+    [SerializeField] bool _autoGenerateTypings = true;
+    [Tooltip("Output path for generated .d.ts file, relative to WorkingDir.")]
+    [SerializeField] string _typingsOutputPath = "types/csharp.d.ts";
+
     [Header("Advanced")]
     [Tooltip("USS stylesheets to apply to the root element on init/reload.")]
     [SerializeField] List<StyleSheet> _stylesheets = new List<StyleSheet>();
@@ -153,6 +161,12 @@ public class JSRunner : MonoBehaviour {
 
     public string WorkingDirFullPath => Path.Combine(ProjectRoot, _workingDir);
     public string EntryFileFullPath => Path.Combine(WorkingDirFullPath, _entryFile);
+
+    // Type Generation properties
+    public IReadOnlyList<string> TypingAssemblies => _typingAssemblies;
+    public bool AutoGenerateTypings => _autoGenerateTypings;
+    public string TypingsOutputPath => _typingsOutputPath;
+    public string TypingsFullPath => Path.Combine(WorkingDirFullPath, _typingsOutputPath);
 
     void Start() {
         try {

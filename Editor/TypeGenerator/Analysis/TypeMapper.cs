@@ -267,10 +267,7 @@ namespace OneJS.Editor.TypeGenerator {
         public static bool ShouldSkipType(Type type) {
             if (type == null) return true;
 
-            // Skip compiler-generated types
-            if (type.Name.StartsWith("<")) return true;
-
-            // Skip pointer types
+            // Skip pointer types (can't be represented in TS)
             if (type.IsPointer) return true;
 
             // Skip by-ref-like types (Span<T>, etc.) - they can't be used in JS
@@ -284,6 +281,88 @@ namespace OneJS.Editor.TypeGenerator {
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Checks if a type should be emitted as 'any' instead of full type definition.
+        /// This handles edge cases that would produce invalid TypeScript.
+        /// </summary>
+        public static bool ShouldEmitAsAny(Type type) {
+            if (type == null) return true;
+
+            var name = type.Name;
+
+            // Compiler-generated types (lambdas, closures, etc.)
+            if (name.StartsWith("<") || name.Contains("<>")) return true;
+
+            // Display classes (closure captures)
+            if (name.Contains("__DisplayClass")) return true;
+
+            // State machines (async/iterator)
+            if (name.Contains(">d__") || name.Contains(">c__")) return true;
+
+            // Fixed buffers with invalid TS identifiers
+            if (name.Contains("<") && name.Contains(">e__FixedBuffer")) return true;
+
+            // Check for CompilerGeneratedAttribute
+            try {
+                var hasCompilerGenerated = type.GetCustomAttributes(false)
+                    .Any(a => a.GetType().Name == "CompilerGeneratedAttribute");
+                if (hasCompilerGenerated) return true;
+            } catch {
+                // Ignore if we can't check
+            }
+
+            // Check for invalid TypeScript identifier characters in the name
+            // TypeScript identifiers cannot contain: < > + = ! @ # etc.
+            if (ContainsInvalidTsIdentifierChars(name)) return true;
+
+            return false;
+        }
+
+        /// <summary>
+        /// Checks if a type name contains characters that are invalid in TypeScript identifiers.
+        /// </summary>
+        private static bool ContainsInvalidTsIdentifierChars(string name) {
+            if (string.IsNullOrEmpty(name)) return false;
+
+            // Characters that are valid in C# type names but not in TS identifiers
+            char[] invalidChars = { '<', '>', '+', '=', '!', '@', '#', '&', '*', '(', ')', '[', ']', '{', '}', '|', '\\', '/', '?', ';', ':', '"', '\'' };
+
+            foreach (var c in name) {
+                if (Array.IndexOf(invalidChars, c) >= 0) return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Sanitizes a type name to be a valid TypeScript identifier.
+        /// </summary>
+        public static string SanitizeTypeName(string name) {
+            if (string.IsNullOrEmpty(name)) return "Unknown";
+
+            // Replace common patterns
+            name = name.Replace('<', '_').Replace('>', '_');
+            name = name.Replace('+', '_');
+            name = name.Replace('`', '$');
+
+            // Remove any remaining invalid characters
+            var chars = name.ToCharArray();
+            for (int i = 0; i < chars.Length; i++) {
+                if (!char.IsLetterOrDigit(chars[i]) && chars[i] != '_' && chars[i] != '$') {
+                    chars[i] = '_';
+                }
+            }
+
+            name = new string(chars);
+
+            // Ensure it doesn't start with a digit
+            if (name.Length > 0 && char.IsDigit(name[0])) {
+                name = "_" + name;
+            }
+
+            return name;
         }
 
         /// <summary>

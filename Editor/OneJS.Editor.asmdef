@@ -2,7 +2,8 @@
     "name": "OneJS.Editor",
     "rootNamespace": "",
     "references": [
-        "OneJS.Runtime"
+        "OneJS.Runtime",
+        "OneJS.Editor.TypeGenerator"
     ],
     "includePlatforms": [
         "Editor"
