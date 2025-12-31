@@ -76,13 +76,11 @@ public class JSRunner : MonoBehaviour {
     [SerializeField] int _fallbackDpi = 96;
     [SerializeField] int _sortOrder = 0;
 
-    [Header("Live Reload")]
     [Tooltip("Automatically reload when the entry file changes (Editor/Standalone only)")]
     [SerializeField] bool _liveReload = true;
     [Tooltip("How often to check for file changes (in seconds)")]
     [SerializeField] float _pollInterval = 0.5f;
 
-    [Header("Build Settings")]
     [Tooltip("TextAsset containing the bundled JS. If set, used instead of StreamingAssets in builds.")]
     [SerializeField] TextAsset _embeddedScript;
     [Tooltip("Path relative to StreamingAssets for the JS bundle in builds (auto-copied during build).")]
@@ -90,12 +88,10 @@ public class JSRunner : MonoBehaviour {
     [SerializeField] string _streamingAssetsPath = "onejs/app.js";
 #pragma warning restore CS0414
 
-    [Header("Scaffolding")]
     [Tooltip("Default files to create in WorkingDir if missing. Path is relative to WorkingDir.")]
     [PairDrawer("←")]
     [SerializeField] List<DefaultFileEntry> _defaultFiles = new List<DefaultFileEntry>();
 
-    [Header("Type Generation")]
     [Tooltip("C# assemblies to generate TypeScript typings for (e.g., 'Assembly-CSharp').")]
     [SerializeField] List<string> _typingAssemblies = new List<string>();
     [Tooltip("Automatically regenerate typings when C# scripts are recompiled.")]
@@ -103,7 +99,6 @@ public class JSRunner : MonoBehaviour {
     [Tooltip("Output path for generated .d.ts file, relative to WorkingDir.")]
     [SerializeField] string _typingsOutputPath = "types/csharp.d.ts";
 
-    [Header("Advanced")]
     [Tooltip("USS stylesheets to apply to the root element on init/reload.")]
     [SerializeField] List<StyleSheet> _stylesheets = new List<StyleSheet>();
     [Tooltip("TextAssets to load and evaluate before the entry file. Useful for polyfills or shared libraries.")]
