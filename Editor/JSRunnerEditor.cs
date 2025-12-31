@@ -1,10 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.IO.Compression;
-using System.Net.Http;
-using System.Text;
-using System.Threading.Tasks;
 using OneJS.Editor.TypeGenerator;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -20,11 +16,6 @@ public class JSRunnerEditor : Editor {
     bool _buildInProgress;
     string _buildOutput;
 
-    // License activation
-    string _licenseKey = "";
-    string _licenseStatus = "";
-    bool _activationInProgress;
-
     // UI Elements that need updating
     Label _statusLabel;
     Label _liveReloadStatusLabel;
@@ -34,9 +25,6 @@ public class JSRunnerEditor : Editor {
     Button _buildButton;
     HelpBox _buildOutputBox;
     VisualElement _liveReloadInfo;
-    TextField _licenseKeyField;
-    Button _activateButton;
-    HelpBox _licenseStatusBox;
 
     // Type generation
     Button _generateTypesButton;
@@ -63,7 +51,6 @@ public class JSRunnerEditor : Editor {
         root.Add(CreateSection("Scaffolding", BuildScaffoldingContent));
         root.Add(CreateSection("Advanced", BuildAdvancedContent));
         root.Add(CreateActionsSection());
-        root.Add(CreatePremiumSection());
 
         return root;
     }
@@ -89,7 +76,7 @@ public class JSRunnerEditor : Editor {
     }
 
     /// <summary>
-    /// Creates a styled box container (for Status and Premium sections).
+    /// Creates a styled box container.
     /// </summary>
     VisualElement CreateStyledBox() {
         var box = new VisualElement();
@@ -416,55 +403,6 @@ public class JSRunnerEditor : Editor {
         return container;
     }
 
-    VisualElement CreatePremiumSection() {
-        var container = new VisualElement { style = { marginTop = 10 } };
-
-        var header = new Label("Premium Components");
-        header.style.unityFontStyleAndWeight = FontStyle.Bold;
-        header.style.marginBottom = 4;
-        container.Add(header);
-
-        var box = CreateStyledBox();
-
-        // License key row
-        var keyRow = CreateRow();
-        keyRow.style.marginBottom = 5;
-        keyRow.Add(CreateLabel("License Key", 80));
-        _licenseKeyField = new TextField { style = { flexGrow = 1 } };
-        _licenseKeyField.RegisterValueChangedCallback(evt => _licenseKey = evt.newValue);
-        keyRow.Add(_licenseKeyField);
-        box.Add(keyRow);
-
-        // Buttons row
-        var buttonsRow = CreateRow();
-        buttonsRow.style.marginBottom = 5;
-
-        _activateButton = new Button(ActivateLicense) { text = "Activate" };
-        _activateButton.style.height = 24;
-        _activateButton.style.flexGrow = 1;
-        buttonsRow.Add(_activateButton);
-
-        var checkUpdatesButton = new Button(CheckForUpdates) { text = "Check Updates" };
-        checkUpdatesButton.style.height = 24;
-        checkUpdatesButton.style.flexGrow = 1;
-        buttonsRow.Add(checkUpdatesButton);
-
-        box.Add(buttonsRow);
-
-        _licenseStatusBox = new HelpBox("", HelpBoxMessageType.None);
-        _licenseStatusBox.style.display = DisplayStyle.None;
-        _licenseStatusBox.style.marginBottom = 5;
-        box.Add(_licenseStatusBox);
-
-        var infoLabel = new Label("Premium components will be downloaded to: comps/");
-        infoLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
-        infoLabel.style.fontSize = 10;
-        box.Add(infoLabel);
-
-        container.Add(box);
-        return container;
-    }
-
     // MARK: UI Helpers
 
     static VisualElement CreateRow() {
@@ -524,99 +462,6 @@ public class JSRunnerEditor : Editor {
             _buildOutputBox.style.display = DisplayStyle.Flex;
             _buildOutputBox.text = _buildOutput;
         }
-
-        // License
-        _activateButton.SetEnabled(!_activationInProgress && !string.IsNullOrEmpty(_licenseKey));
-        _activateButton.text = _activationInProgress ? "Activating..." : "Activate";
-
-        if (!string.IsNullOrEmpty(_licenseStatus)) {
-            _licenseStatusBox.style.display = DisplayStyle.Flex;
-            _licenseStatusBox.text = _licenseStatus;
-            _licenseStatusBox.messageType = _licenseStatus.StartsWith("Error") ? HelpBoxMessageType.Error :
-                                            _licenseStatus.StartsWith("Success") ? HelpBoxMessageType.Info :
-                                            HelpBoxMessageType.None;
-        }
-    }
-
-    // MARK: License Activation
-
-    async void ActivateLicense() {
-        if (string.IsNullOrEmpty(_licenseKey)) return;
-
-        _activationInProgress = true;
-        _licenseStatus = "Contacting server...";
-
-        try {
-            var apiUrl = "http://localhost:8790/api/activate";
-            var payload = $"{{\"key\":\"{_licenseKey}\"}}";
-
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-            var content = new StringContent(payload, Encoding.UTF8, "application/json");
-            var response = await client.PostAsync(apiUrl, content);
-            var responseBody = await response.Content.ReadAsStringAsync();
-
-            if (responseBody.Contains("\"success\":true")) {
-                var downloadUrlStart = responseBody.IndexOf("\"downloadUrl\":\"") + 15;
-                var downloadUrlEnd = responseBody.IndexOf("\"", downloadUrlStart);
-                var downloadPath = responseBody.Substring(downloadUrlStart, downloadUrlEnd - downloadUrlStart);
-                var baseUrl = apiUrl.Substring(0, apiUrl.LastIndexOf("/api/"));
-
-                _licenseStatus = "Downloading components...";
-                await DownloadAndExtract(baseUrl + downloadPath);
-            } else {
-                var errorStart = responseBody.IndexOf("\"error\":\"");
-                if (errorStart >= 0) {
-                    errorStart += 9;
-                    var errorEnd = responseBody.IndexOf("\"", errorStart);
-                    _licenseStatus = $"Error: {responseBody.Substring(errorStart, errorEnd - errorStart)}";
-                } else {
-                    _licenseStatus = "Error: Activation failed";
-                }
-            }
-        } catch (HttpRequestException ex) {
-            _licenseStatus = $"Error: Could not connect to server.\n{ex.Message}";
-        } catch (TaskCanceledException) {
-            _licenseStatus = "Error: Request timed out";
-        } catch (Exception ex) {
-            _licenseStatus = $"Error: {ex.Message}";
-        } finally {
-            _activationInProgress = false;
-        }
-    }
-
-    async Task DownloadAndExtract(string downloadUrl) {
-        try {
-            using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-            var response = await client.GetAsync(downloadUrl);
-
-            if (!response.IsSuccessStatusCode) {
-                var errorBody = await response.Content.ReadAsStringAsync();
-                _licenseStatus = errorBody.Contains("Asset not found")
-                    ? "Error: Component package not yet available. Please contact support."
-                    : $"Error: Download failed ({response.StatusCode})";
-                return;
-            }
-
-            var zipBytes = await response.Content.ReadAsByteArrayAsync();
-            var tempPath = Path.Combine(Application.temporaryCachePath, "onejs-comps.zip");
-            File.WriteAllBytes(tempPath, zipBytes);
-
-            var extractPath = Path.Combine(_target.WorkingDirFullPath, "comps");
-            if (Directory.Exists(extractPath)) Directory.Delete(extractPath, true);
-            Directory.CreateDirectory(extractPath);
-
-            ZipFile.ExtractToDirectory(tempPath, extractPath);
-            File.Delete(tempPath);
-
-            _licenseStatus = "Success! Components installed to: comps/";
-            AssetDatabase.Refresh();
-        } catch (Exception ex) {
-            _licenseStatus = $"Error extracting: {ex.Message}";
-        }
-    }
-
-    void CheckForUpdates() {
-        _licenseStatus = "Update checking not yet implemented";
     }
 
     // MARK: Build
