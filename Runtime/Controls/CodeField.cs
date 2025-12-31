@@ -32,12 +32,9 @@ namespace OneJS
     /// codeField.Highlighter = new MyPythonHighlighter();
     /// </code>
     /// </example>
-    public class CodeField : TextField
+    [UxmlElement]
+    public partial class CodeField : TextField
     {
-        public new class UxmlFactory : UxmlFactory<CodeField, UxmlTraits> { }
-
-        public new class UxmlTraits : TextField.UxmlTraits { }
-
         /// <summary>
         /// Interface for syntax highlighters that provide color information per character.
         /// Implement this interface to add support for custom languages or color schemes.
@@ -540,7 +537,6 @@ namespace OneJS
             if (evt.keyCode == KeyCode.Tab)
             {
                 evt.StopPropagation();
-                evt.PreventDefault();
 
                 if (evt.shiftKey)
                 {
@@ -561,7 +557,6 @@ namespace OneJS
                 if (HandleSmartBackspace())
                 {
                     evt.StopPropagation();
-                    evt.PreventDefault();
                 }
             }
             // Fix Cmd+Arrow navigation for multiline (UI Toolkit quirk)
@@ -570,14 +565,12 @@ namespace OneJS
                 if (evt.keyCode == KeyCode.RightArrow)
                 {
                     evt.StopPropagation();
-                    evt.PreventDefault();
                     cursorIndex = GetLineEnd(value, cursorIndex);
                     selectIndex = cursorIndex;
                 }
                 else if (evt.keyCode == KeyCode.LeftArrow)
                 {
                     evt.StopPropagation();
-                    evt.PreventDefault();
                     cursorIndex = GetLineStart(value, cursorIndex);
                     selectIndex = cursorIndex;
                 }
@@ -588,13 +581,11 @@ namespace OneJS
                 if (evt.keyCode == KeyCode.RightArrow)
                 {
                     evt.StopPropagation();
-                    evt.PreventDefault();
                     cursorIndex = GetLineEnd(value, cursorIndex);
                 }
                 else if (evt.keyCode == KeyCode.LeftArrow)
                 {
                     evt.StopPropagation();
-                    evt.PreventDefault();
                     cursorIndex = GetLineStart(value, cursorIndex);
                 }
             }

@@ -86,7 +86,9 @@ public class JSRunner : MonoBehaviour {
     [Tooltip("TextAsset containing the bundled JS. If set, used instead of StreamingAssets in builds.")]
     [SerializeField] TextAsset _embeddedScript;
     [Tooltip("Path relative to StreamingAssets for the JS bundle in builds (auto-copied during build).")]
+#pragma warning disable CS0414 // Field is used in builds, not Editor
     [SerializeField] string _streamingAssetsPath = "onejs/app.js";
+#pragma warning restore CS0414
 
     [Header("Scaffolding")]
     [Tooltip("Default files to create in WorkingDir if missing. Path is relative to WorkingDir.")]

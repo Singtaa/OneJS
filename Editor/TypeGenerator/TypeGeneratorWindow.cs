@@ -21,7 +21,7 @@ namespace OneJS.Editor.TypeGenerator {
 
         // Type panel - TreeView based
         private TypeTreeView _typeTreeView;
-        private TreeViewState _typeTreeViewState;
+        private TreeViewState<int> _typeTreeViewState;
         private SearchField _typeSearchField;
         private List<TypeEntry> _allTypes = new();
         private List<TypeEntry> _filteredTypes = new();
@@ -60,7 +60,7 @@ namespace OneJS.Editor.TypeGenerator {
         }
 
         private void OnEnable() {
-            _typeTreeViewState = new TreeViewState();
+            _typeTreeViewState = new TreeViewState<int>();
             _typeSearchField = new SearchField();
             RefreshAssemblies();
         }
