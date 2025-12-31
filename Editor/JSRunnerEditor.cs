@@ -12,6 +12,8 @@ using Debug = UnityEngine.Debug;
 
 [CustomEditor(typeof(JSRunner))]
 public class JSRunnerEditor : Editor {
+    const string FoldoutPrefKeyPrefix = "JSRunner.Foldout.";
+
     JSRunner _target;
     bool _buildInProgress;
     string _buildOutput;
@@ -42,14 +44,19 @@ public class JSRunnerEditor : Editor {
     public override VisualElement CreateInspectorGUI() {
         var root = new VisualElement();
 
+        // Status - always visible at top
         root.Add(CreateStatusSection());
-        root.Add(CreateSection("Settings", BuildSettingsContent));
-        root.Add(CreateUIPanelSection());
-        root.Add(CreateLiveReloadSection());
-        root.Add(CreateSection("Build Settings", BuildBuildSettingsContent));
-        root.Add(CreateTypeGenerationSection());
-        root.Add(CreateSection("Scaffolding", BuildScaffoldingContent));
-        root.Add(CreateSection("Advanced", BuildAdvancedContent));
+
+        // Collapsible config sections
+        root.Add(CreateFoldoutSection("Settings", BuildSettingsContent, defaultOpen: true));
+        root.Add(CreateFoldoutSection("UI Panel", BuildUIPanelContent));
+        root.Add(CreateFoldoutSection("Live Reload", BuildLiveReloadContent, defaultOpen: true));
+        root.Add(CreateFoldoutSection("Build Settings", BuildBuildSettingsContent));
+        root.Add(CreateFoldoutSection("Type Generation", BuildTypeGenerationContent));
+        root.Add(CreateFoldoutSection("Scaffolding", BuildScaffoldingContent));
+        root.Add(CreateFoldoutSection("Advanced", BuildAdvancedContent));
+
+        // Actions - always visible at bottom
         root.Add(CreateActionsSection());
 
         return root;
@@ -58,21 +65,31 @@ public class JSRunnerEditor : Editor {
     // MARK: Section Factory
 
     /// <summary>
-    /// Creates a standard section with header and content.
+    /// Creates a collapsible foldout section with persistent state.
     /// </summary>
-    VisualElement CreateSection(string title, Action<VisualElement> buildContent) {
-        var container = new VisualElement();
-        container.style.marginBottom = 10;
+    VisualElement CreateFoldoutSection(string title, Action<VisualElement> buildContent, bool defaultOpen = false) {
+        var prefKey = FoldoutPrefKeyPrefix + title.Replace(" ", "");
+        var isOpen = EditorPrefs.GetBool(prefKey, defaultOpen);
 
-        var header = new Label(title);
-        header.style.unityFontStyleAndWeight = FontStyle.Bold;
-        header.style.marginBottom = 4;
-        header.style.marginTop = 6;
-        container.Add(header);
+        var foldout = new Foldout {
+            text = title,
+            value = isOpen
+        };
+        foldout.style.marginBottom = 4;
+        foldout.style.marginTop = 2;
 
-        buildContent(container);
+        // Persist state when toggled
+        foldout.RegisterValueChangedCallback(evt => {
+            EditorPrefs.SetBool(prefKey, evt.newValue);
+        });
 
-        return container;
+        // Build content inside foldout
+        var content = new VisualElement();
+        content.style.marginLeft = 4;
+        buildContent(content);
+        foldout.Add(content);
+
+        return foldout;
     }
 
     /// <summary>
@@ -173,15 +190,7 @@ public class JSRunnerEditor : Editor {
         return container;
     }
 
-    VisualElement CreateUIPanelSection() {
-        var container = new VisualElement { style = { marginBottom = 10 } };
-
-        var header = new Label("UI Panel");
-        header.style.unityFontStyleAndWeight = FontStyle.Bold;
-        header.style.marginBottom = 4;
-        header.style.marginTop = 6;
-        container.Add(header);
-
+    void BuildUIPanelContent(VisualElement container) {
         var panelSettingsProp = serializedObject.FindProperty("_panelSettings");
         var panelSettingsField = new PropertyField(panelSettingsProp, "Panel Settings");
         container.Add(panelSettingsField);
@@ -260,13 +269,9 @@ public class JSRunnerEditor : Editor {
         panelSettingsField.RegisterValueChangeCallback(_ =>
             helpBox.style.display = panelSettingsProp.objectReferenceValue == null ? DisplayStyle.Flex : DisplayStyle.None);
         container.Add(helpBox);
-
-        return container;
     }
 
-    VisualElement CreateLiveReloadSection() {
-        var container = new VisualElement { style = { marginBottom = 10 } };
-
+    void BuildLiveReloadContent(VisualElement container) {
         var liveReloadProp = serializedObject.FindProperty("_liveReload");
         var liveReloadField = new PropertyField(liveReloadProp);
         container.Add(liveReloadField);
@@ -278,19 +283,9 @@ public class JSRunnerEditor : Editor {
         pollIntervalContainer.style.display = liveReloadProp.boolValue ? DisplayStyle.Flex : DisplayStyle.None;
         liveReloadField.RegisterValueChangeCallback(_ =>
             pollIntervalContainer.style.display = liveReloadProp.boolValue ? DisplayStyle.Flex : DisplayStyle.None);
-
-        return container;
     }
 
-    VisualElement CreateTypeGenerationSection() {
-        var container = new VisualElement { style = { marginBottom = 10 } };
-
-        var header = new Label("Type Generation");
-        header.style.unityFontStyleAndWeight = FontStyle.Bold;
-        header.style.marginBottom = 4;
-        header.style.marginTop = 6;
-        container.Add(header);
-
+    void BuildTypeGenerationContent(VisualElement container) {
         // Assemblies list
         var assembliesField = new PropertyField(serializedObject.FindProperty("_typingAssemblies"));
         assembliesField.label = "Assemblies";
@@ -329,8 +324,6 @@ public class JSRunnerEditor : Editor {
 
         // Update status label
         UpdateTypeGenStatus();
-
-        return container;
     }
 
     void GenerateTypings() {
