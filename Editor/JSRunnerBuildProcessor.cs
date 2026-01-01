@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using OneJS.Editor;
+using OneJS;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;

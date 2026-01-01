@@ -148,14 +148,9 @@ public class JSRunnerEditor : Editor {
         buttonRow.style.marginTop = 5;
 
         var repopulateButton = new Button(() => {
-            // Call the PopulateDefaultFiles method via reflection (it's in a UNITY_EDITOR block)
-            var method = typeof(JSRunner).GetMethod("PopulateDefaultFiles",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (method != null) {
-                method.Invoke(_target, null);
-                serializedObject.Update();
-                EditorUtility.SetDirty(_target);
-            }
+            _target.PopulateDefaultFiles();
+            serializedObject.Update();
+            EditorUtility.SetDirty(_target);
         }) { text = "Reset to Defaults" };
         repopulateButton.style.height = 22;
         repopulateButton.style.flexGrow = 1;

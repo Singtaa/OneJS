@@ -289,6 +289,9 @@ public class JSRunner : MonoBehaviour {
         // Scaffold any missing default files
         ScaffoldDefaultFiles();
 
+        // Extract cartridge files
+        ExtractCartridges();
+
         // Ensure entry file exists (fallback if not in defaultFiles)
         EnsureEntryFile();
 
@@ -346,6 +349,46 @@ public class JSRunner : MonoBehaviour {
         // Create minimal entry file
         File.WriteAllText(EntryFileFullPath, DefaultEntryContent);
         Debug.Log($"[JSRunner] Created default entry file: {_entryFile}");
+    }
+
+    /// <summary>
+    /// Extract cartridge files to WorkingDir/cartridges/{slug}/.
+    /// Only extracts if the cartridge folder doesn't already exist.
+    /// </summary>
+    void ExtractCartridges() {
+        if (_cartridges == null || _cartridges.Count == 0) return;
+
+        foreach (var cartridge in _cartridges) {
+            if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) continue;
+
+            var destPath = GetCartridgePath(cartridge);
+            if (string.IsNullOrEmpty(destPath)) continue;
+
+            // Skip if folder already exists
+            if (Directory.Exists(destPath)) continue;
+
+            Directory.CreateDirectory(destPath);
+
+            // Extract files
+            foreach (var file in cartridge.Files) {
+                if (string.IsNullOrEmpty(file.path) || file.content == null) continue;
+
+                var filePath = Path.Combine(destPath, file.path);
+                var fileDir = Path.GetDirectoryName(filePath);
+
+                if (!string.IsNullOrEmpty(fileDir) && !Directory.Exists(fileDir)) {
+                    Directory.CreateDirectory(fileDir);
+                }
+
+                File.WriteAllText(filePath, file.content.text);
+            }
+
+            // Generate TypeScript definitions
+            var dts = OneJS.CartridgeTypeGenerator.Generate(cartridge);
+            File.WriteAllText(Path.Combine(destPath, $"{cartridge.Slug}.d.ts"), dts);
+
+            Debug.Log($"[JSRunner] Extracted cartridge: {cartridge.Slug}");
+        }
     }
 #endif // UNITY_EDITOR
 
@@ -850,8 +893,9 @@ public class JSRunner : MonoBehaviour {
 
     /// <summary>
     /// Finds and loads default template files from the OneJS Editor/Templates folder.
+    /// Uses PackageInfo to robustly locate the package regardless of installation method.
     /// </summary>
-    void PopulateDefaultFiles() {
+    public void PopulateDefaultFiles() {
         // Template mapping: source file name → target path in WorkingDir
         var templateMapping = new (string templateName, string targetPath)[] {
             ("package.json.txt", "package.json"),
@@ -866,21 +910,31 @@ public class JSRunner : MonoBehaviour {
 
         _defaultFiles.Clear();
 
-        // Find the Templates folder - search for any template file to get the path
-        var guids = UnityEditor.AssetDatabase.FindAssets("package.json t:TextAsset");
-        string templatesFolder = null;
+        // Find the OneJS package using the assembly that contains JSRunner
+        var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(JSRunner).Assembly);
+        string templatesFolder;
 
-        foreach (var guid in guids) {
-            var path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
-            if (path.Contains("OneJS") && path.Contains("Editor/Templates")) {
-                templatesFolder = Path.GetDirectoryName(path);
-                break;
+        if (packageInfo != null) {
+            // Installed as a package (Packages/com.singtaa.onejs)
+            templatesFolder = Path.Combine(packageInfo.assetPath, "Editor/Templates").Replace("\\", "/");
+        } else {
+            // Fallback: might be in Assets folder (e.g., as submodule)
+            // Search for the templates folder
+            var guids = UnityEditor.AssetDatabase.FindAssets("package.json t:TextAsset");
+            templatesFolder = null;
+
+            foreach (var guid in guids) {
+                var path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
+                if (path.ToLowerInvariant().Contains("onejs") && path.Contains("Editor/Templates")) {
+                    templatesFolder = Path.GetDirectoryName(path);
+                    break;
+                }
             }
-        }
 
-        if (string.IsNullOrEmpty(templatesFolder)) {
-            Debug.LogWarning("[JSRunner] Could not find OneJS Editor/Templates folder");
-            return;
+            if (string.IsNullOrEmpty(templatesFolder)) {
+                Debug.LogWarning("[JSRunner] Could not find OneJS Editor/Templates folder");
+                return;
+            }
         }
 
         foreach (var (templateName, targetPath) in templateMapping) {

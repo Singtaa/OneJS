@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
 
-namespace OneJS.Editor {
+namespace OneJS {
     /// <summary>
     /// Generates TypeScript definition files for cartridge objects.
     /// Enables intellisense for __cartridges.{slug}.{key} access.
