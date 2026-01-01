@@ -11,6 +11,15 @@ This system validates that OneJS works correctly in standalone builds by:
 3. Parsing `[BUILD_TEST]` log entries for pass/fail results
 4. Asserting all tests pass
 
+## Assembly Isolation
+
+`BuildValidationRunner` is in a separate assembly (`OneJS.BuildValidation`) with a `ONEJS_BUILD_VALIDATION` define constraint. This ensures it **never leaks into user builds**.
+
+The test automatically:
+1. Adds `ONEJS_BUILD_VALIDATION` to scripting defines before building
+2. Builds the test player (with `BuildValidationRunner` compiled in)
+3. Restores original defines after building
+
 ## Setup
 
 ### 1. Create Test Scene
@@ -64,18 +73,25 @@ To run the built player manually:
 
 ```bash
 # macOS
-./BuildTest.app/Contents/MacOS/BuildTest -logFile output.log -batchmode -nographics
+./BuildTest.app/Contents/MacOS/BuildTest -logFile output.log -batchmode
 
 # Windows
-BuildTest.exe -logFile output.log -batchmode -nographics
+BuildTest.exe -logFile output.log -batchmode
 
 # Then check output.log for [BUILD_TEST] lines
 ```
+
+> **Note**: `-nographics` is omitted because UI Toolkit requires a graphics context.
 
 ## Troubleshooting
 
 **Build fails**: Check that all required scenes/assets are included.
 
-**No test results**: Ensure `BuildValidationRunner.Start()` is being called (scene is active).
+**No test results**:
+- Ensure `BuildValidationRunner.Start()` is being called (scene is active)
+- Verify `ONEJS_BUILD_VALIDATION` define was added (check build log)
+- The 30-second global timeout should force exit if tests hang
 
 **Tests timeout**: Increase `RUN_TIMEOUT_MS` in `BuildValidationTests.cs`.
+
+**BuildValidationRunner not found**: The test automatically adds the `ONEJS_BUILD_VALIDATION` define. If running manually, add this define to Player Settings > Scripting Define Symbols.

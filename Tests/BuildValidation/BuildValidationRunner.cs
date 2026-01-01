@@ -35,13 +35,41 @@ globalThis.__buildTestResult = {
 
     List<string> _results = new List<string>();
     bool _completed = false;
+    float _startTime;
+
+
+    void Awake() {
+        Debug.Log("[BUILD_TEST] BuildValidationRunner.Awake() called");
+    }
 
     void Start() {
+        _startTime = Time.realtimeSinceStartup;
+        Debug.Log("[BUILD_TEST] BuildValidationRunner.Start() called");
+        Debug.Log($"[BUILD_TEST] Time.realtimeSinceStartup: {_startTime}");
         StartCoroutine(RunValidation());
+    }
+
+    void Update() {
+        // Global timeout - force quit if running too long (30 seconds)
+        if (!_completed && Time.realtimeSinceStartup - _startTime > 30f) {
+            Debug.LogError("[BUILD_TEST] GLOBAL TIMEOUT - forcing exit");
+            _results.Add("FAIL: Global timeout exceeded");
+            ForceExit(1);
+        }
+    }
+
+    void ForceExit(int exitCode) {
+        _completed = true;
+#if !UNITY_EDITOR
+        Debug.Log($"[BUILD_TEST] Force exiting with code: {exitCode}");
+        Application.Quit(exitCode);
+#endif
     }
 
     IEnumerator RunValidation() {
         Debug.Log("[BUILD_TEST] Starting build validation...");
+        Debug.Log($"[BUILD_TEST] Platform: {Application.platform}");
+        Debug.Log($"[BUILD_TEST] StreamingAssets: {Application.streamingAssetsPath}");
 
         // Wait a few frames for Unity to stabilize
         yield return null;

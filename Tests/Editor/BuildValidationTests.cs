@@ -150,23 +150,36 @@ public class BuildValidationTests {
 
         // Use current editor platform, not active build target (which might be WebGL, etc.)
         var buildTarget = GetEditorBuildTarget();
+        var buildTargetGroup = BuildPipeline.GetBuildTargetGroup(buildTarget);
 
-        var options = new BuildPlayerOptions {
-            scenes = new[] { TEST_SCENE_PATH },
-            locationPathName = _buildPath,
-            target = buildTarget,
-            options = BuildOptions.None
-        };
+        // Add ONEJS_BUILD_VALIDATION define so BuildValidationRunner gets compiled
+        var originalDefines = PlayerSettings.GetScriptingDefineSymbolsForGroup(buildTargetGroup);
+        var testDefines = string.IsNullOrEmpty(originalDefines)
+            ? "ONEJS_BUILD_VALIDATION"
+            : originalDefines + ";ONEJS_BUILD_VALIDATION";
+        PlayerSettings.SetScriptingDefineSymbolsForGroup(buildTargetGroup, testDefines);
 
-        Debug.Log($"[BuildValidation] Building for {buildTarget} to: {_buildPath}");
-        var stopwatch = Stopwatch.StartNew();
+        try {
+            var options = new BuildPlayerOptions {
+                scenes = new[] { TEST_SCENE_PATH },
+                locationPathName = _buildPath,
+                target = buildTarget,
+                options = BuildOptions.None
+            };
 
-        var report = BuildPipeline.BuildPlayer(options);
+            Debug.Log($"[BuildValidation] Building for {buildTarget} to: {_buildPath}");
+            var stopwatch = Stopwatch.StartNew();
 
-        stopwatch.Stop();
-        Debug.Log($"[BuildValidation] Build completed in {stopwatch.ElapsedMilliseconds}ms");
+            var report = BuildPipeline.BuildPlayer(options);
 
-        return report;
+            stopwatch.Stop();
+            Debug.Log($"[BuildValidation] Build completed in {stopwatch.ElapsedMilliseconds}ms");
+
+            return report;
+        } finally {
+            // Restore original defines
+            PlayerSettings.SetScriptingDefineSymbolsForGroup(buildTargetGroup, originalDefines);
+        }
     }
 
     /// <summary>
@@ -259,9 +272,11 @@ public class BuildValidationTests {
 
         var logFile = Path.Combine(Path.GetTempPath(), "onejs_build_test.log");
 
+        // Note: -nographics is omitted because UI Toolkit requires a graphics context
+        // -batchmode still runs without user interaction
         var startInfo = new ProcessStartInfo {
             FileName = actualPath,
-            Arguments = $"-logFile \"{logFile}\" -batchmode -nographics",
+            Arguments = $"-logFile \"{logFile}\" -batchmode",
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -287,7 +302,19 @@ public class BuildValidationTests {
                 // Read log file
                 if (File.Exists(logFile)) {
                     output = File.ReadAllText(logFile);
+                    Debug.Log($"[BuildValidation] Log file size: {output.Length} bytes");
+
+                    // Log last 2000 chars for debugging
+                    if (output.Length > 0) {
+                        var preview = output.Length > 2000 ? output.Substring(output.Length - 2000) : output;
+                        Debug.Log($"[BuildValidation] Log tail:\n{preview}");
+                    } else {
+                        Debug.LogWarning("[BuildValidation] Log file is empty");
+                    }
+
                     File.Delete(logFile);
+                } else {
+                    Debug.LogWarning($"[BuildValidation] Log file not found: {logFile}");
                 }
             } catch (Exception ex) {
                 Debug.LogError($"[BuildValidation] Process error: {ex.Message}");

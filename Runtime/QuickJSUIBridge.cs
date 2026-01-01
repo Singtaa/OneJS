@@ -244,7 +244,7 @@ public class QuickJSUIBridge : IDisposable {
             SafeEval(_sb.ToString());
             _ctx.ExecutePendingJobs();
         } catch (Exception ex) {
-            Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error: {ex.Message}");
+            Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error: {ex.Message}\nEval: {_sb}");
         }
 #endif
     }
