@@ -310,7 +310,8 @@ namespace OneJS.GPU {
         }
 
         /// <summary>
-        /// Resize an existing RenderTexture. Recreates the texture with new dimensions.
+        /// Resize an existing RenderTexture in-place.
+        /// The same RenderTexture object is reused, preserving UI bindings.
         /// </summary>
         public static bool ResizeRenderTexture(int handle, int width, int height) {
             if (width <= 0 || height <= 0) {
@@ -318,28 +319,22 @@ namespace OneJS.GPU {
             }
 
             lock (_lock) {
-                if (!_renderTextureHandles.TryGetValue(handle, out var oldRt)) {
+                if (!_renderTextureHandles.TryGetValue(handle, out var rt)) {
                     return false;
                 }
 
                 // Skip if size unchanged
-                if (oldRt.width == width && oldRt.height == height) {
+                if (rt.width == width && rt.height == height) {
                     return true;
                 }
 
                 try {
-                    var rt = new RenderTexture(width, height, 0, oldRt.format) {
-                        enableRandomWrite = oldRt.enableRandomWrite,
-                        filterMode = oldRt.filterMode,
-                        wrapMode = oldRt.wrapMode
-                    };
+                    // Resize in-place: release GPU resources, update dimensions, recreate
+                    // This keeps the same RenderTexture object, so UI bindings stay valid
+                    rt.Release();
+                    rt.width = width;
+                    rt.height = height;
                     rt.Create();
-
-                    // Release old texture
-                    oldRt.Release();
-                    UnityEngine.Object.Destroy(oldRt);
-
-                    _renderTextureHandles[handle] = rt;
                     return true;
                 } catch (Exception ex) {
                     Debug.LogError($"[GPUBridge] Failed to resize RenderTexture: {ex.Message}");
