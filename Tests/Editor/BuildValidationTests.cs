@@ -170,10 +170,34 @@ public class BuildValidationTests {
         // Handle platform-specific executable paths
         var actualPath = executablePath;
 
+        // Debug: List what's in the build output directory
+        var buildDir = Path.GetDirectoryName(executablePath);
+        if (Directory.Exists(buildDir)) {
+            Debug.Log($"[BuildValidation] Build output directory contents:");
+            foreach (var entry in Directory.GetFileSystemEntries(buildDir)) {
+                Debug.Log($"  - {Path.GetFileName(entry)}");
+            }
+        } else {
+            Debug.LogError($"[BuildValidation] Build output directory doesn't exist: {buildDir}");
+        }
+
 #if UNITY_EDITOR_OSX
         // On macOS, the executable is inside the .app bundle
         // The executable name comes from Product Name in Player Settings, not the .app name
         if (executablePath.EndsWith(".app")) {
+            // First check if the .app bundle itself exists
+            if (!Directory.Exists(executablePath)) {
+                // Maybe it was built with a different name - look for any .app in the directory
+                var apps = Directory.GetDirectories(buildDir, "*.app");
+                if (apps.Length > 0) {
+                    executablePath = apps[0];
+                    Debug.Log($"[BuildValidation] Found .app bundle: {Path.GetFileName(executablePath)}");
+                } else {
+                    Debug.LogError($"[BuildValidation] No .app bundle found in: {buildDir}");
+                    return (-1, $"No .app bundle found in: {buildDir}");
+                }
+            }
+
             var macOSDir = Path.Combine(executablePath, "Contents", "MacOS");
             if (Directory.Exists(macOSDir)) {
                 // Find the executable (there should be exactly one)
