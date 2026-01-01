@@ -13,12 +13,14 @@ namespace OneJS.GPU {
         // Shader registry: name -> ComputeShader
         static readonly Dictionary<string, ComputeShader> _shaderRegistry = new Dictionary<string, ComputeShader>();
 
-        // Handle tables for shaders and buffers
+        // Handle tables for shaders, buffers, and render textures
         static int _nextShaderHandle = 1;
         static int _nextBufferHandle = 1;
         static int _nextReadbackHandle = 1;
+        static int _nextRenderTextureHandle = 1;
         static readonly Dictionary<int, ComputeShader> _shaderHandles = new Dictionary<int, ComputeShader>();
         static readonly Dictionary<int, ComputeBuffer> _bufferHandles = new Dictionary<int, ComputeBuffer>();
+        static readonly Dictionary<int, RenderTexture> _renderTextureHandles = new Dictionary<int, RenderTexture>();
         static readonly Dictionary<int, AsyncGPUReadbackRequest> _readbackRequests = new Dictionary<int, AsyncGPUReadbackRequest>();
         static readonly Dictionary<int, float[]> _readbackResults = new Dictionary<int, float[]>();
         static readonly object _lock = new object();
@@ -81,6 +83,23 @@ namespace OneJS.GPU {
                     return -1;
                 }
 
+                int handle = _nextShaderHandle++;
+                _shaderHandles[handle] = shader;
+                return handle;
+            }
+        }
+
+        /// <summary>
+        /// Register an externally-provided ComputeShader (e.g., from JSRunner globals).
+        /// Returns handle or -1 if shader is null.
+        /// </summary>
+        public static int RegisterShader(ComputeShader shader) {
+            if (shader == null) {
+                Debug.LogWarning("[GPUBridge] Cannot register null shader");
+                return -1;
+            }
+
+            lock (_lock) {
                 int handle = _nextShaderHandle++;
                 _shaderHandles[handle] = shader;
                 return handle;
@@ -256,6 +275,186 @@ namespace OneJS.GPU {
             }
         }
 
+        // ============ RenderTexture API ============
+
+        /// <summary>
+        /// Create a RenderTexture for compute shader output.
+        /// </summary>
+        /// <param name="width">Texture width</param>
+        /// <param name="height">Texture height</param>
+        /// <param name="enableRandomWrite">Enable for RWTexture2D in compute shaders</param>
+        /// <returns>Handle or -1 on failure</returns>
+        public static int CreateRenderTexture(int width, int height, bool enableRandomWrite = true) {
+            if (width <= 0 || height <= 0) {
+                Debug.LogWarning($"[GPUBridge] Invalid RenderTexture dimensions: {width}x{height}");
+                return -1;
+            }
+
+            lock (_lock) {
+                try {
+                    var rt = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32) {
+                        enableRandomWrite = enableRandomWrite,
+                        filterMode = FilterMode.Bilinear,
+                        wrapMode = TextureWrapMode.Clamp
+                    };
+                    rt.Create();
+
+                    int handle = _nextRenderTextureHandle++;
+                    _renderTextureHandles[handle] = rt;
+                    return handle;
+                } catch (Exception ex) {
+                    Debug.LogError($"[GPUBridge] Failed to create RenderTexture: {ex.Message}");
+                    return -1;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Resize an existing RenderTexture. Recreates the texture with new dimensions.
+        /// </summary>
+        public static bool ResizeRenderTexture(int handle, int width, int height) {
+            if (width <= 0 || height <= 0) {
+                return false;
+            }
+
+            lock (_lock) {
+                if (!_renderTextureHandles.TryGetValue(handle, out var oldRt)) {
+                    return false;
+                }
+
+                // Skip if size unchanged
+                if (oldRt.width == width && oldRt.height == height) {
+                    return true;
+                }
+
+                try {
+                    var rt = new RenderTexture(width, height, 0, oldRt.format) {
+                        enableRandomWrite = oldRt.enableRandomWrite,
+                        filterMode = oldRt.filterMode,
+                        wrapMode = oldRt.wrapMode
+                    };
+                    rt.Create();
+
+                    // Release old texture
+                    oldRt.Release();
+                    UnityEngine.Object.Destroy(oldRt);
+
+                    _renderTextureHandles[handle] = rt;
+                    return true;
+                } catch (Exception ex) {
+                    Debug.LogError($"[GPUBridge] Failed to resize RenderTexture: {ex.Message}");
+                    return false;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Dispose a RenderTexture by handle.
+        /// </summary>
+        public static void DisposeRenderTexture(int handle) {
+            lock (_lock) {
+                if (_renderTextureHandles.TryGetValue(handle, out var rt)) {
+                    rt.Release();
+                    UnityEngine.Object.Destroy(rt);
+                    _renderTextureHandles.Remove(handle);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Get the actual RenderTexture object.
+        /// Returns null if handle is invalid.
+        /// </summary>
+        public static RenderTexture GetRenderTextureObject(int handle) {
+            lock (_lock) {
+                _renderTextureHandles.TryGetValue(handle, out var rt);
+                return rt;
+            }
+        }
+
+        /// <summary>
+        /// Get the RenderTexture wrapped as a StyleBackground for use with UI Toolkit's backgroundImage.
+        /// Returns null if handle is invalid.
+        /// </summary>
+        public static UnityEngine.UIElements.StyleBackground? GetRenderTextureAsBackground(int handle) {
+            lock (_lock) {
+                if (!_renderTextureHandles.TryGetValue(handle, out var rt)) {
+                    return null;
+                }
+                return new UnityEngine.UIElements.StyleBackground(UnityEngine.UIElements.Background.FromRenderTexture(rt));
+            }
+        }
+
+        /// <summary>
+        /// Set the backgroundImage style property of a VisualElement directly from a RenderTexture handle.
+        /// This avoids struct serialization issues with StyleBackground.
+        /// </summary>
+        public static void SetElementBackgroundImage(UnityEngine.UIElements.VisualElement element, int rtHandle) {
+            if (element == null) return;
+            lock (_lock) {
+                if (!_renderTextureHandles.TryGetValue(rtHandle, out var rt)) {
+                    return;
+                }
+                element.style.backgroundImage = new UnityEngine.UIElements.StyleBackground(
+                    UnityEngine.UIElements.Background.FromRenderTexture(rt)
+                );
+            }
+        }
+
+        /// <summary>
+        /// Clear the backgroundImage style property of a VisualElement.
+        /// </summary>
+        public static void ClearElementBackgroundImage(UnityEngine.UIElements.VisualElement element) {
+            if (element == null) return;
+            element.style.backgroundImage = UnityEngine.UIElements.StyleKeyword.Null;
+        }
+
+        /// <summary>
+        /// Get RenderTexture dimensions.
+        /// </summary>
+        public static int GetRenderTextureWidth(int handle) {
+            lock (_lock) {
+                return _renderTextureHandles.TryGetValue(handle, out var rt) ? rt.width : 0;
+            }
+        }
+
+        /// <summary>
+        /// Get RenderTexture dimensions.
+        /// </summary>
+        public static int GetRenderTextureHeight(int handle) {
+            lock (_lock) {
+                return _renderTextureHandles.TryGetValue(handle, out var rt) ? rt.height : 0;
+            }
+        }
+
+        /// <summary>
+        /// Bind a RenderTexture to a compute shader kernel.
+        /// </summary>
+        public static void SetTexture(int shaderHandle, int kernelIndex, string name, int textureHandle) {
+            lock (_lock) {
+                if (!_shaderHandles.TryGetValue(shaderHandle, out var shader)) {
+                    return;
+                }
+                if (!_renderTextureHandles.TryGetValue(textureHandle, out var rt)) {
+                    return;
+                }
+
+                shader.SetTexture(kernelIndex, name, rt);
+            }
+        }
+
+        // ============ Screen API ============
+
+        /// <summary>
+        /// Get current screen width.
+        /// </summary>
+        public static int GetScreenWidth() => Screen.width;
+
+        /// <summary>
+        /// Get current screen height.
+        /// </summary>
+        public static int GetScreenHeight() => Screen.height;
+
         /// <summary>
         /// Request async GPU readback. Returns request ID or -1 on failure.
         /// </summary>
@@ -345,7 +544,12 @@ namespace OneJS.GPU {
                 foreach (var buffer in _bufferHandles.Values) {
                     buffer.Release();
                 }
+                foreach (var rt in _renderTextureHandles.Values) {
+                    rt.Release();
+                    UnityEngine.Object.Destroy(rt);
+                }
                 _bufferHandles.Clear();
+                _renderTextureHandles.Clear();
                 _shaderHandles.Clear();
                 _readbackRequests.Clear();
                 _readbackResults.Clear();
