@@ -148,14 +148,17 @@ public class BuildValidationTests {
         }
         Directory.CreateDirectory(buildDir);
 
+        // Use current editor platform, not active build target (which might be WebGL, etc.)
+        var buildTarget = GetEditorBuildTarget();
+
         var options = new BuildPlayerOptions {
             scenes = new[] { TEST_SCENE_PATH },
             locationPathName = _buildPath,
-            target = EditorUserBuildSettings.activeBuildTarget,
+            target = buildTarget,
             options = BuildOptions.None
         };
 
-        Debug.Log($"[BuildValidation] Building to: {_buildPath}");
+        Debug.Log($"[BuildValidation] Building for {buildTarget} to: {_buildPath}");
         var stopwatch = Stopwatch.StartNew();
 
         var report = BuildPipeline.BuildPlayer(options);
@@ -164,6 +167,21 @@ public class BuildValidationTests {
         Debug.Log($"[BuildValidation] Build completed in {stopwatch.ElapsedMilliseconds}ms");
 
         return report;
+    }
+
+    /// <summary>
+    /// Gets the build target matching the current editor platform.
+    /// </summary>
+    static BuildTarget GetEditorBuildTarget() {
+#if UNITY_EDITOR_WIN
+        return BuildTarget.StandaloneWindows64;
+#elif UNITY_EDITOR_OSX
+        return BuildTarget.StandaloneOSX;
+#elif UNITY_EDITOR_LINUX
+        return BuildTarget.StandaloneLinux64;
+#else
+        return EditorUserBuildSettings.activeBuildTarget;
+#endif
     }
 
     (int exitCode, string output) RunAndCapture(string executablePath, int timeoutMs) {

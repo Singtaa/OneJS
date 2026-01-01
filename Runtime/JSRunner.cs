@@ -838,4 +838,66 @@ public class JSRunner : MonoBehaviour {
             _runtimePanelSettings = null;
         }
     }
+
+#if UNITY_EDITOR
+    /// <summary>
+    /// Called when the component is first added or Reset from context menu.
+    /// Auto-populates _defaultFiles with template TextAssets from the OneJS package.
+    /// </summary>
+    void Reset() {
+        PopulateDefaultFiles();
+    }
+
+    /// <summary>
+    /// Finds and loads default template files from the OneJS Editor/Templates folder.
+    /// </summary>
+    void PopulateDefaultFiles() {
+        // Template mapping: source file name → target path in WorkingDir
+        var templateMapping = new (string templateName, string targetPath)[] {
+            ("package.json.txt", "package.json"),
+            ("tsconfig.json.txt", "tsconfig.json"),
+            ("esbuild.config.mjs.txt", "esbuild.config.mjs"),
+            ("index.tsx.txt", "index.tsx"),
+            ("global.d.ts.txt", "types/global.d.ts"),
+            ("main.uss.txt", "styles/main.uss"),
+            ("gitignore.txt", ".gitignore"),
+            ("app.js.txt", "@outputs/esbuild/app.js"),
+        };
+
+        _defaultFiles.Clear();
+
+        // Find the Templates folder - search for any template file to get the path
+        var guids = UnityEditor.AssetDatabase.FindAssets("package.json t:TextAsset");
+        string templatesFolder = null;
+
+        foreach (var guid in guids) {
+            var path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
+            if (path.Contains("OneJS") && path.Contains("Editor/Templates")) {
+                templatesFolder = Path.GetDirectoryName(path);
+                break;
+            }
+        }
+
+        if (string.IsNullOrEmpty(templatesFolder)) {
+            Debug.LogWarning("[JSRunner] Could not find OneJS Editor/Templates folder");
+            return;
+        }
+
+        foreach (var (templateName, targetPath) in templateMapping) {
+            var templatePath = Path.Combine(templatesFolder, templateName).Replace("\\", "/");
+            var textAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<TextAsset>(templatePath);
+
+            if (textAsset != null) {
+                _defaultFiles.Add(new DefaultFileEntry {
+                    path = targetPath,
+                    content = textAsset
+                });
+            } else {
+                Debug.LogWarning($"[JSRunner] Template not found: {templatePath}");
+            }
+        }
+
+        Debug.Log($"[JSRunner] Populated {_defaultFiles.Count} default files from templates");
+    }
+#endif
 }
