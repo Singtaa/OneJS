@@ -1,0 +1,26 @@
+{
+    "name": "com.singtaa.onejs",
+    "version": "3.0.0",
+    "displayName": "OneJS",
+    "description": "JavaScript runtime for Unity UI Toolkit. Write UI with React and TypeScript, render natively through Unity's GPU-accelerated UI system.",
+    "unity": "6000.1",
+    "unityRelease": "0f1",
+    "keywords": [
+        "javascript",
+        "react",
+        "typescript",
+        "ui",
+        "uitoolkit",
+        "quickjs"
+    ],
+    "author": {
+        "name": "Singtaa",
+        "url": "https://github.com/Singtaa"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Singtaa/OneJS.git"
+    },
+    "license": "MIT",
+    "samples": []
+}

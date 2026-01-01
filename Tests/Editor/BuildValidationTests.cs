@@ -198,6 +198,22 @@ public class BuildValidationTests {
                 }
             }
 
+            // Debug: List contents of .app bundle
+            Debug.Log($"[BuildValidation] Contents of {Path.GetFileName(executablePath)}:");
+            try {
+                foreach (var entry in Directory.GetFileSystemEntries(executablePath)) {
+                    Debug.Log($"  - {Path.GetFileName(entry)}/");
+                    // If it's Contents, list its contents too
+                    if (Path.GetFileName(entry) == "Contents" && Directory.Exists(entry)) {
+                        foreach (var subEntry in Directory.GetFileSystemEntries(entry)) {
+                            Debug.Log($"    - {Path.GetFileName(subEntry)}/");
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                Debug.LogError($"[BuildValidation] Error listing .app contents: {ex.Message}");
+            }
+
             var macOSDir = Path.Combine(executablePath, "Contents", "MacOS");
             if (Directory.Exists(macOSDir)) {
                 // Find the executable (there should be exactly one)
