@@ -54,6 +54,7 @@ public class JSRunnerEditor : Editor {
         root.Add(CreateFoldoutSection("Build Settings", BuildBuildSettingsContent));
         root.Add(CreateFoldoutSection("Type Generation", BuildTypeGenerationContent));
         root.Add(CreateFoldoutSection("Scaffolding", BuildScaffoldingContent));
+        root.Add(CreateFoldoutSection("Cartridges", BuildCartridgesContent));
         root.Add(CreateFoldoutSection("Advanced", BuildAdvancedContent));
 
         // Actions - always visible at bottom
@@ -141,6 +142,20 @@ public class JSRunnerEditor : Editor {
         var field = new PropertyField(serializedObject.FindProperty("_defaultFiles"));
         field.label = "Default Files";
         container.Add(field);
+    }
+
+    void BuildCartridgesContent(VisualElement container) {
+        var field = new PropertyField(serializedObject.FindProperty("_cartridges"));
+        field.label = "UI Cartridges";
+        container.Add(field);
+
+        var helpBox = new HelpBox(
+            "Drag UICartridge assets here. Files are auto-extracted at build time. " +
+            "Objects are injected as __cartridges.{slug}.{key} at runtime.",
+            HelpBoxMessageType.Info
+        );
+        helpBox.style.marginTop = 4;
+        container.Add(helpBox);
     }
 
     void BuildAdvancedContent(VisualElement container) {

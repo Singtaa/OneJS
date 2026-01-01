@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using OneJS.Editor;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -66,6 +67,7 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
 
                 ProcessJSRunner(runner);
                 ProcessAssets(runner);
+                ExtractCartridges(runner);
             }
         }
     }
@@ -142,6 +144,54 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
 
         if (assetsCopied > 0) {
             Debug.Log($"[JSRunner] Copied {assetsCopied} asset file(s) from: {runner.WorkingDir}");
+        }
+    }
+
+    void ExtractCartridges(JSRunner runner) {
+        var cartridges = runner.Cartridges;
+        if (cartridges == null || cartridges.Count == 0) return;
+
+        int extracted = 0;
+
+        foreach (var cartridge in cartridges) {
+            if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) continue;
+
+            var destPath = runner.GetCartridgePath(cartridge);
+            if (string.IsNullOrEmpty(destPath)) continue;
+
+            // Clear existing cartridge folder
+            if (Directory.Exists(destPath)) {
+                Directory.Delete(destPath, true);
+            }
+            Directory.CreateDirectory(destPath);
+
+            // Extract files from cartridge
+            foreach (var file in cartridge.Files) {
+                if (string.IsNullOrEmpty(file.path) || file.content == null) continue;
+
+                var filePath = Path.Combine(destPath, file.path);
+                var fileDir = Path.GetDirectoryName(filePath);
+
+                if (!string.IsNullOrEmpty(fileDir) && !Directory.Exists(fileDir)) {
+                    Directory.CreateDirectory(fileDir);
+                }
+
+                File.WriteAllText(filePath, file.content.text);
+                _copiedFiles.Add(filePath);
+            }
+
+            // Generate TypeScript definitions
+            var dts = CartridgeTypeGenerator.Generate(cartridge);
+            var dtsPath = Path.Combine(destPath, $"{cartridge.Slug}.d.ts");
+            File.WriteAllText(dtsPath, dts);
+            _copiedFiles.Add(dtsPath);
+
+            extracted++;
+            Debug.Log($"[JSRunner] Extracted cartridge '{cartridge.DisplayName}' to: cartridges/{cartridge.Slug}/");
+        }
+
+        if (extracted > 0) {
+            Debug.Log($"[JSRunner] Extracted {extracted} cartridge(s) for: {runner.gameObject.name}");
         }
     }
 

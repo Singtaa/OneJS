@@ -107,6 +107,9 @@ public class JSRunner : MonoBehaviour {
     [PairDrawer("→")]
     [SerializeField] List<GlobalEntry> _globals = new List<GlobalEntry>();
 
+    [Tooltip("UI Cartridges to load. Files are extracted at build time, objects are injected as __cartridges.{slug}.{key}.")]
+    [SerializeField] List<UICartridge> _cartridges = new List<UICartridge>();
+
     QuickJSUIBridge _bridge;
     UIDocument _uiDocument;
     PanelSettings _runtimePanelSettings; // Track runtime-created PanelSettings for cleanup
@@ -164,6 +167,14 @@ public class JSRunner : MonoBehaviour {
     public bool AutoGenerateTypings => _autoGenerateTypings;
     public string TypingsOutputPath => _typingsOutputPath;
     public string TypingsFullPath => Path.Combine(WorkingDirFullPath, _typingsOutputPath);
+
+    // Cartridge API
+    public IReadOnlyList<UICartridge> Cartridges => _cartridges;
+
+    public string GetCartridgePath(UICartridge cartridge) {
+        if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) return null;
+        return Path.Combine(WorkingDirFullPath, "cartridges", cartridge.Slug);
+    }
 
     void Start() {
         try {
@@ -378,14 +389,44 @@ public class JSRunner : MonoBehaviour {
     /// Inject custom Unity objects as JavaScript globals.
     /// </summary>
     void InjectGlobals() {
-        if (_globals == null || _globals.Count == 0) return;
+        // Inject user-defined globals
+        if (_globals != null && _globals.Count > 0) {
+            foreach (var entry in _globals) {
+                if (string.IsNullOrEmpty(entry.key) || entry.value == null) continue;
 
-        foreach (var entry in _globals) {
-            if (string.IsNullOrEmpty(entry.key) || entry.value == null) continue;
+                var handle = QuickJSNative.RegisterObject(entry.value);
+                var typeName = entry.value.GetType().FullName;
+                _bridge.Eval($"globalThis['{EscapeJsString(entry.key)}'] = __csHelpers.wrapObject('{typeName}', {handle})");
+            }
+        }
 
-            var handle = QuickJSNative.RegisterObject(entry.value);
-            var typeName = entry.value.GetType().FullName;
-            _bridge.Eval($"globalThis['{EscapeJsString(entry.key)}'] = __csHelpers.wrapObject('{typeName}', {handle})");
+        // Inject cartridge objects
+        InjectCartridgeGlobals();
+    }
+
+    /// <summary>
+    /// Inject Unity objects from cartridges as JavaScript globals under __cartridges namespace.
+    /// Access pattern: __cartridges.{slug}.{key}
+    /// </summary>
+    void InjectCartridgeGlobals() {
+        if (_cartridges == null || _cartridges.Count == 0) return;
+
+        // Initialize __cartridges namespace
+        _bridge.Eval("globalThis.__cartridges = globalThis.__cartridges || {}");
+
+        foreach (var cartridge in _cartridges) {
+            if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) continue;
+
+            // Create cartridge namespace
+            _bridge.Eval($"__cartridges['{EscapeJsString(cartridge.Slug)}'] = {{}}");
+
+            foreach (var entry in cartridge.Objects) {
+                if (string.IsNullOrEmpty(entry.key) || entry.value == null) continue;
+
+                var handle = QuickJSNative.RegisterObject(entry.value);
+                var typeName = entry.value.GetType().FullName;
+                _bridge.Eval($"__cartridges['{EscapeJsString(cartridge.Slug)}']['{EscapeJsString(entry.key)}'] = __csHelpers.wrapObject('{typeName}', {handle})");
+            }
         }
     }
 

@@ -172,9 +172,23 @@ public class BuildValidationTests {
 
 #if UNITY_EDITOR_OSX
         // On macOS, the executable is inside the .app bundle
+        // The executable name comes from Product Name in Player Settings, not the .app name
         if (executablePath.EndsWith(".app")) {
-            var appName = Path.GetFileNameWithoutExtension(executablePath);
-            actualPath = Path.Combine(executablePath, "Contents", "MacOS", appName);
+            var macOSDir = Path.Combine(executablePath, "Contents", "MacOS");
+            if (Directory.Exists(macOSDir)) {
+                // Find the executable (there should be exactly one)
+                var executables = Directory.GetFiles(macOSDir);
+                if (executables.Length > 0) {
+                    actualPath = executables[0];
+                    Debug.Log($"[BuildValidation] Found macOS executable: {Path.GetFileName(actualPath)}");
+                } else {
+                    Debug.LogError($"[BuildValidation] No executable found in: {macOSDir}");
+                    return (-1, $"No executable found in: {macOSDir}");
+                }
+            } else {
+                Debug.LogError($"[BuildValidation] MacOS directory not found: {macOSDir}");
+                return (-1, $"MacOS directory not found: {macOSDir}");
+            }
         }
 #endif
 
