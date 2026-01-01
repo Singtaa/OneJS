@@ -150,36 +150,27 @@ public class BuildValidationTests {
 
         // Use current editor platform, not active build target (which might be WebGL, etc.)
         var buildTarget = GetEditorBuildTarget();
-        var buildTargetGroup = BuildPipeline.GetBuildTargetGroup(buildTarget);
 
-        // Add ONEJS_BUILD_VALIDATION define so BuildValidationRunner gets compiled
-        var originalDefines = PlayerSettings.GetScriptingDefineSymbolsForGroup(buildTargetGroup);
-        var testDefines = string.IsNullOrEmpty(originalDefines)
-            ? "ONEJS_BUILD_VALIDATION"
-            : originalDefines + ";ONEJS_BUILD_VALIDATION";
-        PlayerSettings.SetScriptingDefineSymbolsForGroup(buildTargetGroup, testDefines);
+        // Use extraScriptingDefines to add ONEJS_BUILD_VALIDATION just for this build
+        // This doesn't require editor recompilation and takes effect immediately
+        var options = new BuildPlayerOptions {
+            scenes = new[] { TEST_SCENE_PATH },
+            locationPathName = _buildPath,
+            target = buildTarget,
+            options = BuildOptions.None,
+            extraScriptingDefines = new[] { "ONEJS_BUILD_VALIDATION" }
+        };
 
-        try {
-            var options = new BuildPlayerOptions {
-                scenes = new[] { TEST_SCENE_PATH },
-                locationPathName = _buildPath,
-                target = buildTarget,
-                options = BuildOptions.None
-            };
+        Debug.Log($"[BuildValidation] Building for {buildTarget} to: {_buildPath}");
+        Debug.Log($"[BuildValidation] Extra defines: ONEJS_BUILD_VALIDATION");
+        var stopwatch = Stopwatch.StartNew();
 
-            Debug.Log($"[BuildValidation] Building for {buildTarget} to: {_buildPath}");
-            var stopwatch = Stopwatch.StartNew();
+        var report = BuildPipeline.BuildPlayer(options);
 
-            var report = BuildPipeline.BuildPlayer(options);
+        stopwatch.Stop();
+        Debug.Log($"[BuildValidation] Build completed in {stopwatch.ElapsedMilliseconds}ms");
 
-            stopwatch.Stop();
-            Debug.Log($"[BuildValidation] Build completed in {stopwatch.ElapsedMilliseconds}ms");
-
-            return report;
-        } finally {
-            // Restore original defines
-            PlayerSettings.SetScriptingDefineSymbolsForGroup(buildTargetGroup, originalDefines);
-        }
+        return report;
     }
 
     /// <summary>

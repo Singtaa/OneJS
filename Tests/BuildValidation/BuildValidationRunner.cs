@@ -11,14 +11,18 @@ using UnityEngine.UIElements;
 /// Outputs parseable test results via Debug.Log with [BUILD_TEST] prefix.
 /// Exits with code 0 on success, 1 on failure.
 ///
+/// This component always exists but only runs when ONEJS_BUILD_VALIDATION is defined.
+/// The build validation test adds this define via extraScriptingDefines.
+///
 /// Usage:
 /// 1. Add this component to a test scene
 /// 2. Configure the JSRunner reference if needed
-/// 3. Build the player
+/// 3. Build the player (with ONEJS_BUILD_VALIDATION define)
 /// 4. Run with -logFile to capture output
 /// 5. Parse [BUILD_TEST] lines for results
 /// </summary>
 public class BuildValidationRunner : MonoBehaviour {
+    // Serialized fields must always exist for consistent serialization layout
     [Tooltip("Optional: JSRunner to test. If null, will search scene.")]
     [SerializeField] JSRunner _jsRunner;
 
@@ -33,10 +37,10 @@ globalThis.__buildTestResult = {
 };
 ";
 
+#if ONEJS_BUILD_VALIDATION
     List<string> _results = new List<string>();
     bool _completed = false;
     float _startTime;
-
 
     void Awake() {
         Debug.Log("[BUILD_TEST] BuildValidationRunner.Awake() called");
@@ -241,4 +245,5 @@ globalThis.__buildTestResult = {
 
         GUILayout.EndArea();
     }
+#endif
 }

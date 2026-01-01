@@ -13,12 +13,11 @@ This system validates that OneJS works correctly in standalone builds by:
 
 ## Assembly Isolation
 
-`BuildValidationRunner` is in a separate assembly (`OneJS.BuildValidation`) with a `ONEJS_BUILD_VALIDATION` define constraint. This ensures it **never leaks into user builds**.
+`BuildValidationRunner` always compiles but its functionality is wrapped in `#if ONEJS_BUILD_VALIDATION`. This ensures:
 
-The test automatically:
-1. Adds `ONEJS_BUILD_VALIDATION` to scripting defines before building
-2. Builds the test player (with `BuildValidationRunner` compiled in)
-3. Restores original defines after building
+1. **The class always exists** - can be added to scenes and referenced
+2. **Functionality only runs in test builds** - the test uses `BuildPlayerOptions.extraScriptingDefines` to enable it
+3. **User builds are unaffected** - the component exists but does nothing
 
 ## Setup
 

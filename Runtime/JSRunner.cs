@@ -184,6 +184,8 @@ public class JSRunner : MonoBehaviour {
 
             if (_uiDocument == null) {
                 _uiDocument = gameObject.AddComponent<UIDocument>();
+                // Hide from inspector to prevent editor interactions from recreating the panel
+                _uiDocument.hideFlags = HideFlags.HideInInspector;
                 createdUIDocument = true;
             }
 

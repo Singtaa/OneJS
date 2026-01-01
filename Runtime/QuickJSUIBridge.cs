@@ -207,7 +207,9 @@ public class QuickJSUIBridge : IDisposable {
         _lastViewportHeight = newHeight;
 
         int handle = QuickJSNative.GetHandleForObject(_root);
-        string data = $"{{\"width\":{newWidth:F0},\"height\":{newHeight:F0}}}";
+        int w = (int)newWidth;
+        int h = (int)newHeight;
+        string data = $"{{\"width\":{w},\"height\":{h}}}";
         DispatchEventInternal(handle, "viewportchange", data);
     }
 
