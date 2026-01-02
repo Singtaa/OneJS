@@ -131,8 +131,20 @@ namespace OneJS.GPU {
             }
         }
 
+        // ============ Property ID (zero-alloc friendly) ============
+
         /// <summary>
-        /// Set a float uniform.
+        /// Convert a property name to an ID. Call once at init, use ID for all subsequent calls.
+        /// This is the key to zero-alloc shader property access.
+        /// </summary>
+        public static int PropertyToID(string name) {
+            return Shader.PropertyToID(name);
+        }
+
+        // ============ String-based setters (convenience, allocates) ============
+
+        /// <summary>
+        /// Set a float uniform by name (allocates string).
         /// </summary>
         public static void SetFloat(int shaderHandle, string name, float value) {
             lock (_lock) {
@@ -143,7 +155,7 @@ namespace OneJS.GPU {
         }
 
         /// <summary>
-        /// Set an int uniform.
+        /// Set an int uniform by name (allocates string).
         /// </summary>
         public static void SetInt(int shaderHandle, string name, int value) {
             lock (_lock) {
@@ -154,7 +166,7 @@ namespace OneJS.GPU {
         }
 
         /// <summary>
-        /// Set a bool uniform (as int 0 or 1).
+        /// Set a bool uniform by name (allocates string).
         /// </summary>
         public static void SetBool(int shaderHandle, string name, bool value) {
             lock (_lock) {
@@ -165,12 +177,47 @@ namespace OneJS.GPU {
         }
 
         /// <summary>
-        /// Set a vector uniform.
+        /// Set a vector uniform by name (allocates string).
         /// </summary>
         public static void SetVector(int shaderHandle, string name, float x, float y, float z, float w) {
             lock (_lock) {
                 if (_shaderHandles.TryGetValue(shaderHandle, out var shader)) {
                     shader.SetVector(name, new Vector4(x, y, z, w));
+                }
+            }
+        }
+
+        // ============ ID-based setters (zero-alloc) ============
+
+        /// <summary>
+        /// Set a float uniform by property ID. Zero allocation.
+        /// </summary>
+        public static void SetFloatById(int shaderHandle, int nameId, float value) {
+            lock (_lock) {
+                if (_shaderHandles.TryGetValue(shaderHandle, out var shader)) {
+                    shader.SetFloat(nameId, value);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Set an int uniform by property ID. Zero allocation.
+        /// </summary>
+        public static void SetIntById(int shaderHandle, int nameId, int value) {
+            lock (_lock) {
+                if (_shaderHandles.TryGetValue(shaderHandle, out var shader)) {
+                    shader.SetInt(nameId, value);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Set a vector uniform by property ID. Zero allocation.
+        /// </summary>
+        public static void SetVectorById(int shaderHandle, int nameId, float x, float y, float z, float w) {
+            lock (_lock) {
+                if (_shaderHandles.TryGetValue(shaderHandle, out var shader)) {
+                    shader.SetVector(nameId, new Vector4(x, y, z, w));
                 }
             }
         }
@@ -438,6 +485,22 @@ namespace OneJS.GPU {
             }
         }
 
+        /// <summary>
+        /// Set a texture by property ID. Zero allocation.
+        /// </summary>
+        public static void SetTextureById(int shaderHandle, int kernelIndex, int nameId, int textureHandle) {
+            lock (_lock) {
+                if (!_shaderHandles.TryGetValue(shaderHandle, out var shader)) {
+                    return;
+                }
+                if (!_renderTextureHandles.TryGetValue(textureHandle, out var rt)) {
+                    return;
+                }
+
+                shader.SetTexture(kernelIndex, nameId, rt);
+            }
+        }
+
         // ============ Screen API ============
 
         /// <summary>
@@ -549,6 +612,115 @@ namespace OneJS.GPU {
                 _readbackRequests.Clear();
                 _readbackResults.Clear();
             }
+        }
+
+        // ============ Zero-Alloc Bindings ============
+
+        /// <summary>
+        /// Struct returned to JavaScript with pre-registered binding IDs.
+        /// </summary>
+        public struct ZeroAllocBindingIds {
+            // String-based (convenience API, allocates for the string param)
+            public int setFloat;
+            public int setInt;
+            public int setBool;
+            public int setVector;
+            public int setTexture;
+
+            // ID-based hot-path bindings (truly zero-alloc - no generics, no boxing)
+            // Use these for per-frame calls. PropertyToID caches string->int mapping.
+            public int dispatch;
+            public int getScreenWidth;
+            public int getScreenHeight;
+            public int propertyToId;
+            public int setFloatById;
+            public int setIntById;
+            public int setVectorById;
+            public int setTextureById;
+        }
+
+        static ZeroAllocBindingIds _bindingIds;
+        static bool _bindingsRegistered;
+
+        /// <summary>
+        /// Initialize zero-alloc bindings. Call once at startup.
+        ///
+        /// This registers two types of bindings:
+        /// 1. String-based (convenience): Uses generic Bind, still allocates for string params
+        /// 2. ID-based (hot-path): Uses specialized BindGpu* methods, truly zero-alloc
+        ///
+        /// For per-frame GPU calls, always use the ID-based bindings with cached property IDs.
+        /// </summary>
+        public static void InitializeZeroAllocBindings() {
+            if (_bindingsRegistered) return;
+            _bindingsRegistered = true;
+
+            // ============ String-based convenience bindings ============
+            // These use generic Bind<> which boxes, but are only for convenience/prototyping.
+            // Use ID-based bindings below for hot-path code.
+
+            _bindingIds.setFloat = QuickJSNative.Bind<int, string, float>((h, n, v) => {
+                SetFloat(h, n, v);
+            });
+
+            _bindingIds.setInt = QuickJSNative.Bind<int, string, int>((h, n, v) => {
+                SetInt(h, n, v);
+            });
+
+            _bindingIds.setBool = QuickJSNative.Bind<int, string, bool>((h, n, v) => {
+                SetBool(h, n, v);
+            });
+
+            _bindingIds.setVector = QuickJSNative.Bind<int, string, float, float, float, float>(
+                (h, n, x, y, z, w) => {
+                    SetVector(h, n, x, y, z, w);
+                });
+
+            _bindingIds.setTexture = QuickJSNative.Bind<int, int, string, int>(
+                (sh, ki, n, th) => {
+                    SetTexture(sh, ki, n, th);
+                });
+
+            // PropertyToID only called at init time to cache IDs, boxing is acceptable
+            _bindingIds.propertyToId = QuickJSNative.Bind<string, int>(PropertyToID);
+
+            // ============ ID-based hot-path bindings (TRULY ZERO-ALLOC) ============
+            // These use specialized BindGpu* methods that bypass generics entirely.
+            // No GetArg<T> boxing, no SetResult<T> boxing - pure primitive passing.
+
+            _bindingIds.dispatch = QuickJSNative.BindGpuDispatch(
+                (sh, ki, gx, gy, gz) => Dispatch(sh, ki, gx, gy, gz));
+
+            _bindingIds.getScreenWidth = QuickJSNative.BindGpuGetScreenWidth(GetScreenWidth);
+            _bindingIds.getScreenHeight = QuickJSNative.BindGpuGetScreenHeight(GetScreenHeight);
+
+            _bindingIds.setFloatById = QuickJSNative.BindGpuSetFloatById(
+                (h, id, v) => SetFloatById(h, id, v));
+
+            _bindingIds.setIntById = QuickJSNative.BindGpuSetIntById(
+                (h, id, v) => SetIntById(h, id, v));
+
+            _bindingIds.setVectorById = QuickJSNative.BindGpuSetVectorById(
+                (h, id, x, y, z, w) => SetVectorById(h, id, x, y, z, w));
+
+            _bindingIds.setTextureById = QuickJSNative.BindGpuSetTextureById(
+                (sh, ki, id, th) => SetTextureById(sh, ki, id, th));
+
+            Debug.Log($"[GPUBridge] Zero-alloc bindings registered (specialized, non-boxing): " +
+                $"dispatch={_bindingIds.dispatch}, setFloatById={_bindingIds.setFloatById}, " +
+                $"setIntById={_bindingIds.setIntById}, setVectorById={_bindingIds.setVectorById}, " +
+                $"setTextureById={_bindingIds.setTextureById}");
+        }
+
+        /// <summary>
+        /// Get zero-alloc binding IDs for JavaScript.
+        /// Returns a struct with binding IDs, or default if not initialized.
+        /// </summary>
+        public static ZeroAllocBindingIds GetZeroAllocBindingIds() {
+            if (!_bindingsRegistered) {
+                InitializeZeroAllocBindings();
+            }
+            return _bindingIds;
         }
 
         // ============ Helper Methods ============

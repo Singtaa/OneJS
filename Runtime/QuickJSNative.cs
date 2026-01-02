@@ -48,6 +48,22 @@ public static partial class QuickJSNative {
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void CsReleaseHandleCallback(int handle);
 
+    /// <summary>
+    /// Zero-allocation dispatch callback.
+    /// Called from fixed-arity __zaInvoke functions with stack-allocated args.
+    /// </summary>
+    /// <param name="bindingId">Pre-registered binding ID</param>
+    /// <param name="args">Pointer to stack-allocated InteropValue array</param>
+    /// <param name="argCount">Number of arguments (0-8)</param>
+    /// <param name="outResult">Output result (caller-allocated)</param>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public unsafe delegate void CsZeroAllocCallback(
+        int bindingId,
+        InteropValue* args,
+        int argCount,
+        InteropValue* outResult
+    );
+
     // MARK: DllImports
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     static extern void qjs_set_cs_log_callback(CsLogCallback cb);
@@ -88,6 +104,9 @@ public static partial class QuickJSNative {
 
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
     static extern void qjs_set_cs_release_handle_callback(CsReleaseHandleCallback cb);
+
+    [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void qjs_set_cs_zeroalloc_callback(CsZeroAllocCallback cb);
 
 #if UNITY_WEBGL && !UNITY_EDITOR
     // Fast event dispatch for WebGL - avoids eval overhead

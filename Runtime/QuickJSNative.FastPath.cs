@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using OneJS.GPU;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
@@ -224,6 +225,203 @@ public static partial class QuickJSNative {
             }
         }
 
+        /// <summary>
+        /// Register a static method with 2 arguments.
+        /// </summary>
+        public static void StaticMethod<TOwner, TArg0, TArg1, TResult>(string name, Func<TArg0, TArg1, TResult> method) {
+            var type = typeof(TOwner);
+            CacheStaticTypeHash(type);
+            var key = MakeFastPathKey(type.GetHashCode(), HashString(name), InteropInvokeCallKind.Method,
+                true);
+            unsafe {
+                _fastPathRegistryLong[key] = new FastStaticHandler((args, argCount, result) => {
+                    var arg0 = ReadFromInterop<TArg0>(&args[0]);
+                    var arg1 = ReadFromInterop<TArg1>(&args[1]);
+                    var ret = method(arg0, arg1);
+                    WriteToInterop(ret, result);
+                });
+            }
+        }
+
+        /// <summary>
+        /// Register a static method with 3 arguments.
+        /// </summary>
+        public static void StaticMethod<TOwner, TArg0, TArg1, TArg2, TResult>(string name, Func<TArg0, TArg1, TArg2, TResult> method) {
+            var type = typeof(TOwner);
+            CacheStaticTypeHash(type);
+            var key = MakeFastPathKey(type.GetHashCode(), HashString(name), InteropInvokeCallKind.Method,
+                true);
+            unsafe {
+                _fastPathRegistryLong[key] = new FastStaticHandler((args, argCount, result) => {
+                    var arg0 = ReadFromInterop<TArg0>(&args[0]);
+                    var arg1 = ReadFromInterop<TArg1>(&args[1]);
+                    var arg2 = ReadFromInterop<TArg2>(&args[2]);
+                    var ret = method(arg0, arg1, arg2);
+                    WriteToInterop(ret, result);
+                });
+            }
+        }
+
+        /// <summary>
+        /// Register a static method with 4 arguments.
+        /// </summary>
+        public static void StaticMethod<TOwner, TArg0, TArg1, TArg2, TArg3, TResult>(string name, Func<TArg0, TArg1, TArg2, TArg3, TResult> method) {
+            var type = typeof(TOwner);
+            CacheStaticTypeHash(type);
+            var key = MakeFastPathKey(type.GetHashCode(), HashString(name), InteropInvokeCallKind.Method,
+                true);
+            unsafe {
+                _fastPathRegistryLong[key] = new FastStaticHandler((args, argCount, result) => {
+                    var arg0 = ReadFromInterop<TArg0>(&args[0]);
+                    var arg1 = ReadFromInterop<TArg1>(&args[1]);
+                    var arg2 = ReadFromInterop<TArg2>(&args[2]);
+                    var arg3 = ReadFromInterop<TArg3>(&args[3]);
+                    var ret = method(arg0, arg1, arg2, arg3);
+                    WriteToInterop(ret, result);
+                });
+            }
+        }
+
+        /// <summary>
+        /// Register a static method with 5 arguments.
+        /// </summary>
+        public static void StaticMethod<TOwner, TArg0, TArg1, TArg2, TArg3, TArg4, TResult>(string name, Func<TArg0, TArg1, TArg2, TArg3, TArg4, TResult> method) {
+            var type = typeof(TOwner);
+            CacheStaticTypeHash(type);
+            var key = MakeFastPathKey(type.GetHashCode(), HashString(name), InteropInvokeCallKind.Method,
+                true);
+            unsafe {
+                _fastPathRegistryLong[key] = new FastStaticHandler((args, argCount, result) => {
+                    var arg0 = ReadFromInterop<TArg0>(&args[0]);
+                    var arg1 = ReadFromInterop<TArg1>(&args[1]);
+                    var arg2 = ReadFromInterop<TArg2>(&args[2]);
+                    var arg3 = ReadFromInterop<TArg3>(&args[3]);
+                    var arg4 = ReadFromInterop<TArg4>(&args[4]);
+                    var ret = method(arg0, arg1, arg2, arg3, arg4);
+                    WriteToInterop(ret, result);
+                });
+            }
+        }
+
+        /// <summary>
+        /// Register a static method with 6 arguments.
+        /// </summary>
+        public static void StaticMethod<TOwner, TArg0, TArg1, TArg2, TArg3, TArg4, TArg5, TResult>(string name, Func<TArg0, TArg1, TArg2, TArg3, TArg4, TArg5, TResult> method) {
+            var type = typeof(TOwner);
+            CacheStaticTypeHash(type);
+            var key = MakeFastPathKey(type.GetHashCode(), HashString(name), InteropInvokeCallKind.Method,
+                true);
+            unsafe {
+                _fastPathRegistryLong[key] = new FastStaticHandler((args, argCount, result) => {
+                    var arg0 = ReadFromInterop<TArg0>(&args[0]);
+                    var arg1 = ReadFromInterop<TArg1>(&args[1]);
+                    var arg2 = ReadFromInterop<TArg2>(&args[2]);
+                    var arg3 = ReadFromInterop<TArg3>(&args[3]);
+                    var arg4 = ReadFromInterop<TArg4>(&args[4]);
+                    var arg5 = ReadFromInterop<TArg5>(&args[5]);
+                    var ret = method(arg0, arg1, arg2, arg3, arg4, arg5);
+                    WriteToInterop(ret, result);
+                });
+            }
+        }
+
+        // MARK: Static methods by type name (for static classes that can't be type arguments)
+
+        /// <summary>
+        /// Register a static method with 2 arguments using explicit type name (for static classes).
+        /// </summary>
+        public static void StaticMethodByTypeName<TArg0, TArg1, TResult>(string typeName, string methodName, Func<TArg0, TArg1, TResult> method) {
+            int typeNameHash = HashString(typeName);
+            CacheStaticTypeHashByName(typeName, typeNameHash);
+            var key = MakeFastPathKey(typeNameHash, HashString(methodName), InteropInvokeCallKind.Method, true);
+            unsafe {
+                _fastPathRegistryLong[key] = new FastStaticHandler((args, argCount, result) => {
+                    var arg0 = ReadFromInterop<TArg0>(&args[0]);
+                    var arg1 = ReadFromInterop<TArg1>(&args[1]);
+                    var ret = method(arg0, arg1);
+                    WriteToInterop(ret, result);
+                });
+            }
+        }
+
+        /// <summary>
+        /// Register a static method with 3 arguments using explicit type name (for static classes).
+        /// </summary>
+        public static void StaticMethodByTypeName<TArg0, TArg1, TArg2, TResult>(string typeName, string methodName, Func<TArg0, TArg1, TArg2, TResult> method) {
+            int typeNameHash = HashString(typeName);
+            CacheStaticTypeHashByName(typeName, typeNameHash);
+            var key = MakeFastPathKey(typeNameHash, HashString(methodName), InteropInvokeCallKind.Method, true);
+            unsafe {
+                _fastPathRegistryLong[key] = new FastStaticHandler((args, argCount, result) => {
+                    var arg0 = ReadFromInterop<TArg0>(&args[0]);
+                    var arg1 = ReadFromInterop<TArg1>(&args[1]);
+                    var arg2 = ReadFromInterop<TArg2>(&args[2]);
+                    var ret = method(arg0, arg1, arg2);
+                    WriteToInterop(ret, result);
+                });
+            }
+        }
+
+        /// <summary>
+        /// Register a static method with 4 arguments using explicit type name (for static classes).
+        /// </summary>
+        public static void StaticMethodByTypeName<TArg0, TArg1, TArg2, TArg3, TResult>(string typeName, string methodName, Func<TArg0, TArg1, TArg2, TArg3, TResult> method) {
+            int typeNameHash = HashString(typeName);
+            CacheStaticTypeHashByName(typeName, typeNameHash);
+            var key = MakeFastPathKey(typeNameHash, HashString(methodName), InteropInvokeCallKind.Method, true);
+            unsafe {
+                _fastPathRegistryLong[key] = new FastStaticHandler((args, argCount, result) => {
+                    var arg0 = ReadFromInterop<TArg0>(&args[0]);
+                    var arg1 = ReadFromInterop<TArg1>(&args[1]);
+                    var arg2 = ReadFromInterop<TArg2>(&args[2]);
+                    var arg3 = ReadFromInterop<TArg3>(&args[3]);
+                    var ret = method(arg0, arg1, arg2, arg3);
+                    WriteToInterop(ret, result);
+                });
+            }
+        }
+
+        /// <summary>
+        /// Register a static method with 5 arguments using explicit type name (for static classes).
+        /// </summary>
+        public static void StaticMethodByTypeName<TArg0, TArg1, TArg2, TArg3, TArg4, TResult>(string typeName, string methodName, Func<TArg0, TArg1, TArg2, TArg3, TArg4, TResult> method) {
+            int typeNameHash = HashString(typeName);
+            CacheStaticTypeHashByName(typeName, typeNameHash);
+            var key = MakeFastPathKey(typeNameHash, HashString(methodName), InteropInvokeCallKind.Method, true);
+            unsafe {
+                _fastPathRegistryLong[key] = new FastStaticHandler((args, argCount, result) => {
+                    var arg0 = ReadFromInterop<TArg0>(&args[0]);
+                    var arg1 = ReadFromInterop<TArg1>(&args[1]);
+                    var arg2 = ReadFromInterop<TArg2>(&args[2]);
+                    var arg3 = ReadFromInterop<TArg3>(&args[3]);
+                    var arg4 = ReadFromInterop<TArg4>(&args[4]);
+                    var ret = method(arg0, arg1, arg2, arg3, arg4);
+                    WriteToInterop(ret, result);
+                });
+            }
+        }
+
+        /// <summary>
+        /// Register a static method with 6 arguments using explicit type name (for static classes).
+        /// </summary>
+        public static void StaticMethodByTypeName<TArg0, TArg1, TArg2, TArg3, TArg4, TArg5, TResult>(string typeName, string methodName, Func<TArg0, TArg1, TArg2, TArg3, TArg4, TArg5, TResult> method) {
+            int typeNameHash = HashString(typeName);
+            CacheStaticTypeHashByName(typeName, typeNameHash);
+            var key = MakeFastPathKey(typeNameHash, HashString(methodName), InteropInvokeCallKind.Method, true);
+            unsafe {
+                _fastPathRegistryLong[key] = new FastStaticHandler((args, argCount, result) => {
+                    var arg0 = ReadFromInterop<TArg0>(&args[0]);
+                    var arg1 = ReadFromInterop<TArg1>(&args[1]);
+                    var arg2 = ReadFromInterop<TArg2>(&args[2]);
+                    var arg3 = ReadFromInterop<TArg3>(&args[3]);
+                    var arg4 = ReadFromInterop<TArg4>(&args[4]);
+                    var arg5 = ReadFromInterop<TArg5>(&args[5]);
+                    var ret = method(arg0, arg1, arg2, arg3, arg4, arg5);
+                    WriteToInterop(ret, result);
+                });
+            }
+        }
+
         // MARK: Struct Registration
         public static unsafe void Struct<T>(
             StructPacker<T> pack,
@@ -335,6 +533,7 @@ public static partial class QuickJSNative {
             _structUnpackers.Clear();
             _dictConverters.Clear();
             _staticTypeHashCache.Clear();
+            _staticClassTypeNameHashes.Clear();
             _fastPathInitialized = false;
         }
 
@@ -348,6 +547,22 @@ public static partial class QuickJSNative {
         var fullName = type.FullName;
         var hash = HashString(fullName);
         _staticTypeHashCache[hash] = type;
+    }
+
+    // Registry for static class type name hashes (for StaticMethodByTypeName)
+    // Maps typeNameHash -> typeNameHash (identity mapping, to signal we should use hash directly as typeHash)
+    static readonly HashSet<int> _staticClassTypeNameHashes = new HashSet<int>();
+
+    /// <summary>
+    /// Register a type name for static method lookup (for static classes that can't be Type).
+    /// This marks the hash so TryFastPathZeroAlloc uses it directly as the typeHash.
+    /// </summary>
+    static void CacheStaticTypeHashByName(string typeName, int typeNameHash) {
+        _staticClassTypeNameHashes.Add(typeNameHash);
+        // Also add to cache so lookup doesn't fail early
+        if (!_staticTypeHashCache.ContainsKey(typeNameHash)) {
+            _staticTypeHashCache[typeNameHash] = typeof(object);
+        }
     }
 
     // MARK: Init
@@ -423,6 +638,35 @@ public static partial class QuickJSNative {
         FastPath.StaticMethod<Mathf, float, float>("Floor", Mathf.Floor);
         FastPath.StaticMethod<Mathf, float, float>("Ceil", Mathf.Ceil);
         FastPath.StaticMethod<Mathf, float, float>("Round", Mathf.Round);
+
+        // GPU - zero-alloc compute shader dispatch
+        // Uses StaticMethodByTypeName since GPUBridge is a static class (can't be type argument)
+        const string gpuBridgeTypeName = "OneJS.GPU.GPUBridge";
+        FastPath.StaticMethodByTypeName<int, string, int>(gpuBridgeTypeName, "FindKernel", GPUBridge.FindKernel);
+        FastPath.StaticMethodByTypeName<int, string, float, bool>(gpuBridgeTypeName, "SetFloat", (h, n, v) => {
+            GPUBridge.SetFloat(h, n, v);
+            return true;
+        });
+        FastPath.StaticMethodByTypeName<int, string, int, bool>(gpuBridgeTypeName, "SetInt", (h, n, v) => {
+            GPUBridge.SetInt(h, n, v);
+            return true;
+        });
+        FastPath.StaticMethodByTypeName<int, string, bool, bool>(gpuBridgeTypeName, "SetBool", (h, n, v) => {
+            GPUBridge.SetBool(h, n, v);
+            return true;
+        });
+        FastPath.StaticMethodByTypeName<int, string, float, float, float, float, bool>(gpuBridgeTypeName, "SetVector", (h, n, x, y, z, w) => {
+            GPUBridge.SetVector(h, n, x, y, z, w);
+            return true;
+        });
+        FastPath.StaticMethodByTypeName<int, int, string, int, bool>(gpuBridgeTypeName, "SetTexture", (sh, ki, n, th) => {
+            GPUBridge.SetTexture(sh, ki, n, th);
+            return true;
+        });
+        FastPath.StaticMethodByTypeName<int, int, int, int, int, bool>(gpuBridgeTypeName, "Dispatch", (h, k, x, y, z) => {
+            GPUBridge.Dispatch(h, k, x, y, z);
+            return true;
+        });
     }
 
     // MARK: Zero-Alloc Lookup
@@ -463,15 +707,21 @@ public static partial class QuickJSNative {
         if (isStatic) {
             // For static calls, compute type hash from typeName pointer
             int typeNameHash = HashUtf8Ptr(typeNamePtr);
-            // Try to find the cached type
-            if (!_staticTypeHashCache.TryGetValue(typeNameHash, out var cachedType)) {
-                if (DebugFastPath) {
-                    var tn = PtrToStringUtf8(typeNamePtr);
-                    Debug.Log($"[FastPath MISS] Static type not cached: {tn}, hash={typeNameHash}");
+
+            // Check if this is a registered static class type name (use hash directly)
+            if (_staticClassTypeNameHashes.Contains(typeNameHash)) {
+                typeHash = typeNameHash;
+            } else {
+                // Regular type: lookup cached type and use its GetHashCode()
+                if (!_staticTypeHashCache.TryGetValue(typeNameHash, out var cachedType)) {
+                    if (DebugFastPath) {
+                        var tn = PtrToStringUtf8(typeNamePtr);
+                        Debug.Log($"[FastPath MISS] Static type not cached: {tn}, hash={typeNameHash}");
+                    }
+                    return false; // Not a registered static path
                 }
-                return false; // Not a registered static path
+                typeHash = cachedType.GetHashCode();
             }
-            typeHash = cachedType.GetHashCode();
         } else {
             // For instance calls, use the Type directly
             if (typeFromHandle == null) return false;

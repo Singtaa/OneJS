@@ -9,6 +9,7 @@ Tests/
 ├── OneJS.Tests.asmdef           # PlayMode test assembly
 ├── QuickJSPlaymodeTests.cs      # Core QuickJS functionality
 ├── QuickJSFastPathPlaymodeTests.cs
+├── QuickJSZeroAllocTests.cs     # Zero-allocation interop tests
 ├── QuickJSUIBridgePlaymodeTests.cs
 ├── UIToolkitJSPlaymodeTests.cs
 ├── QuickJSStabilityTests.cs
@@ -48,11 +49,13 @@ Tests/
 |------|------|---------|
 | `QuickJSPlaymodeTests.cs` | PlayMode | Core eval, static calls, constructors, generics, async |
 | `QuickJSFastPathPlaymodeTests.cs` | PlayMode | Zero-allocation property access, method calls |
+| `QuickJSZeroAllocTests.cs` | PlayMode | Zero-allocation GPU bindings, property ID caching |
 | `QuickJSUIBridgePlaymodeTests.cs` | PlayMode | Event delegation, scheduling, Promises |
 | `UIToolkitJSPlaymodeTests.cs` | PlayMode | React component rendering |
 | `QuickJSStabilityTests.cs` | PlayMode | Handle monitoring, task queue, exceptions |
 | `JSRunnerPlaymodeTests.cs` | PlayMode | JSRunner scaffolding, init, reload, globals |
 | `JSPadPlaymodeTests.cs` | PlayMode | JSPad temp dirs, build state, execution |
+| `GPUBridgePlaymodeTests.cs` | PlayMode | GPU compute shaders, buffers, dispatch |
 | `JSRunnerBuildProcessorTests.cs` | EditMode | Asset copying, namespace detection |
 | `BuildValidationTests.cs` | EditMode | Full build + run validation (slow) |
 
@@ -75,6 +78,19 @@ Tests/
 - **Asset Detection**: `@namespace/` folder detection
 - **Scoped Packages**: `@scope/package` handling
 - **Deduplication**: Multiple JSRunner handling
+
+### Zero-Alloc Tests (QuickJSZeroAllocTests)
+
+Tests and documentation for the zero-allocation interop system:
+
+- **Binding Registration**: Basic zero-arg, multi-arg, and return-value bindings
+- **Specialized GPU Bindings**: BindGpuSetFloatById, BindGpuSetVectorById, BindGpuDispatch
+- **Property ID Caching**: Shader.PropertyToID pattern for zero-alloc shader uniforms
+- **GPUBridge Integration**: GetZeroAllocBindingIds, SetFloatById, ID-based setters
+- **JavaScript Integration**: Accessing binding IDs and PropertyToID from JS
+- **Performance**: InvokeCallbackNoAlloc overhead, per-frame GPU update simulation
+
+The test file also serves as comprehensive documentation with examples.
 
 ### Build Validation (BuildValidationTests)
 - **End-to-End**: Builds player, runs, validates output

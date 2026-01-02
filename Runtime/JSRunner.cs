@@ -506,6 +506,9 @@ public class JSRunner : MonoBehaviour {
         _bridge.Context.ExecutePendingJobs();
         _scriptLoaded = true;
 
+        // Cache __tick callback handle for zero-allocation per-frame invocation
+        _bridge.CacheTickCallback();
+
 #if UNITY_WEBGL && !UNITY_EDITOR
         // Start the native RAF tick loop for WebGL
         StartWebGLTick();

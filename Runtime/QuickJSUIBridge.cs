@@ -19,6 +19,7 @@ public class QuickJSUIBridge : IDisposable {
     bool _disposed;
     float _startTime;
     bool _inEval; // Recursion guard to prevent re-entrant JS execution (all platforms)
+    int _tickCallbackHandle = -1; // Cached handle for zero-alloc tick
 
     // Viewport tracking for responsive design
     float _lastViewportWidth;
@@ -102,6 +103,21 @@ public class QuickJSUIBridge : IDisposable {
     }
 
     /// <summary>
+    /// Cache the __tick callback handle for zero-allocation per-frame invocation.
+    /// Call this once after the bootstrap and user code have been evaluated.
+    /// </summary>
+    public void CacheTickCallback() {
+        try {
+            var handleStr = _ctx.Eval("typeof __tick === 'function' ? __registerCallback(__tick) : -1");
+            _tickCallbackHandle = int.Parse(handleStr);
+            Debug.Log($"[QuickJSUIBridge] Tick callback cached: handle={_tickCallbackHandle} (zero-alloc={_tickCallbackHandle >= 0})");
+        } catch (Exception ex) {
+            Debug.LogWarning($"[QuickJSUIBridge] Failed to cache __tick callback: {ex.Message}");
+            _tickCallbackHandle = -1;
+        }
+    }
+
+    /// <summary>
     /// Safe eval that prevents recursive calls (important for WebGL).
     /// Returns null if already in an eval call.
     /// </summary>
@@ -120,6 +136,7 @@ public class QuickJSUIBridge : IDisposable {
 
     /// <summary>
     /// Call every frame from Update() to drive RAF, timers, and Promise microtasks.
+    /// Uses zero-allocation path when tick callback is cached.
     /// </summary>
     public void Tick() {
         if (_disposed || _inEval) return;
@@ -129,7 +146,14 @@ public class QuickJSUIBridge : IDisposable {
             QuickJSNative.ProcessCompletedTasks(_ctx);
 
             float timestamp = (Time.realtimeSinceStartup - _startTime) * 1000f;
-            _ctx.Eval($"globalThis.__tick && __tick({timestamp.ToString("F2", CultureInfo.InvariantCulture)})");
+
+            if (_tickCallbackHandle >= 0) {
+                // Zero-allocation path: invoke cached callback directly
+                _ctx.InvokeCallbackNoAlloc(_tickCallbackHandle, timestamp);
+            } else {
+                // Fallback: use Eval (allocates strings)
+                _ctx.Eval($"globalThis.__tick && __tick({timestamp.ToString("F2", CultureInfo.InvariantCulture)})");
+            }
 
             // Execute pending Promise jobs (microtasks) - critical for React scheduler
             _ctx.ExecutePendingJobs();

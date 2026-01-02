@@ -104,10 +104,22 @@ typedef void (*CsInvokeCallback)(QjsContext* ctx, const InteropInvokeRequest* re
 typedef void (*CsLogCallback)(const char* msg);
 typedef void (*CsReleaseHandleCallback)(int handle);
 
+/**
+ * Zero-allocation dispatch callback.
+ * Called from fixed-arity __zaInvoke functions with stack-allocated args.
+ *
+ * @param bindingId  Pre-registered binding ID (from interop.bind())
+ * @param args       Stack-allocated array of InteropValues
+ * @param argCount   Number of arguments (0-8)
+ * @param outResult  Output result (caller-allocated)
+ */
+typedef void (*CsZeroAllocCallback)(int32_t bindingId, const InteropValue* args, int32_t argCount, InteropValue* outResult);
+
 static struct {
     CsInvokeCallback invoke;
     CsLogCallback log;
     CsReleaseHandleCallback release_handle;
+    CsZeroAllocCallback zeroalloc;
 } g_callbacks = {0};
 
 QJS_API void qjs_set_cs_invoke_callback(CsInvokeCallback cb) { g_callbacks.invoke = cb; }
@@ -115,6 +127,7 @@ QJS_API void qjs_set_cs_log_callback(CsLogCallback cb) { g_callbacks.log = cb; }
 QJS_API void qjs_set_cs_release_handle_callback(CsReleaseHandleCallback cb) {
     g_callbacks.release_handle = cb;
 }
+QJS_API void qjs_set_cs_zeroalloc_callback(CsZeroAllocCallback cb) { g_callbacks.zeroalloc = cb; }
 
 // MARK: Utils
 
@@ -665,6 +678,346 @@ cleanup:
     return result;
 }
 
+// MARK: Zero-Alloc Invoke
+//
+// These functions provide zero-allocation C# interop by:
+// 1. Using stack-allocated InteropValue arrays (no malloc)
+// 2. Taking a pre-registered bindingId instead of type/member strings
+// 3. Converting JS args inline without intermediate allocations
+//
+// Usage from JS:
+//   const result = __zaInvoke3(bindingId, arg0, arg1, arg2)
+//
+// The bindingId is obtained from C# via interop.bind() which returns
+// a numeric ID that maps to a pre-registered delegate.
+
+/**
+ * Convert JS value to InteropValue without allocation.
+ * Unlike interop_value_from_js, this does NOT allocate strings - it stores
+ * a pointer to QuickJS's internal string which remains valid until the
+ * next JS operation. Caller must use the value before returning to JS.
+ *
+ * @param ctx   JS context
+ * @param v     JS value to convert
+ * @param out   Output InteropValue (stack-allocated by caller)
+ */
+static void interop_value_from_js_noalloc(JSContext* ctx, JSValueConst v, InteropValue* out) {
+    out->type = INTEROP_TYPE_NULL;
+    out->_pad = 0;
+    out->v.i64 = 0;
+    out->typeHint = NULL;
+
+    if (JS_IsNull(v) || JS_IsUndefined(v)) {
+        return;
+    }
+
+    if (JS_IsBool(v)) {
+        out->type = INTEROP_TYPE_BOOL;
+        out->v.b = JS_ToBool(ctx, v) ? 1 : 0;
+        return;
+    }
+
+    if (JS_IsNumber(v)) {
+        double d;
+        JS_ToFloat64(ctx, &d, v);
+
+        if (d == (double)(int32_t)d && d >= INT32_MIN && d <= INT32_MAX) {
+            out->type = INTEROP_TYPE_INT32;
+            out->v.i32 = (int32_t)d;
+        } else {
+            out->type = INTEROP_TYPE_DOUBLE;
+            out->v.f64 = d;
+        }
+        return;
+    }
+
+    // For strings, we get a pointer to QuickJS's internal string.
+    // This is NOT allocated - it's valid until we call another JS function.
+    // The caller must copy if they need it beyond the callback.
+    if (JS_IsString(v)) {
+        const char* s = JS_ToCString(ctx, v);
+        if (s) {
+            out->type = INTEROP_TYPE_STRING;
+            out->v.str = s;  // Note: This will be freed after the call
+        }
+        return;
+    }
+
+    // For objects with __csHandle, extract the handle
+    if (JS_IsObject(v)) {
+        JSValue handleVal = JS_GetPropertyStr(ctx, v, "__csHandle");
+        if (!JS_IsUndefined(handleVal) && !JS_IsNull(handleVal)) {
+            int32_t handle;
+            if (JS_ToInt32(ctx, &handle, handleVal) == 0) {
+                out->type = INTEROP_TYPE_OBJECT_HANDLE;
+                out->v.handle = handle;
+            }
+            JS_FreeValue(ctx, handleVal);
+            return;
+        }
+        JS_FreeValue(ctx, handleVal);
+
+        // Try vector patterns (no allocation - just copies floats)
+        if (try_convert_vector3(ctx, v, out)) return;
+        if (try_convert_color(ctx, v, out)) return;
+
+        // For complex objects, fall back to null (user should use regular invoke)
+        // We don't want to allocate JSON strings in the zero-alloc path
+    }
+}
+
+/**
+ * Free string references from interop_value_from_js_noalloc.
+ * Must be called for each InteropValue that might contain a string pointer.
+ */
+static void interop_value_free_string_ref(JSContext* ctx, InteropValue* v) {
+    if (v->type == INTEROP_TYPE_STRING && v->v.str) {
+        JS_FreeCString(ctx, v->v.str);
+        v->v.str = NULL;
+    }
+}
+
+// Zero-arg invoke
+static JSValue js_za_invoke0(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    if (!g_callbacks.zeroalloc) {
+        return JS_ThrowInternalError(ctx, "zeroalloc callback not set");
+    }
+    if (argc < 1) {
+        return JS_ThrowTypeError(ctx, "__zaInvoke0 requires bindingId");
+    }
+
+    int32_t bindingId;
+    if (JS_ToInt32(ctx, &bindingId, argv[0]) != 0) {
+        return JS_ThrowTypeError(ctx, "bindingId must be an integer");
+    }
+
+    InteropValue result = {0};
+    g_callbacks.zeroalloc(bindingId, NULL, 0, &result);
+    return interop_value_to_js(ctx, &result);
+}
+
+// 1-arg invoke
+static JSValue js_za_invoke1(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    if (!g_callbacks.zeroalloc) {
+        return JS_ThrowInternalError(ctx, "zeroalloc callback not set");
+    }
+    if (argc < 2) {
+        return JS_ThrowTypeError(ctx, "__zaInvoke1 requires bindingId + 1 arg");
+    }
+
+    int32_t bindingId;
+    if (JS_ToInt32(ctx, &bindingId, argv[0]) != 0) {
+        return JS_ThrowTypeError(ctx, "bindingId must be an integer");
+    }
+
+    InteropValue args[1];
+    interop_value_from_js_noalloc(ctx, argv[1], &args[0]);
+
+    InteropValue result = {0};
+    g_callbacks.zeroalloc(bindingId, args, 1, &result);
+
+    interop_value_free_string_ref(ctx, &args[0]);
+    return interop_value_to_js(ctx, &result);
+}
+
+// 2-arg invoke
+static JSValue js_za_invoke2(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    if (!g_callbacks.zeroalloc) {
+        return JS_ThrowInternalError(ctx, "zeroalloc callback not set");
+    }
+    if (argc < 3) {
+        return JS_ThrowTypeError(ctx, "__zaInvoke2 requires bindingId + 2 args");
+    }
+
+    int32_t bindingId;
+    if (JS_ToInt32(ctx, &bindingId, argv[0]) != 0) {
+        return JS_ThrowTypeError(ctx, "bindingId must be an integer");
+    }
+
+    InteropValue args[2];
+    interop_value_from_js_noalloc(ctx, argv[1], &args[0]);
+    interop_value_from_js_noalloc(ctx, argv[2], &args[1]);
+
+    InteropValue result = {0};
+    g_callbacks.zeroalloc(bindingId, args, 2, &result);
+
+    interop_value_free_string_ref(ctx, &args[0]);
+    interop_value_free_string_ref(ctx, &args[1]);
+    return interop_value_to_js(ctx, &result);
+}
+
+// 3-arg invoke
+static JSValue js_za_invoke3(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    if (!g_callbacks.zeroalloc) {
+        return JS_ThrowInternalError(ctx, "zeroalloc callback not set");
+    }
+    if (argc < 4) {
+        return JS_ThrowTypeError(ctx, "__zaInvoke3 requires bindingId + 3 args");
+    }
+
+    int32_t bindingId;
+    if (JS_ToInt32(ctx, &bindingId, argv[0]) != 0) {
+        return JS_ThrowTypeError(ctx, "bindingId must be an integer");
+    }
+
+    InteropValue args[3];
+    interop_value_from_js_noalloc(ctx, argv[1], &args[0]);
+    interop_value_from_js_noalloc(ctx, argv[2], &args[1]);
+    interop_value_from_js_noalloc(ctx, argv[3], &args[2]);
+
+    InteropValue result = {0};
+    g_callbacks.zeroalloc(bindingId, args, 3, &result);
+
+    for (int i = 0; i < 3; i++) interop_value_free_string_ref(ctx, &args[i]);
+    return interop_value_to_js(ctx, &result);
+}
+
+// 4-arg invoke
+static JSValue js_za_invoke4(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    if (!g_callbacks.zeroalloc) {
+        return JS_ThrowInternalError(ctx, "zeroalloc callback not set");
+    }
+    if (argc < 5) {
+        return JS_ThrowTypeError(ctx, "__zaInvoke4 requires bindingId + 4 args");
+    }
+
+    int32_t bindingId;
+    if (JS_ToInt32(ctx, &bindingId, argv[0]) != 0) {
+        return JS_ThrowTypeError(ctx, "bindingId must be an integer");
+    }
+
+    InteropValue args[4];
+    for (int i = 0; i < 4; i++) {
+        interop_value_from_js_noalloc(ctx, argv[1 + i], &args[i]);
+    }
+
+    InteropValue result = {0};
+    g_callbacks.zeroalloc(bindingId, args, 4, &result);
+
+    for (int i = 0; i < 4; i++) interop_value_free_string_ref(ctx, &args[i]);
+    return interop_value_to_js(ctx, &result);
+}
+
+// 5-arg invoke
+static JSValue js_za_invoke5(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    if (!g_callbacks.zeroalloc) {
+        return JS_ThrowInternalError(ctx, "zeroalloc callback not set");
+    }
+    if (argc < 6) {
+        return JS_ThrowTypeError(ctx, "__zaInvoke5 requires bindingId + 5 args");
+    }
+
+    int32_t bindingId;
+    if (JS_ToInt32(ctx, &bindingId, argv[0]) != 0) {
+        return JS_ThrowTypeError(ctx, "bindingId must be an integer");
+    }
+
+    InteropValue args[5];
+    for (int i = 0; i < 5; i++) {
+        interop_value_from_js_noalloc(ctx, argv[1 + i], &args[i]);
+    }
+
+    InteropValue result = {0};
+    g_callbacks.zeroalloc(bindingId, args, 5, &result);
+
+    for (int i = 0; i < 5; i++) interop_value_free_string_ref(ctx, &args[i]);
+    return interop_value_to_js(ctx, &result);
+}
+
+// 6-arg invoke
+static JSValue js_za_invoke6(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    if (!g_callbacks.zeroalloc) {
+        return JS_ThrowInternalError(ctx, "zeroalloc callback not set");
+    }
+    if (argc < 7) {
+        return JS_ThrowTypeError(ctx, "__zaInvoke6 requires bindingId + 6 args");
+    }
+
+    int32_t bindingId;
+    if (JS_ToInt32(ctx, &bindingId, argv[0]) != 0) {
+        return JS_ThrowTypeError(ctx, "bindingId must be an integer");
+    }
+
+    InteropValue args[6];
+    for (int i = 0; i < 6; i++) {
+        interop_value_from_js_noalloc(ctx, argv[1 + i], &args[i]);
+    }
+
+    InteropValue result = {0};
+    g_callbacks.zeroalloc(bindingId, args, 6, &result);
+
+    for (int i = 0; i < 6; i++) interop_value_free_string_ref(ctx, &args[i]);
+    return interop_value_to_js(ctx, &result);
+}
+
+// 7-arg invoke
+static JSValue js_za_invoke7(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    if (!g_callbacks.zeroalloc) {
+        return JS_ThrowInternalError(ctx, "zeroalloc callback not set");
+    }
+    if (argc < 8) {
+        return JS_ThrowTypeError(ctx, "__zaInvoke7 requires bindingId + 7 args");
+    }
+
+    int32_t bindingId;
+    if (JS_ToInt32(ctx, &bindingId, argv[0]) != 0) {
+        return JS_ThrowTypeError(ctx, "bindingId must be an integer");
+    }
+
+    InteropValue args[7];
+    for (int i = 0; i < 7; i++) {
+        interop_value_from_js_noalloc(ctx, argv[1 + i], &args[i]);
+    }
+
+    InteropValue result = {0};
+    g_callbacks.zeroalloc(bindingId, args, 7, &result);
+
+    for (int i = 0; i < 7; i++) interop_value_free_string_ref(ctx, &args[i]);
+    return interop_value_to_js(ctx, &result);
+}
+
+// 8-arg invoke
+static JSValue js_za_invoke8(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    if (!g_callbacks.zeroalloc) {
+        return JS_ThrowInternalError(ctx, "zeroalloc callback not set");
+    }
+    if (argc < 9) {
+        return JS_ThrowTypeError(ctx, "__zaInvoke8 requires bindingId + 8 args");
+    }
+
+    int32_t bindingId;
+    if (JS_ToInt32(ctx, &bindingId, argv[0]) != 0) {
+        return JS_ThrowTypeError(ctx, "bindingId must be an integer");
+    }
+
+    InteropValue args[8];
+    for (int i = 0; i < 8; i++) {
+        interop_value_from_js_noalloc(ctx, argv[1 + i], &args[i]);
+    }
+
+    InteropValue result = {0};
+    g_callbacks.zeroalloc(bindingId, args, 8, &result);
+
+    for (int i = 0; i < 8; i++) interop_value_free_string_ref(ctx, &args[i]);
+    return interop_value_to_js(ctx, &result);
+}
+
+static void qjs_init_zeroalloc(JSContext* ctx) {
+    JSValue global = JS_GetGlobalObject(ctx);
+
+    JS_SetPropertyStr(ctx, global, "__zaInvoke0", JS_NewCFunction(ctx, js_za_invoke0, "__zaInvoke0", 1));
+    JS_SetPropertyStr(ctx, global, "__zaInvoke1", JS_NewCFunction(ctx, js_za_invoke1, "__zaInvoke1", 2));
+    JS_SetPropertyStr(ctx, global, "__zaInvoke2", JS_NewCFunction(ctx, js_za_invoke2, "__zaInvoke2", 3));
+    JS_SetPropertyStr(ctx, global, "__zaInvoke3", JS_NewCFunction(ctx, js_za_invoke3, "__zaInvoke3", 4));
+    JS_SetPropertyStr(ctx, global, "__zaInvoke4", JS_NewCFunction(ctx, js_za_invoke4, "__zaInvoke4", 5));
+    JS_SetPropertyStr(ctx, global, "__zaInvoke5", JS_NewCFunction(ctx, js_za_invoke5, "__zaInvoke5", 6));
+    JS_SetPropertyStr(ctx, global, "__zaInvoke6", JS_NewCFunction(ctx, js_za_invoke6, "__zaInvoke6", 7));
+    JS_SetPropertyStr(ctx, global, "__zaInvoke7", JS_NewCFunction(ctx, js_za_invoke7, "__zaInvoke7", 8));
+    JS_SetPropertyStr(ctx, global, "__zaInvoke8", JS_NewCFunction(ctx, js_za_invoke8, "__zaInvoke8", 9));
+
+    JS_FreeValue(ctx, global);
+}
+
 // MARK: Init
 
 static void qjs_init_callbacks(QjsContext* qctx) {
@@ -755,6 +1108,7 @@ QJS_API QjsContext* qjs_create() {
     qjs_init_cs_bridge(ctx);
     qjs_init_release_handle(ctx);
     qjs_init_callbacks(wrapper);
+    qjs_init_zeroalloc(ctx);
 
     return wrapper;
 }

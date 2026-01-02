@@ -177,6 +177,7 @@ Temp/OneJSPad/{instanceId}/
 | `QuickJSNative.Dispatch.cs` | JS→C# callback dispatch, value conversion, exception handling |
 | `QuickJSNative.FastPath.cs` | Zero-allocation fast path for hot properties/methods |
 | `QuickJSNative.Tasks.cs` | C# Task/Promise bridging with queue monitoring |
+| `QuickJSNative.ZeroAlloc.cs` | Zero-allocation interop for GPU and hot-path operations |
 
 ## Stability & Monitoring
 
@@ -304,6 +305,98 @@ Pre-registered handlers for hot paths (Time.deltaTime, transform.position):
 ```csharp
 FastPath.StaticProperty<Time, float>("deltaTime", () => Time.deltaTime);
 FastPath.Property<Transform, Vector3>("position", t => t.position, (t,v) => t.position = v);
+```
+
+## Zero-Allocation Interop (QuickJSNative.ZeroAlloc.cs)
+
+For truly zero-allocation per-frame operations (e.g., GPU compute shader calls), the runtime provides specialized binding methods that bypass C# generics entirely.
+
+### Why Specialized Bindings?
+
+The generic `Bind<T>()` API causes boxing due to how C# generics work with value types:
+
+```csharp
+// Generic GetArg<T> boxes:
+static T GetArg<T>(InteropValue* v) {
+    return (T)(object)GetInt(v);  // ← Boxes int to object, then unboxes to T
+}
+
+// Generic SetResult<T> boxes:
+switch (value) {  // ← Pattern matching boxes value type to object
+    case int i: ...
+}
+```
+
+The specialized `BindGpu*` methods use direct primitive types - no generics, no boxing:
+
+```csharp
+// Truly zero-alloc:
+QuickJSNative.BindGpuSetFloatById((h, id, v) => GPUBridge.SetFloatById(h, id, v));
+// Internally uses: int handle = GetInt(&args[0]); // No boxing!
+```
+
+### Available Specialized Bindings
+
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `BindGpuSetFloatById` | `(int, int, float) → void` | Set shader float by property ID |
+| `BindGpuSetIntById` | `(int, int, int) → void` | Set shader int by property ID |
+| `BindGpuSetVectorById` | `(int, int, float, float, float, float) → void` | Set shader vector by property ID |
+| `BindGpuSetTextureById` | `(int, int, int, int) → void` | Set shader texture by property ID |
+| `BindGpuDispatch` | `(int, int, int, int, int) → void` | Dispatch compute shader |
+| `BindGpuGetScreenWidth` | `() → int` | Get screen width |
+| `BindGpuGetScreenHeight` | `() → int` | Get screen height |
+
+### Property ID Caching
+
+To avoid string allocations, use Unity's `Shader.PropertyToID()` pattern:
+
+```typescript
+// JavaScript side - cache property IDs once at init
+const _propertyIdCache = new Map<string, number>()
+
+function getPropertyId(name: string): number {
+    let id = _propertyIdCache.get(name)
+    if (id === undefined) {
+        id = CS.OneJS.GPU.GPUBridge.PropertyToID(name)  // One-time allocation
+        _propertyIdCache.set(name, id)
+    }
+    return id
+}
+
+// Per-frame calls use cached ID - zero allocations
+const timeId = getPropertyId("_Time")
+setFloatById(shaderHandle, timeId, performance.now() / 1000)
+```
+
+### Two API Tiers
+
+| API | Allocation | Use Case |
+|-----|------------|----------|
+| Generic `Bind<T>()` | ~80B per call (boxing) | Prototyping, non-hot-path |
+| Specialized `BindGpu*()` | 0B | Per-frame GPU operations |
+
+The generic API remains for convenience. Use specialized bindings for hot paths.
+
+### Adding New Specialized Bindings
+
+To add a new zero-alloc binding:
+
+```csharp
+// 1. Add to QuickJSNative.ZeroAlloc.cs
+public static unsafe int BindMyMethod(Action<int, float> action) {
+    return RegisterZeroAllocBinding((InteropValue* args, int argCount, InteropValue* result) => {
+        int arg0 = GetInt(&args[0]);      // Direct int, no boxing
+        float arg1 = GetFloat(&args[1]);  // Direct float, no boxing
+        action(arg0, arg1);
+    });
+}
+
+// 2. Register in your initialization code
+int bindingId = QuickJSNative.BindMyMethod((a, b) => MyClass.MyMethod(a, b));
+
+// 3. Use from JavaScript via __zaInvoke2
+__zaInvoke2(bindingId, intValue, floatValue);
 ```
 
 ## JS Interop Features
