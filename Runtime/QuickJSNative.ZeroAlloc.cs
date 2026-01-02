@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
 /// <summary>
@@ -392,236 +394,153 @@ public static partial class QuickJSNative {
         });
     }
 
-    // MARK: Argument Extraction
+    // MARK: Argument Extraction (Zero-Alloc)
+    //
+    // Uses UnsafeUtility.As<TFrom, TTo>() for boxing-free generic type conversion.
+    // This is the same pattern used in FastPath.ReadFromInterop<T>().
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static unsafe T GetArg<T>(InteropValue* v) {
-        if (typeof(T) == typeof(int)) return (T)(object)GetInt(v);
-        if (typeof(T) == typeof(float)) return (T)(object)GetFloat(v);
-        if (typeof(T) == typeof(double)) return (T)(object)GetDouble(v);
-        if (typeof(T) == typeof(bool)) return (T)(object)(v->b != 0);
-        if (typeof(T) == typeof(string)) return (T)(object)GetString(v);
-        if (typeof(T) == typeof(Vector3)) return (T)(object)new Vector3(v->vecX, v->vecY, v->vecZ);
-        if (typeof(T) == typeof(Vector4)) return (T)(object)new Vector4(v->vecX, v->vecY, v->vecZ, v->vecW);
-        if (typeof(T) == typeof(Color)) return (T)(object)new Color(v->vecX, v->vecY, v->vecZ, v->vecW);
+        // Primitives - zero alloc via UnsafeUtility.As
+        if (typeof(T) == typeof(int)) {
+            int i = v->type switch {
+                InteropType.Int32 => v->i32,
+                InteropType.Double => (int)v->f64,
+                InteropType.Float32 => (int)v->f32,
+                _ => 0
+            };
+            return UnsafeUtility.As<int, T>(ref i);
+        }
+        if (typeof(T) == typeof(float)) {
+            float f = v->type switch {
+                InteropType.Float32 => v->f32,
+                InteropType.Double => (float)v->f64,
+                InteropType.Int32 => v->i32,
+                _ => 0f
+            };
+            return UnsafeUtility.As<float, T>(ref f);
+        }
+        if (typeof(T) == typeof(double)) {
+            double d = v->type switch {
+                InteropType.Double => v->f64,
+                InteropType.Float32 => v->f32,
+                InteropType.Int32 => v->i32,
+                _ => 0.0
+            };
+            return UnsafeUtility.As<double, T>(ref d);
+        }
+        if (typeof(T) == typeof(bool)) {
+            bool b = v->b != 0;
+            return UnsafeUtility.As<bool, T>(ref b);
+        }
+        if (typeof(T) == typeof(string)) {
+            string s = (v->type == InteropType.String && v->str != IntPtr.Zero)
+                ? PtrToStringUtf8(v->str)
+                : null;
+            return UnsafeUtility.As<string, T>(ref s);
+        }
 
+        // Vectors - zero alloc via UnsafeUtility.As
+        if (typeof(T) == typeof(Vector3)) {
+            var vec = new Vector3(v->vecX, v->vecY, v->vecZ);
+            return UnsafeUtility.As<Vector3, T>(ref vec);
+        }
+        if (typeof(T) == typeof(Vector4)) {
+            var vec = new Vector4(v->vecX, v->vecY, v->vecZ, v->vecW);
+            return UnsafeUtility.As<Vector4, T>(ref vec);
+        }
+        if (typeof(T) == typeof(Color)) {
+            var col = new Color(v->vecX, v->vecY, v->vecZ, v->vecW);
+            return UnsafeUtility.As<Color, T>(ref col);
+        }
+        if (typeof(T) == typeof(Vector2)) {
+            var vec = new Vector2(v->vecX, v->vecY);
+            return UnsafeUtility.As<Vector2, T>(ref vec);
+        }
+
+        // Object handles - reference types don't box
         if (v->type == InteropType.ObjectHandle) {
             var obj = GetObjectByHandle(v->handle);
             if (obj is T typed) return typed;
         }
 
-        throw new InvalidCastException($"Cannot convert InteropValue type {v->type} to {typeof(T).Name}");
+        return default;
     }
 
-    static unsafe int GetInt(InteropValue* v) {
-        return v->type switch {
-            InteropType.Int32 => v->i32,
-            InteropType.Double => (int)v->f64,
-            InteropType.Float32 => (int)v->f32,
-            _ => 0
-        };
-    }
+    // MARK: Result Setting (Zero-Alloc)
+    //
+    // Uses UnsafeUtility.As<TFrom, TTo>() for boxing-free generic type conversion.
+    // This is the same pattern used in FastPath.WriteToInterop<T>().
 
-    static unsafe float GetFloat(InteropValue* v) {
-        return v->type switch {
-            InteropType.Float32 => v->f32,
-            InteropType.Double => (float)v->f64,
-            InteropType.Int32 => v->i32,
-            _ => 0f
-        };
-    }
-
-    static unsafe double GetDouble(InteropValue* v) {
-        return v->type switch {
-            InteropType.Double => v->f64,
-            InteropType.Float32 => v->f32,
-            InteropType.Int32 => v->i32,
-            _ => 0.0
-        };
-    }
-
-    static unsafe string GetString(InteropValue* v) {
-        if (v->type != InteropType.String || v->str == IntPtr.Zero)
-            return null;
-        return PtrToStringUtf8(v->str);
-    }
-
-    // MARK: Result Setting
-
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static unsafe void SetResult<T>(InteropValue* result, T value) {
-        if (value == null) {
-            result->type = InteropType.Null;
+        result->type = InteropType.Null;
+
+        // Primitives - zero alloc via UnsafeUtility.As
+        if (typeof(T) == typeof(int)) {
+            result->type = InteropType.Int32;
+            result->i32 = UnsafeUtility.As<T, int>(ref value);
+            return;
+        }
+        if (typeof(T) == typeof(float)) {
+            result->type = InteropType.Float32;
+            result->f32 = UnsafeUtility.As<T, float>(ref value);
+            return;
+        }
+        if (typeof(T) == typeof(double)) {
+            result->type = InteropType.Double;
+            result->f64 = UnsafeUtility.As<T, double>(ref value);
+            return;
+        }
+        if (typeof(T) == typeof(bool)) {
+            result->type = InteropType.Bool;
+            result->b = UnsafeUtility.As<T, bool>(ref value) ? 1 : 0;
             return;
         }
 
-        switch (value) {
-            case int i:
-                result->type = InteropType.Int32;
-                result->i32 = i;
-                break;
-            case float f:
-                result->type = InteropType.Float32;
-                result->f32 = f;
-                break;
-            case double d:
-                result->type = InteropType.Double;
-                result->f64 = d;
-                break;
-            case bool b:
-                result->type = InteropType.Bool;
-                result->b = b ? 1 : 0;
-                break;
-            case Vector3 v3:
-                result->type = InteropType.Vector3;
-                result->vecX = v3.x;
-                result->vecY = v3.y;
-                result->vecZ = v3.z;
-                break;
-            case Vector4 v4:
-                result->type = InteropType.Vector4;
-                result->vecX = v4.x;
-                result->vecY = v4.y;
-                result->vecZ = v4.z;
-                result->vecW = v4.w;
-                break;
-            case Color c:
-                result->type = InteropType.Vector4;
-                result->vecX = c.r;
-                result->vecY = c.g;
-                result->vecZ = c.b;
-                result->vecW = c.a;
-                break;
-            default:
-                if (value is UnityEngine.Object obj) {
-                    result->type = InteropType.ObjectHandle;
-                    result->handle = RegisterObject(obj);
-                } else {
-                    result->type = InteropType.Null;
-                }
-                break;
+        // Vectors - zero alloc via UnsafeUtility.As
+        if (typeof(T) == typeof(Vector3)) {
+            var vec = UnsafeUtility.As<T, Vector3>(ref value);
+            result->type = InteropType.Vector3;
+            result->vecX = vec.x;
+            result->vecY = vec.y;
+            result->vecZ = vec.z;
+            return;
+        }
+        if (typeof(T) == typeof(Vector4)) {
+            var vec = UnsafeUtility.As<T, Vector4>(ref value);
+            result->type = InteropType.Vector4;
+            result->vecX = vec.x;
+            result->vecY = vec.y;
+            result->vecZ = vec.z;
+            result->vecW = vec.w;
+            return;
+        }
+        if (typeof(T) == typeof(Color)) {
+            var col = UnsafeUtility.As<T, Color>(ref value);
+            result->type = InteropType.Vector4;
+            result->vecX = col.r;
+            result->vecY = col.g;
+            result->vecZ = col.b;
+            result->vecW = col.a;
+            return;
+        }
+        if (typeof(T) == typeof(Vector2)) {
+            var vec = UnsafeUtility.As<T, Vector2>(ref value);
+            result->type = InteropType.Vector3;
+            result->vecX = vec.x;
+            result->vecY = vec.y;
+            result->vecZ = 0;
+            return;
+        }
+
+        // Reference types don't box
+        if (value == null) return;
+
+        if (value is UnityEngine.Object obj) {
+            result->type = InteropType.ObjectHandle;
+            result->handle = RegisterObject(obj);
         }
     }
 
-    // MARK: Type-Specific Result Setters (Zero-Alloc)
-    //
-    // These methods avoid the boxing that occurs in SetResult<T> by using
-    // concrete types instead of generics. Use these for hot-path code.
-
-    static unsafe void SetResultInt(InteropValue* result, int value) {
-        result->type = InteropType.Int32;
-        result->i32 = value;
-    }
-
-    static unsafe void SetResultFloat(InteropValue* result, float value) {
-        result->type = InteropType.Float32;
-        result->f32 = value;
-    }
-
-    static unsafe void SetResultBool(InteropValue* result, bool value) {
-        result->type = InteropType.Bool;
-        result->b = value ? 1 : 0;
-    }
-
-    // MARK: Specialized GPU Bindings (Truly Zero-Alloc)
-    //
-    // These methods create bindings for specific GPU operations without using
-    // generics, completely eliminating boxing overhead. The generic Bind<T>()
-    // API remains available for convenience and prototyping.
-    //
-    // Why specialized bindings?
-    // - Generic GetArg<T>() boxes: return (T)(object)GetInt(v)
-    // - Generic SetResult<T>() boxes: switch (value) pattern-matches on object
-    // - These specialized versions use direct primitive types - zero allocations
-    //
-    // Usage: Call these once at init, use returned binding IDs for per-frame calls.
-
-    /// <summary>
-    /// Specialized binding for SetFloatById(int shaderHandle, int nameId, float value).
-    /// Truly zero-alloc: no generics, no boxing.
-    /// </summary>
-    public static unsafe int BindGpuSetFloatById(Action<int, int, float> action) {
-        return RegisterZeroAllocBinding((InteropValue* args, int argCount, InteropValue* result) => {
-            int handle = GetInt(&args[0]);
-            int nameId = GetInt(&args[1]);
-            float value = GetFloat(&args[2]);
-            action(handle, nameId, value);
-        });
-    }
-
-    /// <summary>
-    /// Specialized binding for SetIntById(int shaderHandle, int nameId, int value).
-    /// Truly zero-alloc: no generics, no boxing.
-    /// </summary>
-    public static unsafe int BindGpuSetIntById(Action<int, int, int> action) {
-        return RegisterZeroAllocBinding((InteropValue* args, int argCount, InteropValue* result) => {
-            int handle = GetInt(&args[0]);
-            int nameId = GetInt(&args[1]);
-            int value = GetInt(&args[2]);
-            action(handle, nameId, value);
-        });
-    }
-
-    /// <summary>
-    /// Specialized binding for SetVectorById(int shaderHandle, int nameId, float x, float y, float z, float w).
-    /// Truly zero-alloc: no generics, no boxing.
-    /// </summary>
-    public static unsafe int BindGpuSetVectorById(Action<int, int, float, float, float, float> action) {
-        return RegisterZeroAllocBinding((InteropValue* args, int argCount, InteropValue* result) => {
-            int handle = GetInt(&args[0]);
-            int nameId = GetInt(&args[1]);
-            float x = GetFloat(&args[2]);
-            float y = GetFloat(&args[3]);
-            float z = GetFloat(&args[4]);
-            float w = GetFloat(&args[5]);
-            action(handle, nameId, x, y, z, w);
-        });
-    }
-
-    /// <summary>
-    /// Specialized binding for SetTextureById(int shaderHandle, int kernelIndex, int nameId, int textureHandle).
-    /// Truly zero-alloc: no generics, no boxing.
-    /// </summary>
-    public static unsafe int BindGpuSetTextureById(Action<int, int, int, int> action) {
-        return RegisterZeroAllocBinding((InteropValue* args, int argCount, InteropValue* result) => {
-            int shaderHandle = GetInt(&args[0]);
-            int kernelIndex = GetInt(&args[1]);
-            int nameId = GetInt(&args[2]);
-            int textureHandle = GetInt(&args[3]);
-            action(shaderHandle, kernelIndex, nameId, textureHandle);
-        });
-    }
-
-    /// <summary>
-    /// Specialized binding for Dispatch(int shaderHandle, int kernelIndex, int groupsX, int groupsY, int groupsZ).
-    /// Truly zero-alloc: no generics, no boxing.
-    /// </summary>
-    public static unsafe int BindGpuDispatch(Action<int, int, int, int, int> action) {
-        return RegisterZeroAllocBinding((InteropValue* args, int argCount, InteropValue* result) => {
-            int shaderHandle = GetInt(&args[0]);
-            int kernelIndex = GetInt(&args[1]);
-            int groupsX = GetInt(&args[2]);
-            int groupsY = GetInt(&args[3]);
-            int groupsZ = GetInt(&args[4]);
-            action(shaderHandle, kernelIndex, groupsX, groupsY, groupsZ);
-        });
-    }
-
-    /// <summary>
-    /// Specialized binding for GetScreenWidth() -> int.
-    /// Truly zero-alloc: uses SetResultInt instead of generic SetResult.
-    /// </summary>
-    public static unsafe int BindGpuGetScreenWidth(Func<int> func) {
-        return RegisterZeroAllocBinding((InteropValue* args, int argCount, InteropValue* result) => {
-            SetResultInt(result, func());
-        });
-    }
-
-    /// <summary>
-    /// Specialized binding for GetScreenHeight() -> int.
-    /// Truly zero-alloc: uses SetResultInt instead of generic SetResult.
-    /// </summary>
-    public static unsafe int BindGpuGetScreenHeight(Func<int> func) {
-        return RegisterZeroAllocBinding((InteropValue* args, int argCount, InteropValue* result) => {
-            SetResultInt(result, func());
-        });
-    }
 }

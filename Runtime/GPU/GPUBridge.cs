@@ -645,19 +645,16 @@ namespace OneJS.GPU {
         /// <summary>
         /// Initialize zero-alloc bindings. Call once at startup.
         ///
-        /// This registers two types of bindings:
-        /// 1. String-based (convenience): Uses generic Bind, still allocates for string params
-        /// 2. ID-based (hot-path): Uses specialized BindGpu* methods, truly zero-alloc
-        ///
-        /// For per-frame GPU calls, always use the ID-based bindings with cached property IDs.
+        /// All bindings now use the generic Bind&lt;T&gt; methods which are truly zero-alloc
+        /// thanks to UnsafeUtility.As for boxing-free type conversion.
         /// </summary>
         public static void InitializeZeroAllocBindings() {
             if (_bindingsRegistered) return;
             _bindingsRegistered = true;
 
             // ============ String-based convenience bindings ============
-            // These use generic Bind<> which boxes, but are only for convenience/prototyping.
-            // Use ID-based bindings below for hot-path code.
+            // Use these for setup/prototyping. The string param allocates, but
+            // the generic Bind<> itself is now zero-alloc.
 
             _bindingIds.setFloat = QuickJSNative.Bind<int, string, float>((h, n, v) => {
                 SetFloat(h, n, v);
@@ -681,32 +678,32 @@ namespace OneJS.GPU {
                     SetTexture(sh, ki, n, th);
                 });
 
-            // PropertyToID only called at init time to cache IDs, boxing is acceptable
+            // PropertyToID only called at init time to cache IDs
             _bindingIds.propertyToId = QuickJSNative.Bind<string, int>(PropertyToID);
 
-            // ============ ID-based hot-path bindings (TRULY ZERO-ALLOC) ============
-            // These use specialized BindGpu* methods that bypass generics entirely.
-            // No GetArg<T> boxing, no SetResult<T> boxing - pure primitive passing.
+            // ============ ID-based hot-path bindings (ZERO-ALLOC) ============
+            // Use these for per-frame calls. All generic Bind<> methods are now
+            // zero-alloc thanks to UnsafeUtility.As in GetArg<T> and SetResult<T>.
 
-            _bindingIds.dispatch = QuickJSNative.BindGpuDispatch(
+            _bindingIds.dispatch = QuickJSNative.Bind<int, int, int, int, int>(
                 (sh, ki, gx, gy, gz) => Dispatch(sh, ki, gx, gy, gz));
 
-            _bindingIds.getScreenWidth = QuickJSNative.BindGpuGetScreenWidth(GetScreenWidth);
-            _bindingIds.getScreenHeight = QuickJSNative.BindGpuGetScreenHeight(GetScreenHeight);
+            _bindingIds.getScreenWidth = QuickJSNative.Bind(GetScreenWidth);
+            _bindingIds.getScreenHeight = QuickJSNative.Bind(GetScreenHeight);
 
-            _bindingIds.setFloatById = QuickJSNative.BindGpuSetFloatById(
+            _bindingIds.setFloatById = QuickJSNative.Bind<int, int, float>(
                 (h, id, v) => SetFloatById(h, id, v));
 
-            _bindingIds.setIntById = QuickJSNative.BindGpuSetIntById(
+            _bindingIds.setIntById = QuickJSNative.Bind<int, int, int>(
                 (h, id, v) => SetIntById(h, id, v));
 
-            _bindingIds.setVectorById = QuickJSNative.BindGpuSetVectorById(
+            _bindingIds.setVectorById = QuickJSNative.Bind<int, int, float, float, float, float>(
                 (h, id, x, y, z, w) => SetVectorById(h, id, x, y, z, w));
 
-            _bindingIds.setTextureById = QuickJSNative.BindGpuSetTextureById(
+            _bindingIds.setTextureById = QuickJSNative.Bind<int, int, int, int>(
                 (sh, ki, id, th) => SetTextureById(sh, ki, id, th));
 
-            Debug.Log($"[GPUBridge] Zero-alloc bindings registered (specialized, non-boxing): " +
+            Debug.Log($"[GPUBridge] Zero-alloc bindings registered: " +
                 $"dispatch={_bindingIds.dispatch}, setFloatById={_bindingIds.setFloatById}, " +
                 $"setIntById={_bindingIds.setIntById}, setVectorById={_bindingIds.setVectorById}, " +
                 $"setTextureById={_bindingIds.setTextureById}");

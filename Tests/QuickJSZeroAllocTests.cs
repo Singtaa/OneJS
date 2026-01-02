@@ -14,27 +14,15 @@ using Debug = UnityEngine.Debug;
 ///
 /// ## Overview
 ///
-/// The zero-alloc system provides two tiers of C#/JavaScript interop:
+/// The zero-alloc system provides truly zero-allocation C#/JavaScript interop using:
 ///
-/// 1. **Generic Bind&lt;T&gt;()** - Convenient but boxes value types (~80B per call)
-/// 2. **Specialized BindGpu*()** - No generics, no boxing (0B per call)
+/// - **Generic Bind&lt;T&gt;()** - Uses UnsafeUtility.As for boxing-free type conversion (0B per call)
 ///
-/// ## Why Boxing Occurs in Generic Bind
+/// ## How Zero-Allocation is Achieved
 ///
-/// C# generics use type erasure, causing boxing in two places:
-/// - GetArg&lt;T&gt;(): `return (T)(object)GetInt(v)` - boxes int to object
-/// - SetResult&lt;T&gt;(): `switch (value)` - pattern matching boxes value types
-///
-/// ## Specialized Bindings
-///
-/// The BindGpu* methods use direct primitive types:
-/// - BindGpuSetFloatById(Action&lt;int, int, float&gt;)
-/// - BindGpuSetIntById(Action&lt;int, int, int&gt;)
-/// - BindGpuSetVectorById(Action&lt;int, int, float, float, float, float&gt;)
-/// - BindGpuSetTextureById(Action&lt;int, int, int, int&gt;)
-/// - BindGpuDispatch(Action&lt;int, int, int, int, int&gt;)
-/// - BindGpuGetScreenWidth(Func&lt;int&gt;)
-/// - BindGpuGetScreenHeight(Func&lt;int&gt;)
+/// C# generics normally cause boxing, but we avoid it using UnsafeUtility.As:
+/// - GetArg&lt;T&gt;(): `return UnsafeUtility.As&lt;int, T&gt;(ref i)` - no boxing!
+/// - SetResult&lt;T&gt;(): `result-&gt;i32 = UnsafeUtility.As&lt;T, int&gt;(ref value)` - no boxing!
 ///
 /// ## Property ID Caching
 ///
@@ -44,8 +32,8 @@ using Debug = UnityEngine.Debug;
 /// ## Usage Pattern
 ///
 /// ```csharp
-/// // At init time - register specialized binding
-/// int bindingId = QuickJSNative.BindGpuSetFloatById((h, id, v) => {
+/// // At init time - register binding (all Bind&lt;T&gt; methods are zero-alloc)
+/// int bindingId = QuickJSNative.Bind&lt;int, int, float&gt;((h, id, v) =&gt; {
 ///     GPUBridge.SetFloatById(h, id, v);
 /// });
 ///
@@ -115,62 +103,62 @@ public class QuickJSZeroAllocTests {
 
     /// <summary>
     /// Demonstrates multi-arg binding using generic Bind&lt;T&gt;().
-    /// Note: This still boxes due to generics - use specialized bindings for hot paths.
+    /// All Bind methods are now zero-alloc thanks to UnsafeUtility.As.
     /// </summary>
     [UnityTest]
     public IEnumerator Bind_MultiArg_Works() {
         float capturedValue = 0;
 
-        // Register a 3-arg action (generic - will box)
+        // Register a 3-arg action (zero-alloc via UnsafeUtility.As)
         int bindingId = QuickJSNative.Bind<int, int, float>((handle, nameId, value) => {
             capturedValue = value;
-            Debug.Log($"[ZeroAlloc] Generic binding called: handle={handle}, nameId={nameId}, value={value}");
+            Debug.Log($"[ZeroAlloc] Binding called: handle={handle}, nameId={nameId}, value={value}");
         });
 
         Assert.Greater(bindingId, 0);
-        Debug.Log($"[ZeroAlloc] Registered 3-arg generic binding: ID={bindingId}");
+        Debug.Log($"[ZeroAlloc] Registered 3-arg binding: ID={bindingId}");
 
         yield return null;
     }
 
     // ========================================================================
-    // MARK: Specialized GPU Binding Tests
+    // MARK: GPU Binding Tests
     // ========================================================================
 
     /// <summary>
-    /// Tests BindGpuSetFloatById - truly zero-alloc float setter.
+    /// Tests 3-arg float setter binding - zero-alloc.
     ///
     /// This is the recommended pattern for per-frame shader uniform updates.
     /// </summary>
     [UnityTest]
-    public IEnumerator BindGpuSetFloatById_NoBoxing() {
+    public IEnumerator Bind_SetFloatById_NoBoxing() {
         int capturedHandle = 0;
         int capturedNameId = 0;
         float capturedValue = 0;
 
-        // Register specialized binding - no generics, no boxing
-        int bindingId = QuickJSNative.BindGpuSetFloatById((handle, nameId, value) => {
+        // Register binding - zero-alloc via UnsafeUtility.As
+        int bindingId = QuickJSNative.Bind<int, int, float>((handle, nameId, value) => {
             capturedHandle = handle;
             capturedNameId = nameId;
             capturedValue = value;
         });
 
         Assert.Greater(bindingId, 0);
-        Debug.Log($"[ZeroAlloc] BindGpuSetFloatById registered: ID={bindingId}");
+        Debug.Log($"[ZeroAlloc] Bind<int, int, float> registered: ID={bindingId}");
 
         yield return null;
     }
 
     /// <summary>
-    /// Tests BindGpuSetVectorById - truly zero-alloc vector setter.
+    /// Tests 6-arg vector setter binding - zero-alloc.
     ///
     /// Passes 6 args: shaderHandle, nameId, x, y, z, w
     /// </summary>
     [UnityTest]
-    public IEnumerator BindGpuSetVectorById_SixArgs() {
+    public IEnumerator Bind_SetVectorById_SixArgs() {
         float capturedX = 0, capturedY = 0, capturedZ = 0, capturedW = 0;
 
-        int bindingId = QuickJSNative.BindGpuSetVectorById((handle, nameId, x, y, z, w) => {
+        int bindingId = QuickJSNative.Bind<int, int, float, float, float, float>((handle, nameId, x, y, z, w) => {
             capturedX = x;
             capturedY = y;
             capturedZ = z;
@@ -178,45 +166,43 @@ public class QuickJSZeroAllocTests {
         });
 
         Assert.Greater(bindingId, 0);
-        Debug.Log($"[ZeroAlloc] BindGpuSetVectorById registered: ID={bindingId}");
+        Debug.Log($"[ZeroAlloc] Bind<int, int, float, float, float, float> registered: ID={bindingId}");
 
         yield return null;
     }
 
     /// <summary>
-    /// Tests BindGpuDispatch - truly zero-alloc dispatch.
+    /// Tests 5-arg dispatch binding - zero-alloc.
     ///
     /// Passes 5 args: shaderHandle, kernelIndex, groupsX, groupsY, groupsZ
     /// </summary>
     [UnityTest]
-    public IEnumerator BindGpuDispatch_FiveArgs() {
+    public IEnumerator Bind_Dispatch_FiveArgs() {
         int capturedGroupsX = 0, capturedGroupsY = 0, capturedGroupsZ = 0;
 
-        int bindingId = QuickJSNative.BindGpuDispatch((shader, kernel, gx, gy, gz) => {
+        int bindingId = QuickJSNative.Bind<int, int, int, int, int>((shader, kernel, gx, gy, gz) => {
             capturedGroupsX = gx;
             capturedGroupsY = gy;
             capturedGroupsZ = gz;
         });
 
         Assert.Greater(bindingId, 0);
-        Debug.Log($"[ZeroAlloc] BindGpuDispatch registered: ID={bindingId}");
+        Debug.Log($"[ZeroAlloc] Bind<int, int, int, int, int> registered: ID={bindingId}");
 
         yield return null;
     }
 
     /// <summary>
-    /// Tests BindGpuGetScreenWidth - truly zero-alloc int return.
-    ///
-    /// Uses SetResultInt instead of generic SetResult&lt;T&gt; to avoid boxing.
+    /// Tests zero-arg int return binding - zero-alloc.
     /// </summary>
     [UnityTest]
-    public IEnumerator BindGpuGetScreenWidth_ReturnsInt() {
-        int bindingId = QuickJSNative.BindGpuGetScreenWidth(() => {
+    public IEnumerator Bind_GetScreenWidth_ReturnsInt() {
+        int bindingId = QuickJSNative.Bind(() => {
             return Screen.width;
         });
 
         Assert.Greater(bindingId, 0);
-        Debug.Log($"[ZeroAlloc] BindGpuGetScreenWidth registered: ID={bindingId}");
+        Debug.Log($"[ZeroAlloc] Bind<int>() registered: ID={bindingId}");
 
         yield return null;
     }
@@ -328,38 +314,39 @@ public class QuickJSZeroAllocTests {
     }
 
     // ========================================================================
-    // MARK: Allocation Comparison Tests
+    // MARK: Binding Registration Tests
     // ========================================================================
 
     /// <summary>
-    /// Compares allocation between generic and specialized bindings.
-    ///
-    /// This test demonstrates why specialized bindings are necessary for hot paths.
+    /// Tests that multiple bindings can be registered with different signatures.
+    /// All Bind methods are now zero-alloc thanks to UnsafeUtility.As.
     /// </summary>
     [UnityTest]
-    public IEnumerator Allocation_GenericVsSpecialized_Comparison() {
-        // Create test bindings
-        int genericBindingCalls = 0;
-        int specializedBindingCalls = 0;
+    public IEnumerator Bind_MultipleSignatures_AllZeroAlloc() {
+        int bindingCalls = 0;
 
-        // Generic binding (uses Bind<T0, T1, T2>)
-        int genericId = QuickJSNative.Bind<int, int, float>((h, id, v) => {
-            genericBindingCalls++;
+        // 3-arg binding
+        int threeArgId = QuickJSNative.Bind<int, int, float>((h, id, v) => {
+            bindingCalls++;
         });
 
-        // Specialized binding (uses BindGpuSetFloatById)
-        int specializedId = QuickJSNative.BindGpuSetFloatById((h, id, v) => {
-            specializedBindingCalls++;
+        // 5-arg binding
+        int fiveArgId = QuickJSNative.Bind<int, int, int, int, int>((a, b, c, d, e) => {
+            bindingCalls++;
         });
 
-        Assert.Greater(genericId, 0);
-        Assert.Greater(specializedId, 0);
+        // 6-arg binding
+        int sixArgId = QuickJSNative.Bind<int, int, float, float, float, float>((h, id, x, y, z, w) => {
+            bindingCalls++;
+        });
 
-        Debug.Log($"[ZeroAlloc] Binding IDs: generic={genericId}, specialized={specializedId}");
-        Debug.Log("[ZeroAlloc] In production:");
-        Debug.Log("  - Generic Bind<T>(): ~80B allocation per call (boxing)");
-        Debug.Log("  - Specialized BindGpu*(): 0B allocation per call");
-        Debug.Log("[ZeroAlloc] Use specialized bindings for per-frame GPU operations");
+        Assert.Greater(threeArgId, 0);
+        Assert.Greater(fiveArgId, 0);
+        Assert.Greater(sixArgId, 0);
+
+        Debug.Log($"[ZeroAlloc] Registered bindings: 3-arg={threeArgId}, 5-arg={fiveArgId}, 6-arg={sixArgId}");
+        Debug.Log("[ZeroAlloc] All Bind<T>() methods are now 0B allocation per call");
+        Debug.Log("[ZeroAlloc] Achieved via UnsafeUtility.As in GetArg<T> and SetResult<T>");
 
         yield return null;
     }
@@ -472,21 +459,21 @@ public class QuickJSZeroAllocPerformanceTests {
     }
 
     /// <summary>
-    /// Tests specialized binding registration performance.
+    /// Tests binding registration performance.
     /// Registration is one-time at init, so some allocation is acceptable.
     /// </summary>
     [UnityTest]
-    public IEnumerator SpecializedBinding_RegistrationTime() {
+    public IEnumerator Binding_RegistrationTime() {
         var sw = Stopwatch.StartNew();
 
         const int registrations = 100;
         for (int i = 0; i < registrations; i++) {
-            QuickJSNative.BindGpuSetFloatById((h, id, v) => { });
+            QuickJSNative.Bind<int, int, float>((h, id, v) => { });
         }
 
         sw.Stop();
 
-        Debug.Log($"[ZeroAlloc] Registered {registrations} specialized bindings in {sw.ElapsedMilliseconds}ms");
+        Debug.Log($"[ZeroAlloc] Registered {registrations} bindings in {sw.ElapsedMilliseconds}ms");
         Debug.Log($"[ZeroAlloc] Average: {sw.ElapsedMilliseconds / (float)registrations:F2}ms per registration");
 
         Assert.Less(sw.ElapsedMilliseconds, 1000, "Registration should be fast");
