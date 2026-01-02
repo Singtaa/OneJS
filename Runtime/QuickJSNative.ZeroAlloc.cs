@@ -195,11 +195,11 @@ public static partial class QuickJSNative {
     }
 
     static unsafe object ConvertInteropValueToObject(InteropValue* v, Type expectedType) {
-        if (expectedType == typeof(int)) return GetInt(v);
-        if (expectedType == typeof(float)) return GetFloat(v);
-        if (expectedType == typeof(double)) return GetDouble(v);
+        if (expectedType == typeof(int)) return GetIntBoxed(v);
+        if (expectedType == typeof(float)) return GetFloatBoxed(v);
+        if (expectedType == typeof(double)) return GetDoubleBoxed(v);
         if (expectedType == typeof(bool)) return v->b != 0;
-        if (expectedType == typeof(string)) return GetString(v);
+        if (expectedType == typeof(string)) return GetStringBoxed(v);
         if (expectedType == typeof(Vector3)) return new Vector3(v->vecX, v->vecY, v->vecZ);
         if (expectedType == typeof(Vector4)) return new Vector4(v->vecX, v->vecY, v->vecZ, v->vecW);
         if (expectedType == typeof(Color)) return new Color(v->vecX, v->vecY, v->vecZ, v->vecW);
@@ -209,6 +209,40 @@ public static partial class QuickJSNative {
         }
 
         return null;
+    }
+
+    // Helper methods for reflection-based dynamic binding (boxes, but only used at init time)
+    static unsafe int GetIntBoxed(InteropValue* v) {
+        return v->type switch {
+            InteropType.Int32 => v->i32,
+            InteropType.Double => (int)v->f64,
+            InteropType.Float32 => (int)v->f32,
+            _ => 0
+        };
+    }
+
+    static unsafe float GetFloatBoxed(InteropValue* v) {
+        return v->type switch {
+            InteropType.Float32 => v->f32,
+            InteropType.Double => (float)v->f64,
+            InteropType.Int32 => v->i32,
+            _ => 0f
+        };
+    }
+
+    static unsafe double GetDoubleBoxed(InteropValue* v) {
+        return v->type switch {
+            InteropType.Double => v->f64,
+            InteropType.Float32 => v->f32,
+            InteropType.Int32 => v->i32,
+            _ => 0.0
+        };
+    }
+
+    static unsafe string GetStringBoxed(InteropValue* v) {
+        if (v->type != InteropType.String || v->str == IntPtr.Zero)
+            return null;
+        return PtrToStringUtf8(v->str);
     }
 
     static unsafe void SetResultFromObject(InteropValue* result, object value) {
