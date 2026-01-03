@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using OneJS.Editor;
 using OneJS.Editor.TypeGenerator;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -31,6 +32,7 @@ public class JSRunnerEditor : Editor {
     Button _reloadButton;
     Button _buildButton;
     Button _installButton;
+    Button _watchButton;
     HelpBox _buildOutputBox;
     bool _installInProgress;
     VisualElement _liveReloadInfo;
@@ -46,10 +48,24 @@ public class JSRunnerEditor : Editor {
         _target = (JSRunner)target;
         _activeTab = EditorPrefs.GetInt(TabPrefKey, 0);
         EditorApplication.update += UpdateDynamicUI;
+
+        // Subscribe to watcher events
+        NodeWatcherManager.OnWatcherStarted += OnWatcherStateChanged;
+        NodeWatcherManager.OnWatcherStopped += OnWatcherStateChanged;
+
+        // Try to reattach to watcher if it was running before domain reload
+        NodeWatcherManager.TryReattach(_target.WorkingDirFullPath);
     }
 
     void OnDisable() {
         EditorApplication.update -= UpdateDynamicUI;
+        NodeWatcherManager.OnWatcherStarted -= OnWatcherStateChanged;
+        NodeWatcherManager.OnWatcherStopped -= OnWatcherStateChanged;
+    }
+
+    void OnWatcherStateChanged(string workingDir) {
+        // Repaint when watcher state changes (for any JSRunner, in case of shared UI)
+        Repaint();
     }
 
     public override VisualElement CreateInspectorGUI() {
@@ -845,6 +861,11 @@ public class JSRunnerEditor : Editor {
         _buildButton.style.flexGrow = 1;
         row1.Add(_buildButton);
 
+        _watchButton = new Button(ToggleWatch) { text = "Watch" };
+        _watchButton.style.height = 30;
+        _watchButton.style.flexGrow = 1;
+        row1.Add(_watchButton);
+
         container.Add(row1);
 
         // Row 2: Open Folder and Terminal
@@ -965,6 +986,20 @@ public class JSRunnerEditor : Editor {
             _buildButton.text = _buildInProgress ? "Building..." : "Build";
         }
 
+        // Watch button
+        if (_watchButton != null) {
+            var isWatching = NodeWatcherManager.IsRunning(_target.WorkingDirFullPath);
+            var isStarting = NodeWatcherManager.IsStarting(_target.WorkingDirFullPath);
+
+            _watchButton.text = isStarting ? "Starting..." : (isWatching ? "Stop" : "Watch");
+            _watchButton.SetEnabled(!isStarting && !_installInProgress && !_buildInProgress);
+
+            // Visual feedback for active watcher
+            _watchButton.style.backgroundColor = isWatching
+                ? new Color(0.2f, 0.5f, 0.2f)
+                : StyleKeyword.Null;
+        }
+
         // Build output
         if (_buildOutputBox != null && !string.IsNullOrEmpty(_buildOutput)) {
             _buildOutputBox.style.display = DisplayStyle.Flex;
@@ -973,6 +1008,19 @@ public class JSRunnerEditor : Editor {
     }
 
     // MARK: Build
+
+    void ToggleWatch() {
+        var workingDir = _target.WorkingDirFullPath;
+
+        if (NodeWatcherManager.IsRunning(workingDir)) {
+            NodeWatcherManager.StopWatcher(workingDir);
+            _buildOutput = "Watcher stopped.";
+        } else {
+            if (NodeWatcherManager.StartWatcher(workingDir)) {
+                _buildOutput = "Watcher started. Watching for changes...";
+            }
+        }
+    }
 
     void RunInstall() {
         var workingDir = _target.WorkingDirFullPath;
