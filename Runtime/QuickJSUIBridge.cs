@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using OneJS.CustomStyleSheets;
+using OneJS.Input;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -205,7 +206,10 @@ public class QuickJSUIBridge : IDisposable {
     void OnClick(ClickEvent e) => DispatchPointerEvent("click", e.target, e.position, e.button);
     void OnPointerDown(PointerDownEvent e) => DispatchPointerEvent("pointerdown", e.target, e.position, e.button, e.pointerId);
     void OnPointerUp(PointerUpEvent e) => DispatchPointerEvent("pointerup", e.target, e.position, e.button, e.pointerId);
-    void OnPointerMove(PointerMoveEvent e) => DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
+    void OnPointerMove(PointerMoveEvent e) {
+        if (!InputBridge.PointerMoveEventsEnabled) return;
+        DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
+    }
     void OnPointerEnter(PointerEnterEvent e) => DispatchPointerEvent("pointerenter", e.target, e.position, 0, e.pointerId);
     void OnPointerLeave(PointerLeaveEvent e) => DispatchPointerEvent("pointerleave", e.target, e.position, 0, e.pointerId);
     void OnFocusIn(FocusInEvent e) => DispatchEvent("focus", e.target, "{}");

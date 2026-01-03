@@ -11,6 +11,25 @@ namespace OneJS.Input {
     /// All methods are static and designed to be called via the CS proxy.
     /// </summary>
     public static class InputBridge {
+        // ============ Pointer Event Control ============
+
+        /// <summary>
+        /// Global flag to control PointerMoveEvent dispatching.
+        /// When false, QuickJSUIBridge will not dispatch pointermove events to JavaScript.
+        /// Set this from JS via: input.setPointerMoveEventsEnabled(false)
+        /// This eliminates ~0.6KB/frame GC allocation when using InputReader for mouse input.
+        /// </summary>
+        public static bool PointerMoveEventsEnabled { get; private set; } = true;
+
+        /// <summary>
+        /// Enable or disable PointerMoveEvent dispatching to JavaScript.
+        /// When disabled, React's onPointerMove handlers won't fire, but onPointerEnter/Leave still work.
+        /// Use this when polling mouse input via InputReader instead of React events.
+        /// </summary>
+        public static void SetPointerMoveEventsEnabled(bool enabled) {
+            PointerMoveEventsEnabled = enabled;
+        }
+
         // Frame tracking for wasPressed/wasReleased
         static int _lastKeyboardFrame = -1;
         static int _lastMouseFrame = -1;
@@ -187,6 +206,44 @@ namespace OneJS.Input {
             UpdateKeyboardFrame();
             var key = ParseKey(keyName);
             return _keysReleased.Contains(key);
+        }
+
+        // ============ Key ID Methods (Zero-Alloc) ============
+
+        /// <summary>
+        /// Get the integer ID for a key name. Cache this at init time for zero-alloc polling.
+        /// Returns 0 (Key.None) if the key name is not recognized.
+        /// </summary>
+        public static int GetKeyId(string keyName) {
+            return (int)ParseKey(keyName);
+        }
+
+        /// <summary>
+        /// Check if a key is currently held down using its integer ID.
+        /// Use GetKeyId() once at init to get the ID, then use this in hot paths.
+        /// </summary>
+        public static bool GetKeyDownById(int keyId) {
+            var keyboard = Keyboard.current;
+            if (keyboard == null) return false;
+            if (keyId == 0) return false; // Key.None
+
+            return keyboard[(Key)keyId].isPressed;
+        }
+
+        /// <summary>
+        /// Check if a key was pressed this frame using its integer ID.
+        /// </summary>
+        public static bool GetKeyPressedById(int keyId) {
+            UpdateKeyboardFrame();
+            return _keysPressed.Contains((Key)keyId);
+        }
+
+        /// <summary>
+        /// Check if a key was released this frame using its integer ID.
+        /// </summary>
+        public static bool GetKeyReleasedById(int keyId) {
+            UpdateKeyboardFrame();
+            return _keysReleased.Contains((Key)keyId);
         }
 
         /// <summary>
@@ -471,6 +528,28 @@ namespace OneJS.Input {
             var gp = Gamepad.all[index];
             var button = ParseGamepadButton(buttonName);
 
+            return GetGamepadButtonDownByIdInternal(gp, button);
+        }
+
+        // ============ Gamepad Button ID Methods (Zero-Alloc) ============
+
+        /// <summary>
+        /// Get the integer ID for a gamepad button name. Cache this at init time for zero-alloc polling.
+        /// </summary>
+        public static int GetGamepadButtonId(string buttonName) {
+            return (int)ParseGamepadButton(buttonName);
+        }
+
+        /// <summary>
+        /// Check if a specific gamepad button is pressed by ID.
+        /// Use GetGamepadButtonId() once at init to get the ID, then use this in hot paths.
+        /// </summary>
+        public static bool GetGamepadButtonDownById(int index, int buttonId) {
+            if (index < 0 || index >= Gamepad.all.Count) return false;
+            return GetGamepadButtonDownByIdInternal(Gamepad.all[index], (GamepadButton)buttonId);
+        }
+
+        static bool GetGamepadButtonDownByIdInternal(Gamepad gp, GamepadButton button) {
             return button switch {
                 GamepadButton.South => gp.buttonSouth.isPressed,
                 GamepadButton.East => gp.buttonEast.isPressed,
@@ -865,6 +944,100 @@ namespace OneJS.Input {
                     _dynamicMaps.Remove(mapHandle);
                 }
             }
+        }
+
+        // ============ Zero-Alloc Bindings ============
+
+        static bool _bindingsRegistered = false;
+        static ZeroAllocInputBindings _bindingIds;
+
+        static void InitializeZeroAllocBindings() {
+            if (_bindingsRegistered) return;
+            _bindingsRegistered = true;
+
+            // Keyboard - string-based (for compatibility)
+            _bindingIds.getKeyDown = QuickJSNative.Bind<string, bool>(GetKeyDown);
+            _bindingIds.getKeyPressed = QuickJSNative.Bind<string, bool>(GetKeyPressed);
+            _bindingIds.getKeyReleased = QuickJSNative.Bind<string, bool>(GetKeyReleased);
+
+            // Keyboard - ID-based (zero-alloc hot path)
+            _bindingIds.getKeyId = QuickJSNative.Bind<string, int>(GetKeyId);
+            _bindingIds.getKeyDownById = QuickJSNative.Bind<int, bool>(GetKeyDownById);
+            _bindingIds.getKeyPressedById = QuickJSNative.Bind<int, bool>(GetKeyPressedById);
+            _bindingIds.getKeyReleasedById = QuickJSNative.Bind<int, bool>(GetKeyReleasedById);
+
+            // Mouse (0 args -> float/int)
+            _bindingIds.getMouseButtons = QuickJSNative.Bind(GetMouseButtons);
+            _bindingIds.getMousePositionX = QuickJSNative.Bind(GetMousePositionX);
+            _bindingIds.getMousePositionY = QuickJSNative.Bind(GetMousePositionY);
+            _bindingIds.getMouseDeltaX = QuickJSNative.Bind(GetMouseDeltaX);
+            _bindingIds.getMouseDeltaY = QuickJSNative.Bind(GetMouseDeltaY);
+            _bindingIds.getScrollX = QuickJSNative.Bind(GetScrollX);
+            _bindingIds.getScrollY = QuickJSNative.Bind(GetScrollY);
+
+            // Gamepad - string-based (for compatibility)
+            _bindingIds.getGamepadButtonDown = QuickJSNative.Bind<int, string, bool>(GetGamepadButtonDown);
+
+            // Gamepad - ID-based (zero-alloc hot path)
+            _bindingIds.getGamepadButtonId = QuickJSNative.Bind<string, int>(GetGamepadButtonId);
+            _bindingIds.getGamepadButtonDownById = QuickJSNative.Bind<int, int, bool>(GetGamepadButtonDownById);
+
+            // Gamepad sticks/triggers (already zero-alloc - no strings)
+            _bindingIds.getLeftStickX = QuickJSNative.Bind<int, float>(GetLeftStickX);
+            _bindingIds.getLeftStickY = QuickJSNative.Bind<int, float>(GetLeftStickY);
+            _bindingIds.getRightStickX = QuickJSNative.Bind<int, float>(GetRightStickX);
+            _bindingIds.getRightStickY = QuickJSNative.Bind<int, float>(GetRightStickY);
+            _bindingIds.getLeftTrigger = QuickJSNative.Bind<int, float>(GetLeftTrigger);
+            _bindingIds.getRightTrigger = QuickJSNative.Bind<int, float>(GetRightTrigger);
+        }
+
+        /// <summary>
+        /// Get binding IDs for zero-allocation input polling.
+        /// These IDs can be used with __zaInvokeN functions to avoid
+        /// type resolution overhead on every call.
+        /// </summary>
+        public static ZeroAllocInputBindings GetZeroAllocBindingIds() {
+            if (!_bindingsRegistered) {
+                InitializeZeroAllocBindings();
+            }
+            return _bindingIds;
+        }
+
+        public struct ZeroAllocInputBindings {
+            // Keyboard - string-based (for compatibility)
+            public int getKeyDown;
+            public int getKeyPressed;
+            public int getKeyReleased;
+
+            // Keyboard - ID-based (zero-alloc hot path)
+            public int getKeyId;
+            public int getKeyDownById;
+            public int getKeyPressedById;
+            public int getKeyReleasedById;
+
+            // Mouse
+            public int getMouseButtons;
+            public int getMousePositionX;
+            public int getMousePositionY;
+            public int getMouseDeltaX;
+            public int getMouseDeltaY;
+            public int getScrollX;
+            public int getScrollY;
+
+            // Gamepad - string-based (for compatibility)
+            public int getGamepadButtonDown;
+
+            // Gamepad - ID-based (zero-alloc hot path)
+            public int getGamepadButtonId;
+            public int getGamepadButtonDownById;
+
+            // Gamepad sticks/triggers
+            public int getLeftStickX;
+            public int getLeftStickY;
+            public int getRightStickX;
+            public int getRightStickY;
+            public int getLeftTrigger;
+            public int getRightTrigger;
         }
     }
 }
