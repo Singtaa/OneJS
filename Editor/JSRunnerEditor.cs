@@ -12,11 +12,16 @@ using Debug = UnityEngine.Debug;
 
 [CustomEditor(typeof(JSRunner))]
 public class JSRunnerEditor : Editor {
-    const string FoldoutPrefKeyPrefix = "JSRunner.Foldout.";
+    const string TabPrefKey = "JSRunner.ActiveTab";
 
     JSRunner _target;
     bool _buildInProgress;
     string _buildOutput;
+
+    // Tab system
+    VisualElement _tabContent;
+    Button[] _tabButtons;
+    int _activeTab;
 
     // UI Elements that need updating
     Label _statusLabel;
@@ -25,15 +30,21 @@ public class JSRunnerEditor : Editor {
     Label _entryFileStatusLabel;
     Button _reloadButton;
     Button _buildButton;
+    Button _installButton;
     HelpBox _buildOutputBox;
+    bool _installInProgress;
     VisualElement _liveReloadInfo;
 
     // Type generation
     Button _generateTypesButton;
     Label _typeGenStatusLabel;
 
+    // Cartridges
+    VisualElement _cartridgeListContainer;
+
     void OnEnable() {
         _target = (JSRunner)target;
+        _activeTab = EditorPrefs.GetInt(TabPrefKey, 0);
         EditorApplication.update += UpdateDynamicUI;
     }
 
@@ -47,15 +58,19 @@ public class JSRunnerEditor : Editor {
         // Status - always visible at top
         root.Add(CreateStatusSection());
 
-        // Collapsible config sections
-        root.Add(CreateFoldoutSection("Settings", BuildSettingsContent, defaultOpen: true));
-        root.Add(CreateFoldoutSection("UI Panel", BuildUIPanelContent));
-        root.Add(CreateFoldoutSection("Live Reload", BuildLiveReloadContent, defaultOpen: true));
-        root.Add(CreateFoldoutSection("Build Settings", BuildBuildSettingsContent));
-        root.Add(CreateFoldoutSection("Type Generation", BuildTypeGenerationContent));
-        root.Add(CreateFoldoutSection("Scaffolding", BuildScaffoldingContent));
-        root.Add(CreateFoldoutSection("Cartridges", BuildCartridgesContent));
-        root.Add(CreateFoldoutSection("Advanced", BuildAdvancedContent));
+        // Tab bar
+        root.Add(CreateTabBar());
+
+        // Tab content container
+        _tabContent = new VisualElement();
+        _tabContent.style.marginTop = 8;
+        _tabContent.style.paddingLeft = 10;
+        _tabContent.style.paddingRight = 6;
+        _tabContent.style.minHeight = 100;
+        root.Add(_tabContent);
+
+        // Show initial tab
+        ShowTab(_activeTab);
 
         // Actions - always visible at bottom
         root.Add(CreateActionsSection());
@@ -63,90 +78,268 @@ public class JSRunnerEditor : Editor {
         return root;
     }
 
-    // MARK: Section Factory
+    // MARK: Tab System
 
-    /// <summary>
-    /// Creates a collapsible foldout section with persistent state.
-    /// </summary>
-    VisualElement CreateFoldoutSection(string title, Action<VisualElement> buildContent, bool defaultOpen = false) {
-        var prefKey = FoldoutPrefKeyPrefix + title.Replace(" ", "");
-        var isOpen = EditorPrefs.GetBool(prefKey, defaultOpen);
+    VisualElement CreateTabBar() {
+        var container = new VisualElement();
+        container.style.flexDirection = FlexDirection.Row;
+        container.style.marginTop = 8;
+        container.style.marginBottom = 0;
 
-        var foldout = new Foldout {
-            text = title,
-            value = isOpen
-        };
-        foldout.style.marginBottom = 4;
-        foldout.style.marginTop = 2;
+        string[] tabNames = { "Project", "Inject", "UI", "Cartridges", "Build" };
+        _tabButtons = new Button[tabNames.Length];
 
-        // Persist state when toggled
-        foldout.RegisterValueChangedCallback(evt => {
-            EditorPrefs.SetBool(prefKey, evt.newValue);
-        });
+        for (int i = 0; i < tabNames.Length; i++) {
+            int tabIndex = i; // Capture for closure
+            var btn = new Button(() => ShowTab(tabIndex)) { text = tabNames[i] };
+            btn.style.flexGrow = 1;
+            btn.style.height = 26;
+            btn.style.marginLeft = i == 0 ? 0 : -1;
 
-        // Build content inside foldout
-        var content = new VisualElement();
-        content.style.marginLeft = 4;
-        buildContent(content);
-        foldout.Add(content);
+            // Remove all borders/outlines
+            btn.style.borderTopWidth = 0;
+            btn.style.borderLeftWidth = 0;
+            btn.style.borderRightWidth = 0;
+            btn.style.borderBottomWidth = 0;
+            btn.style.SetBorderRadius(0);
+            btn.focusable = false;
 
-        return foldout;
+            if (i == 0) {
+                btn.style.borderTopLeftRadius = 4;
+                btn.style.borderBottomLeftRadius = 4;
+            }
+            if (i == tabNames.Length - 1) {
+                btn.style.borderTopRightRadius = 4;
+                btn.style.borderBottomRightRadius = 4;
+            }
+
+            _tabButtons[i] = btn;
+            container.Add(btn);
+        }
+
+        UpdateTabStyles();
+        return container;
     }
 
-    /// <summary>
-    /// Creates a styled box container.
-    /// </summary>
-    VisualElement CreateStyledBox() {
-        var box = new VisualElement();
-        box.style.backgroundColor = new Color(0.24f, 0.24f, 0.24f);
-        box.style.SetBorderWidth(1);
-        box.style.SetBorderColor(new Color(0.14f, 0.14f, 0.14f));
-        box.style.SetBorderRadius(3);
-        box.style.paddingTop = box.style.paddingBottom = 8;
-        box.style.paddingLeft = box.style.paddingRight = 10;
-        return box;
+    void ShowTab(int index) {
+        _activeTab = index;
+        EditorPrefs.SetInt(TabPrefKey, index);
+        UpdateTabStyles();
+
+        _tabContent.Clear();
+
+        switch (index) {
+            case 0: BuildProjectTab(_tabContent); break;
+            case 1: BuildInjectTab(_tabContent); break;
+            case 2: BuildUITab(_tabContent); break;
+            case 3: BuildCartridgesTab(_tabContent); break;
+            case 4: BuildBuildTab(_tabContent); break;
+        }
+
+        // Bind the serializedObject to ensure PropertyFields show data
+        _tabContent.Bind(serializedObject);
     }
 
-    // MARK: Section Content Builders
+    void UpdateTabStyles() {
+        if (_tabButtons == null) return;
 
-    void BuildSettingsContent(VisualElement container) {
+        for (int i = 0; i < _tabButtons.Length; i++) {
+            bool isActive = i == _activeTab;
+            var btn = _tabButtons[i];
+
+            btn.style.backgroundColor = isActive
+                ? new Color(0.3f, 0.3f, 0.3f)
+                : new Color(0.2f, 0.2f, 0.2f);
+
+            // Only bottom border for active indicator
+            btn.style.borderTopWidth = 0;
+            btn.style.borderLeftWidth = 0;
+            btn.style.borderRightWidth = 0;
+            btn.style.borderBottomWidth = isActive ? 2 : 0;
+            btn.style.borderBottomColor = isActive
+                ? new Color(0.4f, 0.6f, 1f)
+                : Color.clear;
+        }
+    }
+
+    // MARK: Tab Content Builders
+
+    void BuildProjectTab(VisualElement container) {
         container.Add(new PropertyField(serializedObject.FindProperty("_workingDir")));
         container.Add(new PropertyField(serializedObject.FindProperty("_entryFile")));
+
+        AddSpacer(container);
+
+        var liveReloadProp = serializedObject.FindProperty("_liveReload");
+        var liveReloadField = new PropertyField(liveReloadProp);
+        container.Add(liveReloadField);
+
+        var pollIntervalContainer = new VisualElement { style = { marginLeft = 15 } };
+        pollIntervalContainer.Add(new PropertyField(serializedObject.FindProperty("_pollInterval")));
+        container.Add(pollIntervalContainer);
+
+        pollIntervalContainer.style.display = liveReloadProp.boolValue ? DisplayStyle.Flex : DisplayStyle.None;
+        liveReloadField.RegisterValueChangeCallback(_ =>
+            pollIntervalContainer.style.display = liveReloadProp.boolValue ? DisplayStyle.Flex : DisplayStyle.None);
     }
 
-    void BuildBuildSettingsContent(VisualElement container) {
-        var embeddedScriptProp = serializedObject.FindProperty("_embeddedScript");
-        var streamingAssetsPathProp = serializedObject.FindProperty("_streamingAssetsPath");
+    void BuildUITab(VisualElement container) {
+        var panelSettingsProp = serializedObject.FindProperty("_panelSettings");
+        var panelSettingsField = new PropertyField(panelSettingsProp, "Panel Settings Asset");
+        container.Add(panelSettingsField);
 
-        var embeddedScriptField = new PropertyField(embeddedScriptProp);
-        var streamingAssetsPathField = new PropertyField(streamingAssetsPathProp);
-        container.Add(embeddedScriptField);
-        container.Add(streamingAssetsPathField);
+        // Inline settings container
+        var inlineSettings = new VisualElement();
+        inlineSettings.style.marginLeft = 15;
+        inlineSettings.style.marginTop = 4;
+        inlineSettings.style.paddingLeft = 10;
+        inlineSettings.style.borderLeftWidth = 2;
+        inlineSettings.style.borderLeftColor = new Color(0.3f, 0.3f, 0.3f);
 
+        inlineSettings.Add(new PropertyField(serializedObject.FindProperty("_defaultThemeStylesheet"), "Theme Stylesheet"));
+
+        var scaleModeProp = serializedObject.FindProperty("_scaleMode");
+        var scaleModeField = new PropertyField(scaleModeProp, "Scale Mode");
+        inlineSettings.Add(scaleModeField);
+
+        // Scale mode specific containers
+        var constantPixelContainer = new VisualElement();
+        constantPixelContainer.Add(new PropertyField(serializedObject.FindProperty("_scale"), "Scale"));
+        inlineSettings.Add(constantPixelContainer);
+
+        var constantPhysicalContainer = new VisualElement();
+        constantPhysicalContainer.Add(new PropertyField(serializedObject.FindProperty("_referenceDpi"), "Reference DPI"));
+        constantPhysicalContainer.Add(new PropertyField(serializedObject.FindProperty("_fallbackDpi"), "Fallback DPI"));
+        inlineSettings.Add(constantPhysicalContainer);
+
+        var scaleWithScreenContainer = new VisualElement();
+        scaleWithScreenContainer.Add(new PropertyField(serializedObject.FindProperty("_referenceResolution"), "Reference Resolution"));
+        var screenMatchModeField = new PropertyField(serializedObject.FindProperty("_screenMatchMode"), "Screen Match Mode");
+        scaleWithScreenContainer.Add(screenMatchModeField);
+        var matchField = new PropertyField(serializedObject.FindProperty("_match"), "Match");
+        scaleWithScreenContainer.Add(matchField);
+        inlineSettings.Add(scaleWithScreenContainer);
+
+        inlineSettings.Add(new PropertyField(serializedObject.FindProperty("_sortOrder"), "Sort Order"));
+        container.Add(inlineSettings);
+
+        // Visibility logic
+        void UpdateScaleModeVisibility() {
+            var mode = (PanelScaleMode)scaleModeProp.enumValueIndex;
+            constantPixelContainer.style.display = mode == PanelScaleMode.ConstantPixelSize ? DisplayStyle.Flex : DisplayStyle.None;
+            constantPhysicalContainer.style.display = mode == PanelScaleMode.ConstantPhysicalSize ? DisplayStyle.Flex : DisplayStyle.None;
+            scaleWithScreenContainer.style.display = mode == PanelScaleMode.ScaleWithScreenSize ? DisplayStyle.Flex : DisplayStyle.None;
+
+            if (mode == PanelScaleMode.ScaleWithScreenSize) {
+                var matchMode = (PanelScreenMatchMode)serializedObject.FindProperty("_screenMatchMode").enumValueIndex;
+                matchField.style.display = matchMode == PanelScreenMatchMode.MatchWidthOrHeight ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+        }
+
+        void UpdateInlineVisibility() {
+            bool hasPanelSettings = panelSettingsProp.objectReferenceValue != null;
+            inlineSettings.style.display = hasPanelSettings ? DisplayStyle.None : DisplayStyle.Flex;
+            if (!hasPanelSettings) UpdateScaleModeVisibility();
+        }
+
+        UpdateInlineVisibility();
+
+        panelSettingsField.RegisterValueChangeCallback(_ => { serializedObject.Update(); UpdateInlineVisibility(); });
+        scaleModeField.RegisterValueChangeCallback(_ => { serializedObject.Update(); UpdateScaleModeVisibility(); });
+        screenMatchModeField.RegisterValueChangeCallback(_ => {
+            serializedObject.Update();
+            var matchMode = (PanelScreenMatchMode)serializedObject.FindProperty("_screenMatchMode").enumValueIndex;
+            matchField.style.display = matchMode == PanelScreenMatchMode.MatchWidthOrHeight ? DisplayStyle.Flex : DisplayStyle.None;
+        });
+
+        // Help box for inline settings
         var helpBox = new HelpBox(
-            $"Bundle will be auto-copied to StreamingAssets/{streamingAssetsPathProp.stringValue} during build.",
+            "No Panel Settings asset assigned. Settings above will be used to create one at runtime.",
             HelpBoxMessageType.Info
         );
         helpBox.style.marginTop = 4;
-        helpBox.style.display = embeddedScriptProp.objectReferenceValue == null ? DisplayStyle.Flex : DisplayStyle.None;
+        helpBox.style.display = panelSettingsProp.objectReferenceValue == null ? DisplayStyle.Flex : DisplayStyle.None;
+        panelSettingsField.RegisterValueChangeCallback(_ =>
+            helpBox.style.display = panelSettingsProp.objectReferenceValue == null ? DisplayStyle.Flex : DisplayStyle.None);
         container.Add(helpBox);
 
-        embeddedScriptField.RegisterValueChangeCallback(_ =>
-            helpBox.style.display = embeddedScriptProp.objectReferenceValue == null ? DisplayStyle.Flex : DisplayStyle.None);
+        AddSpacer(container);
 
-        streamingAssetsPathField.RegisterValueChangeCallback(_ =>
-            helpBox.text = $"Bundle will be auto-copied to StreamingAssets/{streamingAssetsPathProp.stringValue} during build.");
+        var stylesheetsField = new PropertyField(serializedObject.FindProperty("_stylesheets"));
+        stylesheetsField.label = "Stylesheets";
+        stylesheetsField.tooltip = "Global USS stylesheets applied on init/reload";
+        container.Add(stylesheetsField);
     }
 
-    void BuildScaffoldingContent(VisualElement container) {
-        var field = new PropertyField(serializedObject.FindProperty("_defaultFiles"));
-        field.label = "Default Files";
-        container.Add(field);
+    void BuildBuildTab(VisualElement container) {
+        // Build Settings
+        AddSectionHeader(container, "Build Output");
 
-        // Button to repopulate from templates
-        var buttonRow = CreateRow();
-        buttonRow.style.marginTop = 5;
+        var embeddedScriptProp = serializedObject.FindProperty("_embeddedScript");
+        var streamingAssetsPathProp = serializedObject.FindProperty("_streamingAssetsPath");
 
+        var embeddedScriptField = new PropertyField(embeddedScriptProp, "Embedded Script");
+        embeddedScriptField.tooltip = "Optional: embed a pre-built script directly (bypasses file loading)";
+        var streamingAssetsPathField = new PropertyField(streamingAssetsPathProp, "Streaming Assets Path");
+        container.Add(embeddedScriptField);
+        container.Add(streamingAssetsPathField);
+
+        var buildHelpBox = new HelpBox(
+            $"Bundle will be auto-copied to StreamingAssets/{streamingAssetsPathProp.stringValue} during build.",
+            HelpBoxMessageType.Info
+        );
+        buildHelpBox.style.marginTop = 4;
+        buildHelpBox.style.display = embeddedScriptProp.objectReferenceValue == null ? DisplayStyle.Flex : DisplayStyle.None;
+        container.Add(buildHelpBox);
+
+        embeddedScriptField.RegisterValueChangeCallback(_ =>
+            buildHelpBox.style.display = embeddedScriptProp.objectReferenceValue == null ? DisplayStyle.Flex : DisplayStyle.None);
+        streamingAssetsPathField.RegisterValueChangeCallback(_ =>
+            buildHelpBox.text = $"Bundle will be auto-copied to StreamingAssets/{streamingAssetsPathProp.stringValue} during build.");
+
+        AddSpacer(container);
+
+        // Type Generation
+        AddSectionHeader(container, "Type Generation");
+
+        var assembliesField = new PropertyField(serializedObject.FindProperty("_typingAssemblies"));
+        assembliesField.label = "Assemblies";
+        assembliesField.tooltip = "C# assemblies to generate TypeScript typings for";
+        container.Add(assembliesField);
+
+        var autoGenerateProp = serializedObject.FindProperty("_autoGenerateTypings");
+        var autoGenerateField = new PropertyField(autoGenerateProp, "Auto Generate");
+        container.Add(autoGenerateField);
+
+        var outputPathField = new PropertyField(serializedObject.FindProperty("_typingsOutputPath"), "Output Path");
+        container.Add(outputPathField);
+
+        var typeGenRow = CreateRow();
+        typeGenRow.style.marginTop = 5;
+        _generateTypesButton = new Button(GenerateTypings) { text = "Generate Types Now" };
+        _generateTypesButton.style.height = 24;
+        _generateTypesButton.style.flexGrow = 1;
+        typeGenRow.Add(_generateTypesButton);
+        container.Add(typeGenRow);
+
+        _typeGenStatusLabel = new Label();
+        _typeGenStatusLabel.style.marginTop = 4;
+        _typeGenStatusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+        _typeGenStatusLabel.style.fontSize = 10;
+        container.Add(_typeGenStatusLabel);
+        UpdateTypeGenStatus();
+
+        AddSpacer(container);
+
+        // Scaffolding
+        AddSectionHeader(container, "Scaffolding");
+
+        var defaultFilesField = new PropertyField(serializedObject.FindProperty("_defaultFiles"), "Default Files");
+        defaultFilesField.tooltip = "Template files scaffolded when working directory is empty";
+        container.Add(defaultFilesField);
+
+        var scaffoldRow = CreateRow();
+        scaffoldRow.style.marginTop = 5;
         var repopulateButton = new Button(() => {
             _target.PopulateDefaultFiles();
             serializedObject.Update();
@@ -155,14 +348,11 @@ public class JSRunnerEditor : Editor {
         repopulateButton.style.height = 22;
         repopulateButton.style.flexGrow = 1;
         repopulateButton.tooltip = "Repopulate the default files list from OneJS templates";
-        buttonRow.Add(repopulateButton);
-
-        container.Add(buttonRow);
+        scaffoldRow.Add(repopulateButton);
+        container.Add(scaffoldRow);
     }
 
-    VisualElement _cartridgeListContainer;
-
-    void BuildCartridgesContent(VisualElement container) {
+    void BuildCartridgesTab(VisualElement container) {
         // Header with Add button
         var headerRow = CreateRow();
         headerRow.style.marginBottom = 4;
@@ -219,6 +409,37 @@ public class JSRunnerEditor : Editor {
 
         container.Add(bulkRow);
     }
+
+    void BuildInjectTab(VisualElement container) {
+        var preloadsField = new PropertyField(serializedObject.FindProperty("_preloads"), "Preloads");
+        preloadsField.tooltip = "TextAssets eval'd before entry file (e.g., polyfills)";
+        container.Add(preloadsField);
+
+        AddSpacer(container);
+
+        var globalsField = new PropertyField(serializedObject.FindProperty("_globals"), "Globals");
+        globalsField.tooltip = "Key-value pairs injected as globalThis[key]";
+        container.Add(globalsField);
+    }
+
+    // MARK: Section Helpers
+
+    void AddSectionHeader(VisualElement container, string title) {
+        var header = new Label(title);
+        header.style.unityFontStyleAndWeight = FontStyle.Bold;
+        header.style.marginTop = 4;
+        header.style.marginBottom = 4;
+        header.style.fontSize = 12;
+        container.Add(header);
+    }
+
+    void AddSpacer(VisualElement container, float height = 12) {
+        var spacer = new VisualElement();
+        spacer.style.height = height;
+        container.Add(spacer);
+    }
+
+    // MARK: Cartridge Management
 
     void RebuildCartridgeList() {
         if (_cartridgeListContainer == null) return;
@@ -277,7 +498,7 @@ public class JSRunnerEditor : Editor {
         objectField.RegisterValueChangedCallback(evt => {
             elementProp.objectReferenceValue = evt.newValue;
             serializedObject.ApplyModifiedProperties();
-            RebuildCartridgeList(); // Rebuild to update status
+            RebuildCartridgeList();
         });
         row.Add(objectField);
 
@@ -293,14 +514,14 @@ public class JSRunnerEditor : Editor {
             bool isExtracted = Directory.Exists(cartridgePath);
 
             if (isExtracted) {
-                statusLabel.text = "✓ Extracted";
+                statusLabel.text = "Extracted";
                 statusLabel.style.color = new Color(0.4f, 0.8f, 0.4f);
             } else {
-                statusLabel.text = "○ Not extracted";
+                statusLabel.text = "Not extracted";
                 statusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
             }
         } else {
-            statusLabel.text = cartridge == null ? "" : "⚠ No slug";
+            statusLabel.text = cartridge == null ? "" : "No slug";
             statusLabel.style.color = new Color(0.8f, 0.6f, 0.2f);
         }
         row.Add(statusLabel);
@@ -353,14 +574,12 @@ public class JSRunnerEditor : Editor {
         }
 
         try {
-            // Delete existing if overwriting
             if (alreadyExists) {
                 Directory.Delete(destPath, true);
             }
 
             Directory.CreateDirectory(destPath);
 
-            // Extract files
             int fileCount = 0;
             foreach (var file in cartridge.Files) {
                 if (string.IsNullOrEmpty(file.path) || file.content == null) continue;
@@ -376,7 +595,6 @@ public class JSRunnerEditor : Editor {
                 fileCount++;
             }
 
-            // Generate TypeScript definitions
             var dts = OneJS.CartridgeTypeGenerator.Generate(cartridge);
             File.WriteAllText(Path.Combine(destPath, $"{cartridge.Slug}.d.ts"), dts);
 
@@ -399,7 +617,6 @@ public class JSRunnerEditor : Editor {
             return;
         }
 
-        // Count files
         int fileCount = 0;
         try {
             fileCount = Directory.GetFiles(destPath, "*", SearchOption.AllDirectories).Length;
@@ -442,7 +659,6 @@ public class JSRunnerEditor : Editor {
             return;
         }
 
-        // Clear the reference first (required for object references)
         cartridgesProp.GetArrayElementAtIndex(index).objectReferenceValue = null;
         cartridgesProp.DeleteArrayElementAtIndex(index);
         serializedObject.ApplyModifiedProperties();
@@ -564,26 +780,12 @@ public class JSRunnerEditor : Editor {
         RebuildCartridgeList();
     }
 
-    void BuildAdvancedContent(VisualElement container) {
-        var stylesheetsField = new PropertyField(serializedObject.FindProperty("_stylesheets"));
-        stylesheetsField.label = "Stylesheets";
-        container.Add(stylesheetsField);
-
-        var preloadsField = new PropertyField(serializedObject.FindProperty("_preloads"));
-        preloadsField.label = "Preloads";
-        container.Add(preloadsField);
-
-        var globalsField = new PropertyField(serializedObject.FindProperty("_globals"));
-        globalsField.label = "Globals";
-        container.Add(globalsField);
-    }
-
-    // MARK: Complex Sections (with special logic)
+    // MARK: Status Section
 
     VisualElement CreateStatusSection() {
         var container = CreateStyledBox();
         container.style.marginTop = 2;
-        container.style.marginBottom = 10;
+        container.style.marginBottom = 6;
 
         // Status row
         var statusRow = CreateRow();
@@ -611,171 +813,17 @@ public class JSRunnerEditor : Editor {
         return container;
     }
 
-    void BuildUIPanelContent(VisualElement container) {
-        var panelSettingsProp = serializedObject.FindProperty("_panelSettings");
-        var panelSettingsField = new PropertyField(panelSettingsProp, "Panel Settings");
-        container.Add(panelSettingsField);
-
-        // Inline settings container
-        var inlineSettings = new VisualElement();
-        inlineSettings.style.marginLeft = 15;
-        inlineSettings.style.marginTop = 4;
-        inlineSettings.style.paddingLeft = 10;
-        inlineSettings.style.borderLeftWidth = 2;
-        inlineSettings.style.borderLeftColor = new Color(0.3f, 0.3f, 0.3f);
-
-        inlineSettings.Add(new PropertyField(serializedObject.FindProperty("_defaultThemeStylesheet"), "Theme Stylesheet"));
-
-        var scaleModeProp = serializedObject.FindProperty("_scaleMode");
-        var scaleModeField = new PropertyField(scaleModeProp, "Scale Mode");
-        inlineSettings.Add(scaleModeField);
-
-        // Scale mode specific containers
-        var constantPixelContainer = new VisualElement();
-        constantPixelContainer.Add(new PropertyField(serializedObject.FindProperty("_scale"), "Scale"));
-        inlineSettings.Add(constantPixelContainer);
-
-        var constantPhysicalContainer = new VisualElement();
-        constantPhysicalContainer.Add(new PropertyField(serializedObject.FindProperty("_referenceDpi"), "Reference DPI"));
-        constantPhysicalContainer.Add(new PropertyField(serializedObject.FindProperty("_fallbackDpi"), "Fallback DPI"));
-        inlineSettings.Add(constantPhysicalContainer);
-
-        var scaleWithScreenContainer = new VisualElement();
-        scaleWithScreenContainer.Add(new PropertyField(serializedObject.FindProperty("_referenceResolution"), "Reference Resolution"));
-        var screenMatchModeField = new PropertyField(serializedObject.FindProperty("_screenMatchMode"), "Screen Match Mode");
-        scaleWithScreenContainer.Add(screenMatchModeField);
-        var matchField = new PropertyField(serializedObject.FindProperty("_match"), "Match");
-        scaleWithScreenContainer.Add(matchField);
-        inlineSettings.Add(scaleWithScreenContainer);
-
-        inlineSettings.Add(new PropertyField(serializedObject.FindProperty("_sortOrder"), "Sort Order"));
-        container.Add(inlineSettings);
-
-        // Visibility logic
-        void UpdateScaleModeVisibility() {
-            var mode = (PanelScaleMode)scaleModeProp.enumValueIndex;
-            constantPixelContainer.style.display = mode == PanelScaleMode.ConstantPixelSize ? DisplayStyle.Flex : DisplayStyle.None;
-            constantPhysicalContainer.style.display = mode == PanelScaleMode.ConstantPhysicalSize ? DisplayStyle.Flex : DisplayStyle.None;
-            scaleWithScreenContainer.style.display = mode == PanelScaleMode.ScaleWithScreenSize ? DisplayStyle.Flex : DisplayStyle.None;
-
-            if (mode == PanelScaleMode.ScaleWithScreenSize) {
-                var matchMode = (PanelScreenMatchMode)serializedObject.FindProperty("_screenMatchMode").enumValueIndex;
-                matchField.style.display = matchMode == PanelScreenMatchMode.MatchWidthOrHeight ? DisplayStyle.Flex : DisplayStyle.None;
-            }
-        }
-
-        void UpdateInlineVisibility() {
-            bool hasPanelSettings = panelSettingsProp.objectReferenceValue != null;
-            inlineSettings.style.display = hasPanelSettings ? DisplayStyle.None : DisplayStyle.Flex;
-            if (!hasPanelSettings) UpdateScaleModeVisibility();
-        }
-
-        UpdateInlineVisibility();
-
-        panelSettingsField.RegisterValueChangeCallback(_ => { serializedObject.Update(); UpdateInlineVisibility(); });
-        scaleModeField.RegisterValueChangeCallback(_ => { serializedObject.Update(); UpdateScaleModeVisibility(); });
-        screenMatchModeField.RegisterValueChangeCallback(_ => {
-            serializedObject.Update();
-            var matchMode = (PanelScreenMatchMode)serializedObject.FindProperty("_screenMatchMode").enumValueIndex;
-            matchField.style.display = matchMode == PanelScreenMatchMode.MatchWidthOrHeight ? DisplayStyle.Flex : DisplayStyle.None;
-        });
-
-        // Help box
-        var helpBox = new HelpBox(
-            "No Panel Settings asset assigned. A PanelSettings will be created at runtime using the settings above.",
-            HelpBoxMessageType.Info
-        );
-        helpBox.style.marginTop = 4;
-        helpBox.style.display = panelSettingsProp.objectReferenceValue == null ? DisplayStyle.Flex : DisplayStyle.None;
-        panelSettingsField.RegisterValueChangeCallback(_ =>
-            helpBox.style.display = panelSettingsProp.objectReferenceValue == null ? DisplayStyle.Flex : DisplayStyle.None);
-        container.Add(helpBox);
-    }
-
-    void BuildLiveReloadContent(VisualElement container) {
-        var liveReloadProp = serializedObject.FindProperty("_liveReload");
-        var liveReloadField = new PropertyField(liveReloadProp);
-        container.Add(liveReloadField);
-
-        var pollIntervalContainer = new VisualElement { style = { marginLeft = 15 } };
-        pollIntervalContainer.Add(new PropertyField(serializedObject.FindProperty("_pollInterval")));
-        container.Add(pollIntervalContainer);
-
-        pollIntervalContainer.style.display = liveReloadProp.boolValue ? DisplayStyle.Flex : DisplayStyle.None;
-        liveReloadField.RegisterValueChangeCallback(_ =>
-            pollIntervalContainer.style.display = liveReloadProp.boolValue ? DisplayStyle.Flex : DisplayStyle.None);
-    }
-
-    void BuildTypeGenerationContent(VisualElement container) {
-        // Assemblies list
-        var assembliesField = new PropertyField(serializedObject.FindProperty("_typingAssemblies"));
-        assembliesField.label = "Assemblies";
-        assembliesField.tooltip = "C# assemblies to generate TypeScript typings for (e.g., 'Assembly-CSharp')";
-        container.Add(assembliesField);
-
-        // Auto-generate toggle
-        var autoGenerateProp = serializedObject.FindProperty("_autoGenerateTypings");
-        var autoGenerateField = new PropertyField(autoGenerateProp);
-        autoGenerateField.label = "Auto Generate";
-        container.Add(autoGenerateField);
-
-        // Output path
-        var outputPathProp = serializedObject.FindProperty("_typingsOutputPath");
-        var outputPathField = new PropertyField(outputPathProp);
-        outputPathField.label = "Output Path";
-        container.Add(outputPathField);
-
-        // Generate button row
-        var buttonRow = CreateRow();
-        buttonRow.style.marginTop = 5;
-
-        _generateTypesButton = new Button(GenerateTypings) { text = "Generate Types Now" };
-        _generateTypesButton.style.height = 24;
-        _generateTypesButton.style.flexGrow = 1;
-        buttonRow.Add(_generateTypesButton);
-
-        container.Add(buttonRow);
-
-        // Status label
-        _typeGenStatusLabel = new Label();
-        _typeGenStatusLabel.style.marginTop = 4;
-        _typeGenStatusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
-        _typeGenStatusLabel.style.fontSize = 10;
-        container.Add(_typeGenStatusLabel);
-
-        // Update status label
-        UpdateTypeGenStatus();
-    }
-
-    void GenerateTypings() {
-        if (TypeGeneratorService.GenerateTypingsFor(_target, silent: false)) {
-            _typeGenStatusLabel.text = $"Generated at {DateTime.Now:HH:mm:ss}";
-            _typeGenStatusLabel.style.color = new Color(0.2f, 0.8f, 0.2f);
-        } else {
-            _typeGenStatusLabel.text = "Generation failed - check console";
-            _typeGenStatusLabel.style.color = new Color(0.8f, 0.4f, 0.4f);
-        }
-    }
-
-    void UpdateTypeGenStatus() {
-        if (_typeGenStatusLabel == null) return;
-
-        var outputPath = _target.TypingsFullPath;
-        if (File.Exists(outputPath)) {
-            var lastWrite = File.GetLastWriteTime(outputPath);
-            _typeGenStatusLabel.text = $"Output: {_target.TypingsOutputPath} (last updated: {lastWrite:g})";
-        } else {
-            _typeGenStatusLabel.text = $"Output: {_target.TypingsOutputPath} (not yet generated)";
-        }
-    }
+    // MARK: Actions Section
 
     VisualElement CreateActionsSection() {
-        var container = new VisualElement { style = { marginBottom = 10 } };
+        var container = new VisualElement { style = { marginTop = 12, marginBottom = 10 } };
 
-        var header = new Label("Actions");
-        header.style.unityFontStyleAndWeight = FontStyle.Bold;
-        header.style.marginBottom = 4;
-        container.Add(header);
+        // Divider
+        var divider = new VisualElement();
+        divider.style.height = 1;
+        divider.style.backgroundColor = new Color(0.15f, 0.15f, 0.15f);
+        divider.style.marginBottom = 12;
+        container.Add(divider);
 
         // Row 1: Reload and Build
         var row1 = CreateRow();
@@ -786,6 +834,11 @@ public class JSRunnerEditor : Editor {
         _reloadButton.style.flexGrow = 1;
         _reloadButton.SetEnabled(false);
         row1.Add(_reloadButton);
+
+        _installButton = new Button(RunInstall) { text = "Install" };
+        _installButton.style.height = 30;
+        _installButton.style.flexGrow = 1;
+        row1.Add(_installButton);
 
         _buildButton = new Button(RunBuild) { text = "Build" };
         _buildButton.style.height = 30;
@@ -819,6 +872,17 @@ public class JSRunnerEditor : Editor {
 
     // MARK: UI Helpers
 
+    VisualElement CreateStyledBox() {
+        var box = new VisualElement();
+        box.style.backgroundColor = new Color(0.24f, 0.24f, 0.24f);
+        box.style.SetBorderWidth(1);
+        box.style.SetBorderColor(new Color(0.14f, 0.14f, 0.14f));
+        box.style.SetBorderRadius(3);
+        box.style.paddingTop = box.style.paddingBottom = 8;
+        box.style.paddingLeft = box.style.paddingRight = 10;
+        return box;
+    }
+
     static VisualElement CreateRow() {
         var row = new VisualElement();
         row.style.flexDirection = FlexDirection.Row;
@@ -831,6 +895,30 @@ public class JSRunnerEditor : Editor {
         label.style.width = width;
         if (bold) label.style.unityFontStyleAndWeight = FontStyle.Bold;
         return label;
+    }
+
+    // MARK: Type Generation
+
+    void GenerateTypings() {
+        if (TypeGeneratorService.GenerateTypingsFor(_target, silent: false)) {
+            _typeGenStatusLabel.text = $"Generated at {DateTime.Now:HH:mm:ss}";
+            _typeGenStatusLabel.style.color = new Color(0.2f, 0.8f, 0.2f);
+        } else {
+            _typeGenStatusLabel.text = "Generation failed - check console";
+            _typeGenStatusLabel.style.color = new Color(0.8f, 0.4f, 0.4f);
+        }
+    }
+
+    void UpdateTypeGenStatus() {
+        if (_typeGenStatusLabel == null) return;
+
+        var outputPath = _target.TypingsFullPath;
+        if (File.Exists(outputPath)) {
+            var lastWrite = File.GetLastWriteTime(outputPath);
+            _typeGenStatusLabel.text = $"Output: {_target.TypingsOutputPath} (last updated: {lastWrite:g})";
+        } else {
+            _typeGenStatusLabel.text = $"Output: {_target.TypingsOutputPath} (not yet generated)";
+        }
     }
 
     // MARK: Dynamic UI Updates
@@ -867,18 +955,91 @@ public class JSRunnerEditor : Editor {
         _entryFileStatusLabel.style.color = fileExists ? Color.white : new Color(0.8f, 0.4f, 0.4f);
 
         // Buttons
-        _reloadButton.SetEnabled(Application.isPlaying && _target.IsRunning);
-        _buildButton.SetEnabled(!_buildInProgress);
-        _buildButton.text = _buildInProgress ? "Building..." : "Build";
+        _reloadButton?.SetEnabled(Application.isPlaying && _target.IsRunning);
+        if (_installButton != null) {
+            _installButton.SetEnabled(!_installInProgress && !_buildInProgress);
+            _installButton.text = _installInProgress ? "Installing..." : "Install";
+        }
+        if (_buildButton != null) {
+            _buildButton.SetEnabled(!_buildInProgress && !_installInProgress);
+            _buildButton.text = _buildInProgress ? "Building..." : "Build";
+        }
 
         // Build output
-        if (!string.IsNullOrEmpty(_buildOutput)) {
+        if (_buildOutputBox != null && !string.IsNullOrEmpty(_buildOutput)) {
             _buildOutputBox.style.display = DisplayStyle.Flex;
             _buildOutputBox.text = _buildOutput;
         }
     }
 
     // MARK: Build
+
+    void RunInstall() {
+        var workingDir = _target.WorkingDirFullPath;
+
+        if (!Directory.Exists(workingDir)) {
+            Debug.LogError($"[JSRunner] Working directory not found: {workingDir}");
+            return;
+        }
+
+        if (!File.Exists(Path.Combine(workingDir, "package.json"))) {
+            Debug.LogError($"[JSRunner] package.json not found in {workingDir}. Run 'npm init' first.");
+            return;
+        }
+
+        _installInProgress = true;
+        _buildOutput = "Installing dependencies...";
+
+        try {
+            var npmPath = GetNpmCommand();
+            var nodeBinDir = Path.GetDirectoryName(npmPath);
+
+            var startInfo = new ProcessStartInfo {
+                FileName = npmPath,
+                Arguments = "install",
+                WorkingDirectory = workingDir,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+            startInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
+
+            var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+
+            process.OutputDataReceived += (_, args) => {
+                if (!string.IsNullOrEmpty(args.Data)) Debug.Log($"[Install] {args.Data}");
+            };
+            process.ErrorDataReceived += (_, args) => {
+                if (!string.IsNullOrEmpty(args.Data)) Debug.LogWarning($"[Install] {args.Data}");
+            };
+            process.Exited += (_, _) => {
+                EditorApplication.delayCall += () => {
+                    _installInProgress = false;
+                    if (process.ExitCode == 0) {
+                        _buildOutput = "Install completed successfully!";
+                        Debug.Log("[JSRunner] npm install completed successfully!");
+                    } else {
+                        _buildOutput = $"Install failed with exit code {process.ExitCode}";
+                        Debug.LogError($"[JSRunner] npm install failed with exit code {process.ExitCode}");
+                    }
+                };
+            };
+
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+        } catch (Exception ex) {
+            _installInProgress = false;
+            _buildOutput = $"Install error: {ex.Message}";
+            Debug.LogError($"[JSRunner] Install error: {ex.Message}");
+            if (ex.Message.Contains("npm") || ex.Message.Contains("not found")) {
+                Debug.LogError("[JSRunner] npm not found. Make sure Node.js is installed and in your PATH.");
+            }
+        }
+    }
 
     void RunBuild() {
         var workingDir = _target.WorkingDirFullPath;
@@ -890,6 +1051,11 @@ public class JSRunnerEditor : Editor {
 
         if (!File.Exists(Path.Combine(workingDir, "package.json"))) {
             Debug.LogError($"[JSRunner] package.json not found in {workingDir}. Run 'npm init' first.");
+            return;
+        }
+
+        if (!Directory.Exists(Path.Combine(workingDir, "node_modules"))) {
+            Debug.LogError($"[JSRunner] node_modules not found in {workingDir}. Run 'npm install' first.");
             return;
         }
 
@@ -1018,7 +1184,6 @@ public class JSRunnerEditor : Editor {
             return;
         }
 
-        // Count files to give user an idea of what will be deleted
         int fileCount = 0;
         int dirCount = 0;
         try {
@@ -1027,13 +1192,13 @@ public class JSRunnerEditor : Editor {
         } catch { }
 
         var confirmed = EditorUtility.DisplayDialog(
-            "⚠️ Reset Working Directory",
+            "Reset Working Directory",
             $"WARNING: This will PERMANENTLY DELETE everything in:\n\n" +
             $"{workingDir}\n\n" +
             $"This includes:\n" +
-            $"• {fileCount} files\n" +
-            $"• {dirCount} folders\n" +
-            $"• All your source code, node_modules, and configuration\n\n" +
+            $"  {fileCount} files\n" +
+            $"  {dirCount} folders\n" +
+            $"  All your source code, node_modules, and configuration\n\n" +
             $"After deletion, the directory will be re-scaffolded with default files.\n\n" +
             $"THIS CANNOT BE UNDONE!\n\n" +
             $"Are you absolutely sure?",
@@ -1043,9 +1208,8 @@ public class JSRunnerEditor : Editor {
 
         if (!confirmed) return;
 
-        // Double confirmation for safety
         var doubleConfirmed = EditorUtility.DisplayDialog(
-            "🛑 Final Warning",
+            "Final Warning",
             "You are about to delete all files in the working directory.\n\n" +
             "Type 'DELETE' mentally and click confirm only if you're certain.",
             "Yes, Delete Everything",
@@ -1055,7 +1219,6 @@ public class JSRunnerEditor : Editor {
         if (!doubleConfirmed) return;
 
         try {
-            // Delete all contents but keep the directory
             foreach (var file in Directory.GetFiles(workingDir)) {
                 File.Delete(file);
             }
@@ -1065,8 +1228,6 @@ public class JSRunnerEditor : Editor {
 
             Debug.Log($"[JSRunner] Deleted all contents from: {workingDir}");
 
-            // Trigger re-scaffolding by calling Initialize (which calls ScaffoldDefaultFiles)
-            // Since ScaffoldDefaultFiles is private, we need to use reflection or make it accessible
             var method = typeof(JSRunner).GetMethod("ScaffoldDefaultFiles",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             method?.Invoke(runner, null);
