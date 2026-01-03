@@ -56,21 +56,31 @@ var exportDLL = {
             var _getTempRet0 = () => __tempRet0 | 0  
         }  
 
-        if (typeof addFunction === "undefined") {  
-            const table = Module.wasmTable || wasmTable   // whichever Unity exposes  
-            var addFunction = function (jsFunc /*, sig */) {  
-                const idx = table.length  
-                table.grow(1)  
-                table.set(idx, jsFunc)  
-                return idx  
-            }  
-        }  
-        if (typeof removeFunction === "undefined") {  
-            const table = Module.wasmTable || wasmTable  
-            var removeFunction = function (idx) {  
-                // Emscripten no longer shrinks the table – just replace entry with a noop  
-                table.set(idx, () => {})  
-            }  
+        // Unity 6.3+ compatibility: helper to get wasmTable from multiple sources
+        var getWasmTable = function() {
+            if (typeof wasmTable !== 'undefined') return wasmTable;
+            if (Module && Module.wasmTable) return Module.wasmTable;
+            if (Module && Module.asm && Module.asm.__indirect_function_table) return Module.asm.__indirect_function_table;
+            return null;
+        };
+
+        if (typeof addFunction === "undefined") {
+            var addFunction = function (jsFunc /*, sig */) {
+                const table = getWasmTable();
+                if (!table) throw new Error('wasmTable not found for addFunction');
+                const idx = table.length;
+                table.grow(1);
+                table.set(idx, jsFunc);
+                return idx;
+            }
+        }
+        if (typeof removeFunction === "undefined") {
+            var removeFunction = function (idx) {
+                const table = getWasmTable();
+                if (!table) return; // silently fail if no table
+                // Emscripten no longer shrinks the table – just replace entry with a noop
+                table.set(idx, () => {});
+            }
         }
 
         let oldUpdateGlobalBufferAndViews = updateGlobalBufferAndViews;
@@ -83,6 +93,21 @@ var exportDLL = {
                 HEAPF32,
                 HEAPF64
             );
+        }
+
+        // Unity 6.3+ may call updateMemoryViews directly instead of updateGlobalBufferAndViews
+        if (typeof updateMemoryViews === "function") {
+            let oldUpdateMemoryViews = updateMemoryViews;
+            updateMemoryViews = function (buf) {
+                oldUpdateMemoryViews(buf);
+                global.PuertsWebGL.updateGlobalBufferAndViews(
+                    HEAP8,
+                    HEAPU8,
+                    HEAP32,
+                    HEAPF32,
+                    HEAPF64
+                );
+            }
         }
 
         global.PuertsWebGL.Init({
@@ -99,7 +124,11 @@ var exportDLL = {
             stackSave,
             stackRestore,
             getWasmTableEntry: (typeof getWasmTableEntry != 'undefined') ? getWasmTableEntry : function(funcPtr) {
-                return wasmTable.get(funcPtr);
+                var table = getWasmTable();
+                if (table) {
+                    return table.get(funcPtr);
+                }
+                throw new Error('wasmTable not found - Unity 6.3 may require WebAssembly.Table to be disabled in Player Settings');
             },
             addFunction,
             removeFunction,
