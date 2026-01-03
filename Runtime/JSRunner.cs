@@ -173,7 +173,7 @@ public class JSRunner : MonoBehaviour {
 
     public string GetCartridgePath(UICartridge cartridge) {
         if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) return null;
-        return Path.Combine(WorkingDirFullPath, "cartridges", cartridge.Slug);
+        return Path.Combine(WorkingDirFullPath, "@cartridges", cartridge.Slug);
     }
 
     void Start() {
@@ -354,7 +354,7 @@ public class JSRunner : MonoBehaviour {
     }
 
     /// <summary>
-    /// Extract cartridge files to WorkingDir/cartridges/{slug}/.
+    /// Extract cartridge files to WorkingDir/@cartridges/{slug}/.
     /// Only extracts if the cartridge folder doesn't already exist.
     /// </summary>
     void ExtractCartridges() {

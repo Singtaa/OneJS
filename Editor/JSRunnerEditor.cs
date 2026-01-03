@@ -160,18 +160,408 @@ public class JSRunnerEditor : Editor {
         container.Add(buttonRow);
     }
 
-    void BuildCartridgesContent(VisualElement container) {
-        var field = new PropertyField(serializedObject.FindProperty("_cartridges"));
-        field.label = "UI Cartridges";
-        container.Add(field);
+    VisualElement _cartridgeListContainer;
 
+    void BuildCartridgesContent(VisualElement container) {
+        // Header with Add button
+        var headerRow = CreateRow();
+        headerRow.style.marginBottom = 4;
+
+        var headerLabel = new Label("UI Cartridges");
+        headerLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+        headerLabel.style.flexGrow = 1;
+        headerRow.Add(headerLabel);
+
+        var addButton = new Button(() => {
+            var prop = serializedObject.FindProperty("_cartridges");
+            prop.arraySize++;
+            serializedObject.ApplyModifiedProperties();
+            RebuildCartridgeList();
+        }) { text = "+" };
+        addButton.style.width = 24;
+        addButton.style.height = 20;
+        addButton.tooltip = "Add a new cartridge slot";
+        headerRow.Add(addButton);
+
+        container.Add(headerRow);
+
+        // Cartridge list container
+        _cartridgeListContainer = new VisualElement();
+        container.Add(_cartridgeListContainer);
+
+        // Initial build
+        RebuildCartridgeList();
+
+        // Help box
         var helpBox = new HelpBox(
-            "Drag UICartridge assets here. Files are auto-extracted at build time. " +
-            "Objects are injected as __cartridges.{slug}.{key} at runtime.",
+            "Files are extracted to @cartridges/{slug}/. Objects are injected as __cartridges.{slug}.{key} at runtime.\n" +
+            "E = Extract (overwrites existing), D = Delete extracted folder, X = Remove from list",
             HelpBoxMessageType.Info
         );
         helpBox.style.marginTop = 4;
         container.Add(helpBox);
+
+        // Extract All / Delete All buttons
+        var bulkRow = CreateRow();
+        bulkRow.style.marginTop = 8;
+
+        var extractAllBtn = new Button(() => ExtractAllCartridges()) { text = "Extract All" };
+        extractAllBtn.style.flexGrow = 1;
+        extractAllBtn.style.height = 22;
+        extractAllBtn.tooltip = "Extract all cartridges (with confirmation)";
+        bulkRow.Add(extractAllBtn);
+
+        var deleteAllBtn = new Button(() => DeleteAllCartridges()) { text = "Delete All Extracted" };
+        deleteAllBtn.style.flexGrow = 1;
+        deleteAllBtn.style.height = 22;
+        deleteAllBtn.tooltip = "Delete all extracted cartridge folders (with confirmation)";
+        bulkRow.Add(deleteAllBtn);
+
+        container.Add(bulkRow);
+    }
+
+    void RebuildCartridgeList() {
+        if (_cartridgeListContainer == null) return;
+
+        _cartridgeListContainer.Clear();
+        serializedObject.Update();
+
+        var cartridgesProp = serializedObject.FindProperty("_cartridges");
+
+        if (cartridgesProp.arraySize == 0) {
+            var emptyLabel = new Label("No cartridges. Click + to add one.");
+            emptyLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+            emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
+            emptyLabel.style.paddingLeft = 4;
+            emptyLabel.style.paddingTop = 4;
+            emptyLabel.style.paddingBottom = 4;
+            _cartridgeListContainer.Add(emptyLabel);
+            return;
+        }
+
+        for (int i = 0; i < cartridgesProp.arraySize; i++) {
+            var itemRow = CreateCartridgeItemRow(cartridgesProp, i);
+            _cartridgeListContainer.Add(itemRow);
+        }
+    }
+
+    VisualElement CreateCartridgeItemRow(SerializedProperty arrayProp, int index) {
+        var elementProp = arrayProp.GetArrayElementAtIndex(index);
+        var cartridge = elementProp.objectReferenceValue as UICartridge;
+
+        var row = new VisualElement();
+        row.style.flexDirection = FlexDirection.Row;
+        row.style.alignItems = Align.Center;
+        row.style.marginBottom = 2;
+        row.style.paddingTop = 2;
+        row.style.paddingBottom = 2;
+        row.style.paddingLeft = 4;
+        row.style.paddingRight = 4;
+        row.style.backgroundColor = new Color(0.22f, 0.22f, 0.22f);
+        row.style.SetBorderRadius(3);
+
+        // Index label
+        var indexLabel = new Label($"{index}");
+        indexLabel.style.width = 16;
+        indexLabel.style.color = new Color(0.5f, 0.5f, 0.5f);
+        indexLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
+        row.Add(indexLabel);
+
+        // Object field
+        var objectField = new ObjectField();
+        objectField.objectType = typeof(UICartridge);
+        objectField.value = cartridge;
+        objectField.style.flexGrow = 1;
+        objectField.style.marginLeft = 4;
+        objectField.style.marginRight = 4;
+        objectField.RegisterValueChangedCallback(evt => {
+            elementProp.objectReferenceValue = evt.newValue;
+            serializedObject.ApplyModifiedProperties();
+            RebuildCartridgeList(); // Rebuild to update status
+        });
+        row.Add(objectField);
+
+        // Status indicator
+        var statusLabel = new Label();
+        statusLabel.style.width = 70;
+        statusLabel.style.fontSize = 10;
+        statusLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
+        statusLabel.style.marginRight = 4;
+
+        if (cartridge != null && !string.IsNullOrEmpty(cartridge.Slug)) {
+            var cartridgePath = _target.GetCartridgePath(cartridge);
+            bool isExtracted = Directory.Exists(cartridgePath);
+
+            if (isExtracted) {
+                statusLabel.text = "✓ Extracted";
+                statusLabel.style.color = new Color(0.4f, 0.8f, 0.4f);
+            } else {
+                statusLabel.text = "○ Not extracted";
+                statusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+            }
+        } else {
+            statusLabel.text = cartridge == null ? "" : "⚠ No slug";
+            statusLabel.style.color = new Color(0.8f, 0.6f, 0.2f);
+        }
+        row.Add(statusLabel);
+
+        // Extract button
+        var extractBtn = new Button(() => ExtractCartridge(cartridge, index)) { text = "E" };
+        extractBtn.style.width = 24;
+        extractBtn.style.height = 20;
+        extractBtn.tooltip = "Extract cartridge files to @cartridges/" + (cartridge?.Slug ?? "");
+        extractBtn.SetEnabled(cartridge != null && !string.IsNullOrEmpty(cartridge?.Slug));
+        row.Add(extractBtn);
+
+        // Delete button
+        var deleteBtn = new Button(() => DeleteCartridge(cartridge, index)) { text = "D" };
+        deleteBtn.style.width = 24;
+        deleteBtn.style.height = 20;
+        deleteBtn.style.marginLeft = 2;
+        deleteBtn.tooltip = "Delete extracted cartridge folder";
+        bool canDelete = cartridge != null && !string.IsNullOrEmpty(cartridge?.Slug) &&
+                         Directory.Exists(_target.GetCartridgePath(cartridge));
+        deleteBtn.SetEnabled(canDelete);
+        row.Add(deleteBtn);
+
+        // Remove from list button
+        var removeBtn = new Button(() => RemoveCartridgeFromList(index)) { text = "X" };
+        removeBtn.style.width = 24;
+        removeBtn.style.height = 20;
+        removeBtn.style.marginLeft = 2;
+        removeBtn.style.backgroundColor = new Color(0.5f, 0.2f, 0.2f);
+        removeBtn.tooltip = "Remove from list (does not delete extracted files)";
+        row.Add(removeBtn);
+
+        return row;
+    }
+
+    void ExtractCartridge(UICartridge cartridge, int index) {
+        if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) return;
+
+        var destPath = _target.GetCartridgePath(cartridge);
+        bool alreadyExists = Directory.Exists(destPath);
+
+        string message = alreadyExists
+            ? $"Cartridge '{cartridge.DisplayName}' is already extracted at:\n\n{destPath}\n\nOverwrite existing files?"
+            : $"Extract cartridge '{cartridge.DisplayName}' to:\n\n{destPath}?";
+
+        string title = alreadyExists ? "Overwrite Cartridge?" : "Extract Cartridge?";
+
+        if (!EditorUtility.DisplayDialog(title, message, alreadyExists ? "Overwrite" : "Extract", "Cancel")) {
+            return;
+        }
+
+        try {
+            // Delete existing if overwriting
+            if (alreadyExists) {
+                Directory.Delete(destPath, true);
+            }
+
+            Directory.CreateDirectory(destPath);
+
+            // Extract files
+            int fileCount = 0;
+            foreach (var file in cartridge.Files) {
+                if (string.IsNullOrEmpty(file.path) || file.content == null) continue;
+
+                var filePath = Path.Combine(destPath, file.path);
+                var fileDir = Path.GetDirectoryName(filePath);
+
+                if (!string.IsNullOrEmpty(fileDir) && !Directory.Exists(fileDir)) {
+                    Directory.CreateDirectory(fileDir);
+                }
+
+                File.WriteAllText(filePath, file.content.text);
+                fileCount++;
+            }
+
+            // Generate TypeScript definitions
+            var dts = OneJS.CartridgeTypeGenerator.Generate(cartridge);
+            File.WriteAllText(Path.Combine(destPath, $"{cartridge.Slug}.d.ts"), dts);
+
+            Debug.Log($"[JSRunner] Extracted cartridge '{cartridge.DisplayName}' ({fileCount} files + .d.ts) to: {destPath}");
+            AssetDatabase.Refresh();
+            RebuildCartridgeList();
+
+        } catch (Exception ex) {
+            Debug.LogError($"[JSRunner] Failed to extract cartridge '{cartridge.DisplayName}': {ex.Message}");
+            EditorUtility.DisplayDialog("Extract Failed", $"Failed to extract cartridge:\n\n{ex.Message}", "OK");
+        }
+    }
+
+    void DeleteCartridge(UICartridge cartridge, int index) {
+        if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) return;
+
+        var destPath = _target.GetCartridgePath(cartridge);
+        if (!Directory.Exists(destPath)) {
+            EditorUtility.DisplayDialog("Nothing to Delete", $"Cartridge folder does not exist:\n\n{destPath}", "OK");
+            return;
+        }
+
+        // Count files
+        int fileCount = 0;
+        try {
+            fileCount = Directory.GetFiles(destPath, "*", SearchOption.AllDirectories).Length;
+        } catch { }
+
+        if (!EditorUtility.DisplayDialog(
+            "Delete Extracted Cartridge?",
+            $"Delete the extracted cartridge folder for '{cartridge.DisplayName}'?\n\n" +
+            $"Path: {destPath}\n" +
+            $"Files: {fileCount}\n\n" +
+            "This cannot be undone.",
+            "Delete", "Cancel")) {
+            return;
+        }
+
+        try {
+            Directory.Delete(destPath, true);
+            Debug.Log($"[JSRunner] Deleted cartridge folder: {destPath}");
+            AssetDatabase.Refresh();
+            RebuildCartridgeList();
+
+        } catch (Exception ex) {
+            Debug.LogError($"[JSRunner] Failed to delete cartridge folder: {ex.Message}");
+            EditorUtility.DisplayDialog("Delete Failed", $"Failed to delete cartridge folder:\n\n{ex.Message}", "OK");
+        }
+    }
+
+    void RemoveCartridgeFromList(int index) {
+        var cartridgesProp = serializedObject.FindProperty("_cartridges");
+        if (index < 0 || index >= cartridgesProp.arraySize) return;
+
+        var cartridge = cartridgesProp.GetArrayElementAtIndex(index).objectReferenceValue as UICartridge;
+        string name = cartridge?.DisplayName ?? $"Item {index}";
+
+        if (!EditorUtility.DisplayDialog(
+            "Remove from List?",
+            $"Remove '{name}' from the cartridge list?\n\n" +
+            "(This does not delete any extracted files)",
+            "Remove", "Cancel")) {
+            return;
+        }
+
+        // Clear the reference first (required for object references)
+        cartridgesProp.GetArrayElementAtIndex(index).objectReferenceValue = null;
+        cartridgesProp.DeleteArrayElementAtIndex(index);
+        serializedObject.ApplyModifiedProperties();
+        RebuildCartridgeList();
+    }
+
+    void ExtractAllCartridges() {
+        var cartridges = _target.Cartridges;
+        if (cartridges == null || cartridges.Count == 0) {
+            EditorUtility.DisplayDialog("No Cartridges", "No cartridges to extract.", "OK");
+            return;
+        }
+
+        int validCount = 0;
+        int existingCount = 0;
+        foreach (var c in cartridges) {
+            if (c != null && !string.IsNullOrEmpty(c.Slug)) {
+                validCount++;
+                if (Directory.Exists(_target.GetCartridgePath(c))) existingCount++;
+            }
+        }
+
+        if (validCount == 0) {
+            EditorUtility.DisplayDialog("No Valid Cartridges", "No cartridges with valid slugs to extract.", "OK");
+            return;
+        }
+
+        string message = existingCount > 0
+            ? $"Extract {validCount} cartridge(s)?\n\n{existingCount} already exist and will be overwritten."
+            : $"Extract {validCount} cartridge(s)?";
+
+        if (!EditorUtility.DisplayDialog("Extract All Cartridges?", message, "Extract All", "Cancel")) {
+            return;
+        }
+
+        int extracted = 0;
+        foreach (var cartridge in cartridges) {
+            if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) continue;
+
+            try {
+                var destPath = _target.GetCartridgePath(cartridge);
+
+                if (Directory.Exists(destPath)) {
+                    Directory.Delete(destPath, true);
+                }
+
+                Directory.CreateDirectory(destPath);
+
+                foreach (var file in cartridge.Files) {
+                    if (string.IsNullOrEmpty(file.path) || file.content == null) continue;
+
+                    var filePath = Path.Combine(destPath, file.path);
+                    var fileDir = Path.GetDirectoryName(filePath);
+
+                    if (!string.IsNullOrEmpty(fileDir) && !Directory.Exists(fileDir)) {
+                        Directory.CreateDirectory(fileDir);
+                    }
+
+                    File.WriteAllText(filePath, file.content.text);
+                }
+
+                var dts = OneJS.CartridgeTypeGenerator.Generate(cartridge);
+                File.WriteAllText(Path.Combine(destPath, $"{cartridge.Slug}.d.ts"), dts);
+
+                extracted++;
+            } catch (Exception ex) {
+                Debug.LogError($"[JSRunner] Failed to extract '{cartridge.DisplayName}': {ex.Message}");
+            }
+        }
+
+        Debug.Log($"[JSRunner] Extracted {extracted} cartridge(s)");
+        AssetDatabase.Refresh();
+        RebuildCartridgeList();
+    }
+
+    void DeleteAllCartridges() {
+        var cartridges = _target.Cartridges;
+        if (cartridges == null || cartridges.Count == 0) {
+            EditorUtility.DisplayDialog("No Cartridges", "No cartridges in list.", "OK");
+            return;
+        }
+
+        int existingCount = 0;
+        foreach (var c in cartridges) {
+            if (c != null && !string.IsNullOrEmpty(c.Slug) && Directory.Exists(_target.GetCartridgePath(c))) {
+                existingCount++;
+            }
+        }
+
+        if (existingCount == 0) {
+            EditorUtility.DisplayDialog("Nothing to Delete", "No extracted cartridge folders found.", "OK");
+            return;
+        }
+
+        if (!EditorUtility.DisplayDialog(
+            "Delete All Extracted Cartridges?",
+            $"Delete {existingCount} extracted cartridge folder(s)?\n\nThis cannot be undone.",
+            "Delete All", "Cancel")) {
+            return;
+        }
+
+        int deleted = 0;
+        foreach (var cartridge in cartridges) {
+            if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) continue;
+
+            var destPath = _target.GetCartridgePath(cartridge);
+            if (!Directory.Exists(destPath)) continue;
+
+            try {
+                Directory.Delete(destPath, true);
+                deleted++;
+            } catch (Exception ex) {
+                Debug.LogError($"[JSRunner] Failed to delete '{cartridge.DisplayName}' folder: {ex.Message}");
+            }
+        }
+
+        Debug.Log($"[JSRunner] Deleted {deleted} cartridge folder(s)");
+        AssetDatabase.Refresh();
+        RebuildCartridgeList();
     }
 
     void BuildAdvancedContent(VisualElement container) {

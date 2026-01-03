@@ -187,7 +187,7 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
             _copiedFiles.Add(dtsPath);
 
             extracted++;
-            Debug.Log($"[JSRunner] Extracted cartridge '{cartridge.DisplayName}' to: cartridges/{cartridge.Slug}/");
+            Debug.Log($"[JSRunner] Extracted cartridge '{cartridge.DisplayName}' to: @cartridges/{cartridge.Slug}/");
         }
 
         if (extracted > 0) {

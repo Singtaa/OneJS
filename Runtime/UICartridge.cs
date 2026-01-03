@@ -30,7 +30,7 @@ public class CartridgeObjectEntry {
 /// A UI Cartridge bundles reusable UI components/utilities as a ScriptableObject.
 /// Can be dragged onto JSRunner to auto-extract files at build time and inject objects at runtime.
 ///
-/// Files are extracted to: {WorkingDir}/cartridges/{slug}/
+/// Files are extracted to: {WorkingDir}/@cartridges/{slug}/
 /// Objects are injected as: __cartridges.{slug}.{key}
 /// </summary>
 [CreateAssetMenu(fileName = "NewCartridge", menuName = "OneJS/UI Cartridge", order = 100)]
@@ -45,7 +45,7 @@ public class UICartridge : ScriptableObject {
     [TextArea(2, 4)]
     [SerializeField] string _description;
 
-    [Tooltip("Files to extract to cartridges/{slug}/")]
+    [Tooltip("Files to extract to @cartridges/{slug}/")]
     [PairDrawer("←")]
     [SerializeField] List<CartridgeFileEntry> _files = new List<CartridgeFileEntry>();
 
