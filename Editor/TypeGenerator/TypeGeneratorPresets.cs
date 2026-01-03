@@ -59,7 +59,7 @@ namespace OneJS.Editor.TypeGenerator {
                 .AddType<Shader>()
                 .AddType<Mesh>()
                 // Input (legacy)
-                .AddType<Input>()
+                .AddType<UnityEngine.Input>()
                 .AddType<KeyCode>()
                 // Rendering
                 .AddType<Camera>()
