@@ -127,6 +127,19 @@ public class JSRunnerEditor : Editor {
                 btn.style.borderBottomRightRadius = 4;
             }
 
+            // Hover effect
+            int idx = i; // Capture for closure
+            btn.RegisterCallback<MouseEnterEvent>(_ => {
+                if (idx != _activeTab) {
+                    btn.style.backgroundColor = new Color(0.26f, 0.26f, 0.26f);
+                }
+            });
+            btn.RegisterCallback<MouseLeaveEvent>(_ => {
+                if (idx != _activeTab) {
+                    btn.style.backgroundColor = new Color(0.2f, 0.2f, 0.2f);
+                }
+            });
+
             _tabButtons[i] = btn;
             container.Add(btn);
         }
@@ -846,17 +859,20 @@ public class JSRunnerEditor : Editor {
         _reloadButton = new Button(() => _target.ForceReload()) { text = "Reload Now" };
         _reloadButton.style.height = 30;
         _reloadButton.style.flexGrow = 1;
+        _reloadButton.tooltip = "Force reload the JavaScript runtime (Play Mode only)";
         _reloadButton.SetEnabled(false);
         row1.Add(_reloadButton);
 
         _buildButton = new Button(RunBuild) { text = "Build" };
         _buildButton.style.height = 30;
         _buildButton.style.flexGrow = 1;
+        _buildButton.tooltip = "Build the JS bundle (auto-installs dependencies if needed)";
         row1.Add(_buildButton);
 
         _watchButton = new Button(ToggleWatch) { text = "Watch" };
         _watchButton.style.height = 30;
         _watchButton.style.flexGrow = 1;
+        _watchButton.tooltip = "Start/stop file watcher for automatic rebuilds";
         row1.Add(_watchButton);
 
         container.Add(row1);
@@ -867,11 +883,13 @@ public class JSRunnerEditor : Editor {
         var openFolderButton = new Button(OpenWorkingDirectory) { text = "Open Folder" };
         openFolderButton.style.height = 24;
         openFolderButton.style.flexGrow = 1;
+        openFolderButton.tooltip = "Open working directory in file explorer";
         row2.Add(openFolderButton);
 
         var openTerminalButton = new Button(OpenTerminal) { text = "Open Terminal" };
         openTerminalButton.style.height = 24;
         openTerminalButton.style.flexGrow = 1;
+        openTerminalButton.tooltip = "Open terminal at working directory";
         row2.Add(openTerminalButton);
 
         container.Add(row2);
@@ -1232,12 +1250,7 @@ public class JSRunnerEditor : Editor {
 
             AssetDatabase.Refresh();
 
-            EditorUtility.DisplayDialog(
-                "Reset Complete",
-                "Working directory has been reset and re-scaffolded with default files.\n\n" +
-                "Run 'npm install' to restore dependencies.",
-                "OK"
-            );
+            Debug.Log("[JSRunner] Working directory reset complete. Run 'Build' to restore dependencies.");
         } catch (Exception ex) {
             Debug.LogError($"[JSRunner] Reset failed: {ex.Message}");
             EditorUtility.DisplayDialog(
