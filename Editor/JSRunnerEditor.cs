@@ -31,10 +31,8 @@ public class JSRunnerEditor : Editor {
     Label _entryFileStatusLabel;
     Button _reloadButton;
     Button _buildButton;
-    Button _installButton;
     Button _watchButton;
     HelpBox _buildOutputBox;
-    bool _installInProgress;
     VisualElement _liveReloadInfo;
 
     // Type generation
@@ -851,11 +849,6 @@ public class JSRunnerEditor : Editor {
         _reloadButton.SetEnabled(false);
         row1.Add(_reloadButton);
 
-        _installButton = new Button(RunInstall) { text = "Install" };
-        _installButton.style.height = 30;
-        _installButton.style.flexGrow = 1;
-        row1.Add(_installButton);
-
         _buildButton = new Button(RunBuild) { text = "Build" };
         _buildButton.style.height = 30;
         _buildButton.style.flexGrow = 1;
@@ -977,12 +970,8 @@ public class JSRunnerEditor : Editor {
 
         // Buttons
         _reloadButton?.SetEnabled(Application.isPlaying && _target.IsRunning);
-        if (_installButton != null) {
-            _installButton.SetEnabled(!_installInProgress && !_buildInProgress);
-            _installButton.text = _installInProgress ? "Installing..." : "Install";
-        }
         if (_buildButton != null) {
-            _buildButton.SetEnabled(!_buildInProgress && !_installInProgress);
+            _buildButton.SetEnabled(!_buildInProgress);
             _buildButton.text = _buildInProgress ? "Building..." : "Build";
         }
 
@@ -992,7 +981,7 @@ public class JSRunnerEditor : Editor {
             var isStarting = NodeWatcherManager.IsStarting(_target.WorkingDirFullPath);
 
             _watchButton.text = isStarting ? "Starting..." : (isWatching ? "Stop" : "Watch");
-            _watchButton.SetEnabled(!isStarting && !_installInProgress && !_buildInProgress);
+            _watchButton.SetEnabled(!isStarting && !_buildInProgress);
 
             // Visual feedback for active watcher
             _watchButton.style.backgroundColor = isWatching
@@ -1022,29 +1011,14 @@ public class JSRunnerEditor : Editor {
         }
     }
 
-    void RunInstall() {
-        var workingDir = _target.WorkingDirFullPath;
-
-        if (!Directory.Exists(workingDir)) {
-            Debug.LogError($"[JSRunner] Working directory not found: {workingDir}");
-            return;
-        }
-
-        if (!File.Exists(Path.Combine(workingDir, "package.json"))) {
-            Debug.LogError($"[JSRunner] package.json not found in {workingDir}. Run 'npm init' first.");
-            return;
-        }
-
-        _installInProgress = true;
-        _buildOutput = "Installing dependencies...";
-
+    void RunNpmCommand(string workingDir, string arguments, Action onSuccess, Action<int> onFailure) {
         try {
             var npmPath = GetNpmCommand();
             var nodeBinDir = Path.GetDirectoryName(npmPath);
 
             var startInfo = new ProcessStartInfo {
                 FileName = npmPath,
-                Arguments = "install",
+                Arguments = arguments,
                 WorkingDirectory = workingDir,
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
@@ -1053,25 +1027,24 @@ public class JSRunnerEditor : Editor {
             };
 
             var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-            startInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
+            if (!string.IsNullOrEmpty(nodeBinDir)) {
+                startInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
+            }
 
             var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
 
             process.OutputDataReceived += (_, args) => {
-                if (!string.IsNullOrEmpty(args.Data)) Debug.Log($"[Install] {args.Data}");
+                if (!string.IsNullOrEmpty(args.Data)) Debug.Log($"[npm] {args.Data}");
             };
             process.ErrorDataReceived += (_, args) => {
-                if (!string.IsNullOrEmpty(args.Data)) Debug.LogWarning($"[Install] {args.Data}");
+                if (!string.IsNullOrEmpty(args.Data)) Debug.Log($"[npm] {args.Data}");
             };
             process.Exited += (_, _) => {
                 EditorApplication.delayCall += () => {
-                    _installInProgress = false;
                     if (process.ExitCode == 0) {
-                        _buildOutput = "Install completed successfully!";
-                        Debug.Log("[JSRunner] npm install completed successfully!");
+                        onSuccess?.Invoke();
                     } else {
-                        _buildOutput = $"Install failed with exit code {process.ExitCode}";
-                        Debug.LogError($"[JSRunner] npm install failed with exit code {process.ExitCode}");
+                        onFailure?.Invoke(process.ExitCode);
                     }
                 };
             };
@@ -1080,12 +1053,11 @@ public class JSRunnerEditor : Editor {
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
         } catch (Exception ex) {
-            _installInProgress = false;
-            _buildOutput = $"Install error: {ex.Message}";
-            Debug.LogError($"[JSRunner] Install error: {ex.Message}");
+            Debug.LogError($"[JSRunner] npm error: {ex.Message}");
             if (ex.Message.Contains("npm") || ex.Message.Contains("not found")) {
                 Debug.LogError("[JSRunner] npm not found. Make sure Node.js is installed and in your PATH.");
             }
+            onFailure?.Invoke(-1);
         }
     }
 
@@ -1102,62 +1074,38 @@ public class JSRunnerEditor : Editor {
             return;
         }
 
-        if (!Directory.Exists(Path.Combine(workingDir, "node_modules"))) {
-            Debug.LogError($"[JSRunner] node_modules not found in {workingDir}. Run 'npm install' first.");
-            return;
-        }
-
         _buildInProgress = true;
-        _buildOutput = "Building...";
 
-        try {
-            var npmPath = GetNpmCommand();
-            var nodeBinDir = Path.GetDirectoryName(npmPath);
-
-            var startInfo = new ProcessStartInfo {
-                FileName = npmPath,
-                Arguments = "run build",
-                WorkingDirectory = workingDir,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            };
-
-            var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-            startInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
-
-            var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
-
-            process.OutputDataReceived += (_, args) => {
-                if (!string.IsNullOrEmpty(args.Data)) Debug.Log($"[Build] {args.Data}");
-            };
-            process.ErrorDataReceived += (_, args) => {
-                if (!string.IsNullOrEmpty(args.Data)) Debug.LogError($"[Build] {args.Data}");
-            };
-            process.Exited += (_, _) => {
-                EditorApplication.delayCall += () => {
+        // Auto-install if node_modules doesn't exist
+        if (!Directory.Exists(Path.Combine(workingDir, "node_modules"))) {
+            _buildOutput = "Installing dependencies...";
+            RunNpmCommand(workingDir, "install", onSuccess: () => {
+                _buildOutput = "Building...";
+                RunNpmCommand(workingDir, "run build", onSuccess: () => {
                     _buildInProgress = false;
-                    if (process.ExitCode == 0) {
-                        _buildOutput = "Build completed successfully!";
-                        Debug.Log("[JSRunner] Build completed successfully!");
-                    } else {
-                        _buildOutput = $"Build failed with exit code {process.ExitCode}";
-                        Debug.LogError($"[JSRunner] Build failed with exit code {process.ExitCode}");
-                    }
-                };
-            };
-
-            process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-        } catch (Exception ex) {
-            _buildInProgress = false;
-            _buildOutput = $"Build error: {ex.Message}";
-            Debug.LogError($"[JSRunner] Build error: {ex.Message}");
-            if (ex.Message.Contains("npm") || ex.Message.Contains("not found")) {
-                Debug.LogError("[JSRunner] npm not found. Make sure Node.js is installed and in your PATH.");
-            }
+                    _buildOutput = "Build completed successfully!";
+                    Debug.Log("[JSRunner] Build completed successfully!");
+                }, onFailure: (code) => {
+                    _buildInProgress = false;
+                    _buildOutput = $"Build failed with exit code {code}";
+                    Debug.LogError($"[JSRunner] Build failed with exit code {code}");
+                });
+            }, onFailure: (code) => {
+                _buildInProgress = false;
+                _buildOutput = $"Install failed with exit code {code}";
+                Debug.LogError($"[JSRunner] npm install failed with exit code {code}");
+            });
+        } else {
+            _buildOutput = "Building...";
+            RunNpmCommand(workingDir, "run build", onSuccess: () => {
+                _buildInProgress = false;
+                _buildOutput = "Build completed successfully!";
+                Debug.Log("[JSRunner] Build completed successfully!");
+            }, onFailure: (code) => {
+                _buildInProgress = false;
+                _buildOutput = $"Build failed with exit code {code}";
+                Debug.LogError($"[JSRunner] Build failed with exit code {code}");
+            });
         }
     }
 
