@@ -1,8 +1,20 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using UnityEngine;
 using UnityEngine.UIElements;
+
+/// <summary>
+/// A module dependency entry for JSPad.
+/// </summary>
+[Serializable]
+public class JSPadModuleEntry {
+    [Tooltip("npm package name (e.g., 'lodash', '@types/lodash')")]
+    public string name;
+    [Tooltip("Version specifier (e.g., '^4.17.0', 'latest'). Leave empty for latest.")]
+    public string version;
+}
 
 /// <summary>
 /// A simple inline JavaScript/TSX runner with no external working directory.
@@ -68,6 +80,12 @@ render(<App />, __root)
     [Tooltip("UI Cartridges to load. Files are extracted to temp directory, objects are injected as __cartridges.{slug}.{key}.")]
     [SerializeField] List<UICartridge> _cartridges = new List<UICartridge>();
 
+    [Tooltip("Additional npm modules to include in the build. These are added to package.json dependencies.")]
+    [SerializeField] List<JSPadModuleEntry> _modules = new List<JSPadModuleEntry>();
+
+    [Tooltip("USS StyleSheets to apply. Applied in order after script runs.")]
+    [SerializeField] List<StyleSheet> _stylesheets = new List<StyleSheet>();
+
     QuickJSUIBridge _bridge;
     UIDocument _uiDocument;
     PanelSettings _runtimePanelSettings; // Track runtime-created PanelSettings for cleanup
@@ -113,6 +131,12 @@ render(<App />, __root)
 
     // Cartridge API
     public IReadOnlyList<UICartridge> Cartridges => _cartridges;
+
+    // Modules API
+    public IReadOnlyList<JSPadModuleEntry> Modules => _modules;
+
+    // Stylesheets API
+    public IReadOnlyList<StyleSheet> Stylesheets => _stylesheets;
 
     public string GetCartridgePath(UICartridge cartridge) {
         if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) return null;
@@ -290,6 +314,9 @@ render(<App />, __root)
             // Inject cartridge objects
             InjectCartridgeGlobals();
 
+            // Apply stylesheets
+            ApplyStylesheets();
+
             // Load and run script
             var code = File.ReadAllText(OutputFile);
             _bridge.Eval(code, "app.js");
@@ -395,6 +422,19 @@ render(<App />, __root)
     }
 
     /// <summary>
+    /// Apply USS StyleSheets to the root visual element.
+    /// </summary>
+    void ApplyStylesheets() {
+        if (_stylesheets == null || _stylesheets.Count == 0) return;
+
+        foreach (var stylesheet in _stylesheets) {
+            if (stylesheet != null) {
+                _uiDocument.rootVisualElement.styleSheets.Add(stylesheet);
+            }
+        }
+    }
+
+    /// <summary>
     /// Inject Unity objects from cartridges as JavaScript globals under __cartridges namespace.
     /// Access pattern: __cartridges.{slug}.{key}
     /// </summary>
@@ -431,6 +471,14 @@ render(<App />, __root)
         var oneJsReactPath = Path.Combine(projectRoot, "JSModules", "onejs-react");
         var relativePath = GetRelativePath(TempDir, oneJsReactPath).Replace("\\", "/");
 
+        // Build additional dependencies from _modules list
+        var additionalDeps = new StringBuilder();
+        foreach (var module in _modules) {
+            if (string.IsNullOrEmpty(module.name)) continue;
+            var version = string.IsNullOrEmpty(module.version) ? "latest" : module.version;
+            additionalDeps.Append($",\n    \"{module.name}\": \"{version}\"");
+        }
+
         return $@"{{
   ""name"": ""jspad-temp"",
   ""version"": ""1.0.0"",
@@ -441,7 +489,7 @@ render(<App />, __root)
   }},
   ""dependencies"": {{
     ""react"": ""^19.0.0"",
-    ""onejs-react"": ""file:{relativePath}""
+    ""onejs-react"": ""file:{relativePath}""{additionalDeps}
   }},
   ""devDependencies"": {{
     ""@types/react"": ""^19.0.0"",

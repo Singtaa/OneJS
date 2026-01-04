@@ -25,7 +25,15 @@ public class JSPadEditor : Editor {
     Button _buildOnlyButton;
     Button _runButton;
 
-    // Cartridges
+    // Tabs
+    VisualElement _tabContainer;
+    VisualElement _tabContent;
+    int _selectedTab = 0;
+    readonly string[] _tabNames = { "Modules", "UI", "Cartridges" };
+
+    // Lists
+    VisualElement _moduleListContainer;
+    VisualElement _stylesheetListContainer;
     VisualElement _cartridgeListContainer;
 
     void OnEnable() {
@@ -117,7 +125,83 @@ public class JSPadEditor : Editor {
 
         _root.Add(statusBox);
 
-        // Code editor (with syntax highlighting, monospace font, and proper indentation)
+        // Tabs section
+        _tabContainer = new VisualElement();
+        _tabContainer.style.flexDirection = FlexDirection.Row;
+        _tabContainer.style.marginBottom = 8;
+        _root.Add(_tabContainer);
+
+        // Tab content container
+        _tabContent = new VisualElement();
+        _tabContent.style.backgroundColor = new Color(0.22f, 0.22f, 0.22f);
+        _tabContent.style.borderTopWidth = _tabContent.style.borderBottomWidth =
+            _tabContent.style.borderLeftWidth = _tabContent.style.borderRightWidth = 1;
+        _tabContent.style.borderTopColor = _tabContent.style.borderBottomColor =
+            _tabContent.style.borderLeftColor = _tabContent.style.borderRightColor = new Color(0.14f, 0.14f, 0.14f);
+        _tabContent.style.borderTopLeftRadius = _tabContent.style.borderTopRightRadius =
+            _tabContent.style.borderBottomLeftRadius = _tabContent.style.borderBottomRightRadius = 3;
+        _tabContent.style.paddingTop = _tabContent.style.paddingBottom = 8;
+        _tabContent.style.paddingLeft = _tabContent.style.paddingRight = 10;
+        _tabContent.style.marginBottom = 10;
+        _tabContent.style.minHeight = 80;
+        _root.Add(_tabContent);
+
+        // Build tabs
+        BuildTabs();
+
+        // Action buttons
+        // Row 1: Build & Run, Run/Stop toggle
+        var row1 = new VisualElement();
+        row1.style.flexDirection = FlexDirection.Row;
+        row1.style.marginBottom = 4;
+
+        _buildRunButton = new Button(BuildAndRun) { text = "Build & Run" };
+        _buildRunButton.style.flexGrow = 1;
+        _buildRunButton.style.height = 28;
+        _buildRunButton.tooltip = "Build the source code and run it (requires Play Mode)";
+        row1.Add(_buildRunButton);
+
+        _runButton = new Button(OnRunStopClicked) { text = "Run" };
+        _runButton.style.flexGrow = 1;
+        _runButton.style.height = 28;
+        _runButton.style.marginLeft = 4;
+        _runButton.tooltip = "Run the last built script or stop current execution";
+        row1.Add(_runButton);
+
+        _root.Add(row1);
+
+        // Row 2: Build Only, Open Folder, Clean
+        var row2 = new VisualElement();
+        row2.style.flexDirection = FlexDirection.Row;
+
+        _buildOnlyButton = new Button(() => Build(false)) { text = "Build Only" };
+        _buildOnlyButton.style.flexGrow = 1;
+        _buildOnlyButton.style.height = 24;
+        _buildOnlyButton.tooltip = "Build the source code without running";
+        row2.Add(_buildOnlyButton);
+
+        var openFolderBtn = new Button(OpenTempFolder) { text = "Open Folder" };
+        openFolderBtn.style.flexGrow = 1;
+        openFolderBtn.style.height = 24;
+        openFolderBtn.style.marginLeft = 4;
+        openFolderBtn.tooltip = "Open the temp build directory in file explorer";
+        row2.Add(openFolderBtn);
+
+        var cleanBtn = new Button(Clean) { text = "Clean" };
+        cleanBtn.style.flexGrow = 1;
+        cleanBtn.style.height = 24;
+        cleanBtn.style.marginLeft = 4;
+        cleanBtn.tooltip = "Delete the temp directory and all build artifacts";
+        row2.Add(cleanBtn);
+
+        _root.Add(row2);
+
+        // Spacer before code field
+        var spacer = new VisualElement();
+        spacer.style.height = 10;
+        _root.Add(spacer);
+
+        // Code editor (at the bottom)
         _codeField = new CodeField();
         _codeField.bindingPath = "_sourceCode";
         _codeField.AutoHeight = true;
@@ -140,70 +224,193 @@ public class JSPadEditor : Editor {
 
         _root.Add(_codeField);
 
-        // Spacer
-        var spacer = new VisualElement();
-        spacer.style.height = 10;
-        _root.Add(spacer);
+        // Schedule status updates
+        _root.schedule.Execute(UpdateUI).Every(100);
 
-        // Row 1: Build & Run, Run/Stop toggle
-        var row1 = new VisualElement();
-        row1.style.flexDirection = FlexDirection.Row;
-        row1.style.marginBottom = 4;
+        return _root;
+    }
 
-        _buildRunButton = new Button(BuildAndRun) { text = "Build & Run" };
-        _buildRunButton.style.flexGrow = 1;
-        _buildRunButton.style.height = 28;
-        row1.Add(_buildRunButton);
+    void BuildTabs() {
+        _tabContainer.Clear();
 
-        _runButton = new Button(OnRunStopClicked) { text = "Run" };
-        _runButton.style.flexGrow = 1;
-        _runButton.style.height = 28;
-        _runButton.style.marginLeft = 4;
-        row1.Add(_runButton);
+        for (int i = 0; i < _tabNames.Length; i++) {
+            var tabIndex = i;
+            var tab = new Button(() => SelectTab(tabIndex)) { text = _tabNames[i] };
+            tab.style.flexGrow = 1;
+            tab.style.height = 24;
+            tab.style.marginRight = i < _tabNames.Length - 1 ? 2 : 0;
 
-        _root.Add(row1);
+            // Hover effect
+            var defaultBgColor = _selectedTab == i ? new Color(0.3f, 0.3f, 0.3f) : new Color(0.22f, 0.22f, 0.22f);
+            tab.style.backgroundColor = defaultBgColor;
 
-        // Row 2: Build Only, Open Folder, Clean
-        var row2 = new VisualElement();
-        row2.style.flexDirection = FlexDirection.Row;
+            tab.RegisterCallback<MouseEnterEvent>(evt => {
+                if (_selectedTab != tabIndex)
+                    tab.style.backgroundColor = new Color(0.28f, 0.28f, 0.28f);
+            });
+            tab.RegisterCallback<MouseLeaveEvent>(evt => {
+                tab.style.backgroundColor = _selectedTab == tabIndex
+                    ? new Color(0.3f, 0.3f, 0.3f)
+                    : new Color(0.22f, 0.22f, 0.22f);
+            });
 
-        _buildOnlyButton = new Button(() => Build(false)) { text = "Build Only" };
-        _buildOnlyButton.style.flexGrow = 1;
-        _buildOnlyButton.style.height = 24;
-        row2.Add(_buildOnlyButton);
+            if (_selectedTab == i) {
+                tab.style.borderBottomWidth = 2;
+                tab.style.borderBottomColor = new Color(0.4f, 0.6f, 1f);
+            }
 
-        var openFolderBtn = new Button(OpenTempFolder) { text = "Open Folder" };
-        openFolderBtn.style.flexGrow = 1;
-        openFolderBtn.style.height = 24;
-        openFolderBtn.style.marginLeft = 4;
-        row2.Add(openFolderBtn);
+            _tabContainer.Add(tab);
+        }
 
-        var cleanBtn = new Button(Clean) { text = "Clean" };
-        cleanBtn.style.flexGrow = 1;
-        cleanBtn.style.height = 24;
-        cleanBtn.style.marginLeft = 4;
-        row2.Add(cleanBtn);
+        RebuildTabContent();
+    }
 
-        _root.Add(row2);
+    void SelectTab(int index) {
+        _selectedTab = index;
+        BuildTabs();
+    }
 
-        // UI Panel Settings foldout
-        var panelFoldout = new Foldout { text = "UI Panel", value = false };
-        panelFoldout.style.marginTop = 10;
+    void RebuildTabContent() {
+        _tabContent.Clear();
 
+        switch (_selectedTab) {
+            case 0: // Modules
+                BuildModulesTab();
+                break;
+            case 1: // UI
+                BuildUITab();
+                break;
+            case 2: // Cartridges
+                BuildCartridgesTab();
+                break;
+        }
+    }
+
+    void BuildModulesTab() {
+        // Header with Add button
+        var headerRow = new VisualElement();
+        headerRow.style.flexDirection = FlexDirection.Row;
+        headerRow.style.marginBottom = 6;
+
+        var headerLabel = new Label("npm Dependencies");
+        headerLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+        headerLabel.style.flexGrow = 1;
+        headerRow.Add(headerLabel);
+
+        var addButton = new Button(() => {
+            var prop = serializedObject.FindProperty("_modules");
+            prop.arraySize++;
+            serializedObject.ApplyModifiedProperties();
+            RebuildModuleList();
+        }) { text = "+" };
+        addButton.style.width = 24;
+        addButton.style.height = 20;
+        addButton.tooltip = "Add a new module dependency";
+        headerRow.Add(addButton);
+
+        _tabContent.Add(headerRow);
+
+        // Module list container
+        _moduleListContainer = new VisualElement();
+        _tabContent.Add(_moduleListContainer);
+
+        RebuildModuleList();
+
+        // Help text
+        var helpBox = new HelpBox(
+            "Add npm packages to include in the build. Changes require reinstalling dependencies (Clean + Build).",
+            HelpBoxMessageType.Info
+        );
+        helpBox.style.marginTop = 6;
+        _tabContent.Add(helpBox);
+    }
+
+    void RebuildModuleList() {
+        if (_moduleListContainer == null) return;
+
+        _moduleListContainer.Clear();
+        serializedObject.Update();
+
+        var modulesProp = serializedObject.FindProperty("_modules");
+
+        if (modulesProp.arraySize == 0) {
+            var emptyLabel = new Label("No additional modules. Click + to add one.");
+            emptyLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+            emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
+            emptyLabel.style.paddingTop = 4;
+            emptyLabel.style.paddingBottom = 4;
+            _moduleListContainer.Add(emptyLabel);
+            return;
+        }
+
+        for (int i = 0; i < modulesProp.arraySize; i++) {
+            var itemRow = CreateModuleItemRow(modulesProp, i);
+            _moduleListContainer.Add(itemRow);
+        }
+    }
+
+    VisualElement CreateModuleItemRow(SerializedProperty arrayProp, int index) {
+        var elementProp = arrayProp.GetArrayElementAtIndex(index);
+        var nameProp = elementProp.FindPropertyRelative("name");
+        var versionProp = elementProp.FindPropertyRelative("version");
+
+        var row = new VisualElement();
+        row.style.flexDirection = FlexDirection.Row;
+        row.style.alignItems = Align.Center;
+        row.style.marginBottom = 2;
+
+        // Name field
+        var nameField = new TextField();
+        nameField.value = nameProp.stringValue;
+        nameField.style.flexGrow = 2;
+        nameField.style.marginRight = 4;
+        nameField.RegisterValueChangedCallback(evt => {
+            nameProp.stringValue = evt.newValue;
+            serializedObject.ApplyModifiedProperties();
+        });
+        row.Add(nameField);
+
+        // Version field
+        var versionField = new TextField();
+        versionField.value = versionProp.stringValue;
+        versionField.style.flexGrow = 1;
+        versionField.style.marginRight = 4;
+        versionField.RegisterValueChangedCallback(evt => {
+            versionProp.stringValue = evt.newValue;
+            serializedObject.ApplyModifiedProperties();
+        });
+        row.Add(versionField);
+
+        // Remove button
+        var removeBtn = new Button(() => {
+            arrayProp.DeleteArrayElementAtIndex(index);
+            serializedObject.ApplyModifiedProperties();
+            RebuildModuleList();
+        }) { text = "X" };
+        removeBtn.style.width = 24;
+        removeBtn.style.height = 20;
+        removeBtn.tooltip = "Remove this module";
+        row.Add(removeBtn);
+
+        return row;
+    }
+
+    void BuildUITab() {
+        // Panel Settings section
         var panelSettingsProp = serializedObject.FindProperty("_panelSettings");
-        var panelSettingsField = new PropertyField(panelSettingsProp);
+        var panelSettingsField = new PropertyField(panelSettingsProp, "Panel Settings");
         panelSettingsField.BindProperty(panelSettingsProp);
-        panelFoldout.Add(panelSettingsField);
+        _tabContent.Add(panelSettingsField);
 
         var themeStylesheetProp = serializedObject.FindProperty("_defaultThemeStylesheet");
         var themeStylesheetField = new PropertyField(themeStylesheetProp, "Theme Stylesheet");
         themeStylesheetField.BindProperty(themeStylesheetProp);
-        panelFoldout.Add(themeStylesheetField);
+        _tabContent.Add(themeStylesheetField);
 
         var scaleModeProp = serializedObject.FindProperty("_scaleMode");
         var scaleModeField = new PropertyField(scaleModeProp, "Scale Mode");
         scaleModeField.BindProperty(scaleModeProp);
-        panelFoldout.Add(scaleModeField);
+        _tabContent.Add(scaleModeField);
 
         // Container for conditional fields
         var scaleWithScreenSizeFields = new VisualElement();
@@ -225,7 +432,7 @@ public class JSPadEditor : Editor {
         matchField.BindProperty(matchProp);
         scaleWithScreenSizeFields.Add(matchField);
 
-        panelFoldout.Add(scaleWithScreenSizeFields);
+        _tabContent.Add(scaleWithScreenSizeFields);
 
         // Constant Pixel Size fields
         var scaleProp = serializedObject.FindProperty("_scale");
@@ -233,15 +440,16 @@ public class JSPadEditor : Editor {
         scaleField.BindProperty(scaleProp);
         constantPixelSizeFields.Add(scaleField);
 
-        panelFoldout.Add(constantPixelSizeFields);
+        _tabContent.Add(constantPixelSizeFields);
 
         var sortOrderProp = serializedObject.FindProperty("_sortOrder");
         var sortOrderField = new PropertyField(sortOrderProp, "Sort Order");
         sortOrderField.BindProperty(sortOrderProp);
-        panelFoldout.Add(sortOrderField);
+        _tabContent.Add(sortOrderField);
 
         // Update visibility based on scale mode
         void UpdateScaleModeVisibility() {
+            serializedObject.Update();
             var mode = (PanelScaleMode)scaleModeProp.enumValueIndex;
             scaleWithScreenSizeFields.style.display = mode == PanelScaleMode.ScaleWithScreenSize
                 ? DisplayStyle.Flex : DisplayStyle.None;
@@ -250,21 +458,117 @@ public class JSPadEditor : Editor {
         }
 
         UpdateScaleModeVisibility();
-        scaleModeField.RegisterValueChangeCallback(_ => {
-            serializedObject.Update();
-            UpdateScaleModeVisibility();
+        scaleModeField.RegisterValueChangeCallback(_ => UpdateScaleModeVisibility());
+
+        // Separator
+        var separator = new VisualElement();
+        separator.style.height = 1;
+        separator.style.backgroundColor = new Color(0.3f, 0.3f, 0.3f);
+        separator.style.marginTop = 10;
+        separator.style.marginBottom = 10;
+        _tabContent.Add(separator);
+
+        // Stylesheets section
+        var stylesheetsHeader = new VisualElement();
+        stylesheetsHeader.style.flexDirection = FlexDirection.Row;
+        stylesheetsHeader.style.marginBottom = 6;
+
+        var stylesheetsLabel = new Label("Stylesheets");
+        stylesheetsLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+        stylesheetsLabel.style.flexGrow = 1;
+        stylesheetsHeader.Add(stylesheetsLabel);
+
+        var addStylesheetBtn = new Button(() => {
+            var prop = serializedObject.FindProperty("_stylesheets");
+            prop.arraySize++;
+            serializedObject.ApplyModifiedProperties();
+            RebuildStylesheetList();
+        }) { text = "+" };
+        addStylesheetBtn.style.width = 24;
+        addStylesheetBtn.style.height = 20;
+        addStylesheetBtn.tooltip = "Add a USS stylesheet";
+        stylesheetsHeader.Add(addStylesheetBtn);
+
+        _tabContent.Add(stylesheetsHeader);
+
+        // Stylesheet list container
+        _stylesheetListContainer = new VisualElement();
+        _tabContent.Add(_stylesheetListContainer);
+
+        RebuildStylesheetList();
+    }
+
+    void RebuildStylesheetList() {
+        if (_stylesheetListContainer == null) return;
+
+        _stylesheetListContainer.Clear();
+        serializedObject.Update();
+
+        var stylesheetsProp = serializedObject.FindProperty("_stylesheets");
+
+        if (stylesheetsProp.arraySize == 0) {
+            var emptyLabel = new Label("No stylesheets. Click + to add one.");
+            emptyLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+            emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
+            emptyLabel.style.paddingTop = 4;
+            emptyLabel.style.paddingBottom = 4;
+            _stylesheetListContainer.Add(emptyLabel);
+            return;
+        }
+
+        for (int i = 0; i < stylesheetsProp.arraySize; i++) {
+            var itemRow = CreateStylesheetItemRow(stylesheetsProp, i);
+            _stylesheetListContainer.Add(itemRow);
+        }
+    }
+
+    VisualElement CreateStylesheetItemRow(SerializedProperty arrayProp, int index) {
+        var elementProp = arrayProp.GetArrayElementAtIndex(index);
+        var stylesheet = elementProp.objectReferenceValue as StyleSheet;
+
+        var row = new VisualElement();
+        row.style.flexDirection = FlexDirection.Row;
+        row.style.alignItems = Align.Center;
+        row.style.marginBottom = 2;
+
+        // Index label
+        var indexLabel = new Label($"{index}");
+        indexLabel.style.width = 16;
+        indexLabel.style.color = new Color(0.5f, 0.5f, 0.5f);
+        row.Add(indexLabel);
+
+        // Object field
+        var objectField = new ObjectField();
+        objectField.objectType = typeof(StyleSheet);
+        objectField.value = stylesheet;
+        objectField.style.flexGrow = 1;
+        objectField.style.marginLeft = 4;
+        objectField.RegisterValueChangedCallback(evt => {
+            elementProp.objectReferenceValue = evt.newValue;
+            serializedObject.ApplyModifiedProperties();
         });
+        row.Add(objectField);
 
-        _root.Add(panelFoldout);
+        // Remove button
+        var removeBtn = new Button(() => {
+            arrayProp.GetArrayElementAtIndex(index).objectReferenceValue = null;
+            arrayProp.DeleteArrayElementAtIndex(index);
+            serializedObject.ApplyModifiedProperties();
+            RebuildStylesheetList();
+        }) { text = "X" };
+        removeBtn.style.width = 24;
+        removeBtn.style.height = 20;
+        removeBtn.tooltip = "Remove this stylesheet";
+        row.Add(removeBtn);
 
-        // Cartridges foldout
-        var cartridgesFoldout = new Foldout { text = "Cartridges", value = false };
-        cartridgesFoldout.style.marginTop = 5;
+        return row;
+    }
 
+    void BuildCartridgesTab() {
         // Header with Add button
         var headerRow = new VisualElement();
         headerRow.style.flexDirection = FlexDirection.Row;
-        headerRow.style.marginBottom = 4;
+        headerRow.style.marginBottom = 6;
 
         var headerLabel = new Label("UI Cartridges");
         headerLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
@@ -282,30 +586,21 @@ public class JSPadEditor : Editor {
         addButton.tooltip = "Add a new cartridge slot";
         headerRow.Add(addButton);
 
-        cartridgesFoldout.Add(headerRow);
+        _tabContent.Add(headerRow);
 
         // Cartridge list container
         _cartridgeListContainer = new VisualElement();
-        cartridgesFoldout.Add(_cartridgeListContainer);
+        _tabContent.Add(_cartridgeListContainer);
 
-        // Initial build
         RebuildCartridgeList();
 
         // Help box
         var cartridgesHelp = new HelpBox(
-            "Files are auto-extracted to @cartridges/{slug}/ on build. Objects are injected as __cartridges.{slug}.{key} at runtime.\n" +
-            "X = Remove from list",
+            "Files are auto-extracted to @cartridges/{slug}/ on build. Objects are injected as __cartridges.{slug}.{key} at runtime.",
             HelpBoxMessageType.Info
         );
-        cartridgesHelp.style.marginTop = 4;
-        cartridgesFoldout.Add(cartridgesHelp);
-
-        _root.Add(cartridgesFoldout);
-
-        // Schedule status updates
-        _root.schedule.Execute(UpdateUI).Every(100);
-
-        return _root;
+        cartridgesHelp.style.marginTop = 6;
+        _tabContent.Add(cartridgesHelp);
     }
 
     void UpdateUI() {
