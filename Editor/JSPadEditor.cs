@@ -25,6 +25,9 @@ public class JSPadEditor : Editor {
     Button _buildOnlyButton;
     Button _runButton;
 
+    // Cartridges
+    VisualElement _cartridgeListContainer;
+
     void OnEnable() {
         _target = (JSPad)target;
         _sourceCode = serializedObject.FindProperty("_sourceCode");
@@ -254,6 +257,51 @@ public class JSPadEditor : Editor {
 
         _root.Add(panelFoldout);
 
+        // Cartridges foldout
+        var cartridgesFoldout = new Foldout { text = "Cartridges", value = false };
+        cartridgesFoldout.style.marginTop = 5;
+
+        // Header with Add button
+        var headerRow = new VisualElement();
+        headerRow.style.flexDirection = FlexDirection.Row;
+        headerRow.style.marginBottom = 4;
+
+        var headerLabel = new Label("UI Cartridges");
+        headerLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+        headerLabel.style.flexGrow = 1;
+        headerRow.Add(headerLabel);
+
+        var addButton = new Button(() => {
+            var prop = serializedObject.FindProperty("_cartridges");
+            prop.arraySize++;
+            serializedObject.ApplyModifiedProperties();
+            RebuildCartridgeList();
+        }) { text = "+" };
+        addButton.style.width = 24;
+        addButton.style.height = 20;
+        addButton.tooltip = "Add a new cartridge slot";
+        headerRow.Add(addButton);
+
+        cartridgesFoldout.Add(headerRow);
+
+        // Cartridge list container
+        _cartridgeListContainer = new VisualElement();
+        cartridgesFoldout.Add(_cartridgeListContainer);
+
+        // Initial build
+        RebuildCartridgeList();
+
+        // Help box
+        var cartridgesHelp = new HelpBox(
+            "Files are auto-extracted to @cartridges/{slug}/ on build. Objects are injected as __cartridges.{slug}.{key} at runtime.\n" +
+            "X = Remove from list",
+            HelpBoxMessageType.Info
+        );
+        cartridgesHelp.style.marginTop = 4;
+        cartridgesFoldout.Add(cartridgesHelp);
+
+        _root.Add(cartridgesFoldout);
+
         // Schedule status updates
         _root.schedule.Execute(UpdateUI).Every(100);
 
@@ -328,6 +376,7 @@ public class JSPadEditor : Editor {
 
         _target.EnsureTempDirectory();
         _target.WriteSourceFile();
+        _target.ExtractCartridges();
 
         // Check if npm install is needed
         if (!_target.HasNodeModules()) {
@@ -575,5 +624,122 @@ public class JSPadEditor : Editor {
 
         return "npm";
 #endif
+    }
+
+    // MARK: Cartridge Management
+
+    void RebuildCartridgeList() {
+        if (_cartridgeListContainer == null) return;
+
+        _cartridgeListContainer.Clear();
+        serializedObject.Update();
+
+        var cartridgesProp = serializedObject.FindProperty("_cartridges");
+
+        if (cartridgesProp.arraySize == 0) {
+            var emptyLabel = new Label("No cartridges. Click + to add one.");
+            emptyLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+            emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
+            emptyLabel.style.paddingLeft = 4;
+            emptyLabel.style.paddingTop = 4;
+            emptyLabel.style.paddingBottom = 4;
+            _cartridgeListContainer.Add(emptyLabel);
+            return;
+        }
+
+        for (int i = 0; i < cartridgesProp.arraySize; i++) {
+            var itemRow = CreateCartridgeItemRow(cartridgesProp, i);
+            _cartridgeListContainer.Add(itemRow);
+        }
+    }
+
+    VisualElement CreateCartridgeItemRow(SerializedProperty arrayProp, int index) {
+        var elementProp = arrayProp.GetArrayElementAtIndex(index);
+        var cartridge = elementProp.objectReferenceValue as UICartridge;
+
+        var row = new VisualElement();
+        row.style.flexDirection = FlexDirection.Row;
+        row.style.alignItems = Align.Center;
+        row.style.marginBottom = 2;
+        row.style.paddingTop = 2;
+        row.style.paddingBottom = 2;
+        row.style.paddingLeft = 4;
+        row.style.paddingRight = 4;
+        row.style.backgroundColor = new Color(0.22f, 0.22f, 0.22f);
+        row.style.borderTopLeftRadius = row.style.borderTopRightRadius =
+            row.style.borderBottomLeftRadius = row.style.borderBottomRightRadius = 3;
+
+        // Index label
+        var indexLabel = new Label($"{index}");
+        indexLabel.style.width = 16;
+        indexLabel.style.color = new Color(0.5f, 0.5f, 0.5f);
+        row.Add(indexLabel);
+
+        // Object field for cartridge
+        var objectField = new ObjectField();
+        objectField.objectType = typeof(UICartridge);
+        objectField.value = cartridge;
+        objectField.style.flexGrow = 1;
+        objectField.style.marginLeft = 4;
+        objectField.RegisterValueChangedCallback(evt => {
+            elementProp.objectReferenceValue = evt.newValue;
+            serializedObject.ApplyModifiedProperties();
+            RebuildCartridgeList();
+        });
+        row.Add(objectField);
+
+        // Status label
+        var statusLabel = new Label();
+        statusLabel.style.width = 70;
+        statusLabel.style.unityTextAlign = TextAnchor.MiddleRight;
+        statusLabel.style.marginRight = 4;
+        statusLabel.style.fontSize = 10;
+
+        if (cartridge != null && !string.IsNullOrEmpty(cartridge.Slug)) {
+            var cartridgePath = _target.GetCartridgePath(cartridge);
+            bool isExtracted = Directory.Exists(cartridgePath);
+
+            if (isExtracted) {
+                statusLabel.text = "Extracted";
+                statusLabel.style.color = new Color(0.4f, 0.7f, 0.4f);
+            } else {
+                statusLabel.text = "Not extracted";
+                statusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+            }
+        } else {
+            statusLabel.text = cartridge == null ? "" : "No slug";
+            statusLabel.style.color = new Color(0.8f, 0.6f, 0.2f);
+        }
+        row.Add(statusLabel);
+
+        // Remove button
+        var removeBtn = new Button(() => RemoveCartridgeFromList(index)) { text = "X" };
+        removeBtn.style.width = 24;
+        removeBtn.style.height = 20;
+        removeBtn.tooltip = "Remove from list";
+        row.Add(removeBtn);
+
+        return row;
+    }
+
+    void RemoveCartridgeFromList(int index) {
+        var cartridgesProp = serializedObject.FindProperty("_cartridges");
+        if (index < 0 || index >= cartridgesProp.arraySize) return;
+
+        var cartridge = cartridgesProp.GetArrayElementAtIndex(index).objectReferenceValue as UICartridge;
+        string name = cartridge?.DisplayName ?? $"Item {index}";
+
+        if (!EditorUtility.DisplayDialog(
+            "Remove from List?",
+            $"Remove '{name}' from the cartridge list?\n\n" +
+            "(Extracted files will be cleaned on next build or Clean)",
+            "Remove", "Cancel")) {
+            return;
+        }
+
+        cartridgesProp.GetArrayElementAtIndex(index).objectReferenceValue = null;
+        cartridgesProp.DeleteArrayElementAtIndex(index);
+        serializedObject.ApplyModifiedProperties();
+        RebuildCartridgeList();
     }
 }

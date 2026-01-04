@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -64,6 +65,9 @@ render(<App />, __root)
     [SerializeField] float _scale = 1f;
     [SerializeField] int _sortOrder = 0;
 
+    [Tooltip("UI Cartridges to load. Files are extracted to temp directory, objects are injected as __cartridges.{slug}.{key}.")]
+    [SerializeField] List<UICartridge> _cartridges = new List<UICartridge>();
+
     QuickJSUIBridge _bridge;
     UIDocument _uiDocument;
     PanelSettings _runtimePanelSettings; // Track runtime-created PanelSettings for cleanup
@@ -106,6 +110,14 @@ render(<App />, __root)
 
     public string OutputFile => Path.Combine(TempDir, "@outputs", "app.js");
     public bool HasBuiltOutput => File.Exists(OutputFile);
+
+    // Cartridge API
+    public IReadOnlyList<UICartridge> Cartridges => _cartridges;
+
+    public string GetCartridgePath(UICartridge cartridge) {
+        if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) return null;
+        return Path.Combine(TempDir, "@cartridges", cartridge.Slug);
+    }
 
     void Start() {
         // Get or create UIDocument
@@ -275,6 +287,9 @@ render(<App />, __root)
             var bridgeHandle = QuickJSNative.RegisterObject(_bridge);
             _bridge.Eval($"globalThis.__bridge = __csHelpers.wrapObject('QuickJSUIBridge', {bridgeHandle})");
 
+            // Inject cartridge objects
+            InjectCartridgeGlobals();
+
             // Load and run script
             var code = File.ReadAllText(OutputFile);
             _bridge.Eval(code, "app.js");
@@ -339,6 +354,75 @@ render(<App />, __root)
 #endif
 
         _bridge.Eval(defines.ToString(), "platform-defines.js");
+    }
+
+    /// <summary>
+    /// Extract cartridge files to TempDir/@cartridges/{slug}/.
+    /// Called before building.
+    /// </summary>
+    public void ExtractCartridges() {
+        if (_cartridges == null || _cartridges.Count == 0) return;
+
+        foreach (var cartridge in _cartridges) {
+            if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) continue;
+
+            var destPath = GetCartridgePath(cartridge);
+
+            // Always extract (overwrite) for JSPad since it's temp directory
+            if (Directory.Exists(destPath)) {
+                Directory.Delete(destPath, true);
+            }
+            Directory.CreateDirectory(destPath);
+
+            // Extract files
+            foreach (var file in cartridge.Files) {
+                if (string.IsNullOrEmpty(file.path) || file.content == null) continue;
+
+                var filePath = Path.Combine(destPath, file.path);
+                var fileDir = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(fileDir) && !Directory.Exists(fileDir)) {
+                    Directory.CreateDirectory(fileDir);
+                }
+                File.WriteAllText(filePath, file.content.text);
+            }
+
+            // Generate TypeScript definitions
+            var dts = OneJS.CartridgeTypeGenerator.Generate(cartridge);
+            File.WriteAllText(Path.Combine(destPath, $"{cartridge.Slug}.d.ts"), dts);
+
+            Debug.Log($"[JSPad] Extracted cartridge '{cartridge.DisplayName}' to: {destPath}");
+        }
+    }
+
+    /// <summary>
+    /// Inject Unity objects from cartridges as JavaScript globals under __cartridges namespace.
+    /// Access pattern: __cartridges.{slug}.{key}
+    /// </summary>
+    void InjectCartridgeGlobals() {
+        if (_cartridges == null || _cartridges.Count == 0) return;
+
+        // Initialize __cartridges namespace
+        _bridge.Eval("globalThis.__cartridges = globalThis.__cartridges || {}");
+
+        foreach (var cartridge in _cartridges) {
+            if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) continue;
+
+            // Create cartridge namespace
+            _bridge.Eval($"__cartridges['{EscapeJsString(cartridge.Slug)}'] = {{}}");
+
+            foreach (var entry in cartridge.Objects) {
+                if (string.IsNullOrEmpty(entry.key) || entry.value == null) continue;
+
+                var handle = QuickJSNative.RegisterObject(entry.value);
+                var typeName = entry.value.GetType().FullName;
+                _bridge.Eval($"__cartridges['{EscapeJsString(cartridge.Slug)}']['{EscapeJsString(entry.key)}'] = __csHelpers.wrapObject('{typeName}', {handle})");
+            }
+        }
+    }
+
+    static string EscapeJsString(string s) {
+        if (string.IsNullOrEmpty(s)) return s;
+        return s.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "\\r");
     }
 
     string GetPackageJsonContent() {
