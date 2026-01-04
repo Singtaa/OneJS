@@ -42,6 +42,11 @@ public class JSRunnerEditor : Editor {
     // Cartridges
     VisualElement _cartridgeListContainer;
 
+    // Custom lists
+    VisualElement _stylesheetsListContainer;
+    VisualElement _preloadsListContainer;
+    VisualElement _globalsListContainer;
+
     void OnEnable() {
         _target = (JSRunner)target;
         _activeTab = EditorPrefs.GetInt(TabPrefKey, 0);
@@ -210,13 +215,57 @@ public class JSRunnerEditor : Editor {
 
         AddSpacer(container);
 
-        var preloadsField = new PropertyField(serializedObject.FindProperty("_preloads"), "Preloads");
-        preloadsField.tooltip = "TextAssets eval'd before entry file (e.g., polyfills)";
-        container.Add(preloadsField);
+        // Preloads section
+        var preloadsHeader = CreateRow();
+        preloadsHeader.style.marginBottom = 4;
+        var preloadsLabel = new Label("Preloads");
+        preloadsLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+        preloadsLabel.style.flexGrow = 1;
+        preloadsLabel.tooltip = "TextAssets eval'd before entry file (e.g., polyfills)";
+        preloadsHeader.Add(preloadsLabel);
 
-        var globalsField = new PropertyField(serializedObject.FindProperty("_globals"), "Globals");
-        globalsField.tooltip = "Key-value pairs injected as globalThis[key]";
-        container.Add(globalsField);
+        var addPreloadBtn = new Button(() => {
+            var prop = serializedObject.FindProperty("_preloads");
+            prop.arraySize++;
+            serializedObject.ApplyModifiedProperties();
+            RebuildPreloadsList();
+        }) { text = "+" };
+        addPreloadBtn.style.width = 24;
+        addPreloadBtn.style.height = 20;
+        addPreloadBtn.tooltip = "Add a preload TextAsset";
+        preloadsHeader.Add(addPreloadBtn);
+        container.Add(preloadsHeader);
+
+        _preloadsListContainer = new VisualElement();
+        container.Add(_preloadsListContainer);
+        RebuildPreloadsList();
+
+        AddSpacer(container);
+
+        // Globals section
+        var globalsHeader = CreateRow();
+        globalsHeader.style.marginBottom = 4;
+        var globalsLabel = new Label("Globals");
+        globalsLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+        globalsLabel.style.flexGrow = 1;
+        globalsLabel.tooltip = "Key-value pairs injected as globalThis[key]";
+        globalsHeader.Add(globalsLabel);
+
+        var addGlobalBtn = new Button(() => {
+            var prop = serializedObject.FindProperty("_globals");
+            prop.arraySize++;
+            serializedObject.ApplyModifiedProperties();
+            RebuildGlobalsList();
+        }) { text = "+" };
+        addGlobalBtn.style.width = 24;
+        addGlobalBtn.style.height = 20;
+        addGlobalBtn.tooltip = "Add a global variable";
+        globalsHeader.Add(addGlobalBtn);
+        container.Add(globalsHeader);
+
+        _globalsListContainer = new VisualElement();
+        container.Add(_globalsListContainer);
+        RebuildGlobalsList();
     }
 
     void BuildUITab(VisualElement container) {
@@ -301,10 +350,30 @@ public class JSRunnerEditor : Editor {
 
         AddSpacer(container);
 
-        var stylesheetsField = new PropertyField(serializedObject.FindProperty("_stylesheets"));
-        stylesheetsField.label = "Stylesheets";
-        stylesheetsField.tooltip = "Global USS stylesheets applied on init/reload";
-        container.Add(stylesheetsField);
+        // Stylesheets section
+        var stylesheetsHeader = CreateRow();
+        stylesheetsHeader.style.marginBottom = 4;
+        var stylesheetsLabel = new Label("Stylesheets");
+        stylesheetsLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+        stylesheetsLabel.style.flexGrow = 1;
+        stylesheetsLabel.tooltip = "Global USS stylesheets applied on init/reload";
+        stylesheetsHeader.Add(stylesheetsLabel);
+
+        var addStylesheetBtn = new Button(() => {
+            var prop = serializedObject.FindProperty("_stylesheets");
+            prop.arraySize++;
+            serializedObject.ApplyModifiedProperties();
+            RebuildStylesheetsList();
+        }) { text = "+" };
+        addStylesheetBtn.style.width = 24;
+        addStylesheetBtn.style.height = 20;
+        addStylesheetBtn.tooltip = "Add a USS stylesheet";
+        stylesheetsHeader.Add(addStylesheetBtn);
+        container.Add(stylesheetsHeader);
+
+        _stylesheetsListContainer = new VisualElement();
+        container.Add(_stylesheetsListContainer);
+        RebuildStylesheetsList();
     }
 
     void BuildBuildTab(VisualElement container) {
@@ -461,6 +530,207 @@ public class JSRunnerEditor : Editor {
         var spacer = new VisualElement();
         spacer.style.height = height;
         container.Add(spacer);
+    }
+
+    // MARK: List Management (Stylesheets, Preloads, Globals)
+
+    void RebuildStylesheetsList() {
+        if (_stylesheetsListContainer == null) return;
+
+        _stylesheetsListContainer.Clear();
+        serializedObject.Update();
+
+        var prop = serializedObject.FindProperty("_stylesheets");
+
+        if (prop.arraySize == 0) {
+            var emptyLabel = new Label("No stylesheets. Click + to add one.");
+            emptyLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+            emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
+            emptyLabel.style.paddingTop = 4;
+            emptyLabel.style.paddingBottom = 4;
+            _stylesheetsListContainer.Add(emptyLabel);
+            return;
+        }
+
+        for (int i = 0; i < prop.arraySize; i++) {
+            var row = CreateStylesheetItemRow(prop, i);
+            _stylesheetsListContainer.Add(row);
+        }
+    }
+
+    VisualElement CreateStylesheetItemRow(SerializedProperty arrayProp, int index) {
+        var elementProp = arrayProp.GetArrayElementAtIndex(index);
+
+        var row = CreateRow();
+        row.style.marginBottom = 2;
+
+        var indexLabel = new Label($"{index}");
+        indexLabel.style.width = 16;
+        indexLabel.style.color = new Color(0.5f, 0.5f, 0.5f);
+        row.Add(indexLabel);
+
+        var objectField = new ObjectField();
+        objectField.objectType = typeof(StyleSheet);
+        objectField.value = elementProp.objectReferenceValue as StyleSheet;
+        objectField.style.flexGrow = 1;
+        objectField.style.marginLeft = 4;
+        objectField.RegisterValueChangedCallback(evt => {
+            elementProp.objectReferenceValue = evt.newValue;
+            serializedObject.ApplyModifiedProperties();
+        });
+        row.Add(objectField);
+
+        var removeBtn = new Button(() => {
+            arrayProp.GetArrayElementAtIndex(index).objectReferenceValue = null;
+            arrayProp.DeleteArrayElementAtIndex(index);
+            serializedObject.ApplyModifiedProperties();
+            RebuildStylesheetsList();
+        }) { text = "X" };
+        removeBtn.style.width = 24;
+        removeBtn.style.height = 20;
+        removeBtn.style.marginLeft = 4;
+        removeBtn.tooltip = "Remove this stylesheet";
+        row.Add(removeBtn);
+
+        return row;
+    }
+
+    void RebuildPreloadsList() {
+        if (_preloadsListContainer == null) return;
+
+        _preloadsListContainer.Clear();
+        serializedObject.Update();
+
+        var prop = serializedObject.FindProperty("_preloads");
+
+        if (prop.arraySize == 0) {
+            var emptyLabel = new Label("No preloads. Click + to add one.");
+            emptyLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+            emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
+            emptyLabel.style.paddingTop = 4;
+            emptyLabel.style.paddingBottom = 4;
+            _preloadsListContainer.Add(emptyLabel);
+            return;
+        }
+
+        for (int i = 0; i < prop.arraySize; i++) {
+            var row = CreatePreloadItemRow(prop, i);
+            _preloadsListContainer.Add(row);
+        }
+    }
+
+    VisualElement CreatePreloadItemRow(SerializedProperty arrayProp, int index) {
+        var elementProp = arrayProp.GetArrayElementAtIndex(index);
+
+        var row = CreateRow();
+        row.style.marginBottom = 2;
+
+        var indexLabel = new Label($"{index}");
+        indexLabel.style.width = 16;
+        indexLabel.style.color = new Color(0.5f, 0.5f, 0.5f);
+        row.Add(indexLabel);
+
+        var objectField = new ObjectField();
+        objectField.objectType = typeof(TextAsset);
+        objectField.value = elementProp.objectReferenceValue as TextAsset;
+        objectField.style.flexGrow = 1;
+        objectField.style.marginLeft = 4;
+        objectField.RegisterValueChangedCallback(evt => {
+            elementProp.objectReferenceValue = evt.newValue;
+            serializedObject.ApplyModifiedProperties();
+        });
+        row.Add(objectField);
+
+        var removeBtn = new Button(() => {
+            arrayProp.GetArrayElementAtIndex(index).objectReferenceValue = null;
+            arrayProp.DeleteArrayElementAtIndex(index);
+            serializedObject.ApplyModifiedProperties();
+            RebuildPreloadsList();
+        }) { text = "X" };
+        removeBtn.style.width = 24;
+        removeBtn.style.height = 20;
+        removeBtn.style.marginLeft = 4;
+        removeBtn.tooltip = "Remove this preload";
+        row.Add(removeBtn);
+
+        return row;
+    }
+
+    void RebuildGlobalsList() {
+        if (_globalsListContainer == null) return;
+
+        _globalsListContainer.Clear();
+        serializedObject.Update();
+
+        var prop = serializedObject.FindProperty("_globals");
+
+        if (prop.arraySize == 0) {
+            var emptyLabel = new Label("No globals. Click + to add one.");
+            emptyLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+            emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
+            emptyLabel.style.paddingTop = 4;
+            emptyLabel.style.paddingBottom = 4;
+            _globalsListContainer.Add(emptyLabel);
+            return;
+        }
+
+        for (int i = 0; i < prop.arraySize; i++) {
+            var row = CreateGlobalItemRow(prop, i);
+            _globalsListContainer.Add(row);
+        }
+    }
+
+    VisualElement CreateGlobalItemRow(SerializedProperty arrayProp, int index) {
+        var elementProp = arrayProp.GetArrayElementAtIndex(index);
+        var keyProp = elementProp.FindPropertyRelative("key");
+        var valueProp = elementProp.FindPropertyRelative("value");
+
+        var row = CreateRow();
+        row.style.marginBottom = 2;
+
+        var indexLabel = new Label($"{index}");
+        indexLabel.style.width = 16;
+        indexLabel.style.color = new Color(0.5f, 0.5f, 0.5f);
+        row.Add(indexLabel);
+
+        var keyField = new TextField();
+        keyField.value = keyProp.stringValue;
+        keyField.style.width = 130;
+        keyField.style.marginLeft = 4;
+        keyField.RegisterValueChangedCallback(evt => {
+            keyProp.stringValue = evt.newValue;
+            serializedObject.ApplyModifiedProperties();
+        });
+        row.Add(keyField);
+
+        var arrow = new Label("→");
+        arrow.style.marginLeft = 4;
+        arrow.style.marginRight = 4;
+        arrow.style.color = new Color(0.5f, 0.5f, 0.5f);
+        row.Add(arrow);
+
+        var valueField = new ObjectField();
+        valueField.objectType = typeof(UnityEngine.Object);
+        valueField.value = valueProp.objectReferenceValue;
+        valueField.style.flexGrow = 1;
+        valueField.RegisterValueChangedCallback(evt => {
+            valueProp.objectReferenceValue = evt.newValue;
+            serializedObject.ApplyModifiedProperties();
+        });
+        row.Add(valueField);
+
+        var removeBtn = new Button(() => {
+            arrayProp.DeleteArrayElementAtIndex(index);
+            serializedObject.ApplyModifiedProperties();
+            RebuildGlobalsList();
+        }) { text = "X" };
+        removeBtn.style.width = 24;
+        removeBtn.style.height = 20;
+        removeBtn.style.marginLeft = 4;
+        removeBtn.tooltip = "Remove this global";
+        row.Add(removeBtn);
+
+        return row;
     }
 
     // MARK: Cartridge Management
