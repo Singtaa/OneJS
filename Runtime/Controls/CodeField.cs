@@ -53,9 +53,8 @@ namespace OneJS
         }
 
         /// <summary>
-        /// Built-in syntax highlighter for JavaScript/TypeScript code.
-        /// Highlights keywords, strings, numbers, and comments with customizable colors.
-        /// Uses ArrayPool to reduce allocations for large texts.
+        /// Built-in syntax highlighter for JavaScript/TypeScript/JSX code.
+        /// Highlights keywords, strings, numbers, comments, and JSX elements with customizable colors.
         /// </summary>
         public class SimpleKeywordHighlighter : ISyntaxHighlighter
         {
@@ -64,6 +63,8 @@ namespace OneJS
             public Color32 StringColor = new Color32(206, 145, 120, 255);       // Orange
             public Color32 NumberColor = new Color32(181, 206, 168, 255);       // Light green
             public Color32 CommentColor = new Color32(106, 153, 85, 255);       // Green
+            public Color32 JsxTagColor = new Color32(86, 156, 214, 255);        // Blue (for JSX tags)
+            public Color32 JsxAttributeColor = new Color32(156, 220, 254, 255); // Light blue (for JSX attributes)
 
             private static readonly HashSet<string> Keywords = new HashSet<string>
             {
@@ -113,6 +114,110 @@ namespace OneJS
                         for (int i = start; i < pos && i < colors.Length; i++)
                             colors[i] = CommentColor;
                         continue;
+                    }
+
+                    // JSX tag: <TagName, </TagName, or <>
+                    if (c == '<' && pos + 1 < text.Length)
+                    {
+                        char next = text[pos + 1];
+                        // Check for JSX: < followed by letter, /, or > (fragment)
+                        if (char.IsLetter(next) || next == '/' || next == '>')
+                        {
+                            int tagStart = pos;
+                            colors[pos] = JsxTagColor; // <
+                            pos++;
+
+                            // Handle closing tag or fragment
+                            if (pos < text.Length && text[pos] == '/')
+                            {
+                                colors[pos] = JsxTagColor;
+                                pos++;
+                            }
+
+                            // Parse tag name (if any)
+                            if (pos < text.Length && char.IsLetter(text[pos]))
+                            {
+                                int nameStart = pos;
+                                while (pos < text.Length && (char.IsLetterOrDigit(text[pos]) || text[pos] == '_' || text[pos] == '-' || text[pos] == '.'))
+                                    pos++;
+                                for (int i = nameStart; i < pos; i++)
+                                    colors[i] = JsxTagColor;
+                            }
+
+                            // Parse attributes until > or />
+                            while (pos < text.Length && text[pos] != '>')
+                            {
+                                // Skip whitespace
+                                while (pos < text.Length && char.IsWhiteSpace(text[pos]))
+                                    pos++;
+
+                                if (pos >= text.Length || text[pos] == '>' || text[pos] == '/')
+                                    break;
+
+                                // Attribute name
+                                if (char.IsLetter(text[pos]) || text[pos] == '_')
+                                {
+                                    int attrStart = pos;
+                                    while (pos < text.Length && (char.IsLetterOrDigit(text[pos]) || text[pos] == '_' || text[pos] == '-'))
+                                        pos++;
+                                    for (int i = attrStart; i < pos; i++)
+                                        colors[i] = JsxAttributeColor;
+
+                                    // Skip = if present
+                                    if (pos < text.Length && text[pos] == '=')
+                                        pos++;
+
+                                    // Attribute value
+                                    if (pos < text.Length)
+                                    {
+                                        if (text[pos] == '"' || text[pos] == '\'')
+                                        {
+                                            // String attribute value
+                                            char quote = text[pos];
+                                            int strStart = pos;
+                                            pos++;
+                                            while (pos < text.Length && text[pos] != quote)
+                                            {
+                                                if (text[pos] == '\\' && pos + 1 < text.Length)
+                                                    pos++;
+                                                pos++;
+                                            }
+                                            if (pos < text.Length)
+                                                pos++;
+                                            for (int i = strStart; i < pos && i < colors.Length; i++)
+                                                colors[i] = StringColor;
+                                        }
+                                        else if (text[pos] == '{')
+                                        {
+                                            // JSX expression - parse balanced braces
+                                            pos = HighlightJsxExpression(text, pos, colors);
+                                        }
+                                    }
+                                }
+                                else if (text[pos] == '{')
+                                {
+                                    // Spread attribute {...props}
+                                    pos = HighlightJsxExpression(text, pos, colors);
+                                }
+                                else
+                                {
+                                    pos++;
+                                }
+                            }
+
+                            // Handle /> or >
+                            if (pos < text.Length && text[pos] == '/')
+                            {
+                                colors[pos] = JsxTagColor;
+                                pos++;
+                            }
+                            if (pos < text.Length && text[pos] == '>')
+                            {
+                                colors[pos] = JsxTagColor;
+                                pos++;
+                            }
+                            continue;
+                        }
                     }
 
                     // String literals
@@ -172,6 +277,88 @@ namespace OneJS
                 }
 
                 return colors;
+            }
+
+            /// <summary>
+            /// Highlights a JSX expression {...} and returns the position after the closing brace.
+            /// Handles nested braces and strings within the expression.
+            /// </summary>
+            private int HighlightJsxExpression(string text, int pos, Color32[] colors)
+            {
+                if (pos >= text.Length || text[pos] != '{')
+                    return pos;
+
+                int braceDepth = 1;
+                pos++; // Skip opening {
+
+                while (pos < text.Length && braceDepth > 0)
+                {
+                    char c = text[pos];
+
+                    if (c == '{')
+                    {
+                        braceDepth++;
+                        pos++;
+                    }
+                    else if (c == '}')
+                    {
+                        braceDepth--;
+                        pos++;
+                    }
+                    else if (c == '"' || c == '\'' || c == '`')
+                    {
+                        // String inside expression
+                        char quote = c;
+                        int strStart = pos;
+                        pos++;
+                        while (pos < text.Length && text[pos] != quote)
+                        {
+                            if (text[pos] == '\\' && pos + 1 < text.Length)
+                                pos++;
+                            pos++;
+                        }
+                        if (pos < text.Length)
+                            pos++;
+                        for (int i = strStart; i < pos && i < colors.Length; i++)
+                            colors[i] = StringColor;
+                    }
+                    else if (c == '/' && pos + 1 < text.Length && text[pos + 1] == '/')
+                    {
+                        // Single-line comment inside expression
+                        int commentStart = pos;
+                        while (pos < text.Length && text[pos] != '\n')
+                            pos++;
+                        for (int i = commentStart; i < pos; i++)
+                            colors[i] = CommentColor;
+                    }
+                    else if (char.IsDigit(c))
+                    {
+                        // Number inside expression
+                        int numStart = pos;
+                        while (pos < text.Length && (char.IsDigit(text[pos]) || text[pos] == '.' || text[pos] == 'x'))
+                            pos++;
+                        for (int i = numStart; i < pos; i++)
+                            colors[i] = NumberColor;
+                    }
+                    else if (char.IsLetter(c) || c == '_' || c == '$')
+                    {
+                        // Identifier or keyword inside expression
+                        int idStart = pos;
+                        while (pos < text.Length && (char.IsLetterOrDigit(text[pos]) || text[pos] == '_' || text[pos] == '$'))
+                            pos++;
+                        if (IsKeyword(text, idStart, pos - idStart))
+                        {
+                            for (int i = idStart; i < pos; i++)
+                                colors[i] = KeywordColor;
+                        }
+                    }
+                    else
+                    {
+                        pos++;
+                    }
+                }
+
+                return pos;
             }
 
             /// <summary>
