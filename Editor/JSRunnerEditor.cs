@@ -77,9 +77,14 @@ public class JSRunnerEditor : Editor {
 
         // Tab content container
         _tabContent = new VisualElement();
-        _tabContent.style.marginTop = 8;
-        _tabContent.style.paddingLeft = 10;
-        _tabContent.style.paddingRight = 6;
+        _tabContent.style.backgroundColor = new Color(0.22f, 0.22f, 0.22f);
+        _tabContent.style.borderTopWidth = 0; // No top border (tabs handle this)
+        _tabContent.style.borderLeftWidth = _tabContent.style.borderRightWidth = _tabContent.style.borderBottomWidth = 1;
+        _tabContent.style.borderLeftColor = _tabContent.style.borderRightColor = _tabContent.style.borderBottomColor = new Color(0.14f, 0.14f, 0.14f);
+        _tabContent.style.borderTopLeftRadius = _tabContent.style.borderTopRightRadius = 0;
+        _tabContent.style.borderBottomLeftRadius = _tabContent.style.borderBottomRightRadius = 3;
+        _tabContent.style.paddingTop = _tabContent.style.paddingBottom = 10;
+        _tabContent.style.paddingLeft = _tabContent.style.paddingRight = 10;
         _tabContent.style.minHeight = 100;
         root.Add(_tabContent);
 
@@ -98,46 +103,44 @@ public class JSRunnerEditor : Editor {
         var container = new VisualElement();
         container.style.flexDirection = FlexDirection.Row;
         container.style.marginTop = 8;
-        container.style.marginBottom = 0;
 
         string[] tabNames = { "Project", "UI", "Cartridges", "Build" };
         _tabButtons = new Button[tabNames.Length];
 
+        var borderColor = new Color(0.14f, 0.14f, 0.14f);
+
         for (int i = 0; i < tabNames.Length; i++) {
-            int tabIndex = i; // Capture for closure
+            int tabIndex = i;
             var btn = new Button(() => ShowTab(tabIndex)) { text = tabNames[i] };
             btn.style.flexGrow = 1;
             btn.style.height = 26;
-            btn.style.marginLeft = i == 0 ? 0 : -1;
-
-            // Remove all borders/outlines
-            btn.style.borderTopWidth = 0;
-            btn.style.borderLeftWidth = 0;
-            btn.style.borderRightWidth = 0;
-            btn.style.borderBottomWidth = 0;
-            btn.style.SetBorderRadius(0);
+            btn.style.marginTop = btn.style.marginBottom = btn.style.marginLeft = btn.style.marginRight = 0;
             btn.focusable = false;
 
-            if (i == 0) {
-                btn.style.borderTopLeftRadius = 4;
-                btn.style.borderBottomLeftRadius = 4;
-            }
-            if (i == tabNames.Length - 1) {
-                btn.style.borderTopRightRadius = 4;
-                btn.style.borderBottomRightRadius = 4;
-            }
+            // Border: top always, left for first, right only for last (dividers via left border)
+            btn.style.borderTopWidth = 1;
+            btn.style.borderTopColor = borderColor;
+            btn.style.borderLeftWidth = 1; // All have left border (acts as divider for non-first)
+            btn.style.borderLeftColor = borderColor;
+            btn.style.borderRightWidth = i == tabNames.Length - 1 ? 1 : 0;
+            btn.style.borderRightColor = borderColor;
+            btn.style.borderBottomWidth = 0; // Will be set in UpdateTabStyles
 
-            // Hover effect
-            int idx = i; // Capture for closure
+            // Only outer corners rounded
+            btn.style.borderTopLeftRadius = i == 0 ? 3 : 0;
+            btn.style.borderTopRightRadius = i == tabNames.Length - 1 ? 3 : 0;
+            btn.style.borderBottomLeftRadius = 0;
+            btn.style.borderBottomRightRadius = 0;
+
+            // Hover effect (just bg color, no outlines)
+            int idx = i;
             btn.RegisterCallback<MouseEnterEvent>(_ => {
-                if (idx != _activeTab) {
+                if (idx != _activeTab)
                     btn.style.backgroundColor = new Color(0.26f, 0.26f, 0.26f);
-                }
             });
             btn.RegisterCallback<MouseLeaveEvent>(_ => {
-                if (idx != _activeTab) {
+                if (idx != _activeTab)
                     btn.style.backgroundColor = new Color(0.2f, 0.2f, 0.2f);
-                }
             });
 
             _tabButtons[i] = btn;
@@ -162,29 +165,26 @@ public class JSRunnerEditor : Editor {
             case 3: BuildBuildTab(_tabContent); break;
         }
 
-        // Bind the serializedObject to ensure PropertyFields show data
         _tabContent.Bind(serializedObject);
     }
 
     void UpdateTabStyles() {
         if (_tabButtons == null) return;
 
+        var borderColor = new Color(0.14f, 0.14f, 0.14f);
+
         for (int i = 0; i < _tabButtons.Length; i++) {
             bool isActive = i == _activeTab;
             var btn = _tabButtons[i];
 
             btn.style.backgroundColor = isActive
-                ? new Color(0.3f, 0.3f, 0.3f)
+                ? new Color(0.22f, 0.22f, 0.22f)  // Match content bg
                 : new Color(0.2f, 0.2f, 0.2f);
 
-            // Only bottom border for active indicator
-            btn.style.borderTopWidth = 0;
-            btn.style.borderLeftWidth = 0;
-            btn.style.borderRightWidth = 0;
-            btn.style.borderBottomWidth = isActive ? 2 : 0;
-            btn.style.borderBottomColor = isActive
-                ? new Color(0.4f, 0.6f, 1f)
-                : Color.clear;
+            // Active tab: no bottom border (merges with content)
+            // Inactive tab: has bottom border
+            btn.style.borderBottomWidth = isActive ? 0 : 1;
+            btn.style.borderBottomColor = borderColor;
         }
     }
 

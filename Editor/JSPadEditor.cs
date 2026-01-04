@@ -128,19 +128,17 @@ public class JSPadEditor : Editor {
         // Tabs section
         _tabContainer = new VisualElement();
         _tabContainer.style.flexDirection = FlexDirection.Row;
-        _tabContainer.style.marginBottom = 8;
         _root.Add(_tabContainer);
 
         // Tab content container
         _tabContent = new VisualElement();
         _tabContent.style.backgroundColor = new Color(0.22f, 0.22f, 0.22f);
-        _tabContent.style.borderTopWidth = _tabContent.style.borderBottomWidth =
-            _tabContent.style.borderLeftWidth = _tabContent.style.borderRightWidth = 1;
-        _tabContent.style.borderTopColor = _tabContent.style.borderBottomColor =
-            _tabContent.style.borderLeftColor = _tabContent.style.borderRightColor = new Color(0.14f, 0.14f, 0.14f);
-        _tabContent.style.borderTopLeftRadius = _tabContent.style.borderTopRightRadius =
-            _tabContent.style.borderBottomLeftRadius = _tabContent.style.borderBottomRightRadius = 3;
-        _tabContent.style.paddingTop = _tabContent.style.paddingBottom = 8;
+        _tabContent.style.borderTopWidth = 0; // No top border (tabs handle this)
+        _tabContent.style.borderLeftWidth = _tabContent.style.borderRightWidth = _tabContent.style.borderBottomWidth = 1;
+        _tabContent.style.borderLeftColor = _tabContent.style.borderRightColor = _tabContent.style.borderBottomColor = new Color(0.14f, 0.14f, 0.14f);
+        _tabContent.style.borderTopLeftRadius = _tabContent.style.borderTopRightRadius = 0;
+        _tabContent.style.borderBottomLeftRadius = _tabContent.style.borderBottomRightRadius = 3;
+        _tabContent.style.paddingTop = _tabContent.style.paddingBottom = 10;
         _tabContent.style.paddingLeft = _tabContent.style.paddingRight = 10;
         _tabContent.style.marginBottom = 10;
         _tabContent.style.minHeight = 80;
@@ -233,31 +231,50 @@ public class JSPadEditor : Editor {
     void BuildTabs() {
         _tabContainer.Clear();
 
+        var borderColor = new Color(0.14f, 0.14f, 0.14f);
+
         for (int i = 0; i < _tabNames.Length; i++) {
             var tabIndex = i;
             var tab = new Button(() => SelectTab(tabIndex)) { text = _tabNames[i] };
             tab.style.flexGrow = 1;
             tab.style.height = 24;
-            tab.style.marginRight = i < _tabNames.Length - 1 ? 2 : 0;
+            tab.style.marginTop = tab.style.marginBottom = tab.style.marginLeft = tab.style.marginRight = 0;
+            tab.focusable = false;
 
-            // Hover effect
-            var defaultBgColor = _selectedTab == i ? new Color(0.3f, 0.3f, 0.3f) : new Color(0.22f, 0.22f, 0.22f);
-            tab.style.backgroundColor = defaultBgColor;
+            // Border: top always, left for all (acts as divider), right only for last
+            tab.style.borderTopWidth = 1;
+            tab.style.borderTopColor = borderColor;
+            tab.style.borderLeftWidth = 1; // All have left border (acts as divider for non-first)
+            tab.style.borderLeftColor = borderColor;
+            tab.style.borderRightWidth = i == _tabNames.Length - 1 ? 1 : 0;
+            tab.style.borderRightColor = borderColor;
 
+            // Only outer corners rounded
+            tab.style.borderTopLeftRadius = i == 0 ? 3 : 0;
+            tab.style.borderTopRightRadius = i == _tabNames.Length - 1 ? 3 : 0;
+            tab.style.borderBottomLeftRadius = 0;
+            tab.style.borderBottomRightRadius = 0;
+
+            // Active tab: no bottom border (merges with content)
+            // Inactive tab: has bottom border
+            bool isActive = _selectedTab == i;
+            tab.style.borderBottomWidth = isActive ? 0 : 1;
+            tab.style.borderBottomColor = borderColor;
+
+            tab.style.backgroundColor = isActive
+                ? new Color(0.22f, 0.22f, 0.22f)  // Match content bg
+                : new Color(0.2f, 0.2f, 0.2f);
+
+            // Hover effect (just bg color, no outlines)
             tab.RegisterCallback<MouseEnterEvent>(evt => {
                 if (_selectedTab != tabIndex)
-                    tab.style.backgroundColor = new Color(0.28f, 0.28f, 0.28f);
+                    tab.style.backgroundColor = new Color(0.26f, 0.26f, 0.26f);
             });
             tab.RegisterCallback<MouseLeaveEvent>(evt => {
                 tab.style.backgroundColor = _selectedTab == tabIndex
-                    ? new Color(0.3f, 0.3f, 0.3f)
-                    : new Color(0.22f, 0.22f, 0.22f);
+                    ? new Color(0.22f, 0.22f, 0.22f)
+                    : new Color(0.2f, 0.2f, 0.2f);
             });
-
-            if (_selectedTab == i) {
-                tab.style.borderBottomWidth = 2;
-                tab.style.borderBottomColor = new Color(0.4f, 0.6f, 1f);
-            }
 
             _tabContainer.Add(tab);
         }
