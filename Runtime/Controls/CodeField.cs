@@ -327,6 +327,8 @@ namespace OneJS
 
         /// <summary>
         /// When true, automatically adjusts height based on content line count.
+        /// Also affects scroll behavior: AutoHeight on passes vertical scroll to parent,
+        /// AutoHeight off enables internal vertical scrolling with scroll chaining.
         /// Default is false.
         /// </summary>
         public bool AutoHeight
@@ -335,6 +337,11 @@ namespace OneJS
             set
             {
                 _autoHeight = value;
+                if (_scrollView != null)
+                {
+                    _scrollView.mode = value ? ScrollViewMode.Horizontal : ScrollViewMode.VerticalAndHorizontal;
+                    _scrollView.verticalScrollerVisibility = value ? ScrollerVisibility.Hidden : ScrollerVisibility.Auto;
+                }
                 if (_autoHeight) UpdateAutoHeight();
             }
         }
@@ -437,7 +444,9 @@ namespace OneJS
         }
 
         /// <summary>
-        /// Configures the internal ScrollView for horizontal scrolling.
+        /// Configures the internal ScrollView for scrolling.
+        /// When AutoHeight is on, only horizontal scrolling (content expands vertically).
+        /// When AutoHeight is off, both horizontal and vertical scrolling.
         /// </summary>
         private void ConfigureScrolling()
         {
@@ -445,9 +454,11 @@ namespace OneJS
             _scrollView = this.Q<ScrollView>();
             if (_scrollView != null)
             {
-                _scrollView.mode = ScrollViewMode.Horizontal;
+                // When AutoHeight is off, allow both horizontal and vertical scrolling
+                // When AutoHeight is on, only horizontal (content expands vertically)
+                _scrollView.mode = _autoHeight ? ScrollViewMode.Horizontal : ScrollViewMode.VerticalAndHorizontal;
                 _scrollView.horizontalScrollerVisibility = ScrollerVisibility.Auto;
-                _scrollView.verticalScrollerVisibility = ScrollerVisibility.Hidden;
+                _scrollView.verticalScrollerVisibility = _autoHeight ? ScrollerVisibility.Hidden : ScrollerVisibility.Auto;
                 _scrollView.elasticity = 0; // Disable elastic scrolling for code
             }
 
@@ -471,33 +482,54 @@ namespace OneJS
 
         private void OnWheel(WheelEvent evt)
         {
-            // Find the scrollable container
+            bool isVerticalScroll = Math.Abs(evt.delta.y) > Math.Abs(evt.delta.x);
+
+            // AutoHeight mode: pass through vertical scroll immediately to parent
+            if (_autoHeight && isVerticalScroll)
+            {
+                return; // Let parent handle it
+            }
+
+            // Fixed height mode: handle vertical scroll with scroll chaining
+            if (!_autoHeight && isVerticalScroll && _scrollView != null)
+            {
+                float scrollPos = _scrollView.scrollOffset.y;
+                float maxScroll = _scrollView.contentContainer.resolvedStyle.height - _scrollView.contentViewport.resolvedStyle.height;
+                maxScroll = Math.Max(0, maxScroll);
+
+                bool atTop = scrollPos <= 0 && evt.delta.y < 0;
+                bool atBottom = scrollPos >= maxScroll && evt.delta.y > 0;
+
+                if (atTop || atBottom)
+                {
+                    return; // At bounds, let parent scroll
+                }
+
+                // Let ScrollView handle it naturally, but stop propagation
+                evt.StopPropagation();
+                return;
+            }
+
+            // Horizontal scrolling logic
             var textInput = this.Q(className: "unity-text-field__input");
             if (textInput == null) return;
 
-            // Get the content container (TextElement's parent)
             var contentContainer = _textElement?.parent;
             if (contentContainer == null) return;
 
-            // Calculate new scroll position
-            // Use horizontal delta directly, or vertical delta for horizontal scroll if shift is held
+            // Only use actual horizontal delta (no vertical-to-horizontal conversion)
             float deltaX = evt.delta.x;
-            if (Math.Abs(evt.delta.y) > Math.Abs(evt.delta.x))
-            {
-                // Vertical scroll gesture - convert to horizontal
-                deltaX = evt.delta.y;
-            }
+            if (Math.Abs(deltaX) < 0.01f) return; // No horizontal scroll, let event propagate
 
             // Apply scroll by adjusting the content's left position
             var currentLeft = contentContainer.style.left.value.value;
             var newLeft = currentLeft - deltaX * 20f; // Multiply for reasonable scroll speed
 
             // Clamp to valid range
-            var maxScroll = Math.Max(0, contentContainer.resolvedStyle.width - textInput.resolvedStyle.width);
-            newLeft = Math.Max(-maxScroll, Math.Min(0, newLeft));
+            var maxScrollX = Math.Max(0, contentContainer.resolvedStyle.width - textInput.resolvedStyle.width);
+            newLeft = Math.Max(-maxScrollX, Math.Min(0, newLeft));
 
             contentContainer.style.left = newLeft;
-
             evt.StopPropagation();
         }
 
