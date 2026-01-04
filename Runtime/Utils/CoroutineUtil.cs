@@ -4,23 +4,28 @@ using System.Collections;
 
 namespace OneJS.Utils {
     public class CoroutineUtil : MonoBehaviour {
-        public static CoroutineUtil Instance => instance;
+        public static CoroutineUtil Instance {
+            get {
+                if (instance == null) {
+                    var go = new GameObject("CoroutineUtil");
+                    DontDestroyOnLoad(go);
+                    instance = go.AddComponent<CoroutineUtil>();
+                }
+                return instance;
+            }
+        }
         static CoroutineUtil instance;
 
-        void Awake() {
-            instance = this;
-        }
-
         public static void Start(IEnumerator routine) {
-            instance.StartCoroutine(routine);
+            Instance.StartCoroutine(routine);
         }
 
         public static void Stop(IEnumerator routine) {
-            instance.StopCoroutine(routine);
+            Instance.StopCoroutine(routine);
         }
 
         public static void StopAll() {
-            instance.StopAllCoroutines();
+            Instance.StopAllCoroutines();
         }
 
         /**
@@ -34,7 +39,7 @@ namespace OneJS.Utils {
         */
         public static IEnumerator Chain(params IEnumerator[] actions) {
             foreach (IEnumerator action in actions) { // <- this foreach may be source of mem leaks
-                yield return instance.StartCoroutine(action);
+                yield return Instance.StartCoroutine(action);
             }
         }
 
