@@ -16,6 +16,7 @@
   "devDependencies": {
     "@types/react": "^19.0.0",
     "esbuild": "^0.24.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "unity-types": "^6000.3.0"
   }
 }

@@ -22,8 +22,9 @@
     "baseUrl": ".",
     "paths": {
       "onejs-react": ["./node_modules/onejs-react/src"]
-    }
+    },
+    "types": ["unity-types"]
   },
-  "include": ["**/*", "global.d.ts", "types/**/*.d.ts"],
+  "include": ["**/*", "types/**/*.d.ts"],
   "exclude": ["node_modules", "@outputs"]
 }

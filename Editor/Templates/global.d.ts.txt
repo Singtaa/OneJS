@@ -1,62 +1,30 @@
-// OneJS globals provided by QuickJSBootstrap.js
+// OneJS runtime globals (provided by QuickJSBootstrap.js)
+// Note: CS.* types are provided by unity-types package
 
-declare const CS: {
-  UnityEngine: {
-    Debug: {
-      Log: (message: string) => void;
-    };
-    UIElements: {
-      VisualElement: new () => CSObject;
-      Label: new () => CSObject;
-      Button: new () => CSObject;
-      TextField: new () => CSObject;
-      Toggle: new () => CSObject;
-      Slider: new () => CSObject;
-      ScrollView: new () => CSObject;
-      Image: new () => CSObject;
-    };
-  };
-};
+// Root UI element
+declare const __root: CS.UnityEngine.UIElements.VisualElement;
 
-declare const __root: CSObject;
-
+// Event API for UI Toolkit elements
 declare const __eventAPI: {
-  addEventListener: (element: CSObject, eventType: string, callback: Function) => void;
-  removeEventListener: (element: CSObject, eventType: string, callback: Function) => void;
-  removeAllEventListeners: (element: CSObject) => void;
+    addEventListener: (element: CS.UnityEngine.UIElements.VisualElement, eventType: string, callback: Function) => void;
+    removeEventListener: (element: CS.UnityEngine.UIElements.VisualElement, eventType: string, callback: Function) => void;
+    removeAllEventListeners: (element: CS.UnityEngine.UIElements.VisualElement) => void;
 };
 
+// C# object helpers
 declare const __csHelpers: {
-  newObject: (typeName: string, ...args: unknown[]) => CSObject;
-  callMethod: (obj: CSObject, methodName: string, ...args: unknown[]) => unknown;
-  callStatic: (typeName: string, methodName: string, ...args: unknown[]) => unknown;
-  wrapObject: (typeName: string, handle: number) => CSObject;
-  releaseObject: (obj: CSObject) => void;
+    newObject: (typeName: string, ...args: unknown[]) => unknown;
+    callMethod: (obj: unknown, methodName: string, ...args: unknown[]) => unknown;
+    callStatic: (typeName: string, methodName: string, ...args: unknown[]) => unknown;
+    wrapObject: (typeName: string, handle: number) => unknown;
+    releaseObject: (obj: unknown) => void;
 };
-
-interface CSObject {
-  __csHandle: number;
-  __csType: string;
-  Add: (child: CSObject) => void;
-  Insert: (index: number, child: CSObject) => void;
-  Remove: (child: CSObject) => void;
-  RemoveAt: (index: number) => void;
-  IndexOf: (child: CSObject) => number;
-  Clear: () => void;
-  style: Record<string, unknown>;
-  text?: string;
-  value?: unknown;
-  label?: string;
-  AddToClassList: (className: string) => void;
-  RemoveFromClassList: (className: string) => void;
-  ClearClassList: () => void;
-}
 
 // Console (provided by QuickJS)
 declare const console: {
-  log: (...args: unknown[]) => void;
-  error: (...args: unknown[]) => void;
-  warn: (...args: unknown[]) => void;
+    log: (...args: unknown[]) => void;
+    error: (...args: unknown[]) => void;
+    warn: (...args: unknown[]) => void;
 };
 
 // Timers (provided by QuickJSBootstrap.js)
@@ -69,7 +37,7 @@ declare function cancelAnimationFrame(id: number): void;
 declare function queueMicrotask(callback: () => void): void;
 
 declare const performance: {
-  now: () => number;
+    now: () => number;
 };
 
 // StyleSheet API

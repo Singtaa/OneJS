@@ -100,7 +100,7 @@ public class JSRunnerEditor : Editor {
         container.style.marginTop = 8;
         container.style.marginBottom = 0;
 
-        string[] tabNames = { "Project", "Inject", "UI", "Cartridges", "Build" };
+        string[] tabNames = { "Project", "UI", "Cartridges", "Build" };
         _tabButtons = new Button[tabNames.Length];
 
         for (int i = 0; i < tabNames.Length; i++) {
@@ -157,10 +157,9 @@ public class JSRunnerEditor : Editor {
 
         switch (index) {
             case 0: BuildProjectTab(_tabContent); break;
-            case 1: BuildInjectTab(_tabContent); break;
-            case 2: BuildUITab(_tabContent); break;
-            case 3: BuildCartridgesTab(_tabContent); break;
-            case 4: BuildBuildTab(_tabContent); break;
+            case 1: BuildUITab(_tabContent); break;
+            case 2: BuildCartridgesTab(_tabContent); break;
+            case 3: BuildBuildTab(_tabContent); break;
         }
 
         // Bind the serializedObject to ensure PropertyFields show data
@@ -208,6 +207,16 @@ public class JSRunnerEditor : Editor {
         pollIntervalContainer.style.display = liveReloadProp.boolValue ? DisplayStyle.Flex : DisplayStyle.None;
         liveReloadField.RegisterValueChangeCallback(_ =>
             pollIntervalContainer.style.display = liveReloadProp.boolValue ? DisplayStyle.Flex : DisplayStyle.None);
+
+        AddSpacer(container);
+
+        var preloadsField = new PropertyField(serializedObject.FindProperty("_preloads"), "Preloads");
+        preloadsField.tooltip = "TextAssets eval'd before entry file (e.g., polyfills)";
+        container.Add(preloadsField);
+
+        var globalsField = new PropertyField(serializedObject.FindProperty("_globals"), "Globals");
+        globalsField.tooltip = "Key-value pairs injected as globalThis[key]";
+        container.Add(globalsField);
     }
 
     void BuildUITab(VisualElement container) {
@@ -435,18 +444,6 @@ public class JSRunnerEditor : Editor {
         bulkRow.Add(deleteAllBtn);
 
         container.Add(bulkRow);
-    }
-
-    void BuildInjectTab(VisualElement container) {
-        var preloadsField = new PropertyField(serializedObject.FindProperty("_preloads"), "Preloads");
-        preloadsField.tooltip = "TextAssets eval'd before entry file (e.g., polyfills)";
-        container.Add(preloadsField);
-
-        AddSpacer(container);
-
-        var globalsField = new PropertyField(serializedObject.FindProperty("_globals"), "Globals");
-        globalsField.tooltip = "Key-value pairs injected as globalThis[key]";
-        container.Add(globalsField);
     }
 
     // MARK: Section Helpers
