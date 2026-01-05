@@ -9,6 +9,7 @@ using UnityEngine.UIElements;
 using Debug = UnityEngine.Debug;
 
 [CustomEditor(typeof(JSPad))]
+[InitializeOnLoad]
 public class JSPadEditor : Editor {
     JSPad _target;
     Process _currentProcess;
@@ -33,6 +34,130 @@ public class JSPadEditor : Editor {
     VisualElement _stylesheetListContainer;
     VisualElement _cartridgeListContainer;
 
+    // Static initialization to handle play mode changes for ALL JSPad instances
+    static JSPadEditor() {
+        EditorApplication.playModeStateChanged += OnPlayModeStateChangedStatic;
+    }
+
+    static void OnPlayModeStateChangedStatic(PlayModeStateChange state) {
+        if (state == PlayModeStateChange.ExitingEditMode) {
+            // Build all JSPad instances before entering play mode
+            BuildAllJSPadsSync();
+        }
+    }
+
+    static void BuildAllJSPadsSync() {
+        var jsPads = UnityEngine.Object.FindObjectsByType<JSPad>(FindObjectsSortMode.None);
+        foreach (var jsPad in jsPads) {
+            if (jsPad == null || !jsPad.gameObject.activeInHierarchy) continue;
+            BuildJSPadSync(jsPad);
+        }
+    }
+
+    static void BuildJSPadSync(JSPad jsPad) {
+        jsPad.EnsureTempDirectory();
+        jsPad.WriteSourceFile();
+        jsPad.ExtractCartridges();
+
+        var npmPath = GetNpmCommandStatic();
+        var nodeBinDir = Path.GetDirectoryName(npmPath);
+
+        // Install dependencies if needed (synchronous)
+        if (!jsPad.HasNodeModules()) {
+            var installInfo = new ProcessStartInfo {
+                FileName = npmPath,
+                Arguments = "install",
+                WorkingDirectory = jsPad.TempDir,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+            installInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
+
+            using (var installProcess = Process.Start(installInfo)) {
+                installProcess.WaitForExit();
+                if (installProcess.ExitCode != 0) {
+                    Debug.LogError($"[JSPad] npm install failed for {jsPad.name}");
+                    return;
+                }
+            }
+        }
+
+        // Build (synchronous)
+        var buildInfo = new ProcessStartInfo {
+            FileName = npmPath,
+            Arguments = "run build",
+            WorkingDirectory = jsPad.TempDir,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        var path = Environment.GetEnvironmentVariable("PATH") ?? "";
+        buildInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + path;
+
+        using (var buildProcess = Process.Start(buildInfo)) {
+            buildProcess.WaitForExit();
+            if (buildProcess.ExitCode == 0) {
+                jsPad.SetBuildState(JSPad.BuildState.Ready, output: "Build successful");
+                jsPad.SaveBundleToSerializedFields();
+            } else {
+                var error = buildProcess.StandardError.ReadToEnd();
+                jsPad.SetBuildState(JSPad.BuildState.Error, error: error);
+                Debug.LogError($"[JSPad] Build failed for {jsPad.name}: {error}");
+            }
+        }
+    }
+
+    static string _cachedNpmPathStatic;
+
+    static string GetNpmCommandStatic() {
+        if (!string.IsNullOrEmpty(_cachedNpmPathStatic)) return _cachedNpmPathStatic;
+
+#if UNITY_EDITOR_WIN
+        _cachedNpmPathStatic = "npm.cmd";
+        return _cachedNpmPathStatic;
+#else
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+        string[] fixedPaths = {
+            "/usr/local/bin/npm",
+            "/opt/homebrew/bin/npm",
+            "/usr/bin/npm",
+        };
+
+        foreach (var p in fixedPaths) {
+            if (File.Exists(p)) {
+                _cachedNpmPathStatic = p;
+                return _cachedNpmPathStatic;
+            }
+        }
+
+        var nvmDir = Path.Combine(home, ".nvm/versions/node");
+        if (Directory.Exists(nvmDir)) {
+            try {
+                foreach (var nodeVersionDir in Directory.GetDirectories(nvmDir)) {
+                    var npmPath = Path.Combine(nodeVersionDir, "bin", "npm");
+                    if (File.Exists(npmPath)) {
+                        _cachedNpmPathStatic = npmPath;
+                        return _cachedNpmPathStatic;
+                    }
+                }
+            } catch { }
+        }
+
+        var nDir = Path.Combine(home, "n/bin/npm");
+        if (File.Exists(nDir)) {
+            _cachedNpmPathStatic = nDir;
+            return _cachedNpmPathStatic;
+        }
+
+        return "npm";
+#endif
+    }
+
     void OnEnable() {
         _target = (JSPad)target;
         _sourceCode = serializedObject.FindProperty("_sourceCode");
@@ -56,15 +181,26 @@ public class JSPadEditor : Editor {
         if (state == PlayModeStateChange.EnteredEditMode) {
             // Delay restoration to ensure editor is fully initialized
             EditorApplication.delayCall += RestoreSourceCodeFromPrefs;
+        } else if (state == PlayModeStateChange.ExitingEditMode) {
+            // Build BEFORE entering play mode so serialized fields persist
+            BuildBeforePlayMode();
         } else if (state == PlayModeStateChange.EnteredPlayMode) {
-            // Auto build and run when entering play mode
-            EditorApplication.delayCall += AutoBuildAndRun;
+            // Just run the already-built script
+            EditorApplication.delayCall += RunBuiltScript;
         }
     }
 
-    void AutoBuildAndRun() {
+    void BuildBeforePlayMode() {
         if (_target == null || !_target.gameObject.activeInHierarchy) return;
-        Build(runAfter: true);
+        // Synchronous build to ensure it completes before play mode starts
+        BuildSync();
+    }
+
+    void RunBuiltScript() {
+        if (_target == null || !_target.gameObject.activeInHierarchy) return;
+        if (_target.HasBuiltOutput) {
+            _target.RunBuiltScript();
+        }
     }
 
     void RestoreSourceCodeFromPrefs() {
@@ -665,6 +801,69 @@ public class JSPadEditor : Editor {
         }
     }
 
+    /// <summary>
+    /// Synchronous build for use before entering play mode.
+    /// This ensures the bundle is saved before Unity freezes serialization.
+    /// </summary>
+    void BuildSync() {
+        if (_isProcessing) return;
+
+        _target.EnsureTempDirectory();
+        _target.WriteSourceFile();
+        _target.ExtractCartridges();
+
+        var npmPath = GetNpmCommand();
+        var nodeBinDir = Path.GetDirectoryName(npmPath);
+
+        // Install dependencies if needed (synchronous)
+        if (!_target.HasNodeModules()) {
+            var installInfo = new ProcessStartInfo {
+                FileName = npmPath,
+                Arguments = "install",
+                WorkingDirectory = _target.TempDir,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+            installInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
+
+            using (var installProcess = Process.Start(installInfo)) {
+                installProcess.WaitForExit();
+                if (installProcess.ExitCode != 0) {
+                    Debug.LogError("[JSPad] npm install failed");
+                    return;
+                }
+            }
+        }
+
+        // Build (synchronous)
+        var buildInfo = new ProcessStartInfo {
+            FileName = npmPath,
+            Arguments = "run build",
+            WorkingDirectory = _target.TempDir,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        var path = Environment.GetEnvironmentVariable("PATH") ?? "";
+        buildInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + path;
+
+        using (var buildProcess = Process.Start(buildInfo)) {
+            buildProcess.WaitForExit();
+            if (buildProcess.ExitCode == 0) {
+                _target.SetBuildState(JSPad.BuildState.Ready, output: "Build successful");
+                _target.SaveBundleToSerializedFields();
+            } else {
+                var error = buildProcess.StandardError.ReadToEnd();
+                _target.SetBuildState(JSPad.BuildState.Error, error: error);
+                Debug.LogError($"[JSPad] Build failed: {error}");
+            }
+        }
+    }
+
     void RunNpmInstall(Action onComplete) {
         _isProcessing = true;
         _statusMessage = "Installing dependencies...";
@@ -766,6 +965,8 @@ public class JSPadEditor : Editor {
 
                     if (exitCode == 0) {
                         _target.SetBuildState(JSPad.BuildState.Ready, output: "Build successful");
+                        // Save bundle to serialized fields for standalone builds
+                        _target.SaveBundleToSerializedFields();
                         if (runAfter && Application.isPlaying) {
                             _target.RunBuiltScript();
                         }

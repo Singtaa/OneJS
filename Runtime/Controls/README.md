@@ -61,8 +61,18 @@ CodeField handles Tab key specially for code editing:
 | Shift+Tab | Remove leading whitespace (tab or up to `IndentSize` spaces) |
 | Shift+Tab (with selection) | Dedent all selected lines |
 | Backspace (in leading whitespace) | Delete back to previous indent level (spaces mode only) |
+| Cmd+/ (Mac) / Ctrl+/ (Windows) | Toggle line comments (`//`) for current line or selection |
 
 Note: Cmd+Backspace, Ctrl+Backspace, and Alt+Backspace retain their default behavior.
+
+### Comment Toggle
+
+The Cmd+/ (Mac) or Ctrl+/ (Windows/Linux) shortcut toggles `//` line comments:
+
+- **Single line**: Toggles comment on the current line
+- **Multi-line selection**: Toggles comments on all selected lines
+- **Smart toggle**: If any selected line is uncommented, adds comments to all; if all are commented, removes comments from all
+- Preserves indentation when adding/removing comments
 
 ### Auto-Height
 

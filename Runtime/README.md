@@ -154,6 +154,22 @@ First build installs dependencies (~10s), subsequent builds are fast.
 - **Open Temp Folder** - Reveal build directory
 - **Clean** - Delete temp directory and node_modules
 
+### Standalone Build Support
+
+JSPad works in standalone builds without requiring npm/node at runtime:
+
+1. **Automatic Bundle Serialization**: When entering Play mode, the built JS bundle and source map are automatically saved to serialized fields on the JSPad component
+2. **Scene Auto-Save**: The scene is automatically saved to persist the bundle for builds
+3. **Runtime Loading**: In standalone, JSPad loads from the serialized bundle instead of the temp file
+
+**How it works**:
+- `[InitializeOnLoad]` static handler builds all JSPad instances before entering Play mode
+- Bundle is stored in `_builtBundle` serialized field (hidden in inspector)
+- Source map stored in `_builtSourceMap` for error translation
+- Scene is saved immediately after bundle serialization
+
+**Error Messages**: Stack traces in standalone builds are translated using the embedded source map, showing original TypeScript line numbers instead of bundled JS locations.
+
 ### Temp Directory Structure
 ```
 Temp/OneJSPad/{instanceId}/

@@ -87,6 +87,10 @@ render(<App />, __root)
     [Tooltip("USS StyleSheets to apply. Applied in order after script runs.")]
     [SerializeField] List<StyleSheet> _stylesheets = new List<StyleSheet>();
 
+    // Serialized build output for standalone players (no npm/node available)
+    [SerializeField, HideInInspector] string _builtBundle;
+    [SerializeField, HideInInspector] string _builtSourceMap;
+
     QuickJSUIBridge _bridge;
     UIDocument _uiDocument;
     PanelSettings _runtimePanelSettings; // Track runtime-created PanelSettings for cleanup
@@ -129,7 +133,61 @@ render(<App />, __root)
 
     public string OutputFile => Path.Combine(TempDir, "@outputs", "app.js");
     public string SourceMapFile => OutputFile + ".map";
-    public bool HasBuiltOutput => File.Exists(OutputFile);
+
+    /// <summary>
+    /// Returns true if there's a built bundle available (either from file or serialized).
+    /// </summary>
+    public bool HasBuiltOutput {
+        get {
+#if UNITY_EDITOR
+            return File.Exists(OutputFile);
+#else
+            return !string.IsNullOrEmpty(_builtBundle);
+#endif
+        }
+    }
+
+    /// <summary>
+    /// The serialized bundle string (for standalone builds).
+    /// </summary>
+    public string BuiltBundle => _builtBundle;
+
+    /// <summary>
+    /// The serialized source map string (for standalone builds).
+    /// </summary>
+    public string BuiltSourceMap => _builtSourceMap;
+
+    /// <summary>
+    /// Saves the current build output to serialized fields for standalone use.
+    /// Call this from the editor after a successful build.
+    /// </summary>
+    public void SaveBundleToSerializedFields() {
+#if UNITY_EDITOR
+        if (File.Exists(OutputFile)) {
+            _builtBundle = File.ReadAllText(OutputFile);
+        }
+        if (File.Exists(SourceMapFile)) {
+            _builtSourceMap = File.ReadAllText(SourceMapFile);
+        }
+        UnityEditor.EditorUtility.SetDirty(this);
+
+        // Save the scene immediately so the bundle persists for standalone builds
+        if (!Application.isPlaying && gameObject.scene.IsValid()) {
+            UnityEditor.SceneManagement.EditorSceneManager.SaveScene(gameObject.scene);
+        }
+#endif
+    }
+
+    /// <summary>
+    /// Clears the serialized bundle fields.
+    /// </summary>
+    public void ClearSerializedBundle() {
+        _builtBundle = null;
+        _builtSourceMap = null;
+#if UNITY_EDITOR
+        UnityEditor.EditorUtility.SetDirty(this);
+#endif
+    }
 
     // Cartridge API
     public IReadOnlyList<UICartridge> Cartridges => _cartridges;
@@ -179,6 +237,11 @@ render(<App />, __root)
             Debug.LogError("[JSPad] UIDocument rootVisualElement is null after setup");
             return;
         }
+
+        // Auto-run if we have built output
+        if (HasBuiltOutput) {
+            RunBuiltScript();
+        }
     }
 
     System.Collections.IEnumerator DeferredStart() {
@@ -188,6 +251,11 @@ render(<App />, __root)
         if (_uiDocument == null || _uiDocument.rootVisualElement == null) {
             Debug.LogError("[JSPad] UIDocument rootVisualElement is null after deferred setup");
             yield break;
+        }
+
+        // Auto-run if we have built output
+        if (HasBuiltOutput) {
+            RunBuiltScript();
         }
     }
 
@@ -291,7 +359,12 @@ render(<App />, __root)
             Stop();
 
             // Initialize bridge
+#if UNITY_EDITOR
             _bridge = new QuickJSUIBridge(_uiDocument.rootVisualElement, TempDir);
+#else
+            // In standalone, use persistent data path (bundle is self-contained, no file access needed)
+            _bridge = new QuickJSUIBridge(_uiDocument.rootVisualElement, Application.persistentDataPath);
+#endif
             InjectPlatformDefines();
 
             // Expose root element
@@ -309,7 +382,11 @@ render(<App />, __root)
             ApplyStylesheets();
 
             // Load and run script
+#if UNITY_EDITOR
             var code = File.ReadAllText(OutputFile);
+#else
+            var code = _builtBundle;
+#endif
             _bridge.Eval(code, "app.js");
             _bridge.Context.ExecutePendingJobs();
             _scriptLoaded = true;
@@ -323,7 +400,11 @@ render(<App />, __root)
     string TranslateErrorMessage(string message) {
         if (string.IsNullOrEmpty(message)) return message;
 
+#if UNITY_EDITOR
         var parser = SourceMapParser.Load(SourceMapFile);
+#else
+        var parser = !string.IsNullOrEmpty(_builtSourceMap) ? SourceMapParser.Parse(_builtSourceMap) : null;
+#endif
         if (parser == null) return message;
 
         return parser.TranslateStackTrace(message);

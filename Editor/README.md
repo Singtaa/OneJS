@@ -49,6 +49,18 @@ Custom inspector for the inline TSX runner:
 4. Runs `npm run build` (esbuild)
 5. Executes built `@outputs/app.js` if in Play mode
 
+### Static Initialization (`[InitializeOnLoad]`)
+
+JSPadEditor uses `[InitializeOnLoad]` with a static constructor to register a global `playModeStateChanged` callback. This ensures all JSPad instances are built before entering Play mode, regardless of which object is selected in the hierarchy.
+
+**Flow**:
+1. Static constructor registers `OnPlayModeStateChangedStatic`
+2. On `ExitingEditMode`, `BuildAllJSPadsSync()` finds all JSPad components
+3. Each JSPad is built synchronously (npm install if needed, then esbuild)
+4. Bundle and source map are saved to serialized fields
+5. Scene is saved to persist data for standalone builds
+6. On `EnteredPlayMode`, JSPad.Start() runs the serialized bundle
+
 ## JSRunnerBuildProcessor
 
 Implements `IPreprocessBuildWithReport` to auto-copy JS bundles before build:
