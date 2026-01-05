@@ -42,24 +42,30 @@ public class DefaultFileEntry {
 }
 
 /// <summary>
-/// MonoBehaviour that runs JavaScript from a file path under the project root.
+/// MonoBehaviour that runs JavaScript from an auto-managed working directory.
 /// Automatically creates UIDocument and PanelSettings if not present.
 ///
 /// Features:
+/// - Zero-config: Working directory is auto-created next to the scene file
 /// - Auto-scaffolding: Creates project structure on first run
 /// - Live Reload: Polls entry file for changes and hot-reloads
 /// - Hard Reload: Disposes context and recreates fresh on file change
 /// - Zero-config UI: Auto-creates UIDocument and PanelSettings at runtime
 ///
+/// Directory structure (for scene "Level1.unity" with JSRunner on "MainUI"):
+///   Assets/Scenes/Level1_JSRunner/MainUI_abc123/MainUI~/  (working dir, ignored by Unity)
+///   Assets/Scenes/Level1_JSRunner/MainUI_abc123/app.js.txt (bundle TextAsset)
+///
 /// Platform behavior:
 /// - Editor: Loads JS from filesystem with live reload support
-/// - Builds (Standalone/WebGL/Mobile): Loads from StreamingAssets or embedded TextAsset
+/// - Builds: Loads from embedded TextAsset (auto-generated during build)
 /// </summary>
 public class JSRunner : MonoBehaviour {
     const string DefaultEntryContent = "console.log(\"OneJS is good to go!\");\n";
+    const string DefaultEntryFile = "@outputs/app.js";
 
-    [SerializeField] string _workingDir = "App";
-    [SerializeField] string _entryFile = "@outputs/esbuild/app.js";
+    // Instance identification (generated once, persisted)
+    [SerializeField, HideInInspector] string _instanceId;
 
     [Tooltip("Optional: Drag in a custom PanelSettings asset. If null, settings below are used to create one at runtime.")]
     [SerializeField] PanelSettings _panelSettings;
@@ -77,17 +83,17 @@ public class JSRunner : MonoBehaviour {
     [SerializeField] int _fallbackDpi = 96;
     [SerializeField] int _sortOrder = 0;
 
-    [Tooltip("Automatically reload when the entry file changes (Editor/Standalone only)")]
+    [Tooltip("Automatically reload when the entry file changes (Editor only)")]
     [SerializeField] bool _liveReload = true;
     [Tooltip("How often to check for file changes (in seconds)")]
     [SerializeField] float _pollInterval = 0.5f;
 
-    [Tooltip("TextAsset containing the bundled JS. If set, used instead of StreamingAssets in builds.")]
-    [SerializeField] TextAsset _embeddedScript;
-    [Tooltip("Path relative to StreamingAssets for the JS bundle in builds (auto-copied during build).")]
-#pragma warning disable CS0414 // Field is used in builds, not Editor
-    [SerializeField] string _streamingAssetsPath = "onejs/app.js";
-#pragma warning restore CS0414
+    [Tooltip("Include source map in build for better error messages")]
+    [SerializeField] bool _includeSourceMap = true;
+
+    // Auto-generated TextAssets (created during build)
+    [SerializeField, HideInInspector] TextAsset _bundleAsset;
+    [SerializeField, HideInInspector] TextAsset _sourceMapAsset;
 
     [Tooltip("Default files to create in WorkingDir if missing. Path is relative to WorkingDir.")]
     [PairDrawer("←")]
@@ -121,35 +127,34 @@ public class JSRunner : MonoBehaviour {
     float _nextPollTime;
     int _reloadCount;
 
-#if UNITY_WEBGL && !UNITY_EDITOR
-    // WebGL fetch state machine for safe async loading
-    enum WebGLFetchState {
-        NotStarted,
-        Fetching,
-        Ready,      // Script fetched, waiting to execute
-        Executed,
-        Error
-    }
-    WebGLFetchState _fetchState = WebGLFetchState.NotStarted;
-#endif
-
     // Public API
-    public string WorkingDir {
-        get => _workingDir;
-        set => _workingDir = value;
-    }
-
-    public string EntryFile {
-        get => _entryFile;
-        set => _entryFile = value;
-    }
-
     public QuickJSUIBridge Bridge => _bridge;
     public bool IsRunning => _scriptLoaded && _bridge != null;
     public bool IsLiveReloadEnabled => _liveReload;
     public int ReloadCount => _reloadCount;
     public DateTime LastModifiedTime => _lastModifiedTime;
+    public bool IncludeSourceMap => _includeSourceMap;
+    public TextAsset BundleAsset => _bundleAsset;
+    public TextAsset SourceMapAsset => _sourceMapAsset;
 
+    /// <summary>
+    /// Unique instance ID for this JSRunner (generated once, persisted).
+    /// </summary>
+    public string InstanceId {
+        get {
+            if (string.IsNullOrEmpty(_instanceId)) {
+                _instanceId = Guid.NewGuid().ToString("N").Substring(0, 8);
+#if UNITY_EDITOR
+                UnityEditor.EditorUtility.SetDirty(this);
+#endif
+            }
+            return _instanceId;
+        }
+    }
+
+    /// <summary>
+    /// Project root path (Assets folder parent in Editor, dataPath in builds).
+    /// </summary>
     public string ProjectRoot {
         get {
 #if UNITY_EDITOR
@@ -160,23 +165,139 @@ public class JSRunner : MonoBehaviour {
         }
     }
 
-    public string WorkingDirFullPath => Path.Combine(ProjectRoot, _workingDir);
-    public string EntryFileFullPath => Path.Combine(WorkingDirFullPath, _entryFile);
-    public string SourceMapFilePath => EntryFileFullPath + ".map";
+#if UNITY_EDITOR
+    /// <summary>
+    /// Scene folder path: {SceneDirectory}/{SceneName}_JSRunner/
+    /// Returns null if scene is not saved.
+    /// </summary>
+    public string SceneFolder {
+        get {
+            var scenePath = gameObject.scene.path;
+            if (string.IsNullOrEmpty(scenePath)) return null;
+
+            var sceneDir = Path.GetDirectoryName(scenePath);
+            var sceneName = Path.GetFileNameWithoutExtension(scenePath);
+            return Path.Combine(sceneDir, $"{sceneName}_JSRunner");
+        }
+    }
+
+    /// <summary>
+    /// Instance folder path: {SceneFolder}/{GameObjectName}_{InstanceId}/
+    /// </summary>
+    public string InstanceFolder {
+        get {
+            var sceneFolder = SceneFolder;
+            if (string.IsNullOrEmpty(sceneFolder)) return null;
+            return Path.Combine(sceneFolder, $"{gameObject.name}_{InstanceId}");
+        }
+    }
+
+    /// <summary>
+    /// Working directory path (ignored by Unity due to ~ suffix):
+    /// {InstanceFolder}/{GameObjectName}~/
+    /// </summary>
+    public string WorkingDirFullPath {
+        get {
+            var instanceFolder = InstanceFolder;
+            if (string.IsNullOrEmpty(instanceFolder)) return null;
+            return Path.Combine(instanceFolder, $"{gameObject.name}~");
+        }
+    }
+
+    /// <summary>
+    /// Full path to the entry JS file: {WorkingDir}/@outputs/app.js
+    /// </summary>
+    public string EntryFileFullPath {
+        get {
+            var workingDir = WorkingDirFullPath;
+            if (string.IsNullOrEmpty(workingDir)) return null;
+            return Path.Combine(workingDir, DefaultEntryFile);
+        }
+    }
+
+    /// <summary>
+    /// Full path to the source map file: {EntryFile}.map
+    /// </summary>
+    public string SourceMapFilePath {
+        get {
+            var entryFile = EntryFileFullPath;
+            if (string.IsNullOrEmpty(entryFile)) return null;
+            return entryFile + ".map";
+        }
+    }
+
+    /// <summary>
+    /// Asset path for the bundle TextAsset: {InstanceFolder}/app.js.txt
+    /// </summary>
+    public string BundleAssetPath {
+        get {
+            var instanceFolder = InstanceFolder;
+            if (string.IsNullOrEmpty(instanceFolder)) return null;
+            return Path.Combine(instanceFolder, "app.js.txt");
+        }
+    }
+
+    /// <summary>
+    /// Asset path for the source map TextAsset: {InstanceFolder}/app.js.map.txt
+    /// </summary>
+    public string SourceMapAssetPath {
+        get {
+            var instanceFolder = InstanceFolder;
+            if (string.IsNullOrEmpty(instanceFolder)) return null;
+            return Path.Combine(instanceFolder, "app.js.map.txt");
+        }
+    }
+
+    /// <summary>
+    /// Whether the scene is saved and paths are valid.
+    /// </summary>
+    public bool IsSceneSaved => !string.IsNullOrEmpty(gameObject.scene.path);
+
+    /// <summary>
+    /// Set the bundle TextAsset (called by build processor).
+    /// </summary>
+    public void SetBundleAsset(TextAsset asset) {
+        _bundleAsset = asset;
+        UnityEditor.EditorUtility.SetDirty(this);
+    }
+
+    /// <summary>
+    /// Set the source map TextAsset (called by build processor).
+    /// </summary>
+    public void SetSourceMapAsset(TextAsset asset) {
+        _sourceMapAsset = asset;
+        UnityEditor.EditorUtility.SetDirty(this);
+    }
+
+    /// <summary>
+    /// Clear the generated assets.
+    /// </summary>
+    public void ClearGeneratedAssets() {
+        _bundleAsset = null;
+        _sourceMapAsset = null;
+        UnityEditor.EditorUtility.SetDirty(this);
+    }
+#endif
 
     // Type Generation properties
     public IReadOnlyList<string> TypingAssemblies => _typingAssemblies;
     public bool AutoGenerateTypings => _autoGenerateTypings;
     public string TypingsOutputPath => _typingsOutputPath;
-    public string TypingsFullPath => Path.Combine(WorkingDirFullPath, _typingsOutputPath);
+#if UNITY_EDITOR
+    public string TypingsFullPath => WorkingDirFullPath != null ? Path.Combine(WorkingDirFullPath, _typingsOutputPath) : null;
+#endif
 
     // Cartridge API
     public IReadOnlyList<UICartridge> Cartridges => _cartridges;
 
+#if UNITY_EDITOR
     public string GetCartridgePath(UICartridge cartridge) {
         if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) return null;
-        return Path.Combine(WorkingDirFullPath, "@cartridges", cartridge.Slug);
+        var workingDir = WorkingDirFullPath;
+        if (string.IsNullOrEmpty(workingDir)) return null;
+        return Path.Combine(workingDir, "@cartridges", cartridge.Slug);
     }
+#endif
 
     void Start() {
         try {
@@ -284,10 +405,24 @@ public class JSRunner : MonoBehaviour {
 
 #if UNITY_EDITOR
     void InitializeEditor() {
+        // Check if scene is saved
+        if (!IsSceneSaved) {
+            Debug.LogError("[JSRunner] Scene must be saved before JSRunner can initialize. Save the scene and enter Play mode again.");
+            return;
+        }
+
+        var workingDir = WorkingDirFullPath;
+        var entryFile = EntryFileFullPath;
+
+        if (string.IsNullOrEmpty(workingDir) || string.IsNullOrEmpty(entryFile)) {
+            Debug.LogError("[JSRunner] Invalid paths. Ensure scene is saved.");
+            return;
+        }
+
         // Ensure working directory exists
-        if (!Directory.Exists(WorkingDirFullPath)) {
-            Directory.CreateDirectory(WorkingDirFullPath);
-            Debug.Log($"[JSRunner] Created working directory: {WorkingDirFullPath}");
+        if (!Directory.Exists(workingDir)) {
+            Directory.CreateDirectory(workingDir);
+            Debug.Log($"[JSRunner] Created working directory: {workingDir}");
         }
 
         // Scaffold any missing default files
@@ -301,12 +436,12 @@ public class JSRunner : MonoBehaviour {
 
         // Initialize bridge and run script
         InitializeBridge();
-        var code = File.ReadAllText(EntryFileFullPath);
-        RunScript(code, _entryFile);
+        var code = File.ReadAllText(entryFile);
+        RunScript(code, Path.GetFileName(entryFile));
 
         // Initialize file watching
         if (_liveReload) {
-            _lastModifiedTime = File.GetLastWriteTime(EntryFileFullPath);
+            _lastModifiedTime = File.GetLastWriteTime(entryFile);
             _nextPollTime = Time.realtimeSinceStartup + _pollInterval;
         }
     }
@@ -352,7 +487,7 @@ public class JSRunner : MonoBehaviour {
 
         // Create minimal entry file
         File.WriteAllText(EntryFileFullPath, DefaultEntryContent);
-        Debug.Log($"[JSRunner] Created default entry file: {_entryFile}");
+        Debug.Log($"[JSRunner] Created default entry file: {DefaultEntryFile}");
     }
 
     /// <summary>
@@ -397,7 +532,12 @@ public class JSRunner : MonoBehaviour {
 #endif // UNITY_EDITOR
 
     void InitializeBridge() {
+#if UNITY_EDITOR
         _bridge = new QuickJSUIBridge(_uiDocument.rootVisualElement, WorkingDirFullPath);
+#else
+        // In builds, use persistent data path (bundle is self-contained)
+        _bridge = new QuickJSUIBridge(_uiDocument.rootVisualElement, Application.persistentDataPath);
+#endif
 
         // Apply stylesheets first so styles are ready when JS runs
         ApplyStylesheets();
@@ -553,13 +693,13 @@ public class JSRunner : MonoBehaviour {
 
             // 4. Load and run script
             var code = File.ReadAllText(EntryFileFullPath);
-            RunScript(code, _entryFile);
+            RunScript(code, Path.GetFileName(EntryFileFullPath));
 
             // 5. Update state
             _lastModifiedTime = File.GetLastWriteTime(EntryFileFullPath);
             _reloadCount++;
 
-            Debug.Log($"[JSRunner] Reloaded ({_reloadCount}): {_entryFile}");
+            Debug.Log($"[JSRunner] Reloaded ({_reloadCount}): {Path.GetFileName(EntryFileFullPath)}");
         } catch (Exception ex) {
             var message = TranslateErrorMessage(ex.Message);
             Debug.LogError($"[JSRunner] Reload failed: {message}");
@@ -662,45 +802,16 @@ public class JSRunner : MonoBehaviour {
 }});", "platform-defines.js");
     }
 
-    static int _updateCount = 0;
-
     void Update() {
-        _updateCount++;
-
 #if UNITY_EDITOR
         // Editor: Use Unity's Update loop to drive the tick
         if (_scriptLoaded) {
             _bridge?.Tick();
             CheckForFileChanges();
         }
-#elif UNITY_WEBGL
-        // WebGL: State machine for safe async loading
-        switch (_fetchState) {
-            case WebGLFetchState.NotStarted:
-                // Wait a few frames for Unity to stabilize before fetching
-                if (_updateCount >= 3 && _embeddedScript == null && !string.IsNullOrEmpty(_streamingAssetsPath)) {
-                    _fetchState = WebGLFetchState.Fetching;
-                    StartJSFetch();
-                }
-                break;
-
-            case WebGLFetchState.Fetching:
-                // Poll for fetch completion - state transitions happen in PollFetchResult
-                PollFetchResult();
-                break;
-
-            case WebGLFetchState.Ready:
-                // Script is fetched and ready - execute it
-                ExecuteFetchedScript();
-                break;
-
-            case WebGLFetchState.Executed:
-            case WebGLFetchState.Error:
-                // Terminal states - native RAF loop handles ticking for Executed
-                break;
-        }
-#else
+#elif !UNITY_WEBGL
         // Standalone/Mobile builds: Use Unity's Update loop
+        // WebGL uses native RAF tick loop started in RunScript()
         if (_scriptLoaded) {
             _bridge?.Tick();
         }
@@ -712,172 +823,19 @@ public class JSRunner : MonoBehaviour {
     void InitializeBuild() {
         InitializeBridge();
 
-        if (_embeddedScript != null) {
-            // Use pre-assigned TextAsset
-            RunScript(_embeddedScript.text, "embedded.js");
+        // Use the auto-generated bundle TextAsset
+        if (_bundleAsset != null) {
+            RunScript(_bundleAsset.text, "app.js");
             return;
         }
 
-        if (string.IsNullOrEmpty(_streamingAssetsPath)) {
-            Debug.LogError("[JSRunner] No embedded script or streaming assets path configured");
-            RunScript(DefaultEntryContent, "default.js");
-            return;
-        }
-
-#if UNITY_WEBGL
-        // WebGL: Loading is deferred to Update and uses browser's native fetch API
-#elif UNITY_ANDROID
-        // Android: StreamingAssets is inside APK, needs async loading
-        StartCoroutine(LoadFromStreamingAssetsAsync());
-#else
-        // Desktop/iOS: Direct file access
-        LoadFromStreamingAssetsSync();
-#endif
+        Debug.LogError("[JSRunner] No bundle asset found. Ensure project was built correctly.");
+        RunScript(DefaultEntryContent, "default.js");
     }
-
-#if !UNITY_WEBGL && !UNITY_ANDROID
-    void LoadFromStreamingAssetsSync() {
-        var path = Path.Combine(Application.streamingAssetsPath, _streamingAssetsPath);
-        if (File.Exists(path)) {
-            var code = File.ReadAllText(path);
-            RunScript(code, _streamingAssetsPath);
-            Debug.Log($"[JSRunner] Loaded from StreamingAssets: {_streamingAssetsPath}");
-        } else {
-            Debug.LogError($"[JSRunner] Bundle not found: {path}");
-            RunScript(DefaultEntryContent, "default.js");
-        }
-    }
-#endif
-
-#if UNITY_ANDROID
-    System.Collections.IEnumerator LoadFromStreamingAssetsAsync() {
-        var path = Path.Combine(Application.streamingAssetsPath, _streamingAssetsPath);
-        using (var request = UnityEngine.Networking.UnityWebRequest.Get(path)) {
-            yield return request.SendWebRequest();
-
-            if (request.result == UnityEngine.Networking.UnityWebRequest.Result.Success) {
-                var code = request.downloadHandler.text;
-                RunScript(code, _streamingAssetsPath);
-                Debug.Log($"[JSRunner] Loaded from StreamingAssets: {_streamingAssetsPath}");
-            } else {
-                Debug.LogError($"[JSRunner] Failed to load: {request.error}");
-                RunScript(DefaultEntryContent, "default.js");
-            }
-        }
-    }
-#endif
 
 #if UNITY_WEBGL
     void StartWebGLTick() {
         _bridge.Eval("if (typeof __startWebGLTick === 'function') __startWebGLTick();", "webgl-tick-start.js");
-    }
-
-    void StartJSFetch() {
-        var url = Path.Combine(Application.streamingAssetsPath, _streamingAssetsPath);
-        Debug.Log($"[JSRunner] Fetching from: {url}");
-
-        // Use atomic state flags to prevent race conditions
-        // __fetchState: 0 = fetching, 1 = ready, 2 = error
-        var fetchCode = $@"
-(function() {{
-    globalThis.__fetchState = 0;  // Fetching
-    globalThis.__fetchedScript = null;
-    globalThis.__fetchError = null;
-
-    var url = '{url}';
-    console.log('[JSRunner] JS fetch starting for: ' + url);
-    fetch(url)
-        .then(function(response) {{
-            console.log('[JSRunner] fetch response status:', response.status);
-            if (!response.ok) throw new Error('HTTP ' + response.status);
-            return response.text();
-        }})
-        .then(function(text) {{
-            console.log('[JSRunner] fetch success, length:', text.length);
-            globalThis.__fetchedScript = text;
-            globalThis.__fetchState = 1;  // Ready - atomic state transition
-        }})
-        .catch(function(err) {{
-            console.error('[JSRunner] fetch error:', err);
-            globalThis.__fetchError = err.message || String(err);
-            globalThis.__fetchState = 2;  // Error - atomic state transition
-        }});
-}})();
-";
-        try {
-            _bridge.Eval(fetchCode, "fetch-loader.js");
-            Debug.Log("[JSRunner] Fetch initiated");
-        } catch (Exception ex) {
-            var message = TranslateErrorMessage(ex.Message);
-            Debug.LogError($"[JSRunner] Fetch eval error: {message}");
-            _fetchState = WebGLFetchState.Error;
-            RunScript(DefaultEntryContent, "default.js");
-        }
-    }
-
-    void PollFetchResult() {
-        try {
-            // Check the atomic state flag
-            var stateStr = _bridge.Eval("globalThis.__fetchState");
-            if (!int.TryParse(stateStr, out int state)) return;
-
-            switch (state) {
-                case 0: // Still fetching
-                    return;
-
-                case 1: // Ready
-                    _fetchState = WebGLFetchState.Ready;
-                    break;
-
-                case 2: // Error
-                    var errorMsg = _bridge.Eval("globalThis.__fetchError || 'Unknown fetch error'");
-                    Debug.LogError($"[JSRunner] Fetch failed: {errorMsg}");
-                    _fetchState = WebGLFetchState.Error;
-                    _bridge.Eval("globalThis.__fetchError = null; globalThis.__fetchState = -1;");
-                    RunScript(DefaultEntryContent, "default.js");
-                    break;
-            }
-        } catch (Exception ex) {
-            Debug.LogError($"[JSRunner] Poll fetch error: {ex}");
-            _fetchState = WebGLFetchState.Error;
-        }
-    }
-
-    void ExecuteFetchedScript() {
-        try {
-            // Execute the fetched script in a separate step for clean state transitions
-            var result = _bridge.Eval(@"
-(function() {
-    var script = globalThis.__fetchedScript;
-    globalThis.__fetchedScript = null;
-    globalThis.__fetchState = -1;  // Clear state
-    if (!script) return 'error:No script content';
-    try {
-        (0, eval)(script);
-        return 'ok';
-    } catch (e) {
-        console.error('[JSRunner] Script execution error:', e);
-        return 'error:' + (e.message || String(e));
-    }
-})()
-");
-            if (result == "ok") {
-                _bridge.Context.ExecutePendingJobs();
-                _scriptLoaded = true;
-                _fetchState = WebGLFetchState.Executed;
-                StartWebGLTick();
-                Debug.Log("[JSRunner] Script executed successfully");
-            } else if (result.StartsWith("error:")) {
-                var error = TranslateErrorMessage(result.Substring(6));
-                Debug.LogError($"[JSRunner] Script execution failed: {error}");
-                _fetchState = WebGLFetchState.Error;
-                RunScript(DefaultEntryContent, "default.js");
-            }
-        } catch (Exception ex) {
-            var message = TranslateErrorMessage(ex.Message);
-            Debug.LogError($"[JSRunner] Execute script error: {message}");
-            _fetchState = WebGLFetchState.Error;
-        }
     }
 #endif
 #endif // !UNITY_EDITOR
@@ -885,7 +843,11 @@ public class JSRunner : MonoBehaviour {
     string TranslateErrorMessage(string message) {
         if (string.IsNullOrEmpty(message)) return message;
 
+#if UNITY_EDITOR
         var parser = SourceMapParser.Load(SourceMapFilePath);
+#else
+        var parser = _sourceMapAsset != null ? SourceMapParser.Parse(_sourceMapAsset.text) : null;
+#endif
         if (parser == null) return message;
 
         return parser.TranslateStackTrace(message);

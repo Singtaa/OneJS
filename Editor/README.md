@@ -63,21 +63,25 @@ JSPadEditor uses `[InitializeOnLoad]` with a static constructor to register a gl
 
 ## JSRunnerBuildProcessor
 
-Implements `IPreprocessBuildWithReport` to auto-copy JS bundles before build:
+Implements `IPreprocessBuildWithReport` to auto-create TextAssets for builds:
 
 1. Scans all enabled build scenes for JSRunner components
-2. For each JSRunner without an embedded TextAsset:
-   - Copies entry file to `StreamingAssets/{streamingAssetsPath}`
-   - Default: `StreamingAssets/onejs/app.js`
-3. Logs status during build
+2. For each JSRunner without a bundle TextAsset assigned:
+   - Reads entry file from working directory
+   - Creates TextAsset at `{SceneName}_JSRunner/{Name}_{InstanceId}/app.js.txt`
+   - Creates source map TextAsset if `Include Source Map` is enabled
+   - Assigns the created TextAssets to the JSRunner component
+   - Saves modified scenes
+3. Extracts Cartridge files to `{WorkingDir}/@cartridges/{slug}/`
+4. Logs status during build
 
-This ensures JS bundles are included in builds without manual steps.
+This ensures JS bundles are embedded in builds without manual steps.
 
-### Skipping Auto-Copy
+### Skipping Auto-Creation
 
-To skip auto-copy for a specific JSRunner:
-- Assign a TextAsset to the `Embedded Script` field
-- The build processor will use that instead
+To skip auto-creation for a specific JSRunner:
+- Pre-assign a TextAsset to the `Bundle Asset` field in the inspector
+- The build processor will skip processing for that JSRunner
 
 ## TypeGenerator
 

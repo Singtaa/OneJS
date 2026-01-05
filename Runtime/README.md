@@ -37,15 +37,36 @@ Custom UI Toolkit controls for OneJS applications. See `Controls/README.md` for 
 
 The `JSRunner` MonoBehaviour is the primary way to run JavaScript apps in Unity.
 
+### Scene-Based Path System
+
+JSRunner uses a **zero-config, scene-based path system**. All paths are automatically derived from the scene location:
+
+```
+Assets/Scenes/Level1.unity          # Your scene
+Assets/Scenes/Level1_JSRunner/      # Auto-created folder next to scene
+├── MainUI_abc123/                  # Per-JSRunner folder (name + instanceId)
+│   ├── MainUI~/                    # Working directory (~ makes Unity ignore it)
+│   │   ├── package.json            # Scaffolded on first run
+│   │   ├── index.tsx               # Entry file
+│   │   └── @outputs/esbuild/app.js # Built bundle
+│   ├── app.js.txt                  # TextAsset for builds (created at build time)
+│   └── app.js.map.txt              # Source map TextAsset (optional)
+```
+
+**Key benefits:**
+- No manual path configuration needed
+- Each JSRunner gets its own isolated workspace
+- Instance ID suffix prevents naming collisions
+- `~` suffix makes Unity ignore the working directory (no .meta files)
+- TextAssets are created automatically during build
+
 ### Platform Behavior
 
 | Context | JS Loading | Live Reload |
 |---------|------------|-------------|
-| Editor | From disk (`App/@outputs/esbuild/app.js`) | Yes (polling) |
-| Standalone | StreamingAssets (auto-copied during build) | No |
-| WebGL | StreamingAssets via fetch API | No |
-| Android | StreamingAssets via UnityWebRequest | No |
-| iOS | StreamingAssets | No |
+| Editor | From disk (working directory) | Yes (polling) |
+| Standalone/Mobile | TextAsset (auto-created during build) | No |
+| WebGL | TextAsset embedded in build | No |
 
 ### Zero-Config UI Setup
 JSRunner automatically creates `UIDocument` and `PanelSettings` at runtime if not present. No manual asset creation required.
@@ -76,6 +97,14 @@ Default template files (in `Assets/Singtaa/OneJS/Editor/Templates/`):
 
 | Field | Purpose |
 |-------|---------|
+| **Project** (auto-computed) | |
+| Scene Folder | `{SceneName}_JSRunner/` next to scene file |
+| Working Dir | `{SceneName}_JSRunner/{Name}_{InstanceId}/{Name}~/` |
+| Entry File | `{WorkingDir}/@outputs/esbuild/app.js` (default) |
+| **Build** | |
+| Bundle Asset | TextAsset for built JS (auto-created during build) |
+| Source Map Asset | TextAsset for source map (optional) |
+| Include Source Map | Whether to include source maps in builds |
 | **UI Panel** | |
 | Panel Settings | Optional PanelSettings asset. If null, uses inline settings below |
 | Scale Mode | `ConstantPixelSize`, `ConstantPhysicalSize`, or `ScaleWithScreenSize` |
@@ -96,10 +125,11 @@ Default template files (in `Assets/Singtaa/OneJS/Editor/Templates/`):
 - Hard reload: disposes context, clears UI, recreates fresh
 
 ### Build Support
-For standalone/mobile builds, JSRunner loads from StreamingAssets:
-- **Auto-copy**: `JSRunnerBuildProcessor` copies entry file to StreamingAssets during build
-- **Default path**: `StreamingAssets/onejs/app.js`
-- **Override**: Assign a TextAsset to `Embedded Script` to skip StreamingAssets
+For standalone/mobile builds, JSRunner loads from a TextAsset:
+- **Auto-creation**: `JSRunnerBuildProcessor` creates TextAssets during build
+- **Bundle path**: `{SceneName}_JSRunner/{Name}_{InstanceId}/app.js.txt`
+- **Source maps**: Optional `app.js.map.txt` for error stack translation
+- **Pre-assigned**: If a bundle TextAsset is already assigned, build processor skips it
 
 ### Custom Inspector
 The `JSRunnerEditor` provides:
@@ -117,8 +147,14 @@ bool IsRunning { get; }
 bool IsLiveReloadEnabled { get; }
 int ReloadCount { get; }
 DateTime LastModifiedTime { get; }
-string WorkingDirFullPath { get; }
-string EntryFileFullPath { get; }
+
+// Path properties (Editor only, auto-computed from scene)
+string SceneFolder { get; }        // {SceneName}_JSRunner/
+string InstanceFolder { get; }     // {SceneFolder}/{Name}_{InstanceId}/
+string WorkingDirFullPath { get; } // {InstanceFolder}/{Name}~/
+string EntryFileFullPath { get; }  // {WorkingDir}/@outputs/esbuild/app.js
+string BundleAssetPath { get; }    // {InstanceFolder}/app.js.txt
+string SourceMapAssetPath { get; } // {InstanceFolder}/app.js.map.txt
 
 // Methods
 void ForceReload();  // Manually trigger reload (Editor only)
@@ -284,14 +320,6 @@ All JS execution is protected by a recursion guard (`_inEval` flag) to prevent:
 - WebGL-specific recursion issues
 
 Events dispatched during active JS execution are silently dropped.
-
-### WebGL Fetch State Machine (JSRunner)
-WebGL script loading uses an explicit state machine to prevent race conditions:
-```
-NotStarted → Fetching → Ready → Executed
-                    ↘ Error
-```
-Script execution only occurs after the `Ready` state confirms fetch completion.
 
 ## Profiling (in `Profiling/` folder)
 

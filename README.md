@@ -41,7 +41,7 @@ git clone -b onejs-v3 https://github.com/Singtaa/OneJS.git Assets/OneJS
 
 That's it. JSRunner creates UIDocument and PanelSettings automatically.
 
-On first run, it scaffolds a starter project in the working directory (default: `App/`). Run `npm install && npm run build` to compile.
+On first run, it scaffolds a starter project in the auto-created working directory (next to your scene). Run `npm install && npm run build` to compile.
 
 ## Project Structure
 
@@ -89,17 +89,28 @@ OneJS/
 - `setTimeout`, `setInterval`, `requestAnimationFrame`
 
 **Build Support**
-- Auto-copies JS bundle to StreamingAssets
-- Embedded script option (TextAsset)
+- Auto-creates TextAsset bundles during build
+- Optional source map TextAsset for error translation
 - Works on Desktop, Mobile, WebGL
 
 ## JSRunner Inspector
 
+JSRunner uses **scene-based auto paths** - no manual configuration needed:
+
+```
+Assets/Scenes/Level1.unity          # Your scene
+Assets/Scenes/Level1_JSRunner/      # Auto-created next to scene
+├── MyUI_abc123/                    # Per-JSRunner folder
+│   ├── MyUI~/                      # Working directory (~ = Unity ignores)
+│   │   └── @outputs/esbuild/app.js # Built bundle
+│   └── app.js.txt                  # TextAsset for builds
+```
+
 | Field | Purpose |
 |-------|---------|
-| Working Dir | Project folder relative to project root |
-| Entry File | JS bundle path relative to working dir |
 | Panel Settings | Optional custom PanelSettings asset |
+| Bundle Asset | TextAsset for builds (auto-created) |
+| Include Source Map | Include source maps for error translation |
 | Default Files | Templates for scaffolding |
 | Stylesheets | USS applied on init/reload |
 | Preloads | Scripts eval'd before entry file |

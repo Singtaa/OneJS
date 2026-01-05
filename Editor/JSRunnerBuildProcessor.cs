@@ -10,23 +10,24 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Build processor that automatically copies JS bundles and assets to StreamingAssets before build.
-/// Scans all enabled scenes in Build Settings for JSRunner components.
-/// Assets are only copied during builds to keep StreamingAssets clean during development.
+/// Build processor that automatically creates TextAsset bundles for JSRunner components.
+/// Scans all enabled scenes in Build Settings and generates TextAssets for each JSRunner.
+///
+/// Directory structure:
+///   {SceneDir}/{SceneName}_JSRunner/{GameObjectName}_{InstanceId}/app.js.txt
+///   {SceneDir}/{SceneName}_JSRunner/{GameObjectName}_{InstanceId}/app.js.map.txt (optional)
 /// </summary>
 public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBuildWithReport {
     public int callbackOrder => 0;
 
-    static List<string> _copiedFiles = new List<string>();
-
-    // Track processed items to avoid duplicates
-    static HashSet<string> _processedBundles = new HashSet<string>();
-    static HashSet<string> _processedWorkingDirs = new HashSet<string>();
+    static List<string> _createdAssets = new List<string>();
+    static HashSet<string> _processedRunners = new HashSet<string>();
+    static List<Scene> _modifiedScenes = new List<Scene>();
 
     public void OnPreprocessBuild(BuildReport report) {
-        _copiedFiles.Clear();
-        _processedBundles.Clear();
-        _processedWorkingDirs.Clear();
+        _createdAssets.Clear();
+        _processedRunners.Clear();
+        _modifiedScenes.Clear();
 
         Debug.Log("[JSRunner] Processing JSRunner components in build scenes...");
 
@@ -41,9 +42,19 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
             foreach (var buildScene in buildScenes) {
                 if (!buildScene.enabled) continue;
 
-                EditorSceneManager.OpenScene(buildScene.path);
-                ProcessScene(SceneManager.GetActiveScene());
+                var scene = EditorSceneManager.OpenScene(buildScene.path);
+                ProcessScene(scene);
             }
+        }
+
+        // Save all modified scenes
+        foreach (var scene in _modifiedScenes) {
+            EditorSceneManager.SaveScene(scene);
+        }
+
+        // Refresh asset database to pick up new TextAssets
+        if (_createdAssets.Count > 0) {
+            AssetDatabase.Refresh();
         }
 
         // Restore original scene
@@ -51,100 +62,102 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
             EditorSceneManager.OpenScene(originalScenePath);
         }
 
-        if (_copiedFiles.Count > 0) {
-            AssetDatabase.Refresh();
-        }
-
-        Debug.Log($"[JSRunner] Build preprocessing complete. Processed {_processedBundles.Count} bundle(s), {_processedWorkingDirs.Count} working dir(s).");
+        Debug.Log($"[JSRunner] Build preprocessing complete. Processed {_processedRunners.Count} runner(s), created {_createdAssets.Count} asset(s).");
     }
 
     void ProcessScene(Scene scene) {
+        bool sceneModified = false;
+
         foreach (var rootObj in scene.GetRootGameObjects()) {
             var runners = rootObj.GetComponentsInChildren<JSRunner>(true);
             foreach (var runner in runners) {
                 // Only process enabled runners on active GameObjects
                 if (!runner.enabled || !runner.gameObject.activeInHierarchy) continue;
 
-                ProcessJSRunner(runner);
-                ProcessAssets(runner);
+                if (ProcessJSRunner(runner)) {
+                    sceneModified = true;
+                }
                 ExtractCartridges(runner);
             }
         }
+
+        if (sceneModified && !_modifiedScenes.Contains(scene)) {
+            _modifiedScenes.Add(scene);
+        }
     }
 
-    void ProcessJSRunner(JSRunner runner) {
-        // Skip if using embedded TextAsset
-        var embeddedScript = GetSerializedField<TextAsset>(runner, "_embeddedScript");
-        if (embeddedScript != null) {
-            Debug.Log($"[JSRunner] Using embedded TextAsset for {runner.gameObject.name}");
-            return;
+    bool ProcessJSRunner(JSRunner runner) {
+        // Skip if already has a bundle asset assigned
+        if (runner.BundleAsset != null) {
+            Debug.Log($"[JSRunner] Bundle already assigned for {runner.gameObject.name}");
+            return false;
         }
 
-        var streamingAssetsPath = GetSerializedField<string>(runner, "_streamingAssetsPath");
-        if (string.IsNullOrEmpty(streamingAssetsPath)) {
-            Debug.LogWarning($"[JSRunner] No streaming assets path configured for {runner.gameObject.name}");
-            return;
-        }
-
-        // Skip if already processed this bundle path (multiple runners might share same bundle)
-        var destPath = Path.Combine(Application.streamingAssetsPath, streamingAssetsPath);
-        if (_processedBundles.Contains(destPath)) {
-            Debug.Log($"[JSRunner] Bundle already processed: {streamingAssetsPath}");
-            return;
-        }
-
-        // Get entry file path
+        // Get paths
         var entryFilePath = runner.EntryFileFullPath;
+        var bundleAssetPath = runner.BundleAssetPath;
+        var sourceMapAssetPath = runner.SourceMapAssetPath;
+
+        if (string.IsNullOrEmpty(entryFilePath) || string.IsNullOrEmpty(bundleAssetPath)) {
+            Debug.LogWarning($"[JSRunner] Invalid paths for {runner.gameObject.name}. Is scene saved?");
+            return false;
+        }
+
+        // Check entry file exists
         if (!File.Exists(entryFilePath)) {
-            Debug.LogWarning($"[JSRunner] Entry file not found, skipping: {entryFilePath}");
-            return;
+            Debug.LogWarning($"[JSRunner] Entry file not found for {runner.gameObject.name}: {entryFilePath}");
+            return false;
         }
 
-        // Ensure StreamingAssets directory exists
-        var destDir = Path.GetDirectoryName(destPath);
-        if (!Directory.Exists(destDir)) {
-            Directory.CreateDirectory(destDir);
+        // Skip if already processed (same bundle path)
+        if (_processedRunners.Contains(bundleAssetPath)) {
+            Debug.Log($"[JSRunner] Bundle already processed: {bundleAssetPath}");
+            return false;
+        }
+        _processedRunners.Add(bundleAssetPath);
+
+        // Ensure directory exists
+        var bundleDir = Path.GetDirectoryName(bundleAssetPath);
+        if (!string.IsNullOrEmpty(bundleDir) && !Directory.Exists(bundleDir)) {
+            Directory.CreateDirectory(bundleDir);
         }
 
-        // Copy the bundle
-        File.Copy(entryFilePath, destPath, overwrite: true);
-        _copiedFiles.Add(destPath);
-        _processedBundles.Add(destPath);
+        // Read and create bundle TextAsset
+        var bundleContent = File.ReadAllText(entryFilePath);
+        File.WriteAllText(bundleAssetPath, bundleContent);
+        _createdAssets.Add(bundleAssetPath);
+        Debug.Log($"[JSRunner] Created bundle: {bundleAssetPath}");
 
-        Debug.Log($"[JSRunner] Copied bundle: {streamingAssetsPath}");
-    }
-
-    void ProcessAssets(JSRunner runner) {
-        var workingDir = runner.WorkingDirFullPath;
-        if (string.IsNullOrEmpty(workingDir) || !Directory.Exists(workingDir)) {
-            return;
+        // Handle source map
+        if (runner.IncludeSourceMap) {
+            var sourceMapFilePath = runner.SourceMapFilePath;
+            if (!string.IsNullOrEmpty(sourceMapFilePath) && File.Exists(sourceMapFilePath)) {
+                var sourceMapContent = File.ReadAllText(sourceMapFilePath);
+                File.WriteAllText(sourceMapAssetPath, sourceMapContent);
+                _createdAssets.Add(sourceMapAssetPath);
+                Debug.Log($"[JSRunner] Created source map: {sourceMapAssetPath}");
+            }
         }
 
-        // Skip if already processed this working directory
-        var normalizedPath = Path.GetFullPath(workingDir);
-        if (_processedWorkingDirs.Contains(normalizedPath)) {
-            return;
-        }
-        _processedWorkingDirs.Add(normalizedPath);
+        // Refresh to import the new assets
+        AssetDatabase.Refresh();
 
-        var destBasePath = Path.Combine(Application.streamingAssetsPath, "onejs", "assets");
-        int assetsCopied = 0;
-
-        // 1. Copy user assets from {workingDir}/assets/
-        var userAssetsPath = Path.Combine(workingDir, "assets");
-        if (Directory.Exists(userAssetsPath)) {
-            assetsCopied += CopyDirectory(userAssetsPath, destBasePath);
+        // Load and assign the TextAssets
+        var bundleAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(bundleAssetPath);
+        if (bundleAsset != null) {
+            runner.SetBundleAsset(bundleAsset);
+        } else {
+            Debug.LogError($"[JSRunner] Failed to load created bundle asset: {bundleAssetPath}");
         }
 
-        // 2. Scan node_modules for packages with assets/@namespace/ folders
-        var nodeModulesPath = Path.Combine(workingDir, "node_modules");
-        if (Directory.Exists(nodeModulesPath)) {
-            assetsCopied += CopyPackageAssets(nodeModulesPath, destBasePath);
+        if (runner.IncludeSourceMap && File.Exists(sourceMapAssetPath)) {
+            var sourceMapAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(sourceMapAssetPath);
+            if (sourceMapAsset != null) {
+                runner.SetSourceMapAsset(sourceMapAsset);
+            }
         }
 
-        if (assetsCopied > 0) {
-            Debug.Log($"[JSRunner] Copied {assetsCopied} asset file(s) from: {runner.WorkingDir}");
-        }
+        return true;
     }
 
     void ExtractCartridges(JSRunner runner) {
@@ -177,14 +190,14 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
                 }
 
                 File.WriteAllText(filePath, file.content.text);
-                _copiedFiles.Add(filePath);
+                _createdAssets.Add(filePath);
             }
 
             // Generate TypeScript definitions
             var dts = CartridgeTypeGenerator.Generate(cartridge);
             var dtsPath = Path.Combine(destPath, $"{cartridge.Slug}.d.ts");
             File.WriteAllText(dtsPath, dts);
-            _copiedFiles.Add(dtsPath);
+            _createdAssets.Add(dtsPath);
 
             extracted++;
             Debug.Log($"[JSRunner] Extracted cartridge '{cartridge.DisplayName}' to: @cartridges/{cartridge.Slug}/");
@@ -195,85 +208,9 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
         }
     }
 
-    int CopyPackageAssets(string nodeModulesPath, string destBasePath) {
-        int copied = 0;
-
-        foreach (var pkgDir in Directory.GetDirectories(nodeModulesPath)) {
-            var dirName = Path.GetFileName(pkgDir);
-
-            // Handle scoped packages (@scope/name)
-            if (dirName.StartsWith("@")) {
-                foreach (var scopedPkgDir in Directory.GetDirectories(pkgDir)) {
-                    copied += TryCopyPackageAssets(scopedPkgDir, destBasePath);
-                }
-            } else {
-                copied += TryCopyPackageAssets(pkgDir, destBasePath);
-            }
-        }
-
-        return copied;
-    }
-
-    int TryCopyPackageAssets(string pkgDir, string destBasePath) {
-        // Look for assets/ folder with @namespace/ subfolders
-        var assetsPath = Path.Combine(pkgDir, "assets");
-        if (!Directory.Exists(assetsPath)) return 0;
-
-        int copied = 0;
-
-        // Only copy @namespace/ folders (convention-based detection)
-        foreach (var subDir in Directory.GetDirectories(assetsPath)) {
-            var subDirName = Path.GetFileName(subDir);
-            if (subDirName.StartsWith("@")) {
-                var destPath = Path.Combine(destBasePath, subDirName);
-                copied += CopyDirectory(subDir, destPath);
-            }
-        }
-
-        return copied;
-    }
-
-    int CopyDirectory(string srcDir, string destDir) {
-        if (!Directory.Exists(srcDir)) return 0;
-
-        Directory.CreateDirectory(destDir);
-        int copied = 0;
-
-        // Copy files
-        foreach (var file in Directory.GetFiles(srcDir)) {
-            var destFile = Path.Combine(destDir, Path.GetFileName(file));
-            File.Copy(file, destFile, overwrite: true);
-            _copiedFiles.Add(destFile);
-            copied++;
-        }
-
-        // Copy subdirectories recursively
-        foreach (var subDir in Directory.GetDirectories(srcDir)) {
-            var destSubDir = Path.Combine(destDir, Path.GetFileName(subDir));
-            copied += CopyDirectory(subDir, destSubDir);
-        }
-
-        return copied;
-    }
-
     public void OnPostprocessBuild(BuildReport report) {
-        if (_copiedFiles.Count > 0) {
-            Debug.Log($"[JSRunner] Build complete. {_copiedFiles.Count} file(s) copied to StreamingAssets.");
-            Debug.Log("[JSRunner] These files persist for faster subsequent builds. Delete StreamingAssets/onejs to remove them.");
+        if (_createdAssets.Count > 0) {
+            Debug.Log($"[JSRunner] Build complete. {_createdAssets.Count} asset(s) created/updated.");
         }
-    }
-
-    T GetSerializedField<T>(UnityEngine.Object obj, string fieldName) {
-        var so = new SerializedObject(obj);
-        var prop = so.FindProperty(fieldName);
-        if (prop == null) return default;
-
-        if (typeof(T) == typeof(string)) {
-            return (T)(object)prop.stringValue;
-        } else if (typeof(T) == typeof(TextAsset)) {
-            return (T)(object)prop.objectReferenceValue;
-        }
-
-        return default;
     }
 }

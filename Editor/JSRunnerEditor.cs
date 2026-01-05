@@ -57,7 +57,10 @@ public class JSRunnerEditor : Editor {
         NodeWatcherManager.OnWatcherStopped += OnWatcherStateChanged;
 
         // Try to reattach to watcher if it was running before domain reload
-        NodeWatcherManager.TryReattach(_target.WorkingDirFullPath);
+        var workingDir = _target.WorkingDirFullPath;
+        if (!string.IsNullOrEmpty(workingDir)) {
+            NodeWatcherManager.TryReattach(workingDir);
+        }
     }
 
     void OnDisable() {
@@ -196,10 +199,29 @@ public class JSRunnerEditor : Editor {
     // MARK: Tab Content Builders
 
     void BuildProjectTab(VisualElement container) {
-        container.Add(new PropertyField(serializedObject.FindProperty("_workingDir")));
-        container.Add(new PropertyField(serializedObject.FindProperty("_entryFile")));
+        // Scene save warning
+        if (!_target.IsSceneSaved) {
+            var warning = new HelpBox("Scene must be saved before JSRunner can be configured.", HelpBoxMessageType.Warning);
+            warning.style.marginBottom = 8;
+            container.Add(warning);
+        } else {
+            // Show working directory path (read-only info)
+            var pathBox = CreateStyledBox();
+            pathBox.style.marginBottom = 8;
 
-        AddSpacer(container);
+            var pathLabel = new Label("Working Directory");
+            pathLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            pathLabel.style.marginBottom = 4;
+            pathBox.Add(pathLabel);
+
+            var pathValue = new Label(_target.WorkingDirFullPath ?? "(unavailable)");
+            pathValue.style.color = new Color(0.7f, 0.7f, 0.7f);
+            pathValue.style.fontSize = 10;
+            pathValue.style.whiteSpace = WhiteSpace.Normal;
+            pathBox.Add(pathValue);
+
+            container.Add(pathBox);
+        }
 
         var liveReloadProp = serializedObject.FindProperty("_liveReload");
         var liveReloadField = new PropertyField(liveReloadProp);
@@ -380,27 +402,39 @@ public class JSRunnerEditor : Editor {
         // Build Settings
         AddSectionHeader(container, "Build Output");
 
-        var embeddedScriptProp = serializedObject.FindProperty("_embeddedScript");
-        var streamingAssetsPathProp = serializedObject.FindProperty("_streamingAssetsPath");
+        // Show current bundle asset status
+        var bundleAsset = _target.BundleAsset;
+        var sourceMapAsset = _target.SourceMapAsset;
 
-        var embeddedScriptField = new PropertyField(embeddedScriptProp, "Embedded Script");
-        embeddedScriptField.tooltip = "Optional: embed a pre-built script directly (bypasses file loading)";
-        var streamingAssetsPathField = new PropertyField(streamingAssetsPathProp, "Streaming Assets Path");
-        container.Add(embeddedScriptField);
-        container.Add(streamingAssetsPathField);
+        var statusBox = CreateStyledBox();
+        statusBox.style.marginBottom = 8;
+
+        var bundleRow = CreateRow();
+        bundleRow.Add(CreateLabel("Bundle:", 80));
+        var bundleStatus = new Label(bundleAsset != null ? $"✓ {bundleAsset.name}" : "Not generated");
+        bundleStatus.style.color = bundleAsset != null ? new Color(0.4f, 0.8f, 0.4f) : new Color(0.6f, 0.6f, 0.6f);
+        bundleRow.Add(bundleStatus);
+        statusBox.Add(bundleRow);
+
+        var sourceMapRow = CreateRow();
+        sourceMapRow.Add(CreateLabel("Source Map:", 80));
+        var sourceMapStatus = new Label(sourceMapAsset != null ? $"✓ {sourceMapAsset.name}" : "Not generated");
+        sourceMapStatus.style.color = sourceMapAsset != null ? new Color(0.4f, 0.8f, 0.4f) : new Color(0.6f, 0.6f, 0.6f);
+        sourceMapRow.Add(sourceMapStatus);
+        statusBox.Add(sourceMapRow);
+
+        container.Add(statusBox);
+
+        // Source map option
+        container.Add(new PropertyField(serializedObject.FindProperty("_includeSourceMap"), "Include Source Map"));
 
         var buildHelpBox = new HelpBox(
-            $"Bundle will be auto-copied to StreamingAssets/{streamingAssetsPathProp.stringValue} during build.",
+            "Bundle TextAsset is auto-generated during Unity build.\n" +
+            "Path: " + (_target.BundleAssetPath ?? "(save scene first)"),
             HelpBoxMessageType.Info
         );
         buildHelpBox.style.marginTop = 4;
-        buildHelpBox.style.display = embeddedScriptProp.objectReferenceValue == null ? DisplayStyle.Flex : DisplayStyle.None;
         container.Add(buildHelpBox);
-
-        embeddedScriptField.RegisterValueChangeCallback(_ =>
-            buildHelpBox.style.display = embeddedScriptProp.objectReferenceValue == null ? DisplayStyle.Flex : DisplayStyle.None);
-        streamingAssetsPathField.RegisterValueChangeCallback(_ =>
-            buildHelpBox.text = $"Bundle will be auto-copied to StreamingAssets/{streamingAssetsPathProp.stringValue} during build.");
 
         AddSpacer(container);
 
@@ -803,9 +837,9 @@ public class JSRunnerEditor : Editor {
         statusLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
         statusLabel.style.marginRight = 4;
 
-        if (cartridge != null && !string.IsNullOrEmpty(cartridge.Slug)) {
+        if (cartridge != null && !string.IsNullOrEmpty(cartridge.Slug) && _target.IsSceneSaved) {
             var cartridgePath = _target.GetCartridgePath(cartridge);
-            bool isExtracted = Directory.Exists(cartridgePath);
+            bool isExtracted = !string.IsNullOrEmpty(cartridgePath) && Directory.Exists(cartridgePath);
 
             if (isExtracted) {
                 statusLabel.text = "Extracted";
@@ -814,6 +848,9 @@ public class JSRunnerEditor : Editor {
                 statusLabel.text = "Not extracted";
                 statusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
             }
+        } else if (!_target.IsSceneSaved) {
+            statusLabel.text = "Save scene";
+            statusLabel.style.color = new Color(0.8f, 0.6f, 0.2f);
         } else {
             statusLabel.text = cartridge == null ? "" : "No slug";
             statusLabel.style.color = new Color(0.8f, 0.6f, 0.2f);
@@ -825,7 +862,7 @@ public class JSRunnerEditor : Editor {
         extractBtn.style.width = 24;
         extractBtn.style.height = 20;
         extractBtn.tooltip = "Extract cartridge files to @cartridges/" + (cartridge?.Slug ?? "");
-        extractBtn.SetEnabled(cartridge != null && !string.IsNullOrEmpty(cartridge?.Slug));
+        extractBtn.SetEnabled(cartridge != null && !string.IsNullOrEmpty(cartridge?.Slug) && _target.IsSceneSaved);
         row.Add(extractBtn);
 
         // Delete button
@@ -834,8 +871,9 @@ public class JSRunnerEditor : Editor {
         deleteBtn.style.height = 20;
         deleteBtn.style.marginLeft = 2;
         deleteBtn.tooltip = "Delete extracted cartridge folder";
+        var cartPath = _target.IsSceneSaved ? _target.GetCartridgePath(cartridge) : null;
         bool canDelete = cartridge != null && !string.IsNullOrEmpty(cartridge?.Slug) &&
-                         Directory.Exists(_target.GetCartridgePath(cartridge));
+                         !string.IsNullOrEmpty(cartPath) && Directory.Exists(cartPath);
         deleteBtn.SetEnabled(canDelete);
         row.Add(deleteBtn);
 
@@ -960,6 +998,11 @@ public class JSRunnerEditor : Editor {
     }
 
     void ExtractAllCartridges() {
+        if (!_target.IsSceneSaved) {
+            EditorUtility.DisplayDialog("Scene Not Saved", "Save the scene before extracting cartridges.", "OK");
+            return;
+        }
+
         var cartridges = _target.Cartridges;
         if (cartridges == null || cartridges.Count == 0) {
             EditorUtility.DisplayDialog("No Cartridges", "No cartridges to extract.", "OK");
@@ -971,7 +1014,8 @@ public class JSRunnerEditor : Editor {
         foreach (var c in cartridges) {
             if (c != null && !string.IsNullOrEmpty(c.Slug)) {
                 validCount++;
-                if (Directory.Exists(_target.GetCartridgePath(c))) existingCount++;
+                var path = _target.GetCartridgePath(c);
+                if (!string.IsNullOrEmpty(path) && Directory.Exists(path)) existingCount++;
             }
         }
 
@@ -1029,6 +1073,11 @@ public class JSRunnerEditor : Editor {
     }
 
     void DeleteAllCartridges() {
+        if (!_target.IsSceneSaved) {
+            EditorUtility.DisplayDialog("Scene Not Saved", "Save the scene first.", "OK");
+            return;
+        }
+
         var cartridges = _target.Cartridges;
         if (cartridges == null || cartridges.Count == 0) {
             EditorUtility.DisplayDialog("No Cartridges", "No cartridges in list.", "OK");
@@ -1037,8 +1086,11 @@ public class JSRunnerEditor : Editor {
 
         int existingCount = 0;
         foreach (var c in cartridges) {
-            if (c != null && !string.IsNullOrEmpty(c.Slug) && Directory.Exists(_target.GetCartridgePath(c))) {
-                existingCount++;
+            if (c != null && !string.IsNullOrEmpty(c.Slug)) {
+                var path = _target.GetCartridgePath(c);
+                if (!string.IsNullOrEmpty(path) && Directory.Exists(path)) {
+                    existingCount++;
+                }
             }
         }
 
@@ -1212,7 +1264,9 @@ public class JSRunnerEditor : Editor {
         if (_typeGenStatusLabel == null) return;
 
         var outputPath = _target.TypingsFullPath;
-        if (File.Exists(outputPath)) {
+        if (string.IsNullOrEmpty(outputPath)) {
+            _typeGenStatusLabel.text = "Output: (save scene first)";
+        } else if (File.Exists(outputPath)) {
             var lastWrite = File.GetLastWriteTime(outputPath);
             _typeGenStatusLabel.text = $"Output: {_target.TypingsOutputPath} (last updated: {lastWrite:g})";
         } else {
@@ -1249,9 +1303,15 @@ public class JSRunnerEditor : Editor {
         }
 
         // Entry file status
-        var fileExists = File.Exists(_target.EntryFileFullPath);
-        _entryFileStatusLabel.text = fileExists ? "Found" : "Not Found";
-        _entryFileStatusLabel.style.color = fileExists ? Color.white : new Color(0.8f, 0.4f, 0.4f);
+        var entryFile = _target.EntryFileFullPath;
+        if (string.IsNullOrEmpty(entryFile)) {
+            _entryFileStatusLabel.text = "Scene not saved";
+            _entryFileStatusLabel.style.color = new Color(0.8f, 0.6f, 0.2f);
+        } else {
+            var fileExists = File.Exists(entryFile);
+            _entryFileStatusLabel.text = fileExists ? "Found" : "Not Found";
+            _entryFileStatusLabel.style.color = fileExists ? Color.white : new Color(0.8f, 0.4f, 0.4f);
+        }
 
         // Buttons
         _reloadButton?.SetEnabled(Application.isPlaying && _target.IsRunning);
@@ -1262,16 +1322,22 @@ public class JSRunnerEditor : Editor {
 
         // Watch button
         if (_watchButton != null) {
-            var isWatching = NodeWatcherManager.IsRunning(_target.WorkingDirFullPath);
-            var isStarting = NodeWatcherManager.IsStarting(_target.WorkingDirFullPath);
+            var workingDir = _target.WorkingDirFullPath;
+            if (string.IsNullOrEmpty(workingDir)) {
+                _watchButton.text = "Watch";
+                _watchButton.SetEnabled(false);
+            } else {
+                var isWatching = NodeWatcherManager.IsRunning(workingDir);
+                var isStarting = NodeWatcherManager.IsStarting(workingDir);
 
-            _watchButton.text = isStarting ? "Starting..." : (isWatching ? "Stop" : "Watch");
-            _watchButton.SetEnabled(!isStarting && !_buildInProgress);
+                _watchButton.text = isStarting ? "Starting..." : (isWatching ? "Stop" : "Watch");
+                _watchButton.SetEnabled(!isStarting && !_buildInProgress);
 
-            // Visual feedback for active watcher
-            _watchButton.style.backgroundColor = isWatching
-                ? new Color(0.2f, 0.5f, 0.2f)
-                : StyleKeyword.Null;
+                // Visual feedback for active watcher
+                _watchButton.style.backgroundColor = isWatching
+                    ? new Color(0.2f, 0.5f, 0.2f)
+                    : StyleKeyword.Null;
+            }
         }
 
         // Build output
@@ -1285,6 +1351,10 @@ public class JSRunnerEditor : Editor {
 
     void ToggleWatch() {
         var workingDir = _target.WorkingDirFullPath;
+        if (string.IsNullOrEmpty(workingDir)) {
+            _buildOutput = "Scene must be saved first.";
+            return;
+        }
 
         if (NodeWatcherManager.IsRunning(workingDir)) {
             NodeWatcherManager.StopWatcher(workingDir);
@@ -1348,6 +1418,12 @@ public class JSRunnerEditor : Editor {
 
     void RunBuild() {
         var workingDir = _target.WorkingDirFullPath;
+
+        if (string.IsNullOrEmpty(workingDir)) {
+            Debug.LogError("[JSRunner] Scene must be saved before building.");
+            _buildOutput = "Scene must be saved first.";
+            return;
+        }
 
         if (!Directory.Exists(workingDir)) {
             Debug.LogError($"[JSRunner] Working directory not found: {workingDir}");
