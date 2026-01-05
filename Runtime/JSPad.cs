@@ -273,7 +273,6 @@ render(<App />, __root)
         File.WriteAllText(Path.Combine(TempDir, "global.d.ts"), globalDts);
 
         _initialized = true;
-        Debug.Log($"[JSPad] Initialized temp directory: {TempDir}");
     }
 
     /// <summary>
@@ -322,8 +321,6 @@ render(<App />, __root)
             _bridge.Eval(code, "app.js");
             _bridge.Context.ExecutePendingJobs();
             _scriptLoaded = true;
-
-            Debug.Log("[JSPad] Script running");
         } catch (Exception ex) {
             Debug.LogError($"[JSPad] Run error: {ex.Message}");
             Stop();
@@ -416,8 +413,6 @@ render(<App />, __root)
             // Generate TypeScript definitions
             var dts = OneJS.CartridgeTypeGenerator.Generate(cartridge);
             File.WriteAllText(Path.Combine(destPath, $"{cartridge.Slug}.d.ts"), dts);
-
-            Debug.Log($"[JSPad] Extracted cartridge '{cartridge.DisplayName}' to: {destPath}");
         }
     }
 

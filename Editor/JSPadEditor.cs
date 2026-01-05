@@ -21,9 +21,6 @@ public class JSPadEditor : Editor {
     VisualElement _root;
     CodeField _codeField;
     Label _statusLabel;
-    Button _buildRunButton;
-    Button _buildOnlyButton;
-    Button _runButton;
 
     // Tabs
     VisualElement _tabContainer;
@@ -59,7 +56,15 @@ public class JSPadEditor : Editor {
         if (state == PlayModeStateChange.EnteredEditMode) {
             // Delay restoration to ensure editor is fully initialized
             EditorApplication.delayCall += RestoreSourceCodeFromPrefs;
+        } else if (state == PlayModeStateChange.EnteredPlayMode) {
+            // Auto build and run when entering play mode
+            EditorApplication.delayCall += AutoBuildAndRun;
         }
+    }
+
+    void AutoBuildAndRun() {
+        if (_target == null || !_target.gameObject.activeInHierarchy) return;
+        Build(runAfter: true);
     }
 
     void RestoreSourceCodeFromPrefs() {
@@ -99,12 +104,25 @@ public class JSPadEditor : Editor {
 
         var statusRow = new VisualElement();
         statusRow.style.flexDirection = FlexDirection.Row;
+        statusRow.style.alignItems = Align.Center;
         var statusTitle = new Label("Status");
         statusTitle.style.unityFontStyleAndWeight = FontStyle.Bold;
         statusTitle.style.width = 50;
         _statusLabel = new Label("Not initialized");
+        _statusLabel.style.flexGrow = 1;
         statusRow.Add(statusTitle);
         statusRow.Add(_statusLabel);
+
+        // Overflow menu button
+        var menuButton = new Button(ShowOverflowMenu) { text = "⋮" };
+        menuButton.style.width = 24;
+        menuButton.style.height = 20;
+        menuButton.style.marginLeft = 4;
+        menuButton.style.unityFontStyleAndWeight = FontStyle.Bold;
+        menuButton.style.fontSize = 14;
+        menuButton.tooltip = "More options";
+        statusRow.Add(menuButton);
+
         statusBox.Add(statusRow);
 
         var tempRow = new VisualElement();
@@ -125,10 +143,15 @@ public class JSPadEditor : Editor {
 
         _root.Add(statusBox);
 
+        // Settings foldout (contains tabs)
+        var settingsFoldout = new Foldout { text = "Settings", value = false };
+        settingsFoldout.style.marginBottom = 6;
+        _root.Add(settingsFoldout);
+
         // Tabs section
         _tabContainer = new VisualElement();
         _tabContainer.style.flexDirection = FlexDirection.Row;
-        _root.Add(_tabContainer);
+        settingsFoldout.Add(_tabContainer);
 
         // Tab content container
         _tabContent = new VisualElement();
@@ -142,62 +165,10 @@ public class JSPadEditor : Editor {
         _tabContent.style.paddingLeft = _tabContent.style.paddingRight = 10;
         _tabContent.style.marginBottom = 10;
         _tabContent.style.minHeight = 80;
-        _root.Add(_tabContent);
+        settingsFoldout.Add(_tabContent);
 
         // Build tabs
         BuildTabs();
-
-        // Action buttons
-        // Row 1: Build & Run, Run/Stop toggle
-        var row1 = new VisualElement();
-        row1.style.flexDirection = FlexDirection.Row;
-        row1.style.marginBottom = 4;
-
-        _buildRunButton = new Button(BuildAndRun) { text = "Build & Run" };
-        _buildRunButton.style.flexGrow = 1;
-        _buildRunButton.style.height = 28;
-        _buildRunButton.tooltip = "Build the source code and run it (requires Play Mode)";
-        row1.Add(_buildRunButton);
-
-        _runButton = new Button(OnRunStopClicked) { text = "Run" };
-        _runButton.style.flexGrow = 1;
-        _runButton.style.height = 28;
-        _runButton.style.marginLeft = 4;
-        _runButton.tooltip = "Run the last built script or stop current execution";
-        row1.Add(_runButton);
-
-        _root.Add(row1);
-
-        // Row 2: Build Only, Open Folder, Clean
-        var row2 = new VisualElement();
-        row2.style.flexDirection = FlexDirection.Row;
-
-        _buildOnlyButton = new Button(() => Build(false)) { text = "Build Only" };
-        _buildOnlyButton.style.flexGrow = 1;
-        _buildOnlyButton.style.height = 24;
-        _buildOnlyButton.tooltip = "Build the source code without running";
-        row2.Add(_buildOnlyButton);
-
-        var openFolderBtn = new Button(OpenTempFolder) { text = "Open Folder" };
-        openFolderBtn.style.flexGrow = 1;
-        openFolderBtn.style.height = 24;
-        openFolderBtn.style.marginLeft = 4;
-        openFolderBtn.tooltip = "Open the temp build directory in file explorer";
-        row2.Add(openFolderBtn);
-
-        var cleanBtn = new Button(Clean) { text = "Clean" };
-        cleanBtn.style.flexGrow = 1;
-        cleanBtn.style.height = 24;
-        cleanBtn.style.marginLeft = 4;
-        cleanBtn.tooltip = "Delete the temp directory and all build artifacts";
-        row2.Add(cleanBtn);
-
-        _root.Add(row2);
-
-        // Spacer before code field
-        var spacer = new VisualElement();
-        spacer.style.height = 10;
-        _root.Add(spacer);
 
         // Code editor (at the bottom)
         _codeField = new CodeField();
@@ -309,7 +280,7 @@ public class JSPadEditor : Editor {
         headerRow.style.flexDirection = FlexDirection.Row;
         headerRow.style.marginBottom = 6;
 
-        var headerLabel = new Label("npm Dependencies");
+        var headerLabel = new Label("NPM Deps");
         headerLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
         headerLabel.style.flexGrow = 1;
         headerRow.Add(headerLabel);
@@ -333,13 +304,27 @@ public class JSPadEditor : Editor {
 
         RebuildModuleList();
 
-        // Help text
-        var helpBox = new HelpBox(
-            "Add npm packages to include in the build. Changes require reinstalling dependencies (Clean + Build).",
-            HelpBoxMessageType.Info
-        );
-        helpBox.style.marginTop = 6;
-        _tabContent.Add(helpBox);
+        // Install button
+        var installButton = new Button(InstallDependencies) { text = "Install" };
+        installButton.style.marginTop = 6;
+        installButton.style.height = 24;
+        installButton.tooltip = "Run npm install (clears node_modules first)";
+        _tabContent.Add(installButton);
+    }
+
+    void InstallDependencies() {
+        if (_isProcessing) return;
+
+        // Clear node_modules to force reinstall
+        var nodeModulesPath = Path.Combine(_target.TempDir, "node_modules");
+        if (Directory.Exists(nodeModulesPath)) {
+            try {
+                Directory.Delete(nodeModulesPath, recursive: true);
+            } catch { }
+        }
+
+        _target.EnsureTempDirectory();
+        RunNpmInstall(null);
     }
 
     void RebuildModuleList() {
@@ -637,27 +622,16 @@ public class JSPadEditor : Editor {
             _statusLabel.text = "Dependencies installed";
             _statusLabel.style.color = Color.white;
         } else {
-            _statusLabel.text = "Not initialized";
+            _statusLabel.text = "Ready";
             _statusLabel.style.color = Color.white;
         }
-
-        // Update button states
-        _buildRunButton.SetEnabled(!_isProcessing);
-        _buildRunButton.text = _isProcessing ? (_statusMessage ?? "Processing...") : "Build & Run";
-        _buildOnlyButton.SetEnabled(!_isProcessing);
-
-        // Run/Stop toggle button
-        var isRunning = Application.isPlaying && _target.IsRunning;
-        _runButton.text = isRunning ? "Stop" : "Run";
-        _runButton.SetEnabled(Application.isPlaying && (_target.HasBuiltOutput || isRunning) && !_isProcessing);
     }
 
-    void OnRunStopClicked() {
-        if (_target.IsRunning) {
-            _target.Stop();
-        } else {
-            _target.RunBuiltScript();
-        }
+    void ShowOverflowMenu() {
+        var menu = new GenericMenu();
+        menu.AddItem(new GUIContent("Open Folder"), false, OpenTempFolder);
+        menu.AddItem(new GUIContent("Clean"), false, Clean);
+        menu.ShowAsContext();
     }
 
     void OpenTempFolder() {
@@ -673,18 +647,9 @@ public class JSPadEditor : Editor {
 #endif
     }
 
-    void BuildAndRun() {
-        Build(runAfter: true);
-    }
-
     void Build(bool runAfter) {
         if (_isProcessing) return;
-
-        // Ensure we're in play mode for running
-        if (runAfter && !Application.isPlaying) {
-            EditorUtility.DisplayDialog("JSPad", "Enter Play Mode first to run the script.", "OK");
-            return;
-        }
+        if (runAfter && !Application.isPlaying) return; // Can't run outside play mode
 
         _target.EnsureTempDirectory();
         _target.WriteSourceFile();
@@ -725,13 +690,8 @@ public class JSPadEditor : Editor {
 
             _currentProcess = new Process { StartInfo = startInfo };
 
-            _currentProcess.OutputDataReceived += (s, e) => {
-                if (!string.IsNullOrEmpty(e.Data)) Debug.Log($"[JSPad npm] {e.Data}");
-            };
-
-            _currentProcess.ErrorDataReceived += (s, e) => {
-                if (!string.IsNullOrEmpty(e.Data)) Debug.LogWarning($"[JSPad npm] {e.Data}");
-            };
+            _currentProcess.OutputDataReceived += (s, e) => { };
+            _currentProcess.ErrorDataReceived += (s, e) => { };
 
             _currentProcess.EnableRaisingEvents = true;
             _currentProcess.Exited += (s, e) => {
@@ -740,7 +700,6 @@ public class JSPadEditor : Editor {
 
                 EditorApplication.delayCall += () => {
                     if (exitCode == 0) {
-                        Debug.Log("[JSPad] Dependencies installed");
                         onComplete?.Invoke();
                     } else {
                         _isProcessing = false;
@@ -791,15 +750,9 @@ public class JSPadEditor : Editor {
 
             string errorOutput = "";
 
-            _currentProcess.OutputDataReceived += (s, e) => {
-                if (!string.IsNullOrEmpty(e.Data)) Debug.Log($"[JSPad build] {e.Data}");
-            };
-
+            _currentProcess.OutputDataReceived += (s, e) => { };
             _currentProcess.ErrorDataReceived += (s, e) => {
-                if (!string.IsNullOrEmpty(e.Data)) {
-                    errorOutput += e.Data + "\n";
-                    Debug.LogError($"[JSPad build] {e.Data}");
-                }
+                if (!string.IsNullOrEmpty(e.Data)) errorOutput += e.Data + "\n";
             };
 
             _currentProcess.EnableRaisingEvents = true;
@@ -813,8 +766,6 @@ public class JSPadEditor : Editor {
 
                     if (exitCode == 0) {
                         _target.SetBuildState(JSPad.BuildState.Ready, output: "Build successful");
-                        Debug.Log("[JSPad] Build complete");
-
                         if (runAfter && Application.isPlaying) {
                             _target.RunBuiltScript();
                         }
@@ -849,12 +800,9 @@ public class JSPadEditor : Editor {
         if (Directory.Exists(tempDir)) {
             try {
                 Directory.Delete(tempDir, recursive: true);
-                Debug.Log($"[JSPad] Cleaned temp directory: {tempDir}");
             } catch (Exception ex) {
                 Debug.LogError($"[JSPad] Failed to clean: {ex.Message}");
             }
-        } else {
-            Debug.Log("[JSPad] Nothing to clean");
         }
 
         _target.SetBuildState(JSPad.BuildState.Idle);

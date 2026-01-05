@@ -4,8 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace OneJS
-{
+namespace OneJS {
     /// <summary>
     /// A TextField with syntax highlighting support via per-glyph vertex coloring.
     /// Uses UI Toolkit's <see cref="TextElement.PostProcessTextVertices"/> callback to colorize
@@ -33,14 +32,12 @@ namespace OneJS
     /// </code>
     /// </example>
     [UxmlElement]
-    public partial class CodeField : TextField
-    {
+    public partial class CodeField : TextField {
         /// <summary>
         /// Interface for syntax highlighters that provide color information per character.
         /// Implement this interface to add support for custom languages or color schemes.
         /// </summary>
-        public interface ISyntaxHighlighter
-        {
+        public interface ISyntaxHighlighter {
             /// <summary>
             /// Analyzes the text and returns a color for each character.
             /// </summary>
@@ -56,18 +53,17 @@ namespace OneJS
         /// Built-in syntax highlighter for JavaScript/TypeScript/JSX code.
         /// Highlights keywords, strings, numbers, comments, and JSX elements with customizable colors.
         /// </summary>
-        public class SimpleKeywordHighlighter : ISyntaxHighlighter
-        {
-            public Color32 DefaultColor = new Color32(212, 212, 212, 255);      // Light gray
-            public Color32 KeywordColor = new Color32(197, 134, 192, 255);      // Purple
-            public Color32 StringColor = new Color32(206, 145, 120, 255);       // Orange
-            public Color32 NumberColor = new Color32(181, 206, 168, 255);       // Light green
-            public Color32 CommentColor = new Color32(106, 153, 85, 255);       // Green
-            public Color32 JsxTagColor = new Color32(86, 156, 214, 255);        // Blue (for JSX tags)
-            public Color32 JsxAttributeColor = new Color32(156, 220, 254, 255); // Light blue (for JSX attributes)
+        public class SimpleKeywordHighlighter : ISyntaxHighlighter {
+            public Color32 DefaultColor = new Color32(212, 212, 212, 255); // Light gray
+            public Color32 KeywordColor = new Color32(197, 134, 192, 255); // Purple
+            public Color32 StringColor = new Color32(206, 145, 120, 255); // Orange
+            public Color32 NumberColor = new Color32(181, 206, 168, 255); // Light green
+            public Color32 CommentColor = new Color32(106, 153, 85, 255); // Green
+            public Color32 JsxTagColor = new Color32(86, 156, 214, 255); // Blue (for JSX tags)
+            public Color32
+                JsxAttributeColor = new Color32(156, 220, 254, 255); // Light blue (for JSX attributes)
 
-            private static readonly HashSet<string> Keywords = new HashSet<string>
-            {
+            private static readonly HashSet<string> Keywords = new HashSet<string> {
                 "if", "else", "for", "while", "do", "switch", "case", "break", "continue", "return",
                 "function", "var", "let", "const", "class", "extends", "new", "this", "super",
                 "import", "export", "from", "default", "async", "await", "try", "catch", "finally",
@@ -77,8 +73,7 @@ namespace OneJS
             // Reusable StringBuilder to avoid allocations when extracting keywords
             private readonly System.Text.StringBuilder _wordBuilder = new System.Text.StringBuilder(64);
 
-            public Color32[] Highlight(string text)
-            {
+            public Color32[] Highlight(string text) {
                 if (string.IsNullOrEmpty(text))
                     return Array.Empty<Color32>();
 
@@ -88,13 +83,11 @@ namespace OneJS
                     colors[i] = defaultColor;
 
                 int pos = 0;
-                while (pos < text.Length)
-                {
+                while (pos < text.Length) {
                     char c = text[pos];
 
                     // Single-line comment
-                    if (c == '/' && pos + 1 < text.Length && text[pos + 1] == '/')
-                    {
+                    if (c == '/' && pos + 1 < text.Length && text[pos + 1] == '/') {
                         int start = pos;
                         while (pos < text.Length && text[pos] != '\n')
                             pos++;
@@ -104,8 +97,7 @@ namespace OneJS
                     }
 
                     // Multi-line comment
-                    if (c == '/' && pos + 1 < text.Length && text[pos + 1] == '*')
-                    {
+                    if (c == '/' && pos + 1 < text.Length && text[pos + 1] == '*') {
                         int start = pos;
                         pos += 2;
                         while (pos + 1 < text.Length && !(text[pos] == '*' && text[pos + 1] == '/'))
@@ -117,36 +109,33 @@ namespace OneJS
                     }
 
                     // JSX tag: <TagName, </TagName, or <>
-                    if (c == '<' && pos + 1 < text.Length)
-                    {
+                    if (c == '<' && pos + 1 < text.Length) {
                         char next = text[pos + 1];
                         // Check for JSX: < followed by letter, /, or > (fragment)
-                        if (char.IsLetter(next) || next == '/' || next == '>')
-                        {
+                        if (char.IsLetter(next) || next == '/' || next == '>') {
                             int tagStart = pos;
                             colors[pos] = JsxTagColor; // <
                             pos++;
 
                             // Handle closing tag or fragment
-                            if (pos < text.Length && text[pos] == '/')
-                            {
+                            if (pos < text.Length && text[pos] == '/') {
                                 colors[pos] = JsxTagColor;
                                 pos++;
                             }
 
                             // Parse tag name (if any)
-                            if (pos < text.Length && char.IsLetter(text[pos]))
-                            {
+                            if (pos < text.Length && char.IsLetter(text[pos])) {
                                 int nameStart = pos;
-                                while (pos < text.Length && (char.IsLetterOrDigit(text[pos]) || text[pos] == '_' || text[pos] == '-' || text[pos] == '.'))
+                                while (pos < text.Length && (char.IsLetterOrDigit(text[pos]) ||
+                                                             text[pos] == '_' || text[pos] == '-' ||
+                                                             text[pos] == '.'))
                                     pos++;
                                 for (int i = nameStart; i < pos; i++)
                                     colors[i] = JsxTagColor;
                             }
 
                             // Parse attributes until > or />
-                            while (pos < text.Length && text[pos] != '>')
-                            {
+                            while (pos < text.Length && text[pos] != '>') {
                                 // Skip whitespace
                                 while (pos < text.Length && char.IsWhiteSpace(text[pos]))
                                     pos++;
@@ -155,10 +144,10 @@ namespace OneJS
                                     break;
 
                                 // Attribute name
-                                if (char.IsLetter(text[pos]) || text[pos] == '_')
-                                {
+                                if (char.IsLetter(text[pos]) || text[pos] == '_') {
                                     int attrStart = pos;
-                                    while (pos < text.Length && (char.IsLetterOrDigit(text[pos]) || text[pos] == '_' || text[pos] == '-'))
+                                    while (pos < text.Length && (char.IsLetterOrDigit(text[pos]) ||
+                                                                 text[pos] == '_' || text[pos] == '-'))
                                         pos++;
                                     for (int i = attrStart; i < pos; i++)
                                         colors[i] = JsxAttributeColor;
@@ -168,16 +157,13 @@ namespace OneJS
                                         pos++;
 
                                     // Attribute value
-                                    if (pos < text.Length)
-                                    {
-                                        if (text[pos] == '"' || text[pos] == '\'')
-                                        {
+                                    if (pos < text.Length) {
+                                        if (text[pos] == '"' || text[pos] == '\'') {
                                             // String attribute value
                                             char quote = text[pos];
                                             int strStart = pos;
                                             pos++;
-                                            while (pos < text.Length && text[pos] != quote)
-                                            {
+                                            while (pos < text.Length && text[pos] != quote) {
                                                 if (text[pos] == '\\' && pos + 1 < text.Length)
                                                     pos++;
                                                 pos++;
@@ -186,33 +172,25 @@ namespace OneJS
                                                 pos++;
                                             for (int i = strStart; i < pos && i < colors.Length; i++)
                                                 colors[i] = StringColor;
-                                        }
-                                        else if (text[pos] == '{')
-                                        {
+                                        } else if (text[pos] == '{') {
                                             // JSX expression - parse balanced braces
                                             pos = HighlightJsxExpression(text, pos, colors);
                                         }
                                     }
-                                }
-                                else if (text[pos] == '{')
-                                {
+                                } else if (text[pos] == '{') {
                                     // Spread attribute {...props}
                                     pos = HighlightJsxExpression(text, pos, colors);
-                                }
-                                else
-                                {
+                                } else {
                                     pos++;
                                 }
                             }
 
                             // Handle /> or >
-                            if (pos < text.Length && text[pos] == '/')
-                            {
+                            if (pos < text.Length && text[pos] == '/') {
                                 colors[pos] = JsxTagColor;
                                 pos++;
                             }
-                            if (pos < text.Length && text[pos] == '>')
-                            {
+                            if (pos < text.Length && text[pos] == '>') {
                                 colors[pos] = JsxTagColor;
                                 pos++;
                             }
@@ -221,20 +199,16 @@ namespace OneJS
                     }
 
                     // String literals
-                    if (c == '"' || c == '\'' || c == '`')
-                    {
+                    if (c == '"' || c == '\'' || c == '`') {
                         char quote = c;
                         int start = pos;
                         pos++;
-                        while (pos < text.Length)
-                        {
-                            if (text[pos] == '\\' && pos + 1 < text.Length)
-                            {
+                        while (pos < text.Length) {
+                            if (text[pos] == '\\' && pos + 1 < text.Length) {
                                 pos += 2;
                                 continue;
                             }
-                            if (text[pos] == quote)
-                            {
+                            if (text[pos] == quote) {
                                 pos++;
                                 break;
                             }
@@ -246,11 +220,14 @@ namespace OneJS
                     }
 
                     // Numbers
-                    if (char.IsDigit(c) || (c == '.' && pos + 1 < text.Length && char.IsDigit(text[pos + 1])))
-                    {
+                    if (char.IsDigit(c) ||
+                        (c == '.' && pos + 1 < text.Length && char.IsDigit(text[pos + 1]))) {
                         int start = pos;
-                        while (pos < text.Length && (char.IsDigit(text[pos]) || text[pos] == '.' || text[pos] == 'x' || text[pos] == 'X' ||
-                               (text[pos] >= 'a' && text[pos] <= 'f') || (text[pos] >= 'A' && text[pos] <= 'F')))
+                        while (pos < text.Length &&
+                               (char.IsDigit(text[pos]) || text[pos] == '.' || text[pos] == 'x' ||
+                                text[pos] == 'X' ||
+                                (text[pos] >= 'a' && text[pos] <= 'f') ||
+                                (text[pos] >= 'A' && text[pos] <= 'F')))
                             pos++;
                         for (int i = start; i < pos; i++)
                             colors[i] = NumberColor;
@@ -258,15 +235,14 @@ namespace OneJS
                     }
 
                     // Identifiers and keywords
-                    if (char.IsLetter(c) || c == '_' || c == '$')
-                    {
+                    if (char.IsLetter(c) || c == '_' || c == '$') {
                         int start = pos;
-                        while (pos < text.Length && (char.IsLetterOrDigit(text[pos]) || text[pos] == '_' || text[pos] == '$'))
+                        while (pos < text.Length && (char.IsLetterOrDigit(text[pos]) || text[pos] == '_' ||
+                                                     text[pos] == '$'))
                             pos++;
 
                         // Check if it's a keyword without allocating a new string
-                        if (IsKeyword(text, start, pos - start))
-                        {
+                        if (IsKeyword(text, start, pos - start)) {
                             for (int i = start; i < pos; i++)
                                 colors[i] = KeywordColor;
                         }
@@ -283,36 +259,28 @@ namespace OneJS
             /// Highlights a JSX expression {...} and returns the position after the closing brace.
             /// Handles nested braces and strings within the expression.
             /// </summary>
-            private int HighlightJsxExpression(string text, int pos, Color32[] colors)
-            {
+            private int HighlightJsxExpression(string text, int pos, Color32[] colors) {
                 if (pos >= text.Length || text[pos] != '{')
                     return pos;
 
                 int braceDepth = 1;
                 pos++; // Skip opening {
 
-                while (pos < text.Length && braceDepth > 0)
-                {
+                while (pos < text.Length && braceDepth > 0) {
                     char c = text[pos];
 
-                    if (c == '{')
-                    {
+                    if (c == '{') {
                         braceDepth++;
                         pos++;
-                    }
-                    else if (c == '}')
-                    {
+                    } else if (c == '}') {
                         braceDepth--;
                         pos++;
-                    }
-                    else if (c == '"' || c == '\'' || c == '`')
-                    {
+                    } else if (c == '"' || c == '\'' || c == '`') {
                         // String inside expression
                         char quote = c;
                         int strStart = pos;
                         pos++;
-                        while (pos < text.Length && text[pos] != quote)
-                        {
+                        while (pos < text.Length && text[pos] != quote) {
                             if (text[pos] == '\\' && pos + 1 < text.Length)
                                 pos++;
                             pos++;
@@ -321,39 +289,32 @@ namespace OneJS
                             pos++;
                         for (int i = strStart; i < pos && i < colors.Length; i++)
                             colors[i] = StringColor;
-                    }
-                    else if (c == '/' && pos + 1 < text.Length && text[pos + 1] == '/')
-                    {
+                    } else if (c == '/' && pos + 1 < text.Length && text[pos + 1] == '/') {
                         // Single-line comment inside expression
                         int commentStart = pos;
                         while (pos < text.Length && text[pos] != '\n')
                             pos++;
                         for (int i = commentStart; i < pos; i++)
                             colors[i] = CommentColor;
-                    }
-                    else if (char.IsDigit(c))
-                    {
+                    } else if (char.IsDigit(c)) {
                         // Number inside expression
                         int numStart = pos;
-                        while (pos < text.Length && (char.IsDigit(text[pos]) || text[pos] == '.' || text[pos] == 'x'))
+                        while (pos < text.Length &&
+                               (char.IsDigit(text[pos]) || text[pos] == '.' || text[pos] == 'x'))
                             pos++;
                         for (int i = numStart; i < pos; i++)
                             colors[i] = NumberColor;
-                    }
-                    else if (char.IsLetter(c) || c == '_' || c == '$')
-                    {
+                    } else if (char.IsLetter(c) || c == '_' || c == '$') {
                         // Identifier or keyword inside expression
                         int idStart = pos;
-                        while (pos < text.Length && (char.IsLetterOrDigit(text[pos]) || text[pos] == '_' || text[pos] == '$'))
+                        while (pos < text.Length && (char.IsLetterOrDigit(text[pos]) || text[pos] == '_' ||
+                                                     text[pos] == '$'))
                             pos++;
-                        if (IsKeyword(text, idStart, pos - idStart))
-                        {
+                        if (IsKeyword(text, idStart, pos - idStart)) {
                             for (int i = idStart; i < pos; i++)
                                 colors[i] = KeywordColor;
                         }
-                    }
-                    else
-                    {
+                    } else {
                         pos++;
                     }
                 }
@@ -364,23 +325,19 @@ namespace OneJS
             /// <summary>
             /// Checks if a substring matches a keyword without allocating a new string.
             /// </summary>
-            private static bool IsKeyword(string text, int start, int length)
-            {
+            private static bool IsKeyword(string text, int start, int length) {
                 // Quick length check - keywords are 2-11 chars
                 if (length < 2 || length > 11)
                     return false;
 
                 // Check against each keyword
-                foreach (var keyword in Keywords)
-                {
+                foreach (var keyword in Keywords) {
                     if (keyword.Length != length)
                         continue;
 
                     bool match = true;
-                    for (int i = 0; i < length; i++)
-                    {
-                        if (text[start + i] != keyword[i])
-                        {
+                    for (int i = 0; i < length; i++) {
+                        if (text[start + i] != keyword[i]) {
                             match = false;
                             break;
                         }
@@ -416,8 +373,12 @@ namespace OneJS
         /// <summary>
         /// Gets a monospace font from the system. Caches the result.
         /// </summary>
-        private static Font GetMonospaceFont()
-        {
+        private static Font GetMonospaceFont() {
+            // Check if cached font is still valid (can become invalid after play mode exit)
+            if (_fontLoadAttempted && _monospaceFont == null) {
+                _fontLoadAttempted = false; // Reset to allow reload
+            }
+
             if (_fontLoadAttempted)
                 return _monospaceFont;
 
@@ -430,23 +391,18 @@ namespace OneJS
 #elif UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
             fontNames = new[] { "Consolas", "Cascadia Code", "Courier New", "Lucida Console" };
 #else
-            fontNames = new[] { "DejaVu Sans Mono", "Liberation Mono", "Consolas", "Courier New", "monospace" };
+            fontNames =
+ new[] { "DejaVu Sans Mono", "Liberation Mono", "Consolas", "Courier New", "monospace" };
 #endif
 
-            foreach (var fontName in fontNames)
-            {
-                try
-                {
+            foreach (var fontName in fontNames) {
+                try {
                     var font = Font.CreateDynamicFontFromOSFont(fontName, 14);
-                    if (font != null)
-                    {
+                    if (font != null) {
                         _monospaceFont = font;
-                        Debug.Log($"[CodeField] Loaded monospace font: {fontName}");
                         return font;
                     }
-                }
-                catch
-                {
+                } catch {
                     // Font not available, try next
                 }
             }
@@ -458,8 +414,7 @@ namespace OneJS
         /// <summary>
         /// Applies the monospace font to a VisualElement and all its TextElement children.
         /// </summary>
-        private static void ApplyMonospaceFont(VisualElement element)
-        {
+        private static void ApplyMonospaceFont(VisualElement element) {
             var font = GetMonospaceFont();
             if (font == null || element == null)
                 return;
@@ -467,14 +422,10 @@ namespace OneJS
             var fontDef = new StyleFontDefinition(FontDefinition.FromFont(font));
 
             // Apply to all TextElements in the hierarchy
-            element.Query<TextElement>().ForEach(te =>
-            {
-                te.style.unityFontDefinition = fontDef;
-            });
+            element.Query<TextElement>().ForEach(te => { te.style.unityFontDefinition = fontDef; });
 
             // Also set on the element itself in case it's a TextElement
-            if (element is TextElement textElement)
-            {
+            if (element is TextElement textElement) {
                 textElement.style.unityFontDefinition = fontDef;
             }
         }
@@ -482,11 +433,9 @@ namespace OneJS
         /// <summary>
         /// The syntax highlighter to use. Set to null to disable highlighting.
         /// </summary>
-        public ISyntaxHighlighter Highlighter
-        {
+        public ISyntaxHighlighter Highlighter {
             get => _highlighter;
-            set
-            {
+            set {
                 _highlighter = value;
                 RefreshHighlighting();
             }
@@ -496,21 +445,13 @@ namespace OneJS
         /// When true, pressing Tab inserts spaces. When false, inserts a tab character.
         /// Default is true (spaces).
         /// </summary>
-        public bool IndentUsingSpaces
-        {
-            get => _indentUsingSpaces;
-            set => _indentUsingSpaces = value;
-        }
+        public bool IndentUsingSpaces { get => _indentUsingSpaces; set => _indentUsingSpaces = value; }
 
         /// <summary>
         /// Number of spaces to insert when pressing Tab (only applies when IndentUsingSpaces is true).
         /// Also controls how many spaces to remove when dedenting. Default is 4.
         /// </summary>
-        public int IndentSize
-        {
-            get => _indentSize;
-            set => _indentSize = Math.Max(1, value);
-        }
+        public int IndentSize { get => _indentSize; set => _indentSize = Math.Max(1, value); }
 
         /// <summary>
         /// When true, automatically adjusts height based on content line count.
@@ -518,16 +459,15 @@ namespace OneJS
         /// AutoHeight off enables internal vertical scrolling with scroll chaining.
         /// Default is false.
         /// </summary>
-        public bool AutoHeight
-        {
+        public bool AutoHeight {
             get => _autoHeight;
-            set
-            {
+            set {
                 _autoHeight = value;
-                if (_scrollView != null)
-                {
-                    _scrollView.mode = value ? ScrollViewMode.Horizontal : ScrollViewMode.VerticalAndHorizontal;
-                    _scrollView.verticalScrollerVisibility = value ? ScrollerVisibility.Hidden : ScrollerVisibility.Auto;
+                if (_scrollView != null) {
+                    _scrollView.mode =
+                        value ? ScrollViewMode.Horizontal : ScrollViewMode.VerticalAndHorizontal;
+                    _scrollView.verticalScrollerVisibility =
+                        value ? ScrollerVisibility.Hidden : ScrollerVisibility.Auto;
                 }
                 if (_autoHeight) UpdateAutoHeight();
             }
@@ -536,11 +476,9 @@ namespace OneJS
         /// <summary>
         /// Height per line in pixels when AutoHeight is enabled. Default is 18.
         /// </summary>
-        public float LineHeight
-        {
+        public float LineHeight {
             get => _lineHeight;
-            set
-            {
+            set {
                 _lineHeight = Math.Max(1f, value);
                 if (_autoHeight) UpdateAutoHeight();
             }
@@ -549,23 +487,22 @@ namespace OneJS
         /// <summary>
         /// Minimum number of lines to display when AutoHeight is enabled. Default is 3.
         /// </summary>
-        public int MinLines
-        {
+        public int MinLines {
             get => _minLines;
-            set
-            {
+            set {
                 _minLines = Math.Max(1, value);
                 if (_autoHeight) UpdateAutoHeight();
             }
         }
 
-        public CodeField() : this(null, -1, false, false, default) { }
+        public CodeField() : this(null, -1, false, false, default) {
+        }
 
-        public CodeField(string label) : this(label, -1, false, false, default) { }
+        public CodeField(string label) : this(label, -1, false, false, default) {
+        }
 
         public CodeField(string label, int maxLength, bool multiline, bool isPasswordField, char maskChar)
-            : base(label, maxLength, multiline, isPasswordField, maskChar)
-        {
+            : base(label, maxLength, multiline, isPasswordField, maskChar) {
             // Default to multiline for code
             this.multiline = true;
 
@@ -578,8 +515,7 @@ namespace OneJS
 
             // Find the TextElement child and configure it
             _textElement = this.Q<TextElement>();
-            if (_textElement != null)
-            {
+            if (_textElement != null) {
                 _textElement.PostProcessTextVertices = ColorizeGlyphs;
             }
 
@@ -590,21 +526,17 @@ namespace OneJS
             ApplyMonospaceFont(this);
 
             // Refresh highlighting and auto-height when value changes
-            this.RegisterValueChangedCallback(evt =>
-            {
+            this.RegisterValueChangedCallback(evt => {
                 ScheduleRefreshHighlighting(); // Debounced for large text performance
                 if (_autoHeight) UpdateAutoHeight();
             });
 
             // Trigger initial setup after the element is attached
-            RegisterCallback<AttachToPanelEvent>(evt =>
-            {
+            RegisterCallback<AttachToPanelEvent>(evt => {
                 // Re-query in case hierarchy wasn't ready in constructor
-                if (_textElement == null)
-                {
+                if (_textElement == null) {
                     _textElement = this.Q<TextElement>();
-                    if (_textElement != null)
-                    {
+                    if (_textElement != null) {
                         _textElement.PostProcessTextVertices = ColorizeGlyphs;
                     }
                 }
@@ -616,8 +548,7 @@ namespace OneJS
                 ApplyMonospaceFont(this);
 
                 // Schedule to ensure layout is complete
-                schedule.Execute(() =>
-                {
+                schedule.Execute(() => {
                     RefreshHighlighting();
                     if (_autoHeight) UpdateAutoHeight();
                 });
@@ -635,24 +566,23 @@ namespace OneJS
         /// When AutoHeight is on, only horizontal scrolling (content expands vertically).
         /// When AutoHeight is off, both horizontal and vertical scrolling.
         /// </summary>
-        private void ConfigureScrolling()
-        {
+        private void ConfigureScrolling() {
             // Find the ScrollView inside TextField (if it exists)
             _scrollView = this.Q<ScrollView>();
-            if (_scrollView != null)
-            {
+            if (_scrollView != null) {
                 // When AutoHeight is off, allow both horizontal and vertical scrolling
                 // When AutoHeight is on, only horizontal (content expands vertically)
-                _scrollView.mode = _autoHeight ? ScrollViewMode.Horizontal : ScrollViewMode.VerticalAndHorizontal;
+                _scrollView.mode =
+                    _autoHeight ? ScrollViewMode.Horizontal : ScrollViewMode.VerticalAndHorizontal;
                 _scrollView.horizontalScrollerVisibility = ScrollerVisibility.Auto;
-                _scrollView.verticalScrollerVisibility = _autoHeight ? ScrollerVisibility.Hidden : ScrollerVisibility.Auto;
+                _scrollView.verticalScrollerVisibility =
+                    _autoHeight ? ScrollerVisibility.Hidden : ScrollerVisibility.Auto;
                 _scrollView.elasticity = 0; // Disable elastic scrolling for code
             }
 
             // Prevent text wrapping in the text input
             var textInput = this.Q(className: "unity-text-field__input");
-            if (textInput != null)
-            {
+            if (textInput != null) {
                 textInput.style.whiteSpace = WhiteSpace.NoWrap;
                 textInput.style.overflow = Overflow.Hidden;
 
@@ -661,34 +591,30 @@ namespace OneJS
             }
 
             // Ensure the text element doesn't wrap
-            if (_textElement != null)
-            {
+            if (_textElement != null) {
                 _textElement.style.whiteSpace = WhiteSpace.NoWrap;
             }
         }
 
-        private void OnWheel(WheelEvent evt)
-        {
+        private void OnWheel(WheelEvent evt) {
             bool isVerticalScroll = Math.Abs(evt.delta.y) > Math.Abs(evt.delta.x);
 
             // AutoHeight mode: pass through vertical scroll immediately to parent
-            if (_autoHeight && isVerticalScroll)
-            {
+            if (_autoHeight && isVerticalScroll) {
                 return; // Let parent handle it
             }
 
             // Fixed height mode: handle vertical scroll with scroll chaining
-            if (!_autoHeight && isVerticalScroll && _scrollView != null)
-            {
+            if (!_autoHeight && isVerticalScroll && _scrollView != null) {
                 float scrollPos = _scrollView.scrollOffset.y;
-                float maxScroll = _scrollView.contentContainer.resolvedStyle.height - _scrollView.contentViewport.resolvedStyle.height;
+                float maxScroll = _scrollView.contentContainer.resolvedStyle.height -
+                                  _scrollView.contentViewport.resolvedStyle.height;
                 maxScroll = Math.Max(0, maxScroll);
 
                 bool atTop = scrollPos <= 0 && evt.delta.y < 0;
                 bool atBottom = scrollPos >= maxScroll && evt.delta.y > 0;
 
-                if (atTop || atBottom)
-                {
+                if (atTop || atBottom) {
                     return; // At bounds, let parent scroll
                 }
 
@@ -713,7 +639,8 @@ namespace OneJS
             var newLeft = currentLeft - deltaX * 20f; // Multiply for reasonable scroll speed
 
             // Clamp to valid range
-            var maxScrollX = Math.Max(0, contentContainer.resolvedStyle.width - textInput.resolvedStyle.width);
+            var maxScrollX = Math.Max(0,
+                contentContainer.resolvedStyle.width - textInput.resolvedStyle.width);
             newLeft = Math.Max(-maxScrollX, Math.Min(0, newLeft));
 
             contentContainer.style.left = newLeft;
@@ -723,8 +650,7 @@ namespace OneJS
         /// <summary>
         /// Updates the height of the control based on content line count.
         /// </summary>
-        private void UpdateAutoHeight()
-        {
+        private void UpdateAutoHeight() {
             if (!_autoHeight) return;
 
             var lineCount = CountLines(value);
@@ -737,32 +663,25 @@ namespace OneJS
         /// <summary>
         /// Counts lines without allocating an array (avoids Split allocation).
         /// </summary>
-        private static int CountLines(string text)
-        {
+        private static int CountLines(string text) {
             if (string.IsNullOrEmpty(text))
                 return 1;
 
             int count = 1;
-            for (int i = 0; i < text.Length; i++)
-            {
+            for (int i = 0; i < text.Length; i++) {
                 if (text[i] == '\n')
                     count++;
             }
             return count;
         }
 
-        private void OnKeyDown(KeyDownEvent evt)
-        {
-            if (evt.keyCode == KeyCode.Tab)
-            {
+        private void OnKeyDown(KeyDownEvent evt) {
+            if (evt.keyCode == KeyCode.Tab) {
                 evt.StopPropagation();
 
-                if (evt.shiftKey)
-                {
+                if (evt.shiftKey) {
                     HandleDedent();
-                }
-                else
-                {
+                } else {
                     HandleIndent();
                 }
             }
@@ -771,39 +690,29 @@ namespace OneJS
                      _indentUsingSpaces &&
                      !evt.commandKey &&
                      !evt.ctrlKey &&
-                     !evt.altKey)
-            {
-                if (HandleSmartBackspace())
-                {
+                     !evt.altKey) {
+                if (HandleSmartBackspace()) {
                     evt.StopPropagation();
                 }
             }
             // Fix Cmd+Arrow navigation for multiline (UI Toolkit quirk)
-            else if (evt.commandKey && !evt.shiftKey && !evt.altKey && !evt.ctrlKey)
-            {
-                if (evt.keyCode == KeyCode.RightArrow)
-                {
+            else if (evt.commandKey && !evt.shiftKey && !evt.altKey && !evt.ctrlKey) {
+                if (evt.keyCode == KeyCode.RightArrow) {
                     evt.StopPropagation();
                     cursorIndex = GetLineEnd(value, cursorIndex);
                     selectIndex = cursorIndex;
-                }
-                else if (evt.keyCode == KeyCode.LeftArrow)
-                {
+                } else if (evt.keyCode == KeyCode.LeftArrow) {
                     evt.StopPropagation();
                     cursorIndex = GetLineStart(value, cursorIndex);
                     selectIndex = cursorIndex;
                 }
             }
             // Fix Cmd+Shift+Arrow selection for multiline
-            else if (evt.commandKey && evt.shiftKey && !evt.altKey && !evt.ctrlKey)
-            {
-                if (evt.keyCode == KeyCode.RightArrow)
-                {
+            else if (evt.commandKey && evt.shiftKey && !evt.altKey && !evt.ctrlKey) {
+                if (evt.keyCode == KeyCode.RightArrow) {
                     evt.StopPropagation();
                     cursorIndex = GetLineEnd(value, cursorIndex);
-                }
-                else if (evt.keyCode == KeyCode.LeftArrow)
-                {
+                } else if (evt.keyCode == KeyCode.LeftArrow) {
                     evt.StopPropagation();
                     cursorIndex = GetLineStart(value, cursorIndex);
                 }
@@ -814,8 +723,7 @@ namespace OneJS
         /// Handles smart backspace: when cursor is in leading whitespace, delete back to previous indent level.
         /// Returns true if handled, false if default backspace behavior should apply.
         /// </summary>
-        private bool HandleSmartBackspace()
-        {
+        private bool HandleSmartBackspace() {
             // Only apply when there's no selection
             if (selectIndex != cursorIndex)
                 return false;
@@ -828,10 +736,8 @@ namespace OneJS
 
             // Check if cursor is within leading whitespace
             bool inLeadingWhitespace = true;
-            for (int i = lineStart; i < cursorPos; i++)
-            {
-                if (value[i] != ' ' && value[i] != '\t')
-                {
+            for (int i = lineStart; i < cursorPos; i++) {
+                if (value[i] != ' ' && value[i] != '\t') {
                     inLeadingWhitespace = false;
                     break;
                 }
@@ -842,8 +748,7 @@ namespace OneJS
 
             // Count spaces from line start to cursor
             int spacesBeforeCursor = 0;
-            for (int i = lineStart; i < cursorPos; i++)
-            {
+            for (int i = lineStart; i < cursorPos; i++) {
                 if (value[i] == ' ')
                     spacesBeforeCursor++;
                 else if (value[i] == '\t')
@@ -859,13 +764,10 @@ namespace OneJS
             int remainder = spacesBeforeCursor % _indentSize;
 
             int spacesToDelete;
-            if (remainder > 0)
-            {
+            if (remainder > 0) {
                 // Delete just the remainder to align to indent level
                 spacesToDelete = remainder;
-            }
-            else
-            {
+            } else {
                 // Delete full indent
                 spacesToDelete = _indentSize;
             }
@@ -884,15 +786,13 @@ namespace OneJS
             return true;
         }
 
-        private void HandleIndent()
-        {
+        private void HandleIndent() {
             string indentString = _indentUsingSpaces ? new string(' ', _indentSize) : "\t";
             int indentLength = indentString.Length;
             int cursorPos = cursorIndex;
 
             // Check if there's a selection
-            if (selectIndex != cursorIndex)
-            {
+            if (selectIndex != cursorIndex) {
                 // Indent all selected lines
                 int selStart = Math.Min(cursorIndex, selectIndex);
                 int selEnd = Math.Max(cursorIndex, selectIndex);
@@ -905,10 +805,8 @@ namespace OneJS
                 int addedChars = 0;
                 int lastPos = 0;
 
-                for (int i = lineStart; i <= lineEnd && i < value.Length; i++)
-                {
-                    if (i == lineStart || (i > 0 && value[i - 1] == '\n'))
-                    {
+                for (int i = lineStart; i <= lineEnd && i < value.Length; i++) {
+                    if (i == lineStart || (i > 0 && value[i - 1] == '\n')) {
                         newText.Append(value.Substring(lastPos, i - lastPos));
                         newText.Append(indentString);
                         lastPos = i;
@@ -921,9 +819,7 @@ namespace OneJS
                 // Adjust selection
                 selectIndex = selStart + indentLength;
                 cursorIndex = selEnd + addedChars;
-            }
-            else
-            {
+            } else {
                 // No selection - just insert indent at cursor
                 value = value.Insert(cursorPos, indentString);
                 cursorIndex = cursorPos + indentLength;
@@ -931,8 +827,7 @@ namespace OneJS
             }
         }
 
-        private void HandleDedent()
-        {
+        private void HandleDedent() {
             int cursorPos = cursorIndex;
             int selStart = Math.Min(cursorIndex, selectIndex);
             int selEnd = Math.Max(cursorIndex, selectIndex);
@@ -946,25 +841,19 @@ namespace OneJS
             int removedTotal = 0;
             int lastPos = 0;
 
-            for (int i = lineStart; i <= lineEnd && i < value.Length; i++)
-            {
-                if (i == lineStart || (i > 0 && value[i - 1] == '\n'))
-                {
+            for (int i = lineStart; i <= lineEnd && i < value.Length; i++) {
+                if (i == lineStart || (i > 0 && value[i - 1] == '\n')) {
                     // Found a line start, check for leading whitespace
                     newText.Append(value.Substring(lastPos, i - lastPos));
 
                     int charsToRemove = 0;
 
                     // Check for tab character first
-                    if (i < value.Length && value[i] == '\t')
-                    {
+                    if (i < value.Length && value[i] == '\t') {
                         charsToRemove = 1;
-                    }
-                    else
-                    {
+                    } else {
                         // Check for spaces (up to IndentSize)
-                        for (int j = i; j < value.Length && j < i + _indentSize; j++)
-                        {
+                        for (int j = i; j < value.Length && j < i + _indentSize; j++) {
                             if (value[j] == ' ')
                                 charsToRemove++;
                             else
@@ -972,89 +861,72 @@ namespace OneJS
                         }
                     }
 
-                    if (charsToRemove > 0)
-                    {
+                    if (charsToRemove > 0) {
                         lastPos = i + charsToRemove;
                         if (i < selStart)
                             removedBeforeCursor += charsToRemove;
                         removedTotal += charsToRemove;
-                    }
-                    else
-                    {
+                    } else {
                         lastPos = i;
                     }
                 }
             }
             newText.Append(value.Substring(lastPos));
 
-            if (removedTotal > 0)
-            {
+            if (removedTotal > 0) {
                 value = newText.ToString();
-                if (hasSelection)
-                {
+                if (hasSelection) {
                     selectIndex = Math.Max(0, selStart - removedBeforeCursor);
                     cursorIndex = Math.Max(selectIndex, selEnd - removedTotal);
-                }
-                else
-                {
+                } else {
                     cursorIndex = Math.Max(GetLineStart(value, Math.Max(0, cursorPos - removedBeforeCursor)),
-                                          cursorPos - removedBeforeCursor);
+                        cursorPos - removedBeforeCursor);
                     selectIndex = cursorIndex;
                 }
             }
         }
 
-        private static int GetLineStart(string text, int position)
-        {
+        private static int GetLineStart(string text, int position) {
             if (string.IsNullOrEmpty(text) || position <= 0)
                 return 0;
 
             position = Math.Min(position, text.Length);
-            for (int i = position - 1; i >= 0; i--)
-            {
+            for (int i = position - 1; i >= 0; i--) {
                 if (text[i] == '\n')
                     return i + 1;
             }
             return 0;
         }
 
-        private static int GetLineEnd(string text, int position)
-        {
+        private static int GetLineEnd(string text, int position) {
             if (string.IsNullOrEmpty(text))
                 return 0;
 
             position = Math.Min(position, text.Length - 1);
-            for (int i = position; i < text.Length; i++)
-            {
+            for (int i = position; i < text.Length; i++) {
                 if (text[i] == '\n')
                     return i;
             }
             return text.Length;
         }
 
-        private void RefreshHighlighting()
-        {
+        private void RefreshHighlighting() {
             RefreshHighlighting(false);
         }
 
-        private void RefreshHighlighting(bool force)
-        {
+        private void RefreshHighlighting(bool force) {
             // Skip if text hasn't changed (cache check)
             var currentText = value;
-            if (!force && currentText == _lastHighlightedText)
-            {
+            if (!force && currentText == _lastHighlightedText) {
                 return;
             }
             _lastHighlightedText = currentText;
 
-            if (_highlighter != null && !string.IsNullOrEmpty(currentText))
-            {
+            if (_highlighter != null && !string.IsNullOrEmpty(currentText)) {
                 _characterColors = _highlighter.Highlight(currentText);
                 // Build visible-only color array (skip newlines and control chars)
                 _visibleCharacterColors = BuildVisibleColors(currentText, _characterColors);
-            }
-            else
-            {
+            } else {
                 _characterColors = null;
                 _visibleCharacterColors = null;
             }
@@ -1065,14 +937,12 @@ namespace OneJS
         /// Schedules a debounced refresh of syntax highlighting.
         /// Use this for high-frequency triggers like value changes.
         /// </summary>
-        private void ScheduleRefreshHighlighting()
-        {
+        private void ScheduleRefreshHighlighting() {
             // Cancel any pending scheduled highlight
             _highlightSchedule?.Pause();
 
             // Schedule new highlight after debounce delay
-            _highlightSchedule = schedule.Execute(() =>
-            {
+            _highlightSchedule = schedule.Execute(() => {
                 RefreshHighlighting();
                 _highlightSchedule = null;
             }).StartingIn(HighlightDebounceMs);
@@ -1083,20 +953,17 @@ namespace OneJS
         /// The glyph enumerator skips invisible characters (newlines, etc.),
         /// so we need to match that behavior.
         /// </summary>
-        private static Color32[] BuildVisibleColors(string text, Color32[] allColors)
-        {
+        private static Color32[] BuildVisibleColors(string text, Color32[] allColors) {
             if (allColors == null || allColors.Length == 0)
                 return Array.Empty<Color32>();
 
             var visibleColors = new List<Color32>(allColors.Length);
-            for (int i = 0; i < text.Length && i < allColors.Length; i++)
-            {
+            for (int i = 0; i < text.Length && i < allColors.Length; i++) {
                 char c = text[i];
                 // Skip characters that don't produce visible glyphs
                 // Based on Unity's TextElement behavior: newlines, carriage returns,
                 // and other control characters are not rendered as glyphs
-                if (IsVisibleCharacter(c))
-                {
+                if (IsVisibleCharacter(c)) {
                     visibleColors.Add(allColors[i]);
                 }
             }
@@ -1106,8 +973,7 @@ namespace OneJS
         /// <summary>
         /// Returns true if the character produces a visible glyph.
         /// </summary>
-        private static bool IsVisibleCharacter(char c)
-        {
+        private static bool IsVisibleCharacter(char c) {
             // Newlines and carriage returns don't produce visible glyphs
             if (c == '\n' || c == '\r')
                 return false;
@@ -1123,14 +989,12 @@ namespace OneJS
             return true;
         }
 
-        private void ColorizeGlyphs(TextElement.GlyphsEnumerable glyphs)
-        {
+        private void ColorizeGlyphs(TextElement.GlyphsEnumerable glyphs) {
             if (_visibleCharacterColors == null || _visibleCharacterColors.Length == 0)
                 return;
 
             int glyphIndex = 0;
-            foreach (var glyph in glyphs)
-            {
+            foreach (var glyph in glyphs) {
                 if (glyphIndex >= _visibleCharacterColors.Length)
                     break;
 
@@ -1138,8 +1002,7 @@ namespace OneJS
                 var vertices = glyph.vertices;
 
                 // Each glyph has 4 vertices (quad)
-                for (int i = 0; i < vertices.Length && i < 4; i++)
-                {
+                for (int i = 0; i < vertices.Length && i < 4; i++) {
                     var vertex = vertices[i];
                     vertex.tint = color;
                     vertices[i] = vertex;
