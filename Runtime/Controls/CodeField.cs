@@ -717,6 +717,19 @@ namespace OneJS {
                     cursorIndex = GetLineStart(value, cursorIndex);
                 }
             }
+            // Toggle line comment: Cmd+/ (Mac) or Ctrl+/ (Windows/Linux)
+            if ((evt.keyCode == KeyCode.Slash || evt.character == '/') && !evt.shiftKey && !evt.altKey) {
+#if UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX || UNITY_IOS
+                bool isCommentShortcut = evt.commandKey && !evt.ctrlKey;
+#else
+                bool isCommentShortcut = evt.ctrlKey && !evt.commandKey;
+#endif
+                if (isCommentShortcut) {
+                    evt.StopPropagation();
+                    evt.PreventDefault();
+                    HandleToggleComment();
+                }
+            }
         }
 
         /// <summary>
@@ -883,6 +896,166 @@ namespace OneJS {
                         cursorPos - removedBeforeCursor);
                     selectIndex = cursorIndex;
                 }
+            }
+        }
+
+        /// <summary>
+        /// Toggles line comments (//) on selected lines or current line.
+        /// If all affected lines are commented, removes comments. Otherwise adds comments.
+        /// </summary>
+        private void HandleToggleComment() {
+            int selStart = Math.Min(cursorIndex, selectIndex);
+            int selEnd = Math.Max(cursorIndex, selectIndex);
+            bool hasSelection = selectIndex != cursorIndex;
+
+            int firstLineStart = GetLineStart(value, selStart);
+            int lastLineEnd = GetLineEnd(value, selEnd);
+
+            // Collect all line starts in the affected range
+            var lineStarts = new List<int>();
+            lineStarts.Add(firstLineStart);
+            for (int i = firstLineStart + 1; i <= lastLineEnd && i < value.Length; i++) {
+                if (value[i - 1] == '\n') {
+                    lineStarts.Add(i);
+                }
+            }
+
+            // Check if all lines are already commented
+            bool allCommented = true;
+            int minIndent = int.MaxValue;
+
+            foreach (int lineStart in lineStarts) {
+                int indent = 0;
+                int pos = lineStart;
+
+                // Skip leading whitespace
+                while (pos < value.Length && (value[pos] == ' ' || value[pos] == '\t')) {
+                    indent++;
+                    pos++;
+                }
+
+                // Check if line is empty or just whitespace
+                if (pos >= value.Length || value[pos] == '\n') {
+                    continue; // Skip empty lines for comment check
+                }
+
+                // Track minimum indent for comment insertion
+                if (indent < minIndent) {
+                    minIndent = indent;
+                }
+
+                // Check if line starts with //
+                if (pos + 1 < value.Length && value[pos] == '/' && value[pos + 1] == '/') {
+                    // This line is commented
+                } else {
+                    allCommented = false;
+                }
+            }
+
+            if (minIndent == int.MaxValue) {
+                minIndent = 0;
+            }
+
+            // Build new text
+            var newText = new System.Text.StringBuilder();
+            int lastPos = 0;
+            int cursorAdjust = 0;
+            int selectAdjust = 0;
+
+            if (allCommented) {
+                // Remove comments
+                foreach (int lineStart in lineStarts) {
+                    int pos = lineStart;
+
+                    // Skip leading whitespace
+                    while (pos < value.Length && (value[pos] == ' ' || value[pos] == '\t')) {
+                        pos++;
+                    }
+
+                    // Check if line is empty
+                    if (pos >= value.Length || value[pos] == '\n') {
+                        continue;
+                    }
+
+                    // Check for // and optional space after
+                    if (pos + 1 < value.Length && value[pos] == '/' && value[pos + 1] == '/') {
+                        newText.Append(value.Substring(lastPos, pos - lastPos));
+                        int charsToRemove = 2;
+                        // Also remove one space after // if present
+                        if (pos + 2 < value.Length && value[pos + 2] == ' ') {
+                            charsToRemove = 3;
+                        }
+                        lastPos = pos + charsToRemove;
+
+                        // Adjust cursor positions
+                        if (pos < selStart) {
+                            cursorAdjust -= charsToRemove;
+                            selectAdjust -= charsToRemove;
+                        } else if (pos < selEnd) {
+                            if (cursorIndex > selectIndex) {
+                                cursorAdjust -= charsToRemove;
+                            } else {
+                                selectAdjust -= charsToRemove;
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Add comments at minIndent position
+                foreach (int lineStart in lineStarts) {
+                    int insertPos = lineStart + minIndent;
+
+                    // Make sure we don't insert past end of line
+                    int lineEnd = GetLineEnd(value, lineStart);
+                    if (insertPos > lineEnd) {
+                        insertPos = lineEnd;
+                    }
+
+                    // Skip if line is empty/whitespace only
+                    bool isEmpty = true;
+                    for (int i = lineStart; i < lineEnd; i++) {
+                        if (value[i] != ' ' && value[i] != '\t') {
+                            isEmpty = false;
+                            break;
+                        }
+                    }
+                    if (isEmpty && lineStart != lineEnd) {
+                        continue;
+                    }
+
+                    newText.Append(value.Substring(lastPos, insertPos - lastPos));
+                    newText.Append("// ");
+                    lastPos = insertPos;
+
+                    // Adjust cursor positions
+                    if (insertPos <= selStart) {
+                        cursorAdjust += 3;
+                        selectAdjust += 3;
+                    } else if (insertPos <= selEnd) {
+                        if (cursorIndex > selectIndex) {
+                            cursorAdjust += 3;
+                        } else {
+                            selectAdjust += 3;
+                        }
+                    }
+                }
+            }
+
+            newText.Append(value.Substring(lastPos));
+            value = newText.ToString();
+
+            // Restore cursor and selection
+            if (hasSelection) {
+                if (cursorIndex > selectIndex) {
+                    selectIndex = Math.Max(0, selStart + selectAdjust);
+                    cursorIndex = Math.Max(selectIndex, selEnd + cursorAdjust);
+                } else {
+                    cursorIndex = Math.Max(0, selStart + cursorAdjust);
+                    selectIndex = Math.Max(cursorIndex, selEnd + selectAdjust);
+                }
+            } else {
+                cursorIndex = Math.Max(0, cursorIndex + cursorAdjust);
+                selectIndex = cursorIndex;
             }
         }
 
