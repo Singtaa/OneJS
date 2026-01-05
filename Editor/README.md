@@ -63,23 +63,22 @@ JSPadEditor uses `[InitializeOnLoad]` with a static constructor to register a gl
 
 ## JSRunnerBuildProcessor
 
-Implements `IPreprocessBuildWithReport` to auto-create TextAssets for builds:
+Implements `IPreprocessBuildWithReport` to handle TextAssets for builds:
 
 1. Scans all enabled build scenes for JSRunner components
 2. For each JSRunner without a bundle TextAsset assigned:
-   - Reads entry file from working directory
-   - Creates TextAsset at `{SceneName}_JSRunner/{Name}_{InstanceId}/app.js.txt`
-   - Creates source map TextAsset if `Include Source Map` is enabled
-   - Assigns the created TextAssets to the JSRunner component
+   - The bundle at `{InstanceFolder}/app.js.txt` (esbuild output) is already there
+   - Loads it as a TextAsset and assigns to the JSRunner component
+   - Loads source map TextAsset if `Include Source Map` is enabled
    - Saves modified scenes
 3. Extracts Cartridge files to `{WorkingDir}/@cartridges/{slug}/`
 4. Logs status during build
 
-This ensures JS bundles are embedded in builds without manual steps.
+Since esbuild outputs directly to `app.js.txt`, the build processor just needs to load the existing file as a TextAsset.
 
-### Skipping Auto-Creation
+### Skipping Auto-Assignment
 
-To skip auto-creation for a specific JSRunner:
+To skip auto-assignment for a specific JSRunner:
 - Pre-assign a TextAsset to the `Bundle Asset` field in the inspector
 - The build processor will skip processing for that JSRunner
 

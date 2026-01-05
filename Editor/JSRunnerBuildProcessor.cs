@@ -15,7 +15,7 @@ using UnityEngine.SceneManagement;
 ///
 /// Directory structure:
 ///   {SceneDir}/{SceneName}_JSRunner/{GameObjectName}_{InstanceId}/app.js.txt
-///   {SceneDir}/{SceneName}_JSRunner/{GameObjectName}_{InstanceId}/app.js.map.txt (optional)
+///   {SceneDir}/{SceneName}_JSRunner/{GameObjectName}_{InstanceId}/app.js.txt.map (optional)
 /// </summary>
 public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBuildWithReport {
     public int callbackOrder => 0;

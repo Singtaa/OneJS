@@ -102,8 +102,8 @@ Assets/Scenes/Level1.unity          # Your scene
 Assets/Scenes/Level1_JSRunner/      # Auto-created next to scene
 ├── MyUI_abc123/                    # Per-JSRunner folder
 │   ├── MyUI~/                      # Working directory (~ = Unity ignores)
-│   │   └── @outputs/esbuild/app.js # Built bundle
-│   └── app.js.txt                  # TextAsset for builds
+│   │   └── index.tsx               # Source file
+│   └── app.js.txt                  # Built bundle (esbuild output)
 ```
 
 | Field | Purpose |

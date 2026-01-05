@@ -62,7 +62,7 @@ public class DefaultFileEntry {
 /// </summary>
 public class JSRunner : MonoBehaviour {
     const string DefaultEntryContent = "console.log(\"OneJS is good to go!\");\n";
-    const string DefaultEntryFile = "@outputs/app.js";
+    const string DefaultBundleFile = "app.js.txt";
 
     // Instance identification (generated once, persisted)
     [SerializeField, HideInInspector] string _instanceId;
@@ -205,18 +205,19 @@ public class JSRunner : MonoBehaviour {
     }
 
     /// <summary>
-    /// Full path to the entry JS file: {WorkingDir}/@outputs/app.js
+    /// Full path to the bundle file: {InstanceFolder}/app.js.txt
+    /// This is the same location as the TextAsset used in builds.
     /// </summary>
     public string EntryFileFullPath {
         get {
-            var workingDir = WorkingDirFullPath;
-            if (string.IsNullOrEmpty(workingDir)) return null;
-            return Path.Combine(workingDir, DefaultEntryFile);
+            var instanceFolder = InstanceFolder;
+            if (string.IsNullOrEmpty(instanceFolder)) return null;
+            return Path.Combine(instanceFolder, DefaultBundleFile);
         }
     }
 
     /// <summary>
-    /// Full path to the source map file: {EntryFile}.map
+    /// Full path to the source map file: {InstanceFolder}/app.js.txt.map
     /// </summary>
     public string SourceMapFilePath {
         get {
@@ -228,25 +229,14 @@ public class JSRunner : MonoBehaviour {
 
     /// <summary>
     /// Asset path for the bundle TextAsset: {InstanceFolder}/app.js.txt
+    /// Same as EntryFileFullPath since esbuild outputs directly here.
     /// </summary>
-    public string BundleAssetPath {
-        get {
-            var instanceFolder = InstanceFolder;
-            if (string.IsNullOrEmpty(instanceFolder)) return null;
-            return Path.Combine(instanceFolder, "app.js.txt");
-        }
-    }
+    public string BundleAssetPath => EntryFileFullPath;
 
     /// <summary>
-    /// Asset path for the source map TextAsset: {InstanceFolder}/app.js.map.txt
+    /// Asset path for the source map TextAsset: {InstanceFolder}/app.js.txt.map
     /// </summary>
-    public string SourceMapAssetPath {
-        get {
-            var instanceFolder = InstanceFolder;
-            if (string.IsNullOrEmpty(instanceFolder)) return null;
-            return Path.Combine(instanceFolder, "app.js.map.txt");
-        }
-    }
+    public string SourceMapAssetPath => SourceMapFilePath;
 
     /// <summary>
     /// Whether the scene is saved and paths are valid.
@@ -485,9 +475,9 @@ public class JSRunner : MonoBehaviour {
             Directory.CreateDirectory(entryDir);
         }
 
-        // Create minimal entry file
+        // Create minimal bundle file
         File.WriteAllText(EntryFileFullPath, DefaultEntryContent);
-        Debug.Log($"[JSRunner] Created default entry file: {DefaultEntryFile}");
+        Debug.Log($"[JSRunner] Created default bundle file: {DefaultBundleFile}");
     }
 
     /// <summary>

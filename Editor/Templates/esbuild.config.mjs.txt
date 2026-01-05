@@ -17,12 +17,12 @@ const isWatch = process.argv.includes("--watch")
 const config = {
     entryPoints: ["index.tsx"],
     bundle: true,
-    outfile: "@outputs/esbuild/app.js",
+    outfile: "../app.js.txt",
     format: "esm",
     target: "es2022",
     jsx: "automatic",
-    // Generate source maps in watch mode for better error messages
-    sourcemap: isWatch,
+    // Generate source maps for better error messages
+    sourcemap: true,
     alias: {
         // Force all react imports to use the App's copy
         "react": reactPath,

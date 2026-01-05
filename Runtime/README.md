@@ -47,10 +47,10 @@ Assets/Scenes/Level1_JSRunner/      # Auto-created folder next to scene
 ├── MainUI_abc123/                  # Per-JSRunner folder (name + instanceId)
 │   ├── MainUI~/                    # Working directory (~ makes Unity ignore it)
 │   │   ├── package.json            # Scaffolded on first run
-│   │   ├── index.tsx               # Entry file
-│   │   └── @outputs/esbuild/app.js # Built bundle
-│   ├── app.js.txt                  # TextAsset for builds (created at build time)
-│   └── app.js.map.txt              # Source map TextAsset (optional)
+│   │   ├── index.tsx               # Source file
+│   │   └── esbuild.config.mjs      # Outputs to ../app.js.txt
+│   ├── app.js.txt                  # Built bundle (esbuild output + TextAsset)
+│   └── app.js.txt.map              # Source map (optional)
 ```
 
 **Key benefits:**
@@ -100,7 +100,7 @@ Default template files (in `Assets/Singtaa/OneJS/Editor/Templates/`):
 | **Project** (auto-computed) | |
 | Scene Folder | `{SceneName}_JSRunner/` next to scene file |
 | Working Dir | `{SceneName}_JSRunner/{Name}_{InstanceId}/{Name}~/` |
-| Entry File | `{WorkingDir}/@outputs/esbuild/app.js` (default) |
+| Bundle File | `{InstanceFolder}/app.js.txt` (esbuild output) |
 | **Build** | |
 | Bundle Asset | TextAsset for built JS (auto-created during build) |
 | Source Map Asset | TextAsset for source map (optional) |
@@ -126,9 +126,9 @@ Default template files (in `Assets/Singtaa/OneJS/Editor/Templates/`):
 
 ### Build Support
 For standalone/mobile builds, JSRunner loads from a TextAsset:
-- **Auto-creation**: `JSRunnerBuildProcessor` creates TextAssets during build
+- **Same file**: esbuild outputs directly to `app.js.txt` which is also the TextAsset
 - **Bundle path**: `{SceneName}_JSRunner/{Name}_{InstanceId}/app.js.txt`
-- **Source maps**: Optional `app.js.map.txt` for error stack translation
+- **Source maps**: Optional `app.js.txt.map` for error stack translation
 - **Pre-assigned**: If a bundle TextAsset is already assigned, build processor skips it
 
 ### Custom Inspector
@@ -152,9 +152,9 @@ DateTime LastModifiedTime { get; }
 string SceneFolder { get; }        // {SceneName}_JSRunner/
 string InstanceFolder { get; }     // {SceneFolder}/{Name}_{InstanceId}/
 string WorkingDirFullPath { get; } // {InstanceFolder}/{Name}~/
-string EntryFileFullPath { get; }  // {WorkingDir}/@outputs/esbuild/app.js
-string BundleAssetPath { get; }    // {InstanceFolder}/app.js.txt
-string SourceMapAssetPath { get; } // {InstanceFolder}/app.js.map.txt
+string EntryFileFullPath { get; }  // {InstanceFolder}/app.js.txt
+string BundleAssetPath { get; }    // Same as EntryFileFullPath
+string SourceMapAssetPath { get; } // {InstanceFolder}/app.js.txt.map
 
 // Methods
 void ForceReload();  // Manually trigger reload (Editor only)

@@ -111,7 +111,6 @@ public class QuickJSUIBridge : IDisposable {
         try {
             var handleStr = _ctx.Eval("typeof __tick === 'function' ? __registerCallback(__tick) : -1");
             _tickCallbackHandle = int.Parse(handleStr);
-            Debug.Log($"[QuickJSUIBridge] Tick callback cached: handle={_tickCallbackHandle} (zero-alloc={_tickCallbackHandle >= 0})");
         } catch (Exception ex) {
             Debug.LogWarning($"[QuickJSUIBridge] Failed to cache __tick callback: {ex.Message}");
             _tickCallbackHandle = -1;
