@@ -21,6 +21,8 @@ const config = {
     format: "esm",
     target: "es2022",
     jsx: "automatic",
+    // Generate source maps in watch mode for better error messages
+    sourcemap: isWatch,
     alias: {
         // Force all react imports to use the App's copy
         "react": reactPath,

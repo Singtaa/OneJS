@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using OneJS;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -127,6 +128,7 @@ render(<App />, __root)
     }
 
     public string OutputFile => Path.Combine(TempDir, "@outputs", "app.js");
+    public string SourceMapFile => OutputFile + ".map";
     public bool HasBuiltOutput => File.Exists(OutputFile);
 
     // Cartridge API
@@ -177,11 +179,6 @@ render(<App />, __root)
             Debug.LogError("[JSPad] UIDocument rootVisualElement is null after setup");
             return;
         }
-
-        // Auto-run if we have a built output
-        if (HasBuiltOutput) {
-            RunBuiltScript();
-        }
     }
 
     System.Collections.IEnumerator DeferredStart() {
@@ -191,11 +188,6 @@ render(<App />, __root)
         if (_uiDocument == null || _uiDocument.rootVisualElement == null) {
             Debug.LogError("[JSPad] UIDocument rootVisualElement is null after deferred setup");
             yield break;
-        }
-
-        // Auto-run if we have a built output
-        if (HasBuiltOutput) {
-            RunBuiltScript();
         }
     }
 
@@ -322,9 +314,19 @@ render(<App />, __root)
             _bridge.Context.ExecutePendingJobs();
             _scriptLoaded = true;
         } catch (Exception ex) {
-            Debug.LogError($"[JSPad] Run error: {ex.Message}");
+            var message = TranslateErrorMessage(ex.Message);
+            Debug.LogError($"[JSPad] Run error: {message}");
             Stop();
         }
+    }
+
+    string TranslateErrorMessage(string message) {
+        if (string.IsNullOrEmpty(message)) return message;
+
+        var parser = SourceMapParser.Load(SourceMapFile);
+        if (parser == null) return message;
+
+        return parser.TranslateStackTrace(message);
     }
 
     /// <summary>
@@ -531,6 +533,7 @@ await esbuild.build({
   format: 'esm',
   target: 'es2022',
   jsx: 'automatic',
+  sourcemap: true,
   alias: {
     'react': reactPath,
     'react/jsx-runtime': reactJsxPath,

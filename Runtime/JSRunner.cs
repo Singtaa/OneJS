@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using OneJS;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -161,6 +162,7 @@ public class JSRunner : MonoBehaviour {
 
     public string WorkingDirFullPath => Path.Combine(ProjectRoot, _workingDir);
     public string EntryFileFullPath => Path.Combine(WorkingDirFullPath, _entryFile);
+    public string SourceMapFilePath => EntryFileFullPath + ".map";
 
     // Type Generation properties
     public IReadOnlyList<string> TypingAssemblies => _typingAssemblies;
@@ -488,7 +490,8 @@ public class JSRunner : MonoBehaviour {
                 _bridge.Eval(preload.text, preload.name);
                 _bridge.Context.ExecutePendingJobs();
             } catch (Exception ex) {
-                Debug.LogError($"[JSRunner] Preload '{preload.name}' failed: {ex.Message}");
+                var message = TranslateErrorMessage(ex.Message);
+                Debug.LogError($"[JSRunner] Preload '{preload.name}' failed: {message}");
             }
         }
     }
@@ -558,7 +561,8 @@ public class JSRunner : MonoBehaviour {
 
             Debug.Log($"[JSRunner] Reloaded ({_reloadCount}): {_entryFile}");
         } catch (Exception ex) {
-            Debug.LogError($"[JSRunner] Reload failed: {ex.Message}");
+            var message = TranslateErrorMessage(ex.Message);
+            Debug.LogError($"[JSRunner] Reload failed: {message}");
         }
     }
 
@@ -804,7 +808,8 @@ public class JSRunner : MonoBehaviour {
             _bridge.Eval(fetchCode, "fetch-loader.js");
             Debug.Log("[JSRunner] Fetch initiated");
         } catch (Exception ex) {
-            Debug.LogError($"[JSRunner] Fetch eval error: {ex}");
+            var message = TranslateErrorMessage(ex.Message);
+            Debug.LogError($"[JSRunner] Fetch eval error: {message}");
             _fetchState = WebGLFetchState.Error;
             RunScript(DefaultEntryContent, "default.js");
         }
@@ -863,18 +868,28 @@ public class JSRunner : MonoBehaviour {
                 StartWebGLTick();
                 Debug.Log("[JSRunner] Script executed successfully");
             } else if (result.StartsWith("error:")) {
-                var error = result.Substring(6);
+                var error = TranslateErrorMessage(result.Substring(6));
                 Debug.LogError($"[JSRunner] Script execution failed: {error}");
                 _fetchState = WebGLFetchState.Error;
                 RunScript(DefaultEntryContent, "default.js");
             }
         } catch (Exception ex) {
-            Debug.LogError($"[JSRunner] Execute script error: {ex}");
+            var message = TranslateErrorMessage(ex.Message);
+            Debug.LogError($"[JSRunner] Execute script error: {message}");
             _fetchState = WebGLFetchState.Error;
         }
     }
 #endif
 #endif // !UNITY_EDITOR
+
+    string TranslateErrorMessage(string message) {
+        if (string.IsNullOrEmpty(message)) return message;
+
+        var parser = SourceMapParser.Load(SourceMapFilePath);
+        if (parser == null) return message;
+
+        return parser.TranslateStackTrace(message);
+    }
 
     void OnDestroy() {
         _bridge?.Dispose();
