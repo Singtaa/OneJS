@@ -178,10 +178,21 @@ static void format_exception(JSContext* ctx, JSValue exc, char* outBuf, int outB
         stackStr = JS_ToCString(ctx, stack);
     }
 
-    if (stackStr && strlen(stackStr) > 0) {
-        copy_cstring(outBuf, outBufSize, stackStr);
+    // Combine message and stack trace for complete error info
+    if (msg && stackStr && strlen(stackStr) > 0) {
+        // Format: "ErrorMessage\n    at location..."
+        int msgLen = strlen(msg);
+        int stackLen = strlen(stackStr);
+        if (msgLen + 1 + stackLen + 1 <= outBufSize) {
+            snprintf(outBuf, outBufSize, "%s\n%s", msg, stackStr);
+        } else {
+            // Buffer too small, prioritize message
+            copy_cstring(outBuf, outBufSize, msg);
+        }
     } else if (msg) {
         copy_cstring(outBuf, outBufSize, msg);
+    } else if (stackStr && strlen(stackStr) > 0) {
+        copy_cstring(outBuf, outBufSize, stackStr);
     } else {
         copy_cstring(outBuf, outBufSize, "Unknown JS exception");
     }
