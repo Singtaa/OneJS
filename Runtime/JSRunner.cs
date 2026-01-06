@@ -87,6 +87,8 @@ public class JSRunner : MonoBehaviour {
     [SerializeField] bool _liveReload = true;
     [Tooltip("How often to check for file changes (in seconds)")]
     [SerializeField] float _pollInterval = 0.5f;
+    [Tooltip("Enable Janitor to clean up GameObjects created by JS on reload")]
+    [SerializeField] bool _enableJanitor = true;
 
     [Tooltip("Include source map in build for better error messages")]
     [SerializeField] bool _includeSourceMap = true;
@@ -126,6 +128,7 @@ public class JSRunner : MonoBehaviour {
     DateTime _lastModifiedTime;
     float _nextPollTime;
     int _reloadCount;
+    Janitor _janitor;
 
     // Public API
     public QuickJSUIBridge Bridge => _bridge;
@@ -429,6 +432,13 @@ public class JSRunner : MonoBehaviour {
 
         // Initialize bridge and run script
         InitializeBridge();
+
+        // Spawn Janitor if enabled (only on first initialization)
+        if (_enableJanitor && _janitor == null) {
+            var janitorGO = new GameObject("Janitor");
+            _janitor = janitorGO.AddComponent<Janitor>();
+        }
+
         var code = File.ReadAllText(entryFile);
         RunScript(code, Path.GetFileName(entryFile));
 
@@ -672,6 +682,11 @@ public class JSRunner : MonoBehaviour {
         }
 
         try {
+            // 0. Clean up GameObjects created by JS (if Janitor enabled)
+            if (_enableJanitor && _janitor != null) {
+                _janitor.Clean();
+            }
+
             // 1. Clear UI and stylesheets
             _uiDocument.rootVisualElement.Clear();
             _uiDocument.rootVisualElement.styleSheets.Clear();

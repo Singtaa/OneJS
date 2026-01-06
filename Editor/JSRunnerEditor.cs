@@ -29,9 +29,9 @@ public class JSRunnerEditor : Editor {
     Label _liveReloadStatusLabel;
     Label _reloadCountLabel;
     Label _entryFileStatusLabel;
+    Label _watcherStatusLabel;
     Button _reloadButton;
     Button _buildButton;
-    Button _watchButton;
     HelpBox _buildOutputBox;
     VisualElement _liveReloadInfo;
 
@@ -227,13 +227,18 @@ public class JSRunnerEditor : Editor {
         var liveReloadField = new PropertyField(liveReloadProp);
         container.Add(liveReloadField);
 
-        var pollIntervalContainer = new VisualElement { style = { marginLeft = 15 } };
-        pollIntervalContainer.Add(new PropertyField(serializedObject.FindProperty("_pollInterval")));
-        container.Add(pollIntervalContainer);
+        var liveReloadSettings = new VisualElement { style = { marginLeft = 15 } };
+        liveReloadSettings.Add(new PropertyField(serializedObject.FindProperty("_pollInterval")));
 
-        pollIntervalContainer.style.display = liveReloadProp.boolValue ? DisplayStyle.Flex : DisplayStyle.None;
+        var janitorField = new PropertyField(serializedObject.FindProperty("_enableJanitor"), "Enable Janitor");
+        janitorField.tooltip = "When enabled, spawns a Janitor GameObject on first run. On reload, all GameObjects after the Janitor in the hierarchy are destroyed.";
+        liveReloadSettings.Add(janitorField);
+
+        container.Add(liveReloadSettings);
+
+        liveReloadSettings.style.display = liveReloadProp.boolValue ? DisplayStyle.Flex : DisplayStyle.None;
         liveReloadField.RegisterValueChangeCallback(_ =>
-            pollIntervalContainer.style.display = liveReloadProp.boolValue ? DisplayStyle.Flex : DisplayStyle.None);
+            liveReloadSettings.style.display = liveReloadProp.boolValue ? DisplayStyle.Flex : DisplayStyle.None);
 
         AddSpacer(container);
 
@@ -1188,15 +1193,16 @@ public class JSRunnerEditor : Editor {
         _buildButton.tooltip = "Build the JS bundle (auto-installs dependencies if needed)";
         row1.Add(_buildButton);
 
-        _watchButton = new Button(ToggleWatch) { text = "Watch" };
-        _watchButton.style.height = 30;
-        _watchButton.style.flexGrow = 1;
-        _watchButton.tooltip = "Start/stop file watcher for automatic rebuilds";
-        row1.Add(_watchButton);
-
         container.Add(row1);
 
-        // Row 2: Open Folder and Terminal
+        // Watcher status (auto-starts on Play mode)
+        _watcherStatusLabel = new Label();
+        _watcherStatusLabel.style.marginTop = 4;
+        _watcherStatusLabel.style.marginBottom = 4;
+        _watcherStatusLabel.style.fontSize = 11;
+        container.Add(_watcherStatusLabel);
+
+        // Row 2: Open Folder, Terminal, and VSCode
         var row2 = CreateRow();
 
         var openFolderButton = new Button(OpenWorkingDirectory) { text = "Open Folder" };
@@ -1210,6 +1216,12 @@ public class JSRunnerEditor : Editor {
         openTerminalButton.style.flexGrow = 1;
         openTerminalButton.tooltip = "Open terminal at working directory";
         row2.Add(openTerminalButton);
+
+        var openVSCodeButton = new Button(OpenVSCode) { text = "Open VSCode" };
+        openVSCodeButton.style.height = 24;
+        openVSCodeButton.style.flexGrow = 1;
+        openVSCodeButton.tooltip = "Open working directory in Visual Studio Code";
+        row2.Add(openVSCodeButton);
 
         container.Add(row2);
 
@@ -1320,23 +1332,29 @@ public class JSRunnerEditor : Editor {
             _buildButton.text = _buildInProgress ? "Building..." : "Build";
         }
 
-        // Watch button
-        if (_watchButton != null) {
+        // Watcher status
+        if (_watcherStatusLabel != null) {
             var workingDir = _target.WorkingDirFullPath;
             if (string.IsNullOrEmpty(workingDir)) {
-                _watchButton.text = "Watch";
-                _watchButton.SetEnabled(false);
+                _watcherStatusLabel.text = "Watcher: (save scene first)";
+                _watcherStatusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
             } else {
                 var isWatching = NodeWatcherManager.IsRunning(workingDir);
                 var isStarting = NodeWatcherManager.IsStarting(workingDir);
 
-                _watchButton.text = isStarting ? "Starting..." : (isWatching ? "Stop" : "Watch");
-                _watchButton.SetEnabled(!isStarting && !_buildInProgress);
-
-                // Visual feedback for active watcher
-                _watchButton.style.backgroundColor = isWatching
-                    ? new Color(0.2f, 0.5f, 0.2f)
-                    : StyleKeyword.Null;
+                if (isStarting) {
+                    _watcherStatusLabel.text = "Watcher: Starting...";
+                    _watcherStatusLabel.style.color = new Color(0.8f, 0.6f, 0.2f);
+                } else if (isWatching) {
+                    _watcherStatusLabel.text = "Watcher: Running (auto-rebuilds on file changes)";
+                    _watcherStatusLabel.style.color = new Color(0.4f, 0.8f, 0.4f);
+                } else if (Application.isPlaying) {
+                    _watcherStatusLabel.text = "Watcher: Starting on play mode...";
+                    _watcherStatusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+                } else {
+                    _watcherStatusLabel.text = "Watcher: Auto-starts on Play mode";
+                    _watcherStatusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+                }
             }
         }
 
@@ -1348,23 +1366,6 @@ public class JSRunnerEditor : Editor {
     }
 
     // MARK: Build
-
-    void ToggleWatch() {
-        var workingDir = _target.WorkingDirFullPath;
-        if (string.IsNullOrEmpty(workingDir)) {
-            _buildOutput = "Scene must be saved first.";
-            return;
-        }
-
-        if (NodeWatcherManager.IsRunning(workingDir)) {
-            NodeWatcherManager.StopWatcher(workingDir);
-            _buildOutput = "Watcher stopped.";
-        } else {
-            if (NodeWatcherManager.StartWatcher(workingDir)) {
-                _buildOutput = "Watcher started. Watching for changes...";
-            }
-        }
-    }
 
     void RunNpmCommand(string workingDir, string arguments, Action onSuccess, Action<int> onFailure) {
         try {
@@ -1635,6 +1636,100 @@ public class JSRunnerEditor : Editor {
         }
 #endif
     }
+
+    void OpenVSCode() {
+        var path = _target.WorkingDirFullPath;
+        if (!Directory.Exists(path)) {
+            Debug.LogWarning($"[JSRunner] Directory not found: {path}");
+            return;
+        }
+
+        var fullPath = Path.GetFullPath(path);
+
+#if UNITY_EDITOR_WIN
+        var codePath = GetCodeExecutablePathOnWindows();
+        if (!string.IsNullOrEmpty(codePath)) {
+            try {
+                Process.Start(new ProcessStartInfo {
+                    FileName = codePath,
+                    Arguments = $"\"{fullPath}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+                return;
+            } catch { }
+        }
+        // Fallback to shell
+        Process.Start(new ProcessStartInfo {
+            FileName = "cmd.exe",
+            Arguments = $"/C code \"{fullPath}\"",
+            UseShellExecute = true,
+            CreateNoWindow = true
+        });
+#elif UNITY_EDITOR_OSX
+        // Try login shell first
+        if (!LaunchViaLoginShell($"code -n -- '{ShellEscape(fullPath)}'")) {
+            // Fallback to open command
+            try {
+                Process.Start("open", $"-n -b com.microsoft.VSCode --args \"{fullPath}\"");
+            } catch (Exception ex) {
+                Debug.LogError($"[JSRunner] Failed to open VS Code: {ex.Message}");
+            }
+        }
+#elif UNITY_EDITOR_LINUX
+        LaunchViaLoginShell($"code -n \"{fullPath}\"");
+#endif
+    }
+
+#if UNITY_EDITOR_WIN
+    string GetCodeExecutablePathOnWindows() {
+        // Common installation paths
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+
+        string[] searchPaths = {
+            Path.Combine(localAppData, "Programs", "Microsoft VS Code", "Code.exe"),
+            Path.Combine(programFiles, "Microsoft VS Code", "Code.exe"),
+        };
+
+        foreach (var p in searchPaths) {
+            if (File.Exists(p)) return p;
+        }
+
+        // Check PATH
+        var pathEnv = Environment.GetEnvironmentVariable("PATH") ?? "";
+        foreach (var dir in pathEnv.Split(Path.PathSeparator)) {
+            var codePath = Path.Combine(dir, "code.cmd");
+            if (File.Exists(codePath)) return codePath;
+        }
+
+        return null;
+    }
+#endif
+
+#if UNITY_EDITOR_OSX || UNITY_EDITOR_LINUX
+    bool LaunchViaLoginShell(string command) {
+        try {
+            var shell = Environment.GetEnvironmentVariable("SHELL") ?? "/bin/zsh";
+            var process = new Process {
+                StartInfo = new ProcessStartInfo {
+                    FileName = shell,
+                    Arguments = $"-l -i -c \"{command}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                }
+            };
+            process.Start();
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    string ShellEscape(string s) => s.Replace("'", "'\\''");
+#endif
 }
 
 // MARK: Style Extensions
