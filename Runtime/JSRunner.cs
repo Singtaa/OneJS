@@ -424,6 +424,9 @@ public class JSRunner : MonoBehaviour {
         // Ensure entry file exists (fallback if not in defaultFiles)
         EnsureEntryFile();
 
+        // Refresh AssetDatabase so new folders/files appear in Project panel
+        UnityEditor.AssetDatabase.Refresh();
+
         // Initialize bridge and run script
         InitializeBridge();
         var code = File.ReadAllText(entryFile);
