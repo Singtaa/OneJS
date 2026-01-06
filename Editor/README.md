@@ -11,6 +11,12 @@ Editor scripts for OneJS Unity integration.
 | `JSRunnerCleanup.cs` | Cleans up instance folders when JSRunner is removed |
 | `JSPadEditor.cs` | Custom inspector for JSPad inline runner |
 | `JSRunnerBuildProcessor.cs` | Build hook for auto-copying JS bundles |
+| `NodeWatcherManager.cs` | Manages Node.js file watcher processes for live reload |
+| `DefaultFileEntryDrawer.cs` | Property drawer for default file entries in JSRunner |
+| `GlobalEntryDrawer.cs` | Property drawer for global entries in JSRunner |
+| `CartridgeFileEntryDrawer.cs` | Property drawer for cartridge file entries |
+| `CartridgeObjectEntryDrawer.cs` | Property drawer for cartridge object entries |
+| `CodeFieldTestWindow.cs` | Editor window for testing CodeField control |
 | `TypeGenerator/` | TypeScript declaration generator (see [TypeGenerator/README.md](TypeGenerator/README.md)) |
 
 ## JSRunnerEditor

@@ -22,8 +22,14 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `JSPad.cs` | Inline TSX runner with no external working directory |
 | `Janitor.cs` | Marker component for live reload cleanup of JS-created GameObjects |
 | `Network.cs` | Fetch API implementation using UnityWebRequest |
+| `SourceMapParser.cs` | Parses source maps for error stack trace translation |
+| `UICartridge.cs` | Cartridge system for packaged UI modules |
+| `CartridgeTypeGenerator.cs` | Generates TypeScript declarations for cartridge types |
 | `GPU/GPUBridge.cs` | Compute shader API for JavaScript |
 | `GPU/ComputeShaderProvider.cs` | MonoBehaviour for registering shaders via inspector |
+| `Input/InputBridge.cs` | Input System bridge for keyboard, mouse, gamepad, touch |
+| `Styling/UssCompiler.cs` | Runtime USS compilation from strings |
+| `Styling/StyleSheetBuilderWrapper.cs` | Reflection wrapper for Unity's internal StyleSheetBuilder |
 | `Controls/CodeField.cs` | TextField with syntax highlighting via per-glyph vertex coloring |
 
 ## Controls (`Controls/` folder)

@@ -122,7 +122,7 @@ What it doesn't transform (you must pre-process):
 
 ### Tailwind Compatibility
 
-For Tailwind CSS usage, see the postcss plugins in `onejs-core/scripts/postcss/`:
+For Tailwind CSS usage, see the postcss plugins in `onejs-unity/postcss/`:
 - `uss-transform-plugin.cjs` - Handles color and media query transforms
 - `cleanup-plugin.cjs` - Removes unsupported properties
 - `unwrap-is-plugin.cjs` - Flattens `:is()` selectors
