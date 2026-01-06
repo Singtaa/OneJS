@@ -126,6 +126,7 @@ public class JSRunner : MonoBehaviour {
 
     // Live reload state
     DateTime _lastModifiedTime;
+    DateTime _lastReloadTime;
     float _nextPollTime;
     int _reloadCount;
     Janitor _janitor;
@@ -136,6 +137,7 @@ public class JSRunner : MonoBehaviour {
     public bool IsLiveReloadEnabled => _liveReload;
     public int ReloadCount => _reloadCount;
     public DateTime LastModifiedTime => _lastModifiedTime;
+    public DateTime LastReloadTime => _lastReloadTime;
     public bool IncludeSourceMap => _includeSourceMap;
     public TextAsset BundleAsset => _bundleAsset;
     public TextAsset SourceMapAsset => _sourceMapAsset;
@@ -705,9 +707,9 @@ public class JSRunner : MonoBehaviour {
 
             // 5. Update state
             _lastModifiedTime = File.GetLastWriteTime(EntryFileFullPath);
+            _lastReloadTime = DateTime.Now;
             _reloadCount++;
-
-            Debug.Log($"[JSRunner] Reloaded ({_reloadCount}): {Path.GetFileName(EntryFileFullPath)}");
+            Debug.Log($"[JSRunner] Reloaded ({_reloadCount})");
         } catch (Exception ex) {
             var message = TranslateErrorMessage(ex.Message);
             Debug.LogError($"[JSRunner] Reload failed: {message}");
@@ -732,6 +734,89 @@ public class JSRunner : MonoBehaviour {
         } catch (Exception ex) {
             Debug.LogWarning($"[JSRunner] Error checking file: {ex.Message}");
         }
+    }
+
+    [ContextMenu("Link Local Packages")]
+    void LinkLocalPackagesContextMenu() {
+        var workingDir = WorkingDirFullPath;
+        if (string.IsNullOrEmpty(workingDir) || !Directory.Exists(workingDir)) {
+            Debug.LogError("[JSRunner] Working directory not found. Save the scene first.");
+            return;
+        }
+
+        Debug.Log("[JSRunner] Running npm link onejs-react onejs-unity unity-types...");
+
+        var npmPath = FindNpmPath();
+        var nodeBinDir = Path.GetDirectoryName(npmPath);
+
+        var startInfo = new System.Diagnostics.ProcessStartInfo {
+            FileName = npmPath,
+            Arguments = "link onejs-react onejs-unity unity-types",
+            WorkingDirectory = workingDir,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+        if (!string.IsNullOrEmpty(nodeBinDir)) {
+            startInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
+        }
+
+        var process = new System.Diagnostics.Process { StartInfo = startInfo, EnableRaisingEvents = true };
+
+        process.OutputDataReceived += (_, args) => {
+            if (!string.IsNullOrEmpty(args.Data)) Debug.Log($"[npm] {args.Data}");
+        };
+        process.ErrorDataReceived += (_, args) => {
+            if (!string.IsNullOrEmpty(args.Data)) Debug.Log($"[npm] {args.Data}");
+        };
+        process.Exited += (_, _) => {
+            UnityEditor.EditorApplication.delayCall += () => {
+                if (process.ExitCode == 0) {
+                    Debug.Log("[JSRunner] Local packages linked successfully!");
+                } else {
+                    Debug.LogError($"[JSRunner] npm link failed with exit code {process.ExitCode}");
+                }
+            };
+        };
+
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+    }
+
+    static string FindNpmPath() {
+#if UNITY_EDITOR_WIN
+        return "npm.cmd";
+#else
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+        string[] searchPaths = {
+            "/usr/local/bin/npm",
+            "/opt/homebrew/bin/npm",
+            "/usr/bin/npm",
+            Path.Combine(home, "n/bin/npm"),
+        };
+
+        foreach (var path in searchPaths) {
+            if (File.Exists(path)) return path;
+        }
+
+        // Check nvm
+        var nvmDir = Path.Combine(home, ".nvm/versions/node");
+        if (Directory.Exists(nvmDir)) {
+            try {
+                foreach (var nodeDir in Directory.GetDirectories(nvmDir)) {
+                    var npmPath = Path.Combine(nodeDir, "bin", "npm");
+                    if (File.Exists(npmPath)) return npmPath;
+                }
+            } catch { }
+        }
+
+        return "npm";
+#endif
     }
 #endif // UNITY_EDITOR
 

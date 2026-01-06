@@ -26,14 +26,12 @@ public class JSRunnerEditor : Editor {
 
     // UI Elements that need updating
     Label _statusLabel;
-    Label _liveReloadStatusLabel;
     Label _reloadCountLabel;
-    Label _workingDirLabel;
     Label _watcherStatusLabel;
+    Label _workingDirLabel;
     Button _reloadButton;
     Button _buildButton;
     HelpBox _buildOutputBox;
-    VisualElement _liveReloadInfo;
 
     // Type generation
     Button _generateTypesButton;
@@ -1128,13 +1126,17 @@ public class JSRunnerEditor : Editor {
         statusRow.Add(_statusLabel);
         container.Add(statusRow);
 
-        // Live reload info
-        _liveReloadInfo = new VisualElement { style = { display = DisplayStyle.None, marginTop = 4 } };
-        _liveReloadStatusLabel = new Label();
-        _liveReloadInfo.Add(_liveReloadStatusLabel);
-        _reloadCountLabel = new Label { style = { display = DisplayStyle.None } };
-        _liveReloadInfo.Add(_reloadCountLabel);
-        container.Add(_liveReloadInfo);
+        // Live reload count (shown when > 0)
+        _reloadCountLabel = new Label();
+        _reloadCountLabel.style.marginTop = 4;
+        _reloadCountLabel.style.display = DisplayStyle.None;
+        container.Add(_reloadCountLabel);
+
+        // Watcher status
+        _watcherStatusLabel = new Label();
+        _watcherStatusLabel.style.marginTop = 4;
+        _watcherStatusLabel.style.fontSize = 11;
+        container.Add(_watcherStatusLabel);
 
         // Working directory path
         _workingDirLabel = new Label();
@@ -1163,10 +1165,10 @@ public class JSRunnerEditor : Editor {
         var row1 = CreateRow();
         row1.style.marginBottom = 4;
 
-        _reloadButton = new Button(() => _target.ForceReload()) { text = "Refresh" };
+        _reloadButton = new Button(() => _target.ForceReload()) { text = "Reload" };
         _reloadButton.style.height = 30;
         _reloadButton.style.flexGrow = 1;
-        _reloadButton.tooltip = "Refresh the JavaScript runtime (Play Mode only)";
+        _reloadButton.tooltip = "Reload/Rerun this JavaScript runtime (Play Mode only)";
         _reloadButton.SetEnabled(false);
         row1.Add(_reloadButton);
 
@@ -1177,13 +1179,6 @@ public class JSRunnerEditor : Editor {
         row1.Add(_buildButton);
 
         container.Add(row1);
-
-        // Watcher status (auto-starts on Play mode)
-        _watcherStatusLabel = new Label();
-        _watcherStatusLabel.style.marginTop = 4;
-        _watcherStatusLabel.style.marginBottom = 4;
-        _watcherStatusLabel.style.fontSize = 11;
-        container.Add(_watcherStatusLabel);
 
         // Row 2: Open Folder, Terminal, and VSCode
         var row2 = CreateRow();
@@ -1243,6 +1238,18 @@ public class JSRunnerEditor : Editor {
         return label;
     }
 
+    static string FormatTimeAgo(DateTime time) {
+        if (time == default) return "never";
+
+        var elapsed = DateTime.Now - time;
+
+        if (elapsed.TotalSeconds < 5) return "just now";
+        if (elapsed.TotalSeconds < 60) return $"{(int)elapsed.TotalSeconds}s ago";
+        if (elapsed.TotalMinutes < 60) return $"{(int)elapsed.TotalMinutes}m ago";
+        if (elapsed.TotalHours < 24) return $"{(int)elapsed.TotalHours}h ago";
+        return time.ToString("MMM d, HH:mm");
+    }
+
     // MARK: Type Generation
 
     void GenerateTypings() {
@@ -1283,31 +1290,14 @@ public class JSRunnerEditor : Editor {
             _statusLabel.style.color = Color.white;
         }
 
-        // Live reload info
-        if (Application.isPlaying && _target.IsRunning) {
-            _liveReloadInfo.style.display = DisplayStyle.Flex;
-            var pollInterval = serializedObject.FindProperty("_pollInterval").floatValue;
-            _liveReloadStatusLabel.text = _target.IsLiveReloadEnabled
-                ? $"Live Reload: Enabled (polling every {pollInterval}s)"
-                : "Live Reload: Disabled";
-
-            _reloadCountLabel.style.display = _target.ReloadCount > 0 ? DisplayStyle.Flex : DisplayStyle.None;
-            _reloadCountLabel.text = $"Reloads: {_target.ReloadCount}";
-        } else {
-            _liveReloadInfo.style.display = DisplayStyle.None;
-        }
-
-        // Working directory path
-        if (_workingDirLabel != null) {
-            var workingDir = _target.WorkingDirFullPath;
-            _workingDirLabel.text = string.IsNullOrEmpty(workingDir) ? "(save scene first)" : workingDir;
-        }
-
-        // Buttons
-        _reloadButton?.SetEnabled(Application.isPlaying && _target.IsRunning);
-        if (_buildButton != null) {
-            _buildButton.SetEnabled(!_buildInProgress);
-            _buildButton.text = _buildInProgress ? "Rebuilding..." : "Rebuild";
+        // Last reload time
+        if (_reloadCountLabel != null) {
+            if (Application.isPlaying && _target.IsRunning && _target.ReloadCount > 0) {
+                _reloadCountLabel.style.display = DisplayStyle.Flex;
+                _reloadCountLabel.text = $"Last Reload: {FormatTimeAgo(_target.LastReloadTime)}";
+            } else {
+                _reloadCountLabel.style.display = DisplayStyle.None;
+            }
         }
 
         // Watcher status
@@ -1324,16 +1314,29 @@ public class JSRunnerEditor : Editor {
                     _watcherStatusLabel.text = "Watcher: Starting...";
                     _watcherStatusLabel.style.color = new Color(0.8f, 0.6f, 0.2f);
                 } else if (isWatching) {
-                    _watcherStatusLabel.text = "Watcher: Running (auto-rebuilds on file changes)";
+                    _watcherStatusLabel.text = "Watcher: Running";
                     _watcherStatusLabel.style.color = new Color(0.4f, 0.8f, 0.4f);
                 } else if (Application.isPlaying) {
-                    _watcherStatusLabel.text = "Watcher: Starting on play mode...";
+                    _watcherStatusLabel.text = "Watcher: Starting...";
                     _watcherStatusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
                 } else {
-                    _watcherStatusLabel.text = "Watcher: Auto-starts on Play mode";
+                    _watcherStatusLabel.text = "Watcher: Idle";
                     _watcherStatusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
                 }
             }
+        }
+
+        // Working directory path
+        if (_workingDirLabel != null) {
+            var workingDir = _target.WorkingDirFullPath;
+            _workingDirLabel.text = string.IsNullOrEmpty(workingDir) ? "(save scene first)" : workingDir;
+        }
+
+        // Buttons
+        _reloadButton?.SetEnabled(Application.isPlaying && _target.IsRunning);
+        if (_buildButton != null) {
+            _buildButton.SetEnabled(!_buildInProgress);
+            _buildButton.text = _buildInProgress ? "Rebuilding..." : "Rebuild";
         }
 
         // Build output
@@ -1504,85 +1507,6 @@ public class JSRunnerEditor : Editor {
 
         return "npm";
 #endif
-    }
-
-    // MARK: Context Menu
-
-    [MenuItem("CONTEXT/JSRunner/Reset Working Directory")]
-    static void ResetWorkingDirectory(MenuCommand command) {
-        var runner = (JSRunner)command.context;
-        var workingDir = runner.WorkingDirFullPath;
-
-        if (!Directory.Exists(workingDir)) {
-            EditorUtility.DisplayDialog(
-                "Reset Working Directory",
-                $"Working directory does not exist:\n{workingDir}\n\nNothing to reset.",
-                "OK"
-            );
-            return;
-        }
-
-        int fileCount = 0;
-        int dirCount = 0;
-        try {
-            fileCount = Directory.GetFiles(workingDir, "*", SearchOption.AllDirectories).Length;
-            dirCount = Directory.GetDirectories(workingDir, "*", SearchOption.AllDirectories).Length;
-        } catch { }
-
-        var confirmed = EditorUtility.DisplayDialog(
-            "Reset Working Directory",
-            $"WARNING: This will PERMANENTLY DELETE everything in:\n\n" +
-            $"{workingDir}\n\n" +
-            $"This includes:\n" +
-            $"  {fileCount} files\n" +
-            $"  {dirCount} folders\n" +
-            $"  All your source code, node_modules, and configuration\n\n" +
-            $"After deletion, the directory will be re-scaffolded with default files.\n\n" +
-            $"THIS CANNOT BE UNDONE!\n\n" +
-            $"Are you absolutely sure?",
-            "DELETE EVERYTHING",
-            "Cancel"
-        );
-
-        if (!confirmed) return;
-
-        var doubleConfirmed = EditorUtility.DisplayDialog(
-            "Final Warning",
-            "You are about to delete all files in the working directory.\n\n" +
-            "Type 'DELETE' mentally and click confirm only if you're certain.",
-            "Yes, Delete Everything",
-            "Cancel"
-        );
-
-        if (!doubleConfirmed) return;
-
-        try {
-            foreach (var file in Directory.GetFiles(workingDir)) {
-                File.Delete(file);
-            }
-            foreach (var dir in Directory.GetDirectories(workingDir)) {
-                Directory.Delete(dir, true);
-            }
-
-            Debug.Log($"[JSRunner] Deleted all contents from: {workingDir}");
-
-            var method = typeof(JSRunner).GetMethod("ScaffoldDefaultFiles",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            method?.Invoke(runner, null);
-
-            Debug.Log("[JSRunner] Re-scaffolded default files");
-
-            AssetDatabase.Refresh();
-
-            Debug.Log("[JSRunner] Working directory reset complete. Run 'Build' to restore dependencies.");
-        } catch (Exception ex) {
-            Debug.LogError($"[JSRunner] Reset failed: {ex.Message}");
-            EditorUtility.DisplayDialog(
-                "Reset Failed",
-                $"Failed to reset working directory:\n\n{ex.Message}",
-                "OK"
-            );
-        }
     }
 
     // MARK: Utilities

@@ -77,7 +77,6 @@ namespace OneJS.Editor {
         static void StartWatcher(string workingDir, string runnerName) {
             if (NodeWatcherManager.StartWatcher(workingDir)) {
                 _watchersStartedThisSession.Add(workingDir);
-                Debug.Log($"[JSRunner] Auto-started watcher for {runnerName}");
             }
         }
 
@@ -94,13 +93,26 @@ namespace OneJS.Editor {
             if (_pendingInstalls.Contains(workingDir)) return;
             _pendingInstalls.Add(workingDir);
 
+            RunNpmCommand(workingDir, "install", () => {
+                Debug.Log($"[JSRunner] Dependencies installed for {runnerName}");
+                _pendingInstalls.Remove(workingDir);
+                if (EditorApplication.isPlaying) {
+                    StartWatcher(workingDir, runnerName);
+                }
+            }, code => {
+                _pendingInstalls.Remove(workingDir);
+                Debug.LogError($"[JSRunner] npm install failed for {runnerName} (exit code {code})");
+            });
+        }
+
+        static void RunNpmCommand(string workingDir, string arguments, Action onSuccess, Action<int> onFailure) {
             try {
                 var npmPath = GetNpmExecutable();
                 var nodeBinDir = Path.GetDirectoryName(npmPath);
 
                 var startInfo = new ProcessStartInfo {
                     FileName = npmPath,
-                    Arguments = "install",
+                    Arguments = arguments,
                     WorkingDirectory = workingDir,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
@@ -123,16 +135,10 @@ namespace OneJS.Editor {
                 };
                 process.Exited += (_, _) => {
                     EditorApplication.delayCall += () => {
-                        _pendingInstalls.Remove(workingDir);
-
                         if (process.ExitCode == 0) {
-                            Debug.Log($"[JSRunner] Dependencies installed for {runnerName}");
-                            // Now start the watcher
-                            if (EditorApplication.isPlaying) {
-                                StartWatcher(workingDir, runnerName);
-                            }
+                            onSuccess?.Invoke();
                         } else {
-                            Debug.LogError($"[JSRunner] npm install failed for {runnerName} (exit code {process.ExitCode})");
+                            onFailure?.Invoke(process.ExitCode);
                         }
                     };
                 };
@@ -142,8 +148,8 @@ namespace OneJS.Editor {
                 process.BeginErrorReadLine();
 
             } catch (Exception ex) {
-                _pendingInstalls.Remove(workingDir);
-                Debug.LogError($"[JSRunner] Failed to run npm install for {runnerName}: {ex.Message}");
+                Debug.LogError($"[JSRunner] Failed to run npm {arguments}: {ex.Message}");
+                onFailure?.Invoke(-1);
             }
         }
 

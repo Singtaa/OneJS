@@ -191,9 +191,6 @@ namespace OneJS.Editor {
                 };
 
                 process.Exited += (s, e) => {
-                    var exitCode = -1;
-                    try { exitCode = process.ExitCode; } catch { }
-                    Debug.Log($"[OneJS] Watcher exited with code {exitCode}");
                     _watchers.Remove(key);
                     ClearSavedState(key);
                     OnWatcherStopped?.Invoke(workingDir);
@@ -208,7 +205,7 @@ namespace OneJS.Editor {
                 // Save PID for reattachment after domain reload
                 EditorPrefs.SetInt(PidPrefKeyPrefix + key, process.Id);
 
-                Debug.Log($"[OneJS] Started watcher (PID {process.Id}) for {Path.GetFileName(workingDir)}");
+                Debug.Log($"[OneJS] Started watcher for {Path.GetFileName(workingDir)}");
                 OnWatcherStarted?.Invoke(workingDir);
 
                 return true;
