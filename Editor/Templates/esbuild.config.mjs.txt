@@ -1,4 +1,5 @@
 import * as esbuild from "esbuild"
+import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
 
@@ -38,11 +39,32 @@ const config = {
     // ],
 }
 
+// Rename sourcemap from app.js.txt.map to app.js.map.txt (Unity TextAsset)
+function renameSourceMap() {
+    const oldPath = path.resolve(__dirname, "../app.js.txt.map")
+    const newPath = path.resolve(__dirname, "../app.js.map.txt")
+    if (fs.existsSync(oldPath)) {
+        fs.renameSync(oldPath, newPath)
+    }
+}
+
 if (isWatch) {
-    const ctx = await esbuild.context(config)
+    const ctx = await esbuild.context({
+        ...config,
+        plugins: [
+            ...(config.plugins || []),
+            {
+                name: "rename-sourcemap",
+                setup(build) {
+                    build.onEnd(() => renameSourceMap())
+                }
+            }
+        ]
+    })
     await ctx.watch()
     console.log("Watching for changes...")
 } else {
     await esbuild.build(config)
+    renameSourceMap()
     console.log("Build complete!")
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -17,6 +18,7 @@ public class QuickJSUIBridge : IDisposable {
     readonly StringBuilder _sb = new(256);
     readonly string _workingDir;
     readonly UssCompiler _ussCompiler;
+    readonly Dictionary<string, StyleSheet> _jsStyleSheets = new(); // Track JS-loaded stylesheets by name
     bool _disposed;
     float _startTime;
     bool _inEval; // Recursion guard to prevent re-entrant JS execution (all platforms)
@@ -66,16 +68,25 @@ public class QuickJSUIBridge : IDisposable {
 
     /// <summary>
     /// Compile a USS string and apply it to the root element.
+    /// If a stylesheet with the same name already exists, it will be replaced (deduplication).
     /// </summary>
     /// <param name="ussContent">USS content</param>
-    /// <param name="name">Optional name for debugging</param>
+    /// <param name="name">Name for the stylesheet (used for deduplication and debugging)</param>
     /// <returns>True if successful</returns>
     public bool CompileStyleSheet(string ussContent, string name = "inline") {
         try {
+            // Remove existing stylesheet with same name (deduplication for hot reload)
+            if (_jsStyleSheets.TryGetValue(name, out var existing)) {
+                _root.styleSheets.Remove(existing);
+                UnityEngine.Object.DestroyImmediate(existing);
+                _jsStyleSheets.Remove(name);
+            }
+
             var styleSheet = ScriptableObject.CreateInstance<StyleSheet>();
             styleSheet.name = name;
             _ussCompiler.Compile(styleSheet, ussContent);
             _root.styleSheets.Add(styleSheet);
+            _jsStyleSheets[name] = styleSheet;
             return true;
         } catch (Exception ex) {
             Debug.LogError($"[QuickJSUIBridge] CompileStyleSheet error ({name}): {ex.Message}");
@@ -83,11 +94,48 @@ public class QuickJSUIBridge : IDisposable {
         }
     }
 
+    /// <summary>
+    /// Remove a stylesheet by name.
+    /// </summary>
+    /// <param name="name">Name of the stylesheet to remove</param>
+    /// <returns>True if the stylesheet was found and removed</returns>
+    public bool RemoveStyleSheet(string name) {
+        if (!_jsStyleSheets.TryGetValue(name, out var styleSheet)) {
+            return false;
+        }
+
+        _root.styleSheets.Remove(styleSheet);
+        UnityEngine.Object.DestroyImmediate(styleSheet);
+        _jsStyleSheets.Remove(name);
+        return true;
+    }
+
+    /// <summary>
+    /// Remove all JS-loaded stylesheets.
+    /// Does not affect stylesheets loaded via Unity assets (e.g., from JSRunner._stylesheets).
+    /// </summary>
+    /// <returns>Number of stylesheets removed</returns>
+    public int ClearStyleSheets() {
+        int count = _jsStyleSheets.Count;
+        foreach (var kvp in _jsStyleSheets) {
+            _root.styleSheets.Remove(kvp.Value);
+            UnityEngine.Object.DestroyImmediate(kvp.Value);
+        }
+        _jsStyleSheets.Clear();
+        return count;
+    }
+
+    /// <summary>
+    /// Get the names of all JS-loaded stylesheets.
+    /// </summary>
+    public IEnumerable<string> GetStyleSheetNames() => _jsStyleSheets.Keys;
+
     public void Dispose() {
         if (_disposed) return;
         _disposed = true;
 
         UnregisterEventDelegation();
+        ClearStyleSheets(); // Clean up JS-loaded stylesheets
         QuickJSNative.ClearPendingTasks();
         _ctx?.Dispose();
 

@@ -222,13 +222,14 @@ public class JSRunner : MonoBehaviour {
     }
 
     /// <summary>
-    /// Full path to the source map file: {InstanceFolder}/app.js.txt.map
+    /// Full path to the source map file: {InstanceFolder}/app.js.map.txt
     /// </summary>
     public string SourceMapFilePath {
         get {
             var entryFile = EntryFileFullPath;
             if (string.IsNullOrEmpty(entryFile)) return null;
-            return entryFile + ".map";
+            // app.js.txt -> app.js.map.txt
+            return entryFile.Replace(".js.txt", ".js.map.txt");
         }
     }
 
@@ -239,7 +240,7 @@ public class JSRunner : MonoBehaviour {
     public string BundleAssetPath => EntryFileFullPath;
 
     /// <summary>
-    /// Asset path for the source map TextAsset: {InstanceFolder}/app.js.txt.map
+    /// Asset path for the source map TextAsset: {InstanceFolder}/app.js.map.txt
     /// </summary>
     public string SourceMapAssetPath => SourceMapFilePath;
 
