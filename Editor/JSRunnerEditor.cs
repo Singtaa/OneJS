@@ -1279,7 +1279,8 @@ public class JSRunnerEditor : Editor {
     // MARK: Dynamic UI Updates
 
     void UpdateDynamicUI() {
-        if (_statusLabel == null) return;
+        // Check if target was destroyed (e.g., user deleted the GameObject)
+        if (_target == null || _statusLabel == null) return;
 
         // Status
         if (Application.isPlaying) {
