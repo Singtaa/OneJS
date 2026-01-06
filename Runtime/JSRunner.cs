@@ -53,8 +53,8 @@ public class DefaultFileEntry {
 /// - Zero-config UI: Auto-creates UIDocument and PanelSettings at runtime
 ///
 /// Directory structure (for scene "Level1.unity" with JSRunner on "MainUI"):
-///   Assets/Scenes/Level1_JSRunner/MainUI_abc123/MainUI~/  (working dir, ignored by Unity)
-///   Assets/Scenes/Level1_JSRunner/MainUI_abc123/app.js.txt (bundle TextAsset)
+///   Assets/Scenes/Level1/MainUI_abc123/MainUI~/  (working dir, ignored by Unity)
+///   Assets/Scenes/Level1/MainUI_abc123/app.js.txt (bundle TextAsset)
 ///
 /// Platform behavior:
 /// - Editor: Loads JS from filesystem with live reload support
@@ -172,7 +172,7 @@ public class JSRunner : MonoBehaviour {
 
 #if UNITY_EDITOR
     /// <summary>
-    /// Scene folder path: {SceneDirectory}/{SceneName}_JSRunner/
+    /// Scene folder path: {SceneDirectory}/{SceneName}/
     /// Returns null if scene is not saved.
     /// </summary>
     public string SceneFolder {
@@ -182,7 +182,7 @@ public class JSRunner : MonoBehaviour {
 
             var sceneDir = Path.GetDirectoryName(scenePath);
             var sceneName = Path.GetFileNameWithoutExtension(scenePath);
-            return Path.Combine(sceneDir, $"{sceneName}_JSRunner");
+            return Path.Combine(sceneDir, sceneName);
         }
     }
 

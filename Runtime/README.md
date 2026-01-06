@@ -44,7 +44,7 @@ JSRunner uses a **zero-config, scene-based path system**. All paths are automati
 
 ```
 Assets/Scenes/Level1.unity          # Your scene
-Assets/Scenes/Level1_JSRunner/      # Auto-created folder next to scene
+Assets/Scenes/Level1/               # Auto-created folder next to scene
 ├── MainUI_abc123/                  # Per-JSRunner folder (name + instanceId)
 │   ├── MainUI~/                    # Working directory (~ makes Unity ignore it)
 │   │   ├── package.json            # Scaffolded on first run
@@ -98,8 +98,8 @@ Default template files (in `Assets/Singtaa/OneJS/Editor/Templates/`):
 | Field | Purpose |
 |-------|---------|
 | **Project** (auto-computed) | |
-| Scene Folder | `{SceneName}_JSRunner/` next to scene file |
-| Working Dir | `{SceneName}_JSRunner/{Name}_{InstanceId}/{Name}~/` |
+| Scene Folder | `{SceneName}/` next to scene file |
+| Working Dir | `{SceneName}/{Name}_{InstanceId}/{Name}~/` |
 | Bundle File | `{InstanceFolder}/app.js.txt` (esbuild output) |
 | **Build** | |
 | Bundle Asset | TextAsset for built JS (auto-created during build) |
@@ -149,7 +149,7 @@ const cube = new CS.UnityEngine.GameObject("MyCube")
 ### Build Support
 For standalone/mobile builds, JSRunner loads from a TextAsset:
 - **Same file**: esbuild outputs directly to `app.js.txt` which is also the TextAsset
-- **Bundle path**: `{SceneName}_JSRunner/{Name}_{InstanceId}/app.js.txt`
+- **Bundle path**: `{SceneName}/{Name}_{InstanceId}/app.js.txt`
 - **Source maps**: Optional `app.js.txt.map` for error stack translation
 - **Pre-assigned**: If a bundle TextAsset is already assigned, build processor skips it
 
@@ -172,7 +172,7 @@ int ReloadCount { get; }
 DateTime LastModifiedTime { get; }
 
 // Path properties (Editor only, auto-computed from scene)
-string SceneFolder { get; }        // {SceneName}_JSRunner/
+string SceneFolder { get; }        // {SceneName}/
 string InstanceFolder { get; }     // {SceneFolder}/{Name}_{InstanceId}/
 string WorkingDirFullPath { get; } // {InstanceFolder}/{Name}~/
 string EntryFileFullPath { get; }  // {InstanceFolder}/app.js.txt

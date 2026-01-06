@@ -99,7 +99,7 @@ JSRunner uses **scene-based auto paths** - no manual configuration needed:
 
 ```
 Assets/Scenes/Level1.unity          # Your scene
-Assets/Scenes/Level1_JSRunner/      # Auto-created next to scene
+Assets/Scenes/Level1/               # Auto-created next to scene
 ├── MyUI_abc123/                    # Per-JSRunner folder
 │   ├── MyUI~/                      # Working directory (~ = Unity ignores)
 │   │   └── index.tsx               # Source file
