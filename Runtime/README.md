@@ -60,6 +60,7 @@ Assets/Scenes/Level1/               # Auto-created folder next to scene
 - Instance ID suffix prevents naming collisions
 - `~` suffix makes Unity ignore the working directory (no .meta files)
 - TextAssets are created automatically during build
+- **Cleanup on removal**: When JSRunner is removed in Edit mode, prompts to delete instance folder
 
 ### Platform Behavior
 

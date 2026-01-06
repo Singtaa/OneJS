@@ -8,6 +8,7 @@ Editor scripts for OneJS Unity integration.
 |------|---------|
 | `JSRunnerEditor.cs` | Custom inspector for JSRunner component |
 | `JSRunnerAutoWatch.cs` | Auto-starts file watchers on Play mode entry |
+| `JSRunnerCleanup.cs` | Cleans up instance folders when JSRunner is removed |
 | `JSPadEditor.cs` | Custom inspector for JSPad inline runner |
 | `JSRunnerBuildProcessor.cs` | Build hook for auto-copying JS bundles |
 | `TypeGenerator/` | TypeScript declaration generator (see [TypeGenerator/README.md](TypeGenerator/README.md)) |
@@ -89,6 +90,35 @@ JSPadEditor uses `[InitializeOnLoad]` with a static constructor to register a gl
 4. Bundle and source map are saved to serialized fields
 5. Scene is saved to persist data for standalone builds
 6. On `EnteredPlayMode`, JSPad.Start() runs the serialized bundle
+
+## JSRunnerCleanup
+
+Tracks JSRunner instances and prompts to delete their instance folders when removed in Edit mode.
+
+### Features
+
+- **Component removal detection**: Detects when a JSRunner component is removed from a GameObject
+- **GameObject deletion detection**: Detects when a GameObject with JSRunner is deleted
+- **Confirmation dialog**: Prompts user before deleting files (shows file count)
+- **Edit mode only**: No false positives during Play mode transitions or domain reloads
+
+### How It Works
+
+Uses Unity's `ObjectChangeEvents` API (available in Unity 2022.2+) for reliable destruction detection:
+
+1. `[InitializeOnLoad]` subscribes to `ObjectChangeEvents.changesPublished`
+2. Tracks all JSRunner instances and their folder paths
+3. On `DestroyGameObjectHierarchy` or `ChangeGameObjectStructure` events:
+   - Verifies the JSRunner was actually destroyed
+   - Prompts user with dialog: "Delete JSRunner Folder?"
+   - Deletes folder and .meta file if confirmed
+
+### Filtering False Positives
+
+Only prompts when:
+- Not in Play mode (`!Application.isPlaying`)
+- Not transitioning to/from Play mode (`!EditorApplication.isPlayingOrWillChangePlaymode`)
+- Instance folder actually exists
 
 ## JSRunnerBuildProcessor
 
