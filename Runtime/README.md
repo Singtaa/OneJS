@@ -90,8 +90,7 @@ Default template files (in `Assets/Singtaa/OneJS/Editor/Templates/`):
 - `global.d.ts.txt` - TypeScript declarations for OneJS globals
 - `index.tsx.txt` - Sample React application
 - `main.uss.txt` - Sample USS stylesheet
-- `app.js.txt` - Minimal fallback entry file
-- `gitignore.txt` - Git ignore for node_modules and @outputs
+- `gitignore.txt` - Git ignore for node_modules
 
 ### Inspector Fields
 
@@ -215,7 +214,7 @@ Temp/OneJSPad/{instanceId}/
 ├── global.d.ts         # TypeScript declarations
 ├── index.tsx           # Written from Source Code
 ├── node_modules/       # npm install (cached)
-└── @outputs/app.js     # Build output
+└── @outputs/app.js     # Build output (JSPad uses temp folder)
 ```
 
 ## QuickJSNative Partial Classes

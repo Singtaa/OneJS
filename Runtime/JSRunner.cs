@@ -35,7 +35,7 @@ public class GlobalEntry {
 /// </summary>
 [Serializable]
 public class DefaultFileEntry {
-    [Tooltip("Target path relative to WorkingDir (e.g., 'index.tsx' or '@outputs/esbuild/app.js')")]
+    [Tooltip("Target path relative to WorkingDir (e.g., 'index.tsx' or 'styles/main.uss')")]
     public string path;
     [Tooltip("TextAsset containing the file content")]
     public TextAsset content;
@@ -872,6 +872,7 @@ public class JSRunner : MonoBehaviour {
     /// </summary>
     public void PopulateDefaultFiles() {
         // Template mapping: source file name → target path in WorkingDir
+        // Note: esbuild outputs directly to ../app.js.txt (outside working dir)
         var templateMapping = new (string templateName, string targetPath)[] {
             ("package.json.txt", "package.json"),
             ("tsconfig.json.txt", "tsconfig.json"),
@@ -880,7 +881,6 @@ public class JSRunner : MonoBehaviour {
             ("global.d.ts.txt", "types/global.d.ts"),
             ("main.uss.txt", "styles/main.uss"),
             ("gitignore.txt", ".gitignore"),
-            ("app.js.txt", "@outputs/esbuild/app.js"),
         };
 
         _defaultFiles.Clear();

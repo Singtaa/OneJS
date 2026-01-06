@@ -47,7 +47,7 @@ Custom inspector for the inline TSX runner:
 2. Runs `npm install` if node_modules missing (~10s)
 3. Writes source code to `index.tsx`
 4. Runs `npm run build` (esbuild)
-5. Executes built `@outputs/app.js` if in Play mode
+5. Executes built output if in Play mode
 
 ### Static Initialization (`[InitializeOnLoad]`)
 

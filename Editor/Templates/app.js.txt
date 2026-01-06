@@ -1,1 +1,0 @@
-console.log("OneJS is good to go!");
