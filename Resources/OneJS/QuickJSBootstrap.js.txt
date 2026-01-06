@@ -875,8 +875,9 @@ globalThis.loadStyleSheet = function(path) {
 
 /**
  * Compile a USS string and apply it to the root element.
+ * If a stylesheet with the same name already exists, it will be replaced (deduplication).
  * @param {string} ussContent - USS content string
- * @param {string} [name] - Optional name for debugging
+ * @param {string} [name] - Name for the stylesheet (used for deduplication and debugging)
  * @returns {boolean} True if successful
  */
 globalThis.compileStyleSheet = function(ussContent, name) {
@@ -885,6 +886,32 @@ globalThis.compileStyleSheet = function(ussContent, name) {
         return false;
     }
     return globalThis.__bridge.CompileStyleSheet(ussContent, name || "inline");
+};
+
+/**
+ * Remove a stylesheet by name.
+ * @param {string} name - Name of the stylesheet to remove
+ * @returns {boolean} True if the stylesheet was found and removed
+ */
+globalThis.removeStyleSheet = function(name) {
+    if (!globalThis.__bridge) {
+        console.error("removeStyleSheet: __bridge not available");
+        return false;
+    }
+    return globalThis.__bridge.RemoveStyleSheet(name);
+};
+
+/**
+ * Remove all JS-loaded stylesheets.
+ * Does not affect stylesheets loaded via Unity assets.
+ * @returns {number} Number of stylesheets removed
+ */
+globalThis.clearStyleSheets = function() {
+    if (!globalThis.__bridge) {
+        console.error("clearStyleSheets: __bridge not available");
+        return 0;
+    }
+    return globalThis.__bridge.ClearStyleSheets();
 };
 
 // MARK: Fetch API

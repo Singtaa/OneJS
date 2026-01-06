@@ -43,3 +43,5 @@ declare const performance: {
 // StyleSheet API
 declare function loadStyleSheet(path: string): boolean;
 declare function compileStyleSheet(ussContent: string, name?: string): boolean;
+declare function removeStyleSheet(name: string): boolean;
+declare function clearStyleSheets(): number;
