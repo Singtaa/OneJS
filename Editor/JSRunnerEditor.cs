@@ -28,7 +28,7 @@ public class JSRunnerEditor : Editor {
     Label _statusLabel;
     Label _liveReloadStatusLabel;
     Label _reloadCountLabel;
-    Label _entryFileStatusLabel;
+    Label _workingDirLabel;
     Label _watcherStatusLabel;
     Button _reloadButton;
     Button _buildButton;
@@ -204,23 +204,6 @@ public class JSRunnerEditor : Editor {
             var warning = new HelpBox("Scene must be saved before JSRunner can be configured.", HelpBoxMessageType.Warning);
             warning.style.marginBottom = 8;
             container.Add(warning);
-        } else {
-            // Show working directory path (read-only info)
-            var pathBox = CreateStyledBox();
-            pathBox.style.marginBottom = 8;
-
-            var pathLabel = new Label("Working Directory");
-            pathLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
-            pathLabel.style.marginBottom = 4;
-            pathBox.Add(pathLabel);
-
-            var pathValue = new Label(_target.WorkingDirFullPath ?? "(unavailable)");
-            pathValue.style.color = new Color(0.7f, 0.7f, 0.7f);
-            pathValue.style.fontSize = 10;
-            pathValue.style.whiteSpace = WhiteSpace.Normal;
-            pathBox.Add(pathValue);
-
-            container.Add(pathBox);
         }
 
         var liveReloadProp = serializedObject.FindProperty("_liveReload");
@@ -1153,13 +1136,13 @@ public class JSRunnerEditor : Editor {
         _liveReloadInfo.Add(_reloadCountLabel);
         container.Add(_liveReloadInfo);
 
-        // Entry file status
-        var entryRow = CreateRow();
-        entryRow.style.marginTop = 4;
-        entryRow.Add(CreateLabel("Entry File:", 70));
-        _entryFileStatusLabel = new Label("Checking...");
-        entryRow.Add(_entryFileStatusLabel);
-        container.Add(entryRow);
+        // Working directory path
+        _workingDirLabel = new Label();
+        _workingDirLabel.style.marginTop = 4;
+        _workingDirLabel.style.fontSize = 10;
+        _workingDirLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+        _workingDirLabel.style.whiteSpace = WhiteSpace.Normal;
+        container.Add(_workingDirLabel);
 
         return container;
     }
@@ -1180,17 +1163,17 @@ public class JSRunnerEditor : Editor {
         var row1 = CreateRow();
         row1.style.marginBottom = 4;
 
-        _reloadButton = new Button(() => _target.ForceReload()) { text = "Reload Now" };
+        _reloadButton = new Button(() => _target.ForceReload()) { text = "Refresh" };
         _reloadButton.style.height = 30;
         _reloadButton.style.flexGrow = 1;
-        _reloadButton.tooltip = "Force reload the JavaScript runtime (Play Mode only)";
+        _reloadButton.tooltip = "Refresh the JavaScript runtime (Play Mode only)";
         _reloadButton.SetEnabled(false);
         row1.Add(_reloadButton);
 
-        _buildButton = new Button(RunBuild) { text = "Build" };
+        _buildButton = new Button(RunRebuild) { text = "Rebuild" };
         _buildButton.style.height = 30;
         _buildButton.style.flexGrow = 1;
-        _buildButton.tooltip = "Build the JS bundle (auto-installs dependencies if needed)";
+        _buildButton.tooltip = "Delete node_modules and reinstall dependencies, then build";
         row1.Add(_buildButton);
 
         container.Add(row1);
@@ -1314,22 +1297,17 @@ public class JSRunnerEditor : Editor {
             _liveReloadInfo.style.display = DisplayStyle.None;
         }
 
-        // Entry file status
-        var entryFile = _target.EntryFileFullPath;
-        if (string.IsNullOrEmpty(entryFile)) {
-            _entryFileStatusLabel.text = "Scene not saved";
-            _entryFileStatusLabel.style.color = new Color(0.8f, 0.6f, 0.2f);
-        } else {
-            var fileExists = File.Exists(entryFile);
-            _entryFileStatusLabel.text = fileExists ? "Found" : "Not Found";
-            _entryFileStatusLabel.style.color = fileExists ? Color.white : new Color(0.8f, 0.4f, 0.4f);
+        // Working directory path
+        if (_workingDirLabel != null) {
+            var workingDir = _target.WorkingDirFullPath;
+            _workingDirLabel.text = string.IsNullOrEmpty(workingDir) ? "(save scene first)" : workingDir;
         }
 
         // Buttons
         _reloadButton?.SetEnabled(Application.isPlaying && _target.IsRunning);
         if (_buildButton != null) {
             _buildButton.SetEnabled(!_buildInProgress);
-            _buildButton.text = _buildInProgress ? "Building..." : "Build";
+            _buildButton.text = _buildInProgress ? "Rebuilding..." : "Rebuild";
         }
 
         // Watcher status
@@ -1417,11 +1395,11 @@ public class JSRunnerEditor : Editor {
         }
     }
 
-    void RunBuild() {
+    void RunRebuild() {
         var workingDir = _target.WorkingDirFullPath;
 
         if (string.IsNullOrEmpty(workingDir)) {
-            Debug.LogError("[JSRunner] Scene must be saved before building.");
+            Debug.LogError("[JSRunner] Scene must be saved before rebuilding.");
             _buildOutput = "Scene must be saved first.";
             return;
         }
@@ -1438,37 +1416,39 @@ public class JSRunnerEditor : Editor {
 
         _buildInProgress = true;
 
-        // Auto-install if node_modules doesn't exist
-        if (!Directory.Exists(Path.Combine(workingDir, "node_modules"))) {
-            _buildOutput = "Installing dependencies...";
-            RunNpmCommand(workingDir, "install", onSuccess: () => {
-                _buildOutput = "Building...";
-                RunNpmCommand(workingDir, "run build", onSuccess: () => {
-                    _buildInProgress = false;
-                    _buildOutput = "Build completed successfully!";
-                    Debug.Log("[JSRunner] Build completed successfully!");
-                }, onFailure: (code) => {
-                    _buildInProgress = false;
-                    _buildOutput = $"Build failed with exit code {code}";
-                    Debug.LogError($"[JSRunner] Build failed with exit code {code}");
-                });
-            }, onFailure: (code) => {
+        // Delete node_modules for a clean rebuild
+        var nodeModulesPath = Path.Combine(workingDir, "node_modules");
+        if (Directory.Exists(nodeModulesPath)) {
+            _buildOutput = "Deleting node_modules...";
+            try {
+                Directory.Delete(nodeModulesPath, true);
+                Debug.Log("[JSRunner] Deleted node_modules");
+            } catch (Exception ex) {
                 _buildInProgress = false;
-                _buildOutput = $"Install failed with exit code {code}";
-                Debug.LogError($"[JSRunner] npm install failed with exit code {code}");
-            });
-        } else {
+                _buildOutput = $"Failed to delete node_modules: {ex.Message}";
+                Debug.LogError($"[JSRunner] Failed to delete node_modules: {ex.Message}");
+                return;
+            }
+        }
+
+        // Install dependencies then build
+        _buildOutput = "Installing dependencies...";
+        RunNpmCommand(workingDir, "install", onSuccess: () => {
             _buildOutput = "Building...";
             RunNpmCommand(workingDir, "run build", onSuccess: () => {
                 _buildInProgress = false;
-                _buildOutput = "Build completed successfully!";
-                Debug.Log("[JSRunner] Build completed successfully!");
+                _buildOutput = "Rebuild completed successfully!";
+                Debug.Log("[JSRunner] Rebuild completed successfully!");
             }, onFailure: (code) => {
                 _buildInProgress = false;
                 _buildOutput = $"Build failed with exit code {code}";
                 Debug.LogError($"[JSRunner] Build failed with exit code {code}");
             });
-        }
+        }, onFailure: (code) => {
+            _buildInProgress = false;
+            _buildOutput = $"Install failed with exit code {code}";
+            Debug.LogError($"[JSRunner] npm install failed with exit code {code}");
+        });
     }
 
     // MARK: npm Resolution

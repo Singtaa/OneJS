@@ -20,6 +20,7 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `QuickJSUIBridge.cs` | UI Toolkit integration, event delegation, scheduling (RAF, timers) |
 | `JSRunner.cs` | MonoBehaviour entry point with auto-scaffolding and live reload |
 | `JSPad.cs` | Inline TSX runner with no external working directory |
+| `Janitor.cs` | Marker component for live reload cleanup of JS-created GameObjects |
 | `Network.cs` | Fetch API implementation using UnityWebRequest |
 | `GPU/GPUBridge.cs` | Compute shader API for JavaScript |
 | `GPU/ComputeShaderProvider.cs` | MonoBehaviour for registering shaders via inspector |
@@ -122,6 +123,28 @@ Default template files (in `Assets/Singtaa/OneJS/Editor/Templates/`):
 - Polls the entry file for changes (Mono-compatible, no FileSystemWatcher)
 - Configurable poll interval (default: 0.5s)
 - Hard reload: disposes context, clears UI, recreates fresh
+- **Janitor cleanup**: When enabled, destroys JS-created GameObjects on reload (see below)
+
+### Janitor (Live Reload Cleanup)
+
+The Janitor feature automatically cleans up GameObjects created by JavaScript during live reload.
+
+**How it works:**
+1. When Play mode starts (and Janitor is enabled), a `Janitor` GameObject is spawned
+2. The Janitor serves as a marker in the scene hierarchy
+3. On each live reload, all root GameObjects **after** the Janitor are destroyed
+4. This allows JS code to instantiate GameObjects that get cleaned up automatically
+
+**Configuration:**
+- Enable via `Enable Janitor` toggle in Project tab (under Live Reload settings)
+- Enabled by default
+
+**Use case:**
+```javascript
+// JS code creates GameObjects at runtime
+const cube = new CS.UnityEngine.GameObject("MyCube")
+// On live reload, this cube is automatically destroyed
+```
 
 ### Build Support
 For standalone/mobile builds, JSRunner loads from a TextAsset:
@@ -132,12 +155,13 @@ For standalone/mobile builds, JSRunner loads from a TextAsset:
 
 ### Custom Inspector
 The `JSRunnerEditor` provides:
-- Status display (running/stopped, reload count)
-- **Reload Now** button - Force reload in Play mode
-- **Build** button - Run `npm run build`
+- Status display (running/stopped, reload count, working directory path)
+- **Refresh** button - Force reload in Play mode
+- **Rebuild** button - Delete node_modules, reinstall, and rebuild
 - **Open Folder** - Open working directory in file explorer
 - **Open Terminal** - Open terminal at working directory
-- Build info showing where bundle will be copied
+- **Open VSCode** - Open working directory in VS Code
+- Watcher status (auto-starts on Play mode)
 
 ### Public API
 ```csharp

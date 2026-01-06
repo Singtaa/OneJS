@@ -7,6 +7,7 @@ Editor scripts for OneJS Unity integration.
 | File | Purpose |
 |------|---------|
 | `JSRunnerEditor.cs` | Custom inspector for JSRunner component |
+| `JSRunnerAutoWatch.cs` | Auto-starts file watchers on Play mode entry |
 | `JSPadEditor.cs` | Custom inspector for JSPad inline runner |
 | `JSRunnerBuildProcessor.cs` | Build hook for auto-copying JS bundles |
 | `TypeGenerator/` | TypeScript declaration generator (see [TypeGenerator/README.md](TypeGenerator/README.md)) |
@@ -14,13 +15,14 @@ Editor scripts for OneJS Unity integration.
 ## JSRunnerEditor
 
 Custom inspector providing:
-- **Status section**: Running/stopped indicator, reload count, entry file status
+- **Status section**: Running/stopped indicator, reload count, working directory path
 - **Actions**:
-  - **Reload Now** - Force reload (Play mode only)
-  - **Build** - Run `npm run build` in working directory
+  - **Refresh** - Force reload the JavaScript runtime (Play mode only)
+  - **Rebuild** - Delete node_modules, reinstall dependencies, and rebuild
   - **Open Folder** - Open working directory in file explorer
   - **Open Terminal** - Open terminal at working directory
-- **Build info**: Shows where bundle will be copied during build
+  - **Open VSCode** - Open working directory in Visual Studio Code
+- **Watcher status**: Shows auto-watch state (auto-starts on Play mode)
 
 ### npm Path Detection
 
@@ -29,6 +31,33 @@ On macOS/Linux, Unity doesn't inherit terminal PATH. The editor searches for npm
 2. `/opt/homebrew/bin/npm` (Homebrew Apple Silicon)
 3. `~/.nvm/versions/node/*/bin/npm` (nvm)
 4. Fallback: `bash -l -c "which npm"`
+
+## JSRunnerAutoWatch
+
+Automatically manages file watchers for JSRunner instances when entering/exiting Play mode.
+
+### Features
+
+- **Auto-start on Play**: Watchers start automatically when entering Play mode
+- **Auto-install**: Runs `npm install` if `node_modules/` is missing before starting watcher
+- **Auto-stop on Exit**: Watchers that were auto-started are stopped when exiting Play mode
+- **Status display**: Inspector shows watcher state (Running, Starting, Auto-starts on Play mode)
+
+### How It Works
+
+1. Uses `[InitializeOnLoad]` to register `playModeStateChanged` callback
+2. On `EnteredPlayMode`: Finds all active JSRunner components
+3. For each runner with a valid working directory:
+   - If `node_modules/` missing: runs `npm install` first
+   - Starts the file watcher via `NodeWatcherManager`
+4. On `ExitingPlayMode`: Stops all watchers that were started this session
+
+### Integration with Inspector
+
+The inspector's watcher status label shows:
+- **Running**: Watcher is active and auto-rebuilding on file changes
+- **Starting...**: npm install or watcher startup in progress
+- **Auto-starts on Play mode**: Not in Play mode, will start automatically
 
 ## JSPadEditor
 
