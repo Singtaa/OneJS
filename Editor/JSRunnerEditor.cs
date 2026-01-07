@@ -277,88 +277,7 @@ public class JSRunnerEditor : Editor {
     }
 
     void BuildUITab(VisualElement container) {
-        var panelSettingsProp = serializedObject.FindProperty("_panelSettings");
-        var panelSettingsField = new PropertyField(panelSettingsProp, "Panel Settings Asset");
-        container.Add(panelSettingsField);
-
-        // Inline settings container
-        var inlineSettings = new VisualElement();
-        inlineSettings.style.marginLeft = 15;
-        inlineSettings.style.marginTop = 4;
-        inlineSettings.style.paddingLeft = 10;
-        inlineSettings.style.borderLeftWidth = 2;
-        inlineSettings.style.borderLeftColor = new Color(0.3f, 0.3f, 0.3f);
-
-        inlineSettings.Add(new PropertyField(serializedObject.FindProperty("_defaultThemeStylesheet"), "Theme Stylesheet"));
-
-        var scaleModeProp = serializedObject.FindProperty("_scaleMode");
-        var scaleModeField = new PropertyField(scaleModeProp, "Scale Mode");
-        inlineSettings.Add(scaleModeField);
-
-        // Scale mode specific containers
-        var constantPixelContainer = new VisualElement();
-        constantPixelContainer.Add(new PropertyField(serializedObject.FindProperty("_scale"), "Scale"));
-        inlineSettings.Add(constantPixelContainer);
-
-        var constantPhysicalContainer = new VisualElement();
-        constantPhysicalContainer.Add(new PropertyField(serializedObject.FindProperty("_referenceDpi"), "Reference DPI"));
-        constantPhysicalContainer.Add(new PropertyField(serializedObject.FindProperty("_fallbackDpi"), "Fallback DPI"));
-        inlineSettings.Add(constantPhysicalContainer);
-
-        var scaleWithScreenContainer = new VisualElement();
-        scaleWithScreenContainer.Add(new PropertyField(serializedObject.FindProperty("_referenceResolution"), "Reference Resolution"));
-        var screenMatchModeField = new PropertyField(serializedObject.FindProperty("_screenMatchMode"), "Screen Match Mode");
-        scaleWithScreenContainer.Add(screenMatchModeField);
-        var matchField = new PropertyField(serializedObject.FindProperty("_match"), "Match");
-        scaleWithScreenContainer.Add(matchField);
-        inlineSettings.Add(scaleWithScreenContainer);
-
-        inlineSettings.Add(new PropertyField(serializedObject.FindProperty("_sortOrder"), "Sort Order"));
-        container.Add(inlineSettings);
-
-        // Visibility logic
-        void UpdateScaleModeVisibility() {
-            var mode = (PanelScaleMode)scaleModeProp.enumValueIndex;
-            constantPixelContainer.style.display = mode == PanelScaleMode.ConstantPixelSize ? DisplayStyle.Flex : DisplayStyle.None;
-            constantPhysicalContainer.style.display = mode == PanelScaleMode.ConstantPhysicalSize ? DisplayStyle.Flex : DisplayStyle.None;
-            scaleWithScreenContainer.style.display = mode == PanelScaleMode.ScaleWithScreenSize ? DisplayStyle.Flex : DisplayStyle.None;
-
-            if (mode == PanelScaleMode.ScaleWithScreenSize) {
-                var matchMode = (PanelScreenMatchMode)serializedObject.FindProperty("_screenMatchMode").enumValueIndex;
-                matchField.style.display = matchMode == PanelScreenMatchMode.MatchWidthOrHeight ? DisplayStyle.Flex : DisplayStyle.None;
-            }
-        }
-
-        void UpdateInlineVisibility() {
-            bool hasPanelSettings = panelSettingsProp.objectReferenceValue != null;
-            inlineSettings.style.display = hasPanelSettings ? DisplayStyle.None : DisplayStyle.Flex;
-            if (!hasPanelSettings) UpdateScaleModeVisibility();
-        }
-
-        UpdateInlineVisibility();
-
-        panelSettingsField.RegisterValueChangeCallback(_ => { serializedObject.Update(); UpdateInlineVisibility(); });
-        scaleModeField.RegisterValueChangeCallback(_ => { serializedObject.Update(); UpdateScaleModeVisibility(); });
-        screenMatchModeField.RegisterValueChangeCallback(_ => {
-            serializedObject.Update();
-            var matchMode = (PanelScreenMatchMode)serializedObject.FindProperty("_screenMatchMode").enumValueIndex;
-            matchField.style.display = matchMode == PanelScreenMatchMode.MatchWidthOrHeight ? DisplayStyle.Flex : DisplayStyle.None;
-        });
-
-        // Help box for inline settings
-        var helpBox = new HelpBox(
-            "No Panel Settings asset assigned. Settings above will be used to create one at runtime.",
-            HelpBoxMessageType.Info
-        );
-        helpBox.style.marginTop = 4;
-        helpBox.style.display = panelSettingsProp.objectReferenceValue == null ? DisplayStyle.Flex : DisplayStyle.None;
-        panelSettingsField.RegisterValueChangeCallback(_ =>
-            helpBox.style.display = panelSettingsProp.objectReferenceValue == null ? DisplayStyle.Flex : DisplayStyle.None);
-        container.Add(helpBox);
-
-        AddSpacer(container);
-
-        // Stylesheets section
+        // Stylesheets section (at top)
         var stylesheetsHeader = CreateRow();
         stylesheetsHeader.style.marginBottom = 4;
         var stylesheetsLabel = new Label("Stylesheets");
@@ -382,6 +301,51 @@ public class JSRunnerEditor : Editor {
         _stylesheetsListContainer = new VisualElement();
         container.Add(_stylesheetsListContainer);
         RebuildStylesheetsList();
+
+        AddSpacer(container);
+
+        // PanelSettings field
+        var panelSettingsProp = serializedObject.FindProperty("_panelSettings");
+        var panelSettingsField = new PropertyField(panelSettingsProp, "Panel Settings");
+        container.Add(panelSettingsField);
+
+        // Container for embedded PanelSettings inspector
+        var inspectorContainer = new VisualElement();
+        inspectorContainer.style.marginTop = 8;
+        inspectorContainer.style.marginLeft = 4;
+        inspectorContainer.style.paddingLeft = 10;
+        inspectorContainer.style.borderLeftWidth = 2;
+        inspectorContainer.style.borderLeftColor = new Color(0.3f, 0.3f, 0.3f);
+        container.Add(inspectorContainer);
+
+        // Function to rebuild embedded inspector
+        void RebuildPanelSettingsInspector() {
+            inspectorContainer.Clear();
+
+            var ps = panelSettingsProp.objectReferenceValue as PanelSettings;
+            if (ps != null) {
+                // Create embedded inspector using InspectorElement
+                var inspector = new InspectorElement(ps);
+                inspectorContainer.Add(inspector);
+            } else if (_target.IsSceneSaved) {
+                // Show help box when no PanelSettings assigned
+                var helpBox = new HelpBox(
+                    "No PanelSettings assigned. Enter Play mode to auto-create one, or assign an existing asset.",
+                    HelpBoxMessageType.Info);
+                inspectorContainer.Add(helpBox);
+            } else {
+                var helpBox = new HelpBox(
+                    "Save the scene first, then enter Play mode to auto-create a PanelSettings asset.",
+                    HelpBoxMessageType.Warning);
+                inspectorContainer.Add(helpBox);
+            }
+        }
+
+        RebuildPanelSettingsInspector();
+        panelSettingsField.RegisterValueChangeCallback(_ => {
+            serializedObject.Update();
+            RebuildPanelSettingsInspector();
+        });
     }
 
     void BuildBuildTab(VisualElement container) {

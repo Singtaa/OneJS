@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UIElements;
 using Debug = UnityEngine.Debug;
 
 namespace OneJS.Editor {
@@ -23,6 +24,10 @@ namespace OneJS.Editor {
         static void OnPlayModeStateChanged(PlayModeStateChange state) {
             switch (state) {
                 case PlayModeStateChange.ExitingEditMode:
+                    // Create PanelSettings assets for JSRunners that don't have one
+                    EnsurePanelSettingsAssets();
+                    // Scaffold files and run initial build if needed
+                    EnsureProjectsReady();
                     // Prepare watchers before entering play mode
                     PrepareWatchers();
                     break;
@@ -43,6 +48,63 @@ namespace OneJS.Editor {
             _watchersStartedThisSession.Clear();
         }
 
+        /// <summary>
+        /// Ensures all JSRunner projects have their files scaffolded before entering Play mode.
+        /// npm install and build run asynchronously after Play mode starts.
+        /// </summary>
+        static void EnsureProjectsReady() {
+            var runners = UnityEngine.Object.FindObjectsByType<JSRunner>(FindObjectsSortMode.None);
+
+            foreach (var runner in runners) {
+                if (runner == null || !runner.enabled || !runner.gameObject.activeInHierarchy) continue;
+                if (!runner.IsSceneSaved) continue;
+
+                // Scaffold files if needed (this is fast, do it synchronously)
+                runner.EnsureProjectSetup();
+            }
+
+            // Refresh AssetDatabase to pick up new files
+            AssetDatabase.Refresh();
+        }
+
+        /// <summary>
+        /// Creates PanelSettings assets for JSRunners that don't have one assigned.
+        /// Called before entering Play mode so the assignment persists.
+        /// </summary>
+        static void EnsurePanelSettingsAssets() {
+            var runners = UnityEngine.Object.FindObjectsByType<JSRunner>(FindObjectsSortMode.None);
+            bool anyCreated = false;
+
+            foreach (var runner in runners) {
+                if (runner == null || !runner.enabled || !runner.gameObject.activeInHierarchy) continue;
+                if (!runner.IsSceneSaved) continue;
+
+                // Check if PanelSettings already assigned
+                var panelSettingsProp = new SerializedObject(runner).FindProperty("_panelSettings");
+                if (panelSettingsProp.objectReferenceValue != null) continue;
+
+                // Try to load existing asset
+                var psPath = runner.PanelSettingsAssetPath;
+                if (string.IsNullOrEmpty(psPath)) continue;
+
+                var existingPS = AssetDatabase.LoadAssetAtPath<PanelSettings>(psPath);
+                if (existingPS != null) {
+                    // Assign existing asset
+                    panelSettingsProp.objectReferenceValue = existingPS;
+                    panelSettingsProp.serializedObject.ApplyModifiedProperties();
+                    continue;
+                }
+
+                // Create new PanelSettings asset
+                runner.CreateDefaultPanelSettingsAsset();
+                anyCreated = true;
+            }
+
+            if (anyCreated) {
+                AssetDatabase.SaveAssets();
+            }
+        }
+
         static void StartWatchersAsync() {
             var runners = UnityEngine.Object.FindObjectsByType<JSRunner>(FindObjectsSortMode.None);
 
@@ -61,14 +123,20 @@ namespace OneJS.Editor {
                     continue;
                 }
 
-                // Check for node_modules
-                var nodeModulesPath = Path.Combine(workingDir, "node_modules");
-                if (!Directory.Exists(nodeModulesPath)) {
-                    // Need to install dependencies first
+                // Check if we need to do first-time setup (install + build)
+                bool needsInstall = !runner.HasNodeModules;
+                bool needsBuild = !runner.HasBundle;
+
+                if (needsInstall) {
+                    // Need to install dependencies first, then build, then start watcher
                     Debug.Log($"[JSRunner] Installing dependencies for {runner.name}...");
-                    RunNpmInstallThenWatch(workingDir, runner.name);
+                    RunNpmInstallBuildAndWatch(workingDir, runner, needsBuild);
+                } else if (needsBuild) {
+                    // Have node_modules but no bundle - just build then start watcher
+                    Debug.Log($"[JSRunner] Building {runner.name}...");
+                    RunNpmBuildAndWatch(workingDir, runner);
                 } else {
-                    // Start watcher directly
+                    // Everything ready, just start watcher
                     StartWatcher(workingDir, runner.name);
                 }
             }
@@ -89,19 +157,43 @@ namespace OneJS.Editor {
             _watchersStartedThisSession.Clear();
         }
 
-        static void RunNpmInstallThenWatch(string workingDir, string runnerName) {
+        static void RunNpmInstallBuildAndWatch(string workingDir, JSRunner runner, bool needsBuild) {
             if (_pendingInstalls.Contains(workingDir)) return;
             _pendingInstalls.Add(workingDir);
 
             RunNpmCommand(workingDir, "install", () => {
-                Debug.Log($"[JSRunner] Dependencies installed for {runnerName}");
+                Debug.Log($"[JSRunner] Dependencies installed for {runner.name}");
                 _pendingInstalls.Remove(workingDir);
-                if (EditorApplication.isPlaying) {
-                    StartWatcher(workingDir, runnerName);
+
+                if (!EditorApplication.isPlaying) return;
+
+                if (needsBuild) {
+                    // Now run build
+                    RunNpmBuildAndWatch(workingDir, runner);
+                } else {
+                    StartWatcher(workingDir, runner.name);
                 }
             }, code => {
                 _pendingInstalls.Remove(workingDir);
-                Debug.LogError($"[JSRunner] npm install failed for {runnerName} (exit code {code})");
+                Debug.LogError($"[JSRunner] npm install failed for {runner.name} (exit code {code})");
+            });
+        }
+
+        static void RunNpmBuildAndWatch(string workingDir, JSRunner runner) {
+            RunNpmCommand(workingDir, "run build", () => {
+                Debug.Log($"[JSRunner] Build complete for {runner.name}");
+
+                if (!EditorApplication.isPlaying) return;
+
+                // Trigger reload to pick up the new bundle
+                if (runner != null) {
+                    runner.ForceReload();
+                }
+
+                // Start watcher for subsequent changes
+                StartWatcher(workingDir, runner.name);
+            }, code => {
+                Debug.LogError($"[JSRunner] npm build failed for {runner.name} (exit code {code})");
             });
         }
 

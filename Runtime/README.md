@@ -56,6 +56,7 @@ Assets/Scenes/Level1/               # Auto-created folder next to scene
 │   │   ├── package.json            # Scaffolded on first run
 │   │   ├── index.tsx               # Source file
 │   │   └── esbuild.config.mjs      # Outputs to ../app.js.txt
+│   ├── PanelSettings.asset         # Auto-created UI panel settings
 │   ├── app.js.txt                  # Built bundle (esbuild output + TextAsset)
 │   └── app.js.txt.map              # Source map (optional)
 ```
@@ -77,12 +78,13 @@ Assets/Scenes/Level1/               # Auto-created folder next to scene
 | WebGL | TextAsset embedded in build | No |
 
 ### Zero-Config UI Setup
-JSRunner automatically creates `UIDocument` and `PanelSettings` at runtime if not present. No manual asset creation required.
+JSRunner automatically creates `UIDocument` at runtime and a `PanelSettings.asset` in the instance folder on first Play mode. No manual asset creation required.
 
 **Setup options:**
-1. **Zero-config**: Just add JSRunner to any GameObject and hit Play
-2. **Custom PanelSettings**: Drag a PanelSettings asset to override defaults
-3. **Inline settings**: Configure scale mode, resolution, etc. directly in the inspector
+1. **Zero-config**: Just add JSRunner to any GameObject and hit Play - PanelSettings asset is auto-created
+2. **Custom PanelSettings**: Drag any PanelSettings asset to the Panel Settings field to override the default
+
+The auto-created PanelSettings asset is stored at `{InstanceFolder}/PanelSettings.asset` and can be modified directly in the inspector. Changes persist across sessions.
 
 ### Auto-Scaffolding (Editor Only)
 On first run, JSRunner creates missing files from its **Default Files** list. This is non-destructive - existing files are never overwritten.
@@ -113,12 +115,9 @@ Default template files (in `Assets/Singtaa/OneJS/Editor/Templates/`):
 | Source Map Asset | TextAsset for source map (optional) |
 | Include Source Map | Whether to include source maps in builds |
 | **UI Panel** | |
-| Panel Settings | Optional PanelSettings asset. If null, uses inline settings below |
-| Scale Mode | `ConstantPixelSize`, `ConstantPhysicalSize`, or `ScaleWithScreenSize` |
-| Reference Resolution | Design resolution (for ScaleWithScreenSize) |
-| Screen Match Mode | `MatchWidthOrHeight`, `Expand`, or `Shrink` |
-| Match | 0=width, 1=height (for MatchWidthOrHeight) |
-| Sort Order | Rendering order relative to other panels |
+| Panel Settings | PanelSettings asset (auto-created in instance folder on first Play, or assign custom) |
+| Default Theme | ThemeStyleSheet applied to PanelSettings |
+| *(embedded inspector)* | Full PanelSettings inspector shown inline for easy configuration |
 | **Scaffolding** | |
 | Default Files | `path → TextAsset` pairs for auto-scaffolding on first run |
 | **Advanced** | |
@@ -179,12 +178,13 @@ int ReloadCount { get; }
 DateTime LastModifiedTime { get; }
 
 // Path properties (Editor only, auto-computed from scene)
-string SceneFolder { get; }        // {SceneName}/
-string InstanceFolder { get; }     // {SceneFolder}/{Name}_{InstanceId}/
-string WorkingDirFullPath { get; } // {InstanceFolder}/{Name}~/
-string EntryFileFullPath { get; }  // {InstanceFolder}/app.js.txt
-string BundleAssetPath { get; }    // Same as EntryFileFullPath
-string SourceMapAssetPath { get; } // {InstanceFolder}/app.js.txt.map
+string SceneFolder { get; }           // {SceneName}/
+string InstanceFolder { get; }        // {SceneFolder}/{Name}_{InstanceId}/
+string WorkingDirFullPath { get; }    // {InstanceFolder}/{Name}~/
+string EntryFileFullPath { get; }     // {InstanceFolder}/app.js.txt
+string BundleAssetPath { get; }       // Same as EntryFileFullPath
+string SourceMapAssetPath { get; }    // {InstanceFolder}/app.js.txt.map
+string PanelSettingsAssetPath { get; } // {InstanceFolder}/PanelSettings.asset
 
 // Methods
 void ForceReload();  // Manually trigger reload (Editor only)

@@ -67,21 +67,10 @@ public class JSRunner : MonoBehaviour {
     // Instance identification (generated once, persisted)
     [SerializeField, HideInInspector] string _instanceId;
 
-    [Tooltip("Optional: Drag in a custom PanelSettings asset. If null, settings below are used to create one at runtime.")]
+    [Tooltip("PanelSettings asset for the UI. Auto-created in instance folder on first Play mode if not assigned.")]
     [SerializeField] PanelSettings _panelSettings;
-    
-    [SerializeField] ThemeStyleSheet _defaultThemeStylesheet;
 
-    // Inline panel settings (used when _panelSettings is null)
-    [SerializeField] PanelScaleMode _scaleMode = PanelScaleMode.ScaleWithScreenSize;
-    [SerializeField] Vector2Int _referenceResolution = new Vector2Int(1920, 1080);
-    [SerializeField] PanelScreenMatchMode _screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight;
-    [Range(0f, 1f)]
-    [SerializeField] float _match = 0.5f;
-    [SerializeField] float _scale = 1f;
-    [SerializeField] int _referenceDpi = 96;
-    [SerializeField] int _fallbackDpi = 96;
-    [SerializeField] int _sortOrder = 0;
+    [SerializeField] ThemeStyleSheet _defaultThemeStylesheet;
 
     [Tooltip("Automatically reload when the entry file changes (Editor only)")]
     [SerializeField] bool _liveReload = true;
@@ -121,7 +110,6 @@ public class JSRunner : MonoBehaviour {
 
     QuickJSUIBridge _bridge;
     UIDocument _uiDocument;
-    PanelSettings _runtimePanelSettings; // Track runtime-created PanelSettings for cleanup
     bool _scriptLoaded;
 
     // Live reload state
@@ -245,6 +233,17 @@ public class JSRunner : MonoBehaviour {
     public string SourceMapAssetPath => SourceMapFilePath;
 
     /// <summary>
+    /// Asset path for the PanelSettings: {InstanceFolder}/PanelSettings.asset
+    /// </summary>
+    public string PanelSettingsAssetPath {
+        get {
+            var instanceFolder = InstanceFolder;
+            if (string.IsNullOrEmpty(instanceFolder)) return null;
+            return Path.Combine(instanceFolder, "PanelSettings.asset");
+        }
+    }
+
+    /// <summary>
     /// Whether the scene is saved and paths are valid.
     /// </summary>
     public bool IsSceneSaved => !string.IsNullOrEmpty(gameObject.scene.path);
@@ -272,6 +271,151 @@ public class JSRunner : MonoBehaviour {
         _bundleAsset = null;
         _sourceMapAsset = null;
         UnityEditor.EditorUtility.SetDirty(this);
+    }
+
+    /// <summary>
+    /// Creates a default PanelSettings asset in the instance folder.
+    /// Called automatically on first Play mode if no PanelSettings is assigned.
+    /// </summary>
+    public void CreateDefaultPanelSettingsAsset() {
+        var instanceFolder = InstanceFolder;
+        if (string.IsNullOrEmpty(instanceFolder)) return;
+
+        // Ensure instance folder exists
+        if (!Directory.Exists(instanceFolder)) {
+            Directory.CreateDirectory(instanceFolder);
+        }
+
+        // Create PanelSettings with sensible defaults
+        var ps = ScriptableObject.CreateInstance<PanelSettings>();
+        ps.scaleMode = PanelScaleMode.ScaleWithScreenSize;
+        ps.referenceResolution = new Vector2Int(1920, 1080);
+        ps.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight;
+        ps.match = 0.5f;
+
+        // Apply theme stylesheet if set
+        if (_defaultThemeStylesheet != null) {
+            ps.themeStyleSheet = _defaultThemeStylesheet;
+        }
+
+        // Save as asset
+        var assetPath = PanelSettingsAssetPath;
+        UnityEditor.AssetDatabase.CreateAsset(ps, assetPath);
+        UnityEditor.AssetDatabase.SaveAssets();
+
+        // Auto-assign to this JSRunner
+        _panelSettings = ps;
+        UnityEditor.EditorUtility.SetDirty(this);
+
+        Debug.Log($"[JSRunner] Created PanelSettings asset: {assetPath}");
+    }
+
+    /// <summary>
+    /// Ensures the project is set up with all required directories and scaffolded files.
+    /// Called before entering Play mode to ensure everything is ready.
+    /// Returns true if scaffolding was performed (first-time setup).
+    /// </summary>
+    public bool EnsureProjectSetup() {
+        if (!IsSceneSaved) return false;
+
+        var workingDir = WorkingDirFullPath;
+        var instanceFolder = InstanceFolder;
+
+        if (string.IsNullOrEmpty(workingDir) || string.IsNullOrEmpty(instanceFolder)) return false;
+
+        bool didScaffold = false;
+
+        // Ensure instance folder exists
+        if (!Directory.Exists(instanceFolder)) {
+            Directory.CreateDirectory(instanceFolder);
+        }
+
+        // Ensure working directory exists
+        if (!Directory.Exists(workingDir)) {
+            Directory.CreateDirectory(workingDir);
+            Debug.Log($"[JSRunner] Created working directory: {workingDir}");
+            didScaffold = true;
+        }
+
+        // Scaffold default files
+        if (_defaultFiles != null && _defaultFiles.Count > 0) {
+            foreach (var entry in _defaultFiles) {
+                if (string.IsNullOrEmpty(entry.path) || entry.content == null) continue;
+
+                var fullPath = Path.Combine(workingDir, entry.path);
+
+                // Skip if file already exists
+                if (File.Exists(fullPath)) continue;
+
+                // Ensure directory exists
+                var dir = Path.GetDirectoryName(fullPath);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) {
+                    Directory.CreateDirectory(dir);
+                }
+
+                // Write file content
+                File.WriteAllText(fullPath, entry.content.text);
+                Debug.Log($"[JSRunner] Created default file: {entry.path}");
+                didScaffold = true;
+            }
+        }
+
+        // Extract cartridges
+        if (_cartridges != null && _cartridges.Count > 0) {
+            foreach (var cartridge in _cartridges) {
+                if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) continue;
+
+                var destPath = GetCartridgePath(cartridge);
+                if (string.IsNullOrEmpty(destPath)) continue;
+
+                // Skip if folder already exists
+                if (Directory.Exists(destPath)) continue;
+
+                Directory.CreateDirectory(destPath);
+
+                // Extract files
+                foreach (var file in cartridge.Files) {
+                    if (file.content == null) continue;
+                    var filePath = Path.Combine(destPath, file.path);
+                    var fileDir = Path.GetDirectoryName(filePath);
+                    if (!string.IsNullOrEmpty(fileDir) && !Directory.Exists(fileDir)) {
+                        Directory.CreateDirectory(fileDir);
+                    }
+                    File.WriteAllText(filePath, file.content.text);
+                }
+                Debug.Log($"[JSRunner] Extracted cartridge: {cartridge.Slug}");
+                didScaffold = true;
+            }
+        }
+
+        return didScaffold;
+    }
+
+    /// <summary>
+    /// Whether the bundle file exists (app.js.txt).
+    /// </summary>
+    public bool HasBundle => File.Exists(EntryFileFullPath);
+
+    /// <summary>
+    /// Whether node_modules exists in the working directory.
+    /// </summary>
+    public bool HasNodeModules {
+        get {
+            var workingDir = WorkingDirFullPath;
+            if (string.IsNullOrEmpty(workingDir)) return false;
+            return Directory.Exists(Path.Combine(workingDir, "node_modules"));
+        }
+    }
+
+    /// <summary>
+    /// Whether package.json exists in the working directory.
+    /// </summary>
+    public bool HasPackageJson {
+        get {
+            var workingDir = WorkingDirFullPath;
+            if (string.IsNullOrEmpty(workingDir)) return false;
+            return File.Exists(Path.Combine(workingDir, "package.json"));
+        }
     }
 #endif
 
@@ -309,15 +453,8 @@ public class JSRunner : MonoBehaviour {
             }
 
             // Ensure PanelSettings is assigned
-            if (_uiDocument.panelSettings == null) {
-                if (_panelSettings != null) {
-                    // Use the assigned PanelSettings asset
-                    _uiDocument.panelSettings = _panelSettings;
-                } else {
-                    // Create PanelSettings at runtime from inline fields
-                    _runtimePanelSettings = CreateRuntimePanelSettings();
-                    _uiDocument.panelSettings = _runtimePanelSettings;
-                }
+            if (_uiDocument.panelSettings == null && _panelSettings != null) {
+                _uiDocument.panelSettings = _panelSettings;
             }
 
             // If we created the UIDocument at runtime, defer initialization by one frame
@@ -363,48 +500,26 @@ public class JSRunner : MonoBehaviour {
 #endif
     }
 
-    /// <summary>
-    /// Create a PanelSettings instance at runtime using the inline settings.
-    /// </summary>
-    PanelSettings CreateRuntimePanelSettings() {
-        var ps = ScriptableObject.CreateInstance<PanelSettings>();
-
-        ps.scaleMode = _scaleMode;
-        ps.sortingOrder = _sortOrder;
-
-        // Apply theme stylesheet if provided
-        if (_defaultThemeStylesheet != null) {
-            ps.themeStyleSheet = _defaultThemeStylesheet;
-        }
-
-        switch (_scaleMode) {
-            case PanelScaleMode.ConstantPixelSize:
-                ps.scale = _scale;
-                break;
-
-            case PanelScaleMode.ConstantPhysicalSize:
-                ps.referenceDpi = _referenceDpi;
-                ps.fallbackDpi = _fallbackDpi;
-                break;
-
-            case PanelScaleMode.ScaleWithScreenSize:
-                ps.referenceResolution = _referenceResolution;
-                ps.screenMatchMode = _screenMatchMode;
-                if (_screenMatchMode == PanelScreenMatchMode.MatchWidthOrHeight) {
-                    ps.match = _match;
-                }
-                break;
-        }
-
-        return ps;
-    }
-
 #if UNITY_EDITOR
     void InitializeEditor() {
         // Check if scene is saved
         if (!IsSceneSaved) {
             Debug.LogError("[JSRunner] Scene must be saved before JSRunner can initialize. Save the scene and enter Play mode again.");
             return;
+        }
+
+        // Auto-create or load PanelSettings asset if not assigned
+        if (_panelSettings == null) {
+            var psPath = PanelSettingsAssetPath;
+            var existingPS = UnityEditor.AssetDatabase.LoadAssetAtPath<PanelSettings>(psPath);
+            if (existingPS != null) {
+                // Found existing asset, use it
+                _panelSettings = existingPS;
+                UnityEditor.EditorUtility.SetDirty(this);
+            } else {
+                // Create new PanelSettings asset
+                CreateDefaultPanelSettingsAsset();
+            }
         }
 
         var workingDir = WorkingDirFullPath;
@@ -950,12 +1065,6 @@ public class JSRunner : MonoBehaviour {
     void OnDestroy() {
         _bridge?.Dispose();
         _bridge = null;
-
-        // Clean up runtime-created PanelSettings
-        if (_runtimePanelSettings != null) {
-            Destroy(_runtimePanelSettings);
-            _runtimePanelSettings = null;
-        }
     }
 
 #if UNITY_EDITOR
