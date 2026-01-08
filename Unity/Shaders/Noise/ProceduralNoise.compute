@@ -1,0 +1,161 @@
+// ProceduralNoise.compute
+// GPU compute shader for procedural noise texture generation.
+// Supports Perlin, Simplex, Value, and Worley noise with FBM layering.
+
+#pragma kernel Perlin2D
+#pragma kernel Simplex2D
+#pragma kernel Value2D
+#pragma kernel Worley2D
+#pragma kernel FBM_Perlin2D
+#pragma kernel FBM_Simplex2D
+#pragma kernel Turbulence2D
+
+#include "NoiseCommon.cginc"
+
+// Output texture
+RWTexture2D<float4> _Result;
+
+// Common parameters
+float2 _Resolution;
+float _Frequency;
+float _Time;
+float _Seed;
+float2 _Offset;
+
+// FBM parameters
+int _Octaves;
+float _Lacunarity;
+float _Persistence;
+
+// Output mode: 0 = grayscale, 1 = normalized (0-1), 2 = RGB channels
+int _OutputMode;
+
+// Color ramp for visualization (optional)
+float4 _ColorLow;
+float4 _ColorHigh;
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+float4 toOutput(float value)
+{
+    // Normalize from [-1,1] to [0,1] for gradient noise
+    float normalized = value * 0.5 + 0.5;
+
+    if (_OutputMode == 0)
+    {
+        // Grayscale (raw value)
+        return float4(value, value, value, 1.0);
+    }
+    else if (_OutputMode == 1)
+    {
+        // Normalized grayscale [0,1]
+        return float4(normalized, normalized, normalized, 1.0);
+    }
+    else
+    {
+        // Color ramp
+        return lerp(_ColorLow, _ColorHigh, normalized);
+    }
+}
+
+float4 toOutputPositive(float value)
+{
+    // For noise that's already [0,1] like worley/value
+    if (_OutputMode == 0 || _OutputMode == 1)
+    {
+        return float4(value, value, value, 1.0);
+    }
+    else
+    {
+        return lerp(_ColorLow, _ColorHigh, value);
+    }
+}
+
+float2 getUV(uint3 id)
+{
+    float2 uv = (float2(id.xy) + 0.5) / _Resolution;
+    return (uv + _Offset) * _Frequency + _Seed * 100.0;
+}
+
+// =============================================================================
+// Kernels
+// =============================================================================
+
+[numthreads(8, 8, 1)]
+void Perlin2D(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_Resolution.x || id.y >= (uint)_Resolution.y)
+        return;
+
+    float2 uv = getUV(id);
+    float n = perlin2D(uv);
+    _Result[id.xy] = toOutput(n);
+}
+
+[numthreads(8, 8, 1)]
+void Simplex2D(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_Resolution.x || id.y >= (uint)_Resolution.y)
+        return;
+
+    float2 uv = getUV(id);
+    float n = simplex2D(uv);
+    _Result[id.xy] = toOutput(n);
+}
+
+[numthreads(8, 8, 1)]
+void Value2D(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_Resolution.x || id.y >= (uint)_Resolution.y)
+        return;
+
+    float2 uv = getUV(id);
+    float n = value2D(uv);
+    _Result[id.xy] = toOutputPositive(n);
+}
+
+[numthreads(8, 8, 1)]
+void Worley2D(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_Resolution.x || id.y >= (uint)_Resolution.y)
+        return;
+
+    float2 uv = getUV(id);
+    float n = worley2D(uv);
+    _Result[id.xy] = toOutputPositive(n);
+}
+
+[numthreads(8, 8, 1)]
+void FBM_Perlin2D(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_Resolution.x || id.y >= (uint)_Resolution.y)
+        return;
+
+    float2 uv = getUV(id);
+    float n = fbm2D_perlin(uv, _Octaves, _Lacunarity, _Persistence);
+    _Result[id.xy] = toOutput(n);
+}
+
+[numthreads(8, 8, 1)]
+void FBM_Simplex2D(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_Resolution.x || id.y >= (uint)_Resolution.y)
+        return;
+
+    float2 uv = getUV(id);
+    float n = fbm2D_simplex(uv, _Octaves, _Lacunarity, _Persistence);
+    _Result[id.xy] = toOutput(n);
+}
+
+[numthreads(8, 8, 1)]
+void Turbulence2D(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_Resolution.x || id.y >= (uint)_Resolution.y)
+        return;
+
+    float2 uv = getUV(id);
+    float n = turbulence2D(uv, _Octaves, _Lacunarity, _Persistence);
+    _Result[id.xy] = toOutputPositive(n);
+}

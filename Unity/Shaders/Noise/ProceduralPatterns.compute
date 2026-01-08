@@ -1,0 +1,193 @@
+// ProceduralPatterns.compute
+// GPU compute shader for procedural texture patterns.
+// Supports voronoi, marble, wood, checkerboard, and gradient patterns.
+
+#pragma kernel Voronoi
+#pragma kernel Marble
+#pragma kernel Wood
+#pragma kernel Checkerboard
+#pragma kernel Gradient
+#pragma kernel RadialGradient
+
+#include "NoiseCommon.cginc"
+
+// Output texture
+RWTexture2D<float4> _Result;
+
+// Common parameters
+float2 _Resolution;
+float _Frequency;
+float _Time;
+float _Seed;
+float _Scale;
+
+// Pattern-specific parameters
+int _Octaves;
+float _Persistence;
+float _Turbulence;
+int _CellCount;
+int _Rings;
+float _Sharpness;
+
+// Color parameters
+float4 _ColorLow;
+float4 _ColorHigh;
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+float2 getUV(uint3 id)
+{
+    return (float2(id.xy) + 0.5) / _Resolution;
+}
+
+float4 lerpColor(float t)
+{
+    return lerp(_ColorLow, _ColorHigh, saturate(t));
+}
+
+// =============================================================================
+// Voronoi Pattern
+// =============================================================================
+
+[numthreads(8, 8, 1)]
+void Voronoi(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_Resolution.x || id.y >= (uint)_Resolution.y)
+        return;
+
+    float2 uv = getUV(id);
+    float2 p = uv * _CellCount + _Seed * 100.0;
+
+    float minDist = 1.0;
+    float2 cellId = floor(p);
+    float2 f = frac(p);
+
+    // Check 3x3 neighborhood
+    for (int y = -1; y <= 1; y++)
+    {
+        for (int x = -1; x <= 1; x++)
+        {
+            float2 neighbor = float2(x, y);
+            float2 point = hash22(cellId + neighbor);
+            float2 diff = neighbor + point - f;
+            float dist = length(diff);
+            minDist = min(minDist, dist);
+        }
+    }
+
+    _Result[id.xy] = lerpColor(minDist);
+}
+
+// =============================================================================
+// Marble Pattern
+// =============================================================================
+
+[numthreads(8, 8, 1)]
+void Marble(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_Resolution.x || id.y >= (uint)_Resolution.y)
+        return;
+
+    float2 uv = getUV(id);
+
+    // Get turbulence from FBM noise
+    float2 p = uv * _Frequency + _Seed * 100.0;
+    float n = fbm2D_perlin(p, _Octaves, 2.0, _Persistence);
+
+    // Create marble veins with sine pattern
+    float pattern = sin(uv.x * _Frequency * 10.0 + n * _Turbulence);
+
+    // Sharpen the veins
+    float value = pow(abs(pattern), 1.0 / max(0.1, _Sharpness)) * 0.5 + 0.5;
+
+    _Result[id.xy] = lerpColor(value);
+}
+
+// =============================================================================
+// Wood Pattern
+// =============================================================================
+
+[numthreads(8, 8, 1)]
+void Wood(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_Resolution.x || id.y >= (uint)_Resolution.y)
+        return;
+
+    float2 uv = getUV(id);
+    float2 centered = (uv - 0.5) * 2.0;
+
+    // Get noise distortion
+    float2 p = uv * _Frequency + _Seed * 100.0;
+    float n = fbm2D_perlin(p, _Octaves, 2.0, _Persistence);
+
+    // Distance from center with noise
+    float dist = length(centered) + n * _Turbulence * 0.2;
+
+    // Ring pattern
+    float ring = abs(sin(dist * _Rings * 3.14159265));
+
+    // Add some variation
+    float value = ring * 0.8 + 0.2;
+
+    _Result[id.xy] = lerpColor(value);
+}
+
+// =============================================================================
+// Checkerboard Pattern
+// =============================================================================
+
+[numthreads(8, 8, 1)]
+void Checkerboard(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_Resolution.x || id.y >= (uint)_Resolution.y)
+        return;
+
+    float2 uv = getUV(id);
+
+    int cx = (int)(uv.x * _CellCount);
+    int cy = (int)(uv.y * _CellCount);
+
+    float value = ((cx + cy) % 2 == 0) ? 0.0 : 1.0;
+
+    _Result[id.xy] = lerpColor(value);
+}
+
+// =============================================================================
+// Linear Gradient Pattern
+// =============================================================================
+
+[numthreads(8, 8, 1)]
+void Gradient(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_Resolution.x || id.y >= (uint)_Resolution.y)
+        return;
+
+    float2 uv = getUV(id);
+
+    // Horizontal gradient (can be modified with angle parameter if needed)
+    float value = uv.x;
+
+    _Result[id.xy] = lerpColor(value);
+}
+
+// =============================================================================
+// Radial Gradient Pattern
+// =============================================================================
+
+[numthreads(8, 8, 1)]
+void RadialGradient(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_Resolution.x || id.y >= (uint)_Resolution.y)
+        return;
+
+    float2 uv = getUV(id);
+    float2 centered = uv - 0.5;
+
+    // Distance from center
+    float dist = length(centered) * 2.0;
+    float value = saturate(dist);
+
+    _Result[id.xy] = lerpColor(value);
+}
