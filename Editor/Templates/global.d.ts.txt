@@ -11,6 +11,27 @@ declare const __eventAPI: {
     removeAllEventListeners: (element: CS.UnityEngine.UIElements.VisualElement) => void;
 };
 
+// Get System.Type from a Unity/C# class constructor
+// Usage: go.AddComponent($typeof(MeshFilter))
+// Note: With improved interop, you can often pass types directly: go.AddComponent(MeshFilter)
+declare function $typeof<T>(type: { new(...args: any[]): T } | T): CS.System.Type;
+
+// Extend GameObject.AddComponent to accept constructor types directly
+declare namespace CS.UnityEngine {
+    interface GameObject {
+        AddComponent<T extends CS.UnityEngine.Component>(type: { new(...args: any[]): T }): T;
+    }
+}
+
+// All C# objects wrapped by OneJS have these handle properties at runtime
+// This allows VisualElement to be passed to render() without type errors
+declare namespace CS.UnityEngine.UIElements {
+    interface VisualElement {
+        __csHandle: number;
+        __csType: string;
+    }
+}
+
 // C# object helpers
 declare const __csHelpers: {
     newObject: (typeName: string, ...args: unknown[]) => unknown;
@@ -45,3 +66,17 @@ declare function loadStyleSheet(path: string): boolean;
 declare function compileStyleSheet(ussContent: string, name?: string): boolean;
 declare function removeStyleSheet(name: string): boolean;
 declare function clearStyleSheets(): number;
+
+// ES6 module declarations for Unity namespaces
+// Allows: import { GameObject } from "UnityEngine"
+declare module "UnityEngine" {
+    export = CS.UnityEngine;
+}
+
+declare module "UnityEngine/UIElements" {
+    export = CS.UnityEngine.UIElements;
+}
+
+declare module "System" {
+    export = CS.System;
+}

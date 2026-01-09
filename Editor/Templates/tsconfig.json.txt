@@ -23,7 +23,7 @@
     "paths": {
       "onejs-react": ["./node_modules/onejs-react/src"]
     },
-    "types": ["unity-types"]
+    "types": ["unity-types", "react"]
   },
   "include": ["**/*", "types/**/*.d.ts"],
   "exclude": ["node_modules", "@outputs"]
