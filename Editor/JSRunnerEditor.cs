@@ -45,6 +45,8 @@ public class JSRunnerEditor : Editor {
     VisualElement _preloadsListContainer;
     VisualElement _globalsListContainer;
 
+    // Track PanelSettings render mode to refresh UIDocument inspector
+    int _lastRenderMode;
 
     void OnEnable() {
         _target = (JSRunner)target;
@@ -59,6 +61,16 @@ public class JSRunnerEditor : Editor {
         var workingDir = _target.WorkingDirFullPath;
         if (!string.IsNullOrEmpty(workingDir)) {
             NodeWatcherManager.TryReattach(workingDir);
+        }
+
+        // Initialize render mode tracking
+        var uiDoc = _target.GetComponent<UIDocument>();
+        if (uiDoc != null && uiDoc.panelSettings != null) {
+            var psSO = new SerializedObject(uiDoc.panelSettings);
+            var renderModeProp = psSO.FindProperty("m_RenderMode");
+            if (renderModeProp != null) {
+                _lastRenderMode = renderModeProp.enumValueIndex;
+            }
         }
     }
 
@@ -1309,6 +1321,21 @@ public class JSRunnerEditor : Editor {
         if (_buildOutputBox != null && !string.IsNullOrEmpty(_buildOutput)) {
             _buildOutputBox.style.display = DisplayStyle.Flex;
             _buildOutputBox.text = _buildOutput;
+        }
+
+        // Check if PanelSettings render mode changed - refresh UIDocument inspector if so
+        var uiDoc = _target.GetComponent<UIDocument>();
+        if (uiDoc != null && uiDoc.panelSettings != null) {
+            var psSO = new SerializedObject(uiDoc.panelSettings);
+            var renderModeProp = psSO.FindProperty("m_RenderMode");
+            if (renderModeProp != null) {
+                var currentRenderMode = renderModeProp.enumValueIndex;
+                if (currentRenderMode != _lastRenderMode) {
+                    _lastRenderMode = currentRenderMode;
+                    // Force rebuild of all inspectors to update UIDocument's inspector
+                    ActiveEditorTracker.sharedTracker.ForceRebuild();
+                }
+            }
         }
     }
 
