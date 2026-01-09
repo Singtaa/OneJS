@@ -178,28 +178,13 @@ public class JSPadEditor : Editor {
     }
 
     void OnPlayModeStateChanged(PlayModeStateChange state) {
+        // NOTE: Building is handled by the static OnPlayModeStateChangedStatic handler
+        // which builds ALL JSPads before entering play mode.
+        // Running is handled by JSPad.Start() which auto-runs if HasBuiltOutput.
+        // This instance handler only needs to restore source code when exiting play mode.
         if (state == PlayModeStateChange.EnteredEditMode) {
             // Delay restoration to ensure editor is fully initialized
             EditorApplication.delayCall += RestoreSourceCodeFromPrefs;
-        } else if (state == PlayModeStateChange.ExitingEditMode) {
-            // Build BEFORE entering play mode so serialized fields persist
-            BuildBeforePlayMode();
-        } else if (state == PlayModeStateChange.EnteredPlayMode) {
-            // Just run the already-built script
-            EditorApplication.delayCall += RunBuiltScript;
-        }
-    }
-
-    void BuildBeforePlayMode() {
-        if (_target == null || !_target.gameObject.activeInHierarchy) return;
-        // Synchronous build to ensure it completes before play mode starts
-        BuildSync();
-    }
-
-    void RunBuiltScript() {
-        if (_target == null || !_target.gameObject.activeInHierarchy) return;
-        if (_target.HasBuiltOutput) {
-            _target.RunBuiltScript();
         }
     }
 
@@ -798,69 +783,6 @@ public class JSPadEditor : Editor {
             });
         } else {
             RunBuild(runAfter);
-        }
-    }
-
-    /// <summary>
-    /// Synchronous build for use before entering play mode.
-    /// This ensures the bundle is saved before Unity freezes serialization.
-    /// </summary>
-    void BuildSync() {
-        if (_isProcessing) return;
-
-        _target.EnsureTempDirectory();
-        _target.WriteSourceFile();
-        _target.ExtractCartridges();
-
-        var npmPath = GetNpmCommand();
-        var nodeBinDir = Path.GetDirectoryName(npmPath);
-
-        // Install dependencies if needed (synchronous)
-        if (!_target.HasNodeModules()) {
-            var installInfo = new ProcessStartInfo {
-                FileName = npmPath,
-                Arguments = "install",
-                WorkingDirectory = _target.TempDir,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            };
-            var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-            installInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
-
-            using (var installProcess = Process.Start(installInfo)) {
-                installProcess.WaitForExit();
-                if (installProcess.ExitCode != 0) {
-                    Debug.LogError("[JSPad] npm install failed");
-                    return;
-                }
-            }
-        }
-
-        // Build (synchronous)
-        var buildInfo = new ProcessStartInfo {
-            FileName = npmPath,
-            Arguments = "run build",
-            WorkingDirectory = _target.TempDir,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
-        };
-        var path = Environment.GetEnvironmentVariable("PATH") ?? "";
-        buildInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + path;
-
-        using (var buildProcess = Process.Start(buildInfo)) {
-            buildProcess.WaitForExit();
-            if (buildProcess.ExitCode == 0) {
-                _target.SetBuildState(JSPad.BuildState.Ready, output: "Build successful");
-                _target.SaveBundleToSerializedFields();
-            } else {
-                var error = buildProcess.StandardError.ReadToEnd();
-                _target.SetBuildState(JSPad.BuildState.Error, error: error);
-                Debug.LogError($"[JSPad] Build failed: {error}");
-            }
         }
     }
 
