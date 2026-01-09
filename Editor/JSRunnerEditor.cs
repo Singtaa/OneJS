@@ -45,6 +45,9 @@ public class JSRunnerEditor : Editor {
     VisualElement _preloadsListContainer;
     VisualElement _globalsListContainer;
 
+    // Track PanelSettings changes to refresh UIDocument inspector
+    int _lastRenderMode;
+
     void OnEnable() {
         _target = (JSRunner)target;
         _activeTab = EditorPrefs.GetInt(TabPrefKey, 0);
@@ -58,6 +61,16 @@ public class JSRunnerEditor : Editor {
         var workingDir = _target.WorkingDirFullPath;
         if (!string.IsNullOrEmpty(workingDir)) {
             NodeWatcherManager.TryReattach(workingDir);
+        }
+
+        // Initialize render mode tracking
+        var uiDoc = _target.GetComponent<UIDocument>();
+        if (uiDoc != null && uiDoc.panelSettings != null) {
+            var psSO = new SerializedObject(uiDoc.panelSettings);
+            var renderModeProp = psSO.FindProperty("m_RenderMode");
+            if (renderModeProp != null) {
+                _lastRenderMode = renderModeProp.enumValueIndex;
+            }
         }
     }
 
@@ -310,34 +323,34 @@ public class JSRunnerEditor : Editor {
         container.Add(panelSettingsField);
 
         // Container for embedded PanelSettings inspector
-        var inspectorContainer = new VisualElement();
-        inspectorContainer.style.marginTop = 8;
-        inspectorContainer.style.marginLeft = 4;
-        inspectorContainer.style.paddingLeft = 10;
-        inspectorContainer.style.borderLeftWidth = 2;
-        inspectorContainer.style.borderLeftColor = new Color(0.3f, 0.3f, 0.3f);
-        container.Add(inspectorContainer);
+        var psInspectorContainer = new VisualElement();
+        psInspectorContainer.style.marginTop = 8;
+        psInspectorContainer.style.marginLeft = 4;
+        psInspectorContainer.style.paddingLeft = 10;
+        psInspectorContainer.style.borderLeftWidth = 2;
+        psInspectorContainer.style.borderLeftColor = new Color(0.3f, 0.3f, 0.3f);
+        container.Add(psInspectorContainer);
 
         // Function to rebuild embedded inspector
         void RebuildPanelSettingsInspector() {
-            inspectorContainer.Clear();
+            psInspectorContainer.Clear();
 
             var ps = panelSettingsProp.objectReferenceValue as PanelSettings;
             if (ps != null) {
                 // Create embedded inspector using InspectorElement
                 var inspector = new InspectorElement(ps);
-                inspectorContainer.Add(inspector);
+                psInspectorContainer.Add(inspector);
             } else if (_target.IsSceneSaved) {
                 // Show help box when no PanelSettings assigned
                 var helpBox = new HelpBox(
                     "No PanelSettings assigned. Enter Play mode to auto-create one, or assign an existing asset.",
                     HelpBoxMessageType.Info);
-                inspectorContainer.Add(helpBox);
+                psInspectorContainer.Add(helpBox);
             } else {
                 var helpBox = new HelpBox(
                     "Save the scene first, then enter Play mode to auto-create a PanelSettings asset.",
                     HelpBoxMessageType.Warning);
-                inspectorContainer.Add(helpBox);
+                psInspectorContainer.Add(helpBox);
             }
         }
 
@@ -1308,6 +1321,21 @@ public class JSRunnerEditor : Editor {
         if (_buildOutputBox != null && !string.IsNullOrEmpty(_buildOutput)) {
             _buildOutputBox.style.display = DisplayStyle.Flex;
             _buildOutputBox.text = _buildOutput;
+        }
+
+        // Check if PanelSettings render mode changed - refresh UIDocument inspector if so
+        var uiDoc = _target.GetComponent<UIDocument>();
+        if (uiDoc != null && uiDoc.panelSettings != null) {
+            var psSO = new SerializedObject(uiDoc.panelSettings);
+            var renderModeProp = psSO.FindProperty("m_RenderMode");
+            if (renderModeProp != null) {
+                var currentRenderMode = renderModeProp.enumValueIndex;
+                if (currentRenderMode != _lastRenderMode) {
+                    _lastRenderMode = currentRenderMode;
+                    // Force rebuild of all inspectors to update UIDocument's inspector
+                    ActiveEditorTracker.sharedTracker.ForceRebuild();
+                }
+            }
         }
     }
 

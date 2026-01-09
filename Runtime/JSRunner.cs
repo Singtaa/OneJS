@@ -50,7 +50,7 @@ public class DefaultFileEntry {
 /// - Auto-scaffolding: Creates project structure on first run
 /// - Live Reload: Polls entry file for changes and hot-reloads
 /// - Hard Reload: Disposes context and recreates fresh on file change
-/// - Zero-config UI: Auto-creates UIDocument and PanelSettings at runtime
+/// - Zero-config UI: Auto-creates UIDocument (RequireComponent) and PanelSettings
 ///
 /// Directory structure (for scene "Level1.unity" with JSRunner on "MainUI"):
 ///   Assets/Scenes/Level1/MainUI_abc123/MainUI~/  (working dir, ignored by Unity)
@@ -60,12 +60,16 @@ public class DefaultFileEntry {
 /// - Editor: Loads JS from filesystem with live reload support
 /// - Builds: Loads from embedded TextAsset (auto-generated during build)
 /// </summary>
+[RequireComponent(typeof(UIDocument))]
 public class JSRunner : MonoBehaviour {
     const string DefaultEntryContent = "console.log(\"OneJS is good to go!\");\n";
     const string DefaultBundleFile = "app.js.txt";
 
     // Instance identification (generated once, persisted)
     [SerializeField, HideInInspector] string _instanceId;
+
+    [Tooltip("UIDocument component for the UI. Auto-created at runtime if not assigned.")]
+    [SerializeField] UIDocument _uiDocument;
 
     [Tooltip("PanelSettings asset for the UI. Auto-created in instance folder on first Play mode if not assigned.")]
     [SerializeField] PanelSettings _panelSettings;
@@ -109,7 +113,6 @@ public class JSRunner : MonoBehaviour {
     [SerializeField] List<UICartridge> _cartridges = new List<UICartridge>();
 
     QuickJSUIBridge _bridge;
-    UIDocument _uiDocument;
     bool _scriptLoaded;
 
     // Live reload state
@@ -273,6 +276,7 @@ public class JSRunner : MonoBehaviour {
         _sourceMapAsset = null;
         UnityEditor.EditorUtility.SetDirty(this);
     }
+
 
     /// <summary>
     /// Creates a default PanelSettings asset in the instance folder.
@@ -442,15 +446,14 @@ public class JSRunner : MonoBehaviour {
 
     void Start() {
         try {
-            // Get or create UIDocument
-            _uiDocument = GetComponent<UIDocument>();
-            bool createdUIDocument = false;
+            // Get UIDocument (created by RequireComponent)
+            if (_uiDocument == null) {
+                _uiDocument = GetComponent<UIDocument>();
+            }
 
             if (_uiDocument == null) {
-                _uiDocument = gameObject.AddComponent<UIDocument>();
-                // Hide from inspector to prevent editor interactions from recreating the panel
-                _uiDocument.hideFlags = HideFlags.HideInInspector;
-                createdUIDocument = true;
+                Debug.LogError("[JSRunner] UIDocument component not found");
+                return;
             }
 
             // Ensure PanelSettings is assigned
@@ -458,38 +461,15 @@ public class JSRunner : MonoBehaviour {
                 _uiDocument.panelSettings = _panelSettings;
             }
 
-            // If we created the UIDocument at runtime, defer initialization by one frame
-            // to allow Unity to fully set up the visual tree
-            if (createdUIDocument) {
-                StartCoroutine(DeferredInitialize());
-                return;
-            }
-
             // Verify we have a valid root element
             if (_uiDocument.rootVisualElement == null) {
-                Debug.LogError("[JSRunner] UIDocument rootVisualElement is null after setup");
+                Debug.LogError("[JSRunner] UIDocument rootVisualElement is null");
                 return;
             }
 
             Initialize();
         } catch (Exception ex) {
             Debug.LogError($"[JSRunner] Start() exception: {ex}");
-        }
-    }
-
-    System.Collections.IEnumerator DeferredInitialize() {
-        // Wait one frame for Unity to fully initialize the UIDocument
-        yield return null;
-
-        if (_uiDocument == null || _uiDocument.rootVisualElement == null) {
-            Debug.LogError("[JSRunner] UIDocument rootVisualElement is null after deferred setup");
-            yield break;
-        }
-
-        try {
-            Initialize();
-        } catch (Exception ex) {
-            Debug.LogError($"[JSRunner] DeferredInitialize() exception: {ex}");
         }
     }
 
@@ -521,6 +501,16 @@ public class JSRunner : MonoBehaviour {
                 // Create new PanelSettings asset
                 CreateDefaultPanelSettingsAsset();
             }
+        }
+
+        // Ensure UIDocument reference is set
+        if (_uiDocument == null) {
+            _uiDocument = GetComponent<UIDocument>();
+        }
+
+        // Ensure PanelSettings is assigned to UIDocument
+        if (_uiDocument != null && _uiDocument.panelSettings == null && _panelSettings != null) {
+            _uiDocument.panelSettings = _panelSettings;
         }
 
         var workingDir = WorkingDirFullPath;
@@ -1093,9 +1083,22 @@ public class JSRunner : MonoBehaviour {
 #if UNITY_EDITOR
     /// <summary>
     /// Called when the component is first added or Reset from context menu.
-    /// Auto-populates _defaultFiles with template TextAssets from the OneJS package.
+    /// Auto-creates PanelSettings, configures UIDocument, and populates default files.
     /// </summary>
     void Reset() {
+        // Get UIDocument (created by RequireComponent)
+        _uiDocument = GetComponent<UIDocument>();
+
+        // Create PanelSettings if scene is saved
+        if (IsSceneSaved && _panelSettings == null) {
+            CreateDefaultPanelSettingsAsset();
+        }
+
+        // Assign PanelSettings to UIDocument
+        if (_uiDocument != null && _panelSettings != null && _uiDocument.panelSettings == null) {
+            _uiDocument.panelSettings = _panelSettings;
+        }
+
         PopulateDefaultFiles();
     }
 
