@@ -190,19 +190,53 @@ string PanelSettingsAssetPath { get; } // {InstanceFolder}/PanelSettings.asset
 void ForceReload();  // Manually trigger reload (Editor only)
 ```
 
-## JSPad (Inline TSX Runner)
+## JSRunner vs JSPad: Choosing the Right Tool
 
-`JSPad` is a simpler alternative to `JSRunner` for quick experimentation. Write TSX directly in the inspector with no external working directory.
+OneJS provides two MonoBehaviours for running JavaScript: **JSRunner** (production framework) and **JSPad** (rapid prototyping tool). They share the same underlying runtime (`QuickJSUIBridge`, `QuickJSContext`) but offer different developer experiences optimized for their respective use cases.
 
-### Key Differences from JSRunner
+### Goals & Use Cases
+
+| | JSRunner | JSPad |
+|--|----------|-------|
+| **Primary Goal** | Production-ready application framework | Quick experimentation & prototyping |
+| **Developer Experience** | Full IDE workflow with external files | Zero-config with inline code editor |
+| **Team Collaboration** | Version-controllable files | Self-contained in scene |
+| **Iteration Speed** | Live reload on file save | Manual Build & Run |
+| **Build Complexity** | Developer manages npm/build | Editor handles everything |
+
+**Use JSRunner when:**
+- Building complete React/JavaScript applications
+- Working in a team (files are version-controllable)
+- Needing live reload for rapid iteration
+- Deploying to production (desktop, mobile, web, console)
+- Managing multiple JS components across scenes
+- Long-term maintenance is expected
+
+**Use JSPad when:**
+- Testing OneJS features quickly
+- Prototyping UI ideas before committing to full project
+- Learning OneJS by tinkering
+- Creating simple single-component UIs
+- Quick bug reproduction
+- Teaching or demos
+- Shipping prototype builds without npm in build pipeline
+
+### Technical Comparison
 
 | Aspect | JSRunner | JSPad |
 |--------|----------|-------|
 | Source | External files | Inline TextArea |
-| Working Dir | User-facing | Hidden in `Temp/OneJSPad/` |
-| Live Reload | Yes (polling) | No |
-| Build | User runs npm | Editor runs esbuild |
-| Scaffolding | Full project | Minimal essentials |
+| Working Dir | User-facing `{Scene}/{Name}~/` | Hidden in `Temp/OneJSPad/` |
+| Live Reload | Yes (automatic file polling) | No (manual Build & Run) |
+| Build | Developer runs npm | Editor runs esbuild |
+| Scaffolding | Full project (package.json, tsconfig, etc.) | Minimal essentials |
+| npm Management | Developer responsibility | Automated by editor |
+| Build Output | `app.js.txt` (same folder as source) | `@outputs/app.js` in temp |
+| Standalone Build | Pre-built TextAsset | Serialized to component |
+
+## JSPad (Inline TSX Runner)
+
+`JSPad` is a simpler alternative to `JSRunner` for quick experimentation. Write TSX directly in the inspector with no external working directory.
 
 ### Usage
 1. Add `JSPad` component to a GameObject with `UIDocument`
@@ -699,3 +733,65 @@ const payload = atob(token.split('.')[1]);
 - Pure JavaScript implementation
 - Handles padding correctly (=, ==)
 - Validates input characters
+
+### Array Marshaling
+JS arrays and TypedArrays are automatically marshaled to C# arrays when calling C# methods:
+
+```javascript
+// TypedArrays → typed C# arrays
+const floats = new Float32Array([1.5, 2.5, 3.5])
+CS.MyClass.TakeFloatArray(floats)  // float[]
+
+const ints = new Int32Array([1, 2, 3])
+CS.MyClass.TakeIntArray(ints)  // int[]
+
+// JS arrays of objects → Unity struct arrays
+const vectors = [
+    { x: 1, y: 2, z: 3 },
+    { x: 4, y: 5, z: 6 }
+]
+CS.MyClass.TakeVector3Array(vectors)  // Vector3[]
+
+// Tuple-style arrays also work
+const colors = [
+    [1, 0, 0, 1],  // Red (r, g, b, a)
+    [0, 1, 0, 1]   // Green
+]
+CS.MyClass.TakeColorArray(colors)  // Color[]
+
+// Direct mesh creation example
+const mesh = new CS.UnityEngine.Mesh()
+mesh.vertices = [{ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, ...]  // Vector3[]
+mesh.normals = [{ x: 0, y: 1, z: 0 }, ...]  // Vector3[]
+mesh.uv = [{ x: 0, y: 0 }, { x: 1, y: 0 }, ...]  // Vector2[]
+mesh.triangles = new Int32Array([0, 1, 2, ...])  // int[]
+```
+
+**Supported TypedArray mappings**:
+| TypedArray | C# Type |
+|------------|---------|
+| `Float32Array` | `float[]` |
+| `Float64Array` | `double[]` |
+| `Int32Array` | `int[]` |
+| `Int16Array` | `short[]` |
+| `Int8Array` | `sbyte[]` |
+| `Uint32Array` | `uint[]` |
+| `Uint16Array` | `ushort[]` |
+| `Uint8Array` | `byte[]` |
+
+**Supported object array mappings**:
+| JS Object Shape | C# Type |
+|-----------------|---------|
+| `{ x, y }` | `Vector2[]` |
+| `{ x, y, z }` | `Vector3[]` |
+| `{ x, y, z, w }` | `Vector4[]` |
+| `{ r, g, b, a }` | `Color[]` |
+| `[x, y]` (tuple) | `Vector2[]` |
+| `[x, y, z]` (tuple) | `Vector3[]` |
+| `[x, y, z, w]` (tuple) | `Vector4[]` / `Color[]` |
+
+**Implementation details**:
+- Arrays are serialized as JSON with a `__csArray` marker and type hint
+- Type inference runs on the first element for JS arrays
+- Empty typed arrays (e.g., `new Int32Array(0)`) preserve their type
+- Empty JS arrays (`[]`) default to `object[]`
