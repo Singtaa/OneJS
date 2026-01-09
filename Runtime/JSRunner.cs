@@ -117,6 +117,7 @@ public class JSRunner : MonoBehaviour {
     DateTime _lastReloadTime;
     float _nextPollTime;
     int _reloadCount;
+    string _lastContentHash;
     Janitor _janitor;
 
     // Public API
@@ -563,6 +564,7 @@ public class JSRunner : MonoBehaviour {
         // Initialize file watching
         if (_liveReload) {
             _lastModifiedTime = File.GetLastWriteTime(entryFile);
+            _lastContentHash = ComputeFileHash(entryFile);
             _nextPollTime = Time.realtimeSinceStartup + _pollInterval;
         }
     }
@@ -764,6 +766,17 @@ public class JSRunner : MonoBehaviour {
         return s.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "\\r");
     }
 
+    /// <summary>
+    /// Compute MD5 hash of a file for change detection.
+    /// Uses streaming to avoid loading entire file into memory.
+    /// </summary>
+    static string ComputeFileHash(string filePath) {
+        using var md5 = System.Security.Cryptography.MD5.Create();
+        using var stream = File.OpenRead(filePath);
+        var hash = md5.ComputeHash(stream);
+        return BitConverter.ToString(hash);
+    }
+
     void RunScript(string code, string filename) {
         _bridge.Eval(code, filename);
         // Execute pending Promise jobs immediately to allow React's first render
@@ -823,6 +836,7 @@ public class JSRunner : MonoBehaviour {
 
             // 5. Update state
             _lastModifiedTime = File.GetLastWriteTime(EntryFileFullPath);
+            _lastContentHash = ComputeFileHash(EntryFileFullPath);
             _lastReloadTime = DateTime.Now;
             _reloadCount++;
             Debug.Log($"[JSRunner] Reloaded ({_reloadCount})");
@@ -841,10 +855,19 @@ public class JSRunner : MonoBehaviour {
         try {
             if (!File.Exists(EntryFileFullPath)) return;
 
+            // Fast path: check mtime first (no I/O beyond stat)
             var currentModTime = File.GetLastWriteTime(EntryFileFullPath);
-            if (currentModTime != _lastModifiedTime) {
-                Reload();
-            }
+            if (currentModTime == _lastModifiedTime) return;
+
+            // mtime changed - compute content hash to detect actual changes
+            var currentHash = ComputeFileHash(EntryFileFullPath);
+            _lastModifiedTime = currentModTime;
+
+            // Skip reload if content unchanged (e.g., esbuild rebuild with same output)
+            if (currentHash == _lastContentHash) return;
+
+            _lastContentHash = currentHash;
+            Reload();
         } catch (IOException) {
             // File might be locked by build process, skip this poll
         } catch (Exception ex) {
