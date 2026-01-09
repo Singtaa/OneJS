@@ -68,11 +68,17 @@ public class JSRunner : MonoBehaviour {
     // Instance identification (generated once, persisted)
     [SerializeField, HideInInspector] string _instanceId;
 
+    // Tracks whether initialization has completed (for re-enable handling)
+    [SerializeField, HideInInspector] bool _initialized;
+
     [Tooltip("UIDocument component for the UI. Auto-created at runtime if not assigned.")]
     [SerializeField] UIDocument _uiDocument;
 
     [Tooltip("PanelSettings asset for the UI. Auto-created in instance folder on first Play mode if not assigned.")]
     [SerializeField] PanelSettings _panelSettings;
+
+    [Tooltip("VisualTreeAsset (UXML) for the UI. Auto-created in instance folder on first Play mode if not assigned.")]
+    [SerializeField] VisualTreeAsset _visualTreeAsset;
 
     [SerializeField] ThemeStyleSheet _defaultThemeStylesheet;
 
@@ -248,6 +254,17 @@ public class JSRunner : MonoBehaviour {
     }
 
     /// <summary>
+    /// Asset path for the VisualTreeAsset: {InstanceFolder}/UIDocument.uxml
+    /// </summary>
+    public string VisualTreeAssetPath {
+        get {
+            var instanceFolder = InstanceFolder;
+            if (string.IsNullOrEmpty(instanceFolder)) return null;
+            return Path.Combine(instanceFolder, "UIDocument.uxml");
+        }
+    }
+
+    /// <summary>
     /// Whether the scene is saved and paths are valid.
     /// </summary>
     public bool IsSceneSaved => !string.IsNullOrEmpty(gameObject.scene.path);
@@ -313,6 +330,37 @@ public class JSRunner : MonoBehaviour {
         UnityEditor.EditorUtility.SetDirty(this);
 
         Debug.Log($"[JSRunner] Created PanelSettings asset: {assetPath}");
+    }
+
+    /// <summary>
+    /// Creates a default VisualTreeAsset (UXML) in the instance folder.
+    /// Called automatically on first Play mode if no VisualTreeAsset is assigned.
+    /// </summary>
+    public void CreateDefaultVisualTreeAsset() {
+        var instanceFolder = InstanceFolder;
+        if (string.IsNullOrEmpty(instanceFolder)) return;
+
+        // Ensure instance folder exists
+        if (!Directory.Exists(instanceFolder)) {
+            Directory.CreateDirectory(instanceFolder);
+        }
+
+        // Create minimal UXML content
+        var uxmlContent = @"<ui:UXML xmlns:ui=""UnityEngine.UIElements"">
+</ui:UXML>";
+
+        // Write UXML file
+        var assetPath = VisualTreeAssetPath;
+        File.WriteAllText(assetPath, uxmlContent);
+
+        // Import the asset
+        UnityEditor.AssetDatabase.ImportAsset(assetPath);
+
+        // Load and assign the VisualTreeAsset
+        _visualTreeAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(assetPath);
+        UnityEditor.EditorUtility.SetDirty(this);
+
+        Debug.Log($"[JSRunner] Created VisualTreeAsset: {assetPath}");
     }
 
     /// <summary>
@@ -461,6 +509,11 @@ public class JSRunner : MonoBehaviour {
                 _uiDocument.panelSettings = _panelSettings;
             }
 
+            // Ensure VisualTreeAsset is assigned
+            if (_uiDocument.visualTreeAsset == null && _visualTreeAsset != null) {
+                _uiDocument.visualTreeAsset = _visualTreeAsset;
+            }
+
             // Verify we have a valid root element
             if (_uiDocument.rootVisualElement == null) {
                 Debug.LogError("[JSRunner] UIDocument rootVisualElement is null");
@@ -468,9 +521,55 @@ public class JSRunner : MonoBehaviour {
             }
 
             Initialize();
+            _initialized = true;
         } catch (Exception ex) {
             Debug.LogError($"[JSRunner] Start() exception: {ex}");
         }
+    }
+
+    void OnEnable() {
+        if (!_initialized) {
+            // First enable - let Start() handle initialization
+            return;
+        }
+
+        // Re-enable - reload to reconnect to new rootVisualElement
+        ReloadOnEnable();
+    }
+
+    void ReloadOnEnable() {
+        // Clean up GameObjects created by JS (if Janitor enabled)
+#if UNITY_EDITOR
+        if (_enableJanitor && _janitor != null) {
+            _janitor.Clean();
+        }
+#endif
+
+        // Clear UI and dispose old bridge
+        if (_uiDocument != null && _uiDocument.rootVisualElement != null) {
+            _uiDocument.rootVisualElement.Clear();
+            _uiDocument.rootVisualElement.styleSheets.Clear();
+        }
+
+        _bridge?.Dispose();
+        _bridge = null;
+
+        // Recreate bridge with fresh __root
+        InitializeBridge();
+
+#if UNITY_EDITOR
+        // Editor: reload from file
+        var entryFile = EntryFileFullPath;
+        if (File.Exists(entryFile)) {
+            var code = File.ReadAllText(entryFile);
+            RunScript(code, Path.GetFileName(entryFile));
+        }
+#else
+        // Build: reload from bundled asset
+        if (_bundleAsset != null) {
+            RunScript(_bundleAsset.text, "app.js");
+        }
+#endif
     }
 
     void Initialize() {
@@ -503,6 +602,20 @@ public class JSRunner : MonoBehaviour {
             }
         }
 
+        // Auto-create or load VisualTreeAsset if not assigned
+        if (_visualTreeAsset == null) {
+            var vtaPath = VisualTreeAssetPath;
+            var existingVTA = UnityEditor.AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(vtaPath);
+            if (existingVTA != null) {
+                // Found existing asset, use it
+                _visualTreeAsset = existingVTA;
+                UnityEditor.EditorUtility.SetDirty(this);
+            } else {
+                // Create new VisualTreeAsset
+                CreateDefaultVisualTreeAsset();
+            }
+        }
+
         // Ensure UIDocument reference is set
         if (_uiDocument == null) {
             _uiDocument = GetComponent<UIDocument>();
@@ -511,6 +624,11 @@ public class JSRunner : MonoBehaviour {
         // Ensure PanelSettings is assigned to UIDocument
         if (_uiDocument != null && _uiDocument.panelSettings == null && _panelSettings != null) {
             _uiDocument.panelSettings = _panelSettings;
+        }
+
+        // Ensure VisualTreeAsset is assigned to UIDocument
+        if (_uiDocument != null && _uiDocument.visualTreeAsset == null && _visualTreeAsset != null) {
+            _uiDocument.visualTreeAsset = _visualTreeAsset;
         }
 
         var workingDir = WorkingDirFullPath;
@@ -1078,6 +1196,7 @@ public class JSRunner : MonoBehaviour {
     void OnDestroy() {
         _bridge?.Dispose();
         _bridge = null;
+        _initialized = false;
     }
 
 #if UNITY_EDITOR
@@ -1094,9 +1213,19 @@ public class JSRunner : MonoBehaviour {
             CreateDefaultPanelSettingsAsset();
         }
 
+        // Create VisualTreeAsset if scene is saved
+        if (IsSceneSaved && _visualTreeAsset == null) {
+            CreateDefaultVisualTreeAsset();
+        }
+
         // Assign PanelSettings to UIDocument
         if (_uiDocument != null && _panelSettings != null && _uiDocument.panelSettings == null) {
             _uiDocument.panelSettings = _panelSettings;
+        }
+
+        // Assign VisualTreeAsset to UIDocument
+        if (_uiDocument != null && _visualTreeAsset != null && _uiDocument.visualTreeAsset == null) {
+            _uiDocument.visualTreeAsset = _visualTreeAsset;
         }
 
         PopulateDefaultFiles();
