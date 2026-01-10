@@ -30,11 +30,15 @@ public class CartridgeObjectEntry {
 /// A UI Cartridge bundles reusable UI components/utilities as a ScriptableObject.
 /// Can be dragged onto JSRunner to auto-extract files at build time and inject objects at runtime.
 ///
-/// Files are extracted to: {WorkingDir}/@cartridges/{slug}/
+/// Files are extracted to: {WorkingDir}/@cartridges/{slug}/ (no namespace)
+/// Files are extracted to: {WorkingDir}/@cartridges/@{namespace}/{slug}/ (with namespace)
 /// Objects are injected as: __cartridges.{slug}.{key}
 /// </summary>
 [CreateAssetMenu(fileName = "NewCartridge", menuName = "OneJS/UI Cartridge", order = 100)]
 public class UICartridge : ScriptableObject {
+    [Tooltip("Optional namespace for organizing cartridges (e.g., 'myCompany' -> @cartridges/@myCompany/{slug})")]
+    [SerializeField] string _namespace;
+
     [Tooltip("Identifier used for folder name and JS access (e.g., 'colorPicker' -> __cartridges.colorPicker)")]
     [SerializeField] string _slug;
 
@@ -45,7 +49,7 @@ public class UICartridge : ScriptableObject {
     [TextArea(2, 4)]
     [SerializeField] string _description;
 
-    [Tooltip("Files to extract to @cartridges/{slug}/")]
+    [Tooltip("Files to extract to @cartridges/{slug}/ or @cartridges/@{namespace}/{slug}/")]
     [PairDrawer("←")]
     [SerializeField] List<CartridgeFileEntry> _files = new List<CartridgeFileEntry>();
 
@@ -54,9 +58,21 @@ public class UICartridge : ScriptableObject {
     [SerializeField] List<CartridgeObjectEntry> _objects = new List<CartridgeObjectEntry>();
 
     // Public API
+    public string Namespace => _namespace;
     public string Slug => _slug;
     public string DisplayName => string.IsNullOrEmpty(_displayName) ? _slug : _displayName;
     public string Description => _description;
     public IReadOnlyList<CartridgeFileEntry> Files => _files;
     public IReadOnlyList<CartridgeObjectEntry> Objects => _objects;
+
+    /// <summary>
+    /// Gets the relative path from @cartridges to this cartridge's folder.
+    /// Returns "@{namespace}/{slug}" if namespace is set, otherwise just "{slug}".
+    /// </summary>
+    public string RelativePath {
+        get {
+            if (string.IsNullOrEmpty(_namespace)) return _slug;
+            return $"@{_namespace}/{_slug}";
+        }
+    }
 }

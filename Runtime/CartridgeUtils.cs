@@ -19,6 +19,7 @@ public static class CartridgeUtils {
 
     /// <summary>
     /// Get the path to a cartridge's extracted files.
+    /// Uses cartridge.RelativePath which includes namespace when present.
     /// </summary>
     /// <param name="baseDir">Base directory (WorkingDir for JSRunner, TempDir for JSPad)</param>
     /// <param name="cartridge">The cartridge to get path for</param>
@@ -26,11 +27,13 @@ public static class CartridgeUtils {
     public static string GetCartridgePath(string baseDir, UICartridge cartridge) {
         if (string.IsNullOrEmpty(baseDir)) return null;
         if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) return null;
-        return Path.Combine(baseDir, "@cartridges", cartridge.Slug);
+        return Path.Combine(baseDir, "@cartridges", cartridge.RelativePath);
     }
 
     /// <summary>
-    /// Extract cartridge files to baseDir/@cartridges/{slug}/.
+    /// Extract cartridge files to baseDir/@cartridges/{relativePath}/.
+    /// Without namespace: @cartridges/{slug}/
+    /// With namespace: @cartridges/@{namespace}/{slug}/
     /// </summary>
     /// <param name="baseDir">Base directory for extraction</param>
     /// <param name="cartridges">List of cartridges to extract</param>
@@ -73,7 +76,7 @@ public static class CartridgeUtils {
             File.WriteAllText(Path.Combine(destPath, $"{cartridge.Slug}.d.ts"), dts);
 
             if (!string.IsNullOrEmpty(logPrefix)) {
-                Debug.Log($"{logPrefix} Extracted cartridge: {cartridge.Slug}");
+                Debug.Log($"{logPrefix} Extracted cartridge: {cartridge.RelativePath}");
             }
         }
     }

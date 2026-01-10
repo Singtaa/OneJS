@@ -87,6 +87,37 @@ public class CartridgeUtilsTests {
         Assert.AreEqual("it\\'s a\\\\path\\nwith\\rmixed", result);
     }
 
+    // MARK: UICartridge.RelativePath Tests
+
+    [Test]
+    public void RelativePath_WithoutNamespace_ReturnsSlug() {
+        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+        SetCartridgeSlug(cartridge, "myCartridge");
+
+        Assert.AreEqual("myCartridge", cartridge.RelativePath);
+        Object.DestroyImmediate(cartridge);
+    }
+
+    [Test]
+    public void RelativePath_WithNamespace_ReturnsNamespacedPath() {
+        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+        SetCartridgeSlug(cartridge, "myCartridge");
+        SetCartridgeNamespace(cartridge, "myCompany");
+
+        Assert.AreEqual("@myCompany/myCartridge", cartridge.RelativePath);
+        Object.DestroyImmediate(cartridge);
+    }
+
+    [Test]
+    public void RelativePath_EmptyNamespace_ReturnsSlug() {
+        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+        SetCartridgeSlug(cartridge, "myCartridge");
+        SetCartridgeNamespace(cartridge, "");
+
+        Assert.AreEqual("myCartridge", cartridge.RelativePath);
+        Object.DestroyImmediate(cartridge);
+    }
+
     // MARK: GetCartridgePath Tests
 
     [Test]
@@ -143,6 +174,32 @@ public class CartridgeUtilsTests {
     public void GetCartridgePath_ValidInputs_ReturnsCorrectPath() {
         var cartridge = ScriptableObject.CreateInstance<UICartridge>();
         SetCartridgeSlug(cartridge, "myCartridge");
+
+        var result = CartridgeUtils.GetCartridgePath(_testBasePath, cartridge);
+
+        var expected = Path.Combine(_testBasePath, "@cartridges", "myCartridge");
+        Assert.AreEqual(expected, result);
+        Object.DestroyImmediate(cartridge);
+    }
+
+    [Test]
+    public void GetCartridgePath_WithNamespace_ReturnsNamespacedPath() {
+        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+        SetCartridgeSlug(cartridge, "myCartridge");
+        SetCartridgeNamespace(cartridge, "myCompany");
+
+        var result = CartridgeUtils.GetCartridgePath(_testBasePath, cartridge);
+
+        var expected = Path.Combine(_testBasePath, "@cartridges", "@myCompany", "myCartridge");
+        Assert.AreEqual(expected, result);
+        Object.DestroyImmediate(cartridge);
+    }
+
+    [Test]
+    public void GetCartridgePath_EmptyNamespace_ReturnsNonNamespacedPath() {
+        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+        SetCartridgeSlug(cartridge, "myCartridge");
+        SetCartridgeNamespace(cartridge, "");
 
         var result = CartridgeUtils.GetCartridgePath(_testBasePath, cartridge);
 
@@ -345,6 +402,37 @@ public class CartridgeUtilsTests {
         Object.DestroyImmediate(ss2);
     }
 
+    [Test]
+    public void ExtractCartridges_WithNamespace_CreatesNamespacedFolder() {
+        var cartridge = CreateTestCartridgeWithNamespace("myCompany", "testSlug");
+        var cartridges = new List<UICartridge> { cartridge };
+
+        CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
+
+        var expectedPath = Path.Combine(_testBasePath, "@cartridges", "@myCompany", "testSlug");
+        Assert.IsTrue(Directory.Exists(expectedPath), "Namespaced cartridge folder should be created");
+
+        Object.DestroyImmediate(cartridge);
+    }
+
+    [Test]
+    public void ExtractCartridges_MixedNamespaces_CreatesBothFolderStructures() {
+        var cartWithNs = CreateTestCartridgeWithNamespace("myCompany", "cart1");
+        var cartWithoutNs = CreateTestCartridge("cart2");
+        var cartridges = new List<UICartridge> { cartWithNs, cartWithoutNs };
+
+        CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
+
+        var namespacedPath = Path.Combine(_testBasePath, "@cartridges", "@myCompany", "cart1");
+        var regularPath = Path.Combine(_testBasePath, "@cartridges", "cart2");
+
+        Assert.IsTrue(Directory.Exists(namespacedPath), "Namespaced folder should exist");
+        Assert.IsTrue(Directory.Exists(regularPath), "Non-namespaced folder should exist");
+
+        Object.DestroyImmediate(cartWithNs);
+        Object.DestroyImmediate(cartWithoutNs);
+    }
+
     // MARK: Helper Methods
 
     /// <summary>
@@ -357,10 +445,29 @@ public class CartridgeUtilsTests {
     }
 
     /// <summary>
+    /// Sets the namespace field on a UICartridge via reflection.
+    /// </summary>
+    void SetCartridgeNamespace(UICartridge cartridge, string ns) {
+        var field = typeof(UICartridge).GetField("_namespace",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        field.SetValue(cartridge, ns);
+    }
+
+    /// <summary>
     /// Creates a test UICartridge with the given slug.
     /// </summary>
     UICartridge CreateTestCartridge(string slug) {
         var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+        SetCartridgeSlug(cartridge, slug);
+        return cartridge;
+    }
+
+    /// <summary>
+    /// Creates a test UICartridge with the given namespace and slug.
+    /// </summary>
+    UICartridge CreateTestCartridgeWithNamespace(string ns, string slug) {
+        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+        SetCartridgeNamespace(cartridge, ns);
         SetCartridgeSlug(cartridge, slug);
         return cartridge;
     }
