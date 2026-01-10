@@ -3,11 +3,10 @@ import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
 
-// Import transform plugin: enables `import { Texture2D } from "UnityEngine"`
-import { importTransformPlugin } from "onejs-unity/esbuild"
-
-// Optional: Import plugins for Tailwind CSS and USS Modules support
-// import { ussModulesPlugin, tailwindPlugin } from "onejs-unity/esbuild"
+// Import plugins from onejs-unity
+import { importTransformPlugin, tailwindPlugin } from "onejs-unity/esbuild"
+// Optional: USS Modules support (scoped class names)
+// import { ussModulesPlugin } from "onejs-unity/esbuild"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -38,8 +37,9 @@ const config = {
     plugins: [
         // Transform `import { X } from "UnityEngine"` to `const { X } = CS.UnityEngine`
         importTransformPlugin(),
-        // Optional: Add plugins for Tailwind CSS and USS Modules
-        // tailwindPlugin({ tailwindConfig: "./tailwind.config.js" }),
+        // Tailwind support - use `import "onejs:tailwind"` to activate
+        tailwindPlugin({ content: ["./**/*.{tsx,ts,jsx,js}"] }),
+        // Optional: USS Modules support (scoped class names)
         // ussModulesPlugin({ generateTypes: true }),
     ],
 }

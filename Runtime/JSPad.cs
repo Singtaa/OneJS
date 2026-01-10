@@ -461,10 +461,12 @@ render(<App />, __root)
     }
 
     string GetPackageJsonContent() {
-        // Get the path to JSModules/onejs-react relative to Temp/OneJSPad/{id}
+        // Get the path to JSModules relative to Temp/OneJSPad/{id}
         var projectRoot = Path.GetDirectoryName(Application.dataPath);
         var oneJsReactPath = Path.Combine(projectRoot, "JSModules", "onejs-react");
-        var relativePath = GetRelativePath(TempDir, oneJsReactPath).Replace("\\", "/");
+        var oneJsUnityPath = Path.Combine(projectRoot, "JSModules", "onejs-unity");
+        var reactRelativePath = GetRelativePath(TempDir, oneJsReactPath).Replace("\\", "/");
+        var unityRelativePath = GetRelativePath(TempDir, oneJsUnityPath).Replace("\\", "/");
 
         // Build additional dependencies from _modules list
         var additionalDeps = new StringBuilder();
@@ -484,7 +486,8 @@ render(<App />, __root)
   }},
   ""dependencies"": {{
     ""react"": ""^19.0.0"",
-    ""onejs-react"": ""file:{relativePath}""{additionalDeps}
+    ""onejs-react"": ""file:{reactRelativePath}"",
+    ""onejs-unity"": ""file:{unityRelativePath}""{additionalDeps}
   }},
   ""devDependencies"": {{
     ""@types/react"": ""^19.0.0"",
@@ -517,6 +520,7 @@ render(<App />, __root)
         return @"import * as esbuild from 'esbuild';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { importTransformPlugin, tailwindPlugin } from 'onejs-unity/esbuild';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -538,6 +542,10 @@ await esbuild.build({
     'react/jsx-dev-runtime': reactJsxDevPath,
   },
   packages: 'bundle',
+  plugins: [
+    importTransformPlugin(),
+    tailwindPlugin({ content: ['./**/*.{tsx,ts,jsx,js}'] }),
+  ],
 });
 
 console.log('Build complete!');
