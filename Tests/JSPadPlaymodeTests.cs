@@ -221,16 +221,16 @@ public class JSPadPlaymodeTests {
     }
 
     [UnityTest]
-    public IEnumerator HasBuiltOutput_ReturnsFalse_WhenNoOutput() {
+    public IEnumerator HasBuiltBundle_ReturnsFalse_WhenNoBundle() {
         CreateJSPad();
 
         yield return null;
 
-        Assert.IsFalse(_pad.HasBuiltOutput, "HasBuiltOutput should be false when no output exists");
+        Assert.IsFalse(_pad.HasBuiltBundle, "HasBuiltBundle should be false when no bundle exists");
     }
 
     [UnityTest]
-    public IEnumerator HasBuiltOutput_ReturnsTrue_AfterManualOutputCreation() {
+    public IEnumerator HasBuiltBundle_ReturnsTrue_AfterSaveBundleToSerializedFields() {
         CreateJSPad();
 
         yield return null;
@@ -244,13 +244,16 @@ public class JSPadPlaymodeTests {
         }
         File.WriteAllText(_pad.OutputFile, "console.log('test');");
 
-        Assert.IsTrue(_pad.HasBuiltOutput, "HasBuiltOutput should be true when output exists");
+        // Save to serialized field (this is what the editor does after building)
+        _pad.SaveBundleToSerializedFields();
+
+        Assert.IsTrue(_pad.HasBuiltBundle, "HasBuiltBundle should be true after saving bundle");
     }
 
     // MARK: Execution Tests
 
     [UnityTest]
-    public IEnumerator Run_ExecutesBuiltScript() {
+    public IEnumerator Reload_ExecutesBuiltBundle() {
         CreateJSPad();
 
         yield return null;
@@ -262,20 +265,23 @@ public class JSPadPlaymodeTests {
         Directory.CreateDirectory(outputDir);
         File.WriteAllText(_pad.OutputFile, "globalThis.__jsPadRan = true;");
 
-        // Run the built script
-        _pad.RunBuiltScript();
+        // Save to serialized field (simulating editor Build button)
+        _pad.SaveBundleToSerializedFields();
+
+        // Reload the bundle
+        _pad.Reload();
 
         // Wait a frame for execution
         yield return null;
 
-        Assert.IsTrue(_pad.IsRunning, "JSPad should be running after RunBuiltScript");
+        Assert.IsTrue(_pad.IsRunning, "JSPad should be running after Reload");
 
         var result = _pad.Bridge.Eval("globalThis.__jsPadRan");
-        Assert.AreEqual("true", result, "Built script should execute");
+        Assert.AreEqual("true", result, "Built bundle should execute");
     }
 
     [UnityTest]
-    public IEnumerator Run_ExposesRootAndBridge() {
+    public IEnumerator Reload_ExposesRootAndBridge() {
         CreateJSPad();
 
         yield return null;
@@ -290,7 +296,8 @@ globalThis.__hasRoot = typeof __root !== 'undefined' && __root.__csHandle > 0;
 globalThis.__hasBridge = typeof __bridge !== 'undefined' && __bridge.__csHandle > 0;
 ");
 
-        _pad.RunBuiltScript();
+        _pad.SaveBundleToSerializedFields();
+        _pad.Reload();
         yield return null;
 
         var hasRoot = _pad.Bridge.Eval("globalThis.__hasRoot");
@@ -317,7 +324,8 @@ el.name = 'TestElement';
 __root.Add(el);
 ");
 
-        _pad.RunBuiltScript();
+        _pad.SaveBundleToSerializedFields();
+        _pad.Reload();
         yield return null;
 
         // Verify element was added
@@ -347,7 +355,8 @@ __root.Add(el);
         Directory.CreateDirectory(outputDir);
         File.WriteAllText(_pad.OutputFile, "console.log('test');");
 
-        _pad.RunBuiltScript();
+        _pad.SaveBundleToSerializedFields();
+        _pad.Reload();
         yield return null;
 
         Assert.IsTrue(_pad.IsRunning, "Should be running");
@@ -363,35 +372,34 @@ __root.Add(el);
     // MARK: Initialization Tests
 
     [UnityTest]
-    public IEnumerator Init_CreatesUIDocument_WhenMissing() {
-        // Create WITHOUT UIDocument pre-added
-        _go = new GameObject("TestJSPadNoUIDoc");
+    public IEnumerator Init_RequireComponent_EnsuresUIDocument() {
+        // RequireComponent ensures UIDocument is automatically added when JSPad is added
+        _go = new GameObject("TestJSPadRequireComponent");
         _pad = _go.AddComponent<JSPad>();
 
-        // Wait for Start() and deferred initialization
-        yield return null;
-        yield return null;
-
-        // Should have added UIDocument
+        // UIDocument should be added immediately by RequireComponent
         var uiDoc = _go.GetComponent<UIDocument>();
-        Assert.IsNotNull(uiDoc, "UIDocument should be created automatically");
+        Assert.IsNotNull(uiDoc, "UIDocument should be added automatically by RequireComponent");
+
+        yield return null;
     }
 
     [UnityTest]
-    public IEnumerator Init_CreatesPanelSettings_WhenMissing() {
-        // Create WITHOUT panel settings
-        _go = new GameObject("TestJSPadNoPanelSettings");
-        var uiDoc = _go.AddComponent<UIDocument>();
-        // Don't assign panel settings
-
+    public IEnumerator Init_EmbeddedPanelSettings_IsCreatedAndAssigned() {
+        // Create JSPad - it will create UIDocument via RequireComponent
+        _go = new GameObject("TestJSPadEmbeddedPanelSettings");
         _pad = _go.AddComponent<JSPad>();
 
-        // Wait for Start() and deferred initialization
-        yield return null;
+        // Wait for OnEnable
         yield return null;
 
-        // Should have created panel settings
-        Assert.IsNotNull(uiDoc.panelSettings, "PanelSettings should be created automatically");
+        // Should have embedded PanelSettings
+        Assert.IsNotNull(_pad.EmbeddedPanelSettings, "EmbeddedPanelSettings should be created");
+
+        // UIDocument should have PanelSettings assigned
+        var uiDoc = _go.GetComponent<UIDocument>();
+        Assert.IsNotNull(uiDoc.panelSettings, "UIDocument.panelSettings should be assigned");
+        Assert.AreEqual(_pad.EmbeddedPanelSettings, uiDoc.panelSettings, "UIDocument should use the embedded PanelSettings");
     }
 
     // MARK: Node Modules Tests
@@ -425,7 +433,7 @@ __root.Add(el);
     // MARK: Platform Defines Tests
 
     [UnityTest]
-    public IEnumerator Run_InjectsPlatformDefines() {
+    public IEnumerator Reload_InjectsPlatformDefines() {
         CreateJSPad();
 
         yield return null;
@@ -442,7 +450,8 @@ globalThis.__platformTest = {
 };
 ");
 
-        _pad.RunBuiltScript();
+        _pad.SaveBundleToSerializedFields();
+        _pad.Reload();
         yield return null;
 
         var hasEditor = _pad.Bridge.Eval("globalThis.__platformTest.hasEditor");

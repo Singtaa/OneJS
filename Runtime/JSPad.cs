@@ -18,14 +18,20 @@ public class JSPadModuleEntry {
 }
 
 /// <summary>
-/// A simple inline JavaScript/TSX runner with no external working directory.
-/// Write TSX directly in the inspector, hit Build & Run to execute.
+/// A simple inline JavaScript/TSX runner for rapid prototyping.
+/// Write TSX directly in the inspector, build, and reload to execute.
 ///
 /// Uses a temp directory (Temp/OneJSPad/) for build artifacts.
-/// No live-reload - manual Build & Run only.
-/// Automatically creates UIDocument and PanelSettings if not present.
+/// No live-reload - manual Build and Reload workflow.
+///
+/// Workflow:
+/// 1. Build: npm install (if needed) + esbuild → stores bundle in serialized field
+/// 2. Reload: Evaluates the stored bundle (PlayMode only)
+///
+/// The bundle is automatically evaluated on OnEnable in PlayMode.
 /// </summary>
-public class JSPad : MonoBehaviour {
+[RequireComponent(typeof(UIDocument))]
+public class JSPad : MonoBehaviour, ISerializationCallbackReceiver {
     const string DefaultSourceCode = @"import { useState } from ""react""
 import { render, View, Label, Button } from ""onejs-react""
 
@@ -64,19 +70,8 @@ render(<App />, __root)
     [SerializeField, HideInInspector]
     string _instanceId;
 
-    [Tooltip("Optional: Drag in a custom PanelSettings asset. If null, settings below are used to create one at runtime.")]
-    [SerializeField] PanelSettings _panelSettings;
-
-    [SerializeField] ThemeStyleSheet _defaultThemeStylesheet;
-
-    // Inline panel settings (used when _panelSettings is null)
-    [SerializeField] PanelScaleMode _scaleMode = PanelScaleMode.ScaleWithScreenSize;
-    [SerializeField] Vector2Int _referenceResolution = new Vector2Int(1920, 1080);
-    [SerializeField] PanelScreenMatchMode _screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight;
-    [Range(0f, 1f)]
-    [SerializeField] float _match = 0.5f;
-    [SerializeField] float _scale = 1f;
-    [SerializeField] int _sortOrder = 0;
+    [Tooltip("Embedded PanelSettings for the UIDocument. Edit directly in the Settings > UI tab.")]
+    [SerializeField, HideInInspector] PanelSettings _panelSettings;
 
     [Tooltip("UI Cartridges to load. Files are extracted to temp directory, objects are injected as __cartridges.{slug}.{key}.")]
     [SerializeField] List<UICartridge> _cartridges = new List<UICartridge>();
@@ -93,9 +88,9 @@ render(<App />, __root)
 
     QuickJSUIBridge _bridge;
     UIDocument _uiDocument;
-    PanelSettings _runtimePanelSettings; // Track runtime-created PanelSettings for cleanup
     bool _scriptLoaded;
-    bool _initialized;
+    bool _tempDirInitialized;
+    bool _startCalled;
 
     // Build state (used by editor)
     public enum BuildState {
@@ -135,17 +130,14 @@ render(<App />, __root)
     public string SourceMapFile => OutputFile + ".map";
 
     /// <summary>
-    /// Returns true if there's a built bundle available (either from file or serialized).
+    /// Returns true if there's a built bundle available in the serialized field.
     /// </summary>
-    public bool HasBuiltOutput {
-        get {
-#if UNITY_EDITOR
-            return File.Exists(OutputFile);
-#else
-            return !string.IsNullOrEmpty(_builtBundle);
-#endif
-        }
-    }
+    public bool HasBuiltBundle => !string.IsNullOrEmpty(_builtBundle);
+
+    /// <summary>
+    /// Size of the built bundle in bytes (0 if empty).
+    /// </summary>
+    public int BundleSize => _builtBundle?.Length ?? 0;
 
     /// <summary>
     /// The serialized bundle string (for standalone builds).
@@ -198,96 +190,89 @@ render(<App />, __root)
     // Stylesheets API
     public IReadOnlyList<StyleSheet> Stylesheets => _stylesheets;
 
+    /// <summary>
+    /// The embedded PanelSettings. Edit via inspector or access programmatically.
+    /// </summary>
+    public PanelSettings EmbeddedPanelSettings {
+        get {
+            EnsureEmbeddedPanelSettings();
+            return _panelSettings;
+        }
+    }
+
     public string GetCartridgePath(UICartridge cartridge) {
         if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) return null;
         return Path.Combine(TempDir, "@cartridges", cartridge.Slug);
     }
 
-    void Start() {
-        // Get or create UIDocument
+    void OnEnable() {
+        // Get UIDocument (guaranteed by RequireComponent)
         _uiDocument = GetComponent<UIDocument>();
-        bool createdUIDocument = false;
-
-        if (_uiDocument == null) {
-            _uiDocument = gameObject.AddComponent<UIDocument>();
-            createdUIDocument = true;
-        }
 
         // Ensure PanelSettings is assigned
-        if (_uiDocument.panelSettings == null) {
-            if (_panelSettings != null) {
-                // Use the assigned PanelSettings asset
-                _uiDocument.panelSettings = _panelSettings;
-            } else {
-                // Create PanelSettings at runtime from inline fields
-                _runtimePanelSettings = CreateRuntimePanelSettings();
-                _uiDocument.panelSettings = _runtimePanelSettings;
-            }
-        }
+        EnsurePanelSettings();
 
-        // If we created the UIDocument at runtime, defer initialization by one frame
-        // to allow Unity to fully set up the visual tree
-        if (createdUIDocument) {
-            StartCoroutine(DeferredStart());
-            return;
-        }
-
-        // Verify we have a valid root element
-        if (_uiDocument.rootVisualElement == null) {
-            Debug.LogError("[JSPad] UIDocument rootVisualElement is null after setup");
-            return;
-        }
-
-        // Auto-run if we have built output
-        if (HasBuiltOutput) {
-            RunBuiltScript();
+        // Auto-reload on re-enable (after Start has been called once)
+        // On re-enable, rootVisualElement is already ready since panel was created before
+        if (_startCalled && Application.isPlaying && HasBuiltBundle) {
+            Reload();
         }
     }
 
-    System.Collections.IEnumerator DeferredStart() {
-        // Wait one frame for Unity to fully initialize the UIDocument
-        yield return null;
+    void Start() {
+        _startCalled = true;
 
-        if (_uiDocument == null || _uiDocument.rootVisualElement == null) {
-            Debug.LogError("[JSPad] UIDocument rootVisualElement is null after deferred setup");
-            yield break;
+        // Auto-reload in PlayMode if we have a bundle
+        // Using Start() for first load ensures UIDocument's rootVisualElement is ready
+        if (Application.isPlaying && HasBuiltBundle) {
+            Reload();
         }
+    }
 
-        // Auto-run if we have built output
-        if (HasBuiltOutput) {
-            RunBuiltScript();
-        }
+    void OnDisable() {
+        Stop();
     }
 
     /// <summary>
-    /// Create a PanelSettings instance at runtime using the inline settings.
+    /// Ensures UIDocument has a PanelSettings assigned.
+    /// Uses the embedded PanelSettings.
     /// </summary>
-    PanelSettings CreateRuntimePanelSettings() {
-        var ps = ScriptableObject.CreateInstance<PanelSettings>();
+    void EnsurePanelSettings() {
+        if (_uiDocument.panelSettings != null) return;
 
-        ps.scaleMode = _scaleMode;
-        ps.sortingOrder = _sortOrder;
+        EnsureEmbeddedPanelSettings();
+        _uiDocument.panelSettings = _panelSettings;
+    }
 
-        // Apply theme stylesheet if provided
-        if (_defaultThemeStylesheet != null) {
-            ps.themeStyleSheet = _defaultThemeStylesheet;
+    /// <summary>
+    /// Ensures the embedded PanelSettings exists and is assigned to UIDocument.
+    /// Creates one if missing.
+    /// </summary>
+    void EnsureEmbeddedPanelSettings() {
+        if (_panelSettings == null) {
+            _panelSettings = ScriptableObject.CreateInstance<PanelSettings>();
+            _panelSettings.name = "Embedded PanelSettings";
+            _panelSettings.hideFlags = HideFlags.HideInHierarchy | HideFlags.HideInInspector;
+
+            // Set sensible defaults
+            _panelSettings.scaleMode = PanelScaleMode.ScaleWithScreenSize;
+            _panelSettings.referenceResolution = new Vector2Int(1920, 1080);
+            _panelSettings.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight;
+            _panelSettings.match = 0.5f;
+
+#if UNITY_EDITOR
+            UnityEditor.EditorUtility.SetDirty(this);
+#endif
         }
 
-        switch (_scaleMode) {
-            case PanelScaleMode.ConstantPixelSize:
-                ps.scale = _scale;
-                break;
-
-            case PanelScaleMode.ScaleWithScreenSize:
-                ps.referenceResolution = _referenceResolution;
-                ps.screenMatchMode = _screenMatchMode;
-                if (_screenMatchMode == PanelScreenMatchMode.MatchWidthOrHeight) {
-                    ps.match = _match;
-                }
-                break;
+        // Assign to UIDocument if available and not already set
+        var uiDoc = GetComponent<UIDocument>();
+        if (uiDoc != null && uiDoc.panelSettings == null) {
+            uiDoc.panelSettings = _panelSettings;
+#if UNITY_EDITOR
+            UnityEditor.EditorUtility.SetDirty(uiDoc);
+#endif
         }
-
-        return ps;
     }
 
     void Update() {
@@ -298,12 +283,6 @@ render(<App />, __root)
 
     void OnDestroy() {
         Stop();
-
-        // Clean up runtime-created PanelSettings
-        if (_runtimePanelSettings != null) {
-            Destroy(_runtimePanelSettings);
-            _runtimePanelSettings = null;
-        }
     }
 
     /// <summary>
@@ -311,7 +290,7 @@ render(<App />, __root)
     /// Called by the editor before building.
     /// </summary>
     public void EnsureTempDirectory() {
-        if (_initialized && Directory.Exists(TempDir)) return;
+        if (_tempDirInitialized && Directory.Exists(TempDir)) return;
 
         Directory.CreateDirectory(TempDir);
         Directory.CreateDirectory(Path.Combine(TempDir, "@outputs"));
@@ -332,7 +311,7 @@ render(<App />, __root)
         var globalDts = GetGlobalDtsContent();
         File.WriteAllText(Path.Combine(TempDir, "global.d.ts"), globalDts);
 
-        _initialized = true;
+        _tempDirInitialized = true;
     }
 
     /// <summary>
@@ -346,11 +325,22 @@ render(<App />, __root)
     }
 
     /// <summary>
-    /// Run the built script (if available).
+    /// Reload the UI by evaluating the stored bundle.
+    /// Only works in PlayMode when there's a built bundle available.
     /// </summary>
-    public void RunBuiltScript() {
-        if (!HasBuiltOutput) {
-            Debug.LogWarning("[JSPad] No built output found. Build first.");
+    public void Reload() {
+        if (!Application.isPlaying) {
+            Debug.LogWarning("[JSPad] Reload only works in PlayMode.");
+            return;
+        }
+
+        if (!HasBuiltBundle) {
+            Debug.LogWarning("[JSPad] No bundle found. Build first.");
+            return;
+        }
+
+        if (_uiDocument == null || _uiDocument.rootVisualElement == null) {
+            Debug.LogError("[JSPad] UIDocument or rootVisualElement is null.");
             return;
         }
 
@@ -381,18 +371,13 @@ render(<App />, __root)
             // Apply stylesheets
             ApplyStylesheets();
 
-            // Load and run script
-#if UNITY_EDITOR
-            var code = File.ReadAllText(OutputFile);
-#else
-            var code = _builtBundle;
-#endif
-            _bridge.Eval(code, "app.js");
+            // Evaluate the stored bundle
+            _bridge.Eval(_builtBundle, "app.js");
             _bridge.Context.ExecutePendingJobs();
             _scriptLoaded = true;
         } catch (Exception ex) {
             var message = TranslateErrorMessage(ex.Message);
-            Debug.LogError($"[JSPad] Run error: {message}");
+            Debug.LogError($"[JSPad] Reload error: {message}");
             Stop();
         }
     }
@@ -680,6 +665,26 @@ declare function setInterval(callback: () => void, ms?: number): number;
 declare function clearInterval(id: number): void;
 declare function requestAnimationFrame(callback: (timestamp: number) => void): number;
 declare function cancelAnimationFrame(id: number): void;
+
+// StyleSheet API
+declare function loadStyleSheet(path: string): boolean;
+declare function compileStyleSheet(ussContent: string, name?: string): boolean;
+declare function removeStyleSheet(name: string): boolean;
+declare function clearStyleSheets(): number;
+
+// FileSystem API - Path globals
+declare const __persistentDataPath: string;
+declare const __streamingAssetsPath: string;
+declare const __dataPath: string;
+declare const __temporaryCachePath: string;
+
+// FileSystem API - Functions
+declare function readTextFile(path: string): Promise<string>;
+declare function writeTextFile(path: string, content: string): Promise<void>;
+declare function fileExists(path: string): boolean;
+declare function directoryExists(path: string): boolean;
+declare function deleteFile(path: string): boolean;
+declare function listFiles(path: string, pattern?: string, recursive?: boolean): string[];
 ";
     }
 
@@ -692,4 +697,29 @@ declare function cancelAnimationFrame(id: number): void;
         var relativeUri = fromUri.MakeRelativeUri(toUri);
         return Uri.UnescapeDataString(relativeUri.ToString());
     }
+
+    // MARK: ISerializationCallbackReceiver
+
+    public void OnBeforeSerialize() {
+        // Ensure embedded PanelSettings exists before serialization
+        EnsureEmbeddedPanelSettings();
+    }
+
+    public void OnAfterDeserialize() {
+        // Nothing needed here - PanelSettings will be deserialized automatically
+    }
+
+    // MARK: Editor callbacks
+
+#if UNITY_EDITOR
+    void Reset() {
+        // Called when component is first added or reset
+        EnsureEmbeddedPanelSettings();
+    }
+
+    void OnValidate() {
+        // Ensure PanelSettings exists when values change in inspector
+        EnsureEmbeddedPanelSettings();
+    }
+#endif
 }

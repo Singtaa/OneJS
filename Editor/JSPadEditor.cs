@@ -22,6 +22,9 @@ public class JSPadEditor : Editor {
     VisualElement _root;
     CodeField _codeField;
     Label _statusLabel;
+    Label _bundleSizeLabel;
+    Button _buildButton;
+    Button _reloadButton;
 
     // Tabs
     VisualElement _tabContainer;
@@ -33,130 +36,6 @@ public class JSPadEditor : Editor {
     VisualElement _moduleListContainer;
     VisualElement _stylesheetListContainer;
     VisualElement _cartridgeListContainer;
-
-    // Static initialization to handle play mode changes for ALL JSPad instances
-    static JSPadEditor() {
-        EditorApplication.playModeStateChanged += OnPlayModeStateChangedStatic;
-    }
-
-    static void OnPlayModeStateChangedStatic(PlayModeStateChange state) {
-        if (state == PlayModeStateChange.ExitingEditMode) {
-            // Build all JSPad instances before entering play mode
-            BuildAllJSPadsSync();
-        }
-    }
-
-    static void BuildAllJSPadsSync() {
-        var jsPads = UnityEngine.Object.FindObjectsByType<JSPad>(FindObjectsSortMode.None);
-        foreach (var jsPad in jsPads) {
-            if (jsPad == null || !jsPad.gameObject.activeInHierarchy) continue;
-            BuildJSPadSync(jsPad);
-        }
-    }
-
-    static void BuildJSPadSync(JSPad jsPad) {
-        jsPad.EnsureTempDirectory();
-        jsPad.WriteSourceFile();
-        jsPad.ExtractCartridges();
-
-        var npmPath = GetNpmCommandStatic();
-        var nodeBinDir = Path.GetDirectoryName(npmPath);
-
-        // Install dependencies if needed (synchronous)
-        if (!jsPad.HasNodeModules()) {
-            var installInfo = new ProcessStartInfo {
-                FileName = npmPath,
-                Arguments = "install",
-                WorkingDirectory = jsPad.TempDir,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            };
-            var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-            installInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
-
-            using (var installProcess = Process.Start(installInfo)) {
-                installProcess.WaitForExit();
-                if (installProcess.ExitCode != 0) {
-                    Debug.LogError($"[JSPad] npm install failed for {jsPad.name}");
-                    return;
-                }
-            }
-        }
-
-        // Build (synchronous)
-        var buildInfo = new ProcessStartInfo {
-            FileName = npmPath,
-            Arguments = "run build",
-            WorkingDirectory = jsPad.TempDir,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
-        };
-        var path = Environment.GetEnvironmentVariable("PATH") ?? "";
-        buildInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + path;
-
-        using (var buildProcess = Process.Start(buildInfo)) {
-            buildProcess.WaitForExit();
-            if (buildProcess.ExitCode == 0) {
-                jsPad.SetBuildState(JSPad.BuildState.Ready, output: "Build successful");
-                jsPad.SaveBundleToSerializedFields();
-            } else {
-                var error = buildProcess.StandardError.ReadToEnd();
-                jsPad.SetBuildState(JSPad.BuildState.Error, error: error);
-                Debug.LogError($"[JSPad] Build failed for {jsPad.name}: {error}");
-            }
-        }
-    }
-
-    static string _cachedNpmPathStatic;
-
-    static string GetNpmCommandStatic() {
-        if (!string.IsNullOrEmpty(_cachedNpmPathStatic)) return _cachedNpmPathStatic;
-
-#if UNITY_EDITOR_WIN
-        _cachedNpmPathStatic = "npm.cmd";
-        return _cachedNpmPathStatic;
-#else
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-
-        string[] fixedPaths = {
-            "/usr/local/bin/npm",
-            "/opt/homebrew/bin/npm",
-            "/usr/bin/npm",
-        };
-
-        foreach (var p in fixedPaths) {
-            if (File.Exists(p)) {
-                _cachedNpmPathStatic = p;
-                return _cachedNpmPathStatic;
-            }
-        }
-
-        var nvmDir = Path.Combine(home, ".nvm/versions/node");
-        if (Directory.Exists(nvmDir)) {
-            try {
-                foreach (var nodeVersionDir in Directory.GetDirectories(nvmDir)) {
-                    var npmPath = Path.Combine(nodeVersionDir, "bin", "npm");
-                    if (File.Exists(npmPath)) {
-                        _cachedNpmPathStatic = npmPath;
-                        return _cachedNpmPathStatic;
-                    }
-                }
-            } catch { }
-        }
-
-        var nDir = Path.Combine(home, "n/bin/npm");
-        if (File.Exists(nDir)) {
-            _cachedNpmPathStatic = nDir;
-            return _cachedNpmPathStatic;
-        }
-
-        return "npm";
-#endif
-    }
 
     void OnEnable() {
         _target = (JSPad)target;
@@ -178,12 +57,8 @@ public class JSPadEditor : Editor {
     }
 
     void OnPlayModeStateChanged(PlayModeStateChange state) {
-        // NOTE: Building is handled by the static OnPlayModeStateChangedStatic handler
-        // which builds ALL JSPads before entering play mode.
-        // Running is handled by JSPad.Start() which auto-runs if HasBuiltOutput.
-        // This instance handler only needs to restore source code when exiting play mode.
+        // Restore source code when exiting play mode
         if (state == PlayModeStateChange.EnteredEditMode) {
-            // Delay restoration to ensure editor is fully initialized
             EditorApplication.delayCall += RestoreSourceCodeFromPrefs;
         }
     }
@@ -246,21 +121,40 @@ public class JSPadEditor : Editor {
 
         statusBox.Add(statusRow);
 
-        var tempRow = new VisualElement();
-        tempRow.style.flexDirection = FlexDirection.Row;
-        tempRow.style.marginTop = 4;
-        var tempTitle = new Label("Temp:");
-        tempTitle.style.width = 50;
-        tempTitle.style.color = new Color(0.6f, 0.6f, 0.6f);
-        var relativeTempPath = Path.Combine("Temp", "OneJSPad", Path.GetFileName(_target.TempDir));
-        var tempPath = new Label(relativeTempPath);
-        tempPath.style.color = new Color(0.5f, 0.5f, 0.5f);
-        tempPath.style.fontSize = 10;
-        tempPath.style.overflow = Overflow.Hidden;
-        tempPath.style.textOverflow = TextOverflow.Ellipsis;
-        tempRow.Add(tempTitle);
-        tempRow.Add(tempPath);
-        statusBox.Add(tempRow);
+        // Bundle size row
+        var bundleRow = new VisualElement();
+        bundleRow.style.flexDirection = FlexDirection.Row;
+        bundleRow.style.marginTop = 4;
+        var bundleTitle = new Label("Bundle:");
+        bundleTitle.style.width = 50;
+        bundleTitle.style.color = new Color(0.6f, 0.6f, 0.6f);
+        _bundleSizeLabel = new Label(GetBundleSizeText());
+        _bundleSizeLabel.style.color = new Color(0.5f, 0.5f, 0.5f);
+        _bundleSizeLabel.style.fontSize = 11;
+        bundleRow.Add(bundleTitle);
+        bundleRow.Add(_bundleSizeLabel);
+        statusBox.Add(bundleRow);
+
+        // Build and Reload buttons
+        var buttonRow = new VisualElement();
+        buttonRow.style.flexDirection = FlexDirection.Row;
+        buttonRow.style.marginTop = 8;
+
+        _buildButton = new Button(OnBuildClicked) { text = "Build" };
+        _buildButton.style.flexGrow = 1;
+        _buildButton.style.height = 24;
+        _buildButton.style.marginRight = 4;
+        _buildButton.tooltip = "Build the source code (npm install if needed, then esbuild)";
+        buttonRow.Add(_buildButton);
+
+        _reloadButton = new Button(OnReloadClicked) { text = "Reload" };
+        _reloadButton.style.flexGrow = 1;
+        _reloadButton.style.height = 24;
+        _reloadButton.tooltip = "Reload the UI from the stored bundle (PlayMode only)";
+        _reloadButton.SetEnabled(false);
+        buttonRow.Add(_reloadButton);
+
+        statusBox.Add(buttonRow);
 
         _root.Add(statusBox);
 
@@ -518,70 +412,32 @@ public class JSPadEditor : Editor {
         return row;
     }
 
+    SerializedObject _panelSettingsSO;
+
     void BuildUITab() {
-        // Panel Settings section
-        var panelSettingsProp = serializedObject.FindProperty("_panelSettings");
-        var panelSettingsField = new PropertyField(panelSettingsProp, "Panel Settings");
-        panelSettingsField.BindProperty(panelSettingsProp);
-        _tabContent.Add(panelSettingsField);
-
-        var themeStylesheetProp = serializedObject.FindProperty("_defaultThemeStylesheet");
-        var themeStylesheetField = new PropertyField(themeStylesheetProp, "Theme Stylesheet");
-        themeStylesheetField.BindProperty(themeStylesheetProp);
-        _tabContent.Add(themeStylesheetField);
-
-        var scaleModeProp = serializedObject.FindProperty("_scaleMode");
-        var scaleModeField = new PropertyField(scaleModeProp, "Scale Mode");
-        scaleModeField.BindProperty(scaleModeProp);
-        _tabContent.Add(scaleModeField);
-
-        // Container for conditional fields
-        var scaleWithScreenSizeFields = new VisualElement();
-        var constantPixelSizeFields = new VisualElement();
-
-        // Scale With Screen Size fields
-        var referenceResolutionProp = serializedObject.FindProperty("_referenceResolution");
-        var referenceResolutionField = new PropertyField(referenceResolutionProp, "Reference Resolution");
-        referenceResolutionField.BindProperty(referenceResolutionProp);
-        scaleWithScreenSizeFields.Add(referenceResolutionField);
-
-        var screenMatchModeProp = serializedObject.FindProperty("_screenMatchMode");
-        var screenMatchModeField = new PropertyField(screenMatchModeProp, "Screen Match Mode");
-        screenMatchModeField.BindProperty(screenMatchModeProp);
-        scaleWithScreenSizeFields.Add(screenMatchModeField);
-
-        var matchProp = serializedObject.FindProperty("_match");
-        var matchField = new PropertyField(matchProp, "Match");
-        matchField.BindProperty(matchProp);
-        scaleWithScreenSizeFields.Add(matchField);
-
-        _tabContent.Add(scaleWithScreenSizeFields);
-
-        // Constant Pixel Size fields
-        var scaleProp = serializedObject.FindProperty("_scale");
-        var scaleField = new PropertyField(scaleProp, "Scale");
-        scaleField.BindProperty(scaleProp);
-        constantPixelSizeFields.Add(scaleField);
-
-        _tabContent.Add(constantPixelSizeFields);
-
-        var sortOrderProp = serializedObject.FindProperty("_sortOrder");
-        var sortOrderField = new PropertyField(sortOrderProp, "Sort Order");
-        sortOrderField.BindProperty(sortOrderProp);
-        _tabContent.Add(sortOrderField);
-
-        // Update visibility based on scale mode
-        void UpdateScaleModeVisibility() {
-            serializedObject.Update();
-            var mode = (PanelScaleMode)scaleModeProp.enumValueIndex;
-            scaleWithScreenSizeFields.style.display = mode == PanelScaleMode.ScaleWithScreenSize
-                ? DisplayStyle.Flex : DisplayStyle.None;
-            constantPixelSizeFields.style.display = mode == PanelScaleMode.ConstantPixelSize
-                ? DisplayStyle.Flex : DisplayStyle.None;
+        // Ensure embedded PanelSettings exists
+        var panelSettings = _target.EmbeddedPanelSettings;
+        if (panelSettings == null) {
+            var errorLabel = new Label("Error: PanelSettings could not be created.");
+            errorLabel.style.color = new Color(0.9f, 0.3f, 0.3f);
+            _tabContent.Add(errorLabel);
+            return;
         }
 
-        UpdateScaleModeVisibility();
-        scaleModeField.RegisterValueChangeCallback(_ => UpdateScaleModeVisibility());
+        // Create SerializedObject for the embedded PanelSettings
+        _panelSettingsSO = new SerializedObject(panelSettings);
+
+        // Panel Settings header
+        var panelHeader = new Label("Panel Settings");
+        panelHeader.style.unityFontStyleAndWeight = FontStyle.Bold;
+        panelHeader.style.marginBottom = 6;
+        _tabContent.Add(panelHeader);
+
+        // Use InspectorElement to draw all PanelSettings properties
+        var panelSettingsEditor = UnityEditor.Editor.CreateEditor(panelSettings);
+        var inspectorElement = new InspectorElement(panelSettingsEditor);
+        inspectorElement.style.marginLeft = -15; // Adjust for default inspector padding
+        _tabContent.Add(inspectorElement);
 
         // Separator
         var separator = new VisualElement();
@@ -736,15 +592,43 @@ public class JSPadEditor : Editor {
         } else if (Application.isPlaying && _target.IsRunning) {
             _statusLabel.text = "Running";
             _statusLabel.style.color = new Color(0.2f, 0.8f, 0.2f);
-        } else if (_target.HasBuiltOutput) {
-            _statusLabel.text = "Ready (built)";
-            _statusLabel.style.color = new Color(0.5f, 0.8f, 0.5f);
-        } else if (_target.HasNodeModules()) {
-            _statusLabel.text = "Dependencies installed";
-            _statusLabel.style.color = Color.white;
-        } else {
+        } else if (_target.HasBuiltBundle) {
             _statusLabel.text = "Ready";
-            _statusLabel.style.color = Color.white;
+            _statusLabel.style.color = new Color(0.5f, 0.8f, 0.5f);
+        } else {
+            _statusLabel.text = "Not built";
+            _statusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+        }
+
+        // Update bundle size
+        if (_bundleSizeLabel != null) {
+            _bundleSizeLabel.text = GetBundleSizeText();
+        }
+
+        // Update button states
+        if (_buildButton != null) {
+            _buildButton.SetEnabled(!_isProcessing);
+        }
+        if (_reloadButton != null) {
+            _reloadButton.SetEnabled(Application.isPlaying && _target.HasBuiltBundle && !_isProcessing);
+        }
+    }
+
+    string GetBundleSizeText() {
+        if (!_target.HasBuiltBundle) return "(empty)";
+        var size = _target.BundleSize;
+        if (size < 1024) return $"{size} B";
+        if (size < 1024 * 1024) return $"{size / 1024f:F1} KB";
+        return $"{size / (1024f * 1024f):F2} MB";
+    }
+
+    void OnBuildClicked() {
+        Build(runAfter: false);
+    }
+
+    void OnReloadClicked() {
+        if (Application.isPlaying && _target.HasBuiltBundle) {
+            _target.Reload();
         }
     }
 
@@ -887,10 +771,10 @@ public class JSPadEditor : Editor {
 
                     if (exitCode == 0) {
                         _target.SetBuildState(JSPad.BuildState.Ready, output: "Build successful");
-                        // Save bundle to serialized fields for standalone builds
+                        // Save bundle to serialized fields
                         _target.SaveBundleToSerializedFields();
                         if (runAfter && Application.isPlaying) {
-                            _target.RunBuiltScript();
+                            _target.Reload();
                         }
                     } else {
                         _target.SetBuildState(JSPad.BuildState.Error, error: errorOutput.Trim());
