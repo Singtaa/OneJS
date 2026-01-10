@@ -37,10 +37,27 @@ public class JSPadEditor : Editor {
     VisualElement _stylesheetListContainer;
     VisualElement _cartridgeListContainer;
 
+    // Track PanelSettings render mode to refresh UIDocument inspector
+    int _lastRenderMode;
+
+    // Persistence keys
+    string SettingsFoldoutKey => $"JSPadEditor_SettingsFoldout_{GlobalObjectId.GetGlobalObjectIdSlow(_target)}";
+    string SelectedTabKey => $"JSPadEditor_SelectedTab_{GlobalObjectId.GetGlobalObjectIdSlow(_target)}";
+
     void OnEnable() {
         _target = (JSPad)target;
         _sourceCode = serializedObject.FindProperty("_sourceCode");
         EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
+
+        // Initialize render mode tracking
+        var uiDoc = _target.GetComponent<UIDocument>();
+        if (uiDoc != null && uiDoc.panelSettings != null) {
+            var psSO = new SerializedObject(uiDoc.panelSettings);
+            var renderModeProp = psSO.FindProperty("m_RenderMode");
+            if (renderModeProp != null) {
+                _lastRenderMode = renderModeProp.enumValueIndex;
+            }
+        }
     }
 
     void OnDisable() {
@@ -83,6 +100,9 @@ public class JSPadEditor : Editor {
 
     public override VisualElement CreateInspectorGUI() {
         _root = new VisualElement();
+
+        // Restore selected tab from SessionState
+        _selectedTab = SessionState.GetInt(SelectedTabKey, 0);
 
         // Status section
         var statusBox = new VisualElement();
@@ -158,9 +178,16 @@ public class JSPadEditor : Editor {
 
         _root.Add(statusBox);
 
-        // Settings foldout (contains tabs)
-        var settingsFoldout = new Foldout { text = "Settings", value = false };
+        // Settings foldout (contains tabs) - restore state from SessionState
+        var settingsFoldout = new Foldout { text = "Settings", value = SessionState.GetBool(SettingsFoldoutKey, false) };
         settingsFoldout.style.marginBottom = 6;
+        // Remove default left margin on foldout content
+        var foldoutContent = settingsFoldout.Q<VisualElement>(className: "unity-foldout__content");
+        if (foldoutContent != null) {
+            foldoutContent.style.marginLeft = 0;
+        }
+        // Save foldout state when changed
+        settingsFoldout.RegisterValueChangedCallback(evt => SessionState.SetBool(SettingsFoldoutKey, evt.newValue));
         _root.Add(settingsFoldout);
 
         // Tabs section
@@ -177,7 +204,8 @@ public class JSPadEditor : Editor {
         _tabContent.style.borderTopLeftRadius = _tabContent.style.borderTopRightRadius = 0;
         _tabContent.style.borderBottomLeftRadius = _tabContent.style.borderBottomRightRadius = 3;
         _tabContent.style.paddingTop = _tabContent.style.paddingBottom = 10;
-        _tabContent.style.paddingLeft = _tabContent.style.paddingRight = 10;
+        _tabContent.style.paddingLeft = 16;
+        _tabContent.style.paddingRight = 10;
         _tabContent.style.marginBottom = 10;
         _tabContent.style.minHeight = 80;
         settingsFoldout.Add(_tabContent);
@@ -270,6 +298,7 @@ public class JSPadEditor : Editor {
 
     void SelectTab(int index) {
         _selectedTab = index;
+        SessionState.SetInt(SelectedTabKey, index);
         BuildTabs();
     }
 
@@ -415,39 +444,7 @@ public class JSPadEditor : Editor {
     SerializedObject _panelSettingsSO;
 
     void BuildUITab() {
-        // Ensure embedded PanelSettings exists
-        var panelSettings = _target.EmbeddedPanelSettings;
-        if (panelSettings == null) {
-            var errorLabel = new Label("Error: PanelSettings could not be created.");
-            errorLabel.style.color = new Color(0.9f, 0.3f, 0.3f);
-            _tabContent.Add(errorLabel);
-            return;
-        }
-
-        // Create SerializedObject for the embedded PanelSettings
-        _panelSettingsSO = new SerializedObject(panelSettings);
-
-        // Panel Settings header
-        var panelHeader = new Label("Panel Settings");
-        panelHeader.style.unityFontStyleAndWeight = FontStyle.Bold;
-        panelHeader.style.marginBottom = 6;
-        _tabContent.Add(panelHeader);
-
-        // Use InspectorElement to draw all PanelSettings properties
-        var panelSettingsEditor = UnityEditor.Editor.CreateEditor(panelSettings);
-        var inspectorElement = new InspectorElement(panelSettingsEditor);
-        inspectorElement.style.marginLeft = -15; // Adjust for default inspector padding
-        _tabContent.Add(inspectorElement);
-
-        // Separator
-        var separator = new VisualElement();
-        separator.style.height = 1;
-        separator.style.backgroundColor = new Color(0.3f, 0.3f, 0.3f);
-        separator.style.marginTop = 10;
-        separator.style.marginBottom = 10;
-        _tabContent.Add(separator);
-
-        // Stylesheets section
+        // Stylesheets section (first)
         var stylesheetsHeader = new VisualElement();
         stylesheetsHeader.style.flexDirection = FlexDirection.Row;
         stylesheetsHeader.style.marginBottom = 6;
@@ -475,6 +472,38 @@ public class JSPadEditor : Editor {
         _tabContent.Add(_stylesheetListContainer);
 
         RebuildStylesheetList();
+
+        // Separator
+        var separator = new VisualElement();
+        separator.style.height = 1;
+        separator.style.backgroundColor = new Color(0.3f, 0.3f, 0.3f);
+        separator.style.marginTop = 10;
+        separator.style.marginBottom = 10;
+        _tabContent.Add(separator);
+
+        // Ensure embedded PanelSettings exists
+        var panelSettings = _target.EmbeddedPanelSettings;
+        if (panelSettings == null) {
+            var errorLabel = new Label("Error: PanelSettings could not be created.");
+            errorLabel.style.color = new Color(0.9f, 0.3f, 0.3f);
+            _tabContent.Add(errorLabel);
+            return;
+        }
+
+        // Create SerializedObject for the embedded PanelSettings
+        _panelSettingsSO = new SerializedObject(panelSettings);
+
+        // Panel Settings header
+        var panelHeader = new Label("Panel Settings");
+        panelHeader.style.unityFontStyleAndWeight = FontStyle.Bold;
+        panelHeader.style.marginBottom = 6;
+        _tabContent.Add(panelHeader);
+
+        // Use InspectorElement to draw all PanelSettings properties
+        var panelSettingsEditor = UnityEditor.Editor.CreateEditor(panelSettings);
+        var inspectorElement = new InspectorElement(panelSettingsEditor);
+        inspectorElement.style.marginLeft = -15; // Adjust for default inspector padding
+        _tabContent.Add(inspectorElement);
     }
 
     void RebuildStylesheetList() {
@@ -611,6 +640,21 @@ public class JSPadEditor : Editor {
         }
         if (_reloadButton != null) {
             _reloadButton.SetEnabled(Application.isPlaying && _target.HasBuiltBundle && !_isProcessing);
+        }
+
+        // Check if PanelSettings render mode changed - force UIDocument inspector rebuild
+        var uiDoc = _target.GetComponent<UIDocument>();
+        if (uiDoc != null && uiDoc.panelSettings != null) {
+            var psSO = new SerializedObject(uiDoc.panelSettings);
+            var renderModeProp = psSO.FindProperty("m_RenderMode");
+            if (renderModeProp != null) {
+                var currentRenderMode = renderModeProp.enumValueIndex;
+                if (currentRenderMode != _lastRenderMode) {
+                    _lastRenderMode = currentRenderMode;
+                    // Force rebuild of all inspectors to update UIDocument's inspector
+                    ActiveEditorTracker.sharedTracker.ForceRebuild();
+                }
+            }
         }
     }
 
