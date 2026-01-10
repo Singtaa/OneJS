@@ -170,7 +170,7 @@ public class JSPadEditor : Editor {
         _reloadButton = new Button(OnReloadClicked) { text = "Reload" };
         _reloadButton.style.flexGrow = 1;
         _reloadButton.style.height = 24;
-        _reloadButton.tooltip = "Reload the UI from the stored bundle (PlayMode only)";
+        _reloadButton.tooltip = "Reload the JS code from the stored bundle (PlayMode only)";
         _reloadButton.SetEnabled(false);
         buttonRow.Add(_reloadButton);
 
@@ -612,7 +612,7 @@ public class JSPadEditor : Editor {
     }
 
     void UpdateUI() {
-        if (_statusLabel == null) return;
+        if (_target == null || _statusLabel == null) return;
 
         // Update status
         if (_isProcessing) {
@@ -797,11 +797,13 @@ public class JSPadEditor : Editor {
 
             _currentProcess = new Process { StartInfo = startInfo };
 
-            string errorOutput = "";
+            string buildOutput = "";
 
-            _currentProcess.OutputDataReceived += (s, e) => { };
+            _currentProcess.OutputDataReceived += (s, e) => {
+                if (!string.IsNullOrEmpty(e.Data)) buildOutput += e.Data + "\n";
+            };
             _currentProcess.ErrorDataReceived += (s, e) => {
-                if (!string.IsNullOrEmpty(e.Data)) errorOutput += e.Data + "\n";
+                if (!string.IsNullOrEmpty(e.Data)) buildOutput += e.Data + "\n";
             };
 
             _currentProcess.EnableRaisingEvents = true;
@@ -821,8 +823,9 @@ public class JSPadEditor : Editor {
                             _target.Reload();
                         }
                     } else {
-                        _target.SetBuildState(JSPad.BuildState.Error, error: errorOutput.Trim());
-                        Debug.LogError($"[JSPad] Build failed with exit code {exitCode}");
+                        var errorMsg = buildOutput.Trim();
+                        _target.SetBuildState(JSPad.BuildState.Error, error: errorMsg);
+                        Debug.LogError($"[JSPad] Build failed:\n{errorMsg}");
                     }
                     Repaint();
                 };
