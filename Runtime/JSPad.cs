@@ -82,6 +82,9 @@ render(<App />, __root)
     [Tooltip("USS StyleSheets to apply. Applied in order after script runs.")]
     [SerializeField] List<StyleSheet> _stylesheets = new List<StyleSheet>();
 
+    [Tooltip("Default files to create in TempDir. Loaded from OneJS Editor/Templates.")]
+    [SerializeField] List<DefaultFileEntry> _defaultFiles = new List<DefaultFileEntry>();
+
     // Serialized build output for standalone players (no npm/node available)
     [SerializeField, HideInInspector] string _builtBundle;
     [SerializeField, HideInInspector] string _builtSourceMap;
@@ -201,8 +204,7 @@ render(<App />, __root)
     }
 
     public string GetCartridgePath(UICartridge cartridge) {
-        if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) return null;
-        return Path.Combine(TempDir, "@cartridges", cartridge.Slug);
+        return CartridgeUtils.GetCartridgePath(TempDir, cartridge);
     }
 
     void OnEnable() {
@@ -295,21 +297,29 @@ render(<App />, __root)
         Directory.CreateDirectory(TempDir);
         Directory.CreateDirectory(Path.Combine(TempDir, "@outputs"));
 
-        // Write package.json
+        // Write package.json (always dynamic - needs _modules list)
         var packageJson = GetPackageJsonContent();
         File.WriteAllText(Path.Combine(TempDir, "package.json"), packageJson);
 
-        // Write tsconfig.json
-        var tsConfig = GetTsConfigContent();
-        File.WriteAllText(Path.Combine(TempDir, "tsconfig.json"), tsConfig);
+        // Write tsconfig.json (from template if available)
+        var tsconfigEntry = _defaultFiles.Find(e => e.path == "tsconfig.json");
+        if (tsconfigEntry?.content != null) {
+            File.WriteAllText(Path.Combine(TempDir, "tsconfig.json"), tsconfigEntry.content.text);
+        } else {
+            File.WriteAllText(Path.Combine(TempDir, "tsconfig.json"), GetTsConfigContent());
+        }
 
         // Write esbuild.config.mjs
         var esbuildConfig = GetEsbuildConfigContent();
         File.WriteAllText(Path.Combine(TempDir, "esbuild.config.mjs"), esbuildConfig);
 
-        // Write global.d.ts
-        var globalDts = GetGlobalDtsContent();
-        File.WriteAllText(Path.Combine(TempDir, "global.d.ts"), globalDts);
+        // Write global.d.ts (from template if available)
+        var globalDtsEntry = _defaultFiles.Find(e => e.path == "global.d.ts");
+        if (globalDtsEntry?.content != null) {
+            File.WriteAllText(Path.Combine(TempDir, "global.d.ts"), globalDtsEntry.content.text);
+        } else {
+            File.WriteAllText(Path.Combine(TempDir, "global.d.ts"), GetGlobalDtsContent());
+        }
 
         _tempDirInitialized = true;
     }
@@ -424,28 +434,7 @@ render(<App />, __root)
     }
 
     void InjectPlatformDefines() {
-        var defines = new System.Text.StringBuilder();
-        defines.AppendLine("// Unity Platform Defines");
-
-#if UNITY_EDITOR
-        defines.AppendLine("globalThis.UNITY_EDITOR = true;");
-#else
-        defines.AppendLine("globalThis.UNITY_EDITOR = false;");
-#endif
-
-#if UNITY_WEBGL
-        defines.AppendLine("globalThis.UNITY_WEBGL = true;");
-#else
-        defines.AppendLine("globalThis.UNITY_WEBGL = false;");
-#endif
-
-#if DEBUG || DEVELOPMENT_BUILD
-        defines.AppendLine("globalThis.DEBUG = true;");
-#else
-        defines.AppendLine("globalThis.DEBUG = false;");
-#endif
-
-        _bridge.Eval(defines.ToString(), "platform-defines.js");
+        CartridgeUtils.InjectPlatformDefines(_bridge);
     }
 
     /// <summary>
@@ -453,48 +442,14 @@ render(<App />, __root)
     /// Called before building.
     /// </summary>
     public void ExtractCartridges() {
-        if (_cartridges == null || _cartridges.Count == 0) return;
-
-        foreach (var cartridge in _cartridges) {
-            if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) continue;
-
-            var destPath = GetCartridgePath(cartridge);
-
-            // Always extract (overwrite) for JSPad since it's temp directory
-            if (Directory.Exists(destPath)) {
-                Directory.Delete(destPath, true);
-            }
-            Directory.CreateDirectory(destPath);
-
-            // Extract files
-            foreach (var file in cartridge.Files) {
-                if (string.IsNullOrEmpty(file.path) || file.content == null) continue;
-
-                var filePath = Path.Combine(destPath, file.path);
-                var fileDir = Path.GetDirectoryName(filePath);
-                if (!string.IsNullOrEmpty(fileDir) && !Directory.Exists(fileDir)) {
-                    Directory.CreateDirectory(fileDir);
-                }
-                File.WriteAllText(filePath, file.content.text);
-            }
-
-            // Generate TypeScript definitions
-            var dts = OneJS.CartridgeTypeGenerator.Generate(cartridge);
-            File.WriteAllText(Path.Combine(destPath, $"{cartridge.Slug}.d.ts"), dts);
-        }
+        CartridgeUtils.ExtractCartridges(TempDir, _cartridges, overwriteExisting: true);
     }
 
     /// <summary>
     /// Apply USS StyleSheets to the root visual element.
     /// </summary>
     void ApplyStylesheets() {
-        if (_stylesheets == null || _stylesheets.Count == 0) return;
-
-        foreach (var stylesheet in _stylesheets) {
-            if (stylesheet != null) {
-                _uiDocument.rootVisualElement.styleSheets.Add(stylesheet);
-            }
-        }
+        CartridgeUtils.ApplyStylesheets(_uiDocument.rootVisualElement, _stylesheets);
     }
 
     /// <summary>
@@ -502,30 +457,7 @@ render(<App />, __root)
     /// Access pattern: __cartridges.{slug}.{key}
     /// </summary>
     void InjectCartridgeGlobals() {
-        if (_cartridges == null || _cartridges.Count == 0) return;
-
-        // Initialize __cartridges namespace
-        _bridge.Eval("globalThis.__cartridges = globalThis.__cartridges || {}");
-
-        foreach (var cartridge in _cartridges) {
-            if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) continue;
-
-            // Create cartridge namespace
-            _bridge.Eval($"__cartridges['{EscapeJsString(cartridge.Slug)}'] = {{}}");
-
-            foreach (var entry in cartridge.Objects) {
-                if (string.IsNullOrEmpty(entry.key) || entry.value == null) continue;
-
-                var handle = QuickJSNative.RegisterObject(entry.value);
-                var typeName = entry.value.GetType().FullName;
-                _bridge.Eval($"__cartridges['{EscapeJsString(cartridge.Slug)}']['{EscapeJsString(entry.key)}'] = __csHelpers.wrapObject('{typeName}', {handle})");
-            }
-        }
-    }
-
-    static string EscapeJsString(string s) {
-        if (string.IsNullOrEmpty(s)) return s;
-        return s.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "\\r");
+        CartridgeUtils.InjectCartridgeGlobals(_bridge, _cartridges);
     }
 
     string GetPackageJsonContent() {
@@ -715,11 +647,70 @@ declare function listFiles(path: string, pattern?: string, recursive?: boolean):
     void Reset() {
         // Called when component is first added or reset
         EnsureEmbeddedPanelSettings();
+        PopulateDefaultFiles();
     }
 
     void OnValidate() {
         // Ensure PanelSettings exists when values change in inspector
         EnsureEmbeddedPanelSettings();
+    }
+
+    /// <summary>
+    /// Finds and loads default template files from the OneJS Editor/Templates folder.
+    /// Uses PackageInfo to robustly locate the package regardless of installation method.
+    /// </summary>
+    public void PopulateDefaultFiles() {
+        // Template mapping: source file name → target path in TempDir
+        // Note: JSPad uses a simpler structure than JSRunner (no types/ subfolder)
+        var templateMapping = new (string templateName, string targetPath)[] {
+            ("tsconfig.json.txt", "tsconfig.json"),
+            ("global.d.ts.txt", "global.d.ts"),
+        };
+
+        _defaultFiles.Clear();
+
+        // Find the OneJS package using the assembly that contains JSPad
+        var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(JSPad).Assembly);
+        string templatesFolder;
+
+        if (packageInfo != null) {
+            // Installed as a package (Packages/com.singtaa.onejs)
+            templatesFolder = Path.Combine(packageInfo.assetPath, "Editor/Templates").Replace("\\", "/");
+        } else {
+            // Fallback: might be in Assets folder (e.g., as submodule)
+            // Search for the templates folder
+            var guids = UnityEditor.AssetDatabase.FindAssets("package.json t:TextAsset");
+            templatesFolder = null;
+
+            foreach (var guid in guids) {
+                var path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
+                if (path.ToLowerInvariant().Contains("onejs") && path.Contains("Editor/Templates")) {
+                    templatesFolder = Path.GetDirectoryName(path);
+                    break;
+                }
+            }
+
+            if (string.IsNullOrEmpty(templatesFolder)) {
+                Debug.LogWarning("[JSPad] Could not find OneJS Editor/Templates folder");
+                return;
+            }
+        }
+
+        foreach (var (templateName, targetPath) in templateMapping) {
+            var templatePath = Path.Combine(templatesFolder, templateName).Replace("\\", "/");
+            var textAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<TextAsset>(templatePath);
+
+            if (textAsset != null) {
+                _defaultFiles.Add(new DefaultFileEntry {
+                    path = targetPath,
+                    content = textAsset
+                });
+            } else {
+                Debug.LogWarning($"[JSPad] Template not found: {templatePath}");
+            }
+        }
+
+        Debug.Log($"[JSPad] Populated {_defaultFiles.Count} default files from templates");
     }
 #endif
 }

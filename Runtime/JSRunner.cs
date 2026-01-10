@@ -485,10 +485,7 @@ public class JSRunner : MonoBehaviour {
 
 #if UNITY_EDITOR
     public string GetCartridgePath(UICartridge cartridge) {
-        if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) return null;
-        var workingDir = WorkingDirFullPath;
-        if (string.IsNullOrEmpty(workingDir)) return null;
-        return Path.Combine(workingDir, "@cartridges", cartridge.Slug);
+        return CartridgeUtils.GetCartridgePath(WorkingDirFullPath, cartridge);
     }
 #endif
 
@@ -726,39 +723,7 @@ public class JSRunner : MonoBehaviour {
     /// Only extracts if the cartridge folder doesn't already exist.
     /// </summary>
     void ExtractCartridges() {
-        if (_cartridges == null || _cartridges.Count == 0) return;
-
-        foreach (var cartridge in _cartridges) {
-            if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) continue;
-
-            var destPath = GetCartridgePath(cartridge);
-            if (string.IsNullOrEmpty(destPath)) continue;
-
-            // Skip if folder already exists
-            if (Directory.Exists(destPath)) continue;
-
-            Directory.CreateDirectory(destPath);
-
-            // Extract files
-            foreach (var file in cartridge.Files) {
-                if (string.IsNullOrEmpty(file.path) || file.content == null) continue;
-
-                var filePath = Path.Combine(destPath, file.path);
-                var fileDir = Path.GetDirectoryName(filePath);
-
-                if (!string.IsNullOrEmpty(fileDir) && !Directory.Exists(fileDir)) {
-                    Directory.CreateDirectory(fileDir);
-                }
-
-                File.WriteAllText(filePath, file.content.text);
-            }
-
-            // Generate TypeScript definitions
-            var dts = OneJS.CartridgeTypeGenerator.Generate(cartridge);
-            File.WriteAllText(Path.Combine(destPath, $"{cartridge.Slug}.d.ts"), dts);
-
-            Debug.Log($"[JSRunner] Extracted cartridge: {cartridge.Slug}");
-        }
+        CartridgeUtils.ExtractCartridges(WorkingDirFullPath, _cartridges, overwriteExisting: false, "[JSRunner]");
     }
 #endif // UNITY_EDITOR
 
@@ -795,12 +760,7 @@ public class JSRunner : MonoBehaviour {
     /// Apply configured USS stylesheets to the root element.
     /// </summary>
     void ApplyStylesheets() {
-        if (_stylesheets == null || _stylesheets.Count == 0) return;
-
-        foreach (var stylesheet in _stylesheets) {
-            if (stylesheet == null) continue;
-            _uiDocument.rootVisualElement.styleSheets.Add(stylesheet);
-        }
+        CartridgeUtils.ApplyStylesheets(_uiDocument.rootVisualElement, _stylesheets);
     }
 
     /// <summary>
@@ -814,38 +774,12 @@ public class JSRunner : MonoBehaviour {
 
                 var handle = QuickJSNative.RegisterObject(entry.value);
                 var typeName = entry.value.GetType().FullName;
-                _bridge.Eval($"globalThis['{EscapeJsString(entry.key)}'] = __csHelpers.wrapObject('{typeName}', {handle})");
+                _bridge.Eval($"globalThis['{CartridgeUtils.EscapeJsString(entry.key)}'] = __csHelpers.wrapObject('{typeName}', {handle})");
             }
         }
 
         // Inject cartridge objects
-        InjectCartridgeGlobals();
-    }
-
-    /// <summary>
-    /// Inject Unity objects from cartridges as JavaScript globals under __cartridges namespace.
-    /// Access pattern: __cartridges.{slug}.{key}
-    /// </summary>
-    void InjectCartridgeGlobals() {
-        if (_cartridges == null || _cartridges.Count == 0) return;
-
-        // Initialize __cartridges namespace
-        _bridge.Eval("globalThis.__cartridges = globalThis.__cartridges || {}");
-
-        foreach (var cartridge in _cartridges) {
-            if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) continue;
-
-            // Create cartridge namespace
-            _bridge.Eval($"__cartridges['{EscapeJsString(cartridge.Slug)}'] = {{}}");
-
-            foreach (var entry in cartridge.Objects) {
-                if (string.IsNullOrEmpty(entry.key) || entry.value == null) continue;
-
-                var handle = QuickJSNative.RegisterObject(entry.value);
-                var typeName = entry.value.GetType().FullName;
-                _bridge.Eval($"__cartridges['{EscapeJsString(cartridge.Slug)}']['{EscapeJsString(entry.key)}'] = __csHelpers.wrapObject('{typeName}', {handle})");
-            }
-        }
+        CartridgeUtils.InjectCartridgeGlobals(_bridge, _cartridges);
     }
 
     /// <summary>
@@ -865,13 +799,6 @@ public class JSRunner : MonoBehaviour {
                 Debug.LogError($"[JSRunner] Preload '{preload.name}' failed: {message}");
             }
         }
-    }
-
-    /// <summary>
-    /// Escape a string for safe use in JavaScript string literals.
-    /// </summary>
-    static string EscapeJsString(string s) {
-        return s.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "\\r");
     }
 
     /// <summary>
@@ -1072,74 +999,7 @@ public class JSRunner : MonoBehaviour {
     /// These can be used for conditional code: if (UNITY_WEBGL) { ... }
     /// </summary>
     void InjectPlatformDefines() {
-        // Compile-time platform flags (cannot be simplified further due to preprocessor requirements)
-        const bool isEditor =
-#if UNITY_EDITOR
-            true;
-#else
-            false;
-#endif
-        const bool isWebGL =
-#if UNITY_WEBGL
-            true;
-#else
-            false;
-#endif
-        const bool isStandalone =
-#if UNITY_STANDALONE
-            true;
-#else
-            false;
-#endif
-        const bool isOSX =
-#if UNITY_STANDALONE_OSX
-            true;
-#else
-            false;
-#endif
-        const bool isWindows =
-#if UNITY_STANDALONE_WIN
-            true;
-#else
-            false;
-#endif
-        const bool isLinux =
-#if UNITY_STANDALONE_LINUX
-            true;
-#else
-            false;
-#endif
-        const bool isIOS =
-#if UNITY_IOS
-            true;
-#else
-            false;
-#endif
-        const bool isAndroid =
-#if UNITY_ANDROID
-            true;
-#else
-            false;
-#endif
-        const bool isDebug =
-#if DEBUG || DEVELOPMENT_BUILD
-            true;
-#else
-            false;
-#endif
-
-        // Single eval with all defines
-        _bridge.Eval($@"Object.assign(globalThis, {{
-    UNITY_EDITOR: {(isEditor ? "true" : "false")},
-    UNITY_WEBGL: {(isWebGL ? "true" : "false")},
-    UNITY_STANDALONE: {(isStandalone ? "true" : "false")},
-    UNITY_STANDALONE_OSX: {(isOSX ? "true" : "false")},
-    UNITY_STANDALONE_WIN: {(isWindows ? "true" : "false")},
-    UNITY_STANDALONE_LINUX: {(isLinux ? "true" : "false")},
-    UNITY_IOS: {(isIOS ? "true" : "false")},
-    UNITY_ANDROID: {(isAndroid ? "true" : "false")},
-    DEBUG: {(isDebug ? "true" : "false")}
-}});", "platform-defines.js");
+        CartridgeUtils.InjectPlatformDefines(_bridge);
     }
 
     void Update() {

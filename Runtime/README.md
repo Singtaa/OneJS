@@ -22,9 +22,11 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `JSPad.cs` | Inline TSX runner with no external working directory |
 | `Janitor.cs` | Marker component for live reload cleanup of JS-created GameObjects |
 | `Network.cs` | Fetch API implementation using UnityWebRequest |
+| `FileSystem.cs` | File system access for runtime loading (readTextFile, writeTextFile, etc.) |
 | `SourceMapParser.cs` | Parses source maps for error stack trace translation |
 | `UICartridge.cs` | Cartridge system for packaged UI modules |
 | `CartridgeTypeGenerator.cs` | Generates TypeScript declarations for cartridge types |
+| `CartridgeUtils.cs` | Shared cartridge utilities used by JSRunner and JSPad |
 | `GPU/GPUBridge.cs` | Compute shader API for JavaScript |
 | `GPU/ComputeShaderProvider.cs` | MonoBehaviour for registering shaders via inspector |
 | `Input/InputBridge.cs` | Input System bridge for keyboard, mouse, gamepad, touch |
@@ -733,6 +735,57 @@ const payload = atob(token.split('.')[1]);
 - Pure JavaScript implementation
 - Handles padding correctly (=, ==)
 - Validates input characters
+
+### FileSystem API
+The runtime provides file system access for loading configuration, themes, and other runtime data. This is particularly useful for modding support, theming, and user preferences.
+
+**Path globals** - Convenience access to Unity application paths:
+```javascript
+__persistentDataPath    // Application.persistentDataPath (user-writable, persists)
+__streamingAssetsPath   // Application.streamingAssetsPath (read-only, bundled with app)
+__dataPath              // Application.dataPath (game data folder)
+__temporaryCachePath    // Application.temporaryCachePath (temporary cache)
+```
+
+**File operations**:
+```javascript
+// Read a file (async)
+const content = await readTextFile(`${__persistentDataPath}/config.json`);
+const config = JSON.parse(content);
+
+// Write a file (async, creates directories automatically)
+await writeTextFile(`${__persistentDataPath}/prefs.json`, JSON.stringify(prefs));
+
+// Check existence (sync)
+if (fileExists(`${__persistentDataPath}/theme.uss`)) {
+    const uss = await readTextFile(`${__persistentDataPath}/theme.uss`);
+    compileStyleSheet(uss, "user-theme");
+}
+
+if (directoryExists(`${__persistentDataPath}/mods`)) {
+    // Load mods...
+}
+
+// Delete a file
+deleteFile(`${__persistentDataPath}/old-cache.json`);
+
+// List files with pattern matching
+const themes = listFiles(`${__persistentDataPath}/themes`, "*.uss");
+const allFiles = listFiles(`${__persistentDataPath}/mods`, "*", true); // recursive
+```
+
+**Use cases**:
+- **Runtime theming**: Load USS files from user-writable storage
+- **User preferences**: Save/load JSON configuration
+- **Modding support**: Load user-provided content
+- **Caching**: Store computed data for faster subsequent loads
+
+**Implementation details**:
+- `readTextFile()` and `writeTextFile()` are async (return Promises)
+- `fileExists()`, `directoryExists()`, `deleteFile()`, `listFiles()` are sync
+- Paths must be absolute (use the path globals as base)
+- `writeTextFile()` automatically creates parent directories
+- Works in Editor and standalone builds
 
 ### Array Marshaling
 JS arrays and TypedArrays are automatically marshaled to C# arrays when calling C# methods:
