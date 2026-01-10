@@ -67,6 +67,70 @@ declare function compileStyleSheet(ussContent: string, name?: string): boolean;
 declare function removeStyleSheet(name: string): boolean;
 declare function clearStyleSheets(): number;
 
+// FileSystem API - Path globals
+/** Application.persistentDataPath - User-writable storage that persists across sessions */
+declare const __persistentDataPath: string;
+/** Application.streamingAssetsPath - Read-only assets bundled with the app */
+declare const __streamingAssetsPath: string;
+/** Application.dataPath - Path to game data folder (Editor: Assets, Build: Data) */
+declare const __dataPath: string;
+/** Application.temporaryCachePath - Temporary cache directory */
+declare const __temporaryCachePath: string;
+
+// FileSystem API - Functions
+/**
+ * Read a text file from an absolute path.
+ * Works in Editor and standalone builds.
+ * @param path - Absolute path to the file
+ * @returns File contents
+ * @throws If file doesn't exist or cannot be read
+ * @example
+ * const uss = await readTextFile(`${__persistentDataPath}/themes/dark.uss`);
+ * compileStyleSheet(uss, "user-theme");
+ */
+declare function readTextFile(path: string): Promise<string>;
+
+/**
+ * Write text to a file at an absolute path.
+ * Creates the file if it doesn't exist, overwrites if it does.
+ * Automatically creates parent directories.
+ * @param path - Absolute path to the file
+ * @param content - Content to write
+ * @example
+ * await writeTextFile(`${__persistentDataPath}/prefs.json`, JSON.stringify(prefs));
+ */
+declare function writeTextFile(path: string, content: string): Promise<void>;
+
+/**
+ * Check if a file exists at the given path.
+ * @param path - Absolute path to check
+ * @returns True if file exists
+ */
+declare function fileExists(path: string): boolean;
+
+/**
+ * Check if a directory exists at the given path.
+ * @param path - Absolute path to check
+ * @returns True if directory exists
+ */
+declare function directoryExists(path: string): boolean;
+
+/**
+ * Delete a file at the given path.
+ * @param path - Absolute path to the file
+ * @returns True if file was deleted, false if it didn't exist
+ */
+declare function deleteFile(path: string): boolean;
+
+/**
+ * List files in a directory matching an optional pattern.
+ * @param path - Directory path
+ * @param pattern - Search pattern (e.g., "*.uss", "*.json"). Default is "*"
+ * @param recursive - Search subdirectories. Default is false
+ * @returns Array of file paths
+ */
+declare function listFiles(path: string, pattern?: string, recursive?: boolean): string[];
+
 // ES6 module declarations for Unity namespaces
 // Allows: import { GameObject } from "UnityEngine"
 declare module "UnityEngine" {

@@ -468,16 +468,25 @@ public static partial class QuickJSNative {
         char c = json[i];
 
         if (c == '"') return ParseJsonString(json, ref i);
-        if (c == '{') return ParseSimpleJson(json.Substring(i, FindMatchingBrace(json, i) - i + 1));
-        if (c == 't' && json.Substring(i, 4) == "true") {
+        if (c == '{') {
+            int end = FindMatchingBrace(json, i);
+            var subJson = json.Substring(i, end - i + 1);
+            i = end + 1;
+            return ParseSimpleJson(subJson);
+        }
+        if (c == '[') {
+            // Parse JSON array
+            return ParseJsonArray(json, ref i);
+        }
+        if (c == 't' && i + 4 <= json.Length && json.Substring(i, 4) == "true") {
             i += 4;
             return true;
         }
-        if (c == 'f' && json.Substring(i, 5) == "false") {
+        if (c == 'f' && i + 5 <= json.Length && json.Substring(i, 5) == "false") {
             i += 5;
             return false;
         }
-        if (c == 'n' && json.Substring(i, 4) == "null") {
+        if (c == 'n' && i + 4 <= json.Length && json.Substring(i, 4) == "null") {
             i += 4;
             return null;
         }
@@ -498,6 +507,34 @@ public static partial class QuickJSNative {
                 : 0.0;
         }
         return int.TryParse(numStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : 0;
+    }
+
+    /// <summary>
+    /// Parse a JSON array: [value, value, ...]
+    /// </summary>
+    static List<object> ParseJsonArray(string json, ref int i) {
+        if (i >= json.Length || json[i] != '[') return null;
+        i++; // Skip opening bracket
+
+        var result = new List<object>();
+
+        while (i < json.Length) {
+            SkipWhitespace(json, ref i);
+            if (i >= json.Length) break;
+            if (json[i] == ']') {
+                i++; // Skip closing bracket
+                break;
+            }
+            if (json[i] == ',') {
+                i++;
+                continue;
+            }
+
+            var value = ParseJsonValue(json, ref i);
+            result.Add(value);
+        }
+
+        return result;
     }
 
     static string ParseJsonString(string json, ref int i) {
@@ -580,9 +617,24 @@ public static partial class QuickJSNative {
             return value;
         }
 
-        // 1. Dictionary from JS -> struct
-        if (value is Dictionary<string, object> dict && IsSerializableStruct(targetType)) {
-            return DeserializeFromDict(dict, targetType);
+        // 1. Array conversions
+        if (targetType.IsArray) {
+            return ConvertToArray(value, targetType);
+        }
+
+        // 2. Dictionary from JS -> System.Type (type reference)
+        if (value is Dictionary<string, object> dict) {
+            // Handle __csTypeRef for AddComponent(MeshFilter) style calls
+            if (targetType == typeof(Type) &&
+                dict.TryGetValue("__csTypeRef", out var typeRefName) &&
+                typeRefName is string tn) {
+                return ResolveType(tn);
+            }
+
+            // Dictionary -> struct
+            if (IsSerializableStruct(targetType)) {
+                return DeserializeFromDict(dict, targetType);
+            }
         }
 
         // 2. JSON string -> struct (legacy support)
@@ -724,5 +776,162 @@ public static partial class QuickJSNative {
                t == typeof(long) || t == typeof(short) || t == typeof(byte) ||
                t == typeof(uint) || t == typeof(ulong) || t == typeof(ushort) ||
                t == typeof(sbyte) || t == typeof(decimal);
+    }
+
+    // MARK: Array Conversion
+    /// <summary>
+    /// Convert value to target array type.
+    /// Handles conversion from object[], typed arrays, and IEnumerable.
+    /// </summary>
+    static object ConvertToArray(object value, Type targetArrayType) {
+        if (value == null) return null;
+
+        var elementType = targetArrayType.GetElementType();
+        if (elementType == null) return value;
+
+        // If already correct type, return as-is
+        if (targetArrayType.IsAssignableFrom(value.GetType())) {
+            return value;
+        }
+
+        // Convert from IEnumerable
+        if (value is System.Collections.IEnumerable enumerable) {
+            var list = new List<object>();
+            foreach (var item in enumerable) {
+                list.Add(item);
+            }
+
+            var result = Array.CreateInstance(elementType, list.Count);
+            for (int i = 0; i < list.Count; i++) {
+                var converted = ConvertArrayElement(list[i], elementType);
+                result.SetValue(converted, i);
+            }
+            return result;
+        }
+
+        return value;
+    }
+
+    /// <summary>
+    /// Convert a single array element to the target type.
+    /// </summary>
+    static object ConvertArrayElement(object value, Type targetType) {
+        if (value == null) return null;
+
+        var sourceType = value.GetType();
+        if (targetType.IsAssignableFrom(sourceType)) return value;
+
+        // Vector conversions from dictionary or list
+        if (targetType == typeof(Vector2)) {
+            return ConvertToVector2Element(value);
+        }
+        if (targetType == typeof(Vector3)) {
+            return ConvertToVector3Element(value);
+        }
+        if (targetType == typeof(Vector4)) {
+            return ConvertToVector4Element(value);
+        }
+        if (targetType == typeof(Color)) {
+            return ConvertToColorElement(value);
+        }
+        if (targetType == typeof(Quaternion)) {
+            return ConvertToQuaternionElement(value);
+        }
+
+        // Numeric conversions
+        if (IsNumericType(targetType) && IsNumericType(sourceType)) {
+            return Convert.ChangeType(value, targetType, CultureInfo.InvariantCulture);
+        }
+
+        // String conversion
+        if (targetType == typeof(string)) {
+            return value?.ToString();
+        }
+
+        // Struct deserialization
+        if (value is Dictionary<string, object> dict && IsSerializableStruct(targetType)) {
+            return DeserializeFromDict(dict, targetType);
+        }
+
+        // Fallback: try generic conversion
+        return ConvertToTargetType(value, targetType);
+    }
+
+    static Vector2 ConvertToVector2Element(object obj) {
+        if (obj is Vector2 v2) return v2;
+        if (obj is Dictionary<string, object> dict) {
+            float x = dict.TryGetValue("x", out var xv) ? Convert.ToSingle(xv) : 0f;
+            float y = dict.TryGetValue("y", out var yv) ? Convert.ToSingle(yv) : 0f;
+            return new Vector2(x, y);
+        }
+        if (obj is List<object> list && list.Count >= 2) {
+            return new Vector2(Convert.ToSingle(list[0]), Convert.ToSingle(list[1]));
+        }
+        return Vector2.zero;
+    }
+
+    static Vector3 ConvertToVector3Element(object obj) {
+        if (obj is Vector3 v3) return v3;
+        if (obj is Dictionary<string, object> dict) {
+            float x = dict.TryGetValue("x", out var xv) ? Convert.ToSingle(xv) : 0f;
+            float y = dict.TryGetValue("y", out var yv) ? Convert.ToSingle(yv) : 0f;
+            float z = dict.TryGetValue("z", out var zv) ? Convert.ToSingle(zv) : 0f;
+            return new Vector3(x, y, z);
+        }
+        if (obj is List<object> list && list.Count >= 3) {
+            return new Vector3(Convert.ToSingle(list[0]), Convert.ToSingle(list[1]), Convert.ToSingle(list[2]));
+        }
+        return Vector3.zero;
+    }
+
+    static Vector4 ConvertToVector4Element(object obj) {
+        if (obj is Vector4 v4) return v4;
+        if (obj is Dictionary<string, object> dict) {
+            float x = dict.TryGetValue("x", out var xv) ? Convert.ToSingle(xv) : 0f;
+            float y = dict.TryGetValue("y", out var yv) ? Convert.ToSingle(yv) : 0f;
+            float z = dict.TryGetValue("z", out var zv) ? Convert.ToSingle(zv) : 0f;
+            float w = dict.TryGetValue("w", out var wv) ? Convert.ToSingle(wv) : 0f;
+            return new Vector4(x, y, z, w);
+        }
+        if (obj is List<object> list && list.Count >= 4) {
+            return new Vector4(Convert.ToSingle(list[0]), Convert.ToSingle(list[1]),
+                Convert.ToSingle(list[2]), Convert.ToSingle(list[3]));
+        }
+        return Vector4.zero;
+    }
+
+    static Color ConvertToColorElement(object obj) {
+        if (obj is Color c) return c;
+        if (obj is Dictionary<string, object> dict) {
+            float r = dict.TryGetValue("r", out var rv) ? Convert.ToSingle(rv) : 0f;
+            float g = dict.TryGetValue("g", out var gv) ? Convert.ToSingle(gv) : 0f;
+            float b = dict.TryGetValue("b", out var bv) ? Convert.ToSingle(bv) : 0f;
+            float a = dict.TryGetValue("a", out var av) ? Convert.ToSingle(av) : 1f;
+            return new Color(r, g, b, a);
+        }
+        if (obj is List<object> list && list.Count >= 3) {
+            float r = Convert.ToSingle(list[0]);
+            float g = Convert.ToSingle(list[1]);
+            float b = Convert.ToSingle(list[2]);
+            float a = list.Count >= 4 ? Convert.ToSingle(list[3]) : 1f;
+            return new Color(r, g, b, a);
+        }
+        return Color.white;
+    }
+
+    static Quaternion ConvertToQuaternionElement(object obj) {
+        if (obj is Quaternion q) return q;
+        if (obj is Dictionary<string, object> dict) {
+            float x = dict.TryGetValue("x", out var xv) ? Convert.ToSingle(xv) : 0f;
+            float y = dict.TryGetValue("y", out var yv) ? Convert.ToSingle(yv) : 0f;
+            float z = dict.TryGetValue("z", out var zv) ? Convert.ToSingle(zv) : 0f;
+            float w = dict.TryGetValue("w", out var wv) ? Convert.ToSingle(wv) : 1f;
+            return new Quaternion(x, y, z, w);
+        }
+        if (obj is List<object> list && list.Count >= 4) {
+            return new Quaternion(Convert.ToSingle(list[0]), Convert.ToSingle(list[1]),
+                Convert.ToSingle(list[2]), Convert.ToSingle(list[3]));
+        }
+        return Quaternion.identity;
     }
 }

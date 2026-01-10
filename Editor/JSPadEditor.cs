@@ -604,7 +604,7 @@ public class JSPadEditor : Editor {
 
         // Help box
         var cartridgesHelp = new HelpBox(
-            "Files are auto-extracted to @cartridges/{slug}/ on build. Objects are injected as __cartridges.{slug}.{key} at runtime.",
+            "Files are auto-extracted to @cartridges/{path}/ on build. Access via __cart('slug') or __cart('@namespace/slug') at runtime.",
             HelpBoxMessageType.Info
         );
         cartridgesHelp.style.marginTop = 6;

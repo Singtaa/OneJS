@@ -82,31 +82,36 @@ public static class CartridgeUtils {
     }
 
     /// <summary>
-    /// Inject Unity objects from cartridges as JavaScript globals under __cartridges namespace.
-    /// Access pattern: __cartridges.{slug}.{key}
+    /// Inject cartridges as JavaScript globals accessible via __cart(path) function.
+    /// Access pattern: __cart("colorPicker") or __cart("@myCompany/colorPicker")
+    /// Returns the UICartridge ScriptableObject directly.
     /// </summary>
     /// <param name="bridge">The QuickJS bridge to inject globals into</param>
     /// <param name="cartridges">List of cartridges to inject</param>
     public static void InjectCartridgeGlobals(QuickJSUIBridge bridge, IReadOnlyList<UICartridge> cartridges) {
-        if (cartridges == null || cartridges.Count == 0) return;
         if (bridge == null) return;
 
-        // Initialize __cartridges namespace
-        bridge.Eval("globalThis.__cartridges = globalThis.__cartridges || {}");
+        // Initialize __cartRegistry (internal storage) and __cart function
+        bridge.Eval(@"
+globalThis.__cartRegistry = globalThis.__cartRegistry || {};
+globalThis.__cart = function(path) {
+    var cart = __cartRegistry[path];
+    if (!cart) throw new Error('Cartridge not found: ' + path);
+    return cart;
+};
+", "__cart-init.js");
+
+        if (cartridges == null || cartridges.Count == 0) return;
 
         foreach (var cartridge in cartridges) {
             if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) continue;
 
-            // Create cartridge namespace
-            bridge.Eval($"__cartridges['{EscapeJsString(cartridge.Slug)}'] = {{}}");
+            // Register the UICartridge SO itself
+            var handle = QuickJSNative.RegisterObject(cartridge);
+            var typeName = typeof(UICartridge).FullName;
+            var path = EscapeJsString(cartridge.RelativePath);
 
-            foreach (var entry in cartridge.Objects) {
-                if (string.IsNullOrEmpty(entry.key) || entry.value == null) continue;
-
-                var handle = QuickJSNative.RegisterObject(entry.value);
-                var typeName = entry.value.GetType().FullName;
-                bridge.Eval($"__cartridges['{EscapeJsString(cartridge.Slug)}']['{EscapeJsString(entry.key)}'] = __csHelpers.wrapObject('{typeName}', {handle})");
-            }
+            bridge.Eval($"__cartRegistry['{path}'] = __csHelpers.wrapObject('{typeName}', {handle})");
         }
     }
 

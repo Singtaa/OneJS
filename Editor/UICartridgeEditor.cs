@@ -74,9 +74,9 @@ public class UICartridgeEditor : Editor {
             _pathPreviewLabel.style.color = new Color(0.7f, 0.85f, 1f);
 
             if (!string.IsNullOrEmpty(ns)) {
-                _pathPreviewLabel.text += $"\n__cartridges.{slug}";
+                _pathPreviewLabel.text += $"\n__cart('@{ns}/{slug}')";
             } else {
-                _pathPreviewLabel.text += $"\n__cartridges.{slug}";
+                _pathPreviewLabel.text += $"\n__cart('{slug}')";
             }
         }
     }
@@ -291,7 +291,7 @@ public class UICartridgeEditor : Editor {
         RebuildObjectsList();
 
         // Help text
-        var helpLabel = new Label("key \u2192 __cartridges.{slug}.{key}");
+        var helpLabel = new Label("key \u2192 __cart('slug').{key}");
         helpLabel.style.color = new Color(0.5f, 0.5f, 0.5f);
         helpLabel.style.fontSize = 10;
         helpLabel.style.marginTop = 4;

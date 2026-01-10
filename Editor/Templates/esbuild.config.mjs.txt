@@ -3,6 +3,9 @@ import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
 
+// Import transform plugin: enables `import { Texture2D } from "UnityEngine"`
+import { importTransformPlugin } from "onejs-unity/esbuild"
+
 // Optional: Import plugins for Tailwind CSS and USS Modules support
 // import { ussModulesPlugin, tailwindPlugin } from "onejs-unity/esbuild"
 
@@ -32,11 +35,13 @@ const config = {
     },
     // Ensure packages from node_modules are bundled, not externalized
     packages: "bundle",
-    // Optional: Add plugins for Tailwind CSS and USS Modules
-    // plugins: [
-    //     tailwindPlugin({ tailwindConfig: "./tailwind.config.js" }),
-    //     ussModulesPlugin({ generateTypes: true }),
-    // ],
+    plugins: [
+        // Transform `import { X } from "UnityEngine"` to `const { X } = CS.UnityEngine`
+        importTransformPlugin(),
+        // Optional: Add plugins for Tailwind CSS and USS Modules
+        // tailwindPlugin({ tailwindConfig: "./tailwind.config.js" }),
+        // ussModulesPlugin({ generateTypes: true }),
+    ],
 }
 
 // Rename sourcemap from app.js.txt.map to app.js.map.txt (Unity TextAsset)

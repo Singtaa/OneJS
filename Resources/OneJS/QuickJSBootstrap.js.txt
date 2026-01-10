@@ -63,20 +63,97 @@ function __resolveArgs(args) {
 
 function __resolveValue(value) {
     if (value == null) return value;
-    
+
     if (value.__csPathProxy) {
         return __resolvePathProxy(value);
     }
-    
+
     if (value.__csHandle) {
         return value;
     }
-    
-    if (typeof value === "object" && !Array.isArray(value)) {
+
+    // TypedArray detection - convert to array marker for C# marshaling
+    if (ArrayBuffer.isView(value) && !(value instanceof DataView)) {
+        return {
+            __csArray: Array.from(value),
+            __csArrayType: __getTypedArrayType(value)
+        };
+    }
+
+    // JS Array detection
+    if (Array.isArray(value)) {
+        return {
+            __csArray: value,
+            __csArrayType: __inferArrayType(value)
+        };
+    }
+
+    if (typeof value === "object") {
         return value;
     }
-    
+
     return value;
+}
+
+/**
+ * Get the C# element type hint from a TypedArray.
+ */
+function __getTypedArrayType(typedArray) {
+    if (typedArray instanceof Float32Array) return "float";
+    if (typedArray instanceof Float64Array) return "double";
+    if (typedArray instanceof Int32Array) return "int";
+    if (typedArray instanceof Int16Array) return "short";
+    if (typedArray instanceof Int8Array) return "sbyte";
+    if (typedArray instanceof Uint32Array) return "uint";
+    if (typedArray instanceof Uint16Array) return "ushort";
+    if (typedArray instanceof Uint8Array) return "byte";
+    if (typedArray instanceof BigInt64Array) return "long";
+    if (typedArray instanceof BigUint64Array) return "ulong";
+    return "object";
+}
+
+/**
+ * Infer element type from JS array contents.
+ */
+function __inferArrayType(arr) {
+    if (arr.length === 0) return "object";
+
+    const first = arr[0];
+    if (first == null) return "object";
+
+    // Check for Vector3-like objects: {x, y, z}
+    if (typeof first === "object" && "x" in first && "y" in first && "z" in first && !("w" in first)) {
+        return "Vector3";
+    }
+
+    // Check for Vector2-like objects: {x, y}
+    if (typeof first === "object" && "x" in first && "y" in first && !("z" in first)) {
+        return "Vector2";
+    }
+
+    // Check for Color-like objects: {r, g, b, a}
+    if (typeof first === "object" && "r" in first && "g" in first && "b" in first) {
+        return "Color";
+    }
+
+    // Check for tuple arrays: [[x,y,z], ...] -> Vector3[]
+    if (Array.isArray(first)) {
+        if (first.length === 3) return "Vector3";
+        if (first.length === 2) return "Vector2";
+        if (first.length === 4) return "Vector4";
+    }
+
+    // Numeric array
+    if (typeof first === "number") {
+        // Check if all numbers are integers
+        const allInt = arr.every(n => Number.isInteger(n));
+        return allInt ? "int" : "float";
+    }
+
+    if (typeof first === "string") return "string";
+    if (typeof first === "boolean") return "bool";
+
+    return "object";
 }
 
 function __resolvePathProxy(value) {
@@ -369,6 +446,24 @@ globalThis.__csHelpers = {
     callStatic,
     wrapObject: __wrapObject,
     releaseObject
+};
+
+/**
+ * Get System.Type from a type reference (path proxy or bound generic).
+ * Usage: go.AddComponent($typeof(MeshFilter))
+ *
+ * Note: With the improved interop, you can now often pass types directly:
+ *   go.AddComponent(MeshFilter)  // Works without $typeof!
+ *
+ * $typeof is still useful when you need an explicit System.Type object,
+ * e.g., for storing in a variable or type comparisons.
+ */
+globalThis.$typeof = function(typeRef) {
+    const typeName = __getTypeName(typeRef);
+    if (!typeName) {
+        throw new Error("$typeof: argument must be a type reference (e.g., CS.UnityEngine.MeshFilter)");
+    }
+    return { __csTypeRef: typeName };
 };
 
 // MARK: CS Proxy
@@ -912,6 +1007,112 @@ globalThis.clearStyleSheets = function() {
         return 0;
     }
     return globalThis.__bridge.ClearStyleSheets();
+};
+
+// MARK: FileSystem API
+/**
+ * Path globals for file system access in standalone builds.
+ * These are convenience aliases for Unity's Application paths.
+ */
+Object.defineProperty(globalThis, "__persistentDataPath", {
+    get: function() { return CS.UnityEngine.Application.persistentDataPath; },
+    enumerable: true
+});
+
+Object.defineProperty(globalThis, "__streamingAssetsPath", {
+    get: function() { return CS.UnityEngine.Application.streamingAssetsPath; },
+    enumerable: true
+});
+
+Object.defineProperty(globalThis, "__dataPath", {
+    get: function() { return CS.UnityEngine.Application.dataPath; },
+    enumerable: true
+});
+
+Object.defineProperty(globalThis, "__temporaryCachePath", {
+    get: function() { return CS.UnityEngine.Application.temporaryCachePath; },
+    enumerable: true
+});
+
+/**
+ * Read a text file from an absolute path.
+ * Works in Editor and standalone builds.
+ * @param {string} path - Absolute path to the file
+ * @returns {Promise<string>} File contents
+ * @throws {Error} If file doesn't exist or cannot be read
+ *
+ * @example
+ * // Load a USS theme from persistent data
+ * const uss = await readTextFile(`${__persistentDataPath}/themes/dark.uss`);
+ * compileStyleSheet(uss, "user-theme");
+ *
+ * @example
+ * // Load JSON config
+ * const config = JSON.parse(await readTextFile(`${__persistentDataPath}/config.json`));
+ */
+globalThis.readTextFile = async function(path) {
+    return await CS.OneJS.FileSystem.ReadTextFileAsync(path);
+};
+
+/**
+ * Write text to a file at an absolute path.
+ * Creates the file if it doesn't exist, overwrites if it does.
+ * Automatically creates parent directories.
+ * @param {string} path - Absolute path to the file
+ * @param {string} content - Content to write
+ * @returns {Promise<void>}
+ *
+ * @example
+ * // Save user preferences
+ * await writeTextFile(`${__persistentDataPath}/prefs.json`, JSON.stringify(prefs));
+ */
+globalThis.writeTextFile = async function(path, content) {
+    return await CS.OneJS.FileSystem.WriteTextFileAsync(path, content);
+};
+
+/**
+ * Check if a file exists at the given path.
+ * @param {string} path - Absolute path to check
+ * @returns {boolean} True if file exists
+ */
+globalThis.fileExists = function(path) {
+    return CS.OneJS.FileSystem.FileExists(path);
+};
+
+/**
+ * Check if a directory exists at the given path.
+ * @param {string} path - Absolute path to check
+ * @returns {boolean} True if directory exists
+ */
+globalThis.directoryExists = function(path) {
+    return CS.OneJS.FileSystem.DirectoryExists(path);
+};
+
+/**
+ * Delete a file at the given path.
+ * @param {string} path - Absolute path to the file
+ * @returns {boolean} True if file was deleted, false if it didn't exist
+ */
+globalThis.deleteFile = function(path) {
+    return CS.OneJS.FileSystem.DeleteFile(path);
+};
+
+/**
+ * List files in a directory matching an optional pattern.
+ * @param {string} path - Directory path
+ * @param {string} [pattern="*"] - Search pattern (e.g., "*.uss", "*.json")
+ * @param {boolean} [recursive=false] - Search subdirectories
+ * @returns {string[]} Array of file paths
+ */
+globalThis.listFiles = function(path, pattern, recursive) {
+    var csList = CS.OneJS.FileSystem.ListFiles(path, pattern || "*", recursive || false);
+    // Convert C# List<string> to JS array (List uses .Count, not .length)
+    var result = [];
+    var len = csList.Count;
+    for (var i = 0; i < len; i++) {
+        result.push(csList[i]);
+    }
+    return result;
 };
 
 // MARK: Fetch API

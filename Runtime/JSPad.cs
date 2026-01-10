@@ -73,7 +73,7 @@ render(<App />, __root)
     [Tooltip("Embedded PanelSettings for the UIDocument. Edit directly in the Settings > UI tab.")]
     [SerializeField, HideInInspector] PanelSettings _panelSettings;
 
-    [Tooltip("UI Cartridges to load. Files are extracted to temp directory, objects are injected as __cartridges.{slug}.{key}.")]
+    [Tooltip("UI Cartridges to load. Files are extracted to temp directory, accessible via __cart('slug') at runtime.")]
     [SerializeField] List<UICartridge> _cartridges = new List<UICartridge>();
 
     [Tooltip("Additional npm modules to include in the build. These are added to package.json dependencies.")]
@@ -453,8 +453,8 @@ render(<App />, __root)
     }
 
     /// <summary>
-    /// Inject Unity objects from cartridges as JavaScript globals under __cartridges namespace.
-    /// Access pattern: __cartridges.{slug}.{key}
+    /// Inject cartridges as JavaScript globals accessible via __cart(path).
+    /// Access pattern: __cart('slug') or __cart('@namespace/slug')
     /// </summary>
     void InjectCartridgeGlobals() {
         CartridgeUtils.InjectCartridgeGlobals(_bridge, _cartridges);

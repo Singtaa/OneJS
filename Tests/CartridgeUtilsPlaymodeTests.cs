@@ -134,7 +134,7 @@ public class CartridgeUtilsPlaymodeTests {
         yield return null;
     }
 
-    // MARK: InjectCartridgeGlobals Tests
+    // MARK: InjectCartridgeGlobals Tests (__cart API)
 
     [UnityTest]
     public IEnumerator InjectCartridgeGlobals_NullCartridges_DoesNotThrow() {
@@ -168,46 +168,61 @@ public class CartridgeUtilsPlaymodeTests {
     }
 
     [UnityTest]
-    public IEnumerator InjectCartridgeGlobals_CreatesCartridgesNamespace() {
-        var cartridges = new List<UICartridge>();
+    public IEnumerator InjectCartridgeGlobals_CreatesCartFunction() {
+        CartridgeUtils.InjectCartridgeGlobals(_bridge, null);
 
-        // Even with empty list, __cartridges should not throw when accessing
-        // (we don't inject if list is empty, but that's expected behavior)
-        var result = _bridge.Eval("typeof __cartridges");
-        Assert.AreEqual("undefined", result, "__cartridges should not exist before injection");
+        var result = _bridge.Eval("typeof __cart");
+        Assert.AreEqual("function", result, "__cart should be a function");
 
         yield return null;
     }
 
     [UnityTest]
-    public IEnumerator InjectCartridgeGlobals_ValidCartridge_CreatesNamespace() {
+    public IEnumerator InjectCartridgeGlobals_ValidCartridge_AccessibleViaCart() {
         var cartridge = CreateTestCartridge("myCart");
         var cartridges = new List<UICartridge> { cartridge };
 
         CartridgeUtils.InjectCartridgeGlobals(_bridge, cartridges);
 
-        var result = _bridge.Eval("typeof __cartridges");
-        Assert.AreEqual("object", result, "__cartridges should be an object");
+        // __cart("myCart") should return the cartridge SO
+        var result = _bridge.Eval("typeof __cart('myCart')");
+        Assert.AreEqual("object", result, "__cart('myCart') should return an object");
 
-        result = _bridge.Eval("typeof __cartridges.myCart");
-        Assert.AreEqual("object", result, "__cartridges.myCart should be an object");
+        // It should have a __csHandle (wrapped C# object)
+        result = _bridge.Eval("typeof __cart('myCart').__csHandle");
+        Assert.AreEqual("number", result, "Cartridge should have a handle");
 
         Object.DestroyImmediate(cartridge);
         yield return null;
     }
 
     [UnityTest]
-    public IEnumerator InjectCartridgeGlobals_MultipleCartridges_AllCreated() {
+    public IEnumerator InjectCartridgeGlobals_NamespacedCartridge_AccessibleViaFullPath() {
+        var cartridge = CreateTestCartridgeWithNamespace("myCompany", "myCart");
+        var cartridges = new List<UICartridge> { cartridge };
+
+        CartridgeUtils.InjectCartridgeGlobals(_bridge, cartridges);
+
+        // __cart("@myCompany/myCart") should return the cartridge SO
+        var result = _bridge.Eval("typeof __cart('@myCompany/myCart')");
+        Assert.AreEqual("object", result, "__cart('@myCompany/myCart') should return an object");
+
+        Object.DestroyImmediate(cartridge);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator InjectCartridgeGlobals_MultipleCartridges_AllAccessible() {
         var cart1 = CreateTestCartridge("cart1");
-        var cart2 = CreateTestCartridge("cart2");
+        var cart2 = CreateTestCartridgeWithNamespace("ns", "cart2");
         var cartridges = new List<UICartridge> { cart1, cart2 };
 
         CartridgeUtils.InjectCartridgeGlobals(_bridge, cartridges);
 
-        var result = _bridge.Eval("typeof __cartridges.cart1");
+        var result = _bridge.Eval("typeof __cart('cart1')");
         Assert.AreEqual("object", result);
 
-        result = _bridge.Eval("typeof __cartridges.cart2");
+        result = _bridge.Eval("typeof __cart('@ns/cart2')");
         Assert.AreEqual("object", result);
 
         Object.DestroyImmediate(cart1);
@@ -224,7 +239,7 @@ public class CartridgeUtilsPlaymodeTests {
             CartridgeUtils.InjectCartridgeGlobals(_bridge, cartridges);
         });
 
-        var result = _bridge.Eval("typeof __cartridges.validCart");
+        var result = _bridge.Eval("typeof __cart('validCart')");
         Assert.AreEqual("object", result);
 
         Object.DestroyImmediate(validCart);
@@ -232,20 +247,14 @@ public class CartridgeUtilsPlaymodeTests {
     }
 
     [UnityTest]
-    public IEnumerator InjectCartridgeGlobals_CartridgeWithObject_InjectsObject() {
-        var cartridge = CreateTestCartridgeWithObject("testCart", "config", new GameObject("TestGO"));
-        var cartridges = new List<UICartridge> { cartridge };
+    public IEnumerator InjectCartridgeGlobals_NotFoundCartridge_ThrowsError() {
+        CartridgeUtils.InjectCartridgeGlobals(_bridge, null);
 
-        CartridgeUtils.InjectCartridgeGlobals(_bridge, cartridges);
+        // Calling __cart with unknown path should throw
+        var result = _bridge.Eval("try { __cart('nonexistent'); 'no error' } catch(e) { 'error: ' + e.message }");
+        Assert.IsTrue(result.Contains("error:"), "Should throw error for unknown cartridge");
+        Assert.IsTrue(result.Contains("nonexistent"), "Error should mention the path");
 
-        var result = _bridge.Eval("typeof __cartridges.testCart.config");
-        Assert.AreEqual("object", result, "Injected object should be accessible");
-
-        // The object should have a __csHandle (wrapped C# object)
-        result = _bridge.Eval("typeof __cartridges.testCart.config.__csHandle");
-        Assert.AreEqual("number", result, "Injected object should have a handle");
-
-        Object.DestroyImmediate(cartridge);
         yield return null;
     }
 
@@ -259,8 +268,8 @@ public class CartridgeUtilsPlaymodeTests {
             CartridgeUtils.InjectCartridgeGlobals(_bridge, cartridges);
         });
 
-        // Access using bracket notation
-        var result = _bridge.Eval("typeof __cartridges[\"my'Cart\"]");
+        // Access using the path
+        var result = _bridge.Eval("typeof __cart(\"my'Cart\")");
         Assert.AreEqual("object", result);
 
         Object.DestroyImmediate(cartridge);
@@ -289,10 +298,29 @@ public class CartridgeUtilsPlaymodeTests {
     }
 
     /// <summary>
+    /// Sets the namespace field on a UICartridge via reflection.
+    /// </summary>
+    void SetCartridgeNamespace(UICartridge cartridge, string ns) {
+        var field = typeof(UICartridge).GetField("_namespace",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        field.SetValue(cartridge, ns);
+    }
+
+    /// <summary>
     /// Creates a test UICartridge with the given slug.
     /// </summary>
     UICartridge CreateTestCartridge(string slug) {
         var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+        SetCartridgeSlug(cartridge, slug);
+        return cartridge;
+    }
+
+    /// <summary>
+    /// Creates a test UICartridge with namespace and slug.
+    /// </summary>
+    UICartridge CreateTestCartridgeWithNamespace(string ns, string slug) {
+        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+        SetCartridgeNamespace(cartridge, ns);
         SetCartridgeSlug(cartridge, slug);
         return cartridge;
     }

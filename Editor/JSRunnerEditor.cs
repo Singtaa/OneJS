@@ -486,7 +486,7 @@ public class JSRunnerEditor : Editor {
 
         // Help box
         var helpBox = new HelpBox(
-            "Files are extracted to @cartridges/{slug}/. Objects are injected as __cartridges.{slug}.{key} at runtime.\n" +
+            "Files are extracted to @cartridges/{path}/. Access via __cart('slug') or __cart('@namespace/slug') at runtime.\n" +
             "E = Extract (overwrites existing), D = Delete extracted folder, X = Remove from list",
             HelpBoxMessageType.Info
         );

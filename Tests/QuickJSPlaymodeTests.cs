@@ -850,5 +850,174 @@ public class QuickJSPlaymodeTests {
 
         yield return null;
     }
+
+    // MARK: Array Marshaling Tests
+
+    [UnityTest]
+    public IEnumerator Array_Float32Array_ToFloatArray_Works() {
+        // Test passing Float32Array to a C# method expecting float[]
+        var result = _ctx.Eval(@"
+            var arr = new Float32Array([1.5, 2.5, 3.5, 4.5]);
+            CS.ArrayTestHelper.SumFloatArray(arr);
+        ");
+        Assert.AreEqual("12", result); // 1.5 + 2.5 + 3.5 + 4.5 = 12
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Array_Int32Array_ToIntArray_Works() {
+        // Test passing Int32Array to a C# method expecting int[]
+        var result = _ctx.Eval(@"
+            var arr = new Int32Array([10, 20, 30, 40]);
+            CS.ArrayTestHelper.SumIntArray(arr);
+        ");
+        Assert.AreEqual("100", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Array_JsArray_ToIntArray_Works() {
+        // Test passing JS array to a C# method expecting int[]
+        var result = _ctx.Eval(@"
+            var arr = [1, 2, 3, 4, 5];
+            CS.ArrayTestHelper.SumIntArray(arr);
+        ");
+        Assert.AreEqual("15", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Array_JsArray_ToFloatArray_Works() {
+        // Test passing JS array with floats to a C# method
+        var result = _ctx.Eval(@"
+            var arr = [0.5, 1.5, 2.5];
+            CS.ArrayTestHelper.SumFloatArray(arr);
+        ");
+        Assert.AreEqual("4.5", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Array_JsObjectArray_ToVector3Array_Works() {
+        // Test passing JS array of {x,y,z} objects to Vector3[]
+        var result = _ctx.Eval(@"
+            var arr = [
+                { x: 1, y: 2, z: 3 },
+                { x: 4, y: 5, z: 6 }
+            ];
+            var sum = CS.ArrayTestHelper.SumVector3Array(arr);
+            sum.x + ',' + sum.y + ',' + sum.z;
+        ");
+        Assert.AreEqual("5,7,9", result); // (1+4, 2+5, 3+6)
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Array_JsTupleArray_ToVector3Array_Works() {
+        // Test passing JS array of [x,y,z] tuples to Vector3[]
+        var result = _ctx.Eval(@"
+            var arr = [
+                [1, 0, 0],
+                [0, 1, 0],
+                [0, 0, 1]
+            ];
+            var sum = CS.ArrayTestHelper.SumVector3Array(arr);
+            sum.x + ',' + sum.y + ',' + sum.z;
+        ");
+        Assert.AreEqual("1,1,1", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Array_EmptyTypedArray_Works() {
+        // Test passing empty typed array (TypedArrays have explicit type info)
+        var result = _ctx.Eval(@"
+            var arr = new Int32Array(0);
+            CS.ArrayTestHelper.SumIntArray(arr);
+        ");
+        Assert.AreEqual("0", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Array_JsColorArray_ToColorArray_Works() {
+        // Test passing JS array of {r,g,b,a} objects to Color[]
+        // Note: Color is returned as Vector4, so we access x,y,z (which map to r,g,b)
+        var result = _ctx.Eval(@"
+            var colors = [
+                { r: 1, g: 0, b: 0, a: 1 },
+                { r: 0, g: 1, b: 0, a: 1 }
+            ];
+            var avg = CS.ArrayTestHelper.AverageColors(colors);
+            avg.x + ',' + avg.y + ',' + avg.z;
+        ");
+        Assert.AreEqual("0.5,0.5,0", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Array_StringArray_Works() {
+        // Test passing JS string array
+        var result = _ctx.Eval(@"
+            var arr = ['Hello', ' ', 'World'];
+            CS.ArrayTestHelper.JoinStrings(arr);
+        ");
+        Assert.AreEqual("Hello World", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Array_LargeArray_Works() {
+        // Test with a larger array to ensure no performance/memory issues
+        var result = _ctx.Eval(@"
+            var arr = new Float32Array(1000);
+            for (var i = 0; i < 1000; i++) arr[i] = 1;
+            CS.ArrayTestHelper.SumFloatArray(arr);
+        ");
+        Assert.AreEqual("1000", result);
+        yield return null;
+    }
+}
+
+// MARK: Array Test Helper
+public static class ArrayTestHelper {
+    public static float SumFloatArray(float[] arr) {
+        if (arr == null || arr.Length == 0) return 0;
+        float sum = 0;
+        for (int i = 0; i < arr.Length; i++) sum += arr[i];
+        return sum;
+    }
+
+    public static int SumIntArray(int[] arr) {
+        if (arr == null || arr.Length == 0) return 0;
+        int sum = 0;
+        for (int i = 0; i < arr.Length; i++) sum += arr[i];
+        return sum;
+    }
+
+    public static Vector3 SumVector3Array(Vector3[] arr) {
+        if (arr == null || arr.Length == 0) return Vector3.zero;
+        Vector3 sum = Vector3.zero;
+        for (int i = 0; i < arr.Length; i++) sum += arr[i];
+        return sum;
+    }
+
+    public static Color AverageColors(Color[] arr) {
+        if (arr == null || arr.Length == 0) return Color.black;
+        float r = 0, g = 0, b = 0, a = 0;
+        for (int i = 0; i < arr.Length; i++) {
+            r += arr[i].r;
+            g += arr[i].g;
+            b += arr[i].b;
+            a += arr[i].a;
+        }
+        int n = arr.Length;
+        return new Color(r / n, g / n, b / n, a / n);
+    }
+
+    public static string JoinStrings(string[] arr) {
+        if (arr == null || arr.Length == 0) return "";
+        return string.Join("", arr);
+    }
 }
 

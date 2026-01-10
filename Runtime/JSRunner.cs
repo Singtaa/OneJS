@@ -115,7 +115,7 @@ public class JSRunner : MonoBehaviour {
     [PairDrawer("→")]
     [SerializeField] List<GlobalEntry> _globals = new List<GlobalEntry>();
 
-    [Tooltip("UI Cartridges to load. Files are extracted at build time, objects are injected as __cartridges.{slug}.{key}.")]
+    [Tooltip("UI Cartridges to load. Files are extracted at build time, accessible via __cart('slug') at runtime.")]
     [SerializeField] List<UICartridge> _cartridges = new List<UICartridge>();
 
     QuickJSUIBridge _bridge;

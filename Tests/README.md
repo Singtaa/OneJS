@@ -18,6 +18,9 @@ Tests/
 ├── QuickJSURLTests.cs
 ├── QuickJSBase64Tests.cs
 ├── GPUBridgePlaymodeTests.cs
+├── GPUBridgeJSPlaymodeTests.cs
+├── ProcNoisePlaymodeTests.cs       # Procedural noise tests
+├── ProcTexturePlaymodeTests.cs     # Procedural texture tests
 ├── JSRunnerPlaymodeTests.cs     # JSRunner MonoBehaviour tests
 ├── JSPadPlaymodeTests.cs        # JSPad MonoBehaviour tests
 ├── Editor/                      # EditMode tests
@@ -47,7 +50,7 @@ Tests/
 
 | File | Type | Purpose |
 |------|------|---------|
-| `QuickJSPlaymodeTests.cs` | PlayMode | Core eval, static calls, constructors, generics, async |
+| `QuickJSPlaymodeTests.cs` | PlayMode | Core eval, static calls, constructors, generics, async, array marshaling |
 | `QuickJSFastPathPlaymodeTests.cs` | PlayMode | Zero-allocation property access, method calls |
 | `QuickJSZeroAllocTests.cs` | PlayMode | Zero-allocation GPU bindings, property ID caching |
 | `QuickJSUIBridgePlaymodeTests.cs` | PlayMode | Event delegation, scheduling, Promises |
@@ -56,6 +59,9 @@ Tests/
 | `JSRunnerPlaymodeTests.cs` | PlayMode | JSRunner scaffolding, init, reload, globals |
 | `JSPadPlaymodeTests.cs` | PlayMode | JSPad temp dirs, build state, execution |
 | `GPUBridgePlaymodeTests.cs` | PlayMode | GPU compute shaders, buffers, dispatch |
+| `GPUBridgeJSPlaymodeTests.cs` | PlayMode | GPU operations from JavaScript |
+| `ProcNoisePlaymodeTests.cs` | PlayMode | Procedural noise generation (Perlin, Value, FBM) |
+| `ProcTexturePlaymodeTests.cs` | PlayMode | Procedural texture generation (checkerboard, gradient) |
 | `JSRunnerBuildProcessorTests.cs` | EditMode | Asset copying, namespace detection |
 | `BuildValidationTests.cs` | EditMode | Full build + run validation (slow) |
 
@@ -91,6 +97,19 @@ Tests and documentation for the zero-allocation interop system:
 - **Performance**: InvokeCallbackNoAlloc overhead, per-frame GPU update simulation
 
 The test file also serves as comprehensive documentation with examples.
+
+### Array Marshaling Tests (QuickJSPlaymodeTests)
+
+Tests for automatic JS → C# array conversion:
+
+- **TypedArray to C# array**: `Float32Array` → `float[]`, `Int32Array` → `int[]`
+- **JS array to float/int array**: `[1, 2, 3]` → `int[]` or `float[]`
+- **Object arrays to Vector3[]**: `[{ x, y, z }, ...]` → `Vector3[]`
+- **Tuple arrays to Vector3[]**: `[[x, y, z], ...]` → `Vector3[]`
+- **Color arrays**: `[{ r, g, b, a }, ...]` or `[[r,g,b,a], ...]` → `Color[]`
+- **String arrays**: `["a", "b"]` → `string[]`
+- **Empty arrays**: Typed vs untyped behavior
+- **Large arrays**: Performance with 1000+ elements
 
 ### Build Validation (BuildValidationTests)
 - **End-to-End**: Builds player, runs, validates output

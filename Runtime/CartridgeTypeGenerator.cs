@@ -6,7 +6,7 @@ using UnityEngine;
 namespace OneJS {
     /// <summary>
     /// Generates TypeScript definition files for cartridge objects.
-    /// Enables intellisense for __cartridges.{slug}.{key} access.
+    /// Enables intellisense for __cart('slug') access.
     /// </summary>
     public static class CartridgeTypeGenerator {
         // Common Unity type mappings
@@ -60,21 +60,22 @@ namespace OneJS {
                 return sb.ToString();
             }
 
-            // Generate interface for this cartridge's objects
+            // Generate interface and __cart overload for this cartridge
+            var path = cartridge.RelativePath;
+            var interfaceName = ToPascalCase(cartridge.Slug) + "Cartridge";
+
             sb.AppendLine("declare global {");
-            sb.AppendLine("    interface __CartridgesType {");
-            sb.AppendLine($"        {cartridge.Slug}: {{");
+            sb.AppendLine($"    interface {interfaceName} {{");
 
             foreach (var entry in cartridge.Objects) {
                 if (string.IsNullOrEmpty(entry.key) || entry.value == null) continue;
 
                 var tsType = GetTypeScriptType(entry.value.GetType());
-                sb.AppendLine($"            {entry.key}: {tsType};");
+                sb.AppendLine($"        {entry.key}: {tsType};");
             }
 
-            sb.AppendLine("        };");
             sb.AppendLine("    }");
-            sb.AppendLine("    const __cartridges: __CartridgesType;");
+            sb.AppendLine($"    function __cart(path: '{path}'): {interfaceName};");
             sb.AppendLine("}");
             sb.AppendLine();
             sb.AppendLine("export {};");
@@ -123,6 +124,29 @@ namespace OneJS {
             fullName = fullName.Replace("+", ".");
 
             return $"CS.{fullName}";
+        }
+
+        /// <summary>
+        /// Convert a kebab-case slug to PascalCase for interface names.
+        /// </summary>
+        static string ToPascalCase(string slug) {
+            if (string.IsNullOrEmpty(slug)) return slug;
+
+            var sb = new StringBuilder();
+            var capitalizeNext = true;
+
+            foreach (var c in slug) {
+                if (c == '-' || c == '_') {
+                    capitalizeNext = true;
+                } else if (capitalizeNext) {
+                    sb.Append(char.ToUpperInvariant(c));
+                    capitalizeNext = false;
+                } else {
+                    sb.Append(c);
+                }
+            }
+
+            return sb.ToString();
         }
     }
 }

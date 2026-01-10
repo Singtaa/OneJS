@@ -56,7 +56,17 @@ public static partial class QuickJSNative {
             return !paramType.IsValueType || Nullable.GetUnderlyingType(paramType) != null;
 
         var argType = arg.GetType();
-        return paramType.IsAssignableFrom(argType) || (paramType.IsPrimitive && argType.IsPrimitive);
+        if (paramType.IsAssignableFrom(argType)) return true;
+        if (paramType.IsPrimitive && argType.IsPrimitive) return true;
+
+        // Type reference dict -> System.Type
+        if (paramType == typeof(Type) &&
+            arg is Dictionary<string, object> dict &&
+            dict.ContainsKey("__csTypeRef")) {
+            return true;
+        }
+
+        return false;
     }
 
     static MethodInfo FindMethod(Type type, string name, BindingFlags flags, object[] args) {

@@ -15,12 +15,12 @@ public class CartridgeFileEntry {
 }
 
 /// <summary>
-/// An object entry to be injected as a JavaScript global under __cartridges.{slug}.
+/// An object entry accessible via __cart(path) at runtime.
 /// Key is the property name, Value is any UnityEngine.Object.
 /// </summary>
 [Serializable]
 public class CartridgeObjectEntry {
-    [Tooltip("Property name under __cartridges.{slug} (e.g., 'config' becomes __cartridges.myCartridge.config)")]
+    [Tooltip("Property name accessible via __cart('slug').{key} (e.g., 'config' becomes __cart('myCartridge').config)")]
     public string key;
     [Tooltip("Any Unity object to expose to JavaScript")]
     public UnityEngine.Object value;
@@ -32,14 +32,14 @@ public class CartridgeObjectEntry {
 ///
 /// Files are extracted to: {WorkingDir}/@cartridges/{slug}/ (no namespace)
 /// Files are extracted to: {WorkingDir}/@cartridges/@{namespace}/{slug}/ (with namespace)
-/// Objects are injected as: __cartridges.{slug}.{key}
+/// Cartridge is accessible via: __cart('slug') or __cart('@namespace/slug')
 /// </summary>
 [CreateAssetMenu(fileName = "NewCartridge", menuName = "OneJS/UI Cartridge", order = 100)]
 public class UICartridge : ScriptableObject {
     [Tooltip("Optional namespace for organizing cartridges (e.g., 'myCompany' -> @cartridges/@myCompany/{slug})")]
     [SerializeField] string _namespace;
 
-    [Tooltip("Identifier used for folder name and JS access (e.g., 'colorPicker' -> __cartridges.colorPicker)")]
+    [Tooltip("Identifier used for folder name and JS access (e.g., 'colorPicker' -> __cart('colorPicker'))")]
     [SerializeField] string _slug;
 
     [Tooltip("Human-readable display name")]
@@ -53,7 +53,7 @@ public class UICartridge : ScriptableObject {
     [PairDrawer("←")]
     [SerializeField] List<CartridgeFileEntry> _files = new List<CartridgeFileEntry>();
 
-    [Tooltip("Unity objects to inject as __cartridges.{slug}.{key}")]
+    [Tooltip("Unity objects accessible via __cart('slug').{key}")]
     [PairDrawer("→")]
     [SerializeField] List<CartridgeObjectEntry> _objects = new List<CartridgeObjectEntry>();
 

@@ -581,6 +581,14 @@ public static partial class QuickJSNative {
                 if (!string.IsNullOrEmpty(json)) {
                     var dict = ParseSimpleJson(json);
                     if (dict != null) {
+                        // Check for array marker from JS
+                        if (dict.TryGetValue("__csArray", out var arrayData)) {
+                            string arrayType = null;
+                            if (dict.TryGetValue("__csArrayType", out var at) && at is string ats) {
+                                arrayType = ats;
+                            }
+                            return ConvertJsArrayToCs(arrayData, arrayType);
+                        }
                         if (dict.TryGetValue("__csTypeRef", out var typeRefName) &&
                             typeRefName is string tn) {
                             return ResolveType(tn);
@@ -657,5 +665,232 @@ public static partial class QuickJSNative {
         }
 
         return v;
+    }
+
+    // MARK: Array Conversion
+    /// <summary>
+    /// Convert JS array data to C# array based on type hint.
+    /// </summary>
+    static object ConvertJsArrayToCs(object arrayData, string typeHint) {
+        if (arrayData == null) return null;
+
+        // arrayData should be a List<object> from JSON parsing
+        var list = arrayData as List<object>;
+        if (list == null) {
+            // Try to get it as a dictionary array (shouldn't happen, but defensive)
+            if (arrayData is System.Collections.IEnumerable enumerable) {
+                list = new List<object>();
+                foreach (var item in enumerable) {
+                    list.Add(item);
+                }
+            } else {
+                return null;
+            }
+        }
+
+        int count = list.Count;
+        if (count == 0) {
+            // Return empty array of appropriate type
+            return typeHint switch {
+                "float" => Array.Empty<float>(),
+                "double" => Array.Empty<double>(),
+                "int" => Array.Empty<int>(),
+                "short" => Array.Empty<short>(),
+                "byte" => Array.Empty<byte>(),
+                "sbyte" => Array.Empty<sbyte>(),
+                "uint" => Array.Empty<uint>(),
+                "ushort" => Array.Empty<ushort>(),
+                "long" => Array.Empty<long>(),
+                "ulong" => Array.Empty<ulong>(),
+                "bool" => Array.Empty<bool>(),
+                "string" => Array.Empty<string>(),
+                "Vector2" => Array.Empty<Vector2>(),
+                "Vector3" => Array.Empty<Vector3>(),
+                "Vector4" => Array.Empty<Vector4>(),
+                "Color" => Array.Empty<Color>(),
+                _ => Array.Empty<object>()
+            };
+        }
+
+        // Convert based on type hint
+        switch (typeHint) {
+            case "float":
+                var floatArr = new float[count];
+                for (int i = 0; i < count; i++) {
+                    floatArr[i] = Convert.ToSingle(list[i]);
+                }
+                return floatArr;
+
+            case "double":
+                var doubleArr = new double[count];
+                for (int i = 0; i < count; i++) {
+                    doubleArr[i] = Convert.ToDouble(list[i]);
+                }
+                return doubleArr;
+
+            case "int":
+                var intArr = new int[count];
+                for (int i = 0; i < count; i++) {
+                    intArr[i] = Convert.ToInt32(list[i]);
+                }
+                return intArr;
+
+            case "short":
+                var shortArr = new short[count];
+                for (int i = 0; i < count; i++) {
+                    shortArr[i] = Convert.ToInt16(list[i]);
+                }
+                return shortArr;
+
+            case "byte":
+                var byteArr = new byte[count];
+                for (int i = 0; i < count; i++) {
+                    byteArr[i] = Convert.ToByte(list[i]);
+                }
+                return byteArr;
+
+            case "sbyte":
+                var sbyteArr = new sbyte[count];
+                for (int i = 0; i < count; i++) {
+                    sbyteArr[i] = Convert.ToSByte(list[i]);
+                }
+                return sbyteArr;
+
+            case "uint":
+                var uintArr = new uint[count];
+                for (int i = 0; i < count; i++) {
+                    uintArr[i] = Convert.ToUInt32(list[i]);
+                }
+                return uintArr;
+
+            case "ushort":
+                var ushortArr = new ushort[count];
+                for (int i = 0; i < count; i++) {
+                    ushortArr[i] = Convert.ToUInt16(list[i]);
+                }
+                return ushortArr;
+
+            case "long":
+                var longArr = new long[count];
+                for (int i = 0; i < count; i++) {
+                    longArr[i] = Convert.ToInt64(list[i]);
+                }
+                return longArr;
+
+            case "ulong":
+                var ulongArr = new ulong[count];
+                for (int i = 0; i < count; i++) {
+                    ulongArr[i] = Convert.ToUInt64(list[i]);
+                }
+                return ulongArr;
+
+            case "bool":
+                var boolArr = new bool[count];
+                for (int i = 0; i < count; i++) {
+                    boolArr[i] = Convert.ToBoolean(list[i]);
+                }
+                return boolArr;
+
+            case "string":
+                var strArr = new string[count];
+                for (int i = 0; i < count; i++) {
+                    strArr[i] = list[i]?.ToString();
+                }
+                return strArr;
+
+            case "Vector2":
+                var vec2Arr = new Vector2[count];
+                for (int i = 0; i < count; i++) {
+                    vec2Arr[i] = ConvertToVector2(list[i]);
+                }
+                return vec2Arr;
+
+            case "Vector3":
+                var vec3Arr = new Vector3[count];
+                for (int i = 0; i < count; i++) {
+                    vec3Arr[i] = ConvertToVector3(list[i]);
+                }
+                return vec3Arr;
+
+            case "Vector4":
+                var vec4Arr = new Vector4[count];
+                for (int i = 0; i < count; i++) {
+                    vec4Arr[i] = ConvertToVector4(list[i]);
+                }
+                return vec4Arr;
+
+            case "Color":
+                var colorArr = new Color[count];
+                for (int i = 0; i < count; i++) {
+                    colorArr[i] = ConvertToColor(list[i]);
+                }
+                return colorArr;
+
+            default:
+                // Return as object array
+                return list.ToArray();
+        }
+    }
+
+    static Vector2 ConvertToVector2(object obj) {
+        if (obj is Dictionary<string, object> dict) {
+            float x = dict.TryGetValue("x", out var xv) ? Convert.ToSingle(xv) : 0f;
+            float y = dict.TryGetValue("y", out var yv) ? Convert.ToSingle(yv) : 0f;
+            return new Vector2(x, y);
+        }
+        if (obj is List<object> list && list.Count >= 2) {
+            return new Vector2(Convert.ToSingle(list[0]), Convert.ToSingle(list[1]));
+        }
+        if (obj is Vector2 v2) return v2;
+        return Vector2.zero;
+    }
+
+    static Vector3 ConvertToVector3(object obj) {
+        if (obj is Dictionary<string, object> dict) {
+            float x = dict.TryGetValue("x", out var xv) ? Convert.ToSingle(xv) : 0f;
+            float y = dict.TryGetValue("y", out var yv) ? Convert.ToSingle(yv) : 0f;
+            float z = dict.TryGetValue("z", out var zv) ? Convert.ToSingle(zv) : 0f;
+            return new Vector3(x, y, z);
+        }
+        if (obj is List<object> list && list.Count >= 3) {
+            return new Vector3(Convert.ToSingle(list[0]), Convert.ToSingle(list[1]), Convert.ToSingle(list[2]));
+        }
+        if (obj is Vector3 v3) return v3;
+        return Vector3.zero;
+    }
+
+    static Vector4 ConvertToVector4(object obj) {
+        if (obj is Dictionary<string, object> dict) {
+            float x = dict.TryGetValue("x", out var xv) ? Convert.ToSingle(xv) : 0f;
+            float y = dict.TryGetValue("y", out var yv) ? Convert.ToSingle(yv) : 0f;
+            float z = dict.TryGetValue("z", out var zv) ? Convert.ToSingle(zv) : 0f;
+            float w = dict.TryGetValue("w", out var wv) ? Convert.ToSingle(wv) : 0f;
+            return new Vector4(x, y, z, w);
+        }
+        if (obj is List<object> list && list.Count >= 4) {
+            return new Vector4(Convert.ToSingle(list[0]), Convert.ToSingle(list[1]),
+                Convert.ToSingle(list[2]), Convert.ToSingle(list[3]));
+        }
+        if (obj is Vector4 v4) return v4;
+        return Vector4.zero;
+    }
+
+    static Color ConvertToColor(object obj) {
+        if (obj is Dictionary<string, object> dict) {
+            float r = dict.TryGetValue("r", out var rv) ? Convert.ToSingle(rv) : 0f;
+            float g = dict.TryGetValue("g", out var gv) ? Convert.ToSingle(gv) : 0f;
+            float b = dict.TryGetValue("b", out var bv) ? Convert.ToSingle(bv) : 0f;
+            float a = dict.TryGetValue("a", out var av) ? Convert.ToSingle(av) : 1f;
+            return new Color(r, g, b, a);
+        }
+        if (obj is List<object> list && list.Count >= 3) {
+            float r = Convert.ToSingle(list[0]);
+            float g = Convert.ToSingle(list[1]);
+            float b = Convert.ToSingle(list[2]);
+            float a = list.Count >= 4 ? Convert.ToSingle(list[3]) : 1f;
+            return new Color(r, g, b, a);
+        }
+        if (obj is Color c) return c;
+        return Color.white;
     }
 }
