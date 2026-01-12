@@ -102,7 +102,7 @@ public class JSPadEditor : Editor {
         _root = new VisualElement();
 
         // Restore selected tab from SessionState
-        _selectedTab = SessionState.GetInt(SelectedTabKey, 0);
+        _selectedTab = EditorPrefs.GetInt(SelectedTabKey, 0);
 
         // Status section
         var statusBox = new VisualElement();
@@ -179,7 +179,7 @@ public class JSPadEditor : Editor {
         _root.Add(statusBox);
 
         // Settings foldout (contains tabs) - restore state from SessionState
-        var settingsFoldout = new Foldout { text = "Settings", value = SessionState.GetBool(SettingsFoldoutKey, false) };
+        var settingsFoldout = new Foldout { text = "Settings", value = EditorPrefs.GetBool(SettingsFoldoutKey, false) };
         settingsFoldout.style.marginBottom = 6;
         // Remove default left margin on foldout content
         var foldoutContent = settingsFoldout.Q<VisualElement>(className: "unity-foldout__content");
@@ -187,7 +187,7 @@ public class JSPadEditor : Editor {
             foldoutContent.style.marginLeft = 0;
         }
         // Save foldout state when changed
-        settingsFoldout.RegisterValueChangedCallback(evt => SessionState.SetBool(SettingsFoldoutKey, evt.newValue));
+        settingsFoldout.RegisterValueChangedCallback(evt => EditorPrefs.SetBool(SettingsFoldoutKey, evt.newValue));
         _root.Add(settingsFoldout);
 
         // Tabs section
@@ -298,7 +298,7 @@ public class JSPadEditor : Editor {
 
     void SelectTab(int index) {
         _selectedTab = index;
-        SessionState.SetInt(SelectedTabKey, index);
+        EditorPrefs.SetInt(SelectedTabKey, index);
         BuildTabs();
     }
 
