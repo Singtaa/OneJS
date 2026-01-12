@@ -66,6 +66,38 @@ public static partial class QuickJSNative {
             return true;
         }
 
+        // Callback handle dict -> Delegate
+        if (typeof(Delegate).IsAssignableFrom(paramType) &&
+            arg is Dictionary<string, object> callbackDict &&
+            callbackDict.ContainsKey("__csCallbackHandle")) {
+            return true;
+        }
+
+        // Dictionary -> serializable struct (ConvertToTargetType will handle the conversion)
+        // This handles structs like Angle, Length, etc. that are serialized as JSON objects
+        if (arg is Dictionary<string, object> &&
+            paramType.IsValueType && !paramType.IsPrimitive && !paramType.IsEnum) {
+            return true;
+        }
+
+        // JSON string with __type marker -> serializable struct
+        // When a serialized struct is passed through JS, it may come back as a JSON string
+        // (due to try_convert_struct in native code returning STRING type for __type objects)
+        if (arg is string jsonStr && jsonStr.StartsWith("{\"__type\":") &&
+            paramType.IsValueType && !paramType.IsPrimitive && !paramType.IsEnum) {
+            return true;
+        }
+
+        // Enum from numeric value
+        if (paramType.IsEnum && IsNumericType(argType)) {
+            return true;
+        }
+
+        // Vector3 -> Vector2 (C# returns Vector2 as Vector3 with z=0 for efficiency)
+        if (paramType == typeof(UnityEngine.Vector2) && argType == typeof(UnityEngine.Vector3)) {
+            return true;
+        }
+
         return false;
     }
 

@@ -72,6 +72,24 @@ function __resolveValue(value) {
         return value;
     }
 
+    // Function detection - register as callback for C# delegate conversion
+    // Native builds have __registerCallback; WebGL does not (handled differently)
+    if (typeof value === "function" && typeof __registerCallback === "function") {
+        // Wrap the callback to process incoming arguments from C#
+        // Native layer passes {__csHandle: N} objects that need proxy wrapping
+        const wrappedCallback = function(...args) {
+            const wrappedArgs = args.map(arg => {
+                if (arg && typeof arg === "object" && arg.__csHandle) {
+                    return __wrapObject(arg.__csType || "", arg.__csHandle);
+                }
+                return arg;
+            });
+            return value.apply(this, wrappedArgs);
+        };
+        const handle = __registerCallback(wrappedCallback);
+        return { __csCallbackHandle: handle };
+    }
+
     // TypedArray detection - convert to array marker for C# marshaling
     if (ArrayBuffer.isView(value) && !(value instanceof DataView)) {
         return {

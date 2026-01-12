@@ -126,6 +126,7 @@ public static partial class QuickJSNative {
         RegisterStructType<Ray2D>();
         RegisterStructType<Plane>();
         RegisterStructType<UnityEngine.UIElements.Length>();
+        RegisterStructType<UnityEngine.UIElements.Angle>();
 
         // Style types need custom handling due to keyword field
         RegisterStyleTypes();
@@ -617,18 +618,31 @@ public static partial class QuickJSNative {
             return value;
         }
 
+        // Vector3 -> Vector2 (C# returns Vector2 as Vector3 for efficiency, convert back)
+        if (sourceType == typeof(Vector3) && targetType == typeof(Vector2)) {
+            var v = (Vector3)value;
+            return new Vector2(v.x, v.y);
+        }
+
         // 1. Array conversions
         if (targetType.IsArray) {
             return ConvertToArray(value, targetType);
         }
 
-        // 2. Dictionary from JS -> System.Type (type reference)
+        // 2. Dictionary from JS -> System.Type or delegate
         if (value is Dictionary<string, object> dict) {
             // Handle __csTypeRef for AddComponent(MeshFilter) style calls
             if (targetType == typeof(Type) &&
                 dict.TryGetValue("__csTypeRef", out var typeRefName) &&
                 typeRefName is string tn) {
                 return ResolveType(tn);
+            }
+
+            // Handle __csCallbackHandle for JS function -> C# delegate conversion
+            if (dict.TryGetValue("__csCallbackHandle", out var handleObj) &&
+                typeof(Delegate).IsAssignableFrom(targetType)) {
+                int callbackHandle = Convert.ToInt32(handleObj);
+                return CreateDelegateWrapper(targetType, callbackHandle);
             }
 
             // Dictionary -> struct
@@ -933,5 +947,196 @@ public static partial class QuickJSNative {
                 Convert.ToSingle(list[2]), Convert.ToSingle(list[3]));
         }
         return Quaternion.identity;
+    }
+
+    // MARK: Delegate Wrapper Creation
+
+    /// <summary>
+    /// Creates a C# delegate that wraps a JS callback function.
+    /// When the delegate is invoked, it calls the JS callback via qjs_invoke_callback.
+    /// </summary>
+    /// <param name="delegateType">The target delegate type (e.g., Action&lt;T&gt;, Func&lt;T&gt;)</param>
+    /// <param name="callbackHandle">The JS callback handle from __registerCallback</param>
+    /// <returns>A delegate that invokes the JS callback</returns>
+    internal static Delegate CreateDelegateWrapper(Type delegateType, int callbackHandle) {
+        if (delegateType == null || callbackHandle < 0) return null;
+
+        // Capture the current context pointer for later invocation
+        IntPtr ctxPtr = CurrentContextPtr;
+        if (ctxPtr == IntPtr.Zero) {
+            Debug.LogWarning("[QuickJS] Cannot create delegate wrapper: no active context");
+            return null;
+        }
+
+        // Get the delegate's Invoke method to understand the signature
+        var invokeMethod = delegateType.GetMethod("Invoke");
+        if (invokeMethod == null) return null;
+
+        var parameters = invokeMethod.GetParameters();
+        var returnType = invokeMethod.ReturnType;
+
+        // Create wrapper based on delegate signature
+        // For Action<T> delegates (no return value)
+        if (returnType == typeof(void)) {
+            return CreateActionWrapper(delegateType, ctxPtr, callbackHandle, parameters);
+        }
+
+        // For Func<T, TResult> delegates (with return value)
+        return CreateFuncWrapper(delegateType, ctxPtr, callbackHandle, parameters, returnType);
+    }
+
+    static Delegate CreateActionWrapper(Type delegateType, IntPtr ctxPtr, int callbackHandle, ParameterInfo[] parameters) {
+        // Special case: Action<MeshGenerationContext> for generateVisualContent
+        if (parameters.Length == 1 &&
+            parameters[0].ParameterType.FullName == "UnityEngine.UIElements.MeshGenerationContext") {
+            return CreateMeshGenerationContextActionWrapper(delegateType, ctxPtr, callbackHandle);
+        }
+
+        // Special case: Action<VisualElement, int> for bindItem/unbindItem
+        if (parameters.Length == 2 &&
+            parameters[0].ParameterType.FullName == "UnityEngine.UIElements.VisualElement" &&
+            parameters[1].ParameterType == typeof(int)) {
+            return CreateBindItemActionWrapper(ctxPtr, callbackHandle);
+        }
+
+        // Special case: Action<VisualElement> for destroyItem
+        if (parameters.Length == 1 &&
+            parameters[0].ParameterType.FullName == "UnityEngine.UIElements.VisualElement") {
+            return CreateDestroyItemActionWrapper(ctxPtr, callbackHandle);
+        }
+
+        // Special case: Action (no parameters)
+        if (parameters.Length == 0) {
+            Action action = () => {
+                unsafe {
+                    int code = qjs_invoke_callback(ctxPtr, callbackHandle, null, 0, null);
+                    if (code != 0) {
+                        Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
+                    }
+                }
+            };
+            return action;
+        }
+
+        // Generic case: Action<T> with arbitrary parameter
+        // For simplicity, we create a generic wrapper that marshals all parameters
+        return CreateGenericActionWrapper(delegateType, ctxPtr, callbackHandle, parameters);
+    }
+
+    static Delegate CreateMeshGenerationContextActionWrapper(Type delegateType, IntPtr ctxPtr, int callbackHandle) {
+        // Create Action<MeshGenerationContext> wrapper
+        // The MeshGenerationContext is passed as an object handle to JS
+        Action<UnityEngine.UIElements.MeshGenerationContext> action = (mgc) => {
+            unsafe {
+                // Register the MeshGenerationContext as a handle so JS can access it
+                int mgcHandle = RegisterObject(mgc);
+
+                // Create interop value with the handle and type hint
+                // Type hint allows JS to know what type this object is for proper proxying
+                var arg = new InteropValue {
+                    type = InteropType.ObjectHandle,
+                    handle = mgcHandle,
+                    typeHint = StringToUtf8("UnityEngine.UIElements.MeshGenerationContext")
+                };
+
+                InteropValue* args = &arg;
+                int code = qjs_invoke_callback(ctxPtr, callbackHandle, args, 1, null);
+
+                if (code != 0) {
+                    Debug.LogError($"[QuickJS] generateVisualContent callback failed with code {code}");
+                }
+
+                // Note: We don't unregister the handle immediately as JS might still reference it
+                // The handle will be released when JS releases it or context is destroyed
+            }
+        };
+        return action;
+    }
+
+    static Delegate CreateBindItemActionWrapper(IntPtr ctxPtr, int callbackHandle) {
+        // Create Action<VisualElement, int> wrapper for ListView bindItem/unbindItem
+        Action<UnityEngine.UIElements.VisualElement, int> action = (element, index) => {
+            unsafe {
+                // Register the VisualElement as a handle
+                int elementHandle = RegisterObject(element);
+
+                // Create interop values for both parameters
+                var args = stackalloc InteropValue[2];
+                args[0] = new InteropValue {
+                    type = InteropType.ObjectHandle,
+                    handle = elementHandle,
+                    typeHint = StringToUtf8("UnityEngine.UIElements.VisualElement")
+                };
+                args[1] = new InteropValue {
+                    type = InteropType.Int32,
+                    i32 = index
+                };
+
+                int code = qjs_invoke_callback(ctxPtr, callbackHandle, args, 2, null);
+
+                if (code != 0) {
+                    Debug.LogError($"[QuickJS] bindItem callback failed with code {code}");
+                }
+            }
+        };
+        return action;
+    }
+
+    static Delegate CreateDestroyItemActionWrapper(IntPtr ctxPtr, int callbackHandle) {
+        // Create Action<VisualElement> wrapper for ListView destroyItem
+        Action<UnityEngine.UIElements.VisualElement> action = (element) => {
+            unsafe {
+                // Register the VisualElement as a handle
+                int elementHandle = RegisterObject(element);
+
+                var arg = new InteropValue {
+                    type = InteropType.ObjectHandle,
+                    handle = elementHandle,
+                    typeHint = StringToUtf8("UnityEngine.UIElements.VisualElement")
+                };
+
+                InteropValue* args = &arg;
+                int code = qjs_invoke_callback(ctxPtr, callbackHandle, args, 1, null);
+
+                if (code != 0) {
+                    Debug.LogError($"[QuickJS] destroyItem callback failed with code {code}");
+                }
+            }
+        };
+        return action;
+    }
+
+    static Delegate CreateGenericActionWrapper(Type delegateType, IntPtr ctxPtr, int callbackHandle, ParameterInfo[] parameters) {
+        // For now, return null for unsupported delegate types
+        // This can be extended to support more delegate signatures
+        Debug.LogWarning($"[QuickJS] Unsupported delegate type for callback wrapper: {delegateType.Name}");
+        return null;
+    }
+
+    static Delegate CreateFuncWrapper(Type delegateType, IntPtr ctxPtr, int callbackHandle, ParameterInfo[] parameters, Type returnType) {
+        // Special case: Func<VisualElement> for makeItem
+        if (parameters.Length == 0 &&
+            returnType.FullName == "UnityEngine.UIElements.VisualElement") {
+            Func<UnityEngine.UIElements.VisualElement> func = () => {
+                unsafe {
+                    var result = new InteropValue();
+                    int code = qjs_invoke_callback(ctxPtr, callbackHandle, null, 0, &result);
+
+                    if (code != 0) {
+                        Debug.LogError($"[QuickJS] makeItem callback failed with code {code}");
+                        return null;
+                    }
+
+                    // Convert result to VisualElement
+                    object resultObj = InteropValueToObject(result);
+                    return resultObj as UnityEngine.UIElements.VisualElement;
+                }
+            };
+            return func;
+        }
+
+        // For now, return null for unsupported delegate types
+        Debug.LogWarning($"[QuickJS] Unsupported Func delegate type for callback wrapper: {delegateType.Name}");
+        return null;
     }
 }

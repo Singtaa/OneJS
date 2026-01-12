@@ -291,11 +291,49 @@ Temp/OneJSPad/{instanceId}/
 | `QuickJSNative.cs` | DllImports, enums, structs, string helpers (platform-conditional) |
 | `QuickJSNative.Handles.cs` | Handle table for C# object references with monitoring |
 | `QuickJSNative.Reflection.cs` | Type/method/property resolution and caching |
-| `QuickJSNative.Structs.cs` | Struct serialization (Vector3, Color, etc.) |
+| `QuickJSNative.Structs.cs` | Struct serialization with auto-registration |
 | `QuickJSNative.Dispatch.cs` | JS→C# callback dispatch, value conversion, exception handling |
 | `QuickJSNative.FastPath.cs` | Zero-allocation fast path for hot properties/methods |
 | `QuickJSNative.Tasks.cs` | C# Task/Promise bridging with queue monitoring |
 | `QuickJSNative.ZeroAlloc.cs` | Zero-allocation interop for GPU and hot-path operations |
+
+### Struct Auto-Registration (QuickJSNative.Structs.cs)
+
+Structs are automatically serialized between JS and C# without manual registration. The system works as follows:
+
+**Auto-Registration**: Any struct with public fields or properties is automatically registered on first use:
+```csharp
+// ShouldAutoRegister checks:
+// 1. Is it a value type (not primitive, not enum)?
+// 2. Does it have public fields or properties?
+// 3. Is it not a compiler-generated type?
+// Result: automatic serialization support
+```
+
+**Pre-Registered Types**: Common Unity types are pre-registered at startup for performance:
+- Vectors: `Vector2`, `Vector3`, `Vector4`, `Vector2Int`, `Vector3Int`
+- Colors: `Color`, `Color32`
+- Geometry: `Quaternion`, `Rect`, `RectInt`, `Bounds`, `BoundsInt`, `Matrix4x4`
+- Physics: `Ray`, `Ray2D`, `Plane`
+- UI Toolkit: `Length`, `Angle`, `StyleLength`, `StyleFloat`, `StyleInt`, `StyleColor`
+
+**When Manual Registration is Needed**:
+| Situation | Action |
+|-----------|--------|
+| Struct with only private fields | Won't auto-register (rare) |
+| Custom serialization logic needed | Add custom serializer in `EnsureStructsInitialized()` |
+| Performance-critical hot path | Pre-register for cache warmup (optional) |
+
+**Serialization Flow**:
+1. JS passes struct as object/dictionary → JSON serialization
+2. Native layer detects `__type` marker → passes as STRING type
+3. C# `ConvertToTargetType` deserializes to target struct type
+4. Method matching via `IsArgCompatible` handles type compatibility
+
+**Special Conversions**:
+- `Vector3 → Vector2`: Automatic (C# returns Vector2 as Vector3 with z=0 for efficiency)
+- `Dictionary → Struct`: Deserialized via field/property matching
+- `JSON String → Struct`: Parsed when `__type` marker present
 
 ## Stability & Monitoring
 

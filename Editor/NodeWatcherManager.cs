@@ -22,6 +22,7 @@ namespace OneJS.Editor {
         static readonly Dictionary<string, Process> _watchers = new();
         static readonly Dictionary<string, StringBuilder> _outputBuffers = new();
         static readonly HashSet<string> _starting = new();
+        static readonly Dictionary<string, int> _outputPendingCount = new();  // Track pending output streams
 
         public static event Action<string> OnWatcherStarted;  // workingDir
         public static event Action<string> OnWatcherStopped;  // workingDir
@@ -102,7 +103,6 @@ namespace OneJS.Editor {
                 var savedOutput = EditorPrefs.GetString(OutputPrefKeyPrefix + key, "");
                 _outputBuffers[key] = new StringBuilder(savedOutput);
 
-                Debug.Log($"[OneJS] Reattached to watcher process (PID {savedPid}) for {Path.GetFileName(workingDir)}");
                 OnWatcherStarted?.Invoke(workingDir);
                 return true;
             } catch (ArgumentException) {
@@ -170,30 +170,39 @@ namespace OneJS.Editor {
 
                 var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
 
-                // Initialize output buffer
+                // Initialize output buffer and pending stream count (stdout + stderr)
                 _outputBuffers[key] = new StringBuilder();
+                _outputPendingCount[key] = 2;
 
                 process.OutputDataReceived += (s, e) => {
-                    if (!string.IsNullOrEmpty(e.Data)) {
-                        AppendOutput(key, e.Data);
-                        OnWatcherOutput?.Invoke(workingDir, e.Data);
-                        Debug.Log($"[Watch] {e.Data}");
+                    if (e.Data != null) {
+                        if (!string.IsNullOrEmpty(e.Data)) {
+                            AppendOutput(key, e.Data);
+                            OnWatcherOutput?.Invoke(workingDir, e.Data);
+                            Debug.Log($"[Watch] {e.Data}");
+                        }
+                    } else {
+                        // null means end of stream - check if all streams are done
+                        HandleStreamEnd(key, workingDir);
                     }
                 };
 
                 process.ErrorDataReceived += (s, e) => {
-                    if (!string.IsNullOrEmpty(e.Data)) {
-                        AppendOutput(key, e.Data);
-                        OnWatcherOutput?.Invoke(workingDir, e.Data);
-                        // esbuild outputs to stderr even for non-errors
-                        Debug.Log($"[Watch] {e.Data}");
+                    if (e.Data != null) {
+                        if (!string.IsNullOrEmpty(e.Data)) {
+                            AppendOutput(key, e.Data);
+                            OnWatcherOutput?.Invoke(workingDir, e.Data);
+                            // esbuild outputs to stderr even for non-errors
+                            Debug.Log($"[Watch] {e.Data}");
+                        }
+                    } else {
+                        // null means end of stream - check if all streams are done
+                        HandleStreamEnd(key, workingDir);
                     }
                 };
 
                 process.Exited += (s, e) => {
-                    _watchers.Remove(key);
-                    ClearSavedState(key);
-                    OnWatcherStopped?.Invoke(workingDir);
+                    // Don't remove watcher here - wait for streams to finish via HandleStreamEnd
                 };
 
                 process.Start();
@@ -205,7 +214,6 @@ namespace OneJS.Editor {
                 // Save PID for reattachment after domain reload
                 EditorPrefs.SetInt(PidPrefKeyPrefix + key, process.Id);
 
-                Debug.Log($"[OneJS] Started watcher for {Path.GetFileName(workingDir)}");
                 OnWatcherStarted?.Invoke(workingDir);
 
                 return true;
@@ -239,7 +247,6 @@ namespace OneJS.Editor {
 
             ClearSavedState(key);
             OnWatcherStopped?.Invoke(workingDir);
-            Debug.Log($"[OneJS] Stopped watcher for {Path.GetFileName(workingDir)}");
         }
 
         /// <summary>
@@ -261,6 +268,7 @@ namespace OneJS.Editor {
             }
             _watchers.Clear();
             _outputBuffers.Clear();
+            _outputPendingCount.Clear();
         }
 
         // MARK: Internal
@@ -274,6 +282,21 @@ namespace OneJS.Editor {
             EditorPrefs.DeleteKey(PidPrefKeyPrefix + key);
             EditorPrefs.DeleteKey(OutputPrefKeyPrefix + key);
             _outputBuffers.Remove(key);
+            _outputPendingCount.Remove(key);
+        }
+
+        static void HandleStreamEnd(string key, string workingDir) {
+            if (!_outputPendingCount.TryGetValue(key, out var count)) return;
+
+            count--;
+            _outputPendingCount[key] = count;
+
+            if (count <= 0) {
+                // All streams have finished - now safe to clean up
+                _watchers.Remove(key);
+                ClearSavedState(key);
+                OnWatcherStopped?.Invoke(workingDir);
+            }
         }
 
         static void AppendOutput(string key, string line) {

@@ -8,6 +8,16 @@ using AOT;
 using UnityEngine;
 
 public static partial class QuickJSNative {
+    // MARK: Current Context (for delegate wrapper creation during dispatch)
+    [ThreadStatic]
+    static IntPtr _currentContextPtr;
+
+    /// <summary>
+    /// The native context pointer for the currently executing dispatch.
+    /// Only valid during a dispatch call. Used by delegate wrappers.
+    /// </summary>
+    internal static IntPtr CurrentContextPtr => _currentContextPtr;
+
     // MARK: Callback Delegates
     static readonly CsLogCallback _logCallback = HandleLogFromJs;
     static readonly unsafe CsInvokeCallback _invokeCallback = DispatchFromJs;
@@ -50,6 +60,10 @@ public static partial class QuickJSNative {
         resPtr->errorMsg = IntPtr.Zero;
         resPtr->returnValue = default;
         resPtr->returnValue.type = InteropType.Null;
+
+        // Store context pointer for delegate wrapper creation
+        var prevContext = _currentContextPtr;
+        _currentContextPtr = ctxPtr;
 
         try {
             bool isStatic = reqPtr->isStatic != 0;
@@ -328,6 +342,9 @@ public static partial class QuickJSNative {
                 $"[QuickJS Invoke Error] {reqPtr->callKind} on {typeName}.{memberName} failed:\n" +
                 $"  Exception: {ex.GetType().Name}: {ex.Message}\n" +
                 $"  Stack trace:\n{ex.StackTrace}");
+        } finally {
+            // Restore previous context pointer
+            _currentContextPtr = prevContext;
         }
     }
 

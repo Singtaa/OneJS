@@ -1,1 +1,401 @@
 @import url("unity-theme://default");
+
+/* ==========================================================================
+   OneJS Modern Runtime Theme
+   A clean, modern dark theme for Unity UI Toolkit controls
+
+   Only includes controls used by OneJS React components:
+   - View (VisualElement) - no special styling needed
+   - Text (TextElement) - unity-text-element
+   - Label - unity-label
+   - Button - unity-button
+   - TextField - unity-text-field
+   - Toggle - unity-toggle
+   - Slider - unity-base-slider (via BaseSlider)
+   - ScrollView - unity-scroll-view, unity-scroller
+   - Image - no special styling needed
+   - ListView - unity-list-view (via BaseVerticalCollectionView)
+
+   USS class names verified via Unity reflection/decompilation.
+   ========================================================================== */
+
+/* ==========================================================================
+   Root Defaults
+   ========================================================================== */
+
+:root {
+    -unity-font-style: normal;
+    font-size: 14px;
+    color: rgba(230, 230, 230, 1);
+}
+
+/* ==========================================================================
+   TextElement (base for Text component)
+   USS class: unity-text-element
+   ========================================================================== */
+
+.unity-text-element {
+    color: rgba(220, 220, 220, 1);
+}
+
+/* ==========================================================================
+   Label
+   USS class: unity-label
+   ========================================================================== */
+
+.unity-label {
+    padding-top: 2px;
+    padding-bottom: 2px;
+    margin-top: 0;
+    margin-bottom: 0;
+    -unity-text-align: middle-left;
+    color: rgba(220, 220, 220, 1);
+}
+
+/* ==========================================================================
+   Button
+   USS class: unity-button
+   ========================================================================== */
+
+.unity-button {
+    background-color: rgba(60, 60, 60, 1);
+    border-width: 1px;
+    border-color: rgba(80, 80, 80, 1);
+    border-radius: 4px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    padding-left: 12px;
+    padding-right: 12px;
+    margin-top: 2px;
+    margin-bottom: 2px;
+    margin-left: 2px;
+    margin-right: 2px;
+    -unity-text-align: middle-center;
+    transition-property: background-color, border-color;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+}
+
+.unity-button:hover {
+    background-color: rgba(75, 75, 75, 1);
+    border-color: rgba(100, 100, 100, 1);
+}
+
+.unity-button:active {
+    background-color: rgba(50, 50, 50, 1);
+    border-color: rgba(90, 90, 90, 1);
+}
+
+.unity-button:focus {
+    border-color: rgba(77, 144, 254, 1);
+}
+
+.unity-button:disabled {
+    background-color: rgba(45, 45, 45, 1);
+    border-color: rgba(55, 55, 55, 1);
+    color: rgba(128, 128, 128, 1);
+}
+
+/* ==========================================================================
+   TextField
+   USS classes: unity-text-field, unity-text-field__input, unity-text-field__label
+   ========================================================================== */
+
+.unity-text-field {
+    margin-top: 2px;
+    margin-bottom: 2px;
+}
+
+.unity-text-field__input {
+    background-color: rgba(42, 42, 42, 1);
+    border-width: 1px;
+    border-color: rgba(60, 60, 60, 1);
+    border-radius: 4px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    padding-left: 8px;
+    padding-right: 8px;
+    color: rgba(230, 230, 230, 1);
+    transition-property: border-color, background-color;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+}
+
+.unity-text-field__input:hover {
+    border-color: rgba(80, 80, 80, 1);
+}
+
+.unity-text-field__input:focus {
+    border-color: rgba(77, 144, 254, 1);
+    background-color: rgba(48, 48, 48, 1);
+}
+
+.unity-text-field:disabled .unity-text-field__input {
+    background-color: rgba(35, 35, 35, 1);
+    border-color: rgba(50, 50, 50, 1);
+    color: rgba(128, 128, 128, 1);
+}
+
+.unity-text-field__label {
+    min-width: 0;
+    padding-right: 8px;
+    -unity-text-align: middle-left;
+}
+
+/* ==========================================================================
+   Toggle (Checkbox)
+   USS classes: unity-toggle, unity-toggle__input, unity-toggle__checkmark,
+                unity-toggle__label, unity-toggle__text
+   ========================================================================== */
+
+.unity-toggle {
+    margin-top: 2px;
+    margin-bottom: 2px;
+}
+
+.unity-toggle__input {
+    flex-direction: row;
+    align-items: center;
+}
+
+.unity-toggle__checkmark {
+    width: 18px;
+    height: 18px;
+    background-color: rgba(42, 42, 42, 1);
+    border-width: 1px;
+    border-color: rgba(80, 80, 80, 1);
+    border-radius: 3px;
+    margin-right: 6px;
+    transition-property: background-color, border-color;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+}
+
+.unity-toggle:hover .unity-toggle__checkmark {
+    border-color: rgba(100, 100, 100, 1);
+}
+
+.unity-toggle:checked .unity-toggle__checkmark {
+    background-color: rgba(77, 144, 254, 1);
+    border-color: rgba(77, 144, 254, 1);
+}
+
+.unity-toggle:focus .unity-toggle__checkmark {
+    border-color: rgba(77, 144, 254, 1);
+}
+
+.unity-toggle:disabled .unity-toggle__checkmark {
+    background-color: rgba(35, 35, 35, 1);
+    border-color: rgba(50, 50, 50, 1);
+}
+
+.unity-toggle:disabled:checked .unity-toggle__checkmark {
+    background-color: rgba(60, 100, 160, 1);
+    border-color: rgba(60, 100, 160, 1);
+}
+
+.unity-toggle__label {
+    -unity-text-align: middle-left;
+}
+
+.unity-toggle__text {
+    -unity-text-align: middle-left;
+}
+
+/* ==========================================================================
+   Slider (via BaseSlider)
+   USS classes: unity-base-slider, unity-base-slider__input,
+                unity-base-slider__tracker, unity-base-slider__dragger,
+                unity-base-slider__dragger-border, unity-base-slider__label
+   ========================================================================== */
+
+.unity-base-slider {
+    margin-top: 2px;
+    margin-bottom: 2px;
+}
+
+.unity-base-slider__label {
+    min-width: 0;
+    padding-right: 8px;
+    -unity-text-align: middle-left;
+}
+
+.unity-base-slider__input {
+    flex-grow: 1;
+}
+
+.unity-base-slider__tracker {
+    background-color: rgba(60, 60, 60, 1);
+    border-radius: 3px;
+    height: 6px;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.unity-base-slider__dragger {
+    width: 16px;
+    height: 16px;
+    background-color: rgba(180, 180, 180, 1);
+    border-width: 0;
+    border-radius: 8px;
+    margin-top: -5px;
+    transition-property: background-color, scale;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+}
+
+.unity-base-slider:hover .unity-base-slider__dragger {
+    background-color: rgba(200, 200, 200, 1);
+}
+
+.unity-base-slider:active .unity-base-slider__dragger {
+    background-color: rgba(77, 144, 254, 1);
+    scale: 1.1 1.1;
+}
+
+.unity-base-slider:focus .unity-base-slider__dragger {
+    background-color: rgba(77, 144, 254, 1);
+}
+
+.unity-base-slider:disabled .unity-base-slider__tracker {
+    background-color: rgba(45, 45, 45, 1);
+}
+
+.unity-base-slider:disabled .unity-base-slider__dragger {
+    background-color: rgba(100, 100, 100, 1);
+}
+
+.unity-base-slider__dragger-border {
+    border-width: 0;
+}
+
+/* ==========================================================================
+   ScrollView
+   USS classes: unity-scroll-view, unity-scroll-view__content-viewport,
+                unity-scroll-view__content-container
+   ========================================================================== */
+
+.unity-scroll-view {
+    background-color: transparent;
+}
+
+.unity-scroll-view__content-container {
+    padding-top: 0;
+    padding-bottom: 0;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* ==========================================================================
+   Scroller (scrollbar component used by ScrollView)
+   USS classes: unity-scroller, unity-scroller--vertical, unity-scroller--horizontal,
+                unity-scroller__slider, unity-scroller__low-button, unity-scroller__high-button
+   ========================================================================== */
+
+.unity-scroller {
+    background-color: rgba(30, 30, 30, 1);
+    border-radius: 4px;
+}
+
+.unity-scroller--vertical {
+    width: 10px;
+    margin-left: 4px;
+}
+
+.unity-scroller--horizontal {
+    height: 10px;
+    margin-top: 4px;
+}
+
+.unity-scroller__slider {
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+/* Override dragger style within scroller context */
+.unity-scroller .unity-base-slider__dragger {
+    background-color: rgba(80, 80, 80, 1);
+    border-radius: 4px;
+    margin-top: 2px;
+    margin-bottom: 2px;
+    margin-left: 2px;
+    margin-right: 2px;
+    transition-property: background-color;
+    transition-duration: 150ms;
+}
+
+.unity-scroller:hover .unity-base-slider__dragger {
+    background-color: rgba(100, 100, 100, 1);
+}
+
+.unity-scroller:active .unity-base-slider__dragger {
+    background-color: rgba(120, 120, 120, 1);
+}
+
+.unity-scroller .unity-base-slider__tracker {
+    background-color: transparent;
+    border-width: 0;
+}
+
+/* Hide scrollbar arrows for cleaner look */
+.unity-scroller__low-button,
+.unity-scroller__high-button {
+    display: none;
+}
+
+/* ==========================================================================
+   ListView (via BaseVerticalCollectionView)
+   USS classes: unity-list-view, unity-list-view__item
+   Note: BaseVerticalCollectionView uses unity-collection-view as base class
+   ========================================================================== */
+
+.unity-list-view {
+    background-color: rgba(35, 35, 35, 1);
+    border-width: 1px;
+    border-color: rgba(50, 50, 50, 1);
+    border-radius: 4px;
+}
+
+.unity-list-view__item {
+    padding-top: 4px;
+    padding-bottom: 4px;
+    padding-left: 8px;
+    padding-right: 8px;
+    background-color: transparent;
+    transition-property: background-color;
+    transition-duration: 100ms;
+}
+
+.unity-list-view__item:hover {
+    background-color: rgba(55, 55, 55, 1);
+}
+
+.unity-list-view__item:checked {
+    background-color: rgba(77, 144, 254, 0.3);
+}
+
+.unity-list-view__item:checked:hover {
+    background-color: rgba(77, 144, 254, 0.4);
+}
+
+/* BaseVerticalCollectionView item classes */
+.unity-collection-view__item {
+    padding-top: 4px;
+    padding-bottom: 4px;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+.unity-collection-view__item:hover {
+    background-color: rgba(55, 55, 55, 1);
+}
+
+.unity-collection-view__item--selected {
+    background-color: rgba(77, 144, 254, 0.3);
+}
+
+.unity-collection-view__item--selected:hover {
+    background-color: rgba(77, 144, 254, 0.4);
+}
