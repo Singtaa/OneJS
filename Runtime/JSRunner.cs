@@ -749,6 +749,9 @@ public class JSRunner : MonoBehaviour {
         var bridgeHandle = QuickJSNative.RegisterObject(_bridge);
         _bridge.Eval($"globalThis.__bridge = __csHelpers.wrapObject('QuickJSUIBridge', {bridgeHandle})");
 
+        // Register UI debugging utilities
+        RegisterUIDebugUtilities();
+
         // Inject custom globals
         InjectGlobals();
 
@@ -761,6 +764,29 @@ public class JSRunner : MonoBehaviour {
     /// </summary>
     void ApplyStylesheets() {
         CartridgeUtils.ApplyStylesheets(_uiDocument.rootVisualElement, _stylesheets);
+    }
+
+    /// <summary>
+    /// Register UI debugging utilities as global JavaScript functions.
+    /// Provides __dumpUI(), __findByClass(), __findByType() for debugging USS selectors.
+    /// </summary>
+    void RegisterUIDebugUtilities() {
+        _bridge.Eval(@"
+            globalThis.__dumpUI = function(element, maxDepth, includeStyles) {
+                element = element || __root;
+                maxDepth = maxDepth || 10;
+                includeStyles = includeStyles || false;
+                return CS.OneJS.Utils.UIDebugger.DumpTree(element, maxDepth, includeStyles);
+            };
+            globalThis.__findByClass = function(className, element) {
+                element = element || __root;
+                return CS.OneJS.Utils.UIDebugger.FindByClass(element, className);
+            };
+            globalThis.__findByType = function(typeName, element) {
+                element = element || __root;
+                return CS.OneJS.Utils.UIDebugger.FindByType(element, typeName);
+            };
+        ");
     }
 
     /// <summary>

@@ -27,6 +27,7 @@ UnityEngine.UIElements.StyleSheet asset
 | `ExCSS.Unity.dll` | Third-party CSS parser (MIT license) |
 | `StyleSheetBuilderWrapper.cs` | Reflection wrapper for Unity's internal `StyleSheetBuilder` |
 | `UssCompiler.cs` | Main compiler that translates ExCSS AST to StyleSheetBuilder calls |
+| `UnityThemes/UnityDefaultRuntimeTheme.tss` | Default dark theme for OneJS runtime (applied via JSRunner) |
 
 ## Usage
 

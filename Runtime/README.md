@@ -33,6 +33,7 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `Styling/UssCompiler.cs` | Runtime USS compilation from strings |
 | `Styling/StyleSheetBuilderWrapper.cs` | Reflection wrapper for Unity's internal StyleSheetBuilder |
 | `Controls/CodeField.cs` | TextField with syntax highlighting via per-glyph vertex coloring |
+| `Utils/UIDebugger.cs` | Runtime UI debugger for dumping visual tree and inspecting USS classes |
 
 ## Controls (`Controls/` folder)
 

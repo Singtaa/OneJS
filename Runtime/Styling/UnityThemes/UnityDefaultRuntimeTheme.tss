@@ -17,13 +17,72 @@
    - ListView - unity-list-view (via BaseVerticalCollectionView)
 
    USS class names verified via Unity reflection/decompilation.
+   USS variables override Unity's built-in theme variables.
    ========================================================================== */
 
 /* ==========================================================================
-   Root Defaults
+   USS Variable Overrides (Critical for theming)
+   Unity's default theme uses these variables internally, so we MUST
+   override them to ensure our theme is applied consistently.
    ========================================================================== */
 
 :root {
+    /* ===== General Colors ===== */
+    --unity-colors-default-text: rgba(220, 220, 220, 1);
+    --unity-colors-default-background: rgba(42, 42, 42, 1);
+    --unity-colors-highlight-background: rgba(77, 144, 254, 1);
+    --unity-colors-highlight-text: rgba(255, 255, 255, 1);
+
+    /* ===== Button Colors ===== */
+    --unity-colors-button-background: rgba(60, 60, 60, 1);
+    --unity-colors-button-background-hover: rgba(75, 75, 75, 1);
+    --unity-colors-button-background-pressed: rgba(50, 50, 50, 1);
+    --unity-colors-button-background-focus: rgba(60, 60, 60, 1);
+    --unity-colors-button-background-disabled: rgba(45, 45, 45, 1);
+    --unity-colors-button-border: rgba(80, 80, 80, 1);
+    --unity-colors-button-border-hover: rgba(100, 100, 100, 1);
+    --unity-colors-button-border-pressed: rgba(90, 90, 90, 1);
+    --unity-colors-button-border-focus: rgba(77, 144, 254, 1);
+    --unity-colors-button-border-disabled: rgba(55, 55, 55, 1);
+    --unity-colors-button-text: rgba(220, 220, 220, 1);
+    --unity-colors-button-text-hover: rgba(240, 240, 240, 1);
+    --unity-colors-button-text-disabled: rgba(128, 128, 128, 1);
+
+    /* ===== Input Field Colors ===== */
+    --unity-colors-input_field-background: rgba(42, 42, 42, 1);
+    --unity-colors-input_field-background-hover: rgba(48, 48, 48, 1);
+    --unity-colors-input_field-background-focus: rgba(48, 48, 48, 1);
+    --unity-colors-input_field-background-disabled: rgba(35, 35, 35, 1);
+    --unity-colors-input_field-border: rgba(60, 60, 60, 1);
+    --unity-colors-input_field-border-hover: rgba(80, 80, 80, 1);
+    --unity-colors-input_field-border-focus: rgba(77, 144, 254, 1);
+    --unity-colors-input_field-border-disabled: rgba(50, 50, 50, 1);
+    --unity-colors-input_field-text: rgba(230, 230, 230, 1);
+
+    /* ===== Slider Colors ===== */
+    --unity-colors-slider_groove-background: rgba(60, 60, 60, 1);
+    --unity-colors-slider_groove-background-disabled: rgba(45, 45, 45, 1);
+    --unity-colors-slider_thumb-background: rgba(180, 180, 180, 1);
+    --unity-colors-slider_thumb-background-hover: rgba(200, 200, 200, 1);
+    --unity-colors-slider_thumb-background-focus: rgba(77, 144, 254, 1);
+    --unity-colors-slider_thumb-background-disabled: rgba(100, 100, 100, 1);
+    --unity-colors-slider_thumb-border: transparent;
+
+    /* ===== Scrollbar Colors ===== */
+    --unity-colors-scrollbar_groove-background: rgba(30, 30, 30, 1);
+    --unity-colors-scrollbar_thumb-background: rgba(80, 80, 80, 1);
+    --unity-colors-scrollbar_thumb-background-hover: rgba(100, 100, 100, 1);
+
+    /* ===== Box/Window Colors ===== */
+    --unity-colors-box-background: rgba(50, 50, 50, 1);
+    --unity-colors-window-background: rgba(42, 42, 42, 1);
+    --unity-colors-window-border: rgba(60, 60, 60, 1);
+
+    /* ===== Label Colors ===== */
+    --unity-colors-label-text: rgba(220, 220, 220, 1);
+    --unity-colors-label-text-focus: rgba(240, 240, 240, 1);
+
+    /* ===== Root Defaults ===== */
     -unity-font-style: normal;
     font-size: 14px;
     color: rgba(230, 230, 230, 1);
@@ -76,21 +135,23 @@
     transition-timing-function: ease-out;
 }
 
-.unity-button:hover {
+/* Button states - use combined class selectors for maximum specificity */
+/* Button has both unity-text-element AND unity-button classes */
+.unity-text-element.unity-button:hover {
     background-color: rgba(75, 75, 75, 1);
     border-color: rgba(100, 100, 100, 1);
 }
 
-.unity-button:active {
+.unity-text-element.unity-button:active {
     background-color: rgba(50, 50, 50, 1);
     border-color: rgba(90, 90, 90, 1);
 }
 
-.unity-button:focus {
+.unity-text-element.unity-button:focus {
     border-color: rgba(77, 144, 254, 1);
 }
 
-.unity-button:disabled {
+.unity-text-element.unity-button:disabled {
     background-color: rgba(45, 45, 45, 1);
     border-color: rgba(55, 55, 55, 1);
     color: rgba(128, 128, 128, 1);
@@ -116,21 +177,29 @@
     padding-left: 8px;
     padding-right: 8px;
     color: rgba(230, 230, 230, 1);
+    --unity-cursor-color: rgba(220, 220, 220, 1);
     transition-property: border-color, background-color;
     transition-duration: 150ms;
     transition-timing-function: ease-out;
 }
 
-.unity-text-field__input:hover {
-    border-color: rgba(80, 80, 80, 1);
-}
-
-.unity-text-field__input:focus {
-    border-color: rgba(77, 144, 254, 1);
+/* TextField states - based on actual class structure discovered via UIDebugger:
+   TextField has: unity-base-field, unity-base-text-field, unity-text-field
+   TextInput has: unity-base-text-field__input, unity-text-field__input */
+.unity-text-field:hover .unity-text-field__input,
+.unity-base-text-field:hover .unity-base-text-field__input {
+    border-color: rgba(100, 100, 100, 1);
     background-color: rgba(48, 48, 48, 1);
 }
 
-.unity-text-field:disabled .unity-text-field__input {
+.unity-text-field:focus .unity-text-field__input,
+.unity-base-text-field:focus .unity-base-text-field__input {
+    border-color: rgba(77, 144, 254, 1);
+    background-color: rgba(52, 52, 52, 1);
+}
+
+.unity-text-field:disabled .unity-text-field__input,
+.unity-base-text-field:disabled .unity-base-text-field__input {
     background-color: rgba(35, 35, 35, 1);
     border-color: rgba(50, 50, 50, 1);
     color: rgba(128, 128, 128, 1);
@@ -140,6 +209,24 @@
     min-width: 0;
     padding-right: 8px;
     -unity-text-align: middle-left;
+}
+
+/* TextField caret/cursor styling - based on actual TextInput structure:
+   TextInput has name="unity-text-input" and classes:
+   unity-base-text-field__input, unity-text-field__input */
+.unity-base-text-field__input,
+.unity-text-field__input {
+    --unity-cursor-color: rgba(220, 220, 220, 1);
+    color: rgba(230, 230, 230, 1);
+}
+
+/* Additional cursor color via name selector */
+#unity-text-input {
+    --unity-cursor-color: rgba(220, 220, 220, 1);
+}
+
+.unity-text-element--inner-input-field-component {
+    --unity-cursor-color: rgba(220, 220, 220, 1);
 }
 
 /* ==========================================================================
@@ -196,10 +283,42 @@
 
 .unity-toggle__label {
     -unity-text-align: middle-left;
+    color: rgba(220, 220, 220, 1);
+}
+
+/* Prevent label color change on focus/active states
+   Toggle label has classes: unity-text-element, unity-label, unity-base-field__label, unity-toggle__label
+   Must target all to override Unity's default theme */
+.unity-toggle:focus .unity-toggle__label,
+.unity-toggle:active .unity-toggle__label,
+.unity-toggle:checked .unity-toggle__label,
+.unity-toggle:hover .unity-toggle__label {
+    color: rgba(220, 220, 220, 1);
+}
+
+/* Target the base-field__label class which Unity's theme uses for focus styling */
+.unity-toggle .unity-base-field__label,
+.unity-toggle:focus .unity-base-field__label,
+.unity-toggle:active .unity-base-field__label,
+.unity-toggle:checked .unity-base-field__label,
+.unity-toggle:hover .unity-base-field__label {
+    color: rgba(220, 220, 220, 1);
+}
+
+/* High-specificity selector combining both label classes */
+.unity-base-field__label.unity-toggle__label {
+    color: rgba(220, 220, 220, 1);
+}
+
+.unity-toggle:focus .unity-base-field__label.unity-toggle__label,
+.unity-toggle:active .unity-base-field__label.unity-toggle__label,
+.unity-toggle:checked .unity-base-field__label.unity-toggle__label {
+    color: rgba(220, 220, 220, 1);
 }
 
 .unity-toggle__text {
     -unity-text-align: middle-left;
+    color: rgba(220, 220, 220, 1);
 }
 
 /* ==========================================================================
@@ -307,21 +426,62 @@
     margin-top: 4px;
 }
 
+/* Slider within scroller - fill the entire space */
 .unity-scroller__slider {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
     margin-top: 0;
     margin-bottom: 0;
     margin-left: 0;
     margin-right: 0;
 }
 
+/* Name selector override for slider - Unity applies default margins via #unity-slider */
+#unity-slider {
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+/* Vertical scroller slider */
+.unity-scroller--vertical > .unity-scroller__slider {
+    width: 100%;
+    min-height: auto;
+}
+
+/* Horizontal scroller slider */
+.unity-scroller--horizontal > .unity-scroller__slider {
+    height: 100%;
+    min-width: auto;
+}
+
+/* Override tracker style within scroller context */
+.unity-scroller .unity-base-slider__tracker {
+    background-color: transparent;
+    border-width: 0;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+}
+
 /* Override dragger style within scroller context */
 .unity-scroller .unity-base-slider__dragger {
     background-color: rgba(80, 80, 80, 1);
     border-radius: 4px;
+    width: 6px;
+    min-width: 6px;
     margin-top: 2px;
     margin-bottom: 2px;
     margin-left: 2px;
     margin-right: 2px;
+    left: auto;
+    right: auto;
     transition-property: background-color;
     transition-duration: 150ms;
 }
@@ -334,15 +494,26 @@
     background-color: rgba(120, 120, 120, 1);
 }
 
-.unity-scroller .unity-base-slider__tracker {
-    background-color: transparent;
-    border-width: 0;
-}
-
-/* Hide scrollbar arrows for cleaner look */
+/* Hide scrollbar arrows completely and remove from layout */
 .unity-scroller__low-button,
 .unity-scroller__high-button {
     display: none;
+    position: absolute;
+    width: 0;
+    height: 0;
+    min-width: 0;
+    min-height: 0;
+    max-width: 0;
+    max-height: 0;
+    flex-grow: 0;
+    flex-shrink: 0;
+    flex-basis: 0;
+}
+
+/* Make slider fill all available space in scroller */
+.unity-scroller__slider {
+    flex-grow: 1;
+    flex-shrink: 0;
 }
 
 /* ==========================================================================

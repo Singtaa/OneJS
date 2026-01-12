@@ -1,5 +1,5 @@
 // OneJS runtime globals (provided by QuickJSBootstrap.js)
-// Note: CS.* types are provided by unity-types package
+// Note: CS.* types and ES6 module declarations are provided by unity-types package
 
 // Root UI element
 declare const __root: CS.UnityEngine.UIElements.VisualElement;
@@ -130,17 +130,3 @@ declare function deleteFile(path: string): boolean;
  * @returns Array of file paths
  */
 declare function listFiles(path: string, pattern?: string, recursive?: boolean): string[];
-
-// ES6 module declarations for Unity namespaces
-// Allows: import { GameObject } from "UnityEngine"
-declare module "UnityEngine" {
-    export = CS.UnityEngine;
-}
-
-declare module "UnityEngine/UIElements" {
-    export = CS.UnityEngine.UIElements;
-}
-
-declare module "System" {
-    export = CS.System;
-}
