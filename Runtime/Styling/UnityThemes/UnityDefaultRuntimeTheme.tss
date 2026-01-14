@@ -105,8 +105,12 @@
 .unity-label {
     padding-top: 2px;
     padding-bottom: 2px;
+    padding-left: 0;
+    padding-right: 0;
     margin-top: 0;
     margin-bottom: 0;
+    margin-left: 0;
+    margin-right: 0;
     -unity-text-align: middle-left;
     color: rgba(220, 220, 220, 1);
 }
@@ -459,7 +463,7 @@
     min-width: auto;
 }
 
-/* Override tracker style within scroller context */
+/* Override tracker style within scroller context - keep transparent on all states */
 .unity-scroller .unity-base-slider__tracker {
     background-color: transparent;
     border-width: 0;
@@ -470,14 +474,26 @@
     right: 0;
 }
 
+/* Prevent tracker background change on hover/active - only dragger should show hover state */
+.unity-scroller:hover .unity-base-slider__tracker,
+.unity-scroller:active .unity-base-slider__tracker,
+.unity-scroller:focus .unity-base-slider__tracker {
+    background-color: transparent;
+}
+
+/* Hide the tracker element completely within scroller (scrollbar only, not Slider) */
+.unity-scroller #unity-tracker {
+    display: none;
+}
+
 /* Override dragger style within scroller context */
 .unity-scroller .unity-base-slider__dragger {
     background-color: rgba(80, 80, 80, 1);
     border-radius: 4px;
     width: 6px;
     min-width: 6px;
-    margin-top: 2px;
-    margin-bottom: 2px;
+    margin-top: 0;
+    margin-bottom: 0;
     margin-left: 2px;
     margin-right: 2px;
     left: auto;
