@@ -44,6 +44,11 @@ public class JSPadEditor : Editor {
     string SettingsFoldoutKey => $"JSPadEditor_SettingsFoldout_{GlobalObjectId.GetGlobalObjectIdSlow(_target)}";
     string SelectedTabKey => $"JSPadEditor_SelectedTab_{GlobalObjectId.GetGlobalObjectIdSlow(_target)}";
 
+    // File-based persistence for bundle (can be large, so don't use EditorPrefs)
+    string BundleCacheDir => Path.Combine(Application.dataPath, "..", "Temp", "JSPadCache");
+    string BundleCacheFile => Path.Combine(BundleCacheDir, $"{GlobalObjectId.GetGlobalObjectIdSlow(_target)}_bundle.txt");
+    string SourceMapCacheFile => Path.Combine(BundleCacheDir, $"{GlobalObjectId.GetGlobalObjectIdSlow(_target)}_sourcemap.txt");
+
     void OnEnable() {
         _target = (JSPad)target;
         _sourceCode = serializedObject.FindProperty("_sourceCode");
@@ -74,9 +79,16 @@ public class JSPadEditor : Editor {
     }
 
     void OnPlayModeStateChanged(PlayModeStateChange state) {
-        // Restore source code when exiting play mode
+        // Save bundle before exiting Play Mode (ExitingPlayMode fires before state is lost)
+        if (state == PlayModeStateChange.ExitingPlayMode) {
+            SaveBundleToCache();
+        }
+        // Restore source code and bundle when entering Edit Mode
         if (state == PlayModeStateChange.EnteredEditMode) {
-            EditorApplication.delayCall += RestoreSourceCodeFromPrefs;
+            EditorApplication.delayCall += () => {
+                RestoreSourceCodeFromPrefs();
+                RestoreBundleFromCache();
+            };
         }
     }
 
@@ -95,6 +107,61 @@ public class JSPadEditor : Editor {
     void SaveSourceCodeToPrefs() {
         if (Application.isPlaying && _target != null) {
             EditorPrefs.SetString(EditorPrefsKey, _target.SourceCode);
+        }
+    }
+
+    void SaveBundleToCache() {
+        if (!Application.isPlaying || _target == null) return;
+
+        try {
+            Directory.CreateDirectory(BundleCacheDir);
+
+            if (!string.IsNullOrEmpty(_target.BuiltBundle)) {
+                File.WriteAllText(BundleCacheFile, _target.BuiltBundle);
+            }
+            if (!string.IsNullOrEmpty(_target.BuiltSourceMap)) {
+                File.WriteAllText(SourceMapCacheFile, _target.BuiltSourceMap);
+            }
+        } catch (Exception ex) {
+            Debug.LogWarning($"[JSPad] Failed to cache bundle: {ex.Message}");
+        }
+    }
+
+    void RestoreBundleFromCache() {
+        if (_target == null) return;
+
+        try {
+            bool restored = false;
+
+            if (File.Exists(BundleCacheFile)) {
+                var bundle = File.ReadAllText(BundleCacheFile);
+                if (!string.IsNullOrEmpty(bundle)) {
+                    // Use reflection to set the private field since there's no public setter
+                    var bundleField = typeof(JSPad).GetField("_builtBundle", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    bundleField?.SetValue(_target, bundle);
+                    restored = true;
+                }
+                File.Delete(BundleCacheFile);
+            }
+
+            if (File.Exists(SourceMapCacheFile)) {
+                var sourceMap = File.ReadAllText(SourceMapCacheFile);
+                if (!string.IsNullOrEmpty(sourceMap)) {
+                    var sourceMapField = typeof(JSPad).GetField("_builtSourceMap", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    sourceMapField?.SetValue(_target, sourceMap);
+                }
+                File.Delete(SourceMapCacheFile);
+            }
+
+            if (restored) {
+                EditorUtility.SetDirty(_target);
+                // Auto-save scene so standalone builds pick up the bundle
+                if (_target.gameObject.scene.IsValid()) {
+                    UnityEditor.SceneManagement.EditorSceneManager.SaveScene(_target.gameObject.scene);
+                }
+            }
+        } catch (Exception ex) {
+            Debug.LogWarning($"[JSPad] Failed to restore bundle from cache: {ex.Message}");
         }
     }
 
@@ -819,6 +886,8 @@ public class JSPadEditor : Editor {
                         _target.SetBuildState(JSPad.BuildState.Ready, output: "Build successful");
                         // Save bundle to serialized fields
                         _target.SaveBundleToSerializedFields();
+                        // Also cache for Play Mode persistence
+                        SaveBundleToCache();
                         if (runAfter && Application.isPlaying) {
                             _target.Reload();
                         }
