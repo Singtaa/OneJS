@@ -301,8 +301,8 @@ float worley2D(float2 p)
         for (int x = -1; x <= 1; x++)
         {
             float2 neighbor = float2(x, y);
-            float2 point = hash22(i + neighbor);
-            float2 diff = neighbor + point - f;
+            float2 pt = hash22(i + neighbor);
+            float2 diff = neighbor + pt - f;
             float dist = length(diff);
             minDist = min(minDist, dist);
         }
@@ -325,8 +325,8 @@ float worley3D(float3 p)
             for (int x = -1; x <= 1; x++)
             {
                 float3 neighbor = float3(x, y, z);
-                float3 point = hash33(i + neighbor);
-                float3 diff = neighbor + point - f;
+                float3 pt = hash33(i + neighbor);
+                float3 diff = neighbor + pt - f;
                 float dist = length(diff);
                 minDist = min(minDist, dist);
             }

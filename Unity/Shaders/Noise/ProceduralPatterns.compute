@@ -70,8 +70,8 @@ void Voronoi(uint3 id : SV_DispatchThreadID)
         for (int x = -1; x <= 1; x++)
         {
             float2 neighbor = float2(x, y);
-            float2 point = hash22(cellId + neighbor);
-            float2 diff = neighbor + point - f;
+            float2 pt = hash22(cellId + neighbor);
+            float2 diff = neighbor + pt - f;
             float dist = length(diff);
             minDist = min(minDist, dist);
         }

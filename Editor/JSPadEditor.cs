@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using OneJS;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -806,12 +807,19 @@ public class JSPadEditor : Editor {
 
             _currentProcess = new Process { StartInfo = startInfo };
 
-            _currentProcess.OutputDataReceived += (s, e) => { };
-            _currentProcess.ErrorDataReceived += (s, e) => { };
+            string installOutput = "";
+
+            _currentProcess.OutputDataReceived += (s, e) => {
+                if (!string.IsNullOrEmpty(e.Data)) installOutput += e.Data + "\n";
+            };
+            _currentProcess.ErrorDataReceived += (s, e) => {
+                if (!string.IsNullOrEmpty(e.Data)) installOutput += e.Data + "\n";
+            };
 
             _currentProcess.EnableRaisingEvents = true;
             _currentProcess.Exited += (s, e) => {
                 var exitCode = _currentProcess.ExitCode;
+                var output = installOutput;
                 _currentProcess = null;
 
                 EditorApplication.delayCall += () => {
@@ -820,8 +828,9 @@ public class JSPadEditor : Editor {
                     } else {
                         _isProcessing = false;
                         _statusMessage = null;
-                        _target.SetBuildState(JSPad.BuildState.Error, error: $"npm install failed with exit code {exitCode}");
-                        Debug.LogError($"[JSPad] npm install failed with exit code {exitCode}");
+                        var errorMsg = $"npm install failed with exit code {exitCode}";
+                        _target.SetBuildState(JSPad.BuildState.Error, error: errorMsg);
+                        Debug.LogError($"[JSPad] {errorMsg}\n{output}");
                         Repaint();
                     }
                 };
@@ -949,6 +958,27 @@ public class JSPadEditor : Editor {
         if (!string.IsNullOrEmpty(_cachedNpmPath)) return _cachedNpmPath;
 
 #if UNITY_EDITOR_WIN
+        // Use 'where' to find the actual npm.cmd path to avoid picking up local node_modules/.bin/npm.cmd
+        try {
+            var process = new Process {
+                StartInfo = new ProcessStartInfo {
+                    FileName = "cmd.exe",
+                    Arguments = "/c where npm.cmd",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true
+                }
+            };
+            process.Start();
+            var result = process.StandardOutput.ReadToEnd().Trim();
+            process.WaitForExit();
+            // 'where' may return multiple paths, take the first one
+            var firstLine = result.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+            if (!string.IsNullOrEmpty(firstLine) && File.Exists(firstLine)) {
+                _cachedNpmPath = firstLine;
+                return _cachedNpmPath;
+            }
+        } catch { }
         _cachedNpmPath = "npm.cmd";
         return _cachedNpmPath;
 #else

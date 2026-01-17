@@ -461,13 +461,6 @@ render(<App />, __root)
     }
 
     string GetPackageJsonContent() {
-        // Get the path to JSModules relative to Temp/OneJSPad/{id}
-        var projectRoot = Path.GetDirectoryName(Application.dataPath);
-        var oneJsReactPath = Path.Combine(projectRoot, "JSModules", "onejs-react");
-        var oneJsUnityPath = Path.Combine(projectRoot, "JSModules", "onejs-unity");
-        var reactRelativePath = GetRelativePath(TempDir, oneJsReactPath).Replace("\\", "/");
-        var unityRelativePath = GetRelativePath(TempDir, oneJsUnityPath).Replace("\\", "/");
-
         // Build additional dependencies from _modules list
         var additionalDeps = new StringBuilder();
         foreach (var module in _modules) {
@@ -486,8 +479,8 @@ render(<App />, __root)
   }},
   ""dependencies"": {{
     ""react"": ""^19.0.0"",
-    ""onejs-react"": ""file:{reactRelativePath}"",
-    ""onejs-unity"": ""file:{unityRelativePath}""{additionalDeps}
+    ""onejs-react"": ""^0.1.0"",
+    ""onejs-unity"": ""^0.2.0""{additionalDeps}
   }},
   ""devDependencies"": {{
     ""@types/react"": ""^19.0.0"",
