@@ -386,7 +386,12 @@ render(<App />, __root)
             _bridge.Context.ExecutePendingJobs();
             _scriptLoaded = true;
         } catch (Exception ex) {
-            var message = TranslateErrorMessage(ex.Message);
+            // Show full exception chain for TypeInitializationException and similar
+            var fullMessage = ex.ToString();
+            if (ex.InnerException != null) {
+                fullMessage = $"{ex.Message}\nInner: {ex.InnerException}";
+            }
+            var message = TranslateErrorMessage(fullMessage);
             Debug.LogError($"[JSPad] Reload error: {message}");
             Stop();
         }

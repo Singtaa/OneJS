@@ -1232,17 +1232,19 @@ QJS_API int qjs_execute_pending_jobs(QjsContext* instance) {
     if (!is_valid(instance)) return -1;
 
     int total = 0;
+    JSContext* job_ctx = NULL;
     while (1) {
-        int ret = JS_ExecutePendingJob(instance->rt, NULL);
+        int ret = JS_ExecutePendingJob(instance->rt, &job_ctx);
         if (ret < 0) {
             // Error occurred
-            JSValue exc = JS_GetException(instance->ctx);
+            JSContext* err_ctx = job_ctx ? job_ctx : instance->ctx;
+            JSValue exc = JS_GetException(err_ctx);
             if (g_callbacks.log) {
                 char errBuf[QJS_EXCEPTION_BUF_SIZE];
-                format_exception(instance->ctx, exc, errBuf, sizeof(errBuf));
+                format_exception(err_ctx, exc, errBuf, sizeof(errBuf));
                 g_callbacks.log(errBuf);
             }
-            JS_FreeValue(instance->ctx, exc);
+            JS_FreeValue(err_ctx, exc);
             return -1;
         }
         if (ret == 0) {
