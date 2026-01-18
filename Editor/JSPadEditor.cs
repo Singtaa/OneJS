@@ -30,7 +30,7 @@ public class JSPadEditor : Editor {
     VisualElement _tabContainer;
     VisualElement _tabContent;
     int _selectedTab = 0;
-    readonly string[] _tabNames = { "UI", "Modules", "Cartridges" };
+    readonly string[] _tabNames = { "UI", "Cartridges", "Modules" };
 
     // Lists
     VisualElement _moduleListContainer;
@@ -362,11 +362,11 @@ public class JSPadEditor : Editor {
             case 0: // UI
                 BuildUITab();
                 break;
-            case 1: // Modules
-                BuildModulesTab();
-                break;
-            case 2: // Cartridges
+            case 1: // Cartridges
                 BuildCartridgesTab();
+                break;
+            case 2: // Modules
+                BuildModulesTab();
                 break;
         }
     }
