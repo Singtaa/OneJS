@@ -24,8 +24,7 @@ public class JSPadEditor : Editor {
     CodeField _codeField;
     Label _statusLabel;
     Label _bundleSizeLabel;
-    Button _buildButton;
-    Button _reloadButton;
+    Button _actionButton;
 
     // Tabs
     VisualElement _tabContainer;
@@ -223,26 +222,12 @@ public class JSPadEditor : Editor {
         bundleRow.Add(_bundleSizeLabel);
         statusBox.Add(bundleRow);
 
-        // Build and Reload buttons
-        var buttonRow = new VisualElement();
-        buttonRow.style.flexDirection = FlexDirection.Row;
-        buttonRow.style.marginTop = 8;
-
-        _buildButton = new Button(OnBuildClicked) { text = "Build" };
-        _buildButton.style.flexGrow = 1;
-        _buildButton.style.height = 24;
-        _buildButton.style.marginRight = 4;
-        _buildButton.tooltip = "Build the source code (npm install if needed, then esbuild)";
-        buttonRow.Add(_buildButton);
-
-        _reloadButton = new Button(OnReloadClicked) { text = "Reload" };
-        _reloadButton.style.flexGrow = 1;
-        _reloadButton.style.height = 24;
-        _reloadButton.tooltip = "Reload the JS code from the stored bundle (PlayMode only)";
-        _reloadButton.SetEnabled(false);
-        buttonRow.Add(_reloadButton);
-
-        statusBox.Add(buttonRow);
+        // Action button (Build in edit mode, Reload in play mode)
+        _actionButton = new Button(OnActionButtonClicked) { text = "Build" };
+        _actionButton.style.height = 24;
+        _actionButton.style.marginTop = 8;
+        _actionButton.tooltip = "Build the source code (npm install if needed, then esbuild)";
+        statusBox.Add(_actionButton);
 
         _root.Add(statusBox);
 
@@ -702,12 +687,17 @@ public class JSPadEditor : Editor {
             _bundleSizeLabel.text = GetBundleSizeText();
         }
 
-        // Update button states
-        if (_buildButton != null) {
-            _buildButton.SetEnabled(!_isProcessing);
-        }
-        if (_reloadButton != null) {
-            _reloadButton.SetEnabled(Application.isPlaying && _target.HasBuiltBundle && !_isProcessing);
+        // Update action button (Build in edit mode, Reload in play mode)
+        if (_actionButton != null) {
+            if (Application.isPlaying) {
+                _actionButton.text = "Reload";
+                _actionButton.tooltip = "Reload the JS code from the stored bundle";
+                _actionButton.SetEnabled(_target.HasBuiltBundle && !_isProcessing);
+            } else {
+                _actionButton.text = "Build";
+                _actionButton.tooltip = "Build the source code (npm install if needed, then esbuild)";
+                _actionButton.SetEnabled(!_isProcessing);
+            }
         }
 
         // Check if PanelSettings render mode changed - force UIDocument inspector rebuild
@@ -734,13 +724,15 @@ public class JSPadEditor : Editor {
         return $"{size / (1024f * 1024f):F2} MB";
     }
 
-    void OnBuildClicked() {
-        Build(runAfter: false);
-    }
-
-    void OnReloadClicked() {
-        if (Application.isPlaying && _target.HasBuiltBundle) {
-            _target.Reload();
+    void OnActionButtonClicked() {
+        if (Application.isPlaying) {
+            // Play mode: Reload
+            if (_target.HasBuiltBundle) {
+                _target.Reload();
+            }
+        } else {
+            // Edit mode: Build
+            Build(runAfter: false);
         }
     }
 
