@@ -726,13 +726,11 @@ public class JSPadEditor : Editor {
 
     void OnActionButtonClicked() {
         if (Application.isPlaying) {
-            // Play mode: Reload
-            if (_target.HasBuiltBundle) {
-                _target.Reload();
-            }
+            // Play mode: Build (skip npm install) then reload
+            Build(runAfter: true, skipNpmInstall: true);
         } else {
             // Edit mode: Build
-            Build(runAfter: false);
+            Build(runAfter: false, skipNpmInstall: false);
         }
     }
 
@@ -756,7 +754,7 @@ public class JSPadEditor : Editor {
 #endif
     }
 
-    void Build(bool runAfter) {
+    void Build(bool runAfter, bool skipNpmInstall = false) {
         if (_isProcessing) return;
         if (runAfter && !Application.isPlaying) return; // Can't run outside play mode
 
@@ -764,8 +762,8 @@ public class JSPadEditor : Editor {
         _target.WriteSourceFile();
         _target.ExtractCartridges();
 
-        // Check if npm install is needed
-        if (!_target.HasNodeModules()) {
+        // Check if npm install is needed (unless skipped for play mode reload)
+        if (!skipNpmInstall && !_target.HasNodeModules()) {
             RunNpmInstall(() => {
                 RunBuild(runAfter);
             });
