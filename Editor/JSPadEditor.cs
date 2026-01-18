@@ -30,7 +30,7 @@ public class JSPadEditor : Editor {
     VisualElement _tabContainer;
     VisualElement _tabContent;
     int _selectedTab = 0;
-    readonly string[] _tabNames = { "Modules", "UI", "Cartridges" };
+    readonly string[] _tabNames = { "UI", "Modules", "Cartridges" };
 
     // Lists
     VisualElement _moduleListContainer;
@@ -359,11 +359,11 @@ public class JSPadEditor : Editor {
         _tabContent.Clear();
 
         switch (_selectedTab) {
-            case 0: // Modules
-                BuildModulesTab();
-                break;
-            case 1: // UI
+            case 0: // UI
                 BuildUITab();
+                break;
+            case 1: // Modules
+                BuildModulesTab();
                 break;
             case 2: // Cartridges
                 BuildCartridgesTab();
