@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace OneJS.Editor {
     /// <summary>
@@ -137,23 +140,142 @@ namespace OneJS.Editor {
                 "");
 
             if (result == 0) { // Delete
+                DeleteFolderRobust(instanceFolder);
+            }
+        }
+
+        /// <summary>
+        /// Robustly delete a folder, handling locked files (common on Windows with esbuild.exe).
+        /// </summary>
+        static void DeleteFolderRobust(string folderPath) {
+            // First, try to kill any esbuild processes that might be locking files
+            KillEsbuildProcesses(folderPath);
+
+            // Try deletion with retries
+            const int maxRetries = 3;
+            const int retryDelayMs = 500;
+
+            for (int i = 0; i < maxRetries; i++) {
                 try {
-                    Directory.Delete(instanceFolder, true);
+                    Directory.Delete(folderPath, true);
 
                     // Also delete .meta file if it exists
-                    var metaPath = instanceFolder + ".meta";
+                    var metaPath = folderPath + ".meta";
                     if (File.Exists(metaPath)) {
                         File.Delete(metaPath);
                     }
 
                     AssetDatabase.Refresh();
-                    Debug.Log($"[JSRunner] Deleted instance folder: {instanceFolder}");
-                } catch (Exception ex) {
-                    Debug.LogError($"[JSRunner] Failed to delete folder: {ex.Message}");
-                    EditorUtility.DisplayDialog("Delete Failed",
-                        $"Failed to delete folder:\n\n{ex.Message}", "OK");
+                    Debug.Log($"[JSRunner] Deleted instance folder: {folderPath}");
+                    return;
+                } catch (Exception ex) when (i < maxRetries - 1) {
+                    // Wait and retry
+                    System.Threading.Thread.Sleep(retryDelayMs);
+                    // Try killing processes again
+                    KillEsbuildProcesses(folderPath);
                 }
             }
+
+            // All retries failed - try to move to pending cleanup folder
+            try {
+                var pendingFolder = GetPendingCleanupFolder();
+                var destFolder = Path.Combine(pendingFolder, Path.GetFileName(folderPath) + "_" + DateTime.Now.Ticks);
+                Directory.Move(folderPath, destFolder);
+
+                // Delete .meta file if it exists
+                var metaPath = folderPath + ".meta";
+                if (File.Exists(metaPath)) {
+                    File.Delete(metaPath);
+                }
+
+                AssetDatabase.Refresh();
+                Debug.Log($"[JSRunner] Moved locked folder to pending cleanup: {destFolder}");
+
+                // Schedule cleanup of pending folders
+                EditorApplication.delayCall += CleanupPendingFolders;
+            } catch (Exception ex) {
+                Debug.LogError($"[JSRunner] Failed to delete folder (files may be locked): {ex.Message}");
+                EditorUtility.DisplayDialog("Delete Failed",
+                    $"Failed to delete folder. Some files may be locked by another process.\n\n" +
+                    $"Try closing any terminals or processes that might be using esbuild, then manually delete:\n{folderPath}",
+                    "OK");
+            }
+        }
+
+        /// <summary>
+        /// Kill any esbuild processes that might be running from the given folder.
+        /// </summary>
+        static void KillEsbuildProcesses(string folderPath) {
+#if UNITY_EDITOR_WIN
+            try {
+                // Normalize the folder path for comparison
+                var normalizedFolder = Path.GetFullPath(folderPath).ToLowerInvariant();
+
+                foreach (var process in Process.GetProcessesByName("esbuild")) {
+                    try {
+                        // Check if process is from our folder
+                        var processPath = process.MainModule?.FileName;
+                        if (!string.IsNullOrEmpty(processPath)) {
+                            var normalizedProcessPath = Path.GetFullPath(processPath).ToLowerInvariant();
+                            if (normalizedProcessPath.StartsWith(normalizedFolder)) {
+                                process.Kill();
+                                process.WaitForExit(1000);
+                            }
+                        }
+                    } catch {
+                        // Ignore errors for individual processes (access denied, already exited, etc.)
+                    }
+                }
+            } catch {
+                // Ignore errors - best effort cleanup
+            }
+#endif
+        }
+
+        /// <summary>
+        /// Get or create a folder for pending cleanup operations.
+        /// </summary>
+        static string GetPendingCleanupFolder() {
+            var folder = Path.Combine(Application.temporaryCachePath, "OneJS_PendingCleanup");
+            if (!Directory.Exists(folder)) {
+                Directory.CreateDirectory(folder);
+            }
+            return folder;
+        }
+
+        /// <summary>
+        /// Try to clean up any previously failed deletions.
+        /// </summary>
+        static void CleanupPendingFolders() {
+            var pendingFolder = GetPendingCleanupFolder();
+            if (!Directory.Exists(pendingFolder)) return;
+
+            try {
+                foreach (var dir in Directory.GetDirectories(pendingFolder)) {
+                    try {
+                        Directory.Delete(dir, true);
+                        Debug.Log($"[JSRunner] Cleaned up pending folder: {dir}");
+                    } catch {
+                        // Still locked, will try again later
+                    }
+                }
+
+                // If folder is empty, delete it
+                if (Directory.GetDirectories(pendingFolder).Length == 0 &&
+                    Directory.GetFiles(pendingFolder).Length == 0) {
+                    Directory.Delete(pendingFolder);
+                }
+            } catch {
+                // Ignore cleanup errors
+            }
+        }
+
+        /// <summary>
+        /// Called on editor startup to clean up any pending folders from previous sessions.
+        /// </summary>
+        [InitializeOnLoadMethod]
+        static void CleanupOnEditorStart() {
+            EditorApplication.delayCall += CleanupPendingFolders;
         }
     }
 }
