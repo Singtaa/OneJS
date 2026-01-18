@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
@@ -337,6 +338,26 @@ namespace OneJS.Editor {
             if (!string.IsNullOrEmpty(_cachedNpmPath)) return _cachedNpmPath;
 
 #if UNITY_EDITOR_WIN
+            // Use 'where' to find the actual npm.cmd path to avoid picking up local node_modules/.bin/npm.cmd
+            try {
+                var process = new Process {
+                    StartInfo = new ProcessStartInfo {
+                        FileName = "cmd.exe",
+                        Arguments = "/c where npm.cmd",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        CreateNoWindow = true
+                    }
+                };
+                process.Start();
+                var result = process.StandardOutput.ReadToEnd().Trim();
+                process.WaitForExit();
+                // 'where' may return multiple paths, take the first one
+                var firstLine = result.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+                if (!string.IsNullOrEmpty(firstLine) && File.Exists(firstLine)) {
+                    return _cachedNpmPath = firstLine;
+                }
+            } catch { }
             return _cachedNpmPath = "npm.cmd";
 #else
             var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
