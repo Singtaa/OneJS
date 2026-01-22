@@ -116,10 +116,6 @@ PostProcessTextVertices callback ← Color32[] for visible glyphs only
    Rendered text with syntax highlighting
 ```
 
-### Test Window
-
-Open **Window > OneJS > CodeField Test** to see the control in action.
-
 ### JS Interoperability (Future)
 
 The highlighter can run in JavaScript, returning token spans that are converted to colors in C#. This enables using existing JS syntax highlighting libraries.
