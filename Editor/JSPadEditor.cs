@@ -687,12 +687,12 @@ public class JSPadEditor : Editor {
             _bundleSizeLabel.text = GetBundleSizeText();
         }
 
-        // Update action button (Build in edit mode, Reload in play mode)
+        // Update action button (Build in edit mode, Build & Reload in play mode)
         if (_actionButton != null) {
             if (Application.isPlaying) {
-                _actionButton.text = "Reload";
-                _actionButton.tooltip = "Reload the JS code from the stored bundle";
-                _actionButton.SetEnabled(_target.HasBuiltBundle && !_isProcessing);
+                _actionButton.text = "Build & Reload";
+                _actionButton.tooltip = "Build the current source code and reload (skips npm install)";
+                _actionButton.SetEnabled(!_isProcessing);
             } else {
                 _actionButton.text = "Build";
                 _actionButton.tooltip = "Build the source code (npm install if needed, then esbuild)";
