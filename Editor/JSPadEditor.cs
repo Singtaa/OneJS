@@ -718,10 +718,10 @@ public class JSPadEditor : Editor {
 
     string GetBundleSizeText() {
         if (!_target.HasBuiltBundle) return "(empty)";
-        var size = _target.BundleSize;
-        if (size < 1024) return $"{size} B";
-        if (size < 1024 * 1024) return $"{size / 1024f:F1} KB";
-        return $"{size / (1024f * 1024f):F2} MB";
+        var size = _target.CompressedBundleSize;
+        if (size < 1024) return $"{size} B (compressed)";
+        if (size < 1024 * 1024) return $"{size / 1024f:F1} KB (compressed)";
+        return $"{size / (1024f * 1024f):F2} MB (compressed)";
     }
 
     void OnActionButtonClicked() {

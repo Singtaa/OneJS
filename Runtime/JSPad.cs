@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Text;
 using OneJS;
 using UnityEngine;
@@ -86,8 +87,9 @@ render(<App />, __root)
     [SerializeField] List<DefaultFileEntry> _defaultFiles = new List<DefaultFileEntry>();
 
     // Serialized build output for standalone players (no npm/node available)
-    [SerializeField, HideInInspector] string _builtBundle;
-    [SerializeField, HideInInspector] string _builtSourceMap;
+    // Stored as GZip-compressed Base64 to reduce scene file size
+    [SerializeField, HideInInspector] string _compressedBundle;
+    [SerializeField, HideInInspector] string _compressedSourceMap;
 
     QuickJSUIBridge _bridge;
     UIDocument _uiDocument;
@@ -135,34 +137,39 @@ render(<App />, __root)
     /// <summary>
     /// Returns true if there's a built bundle available in the serialized field.
     /// </summary>
-    public bool HasBuiltBundle => !string.IsNullOrEmpty(_builtBundle);
+    public bool HasBuiltBundle => !string.IsNullOrEmpty(_compressedBundle);
 
     /// <summary>
-    /// Size of the built bundle in bytes (0 if empty).
+    /// Size of the compressed bundle in bytes (0 if empty).
     /// </summary>
-    public int BundleSize => _builtBundle?.Length ?? 0;
+    public int CompressedBundleSize => _compressedBundle?.Length ?? 0;
 
     /// <summary>
-    /// The serialized bundle string (for standalone builds).
+    /// The decompressed bundle string (for standalone builds).
+    /// Returns null if no bundle is stored.
     /// </summary>
-    public string BuiltBundle => _builtBundle;
+    public string BuiltBundle => DecompressString(_compressedBundle);
 
     /// <summary>
-    /// The serialized source map string (for standalone builds).
+    /// The decompressed source map string (for standalone builds).
+    /// Returns null if no source map is stored.
     /// </summary>
-    public string BuiltSourceMap => _builtSourceMap;
+    public string BuiltSourceMap => DecompressString(_compressedSourceMap);
 
     /// <summary>
     /// Saves the current build output to serialized fields for standalone use.
+    /// The bundle is GZip-compressed and Base64-encoded to reduce scene file size.
     /// Call this from the editor after a successful build.
     /// </summary>
     public void SaveBundleToSerializedFields() {
 #if UNITY_EDITOR
         if (File.Exists(OutputFile)) {
-            _builtBundle = File.ReadAllText(OutputFile);
+            var bundle = File.ReadAllText(OutputFile);
+            _compressedBundle = CompressString(bundle);
         }
         if (File.Exists(SourceMapFile)) {
-            _builtSourceMap = File.ReadAllText(SourceMapFile);
+            var sourceMap = File.ReadAllText(SourceMapFile);
+            _compressedSourceMap = CompressString(sourceMap);
         }
         UnityEditor.EditorUtility.SetDirty(this);
 
@@ -177,11 +184,41 @@ render(<App />, __root)
     /// Clears the serialized bundle fields.
     /// </summary>
     public void ClearSerializedBundle() {
-        _builtBundle = null;
-        _builtSourceMap = null;
+        _compressedBundle = null;
+        _compressedSourceMap = null;
 #if UNITY_EDITOR
         UnityEditor.EditorUtility.SetDirty(this);
 #endif
+    }
+
+    /// <summary>
+    /// Compresses a string using GZip and returns it as Base64.
+    /// Returns null if input is null or empty.
+    /// </summary>
+    static string CompressString(string input) {
+        if (string.IsNullOrEmpty(input)) return null;
+
+        var bytes = Encoding.UTF8.GetBytes(input);
+        using var outputStream = new MemoryStream();
+        using (var gzipStream = new GZipStream(outputStream, System.IO.Compression.CompressionLevel.Optimal)) {
+            gzipStream.Write(bytes, 0, bytes.Length);
+        }
+        return Convert.ToBase64String(outputStream.ToArray());
+    }
+
+    /// <summary>
+    /// Decompresses a Base64-encoded GZip string.
+    /// Returns null if input is null or empty.
+    /// </summary>
+    static string DecompressString(string compressedBase64) {
+        if (string.IsNullOrEmpty(compressedBase64)) return null;
+
+        var compressedBytes = Convert.FromBase64String(compressedBase64);
+        using var inputStream = new MemoryStream(compressedBytes);
+        using var gzipStream = new GZipStream(inputStream, CompressionMode.Decompress);
+        using var outputStream = new MemoryStream();
+        gzipStream.CopyTo(outputStream);
+        return Encoding.UTF8.GetString(outputStream.ToArray());
     }
 
     // Cartridge API
@@ -381,8 +418,9 @@ render(<App />, __root)
             // Apply stylesheets
             ApplyStylesheets();
 
-            // Evaluate the stored bundle
-            _bridge.Eval(_builtBundle, "app.js");
+            // Decompress and evaluate the stored bundle
+            var bundle = DecompressString(_compressedBundle);
+            _bridge.Eval(bundle, "app.js");
             _bridge.Context.ExecutePendingJobs();
             _scriptLoaded = true;
         } catch (Exception ex) {
@@ -403,7 +441,8 @@ render(<App />, __root)
 #if UNITY_EDITOR
         var parser = SourceMapParser.Load(SourceMapFile);
 #else
-        var parser = !string.IsNullOrEmpty(_builtSourceMap) ? SourceMapParser.Parse(_builtSourceMap) : null;
+        var sourceMap = DecompressString(_compressedSourceMap);
+        var parser = !string.IsNullOrEmpty(sourceMap) ? SourceMapParser.Parse(sourceMap) : null;
 #endif
         if (parser == null) return message;
 
