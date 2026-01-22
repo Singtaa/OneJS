@@ -10,6 +10,7 @@ using Debug = UnityEngine.Debug;
 namespace OneJS.Editor {
     /// <summary>
     /// Tracks JSRunner components and cleans up their instance folders when removed in Edit mode.
+    /// Also detects GameObject renames and offers to rename the instance folders accordingly.
     /// Uses ObjectChangeEvents API for reliable destruction detection without false positives
     /// from play mode transitions or domain reloads.
     /// </summary>
@@ -17,6 +18,13 @@ namespace OneJS.Editor {
     static class JSRunnerCleanup {
         // Track JSRunner instances by GlobalObjectId (survives domain reload), storing their folder path
         static Dictionary<string, string> _trackedFolders = new Dictionary<string, string>();
+
+        // Track folder paths where user declined rename (old path -> new path they declined)
+        // This prevents repeatedly prompting for the same rename
+        static Dictionary<string, string> _declinedRenames = new Dictionary<string, string>();
+
+        // Track folder paths with pending rename prompts to prevent duplicate dialogs
+        static HashSet<string> _pendingRenamePrompts = new HashSet<string>();
 
         static JSRunnerCleanup() {
             ObjectChangeEvents.changesPublished += OnObjectChanged;
@@ -44,10 +52,69 @@ namespace OneJS.Editor {
             foreach (var runner in runners) {
                 var stableId = GetStableId(runner);
 
-                // Update tracked folder path (in case scene was saved and paths are now valid)
-                var folder = runner.InstanceFolder;
-                if (!string.IsNullOrEmpty(folder)) {
-                    _trackedFolders[stableId] = folder;
+                // Get the expected folder path based on current GameObject name
+                var expectedFolder = runner.InstanceFolder;
+                if (string.IsNullOrEmpty(expectedFolder)) continue;
+
+                // Check if we have a previously tracked folder
+                if (_trackedFolders.TryGetValue(stableId, out var trackedFolder)) {
+                    // Normalize paths for comparison
+                    var normalizedExpected = Path.GetFullPath(expectedFolder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                    var normalizedTracked = Path.GetFullPath(trackedFolder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+                    // Check if name changed (expected path differs from tracked path)
+                    if (!string.Equals(normalizedExpected, normalizedTracked, StringComparison.OrdinalIgnoreCase)) {
+                        // Name changed - check if old folder exists on disk and new doesn't
+                        if (Directory.Exists(trackedFolder) && !Directory.Exists(expectedFolder)) {
+                            // Check if user already declined this rename
+                            if (_declinedRenames.TryGetValue(trackedFolder, out var declinedNewPath) &&
+                                string.Equals(Path.GetFullPath(declinedNewPath), normalizedExpected, StringComparison.OrdinalIgnoreCase)) {
+                                // User declined this exact rename before - don't prompt again
+                                // Keep tracking the old folder path
+                                continue;
+                            }
+
+                            // Check if there's already a pending prompt for this folder
+                            if (_pendingRenamePrompts.Contains(trackedFolder)) {
+                                continue;
+                            }
+
+                            // Schedule rename prompt (don't do it synchronously during hierarchy change)
+                            var oldFolder = trackedFolder;
+                            var newFolder = expectedFolder;
+                            var gameObjectName = runner.gameObject.name;
+                            var capturedStableId = stableId;
+
+                            _pendingRenamePrompts.Add(oldFolder);
+                            EditorApplication.delayCall += () => {
+                                _pendingRenamePrompts.Remove(oldFolder);
+                                var renamed = PromptRenameFolder(oldFolder, newFolder, gameObjectName);
+                                if (renamed) {
+                                    // Update tracking to new path
+                                    _trackedFolders[capturedStableId] = newFolder;
+                                    // Clear any declined rename for the old folder
+                                    _declinedRenames.Remove(oldFolder);
+                                } else {
+                                    // User declined - record it so we don't prompt again
+                                    _declinedRenames[oldFolder] = newFolder;
+                                    // Keep tracking old folder path (it still exists on disk)
+                                }
+                            };
+                            // Don't update tracking yet - wait for user response
+                        } else if (Directory.Exists(expectedFolder)) {
+                            // New folder already exists (maybe renamed manually) - just update tracking
+                            _trackedFolders[stableId] = expectedFolder;
+                            // Clear any declined rename for the old folder
+                            _declinedRenames.Remove(trackedFolder);
+                        }
+                        // If neither exists, keep tracking expected path for when it gets created
+                        else {
+                            _trackedFolders[stableId] = expectedFolder;
+                        }
+                    }
+                } else {
+                    // New runner - track it
+                    _trackedFolders[stableId] = expectedFolder;
                 }
             }
         }
@@ -145,6 +212,99 @@ namespace OneJS.Editor {
         }
 
         /// <summary>
+        /// Prompts the user to rename a JSRunner's instance folder after a GameObject rename.
+        /// Handles renaming both the instance folder and the working directory inside it.
+        /// </summary>
+        /// <returns>True if the rename was performed, false if user declined or it failed.</returns>
+        static bool PromptRenameFolder(string oldFolder, string newFolder, string newName) {
+            if (string.IsNullOrEmpty(oldFolder) || string.IsNullOrEmpty(newFolder)) return false;
+            if (!Directory.Exists(oldFolder)) return false;
+
+            // Don't prompt during play mode transitions
+            if (Application.isPlaying || EditorApplication.isPlayingOrWillChangePlaymode) return false;
+
+            // Extract old name from folder path: "{oldName}_{instanceId}"
+            var oldFolderName = Path.GetFileName(oldFolder);
+            var underscoreIndex = oldFolderName.LastIndexOf('_');
+            var oldName = underscoreIndex > 0 ? oldFolderName.Substring(0, underscoreIndex) : oldFolderName;
+
+            var result = EditorUtility.DisplayDialogComplex(
+                "Rename JSRunner Folder?",
+                $"The GameObject was renamed from \"{oldName}\" to \"{newName}\".\n\n" +
+                $"Rename the instance folder to match?\n\n" +
+                $"From: {oldFolder}\n" +
+                $"To: {newFolder}",
+                "Rename",
+                "Keep Old Name",
+                "");
+
+            if (result == 0) { // Rename
+                return RenameFolderRobust(oldFolder, newFolder, oldName, newName);
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Robustly rename a JSRunner instance folder, including its working directory.
+        /// </summary>
+        /// <returns>True if the rename succeeded, false otherwise.</returns>
+        static bool RenameFolderRobust(string oldFolder, string newFolder, string oldName, string newName) {
+            // First, try to kill any esbuild processes that might be locking files
+            KillEsbuildProcesses(oldFolder);
+
+            // Try rename with retries
+            const int maxRetries = 3;
+            const int retryDelayMs = 500;
+
+            for (int i = 0; i < maxRetries; i++) {
+                try {
+                    // Step 1: Rename the inner working directory first (if it exists)
+                    // Working dir format: {oldName}~ inside the instance folder
+                    var oldWorkingDir = Path.Combine(oldFolder, $"{oldName}~");
+                    var newWorkingDir = Path.Combine(oldFolder, $"{newName}~");
+
+                    if (Directory.Exists(oldWorkingDir) && !string.Equals(oldWorkingDir, newWorkingDir, StringComparison.OrdinalIgnoreCase)) {
+                        Directory.Move(oldWorkingDir, newWorkingDir);
+                        Debug.Log($"[JSRunner] Renamed working directory: {oldName}~ → {newName}~");
+                    }
+
+                    // Step 2: Rename the instance folder
+                    Directory.Move(oldFolder, newFolder);
+
+                    // Step 3: Handle .meta files
+                    var oldMetaPath = oldFolder + ".meta";
+                    var newMetaPath = newFolder + ".meta";
+                    if (File.Exists(oldMetaPath)) {
+                        if (File.Exists(newMetaPath)) {
+                            File.Delete(oldMetaPath);
+                        } else {
+                            File.Move(oldMetaPath, newMetaPath);
+                        }
+                    }
+
+                    AssetDatabase.Refresh();
+                    Debug.Log($"[JSRunner] Renamed instance folder: {Path.GetFileName(oldFolder)} → {Path.GetFileName(newFolder)}");
+                    return true;
+                } catch (Exception) when (i < maxRetries - 1) {
+                    // Wait and retry
+                    System.Threading.Thread.Sleep(retryDelayMs);
+                    // Try killing processes again
+                    KillEsbuildProcesses(oldFolder);
+                }
+            }
+
+            // All retries failed
+            Debug.LogError($"[JSRunner] Failed to rename folder. Files may be locked by another process.");
+            EditorUtility.DisplayDialog("Rename Failed",
+                $"Failed to rename folder. Some files may be locked by another process.\n\n" +
+                $"Try closing any terminals or processes that might be using files in:\n{oldFolder}\n\n" +
+                $"Then manually rename the folder to:\n{newFolder}",
+                "OK");
+            return false;
+        }
+
+        /// <summary>
         /// Robustly delete a folder, handling locked files (common on Windows with esbuild.exe).
         /// </summary>
         static void DeleteFolderRobust(string folderPath) {
@@ -168,7 +328,7 @@ namespace OneJS.Editor {
                     AssetDatabase.Refresh();
                     Debug.Log($"[JSRunner] Deleted instance folder: {folderPath}");
                     return;
-                } catch (Exception ex) when (i < maxRetries - 1) {
+                } catch (Exception) when (i < maxRetries - 1) {
                     // Wait and retry
                     System.Threading.Thread.Sleep(retryDelayMs);
                     // Try killing processes again
