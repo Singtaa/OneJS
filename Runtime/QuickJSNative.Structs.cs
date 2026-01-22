@@ -666,9 +666,24 @@ public static partial class QuickJSNative {
         var converted = TryImplicitConversion(value, sourceType, targetType);
         if (converted != null) return converted;
 
-        // 4. Enum from numeric
-        if (targetType.IsEnum && IsNumericType(sourceType)) {
-            return Enum.ToObject(targetType, Convert.ToInt64(value));
+        // 4. Enum from numeric or string
+        if (targetType.IsEnum) {
+            if (IsNumericType(sourceType)) {
+                return Enum.ToObject(targetType, Convert.ToInt64(value));
+            }
+            if (sourceType == typeof(string)) {
+                var strValue = (string)value;
+                try {
+                    return Enum.Parse(targetType, strValue, ignoreCase: true);
+                } catch {
+                    var pascalCase = ConvertToPascalCase(strValue);
+                    if (pascalCase != strValue) {
+                        try {
+                            return Enum.Parse(targetType, pascalCase, ignoreCase: true);
+                        } catch { }
+                    }
+                }
+            }
         }
 
         // 5. StyleEnum<T>
@@ -682,6 +697,24 @@ public static partial class QuickJSNative {
                 }
                 if (sourceType == enumType) {
                     return Activator.CreateInstance(targetType, value);
+                }
+                // Handle string -> enum parsing (e.g., "row" -> FlexDirection.Row)
+                if (sourceType == typeof(string)) {
+                    var strValue = (string)value;
+                    try {
+                        // Try case-insensitive parse
+                        var enumVal = Enum.Parse(enumType, strValue, ignoreCase: true);
+                        return Activator.CreateInstance(targetType, enumVal);
+                    } catch {
+                        // Try PascalCase conversion (e.g., "flex-start" -> "FlexStart")
+                        var pascalCase = ConvertToPascalCase(strValue);
+                        if (pascalCase != strValue) {
+                            try {
+                                var enumVal = Enum.Parse(enumType, pascalCase, ignoreCase: true);
+                                return Activator.CreateInstance(targetType, enumVal);
+                            } catch { }
+                        }
+                    }
                 }
             }
         }
@@ -790,6 +823,30 @@ public static partial class QuickJSNative {
                t == typeof(long) || t == typeof(short) || t == typeof(byte) ||
                t == typeof(uint) || t == typeof(ulong) || t == typeof(ushort) ||
                t == typeof(sbyte) || t == typeof(decimal);
+    }
+
+    /// <summary>
+    /// Converts kebab-case or lowercase strings to PascalCase for enum parsing.
+    /// E.g., "flex-start" -> "FlexStart", "row" -> "Row"
+    /// </summary>
+    static string ConvertToPascalCase(string s) {
+        if (string.IsNullOrEmpty(s)) return s;
+
+        var sb = new System.Text.StringBuilder(s.Length);
+        bool capitalizeNext = true;
+
+        foreach (char c in s) {
+            if (c == '-' || c == '_') {
+                capitalizeNext = true;
+            } else if (capitalizeNext) {
+                sb.Append(char.ToUpperInvariant(c));
+                capitalizeNext = false;
+            } else {
+                sb.Append(c);
+            }
+        }
+
+        return sb.ToString();
     }
 
     // MARK: Array Conversion
