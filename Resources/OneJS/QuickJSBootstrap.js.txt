@@ -10,11 +10,21 @@ if (typeof globalThis.__cs === "undefined") {
 // Track released handles to prevent double-free from FinalizationRegistry
 const __releasedHandles = new Set();
 
+// Proxy cache: handle → WeakRef<proxy>
+// Ensures the same C# object handle always returns the same JS proxy.
+// This prevents premature handle release when multiple code paths access the same object:
+// without caching, each access creates a new proxy registered with FinalizationRegistry,
+// and when ANY proxy is GC'd, the handle is released - invalidating all other proxies.
+const __proxyCache = new Map();
+
 // Forward declaration - actual Map created in Events section
 // This allows __cleanupHandle to reference it before initialization
 let __eventHandlers = new Map();
 
 const __handleRegistry = new FinalizationRegistry((handle) => {
+    // Always clean proxy cache when a proxy is finalized
+    __proxyCache.delete(handle);
+
     // Skip if already released manually or handle is invalid
     if (handle <= 0 || __releasedHandles.has(handle)) {
         __releasedHandles.delete(handle); // Clean up the tracking set
@@ -31,6 +41,8 @@ const __handleRegistry = new FinalizationRegistry((handle) => {
  * Called before releasing the handle to C#.
  */
 function __cleanupHandle(handle) {
+    // Clean up proxy cache - prevents stale proxy from being reused
+    __proxyCache.delete(handle);
     // Clean up event handlers for this element
     __eventHandlers.delete(handle);
 }
@@ -334,6 +346,20 @@ function __wrapResultFromCs(typeHint, raw) {
 function __wrapObject(typeName, handle) {
     if (handle == null || handle === 0) return null;
 
+    // Check proxy cache first - return existing proxy if still alive
+    // This ensures the same C# object handle always returns the same JS proxy,
+    // preventing premature handle release when the GC collects one of multiple proxies
+    const cachedRef = __proxyCache.get(handle);
+    if (cachedRef) {
+        const cached = cachedRef.deref();
+        if (cached) {
+            return cached;
+        }
+        // WeakRef target was collected but FinalizationRegistry hasn't run yet
+        // Clean up the stale entry
+        __proxyCache.delete(handle);
+    }
+
     const target = {
         __csType: typeName,
         __csHandle: handle
@@ -438,7 +464,11 @@ function __wrapObject(typeName, handle) {
             return true;
         }
     });
-    
+
+    // Cache the proxy using WeakRef so it can still be GC'd when no longer referenced
+    __proxyCache.set(handle, new WeakRef(proxy));
+
+    // Register for cleanup when proxy is GC'd
     __handleRegistry.register(proxy, handle);
     return proxy;
 }
