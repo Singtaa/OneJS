@@ -406,14 +406,18 @@ function __wrapObject(typeName, handle) {
                 };
             }
 
-            if (isUpper) {
+            // For all members (uppercase or lowercase), try property access first
+            // C# returns "__oneJS_methodRef__" if it's a method, not a property
+            const value = __cs.invoke(typeName, propName, 2, 0, handle, []);
+
+            // If C# signals this is a method, return a function wrapper
+            if (value === "__oneJS_methodRef__") {
                 return function (...args) {
                     const raw = __cs.invoke(typeName, propName, 1, 0, handle, __resolveArgs(args));
                     return __wrapResultFromCs(null, raw);
                 };
             }
 
-            const value = __cs.invoke(typeName, propName, 2, 0, handle, []);
             return __wrapResultFromCs(null, value);
         },
         set(obj, prop, value) {

@@ -240,6 +240,15 @@ public static partial class QuickJSNative {
                 case InteropInvokeCallKind.Method: {
                     MethodInfo method = FindMethodCached(type, memberName, isStatic, args);
                     if (method == null) {
+                        // Fallback: try as property getter if no method found
+                        // This allows JS to access C# properties with PascalCase names naturally
+                        PropertyInfo prop = FindPropertyCached(type, memberName, isStatic);
+                        if (prop != null && prop.CanRead) {
+                            object propResult = prop.GetValue(isStatic ? null : target);
+                            SetReturnValue(resPtr, propResult);
+                            return;
+                        }
+
                         resPtr->errorCode = 1;
                         Debug.LogError("[QuickJS] Method not found: " + type.FullName + "." + memberName);
                         return;
@@ -258,6 +267,13 @@ public static partial class QuickJSNative {
                 case InteropInvokeCallKind.GetProp: {
                     PropertyInfo prop = FindPropertyCached(type, memberName, isStatic);
                     if (prop == null) {
+                        // Fallback: check if there's a method with this name (any signature)
+                        // Return magic string so JS can create a function wrapper
+                        if (HasMethodByName(type, memberName, isStatic)) {
+                            SetReturnValue(resPtr, "__oneJS_methodRef__");
+                            return;
+                        }
+
                         resPtr->errorCode = 1;
                         Debug.LogError("[QuickJS] Property not found: " + type.FullName + "." + memberName);
                         return;

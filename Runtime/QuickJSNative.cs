@@ -132,7 +132,8 @@ public static partial class QuickJSNative {
         JsonObject = 9,
         Vector3 = 10,  // Binary packed x,y,z floats - zero alloc!
         Vector4 = 11,  // Binary packed x,y,z,w floats (Quaternion, Color) - zero alloc!
-        TaskHandle = 12 // Pending C# Task - JS receives Promise
+        TaskHandle = 12, // Pending C# Task - JS receives Promise
+        MethodRef = 13  // Signals "this is a method, not a property" - JS creates function wrapper
     }
 
     public enum InteropInvokeCallKind : int {

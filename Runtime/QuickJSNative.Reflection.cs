@@ -134,6 +134,21 @@ public static partial class QuickJSNative {
     static FieldInfo FindField(Type type, string name, BindingFlags flags) =>
         FindMember(type, name, flags, (t, n, f) => t.GetField(n, f));
 
+    /// <summary>
+    /// Check if any method with the given name exists (ignores parameter count/types).
+    /// Used for property-first access pattern to detect method references.
+    /// </summary>
+    static bool HasMethodByName(Type type, string name, bool isStatic) {
+        var flags = GetFlags(isStatic);
+        while (type != null) {
+            foreach (var m in type.GetMethods(flags | BindingFlags.DeclaredOnly)) {
+                if (m.Name == name) return true;
+            }
+            type = type.BaseType;
+        }
+        return false;
+    }
+
     // MARK: Argument Hash
     static int ComputeArgTypeHash(object[] args) {
         if (args == null || args.Length == 0) return 0;
