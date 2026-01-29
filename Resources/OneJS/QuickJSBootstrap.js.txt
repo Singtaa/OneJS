@@ -21,6 +21,12 @@ const __proxyCache = new Map();
 // This allows __cleanupHandle to reference it before initialization
 let __eventHandlers = new Map();
 
+// Parent map: childHandle → parentHandle
+// Maintained by the React reconciler to enable event bubbling.
+// When an event fires on an element, __dispatchEvent walks up this chain
+// to simulate bubble-phase propagation (matching UI Toolkit's native behavior).
+const __parentMap = new Map();
+
 const __handleRegistry = new FinalizationRegistry((handle) => {
     // Always clean proxy cache when a proxy is finalized
     __proxyCache.delete(handle);
@@ -45,6 +51,8 @@ function __cleanupHandle(handle) {
     __proxyCache.delete(handle);
     // Clean up event handlers for this element
     __eventHandlers.delete(handle);
+    // Clean up parent mapping
+    __parentMap.delete(handle);
 }
 
 /**
@@ -699,20 +707,33 @@ function removeAllEventListeners(element) {
 }
 
 /**
+ * Events that should NOT bubble up the parent chain.
+ * These are element-specific events that only make sense on the target.
+ */
+const __nonBubblingEvents = new Set([
+    "pointerenter", "pointerleave",
+    "mouseenter", "mouseleave",
+    "focus", "blur",
+    "geometrychanged",
+    "transitionrun", "transitionstart", "transitionend", "transitioncancel"
+]);
+
+/**
  * Called from C# when an event fires.
- * Dispatches to registered JS handlers.
+ * Dispatches to registered JS handlers, then bubbles up the parent chain.
+ *
+ * Bubbling mirrors UI Toolkit's native bubble phase:
+ * - Target phase: dispatch to the target element
+ * - Bubble phase: walk up __parentMap, dispatching to each ancestor
+ * - stopPropagation() halts the bubble walk
+ * - Non-bubbling events (enter/leave, focus/blur, geometry) only fire on target
  */
 globalThis.__dispatchEvent = function(elementHandle, eventType, eventData) {
-    const handlers = __eventHandlers.get(elementHandle);
-    if (!handlers) return;
-
-    const callbacks = handlers.get(eventType);
-    if (!callbacks || callbacks.size === 0) return;
-
-    // Create synthetic event object
+    // Create synthetic event object (shared across target + bubble phases)
     const event = {
         type: eventType,
         target: elementHandle,
+        currentTarget: elementHandle,
         ...eventData,
         preventDefault() { this.defaultPrevented = true; },
         stopPropagation() { this.propagationStopped = true; },
@@ -720,11 +741,43 @@ globalThis.__dispatchEvent = function(elementHandle, eventType, eventData) {
         propagationStopped: false
     };
 
-    for (const cb of callbacks) {
-        try {
-            cb(event);
-        } catch (e) {
-            console.error("Event handler error:", e);
+    // Dispatch to target element
+    const targetHandlers = __eventHandlers.get(elementHandle);
+    if (targetHandlers) {
+        const callbacks = targetHandlers.get(eventType);
+        if (callbacks && callbacks.size > 0) {
+            for (const cb of callbacks) {
+                try {
+                    cb(event);
+                } catch (e) {
+                    console.error("Event handler error:", e);
+                }
+            }
+        }
+    }
+
+    // Bubble phase - walk up the parent chain
+    if (!event.propagationStopped && !__nonBubblingEvents.has(eventType)) {
+        let currentHandle = __parentMap.get(elementHandle);
+        while (currentHandle != null && currentHandle > 0) {
+            event.currentTarget = currentHandle;
+
+            const parentHandlers = __eventHandlers.get(currentHandle);
+            if (parentHandlers) {
+                const callbacks = parentHandlers.get(eventType);
+                if (callbacks && callbacks.size > 0) {
+                    for (const cb of callbacks) {
+                        try {
+                            cb(event);
+                        } catch (e) {
+                            console.error("Event handler error:", e);
+                        }
+                    }
+                }
+            }
+
+            if (event.propagationStopped) break;
+            currentHandle = __parentMap.get(currentHandle);
         }
     }
 };
@@ -733,7 +786,16 @@ globalThis.__dispatchEvent = function(elementHandle, eventType, eventData) {
 globalThis.__eventAPI = {
     addEventListener,
     removeEventListener,
-    removeAllEventListeners
+    removeAllEventListeners,
+    // Parent tracking for event bubbling
+    setParent(childHandle, parentHandle) {
+        if (childHandle > 0 && parentHandle > 0) {
+            __parentMap.set(childHandle, parentHandle);
+        }
+    },
+    removeParent(childHandle) {
+        __parentMap.delete(childHandle);
+    }
 };
 
 // MARK: Scheduling
