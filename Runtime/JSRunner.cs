@@ -741,10 +741,6 @@ public class JSRunner : MonoBehaviour {
         // Inject platform defines before any user code runs
         InjectPlatformDefines();
 
-        // Expose the working directory to JS for asset path resolution
-        var escapedWorkingDir = CartridgeUtils.EscapeJsString(_bridge.WorkingDir);
-        _bridge.Eval($"globalThis.__workingDir = '{escapedWorkingDir}'");
-
         // Expose the root element to JS as globalThis.__root
         var rootHandle = QuickJSNative.RegisterObject(_uiDocument.rootVisualElement);
         _bridge.Eval($"globalThis.__root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle})");

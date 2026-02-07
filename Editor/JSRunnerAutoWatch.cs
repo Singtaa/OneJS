@@ -200,22 +200,35 @@ namespace OneJS.Editor {
 
         static void RunNpmCommand(string workingDir, string arguments, Action onSuccess, Action<int> onFailure) {
             try {
-                var npmPath = GetNpmExecutable();
-                var nodeBinDir = Path.GetDirectoryName(npmPath);
-
-                var startInfo = new ProcessStartInfo {
-                    FileName = npmPath,
-                    Arguments = arguments,
-                    WorkingDirectory = workingDir,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
-
-                var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-                if (!string.IsNullOrEmpty(nodeBinDir)) {
-                    startInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
+                ProcessStartInfo startInfo;
+#if UNITY_EDITOR_WIN
+                if (OneJSWslHelper.UseWsl) {
+                    startInfo = new ProcessStartInfo {
+                        FileName = "wsl.exe",
+                        Arguments = OneJSWslHelper.GetWslNpmArguments(workingDir, arguments),
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+                } else
+#endif
+                {
+                    var npmPath = GetNpmExecutable();
+                    var nodeBinDir = Path.GetDirectoryName(npmPath);
+                    startInfo = new ProcessStartInfo {
+                        FileName = npmPath,
+                        Arguments = arguments,
+                        WorkingDirectory = workingDir,
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+                    var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+                    if (!string.IsNullOrEmpty(nodeBinDir)) {
+                        startInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
+                    }
                 }
 
                 var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
@@ -254,27 +267,7 @@ namespace OneJS.Editor {
             if (!string.IsNullOrEmpty(_cachedNpmPath)) return _cachedNpmPath;
 
 #if UNITY_EDITOR_WIN
-            // Use 'where' to find the actual npm.cmd path to avoid picking up local node_modules/.bin/npm.cmd
-            try {
-                var process = new Process {
-                    StartInfo = new ProcessStartInfo {
-                        FileName = "cmd.exe",
-                        Arguments = "/c where npm.cmd",
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true,
-                        CreateNoWindow = true
-                    }
-                };
-                process.Start();
-                var result = process.StandardOutput.ReadToEnd().Trim();
-                process.WaitForExit();
-                // 'where' may return multiple paths, take the first one
-                var firstLine = result.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
-                if (!string.IsNullOrEmpty(firstLine) && File.Exists(firstLine)) {
-                    return _cachedNpmPath = firstLine;
-                }
-            } catch { }
-            return _cachedNpmPath = "npm.cmd";
+            return _cachedNpmPath = OneJSWslHelper.GetWindowsNpmPath();
 #else
             var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 

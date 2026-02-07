@@ -1180,6 +1180,14 @@ public class JSRunnerEditor : Editor {
 
         container.Add(row2);
 
+#if UNITY_EDITOR_WIN
+        var useWslToggle = new Toggle { label = "Use WSL for terminal and npm", value = OneJSWslHelper.UseWsl };
+        useWslToggle.style.marginTop = 4;
+        useWslToggle.style.marginBottom = 4;
+        useWslToggle.RegisterValueChangedCallback(evt => OneJSWslHelper.UseWsl = evt.newValue);
+        container.Add(useWslToggle);
+#endif
+
         _buildOutputBox = new HelpBox("", HelpBoxMessageType.Info);
         _buildOutputBox.style.marginTop = 5;
         _buildOutputBox.style.display = DisplayStyle.None;
@@ -1343,22 +1351,35 @@ public class JSRunnerEditor : Editor {
 
     void RunNpmCommand(string workingDir, string arguments, Action onSuccess, Action<int> onFailure) {
         try {
-            var npmPath = GetNpmCommand();
-            var nodeBinDir = Path.GetDirectoryName(npmPath);
-
-            var startInfo = new ProcessStartInfo {
-                FileName = npmPath,
-                Arguments = arguments,
-                WorkingDirectory = workingDir,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            };
-
-            var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-            if (!string.IsNullOrEmpty(nodeBinDir)) {
-                startInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
+            ProcessStartInfo startInfo;
+#if UNITY_EDITOR_WIN
+            if (OneJSWslHelper.UseWsl) {
+                startInfo = new ProcessStartInfo {
+                    FileName = "wsl.exe",
+                    Arguments = OneJSWslHelper.GetWslNpmArguments(workingDir, arguments),
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+            } else
+#endif
+            {
+                var npmPath = GetNpmCommand();
+                var nodeBinDir = Path.GetDirectoryName(npmPath);
+                startInfo = new ProcessStartInfo {
+                    FileName = npmPath,
+                    Arguments = arguments,
+                    WorkingDirectory = workingDir,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+                var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+                if (!string.IsNullOrEmpty(nodeBinDir)) {
+                    startInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
+                }
             }
 
             var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
@@ -1455,7 +1476,7 @@ public class JSRunnerEditor : Editor {
         if (!string.IsNullOrEmpty(_cachedNpmPath)) return _cachedNpmPath;
 
 #if UNITY_EDITOR_WIN
-        return _cachedNpmPath = "npm.cmd";
+        return _cachedNpmPath = OneJSWslHelper.GetWindowsNpmPath();
 #else
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
@@ -1520,11 +1541,20 @@ public class JSRunnerEditor : Editor {
 #if UNITY_EDITOR_OSX
         Process.Start("open", $"-a Terminal \"{path}\"");
 #elif UNITY_EDITOR_WIN
-        Process.Start(new ProcessStartInfo {
-            FileName = "cmd.exe",
-            Arguments = $"/K cd /d \"{path}\"",
-            UseShellExecute = true
-        });
+        if (OneJSWslHelper.UseWsl) {
+            var wslPath = OneJSWslHelper.ToWslPath(path);
+            Process.Start(new ProcessStartInfo {
+                FileName = "wsl.exe",
+                Arguments = $"--cd \"{wslPath}\"",
+                UseShellExecute = true
+            });
+        } else {
+            Process.Start(new ProcessStartInfo {
+                FileName = "cmd.exe",
+                Arguments = $"/K cd /d \"{path}\"",
+                UseShellExecute = true
+            });
+        }
 #elif UNITY_EDITOR_LINUX
         try { Process.Start("gnome-terminal", $"--working-directory=\"{path}\""); }
         catch {
