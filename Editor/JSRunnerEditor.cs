@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using OneJS.Editor;
 using OneJS.Editor.TypeGenerator;
+using Unity.CodeEditor;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -14,6 +16,7 @@ using Debug = UnityEngine.Debug;
 [CustomEditor(typeof(JSRunner))]
 public class JSRunnerEditor : Editor {
     const string TabPrefKey = "JSRunner.ActiveTab";
+    const string CodeEditorPathPrefKey = "OneJS.CodeEditorPath";
 
     JSRunner _target;
     bool _buildInProgress;
@@ -1157,7 +1160,7 @@ public class JSRunnerEditor : Editor {
 
         container.Add(row1);
 
-        // Row 2: Open Folder, Terminal, and VSCode
+        // Row 2: Open Folder, Terminal, and Code Editor
         var row2 = CreateRow();
 
         var openFolderButton = new Button(OpenWorkingDirectory) { text = "Open Folder" };
@@ -1178,11 +1181,12 @@ public class JSRunnerEditor : Editor {
         openTerminalButton.RegisterCallback<ContextClickEvent>(evt => ShowOpenTerminalContextMenu(evt));
 #endif
 
-        var openVSCodeButton = new Button(OpenVSCode) { text = "Open VSCode" };
-        openVSCodeButton.style.height = 24;
-        openVSCodeButton.style.flexGrow = 1;
-        openVSCodeButton.tooltip = "Open working directory in Visual Studio Code";
-        row2.Add(openVSCodeButton);
+        var openCodeEditorButton = new Button(OpenCodeEditor) { text = "Open in Code Editor" };
+        openCodeEditorButton.style.height = 24;
+        openCodeEditorButton.style.flexGrow = 1;
+        openCodeEditorButton.tooltip = "Open working directory in code editor. Right-click to choose editor (Preferences > External Tools).";
+        openCodeEditorButton.RegisterCallback<ContextClickEvent>(evt => ShowOpenCodeEditorContextMenu(evt));
+        row2.Add(openCodeEditorButton);
 
         container.Add(row2);
 
@@ -1538,6 +1542,40 @@ public class JSRunnerEditor : Editor {
         menu.ShowAsContext();
     }
 
+    void ShowOpenCodeEditorContextMenu(ContextClickEvent evt) {
+        var menu = new GenericMenu();
+        var currentPath = EditorPrefs.GetString(CodeEditorPathPrefKey, null);
+        var useDefault = string.IsNullOrEmpty(currentPath);
+
+        menu.AddItem(new GUIContent("Use Unity default"), useDefault, () => {
+            EditorPrefs.DeleteKey(CodeEditorPathPrefKey);
+        });
+
+        var editors = GetAvailableScriptEditors();
+        if (editors != null && editors.Count > 0) {
+            menu.AddSeparator("");
+            foreach (var kv in editors) {
+                var name = kv.Key;
+                var path = kv.Value;
+                var isSelected = path == currentPath;
+                menu.AddItem(new GUIContent(name), isSelected, () => {
+                    EditorPrefs.SetString(CodeEditorPathPrefKey, path);
+                });
+            }
+        }
+
+        menu.ShowAsContext();
+    }
+
+    static Dictionary<string, string> GetAvailableScriptEditors() {
+        try {
+            var codeEditor = CodeEditor.Editor;
+            if (codeEditor != null)
+                return codeEditor.GetFoundScriptEditorPaths();
+        } catch { }
+        return null;
+    }
+
     void OpenTerminal() {
         var path = _target.WorkingDirFullPath;
         if (!Directory.Exists(path)) {
@@ -1571,7 +1609,7 @@ public class JSRunnerEditor : Editor {
 #endif
     }
 
-    void OpenVSCode() {
+    void OpenCodeEditor() {
         var path = _target.WorkingDirFullPath;
         if (!Directory.Exists(path)) {
             Debug.LogWarning($"[JSRunner] Directory not found: {path}");
@@ -1579,7 +1617,25 @@ public class JSRunnerEditor : Editor {
         }
 
         var fullPath = Path.GetFullPath(path);
+        var editorPath = EditorPrefs.GetString(CodeEditorPathPrefKey, null);
+        if (string.IsNullOrEmpty(editorPath))
+            editorPath = CodeEditor.CurrentEditorPath;
 
+        if (!string.IsNullOrEmpty(editorPath) && File.Exists(editorPath)) {
+            try {
+                var args = CodeEditor.QuoteForProcessStart(fullPath);
+                if (CodeEditor.OSOpenFile(editorPath, args))
+                    return;
+            } catch (Exception ex) {
+                Debug.LogWarning($"[JSRunner] Failed to open code editor: {ex.Message}");
+            }
+        }
+
+        // Fallback: open with Unity's default or legacy VSCode-style launch
+        OpenCodeEditorFallback(fullPath);
+    }
+
+    void OpenCodeEditorFallback(string fullPath) {
 #if UNITY_EDITOR_WIN
         var codePath = GetCodeExecutablePathOnWindows();
         if (!string.IsNullOrEmpty(codePath)) {
@@ -1593,7 +1649,6 @@ public class JSRunnerEditor : Editor {
                 return;
             } catch { }
         }
-        // Fallback to shell
         Process.Start(new ProcessStartInfo {
             FileName = "cmd.exe",
             Arguments = $"/C code \"{fullPath}\"",
@@ -1601,13 +1656,11 @@ public class JSRunnerEditor : Editor {
             CreateNoWindow = true
         });
 #elif UNITY_EDITOR_OSX
-        // Try login shell first
         if (!LaunchViaLoginShell($"code -n -- '{ShellEscape(fullPath)}'")) {
-            // Fallback to open command
             try {
                 Process.Start("open", $"-n -b com.microsoft.VSCode --args \"{fullPath}\"");
             } catch (Exception ex) {
-                Debug.LogError($"[JSRunner] Failed to open VS Code: {ex.Message}");
+                Debug.LogError($"[JSRunner] Failed to open code editor: {ex.Message}");
             }
         }
 #elif UNITY_EDITOR_LINUX
