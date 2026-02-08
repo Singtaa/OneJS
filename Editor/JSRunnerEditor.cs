@@ -17,6 +17,7 @@ using Debug = UnityEngine.Debug;
 public class JSRunnerEditor : Editor {
     const string TabPrefKey = "JSRunner.ActiveTab";
     const string CodeEditorPathPrefKey = "OneJS.CodeEditorPath";
+    const string CodeEditorSingleInstancePrefKey = "OneJS.CodeEditorSingleInstance";
 
     JSRunner _target;
     bool _buildInProgress;
@@ -1181,7 +1182,7 @@ public class JSRunnerEditor : Editor {
         openTerminalButton.RegisterCallback<ContextClickEvent>(evt => ShowOpenTerminalContextMenu(evt));
 #endif
 
-        var openCodeEditorButton = new Button(OpenCodeEditor) { text = "Open in Code Editor" };
+        var openCodeEditorButton = new Button(OpenCodeEditor) { text = "Open Code Editor" };
         openCodeEditorButton.style.height = 24;
         openCodeEditorButton.style.flexGrow = 1;
         openCodeEditorButton.tooltip = "Open working directory in code editor. Right-click to choose editor (Preferences > External Tools).";
@@ -1547,7 +1548,7 @@ public class JSRunnerEditor : Editor {
         var currentPath = EditorPrefs.GetString(CodeEditorPathPrefKey, null);
         var useDefault = string.IsNullOrEmpty(currentPath);
 
-        menu.AddItem(new GUIContent("Use Unity default"), useDefault, () => {
+        menu.AddItem(new GUIContent("Use Unity Preferences"), useDefault, () => {
             EditorPrefs.DeleteKey(CodeEditorPathPrefKey);
         });
 
@@ -1566,6 +1567,14 @@ public class JSRunnerEditor : Editor {
                 });
             }
         }
+
+        menu.AddSeparator("");
+        var singleInstanceOn = EditorPrefs.GetBool(CodeEditorSingleInstancePrefKey, false);
+        menu.AddItem(
+            new GUIContent("Single Instance Mode"),
+            singleInstanceOn,
+            () => EditorPrefs.SetBool(CodeEditorSingleInstancePrefKey, !singleInstanceOn)
+        );
 
         menu.ShowAsContext();
     }
@@ -1622,6 +1631,8 @@ public class JSRunnerEditor : Editor {
         var fullPath = Path.GetFullPath(path);
         var entryFilePath = Path.Combine(fullPath, "index.tsx");
         var openEntryFile = File.Exists(entryFilePath);
+        var singleInstance = EditorPrefs.GetBool(CodeEditorSingleInstancePrefKey, false);
+        var projectRoot = !string.IsNullOrEmpty(_target.ProjectRoot) ? Path.GetFullPath(_target.ProjectRoot) : null;
 
         var editorPath = EditorPrefs.GetString(CodeEditorPathPrefKey, null);
         if (string.IsNullOrEmpty(editorPath))
@@ -1629,9 +1640,20 @@ public class JSRunnerEditor : Editor {
 
         if (!string.IsNullOrEmpty(editorPath) && File.Exists(editorPath)) {
             try {
-                var args = CodeEditor.QuoteForProcessStart(fullPath);
-                if (openEntryFile)
-                    args += " " + CodeEditor.QuoteForProcessStart(entryFilePath);
+                string args;
+                if (singleInstance && !string.IsNullOrEmpty(projectRoot)) {
+                    // Open Unity project root (where Assets lives) in existing window, then the file
+                    args = "--reuse-window " + CodeEditor.QuoteForProcessStart(projectRoot);
+                    if (openEntryFile)
+                        args += " " + CodeEditor.QuoteForProcessStart(entryFilePath);
+                } else if (singleInstance) {
+                    var pathToOpen = openEntryFile ? entryFilePath : fullPath;
+                    args = "--reuse-window " + CodeEditor.QuoteForProcessStart(pathToOpen);
+                } else {
+                    args = CodeEditor.QuoteForProcessStart(fullPath);
+                    if (openEntryFile)
+                        args += " " + CodeEditor.QuoteForProcessStart(entryFilePath);
+                }
                 if (CodeEditor.OSOpenFile(editorPath, args))
                     return;
             } catch (Exception ex) {
@@ -1639,18 +1661,28 @@ public class JSRunnerEditor : Editor {
             }
         }
 
-        // Fallback: open with Unity's default or legacy VSCode-style launch
-        OpenCodeEditorFallback(fullPath, entryFilePath, openEntryFile);
+        OpenCodeEditorFallback(fullPath, entryFilePath, openEntryFile, singleInstance, projectRoot);
     }
 
-    void OpenCodeEditorFallback(string fullPath, string entryFilePath, bool openEntryFile) {
+    void OpenCodeEditorFallback(string fullPath, string entryFilePath, bool openEntryFile, bool singleInstance, string projectRoot) {
+        // Single instance: open Unity project root (where Assets lives) in existing window, then the file
+        var reuseFlag = singleInstance ? " -r" : "";
+        string pathToOpen;
+        string pathToOpen2 = null;
+        if (singleInstance && !string.IsNullOrEmpty(projectRoot)) {
+            pathToOpen = projectRoot;
+            if (openEntryFile) pathToOpen2 = entryFilePath;
+        } else {
+            pathToOpen = fullPath;
+            if (!singleInstance && openEntryFile) pathToOpen2 = entryFilePath;
+        }
 #if UNITY_EDITOR_WIN
         var codePath = GetCodeExecutablePathOnWindows();
         if (!string.IsNullOrEmpty(codePath)) {
             try {
-                var args = $"\"{fullPath}\"";
-                if (openEntryFile)
-                    args += " \"" + entryFilePath + "\"";
+                var args = (singleInstance ? "--reuse-window " : "") + $"\"{pathToOpen}\"";
+                if (pathToOpen2 != null)
+                    args += " \"" + pathToOpen2 + "\"";
                 Process.Start(new ProcessStartInfo {
                     FileName = codePath,
                     Arguments = args,
@@ -1660,9 +1692,9 @@ public class JSRunnerEditor : Editor {
                 return;
             } catch { }
         }
-        var cmdArgs = $"/C code \"{fullPath}\"";
-        if (openEntryFile)
-            cmdArgs += " \"" + entryFilePath + "\"";
+        var cmdArgs = $"/C code{reuseFlag} \"{pathToOpen}\"";
+        if (pathToOpen2 != null)
+            cmdArgs += " \"" + pathToOpen2 + "\"";
         Process.Start(new ProcessStartInfo {
             FileName = "cmd.exe",
             Arguments = cmdArgs,
@@ -1670,24 +1702,24 @@ public class JSRunnerEditor : Editor {
             CreateNoWindow = true
         });
 #elif UNITY_EDITOR_OSX
-        var pathArg = ShellEscape(fullPath);
-        var cmd = openEntryFile
-            ? $"code -n -- '{pathArg}' '{ShellEscape(entryFilePath)}'"
-            : $"code -n -- '{pathArg}'";
+        var pathArg = ShellEscape(pathToOpen);
+        var cmd = pathToOpen2 != null
+            ? $"code -n{reuseFlag} -- '{pathArg}' '{ShellEscape(pathToOpen2)}'"
+            : $"code -n{reuseFlag} -- '{pathArg}'";
         if (!LaunchViaLoginShell(cmd)) {
             try {
-                var openArgs = $"\"{fullPath}\"";
-                if (openEntryFile)
-                    openArgs += " \"" + entryFilePath + "\"";
+                var openArgs = (singleInstance ? "--reuse-window " : "") + $"\"{pathToOpen}\"";
+                if (pathToOpen2 != null)
+                    openArgs += " \"" + pathToOpen2 + "\"";
                 Process.Start("open", $"-n -b com.microsoft.VSCode --args {openArgs}");
             } catch (Exception ex) {
                 Debug.LogError($"[JSRunner] Failed to open code editor: {ex.Message}");
             }
         }
 #elif UNITY_EDITOR_LINUX
-        var linuxCmd = openEntryFile
-            ? $"code -n \"{fullPath}\" \"{entryFilePath}\""
-            : $"code -n \"{fullPath}\"";
+        var linuxCmd = pathToOpen2 != null
+            ? $"code -n{reuseFlag} \"{pathToOpen}\" \"{pathToOpen2}\""
+            : $"code -n{reuseFlag} \"{pathToOpen}\"";
         LaunchViaLoginShell(linuxCmd);
 #endif
     }
