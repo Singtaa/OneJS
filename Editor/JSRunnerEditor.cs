@@ -1185,7 +1185,7 @@ public class JSRunnerEditor : Editor {
         var openCodeEditorButton = new Button(OpenCodeEditor) { text = "Open Code Editor" };
         openCodeEditorButton.style.height = 24;
         openCodeEditorButton.style.flexGrow = 1;
-        openCodeEditorButton.tooltip = "Open working directory in code editor. Right-click to choose editor (Preferences > External Tools).";
+        openCodeEditorButton.tooltip = "Open working directory in the code editor configured in Preferences > External Tools. Right-click to select a custom editor.";
         openCodeEditorButton.RegisterCallback<ContextClickEvent>(evt => ShowOpenCodeEditorContextMenu(evt));
         row2.Add(openCodeEditorButton);
 
@@ -1527,7 +1527,6 @@ public class JSRunnerEditor : Editor {
     }
 
     // MARK: Utilities
-
     void OpenWorkingDirectory() {
         var path = _target.WorkingDirFullPath;
         if (Directory.Exists(path)) EditorUtility.RevealInFinder(path);
@@ -1548,19 +1547,17 @@ public class JSRunnerEditor : Editor {
         var currentPath = EditorPrefs.GetString(CodeEditorPathPrefKey, null);
         var useDefault = string.IsNullOrEmpty(currentPath);
 
-        menu.AddItem(new GUIContent("Use Unity Preferences"), useDefault, () => {
+        menu.AddItem(new GUIContent("Unity Default Editor"), useDefault, () => {
             EditorPrefs.DeleteKey(CodeEditorPathPrefKey);
         });
 
         var editors = GetAvailableScriptEditors();
         if (editors != null && editors.Count > 0) {
-            menu.AddSeparator("");
             foreach (var kv in editors) {
-                // Dictionary is path -> display name (friendly name like "Rider 2025.2.3", "Visual Studio Code")
                 var path = kv.Key;
                 var displayName = kv.Value;
                 if (string.IsNullOrEmpty(displayName))
-                    displayName = path; // fallback if value is empty
+                    displayName = path;
                 var isSelected = path == currentPath;
                 menu.AddItem(new GUIContent(displayName), isSelected, () => {
                     EditorPrefs.SetString(CodeEditorPathPrefKey, path);
@@ -1642,7 +1639,6 @@ public class JSRunnerEditor : Editor {
             try {
                 string args;
                 if (singleInstance && !string.IsNullOrEmpty(projectRoot)) {
-                    // Open Unity project root (where Assets lives) in existing window, then the file
                     args = "--reuse-window " + CodeEditor.QuoteForProcessStart(projectRoot);
                     if (openEntryFile)
                         args += " " + CodeEditor.QuoteForProcessStart(entryFilePath);
@@ -1665,7 +1661,6 @@ public class JSRunnerEditor : Editor {
     }
 
     void OpenCodeEditorFallback(string fullPath, string entryFilePath, bool openEntryFile, bool singleInstance, string projectRoot) {
-        // Single instance: open Unity project root (where Assets lives) in existing window, then the file
         var reuseFlag = singleInstance ? " -r" : "";
         string pathToOpen;
         string pathToOpen2 = null;
@@ -1726,7 +1721,6 @@ public class JSRunnerEditor : Editor {
 
 #if UNITY_EDITOR_WIN
     string GetCodeExecutablePathOnWindows() {
-        // Common installation paths
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
 
@@ -1739,7 +1733,6 @@ public class JSRunnerEditor : Editor {
             if (File.Exists(p)) return p;
         }
 
-        // Check PATH
         var pathEnv = Environment.GetEnvironmentVariable("PATH") ?? "";
         foreach (var dir in pathEnv.Split(Path.PathSeparator)) {
             var codePath = Path.Combine(dir, "code.cmd");
