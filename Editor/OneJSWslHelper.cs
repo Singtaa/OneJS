@@ -54,15 +54,48 @@ namespace OneJS.Editor {
         }
 
         /// <summary>
-        /// Builds wsl.exe arguments to run npm in a shell with nvm/fnm and profile sourced
-        /// so Node is on PATH (WSL non-interactive often doesn't load these).
+        /// Builds wsl.exe arguments to run npm in a login shell so that profile
+        /// files where nvm/fnm/n are configured are loaded automatically.
         /// </summary>
         public static string GetWslNpmArguments(string workingDir, string npmArguments) {
             var wslPath = ToWslPath(workingDir);
             var escapedPath = wslPath.Replace("'", "'\\''");
-            // Source nvm/fnm and profile so npm is on PATH; then cd and run npm
-            const string preamble = "source ~/.nvm/nvm.sh 2>/dev/null; source ~/.bashrc 2>/dev/null; source ~/.profile 2>/dev/null; ";
-            return "bash -c \"" + preamble + "cd '" + escapedPath + "' && npm " + npmArguments + "\"";
+            return "bash -lc \"cd '" + escapedPath + "' && npm " + npmArguments + "\"";
+        }
+
+        /// <summary>
+        /// Creates a ProcessStartInfo for running an npm command, automatically
+        /// choosing between WSL mode and native Windows mode based on user preference.
+        /// On non-Windows platforms, returns a normal ProcessStartInfo targeting npmPath.
+        /// </summary>
+        public static ProcessStartInfo CreateNpmProcessStartInfo(string workingDir, string arguments, string npmPath) {
+#if UNITY_EDITOR_WIN
+            if (UseWsl) {
+                return new ProcessStartInfo {
+                    FileName = "wsl.exe",
+                    Arguments = GetWslNpmArguments(workingDir, arguments),
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+            }
+#endif
+            var nodeBinDir = Path.GetDirectoryName(npmPath);
+            var startInfo = new ProcessStartInfo {
+                FileName = npmPath,
+                Arguments = arguments,
+                WorkingDirectory = workingDir,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+            if (!string.IsNullOrEmpty(nodeBinDir)) {
+                startInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
+            }
+            return startInfo;
         }
 
 #if UNITY_EDITOR_WIN

@@ -404,6 +404,10 @@ render(<App />, __root)
 #endif
             InjectPlatformDefines();
 
+            // Expose the working directory to JS for asset path resolution
+            var escapedWorkingDir = CartridgeUtils.EscapeJsString(_bridge.WorkingDir);
+            _bridge.Eval($"globalThis.__workingDir = '{escapedWorkingDir}'");
+
             // Expose root element
             var rootHandle = QuickJSNative.RegisterObject(_uiDocument.rootVisualElement);
             _bridge.Eval($"globalThis.__root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle})");

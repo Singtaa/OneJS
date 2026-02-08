@@ -1349,36 +1349,7 @@ public class JSRunnerEditor : Editor {
 
     void RunNpmCommand(string workingDir, string arguments, Action onSuccess, Action<int> onFailure) {
         try {
-            ProcessStartInfo startInfo;
-#if UNITY_EDITOR_WIN
-            if (OneJSWslHelper.UseWsl) {
-                startInfo = new ProcessStartInfo {
-                    FileName = "wsl.exe",
-                    Arguments = OneJSWslHelper.GetWslNpmArguments(workingDir, arguments),
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
-            } else
-#endif
-            {
-                var npmPath = GetNpmCommand();
-                var nodeBinDir = Path.GetDirectoryName(npmPath);
-                startInfo = new ProcessStartInfo {
-                    FileName = npmPath,
-                    Arguments = arguments,
-                    WorkingDirectory = workingDir,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
-                var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-                if (!string.IsNullOrEmpty(nodeBinDir)) {
-                    startInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
-                }
-            }
+            var startInfo = OneJSWslHelper.CreateNpmProcessStartInfo(workingDir, arguments, GetNpmCommand());
 
             var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
 

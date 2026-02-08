@@ -780,34 +780,7 @@ public class JSPadEditor : Editor {
         Repaint();
 
         try {
-            ProcessStartInfo startInfo;
-#if UNITY_EDITOR_WIN
-            if (OneJSWslHelper.UseWsl) {
-                startInfo = new ProcessStartInfo {
-                    FileName = "wsl.exe",
-                    Arguments = OneJSWslHelper.GetWslNpmArguments(_target.TempDir, "install"),
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
-            } else
-#endif
-            {
-                var npmPath = GetNpmCommand();
-                var nodeBinDir = Path.GetDirectoryName(npmPath);
-                startInfo = new ProcessStartInfo {
-                    FileName = npmPath,
-                    Arguments = "install",
-                    WorkingDirectory = _target.TempDir,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
-                var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-                startInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
-            }
+            var startInfo = OneJSWslHelper.CreateNpmProcessStartInfo(_target.TempDir, "install", GetNpmCommand());
 
             _currentProcess = new Process { StartInfo = startInfo };
 
@@ -859,34 +832,7 @@ public class JSPadEditor : Editor {
         Repaint();
 
         try {
-            ProcessStartInfo startInfo;
-#if UNITY_EDITOR_WIN
-            if (OneJSWslHelper.UseWsl) {
-                startInfo = new ProcessStartInfo {
-                    FileName = "wsl.exe",
-                    Arguments = OneJSWslHelper.GetWslNpmArguments(_target.TempDir, "run build"),
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
-            } else
-#endif
-            {
-                var npmPath = GetNpmCommand();
-                var nodeBinDir = Path.GetDirectoryName(npmPath);
-                startInfo = new ProcessStartInfo {
-                    FileName = npmPath,
-                    Arguments = "run build",
-                    WorkingDirectory = _target.TempDir,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
-                var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-                startInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
-            }
+            var startInfo = OneJSWslHelper.CreateNpmProcessStartInfo(_target.TempDir, "run build", GetNpmCommand());
 
             _currentProcess = new Process { StartInfo = startInfo };
 
