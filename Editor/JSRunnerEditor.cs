@@ -1620,6 +1620,9 @@ public class JSRunnerEditor : Editor {
         }
 
         var fullPath = Path.GetFullPath(path);
+        var entryFilePath = Path.Combine(fullPath, "index.tsx");
+        var openEntryFile = File.Exists(entryFilePath);
+
         var editorPath = EditorPrefs.GetString(CodeEditorPathPrefKey, null);
         if (string.IsNullOrEmpty(editorPath))
             editorPath = CodeEditor.CurrentEditorPath;
@@ -1627,6 +1630,8 @@ public class JSRunnerEditor : Editor {
         if (!string.IsNullOrEmpty(editorPath) && File.Exists(editorPath)) {
             try {
                 var args = CodeEditor.QuoteForProcessStart(fullPath);
+                if (openEntryFile)
+                    args += " " + CodeEditor.QuoteForProcessStart(entryFilePath);
                 if (CodeEditor.OSOpenFile(editorPath, args))
                     return;
             } catch (Exception ex) {
@@ -1635,39 +1640,55 @@ public class JSRunnerEditor : Editor {
         }
 
         // Fallback: open with Unity's default or legacy VSCode-style launch
-        OpenCodeEditorFallback(fullPath);
+        OpenCodeEditorFallback(fullPath, entryFilePath, openEntryFile);
     }
 
-    void OpenCodeEditorFallback(string fullPath) {
+    void OpenCodeEditorFallback(string fullPath, string entryFilePath, bool openEntryFile) {
 #if UNITY_EDITOR_WIN
         var codePath = GetCodeExecutablePathOnWindows();
         if (!string.IsNullOrEmpty(codePath)) {
             try {
+                var args = $"\"{fullPath}\"";
+                if (openEntryFile)
+                    args += " \"" + entryFilePath + "\"";
                 Process.Start(new ProcessStartInfo {
                     FileName = codePath,
-                    Arguments = $"\"{fullPath}\"",
+                    Arguments = args,
                     UseShellExecute = false,
                     CreateNoWindow = true
                 });
                 return;
             } catch { }
         }
+        var cmdArgs = $"/C code \"{fullPath}\"";
+        if (openEntryFile)
+            cmdArgs += " \"" + entryFilePath + "\"";
         Process.Start(new ProcessStartInfo {
             FileName = "cmd.exe",
-            Arguments = $"/C code \"{fullPath}\"",
+            Arguments = cmdArgs,
             UseShellExecute = true,
             CreateNoWindow = true
         });
 #elif UNITY_EDITOR_OSX
-        if (!LaunchViaLoginShell($"code -n -- '{ShellEscape(fullPath)}'")) {
+        var pathArg = ShellEscape(fullPath);
+        var cmd = openEntryFile
+            ? $"code -n -- '{pathArg}' '{ShellEscape(entryFilePath)}'"
+            : $"code -n -- '{pathArg}'";
+        if (!LaunchViaLoginShell(cmd)) {
             try {
-                Process.Start("open", $"-n -b com.microsoft.VSCode --args \"{fullPath}\"");
+                var openArgs = $"\"{fullPath}\"";
+                if (openEntryFile)
+                    openArgs += " \"" + entryFilePath + "\"";
+                Process.Start("open", $"-n -b com.microsoft.VSCode --args {openArgs}");
             } catch (Exception ex) {
                 Debug.LogError($"[JSRunner] Failed to open code editor: {ex.Message}");
             }
         }
 #elif UNITY_EDITOR_LINUX
-        LaunchViaLoginShell($"code -n \"{fullPath}\"");
+        var linuxCmd = openEntryFile
+            ? $"code -n \"{fullPath}\" \"{entryFilePath}\""
+            : $"code -n \"{fullPath}\"";
+        LaunchViaLoginShell(linuxCmd);
 #endif
     }
 
