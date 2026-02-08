@@ -1169,8 +1169,12 @@ public class JSRunnerEditor : Editor {
         var openTerminalButton = new Button(OpenTerminal) { text = "Open Terminal" };
         openTerminalButton.style.height = 24;
         openTerminalButton.style.flexGrow = 1;
-        openTerminalButton.tooltip = "Open terminal at working directory";
+        openTerminalButton.tooltip = "Open terminal at working directory. Right-click for WSL option.";
         row2.Add(openTerminalButton);
+
+#if UNITY_EDITOR_WIN
+        openTerminalButton.RegisterCallback<ContextClickEvent>(evt => ShowOpenTerminalContextMenu(evt));
+#endif
 
         var openVSCodeButton = new Button(OpenVSCode) { text = "Open VSCode" };
         openVSCodeButton.style.height = 24;
@@ -1179,14 +1183,6 @@ public class JSRunnerEditor : Editor {
         row2.Add(openVSCodeButton);
 
         container.Add(row2);
-
-#if UNITY_EDITOR_WIN
-        var useWslToggle = new Toggle { label = "Use WSL for terminal and npm", value = OneJSWslHelper.UseWsl };
-        useWslToggle.style.marginTop = 4;
-        useWslToggle.style.marginBottom = 4;
-        useWslToggle.RegisterValueChangedCallback(evt => OneJSWslHelper.UseWsl = evt.newValue);
-        container.Add(useWslToggle);
-#endif
 
         _buildOutputBox = new HelpBox("", HelpBoxMessageType.Info);
         _buildOutputBox.style.marginTop = 5;
@@ -1529,6 +1525,13 @@ public class JSRunnerEditor : Editor {
         var path = _target.WorkingDirFullPath;
         if (Directory.Exists(path)) EditorUtility.RevealInFinder(path);
         else Debug.LogWarning($"[JSRunner] Directory not found: {path}");
+    }
+
+    void ShowOpenTerminalContextMenu(ContextClickEvent evt) {
+        var menu = new GenericMenu();
+        menu.AddItem(new GUIContent("Windows (cmd)"), !OneJSWslHelper.UseWsl, () => OneJSWslHelper.UseWsl = false);
+        menu.AddItem(new GUIContent("WSL (bash)"), OneJSWslHelper.UseWsl, () => OneJSWslHelper.UseWsl = true);
+        menu.ShowAsContext();
     }
 
     void OpenTerminal() {
