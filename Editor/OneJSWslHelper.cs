@@ -18,6 +18,27 @@ namespace OneJS.Editor {
             set => EditorPrefs.SetBool(UseWslKey, value);
         }
 
+#if UNITY_EDITOR_WIN
+        static bool? _wslInstalledCached;
+
+        /// <summary>
+        /// Returns true if wsl.exe is present in System32 (WSL is installed).
+        /// Result is cached for the session.
+        /// </summary>
+        public static bool IsWslInstalled {
+            get {
+                if (_wslInstalledCached == null) {
+                    var wslPath = Path.Combine(Environment.GetFolderPath(
+                        Environment.SpecialFolder.Windows), "System32", "wsl.exe");
+                    _wslInstalledCached = File.Exists(wslPath);
+                }
+                return _wslInstalledCached.Value;
+            }
+        }
+#else
+        public static bool IsWslInstalled => false;
+#endif
+
         /// <summary>
         /// Converts a Windows path to a WSL path (e.g. D:\foo\bar -> /mnt/d/foo/bar).
         /// No-op on non-Windows or if path is null/empty.

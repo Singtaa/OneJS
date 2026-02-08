@@ -1169,7 +1169,9 @@ public class JSRunnerEditor : Editor {
         var openTerminalButton = new Button(OpenTerminal) { text = "Open Terminal" };
         openTerminalButton.style.height = 24;
         openTerminalButton.style.flexGrow = 1;
-        openTerminalButton.tooltip = "Open terminal at working directory. Right-click for WSL option.";
+        openTerminalButton.tooltip = OneJSWslHelper.IsWslInstalled
+            ? "Open terminal at working directory. Right-click for WSL option."
+            : "Open terminal at working directory";
         row2.Add(openTerminalButton);
 
 #if UNITY_EDITOR_WIN
@@ -1528,6 +1530,8 @@ public class JSRunnerEditor : Editor {
     }
 
     void ShowOpenTerminalContextMenu(ContextClickEvent evt) {
+        if (!OneJSWslHelper.IsWslInstalled) return;
+
         var menu = new GenericMenu();
         menu.AddItem(new GUIContent("Windows (cmd)"), !OneJSWslHelper.UseWsl, () => OneJSWslHelper.UseWsl = false);
         menu.AddItem(new GUIContent("WSL (bash)"), OneJSWslHelper.UseWsl, () => OneJSWslHelper.UseWsl = true);
