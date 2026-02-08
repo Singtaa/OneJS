@@ -1555,10 +1555,13 @@ public class JSRunnerEditor : Editor {
         if (editors != null && editors.Count > 0) {
             menu.AddSeparator("");
             foreach (var kv in editors) {
-                var name = kv.Key;
-                var path = kv.Value;
+                // Dictionary is path -> display name (friendly name like "Rider 2025.2.3", "Visual Studio Code")
+                var path = kv.Key;
+                var displayName = kv.Value;
+                if (string.IsNullOrEmpty(displayName))
+                    displayName = path; // fallback if value is empty
                 var isSelected = path == currentPath;
-                menu.AddItem(new GUIContent(name), isSelected, () => {
+                menu.AddItem(new GUIContent(displayName), isSelected, () => {
                     EditorPrefs.SetString(CodeEditorPathPrefKey, path);
                 });
             }
