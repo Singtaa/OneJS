@@ -1169,8 +1169,14 @@ public class JSRunnerEditor : Editor {
         var openTerminalButton = new Button(OpenTerminal) { text = "Open Terminal" };
         openTerminalButton.style.height = 24;
         openTerminalButton.style.flexGrow = 1;
-        openTerminalButton.tooltip = "Open terminal at working directory";
+        openTerminalButton.tooltip = OneJSWslHelper.IsWslInstalled
+            ? "Open terminal at working directory. Right-click for WSL option."
+            : "Open terminal at working directory";
         row2.Add(openTerminalButton);
+
+#if UNITY_EDITOR_WIN
+        openTerminalButton.RegisterCallback<ContextClickEvent>(evt => ShowOpenTerminalContextMenu(evt));
+#endif
 
         var openVSCodeButton = new Button(OpenVSCode) { text = "Open VSCode" };
         openVSCodeButton.style.height = 24;
@@ -1343,23 +1349,7 @@ public class JSRunnerEditor : Editor {
 
     void RunNpmCommand(string workingDir, string arguments, Action onSuccess, Action<int> onFailure) {
         try {
-            var npmPath = GetNpmCommand();
-            var nodeBinDir = Path.GetDirectoryName(npmPath);
-
-            var startInfo = new ProcessStartInfo {
-                FileName = npmPath,
-                Arguments = arguments,
-                WorkingDirectory = workingDir,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            };
-
-            var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-            if (!string.IsNullOrEmpty(nodeBinDir)) {
-                startInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
-            }
+            var startInfo = OneJSWslHelper.CreateNpmProcessStartInfo(workingDir, arguments, GetNpmCommand());
 
             var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
 
@@ -1455,7 +1445,7 @@ public class JSRunnerEditor : Editor {
         if (!string.IsNullOrEmpty(_cachedNpmPath)) return _cachedNpmPath;
 
 #if UNITY_EDITOR_WIN
-        return _cachedNpmPath = "npm.cmd";
+        return _cachedNpmPath = OneJSWslHelper.GetWindowsNpmPath();
 #else
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
@@ -1510,6 +1500,15 @@ public class JSRunnerEditor : Editor {
         else Debug.LogWarning($"[JSRunner] Directory not found: {path}");
     }
 
+    void ShowOpenTerminalContextMenu(ContextClickEvent evt) {
+        if (!OneJSWslHelper.IsWslInstalled) return;
+
+        var menu = new GenericMenu();
+        menu.AddItem(new GUIContent("Windows (cmd)"), !OneJSWslHelper.UseWsl, () => OneJSWslHelper.UseWsl = false);
+        menu.AddItem(new GUIContent("WSL (bash)"), OneJSWslHelper.UseWsl, () => OneJSWslHelper.UseWsl = true);
+        menu.ShowAsContext();
+    }
+
     void OpenTerminal() {
         var path = _target.WorkingDirFullPath;
         if (!Directory.Exists(path)) {
@@ -1520,11 +1519,20 @@ public class JSRunnerEditor : Editor {
 #if UNITY_EDITOR_OSX
         Process.Start("open", $"-a Terminal \"{path}\"");
 #elif UNITY_EDITOR_WIN
-        Process.Start(new ProcessStartInfo {
-            FileName = "cmd.exe",
-            Arguments = $"/K cd /d \"{path}\"",
-            UseShellExecute = true
-        });
+        if (OneJSWslHelper.UseWsl) {
+            var wslPath = OneJSWslHelper.ToWslPath(path);
+            Process.Start(new ProcessStartInfo {
+                FileName = "wsl.exe",
+                Arguments = $"--cd \"{wslPath}\"",
+                UseShellExecute = true
+            });
+        } else {
+            Process.Start(new ProcessStartInfo {
+                FileName = "cmd.exe",
+                Arguments = $"/K cd /d \"{path}\"",
+                UseShellExecute = true
+            });
+        }
 #elif UNITY_EDITOR_LINUX
         try { Process.Start("gnome-terminal", $"--working-directory=\"{path}\""); }
         catch {

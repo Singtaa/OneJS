@@ -150,24 +150,7 @@ namespace OneJS.Editor {
             _starting.Add(key);
 
             try {
-                var npmPath = GetNpmExecutable();
-                var nodeBinDir = Path.GetDirectoryName(npmPath);
-
-                var startInfo = new ProcessStartInfo {
-                    FileName = npmPath,
-                    Arguments = "run watch",
-                    WorkingDirectory = workingDir,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
-
-                // Ensure PATH includes node directory
-                var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-                if (!string.IsNullOrEmpty(nodeBinDir)) {
-                    startInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
-                }
+                var startInfo = OneJSWslHelper.CreateNpmProcessStartInfo(workingDir, "run watch", GetNpmExecutable());
 
                 var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
 
@@ -338,27 +321,7 @@ namespace OneJS.Editor {
             if (!string.IsNullOrEmpty(_cachedNpmPath)) return _cachedNpmPath;
 
 #if UNITY_EDITOR_WIN
-            // Use 'where' to find the actual npm.cmd path to avoid picking up local node_modules/.bin/npm.cmd
-            try {
-                var process = new Process {
-                    StartInfo = new ProcessStartInfo {
-                        FileName = "cmd.exe",
-                        Arguments = "/c where npm.cmd",
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true,
-                        CreateNoWindow = true
-                    }
-                };
-                process.Start();
-                var result = process.StandardOutput.ReadToEnd().Trim();
-                process.WaitForExit();
-                // 'where' may return multiple paths, take the first one
-                var firstLine = result.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
-                if (!string.IsNullOrEmpty(firstLine) && File.Exists(firstLine)) {
-                    return _cachedNpmPath = firstLine;
-                }
-            } catch { }
-            return _cachedNpmPath = "npm.cmd";
+            return _cachedNpmPath = OneJSWslHelper.GetWindowsNpmPath();
 #else
             var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using OneJS;
+using OneJS.Editor;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -779,21 +780,7 @@ public class JSPadEditor : Editor {
         Repaint();
 
         try {
-            var npmPath = GetNpmCommand();
-            var nodeBinDir = Path.GetDirectoryName(npmPath);
-
-            var startInfo = new ProcessStartInfo {
-                FileName = npmPath,
-                Arguments = "install",
-                WorkingDirectory = _target.TempDir,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            };
-
-            var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-            startInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
+            var startInfo = OneJSWslHelper.CreateNpmProcessStartInfo(_target.TempDir, "install", GetNpmCommand());
 
             _currentProcess = new Process { StartInfo = startInfo };
 
@@ -845,21 +832,7 @@ public class JSPadEditor : Editor {
         Repaint();
 
         try {
-            var npmPath = GetNpmCommand();
-            var nodeBinDir = Path.GetDirectoryName(npmPath);
-
-            var startInfo = new ProcessStartInfo {
-                FileName = npmPath,
-                Arguments = "run build",
-                WorkingDirectory = _target.TempDir,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            };
-
-            var existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-            startInfo.EnvironmentVariables["PATH"] = nodeBinDir + Path.PathSeparator + existingPath;
+            var startInfo = OneJSWslHelper.CreateNpmProcessStartInfo(_target.TempDir, "run build", GetNpmCommand());
 
             _currentProcess = new Process { StartInfo = startInfo };
 
@@ -948,28 +921,7 @@ public class JSPadEditor : Editor {
         if (!string.IsNullOrEmpty(_cachedNpmPath)) return _cachedNpmPath;
 
 #if UNITY_EDITOR_WIN
-        // Use 'where' to find the actual npm.cmd path to avoid picking up local node_modules/.bin/npm.cmd
-        try {
-            var process = new Process {
-                StartInfo = new ProcessStartInfo {
-                    FileName = "cmd.exe",
-                    Arguments = "/c where npm.cmd",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    CreateNoWindow = true
-                }
-            };
-            process.Start();
-            var result = process.StandardOutput.ReadToEnd().Trim();
-            process.WaitForExit();
-            // 'where' may return multiple paths, take the first one
-            var firstLine = result.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
-            if (!string.IsNullOrEmpty(firstLine) && File.Exists(firstLine)) {
-                _cachedNpmPath = firstLine;
-                return _cachedNpmPath;
-            }
-        } catch { }
-        _cachedNpmPath = "npm.cmd";
+        _cachedNpmPath = OneJSWslHelper.GetWindowsNpmPath();
         return _cachedNpmPath;
 #else
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
