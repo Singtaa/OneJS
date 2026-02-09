@@ -50,7 +50,7 @@ public class DefaultFileEntry {
 /// - Auto-scaffolding: Creates project structure on first run
 /// - Live Reload: Polls entry file for changes and hot-reloads
 /// - Hard Reload: Disposes context and recreates fresh on file change
-/// - Zero-config UI: Auto-creates UIDocument (RequireComponent) and PanelSettings
+/// - Zero-config UI: UIDocument is added at runtime; PanelSettings/VisualTreeAsset assigned then.
 ///
 /// Directory structure (for scene "Level1.unity" with JSRunner on "MainUI"):
 ///   Assets/Scenes/Level1/MainUI_abc123/~/  (working dir, ignored by Unity)
@@ -61,7 +61,6 @@ public class DefaultFileEntry {
 /// - Editor: Loads JS from filesystem with live reload support
 /// - Builds: Loads from embedded TextAsset (auto-generated during build)
 /// </summary>
-[RequireComponent(typeof(UIDocument))]
 public class JSRunner : MonoBehaviour {
     const string DefaultEntryContent = "console.log(\"OneJS is good to go!\");\n";
     const string DefaultBundleFile = "app.js.txt";
@@ -72,13 +71,13 @@ public class JSRunner : MonoBehaviour {
     // Tracks whether initialization has completed (for re-enable handling)
     [SerializeField, HideInInspector] bool _initialized;
 
-    [Tooltip("UIDocument component for the UI. Auto-created at runtime if not assigned.")]
-    [SerializeField] UIDocument _uiDocument;
+    // UIDocument is added at runtime and assigned from _panelSettings/_visualTreeAsset; not shown in editor.
+    UIDocument _uiDocument;
 
-    [Tooltip("PanelSettings asset for the UI. Auto-created in instance folder on first Play mode if not assigned.")]
+    [Tooltip("PanelSettings asset for the UI. Assigned to the runtime UIDocument. Auto-created in instance folder on Initialize if not set.")]
     [SerializeField] PanelSettings _panelSettings;
 
-    [Tooltip("VisualTreeAsset (UXML) for the UI. Auto-created in instance folder on first Play mode if not assigned.")]
+    [Tooltip("VisualTreeAsset (UXML) for the UI. Assigned to the runtime UIDocument. Auto-created in instance folder on Initialize if not set.")]
     [SerializeField] VisualTreeAsset _visualTreeAsset;
 
     [Tooltip("ProjectConfig asset that marks the target project folder. Auto-created on first init if not assigned.")]
@@ -583,31 +582,27 @@ public class JSRunner : MonoBehaviour {
     }
 #endif
 
+    /// <summary>
+    /// Gets or adds UIDocument at runtime and assigns PanelSettings/VisualTreeAsset. No UIDocument in editor.
+    /// </summary>
+    bool EnsureUIDocument() {
+        if (_uiDocument == null) {
+            _uiDocument = GetComponent<UIDocument>();
+            if (_uiDocument == null) {
+                _uiDocument = gameObject.AddComponent<UIDocument>();
+            }
+        }
+        if (_panelSettings != null && _uiDocument.panelSettings != _panelSettings)
+            _uiDocument.panelSettings = _panelSettings;
+        if (_visualTreeAsset != null && _uiDocument.visualTreeAsset != _visualTreeAsset)
+            _uiDocument.visualTreeAsset = _visualTreeAsset;
+        return _uiDocument != null && _uiDocument.rootVisualElement != null;
+    }
+
     void Start() {
         try {
-            // Get UIDocument (created by RequireComponent)
-            if (_uiDocument == null) {
-                _uiDocument = GetComponent<UIDocument>();
-            }
-
-            if (_uiDocument == null) {
-                Debug.LogError("[JSRunner] UIDocument component not found");
-                return;
-            }
-
-            // Ensure PanelSettings is assigned
-            if (_uiDocument.panelSettings == null && _panelSettings != null) {
-                _uiDocument.panelSettings = _panelSettings;
-            }
-
-            // Ensure VisualTreeAsset is assigned
-            if (_uiDocument.visualTreeAsset == null && _visualTreeAsset != null) {
-                _uiDocument.visualTreeAsset = _visualTreeAsset;
-            }
-
-            // Verify we have a valid root element
-            if (_uiDocument.rootVisualElement == null) {
-                Debug.LogError("[JSRunner] UIDocument rootVisualElement is null");
+            if (!EnsureUIDocument()) {
+                Debug.LogError("[JSRunner] UIDocument could not be created or rootVisualElement is null. Assign PanelSettings and VisualTreeAsset (e.g. via Initialize).");
                 return;
             }
 
@@ -711,20 +706,8 @@ public class JSRunner : MonoBehaviour {
             }
         }
 
-        // Ensure UIDocument reference is set
-        if (_uiDocument == null) {
-            _uiDocument = GetComponent<UIDocument>();
-        }
-
-        // Ensure PanelSettings is assigned to UIDocument
-        if (_uiDocument != null && _uiDocument.panelSettings == null && _panelSettings != null) {
-            _uiDocument.panelSettings = _panelSettings;
-        }
-
-        // Ensure VisualTreeAsset is assigned to UIDocument
-        if (_uiDocument != null && _uiDocument.visualTreeAsset == null && _visualTreeAsset != null) {
-            _uiDocument.visualTreeAsset = _visualTreeAsset;
-        }
+        // UIDocument is added at runtime and assigned from _panelSettings/_visualTreeAsset
+        EnsureUIDocument();
 
         var workingDir = WorkingDirFullPath;
         var entryFile = EntryFileFullPath;
@@ -1190,30 +1173,14 @@ public class JSRunner : MonoBehaviour {
     /// Auto-creates PanelSettings, configures UIDocument, and populates default files.
     /// </summary>
     void Reset() {
-        // Get UIDocument (created by RequireComponent)
-        _uiDocument = GetComponent<UIDocument>();
-
-        // Do not create project folder here; initialization happens on first Play (InitializeEditor) only.
-        // Create PanelSettings if scene is saved
+        // UIDocument is added at runtime only; do not reference it in editor.
+        // Create PanelSettings/VisualTreeAsset assets if scene is saved (used when UIDocument is added at runtime).
         if (IsSceneSaved && _panelSettings == null) {
             CreateDefaultPanelSettingsAsset();
         }
-
-        // Create VisualTreeAsset if scene is saved
         if (IsSceneSaved && _visualTreeAsset == null) {
             CreateDefaultVisualTreeAsset();
         }
-
-        // Assign PanelSettings to UIDocument
-        if (_uiDocument != null && _panelSettings != null && _uiDocument.panelSettings == null) {
-            _uiDocument.panelSettings = _panelSettings;
-        }
-
-        // Assign VisualTreeAsset to UIDocument
-        if (_uiDocument != null && _visualTreeAsset != null && _uiDocument.visualTreeAsset == null) {
-            _uiDocument.visualTreeAsset = _visualTreeAsset;
-        }
-
         PopulateDefaultFiles();
     }
 

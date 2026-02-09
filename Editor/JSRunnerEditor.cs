@@ -33,8 +33,7 @@ public class JSRunnerEditor : Editor {
     Label _watcherStatusLabel;
     Label _watcherStateLabel;
     Label _workingDirLabel;
-    VisualElement _initWarningContainer;
-    HelpBox _initWarningBox;
+    VisualElement _projectTabInitContainer;
     Button _reloadButton;
     Button _buildButton;
     HelpBox _buildOutputBox;
@@ -70,10 +69,10 @@ public class JSRunnerEditor : Editor {
                 NodeWatcherManager.TryReattach(workingDir);
         }
 
-        // Initialize render mode tracking
-        var uiDoc = _target.GetComponent<UIDocument>();
-        if (uiDoc != null && uiDoc.panelSettings != null) {
-            var psSO = new SerializedObject(uiDoc.panelSettings);
+        // Initialize render mode tracking (PanelSettings is on JSRunner; UIDocument is added at runtime)
+        var ps = serializedObject.FindProperty("_panelSettings").objectReferenceValue as PanelSettings;
+        if (ps != null) {
+            var psSO = new SerializedObject(ps);
             var renderModeProp = psSO.FindProperty("m_RenderMode");
             if (renderModeProp != null) {
                 _lastRenderMode = renderModeProp.enumValueIndex;
@@ -224,6 +223,25 @@ public class JSRunnerEditor : Editor {
             warning.style.marginBottom = 8;
             container.Add(warning);
         }
+
+        // Initialize for new project or attach Project Config for existing — above Project Config field
+        _projectTabInitContainer = new VisualElement();
+        _projectTabInitContainer.style.marginBottom = 8;
+        var initHelpBox = new HelpBox("Click Initialize Project to create a new project or attach a config of an existing one.", HelpBoxMessageType.Warning);
+        _projectTabInitContainer.Add(initHelpBox);
+        var initButton = new Button(RunInitializeProject) { text = "Initialize Project" };
+        initButton.style.marginTop = 6;
+        initButton.style.height = 22;
+        _projectTabInitContainer.Add(initButton);
+        container.Add(_projectTabInitContainer);
+
+        // Project Config: assign an existing ProjectConfig to use that project; otherwise use Initialize to create one
+        var projectConfigProp = serializedObject.FindProperty("_projectConfig");
+        var projectConfigField = new PropertyField(projectConfigProp, "Project Config");
+        projectConfigField.tooltip = "Assign an existing ProjectConfig asset to use that project. Leave empty and click Initialize to create a new one.";
+        container.Add(projectConfigField);
+
+        AddSpacer(container);
 
         var liveReloadProp = serializedObject.FindProperty("_liveReload");
         var liveReloadField = new PropertyField(liveReloadProp);
@@ -1126,18 +1144,6 @@ public class JSRunnerEditor : Editor {
         _workingDirLabel.style.whiteSpace = WhiteSpace.Normal;
         container.Add(_workingDirLabel);
 
-        // Warning when not initialized or project files not scaffolded, with Initialize button
-        _initWarningContainer = new VisualElement();
-        _initWarningContainer.style.marginTop = 8;
-        _initWarningContainer.style.display = DisplayStyle.None;
-        _initWarningBox = new HelpBox("Click Initialize to set up the project and create the Working Folder.", HelpBoxMessageType.Warning);
-        _initWarningContainer.Add(_initWarningBox);
-        var initButton = new Button(RunInitializeProject) { text = "Initialize" };
-        initButton.style.marginTop = 6;
-        initButton.style.height = 22;
-        _initWarningContainer.Add(initButton);
-        container.Add(_initWarningContainer);
-
         return container;
     }
 
@@ -1355,12 +1361,12 @@ public class JSRunnerEditor : Editor {
             }
         }
 
-        // Show yellow warning when: not initialized yet (no ProjectConfig), or folder exists but project files not scaffolded (no package.json)
-        if (_initWarningContainer != null) {
+        // Show init message in Project tab when: not initialized yet (no ProjectConfig), or folder exists but no package.json
+        if (_projectTabInitContainer != null) {
             bool notInitialized = _target.ProjectConfig == null && _target.IsSceneSaved;
             bool folderExistsButNoPackageJson = _target.ProjectConfig != null && !_target.HasPackageJson;
             bool showInitWarning = notInitialized || folderExistsButNoPackageJson;
-            _initWarningContainer.style.display = showInitWarning ? DisplayStyle.Flex : DisplayStyle.None;
+            _projectTabInitContainer.style.display = showInitWarning ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
         // Buttons
@@ -1376,10 +1382,10 @@ public class JSRunnerEditor : Editor {
             _buildOutputBox.text = _buildOutput;
         }
 
-        // Check if PanelSettings render mode changed - refresh UIDocument inspector if so
-        var uiDoc = _target.GetComponent<UIDocument>();
-        if (uiDoc != null && uiDoc.panelSettings != null) {
-            var psSO = new SerializedObject(uiDoc.panelSettings);
+        // Check if PanelSettings render mode changed - refresh inspector if so
+        var panelSettings = serializedObject.FindProperty("_panelSettings").objectReferenceValue as PanelSettings;
+        if (panelSettings != null) {
+            var psSO = new SerializedObject(panelSettings);
             var renderModeProp = psSO.FindProperty("m_RenderMode");
             if (renderModeProp != null) {
                 var currentRenderMode = renderModeProp.enumValueIndex;
@@ -1556,20 +1562,7 @@ public class JSRunnerEditor : Editor {
                 _target.CreateDefaultPanelSettingsAsset();
             if (serializedObject.FindProperty("_visualTreeAsset").objectReferenceValue == null)
                 _target.CreateDefaultVisualTreeAsset();
-            var uiDoc = _target.GetComponent<UIDocument>();
-            if (uiDoc != null) {
-                serializedObject.Update();
-                var ps = serializedObject.FindProperty("_panelSettings").objectReferenceValue as UnityEngine.UIElements.PanelSettings;
-                var vta = serializedObject.FindProperty("_visualTreeAsset").objectReferenceValue as UnityEngine.UIElements.VisualTreeAsset;
-                if (uiDoc.panelSettings == null && ps != null) {
-                    Undo.RecordObject(uiDoc, "Assign PanelSettings");
-                    uiDoc.panelSettings = ps;
-                }
-                if (uiDoc.visualTreeAsset == null && vta != null) {
-                    Undo.RecordObject(uiDoc, "Assign VisualTreeAsset");
-                    uiDoc.visualTreeAsset = vta;
-                }
-            }
+            // UIDocument is added at runtime; assets are stored on JSRunner (_panelSettings, _visualTreeAsset)
         }
         EditorUtility.SetDirty(_target);
         serializedObject.Update();
