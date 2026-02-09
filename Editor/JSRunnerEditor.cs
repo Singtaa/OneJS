@@ -348,17 +348,6 @@ public class JSRunnerEditor : Editor {
                 // Create embedded inspector using InspectorElement
                 var inspector = new InspectorElement(ps);
                 psInspectorContainer.Add(inspector);
-            } else if (_target.IsSceneSaved) {
-                // Show help box when no PanelSettings assigned
-                var helpBox = new HelpBox(
-                    "No PanelSettings assigned. Enter Play mode to auto-create one, or assign an existing asset.",
-                    HelpBoxMessageType.Info);
-                psInspectorContainer.Add(helpBox);
-            } else {
-                var helpBox = new HelpBox(
-                    "Save the scene first, then enter Play mode to auto-create a PanelSettings asset.",
-                    HelpBoxMessageType.Warning);
-                psInspectorContainer.Add(helpBox);
             }
         }
 
@@ -1104,8 +1093,6 @@ public class JSRunnerEditor : Editor {
         container.style.marginTop = 2;
         container.style.marginBottom = 6;
 
-        container.RegisterCallback<ContextClickEvent>(OnStatusSectionContextClick);
-
         // Status row
         var statusRow = CreateRow();
         statusRow.Add(CreateLabel("Status", 50, true));
@@ -1143,7 +1130,7 @@ public class JSRunnerEditor : Editor {
         _initWarningContainer = new VisualElement();
         _initWarningContainer.style.marginTop = 8;
         _initWarningContainer.style.display = DisplayStyle.None;
-        _initWarningBox = new HelpBox("Initialize project to create the Working Directory.", HelpBoxMessageType.Warning);
+        _initWarningBox = new HelpBox("Click Initialize to set up the project and create the Working Folder.", HelpBoxMessageType.Warning);
         _initWarningContainer.Add(_initWarningBox);
         var initButton = new Button(RunInitializeProject) { text = "Initialize" };
         initButton.style.marginTop = 6;
@@ -1152,17 +1139,6 @@ public class JSRunnerEditor : Editor {
         container.Add(_initWarningContainer);
 
         return container;
-    }
-
-    void OnStatusSectionContextClick(ContextClickEvent evt) {
-        var menu = new GenericMenu();
-        bool initialized = _target.ProjectConfig != null && !string.IsNullOrEmpty(_target.InstanceFolderAssetPath);
-        if (initialized) {
-            menu.AddItem(new GUIContent("Select Working Directory"), false, () => SelectWorkingFolderInProject());
-        } else {
-            menu.AddDisabledItem(new GUIContent("Select Working Folder (initialize project first)"));
-        }
-        menu.ShowAsContext();
     }
 
     void SelectWorkingFolderInProject() {
@@ -1202,18 +1178,26 @@ public class JSRunnerEditor : Editor {
         // Row 2: Open Folder, Terminal, and Code Editor
         var row2 = CreateRow();
 
-        var openFolderButton = new Button(OpenWorkingDirectory) { text = "Open Folder" };
+        var openFolderButton = new Button() { text = "Open Folder" };
         openFolderButton.style.height = 24;
         openFolderButton.style.flexGrow = 1;
-        openFolderButton.tooltip = "Open working directory in file explorer";
+        openFolderButton.tooltip = "Open working folder in file explorer. Ctrl+Click to select folder in Project window.";
+        openFolderButton.RegisterCallback<ClickEvent>(evt => {
+            if (evt.ctrlKey || evt.commandKey) {
+                if (_target.ProjectConfig != null && !string.IsNullOrEmpty(_target.InstanceFolderAssetPath))
+                    SelectWorkingFolderInProject();
+            } else {
+                OpenWorkingDirectory();
+            }
+        });
         row2.Add(openFolderButton);
 
         var openTerminalButton = new Button(OpenTerminal) { text = "Open Terminal" };
         openTerminalButton.style.height = 24;
         openTerminalButton.style.flexGrow = 1;
         openTerminalButton.tooltip = OneJSWslHelper.IsWslInstalled
-            ? "Open terminal at working directory. Right-click for WSL option."
-            : "Open terminal at working directory";
+            ? "Open terminal at working folder. Right-click for WSL option."
+            : "Open terminal at working folder";
         row2.Add(openTerminalButton);
 
 #if UNITY_EDITOR_WIN
@@ -1223,7 +1207,7 @@ public class JSRunnerEditor : Editor {
         var openCodeEditorButton = new Button() { text = "Open Code Editor" };
         openCodeEditorButton.style.height = 24;
         openCodeEditorButton.style.flexGrow = 1;
-        openCodeEditorButton.tooltip = "Open working directory in the code editor configured in Preferences > External Tools. Right-click to select a custom editor.";
+        openCodeEditorButton.tooltip = "Open working folder in the code editor configured in Preferences > External Tools. Right-click to select a custom editor.";
         openCodeEditorButton.RegisterCallback<ClickEvent>(evt => OpenCodeEditor(evt.ctrlKey || evt.commandKey));
         openCodeEditorButton.RegisterCallback<ContextClickEvent>(evt => ShowOpenCodeEditorContextMenu(evt));
         row2.Add(openCodeEditorButton);
@@ -1360,14 +1344,14 @@ public class JSRunnerEditor : Editor {
                 var workingDir = _target.WorkingDirFullPath;
                 if (!string.IsNullOrEmpty(workingDir)) {
                     var relative = System.IO.Path.GetRelativePath(_target.ProjectRoot, workingDir).Replace(System.IO.Path.DirectorySeparatorChar, '/');
-                    _workingDirLabel.text = "Working Dir: " + relative;
+                    _workingDirLabel.text = "Working Folder: " + relative;
                 } else {
-                    _workingDirLabel.text = "Working Dir: (save scene first)";
+                    _workingDirLabel.text = "Working Folder: (save scene first)";
                 }
             } else if (!_target.IsSceneSaved) {
-                _workingDirLabel.text = "Working Dir: (save scene first)";
+                _workingDirLabel.text = "Working Folder: (save scene first)";
             } else {
-                _workingDirLabel.text = "Working Dir: non initialized yet";
+                _workingDirLabel.text = "Working Folder: non initialized yet";
             }
         }
 
