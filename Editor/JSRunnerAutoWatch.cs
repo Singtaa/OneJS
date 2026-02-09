@@ -39,8 +39,9 @@ namespace OneJS.Editor {
                     break;
 
                 case PlayModeStateChange.ExitingPlayMode:
-                    // Stop watchers that we started this session
-                    StopSessionWatchers();
+                    // Stop all watchers so folders are unlocked for move/rename in Edit mode (ProjectConfig tracks location)
+                    NodeWatcherManager.StopAll();
+                    _watchersStartedThisSession.Clear();
                     break;
             }
         }
@@ -59,12 +60,11 @@ namespace OneJS.Editor {
             foreach (var runner in runners) {
                 if (runner == null || !runner.enabled || !runner.gameObject.activeInHierarchy) continue;
                 if (!runner.IsSceneSaved) continue;
+                if (runner.ProjectConfig == null) continue;
 
-                // Scaffold files if needed (this is fast, do it synchronously)
                 runner.EnsureProjectSetup();
             }
 
-            // Refresh AssetDatabase to pick up new files
             AssetDatabase.Refresh();
         }
 
@@ -79,6 +79,7 @@ namespace OneJS.Editor {
             foreach (var runner in runners) {
                 if (runner == null || !runner.enabled || !runner.gameObject.activeInHierarchy) continue;
                 if (!runner.IsSceneSaved) continue;
+                if (runner.ProjectConfig == null) continue;
 
                 // Check if PanelSettings already assigned
                 var panelSettingsProp = new SerializedObject(runner).FindProperty("_panelSettings");
@@ -147,15 +148,6 @@ namespace OneJS.Editor {
             if (NodeWatcherManager.StartWatcher(workingDir)) {
                 _watchersStartedThisSession.Add(workingDir);
             }
-        }
-
-        static void StopSessionWatchers() {
-            foreach (var workingDir in _watchersStartedThisSession) {
-                if (NodeWatcherManager.IsRunning(workingDir)) {
-                    NodeWatcherManager.StopWatcher(workingDir);
-                }
-            }
-            _watchersStartedThisSession.Clear();
         }
 
         static void RunNpmInstallBuildAndWatch(string workingDir, JSRunner runner, bool needsBuild) {

@@ -673,14 +673,15 @@ public class JSRunner : MonoBehaviour {
 
 #if UNITY_EDITOR
     void InitializeEditor() {
-        // Check if scene is saved
         if (!IsSceneSaved) {
             Debug.LogError("[JSRunner] Scene must be saved before JSRunner can initialize. Save the scene and enter Play mode again.");
             return;
         }
 
-        // Ensure project folder and ProjectConfig exist (creates folder + ~ + ProjectConfig on first init)
-        EnsureProjectConfig();
+        // Only run when project was initialized via the Initialize button (ProjectConfig must exist)
+        if (_projectConfig == null) {
+            return;
+        }
 
         // Auto-create or load PanelSettings asset if not assigned
         if (_panelSettings == null) {

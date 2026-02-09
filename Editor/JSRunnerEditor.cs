@@ -63,10 +63,11 @@ public class JSRunnerEditor : Editor {
         NodeWatcherManager.OnWatcherStarted += OnWatcherStateChanged;
         NodeWatcherManager.OnWatcherStopped += OnWatcherStateChanged;
 
-        // Try to reattach to watcher if it was running before domain reload
-        var workingDir = _target.WorkingDirFullPath;
-        if (!string.IsNullOrEmpty(workingDir)) {
-            NodeWatcherManager.TryReattach(workingDir);
+        // Only reattach to watcher when in Play mode; in Edit mode keep no watcher so folder can be moved/renamed
+        if (Application.isPlaying) {
+            var workingDir = _target.WorkingDirFullPath;
+            if (!string.IsNullOrEmpty(workingDir))
+                NodeWatcherManager.TryReattach(workingDir);
         }
 
         // Initialize render mode tracking
@@ -1103,6 +1104,8 @@ public class JSRunnerEditor : Editor {
         container.style.marginTop = 2;
         container.style.marginBottom = 6;
 
+        container.RegisterCallback<ContextClickEvent>(OnStatusSectionContextClick);
+
         // Status row
         var statusRow = CreateRow();
         statusRow.Add(CreateLabel("Status", 50, true));
@@ -1140,7 +1143,7 @@ public class JSRunnerEditor : Editor {
         _initWarningContainer = new VisualElement();
         _initWarningContainer.style.marginTop = 8;
         _initWarningContainer.style.display = DisplayStyle.None;
-        _initWarningBox = new HelpBox("Run Editor to initialize project files in Working directory.", HelpBoxMessageType.Warning);
+        _initWarningBox = new HelpBox("Initialize project to create the Working Directory.", HelpBoxMessageType.Warning);
         _initWarningContainer.Add(_initWarningBox);
         var initButton = new Button(RunInitializeProject) { text = "Initialize" };
         initButton.style.marginTop = 6;
@@ -1151,17 +1154,31 @@ public class JSRunnerEditor : Editor {
         return container;
     }
 
+    void OnStatusSectionContextClick(ContextClickEvent evt) {
+        var menu = new GenericMenu();
+        bool initialized = _target.ProjectConfig != null && !string.IsNullOrEmpty(_target.InstanceFolderAssetPath);
+        if (initialized) {
+            menu.AddItem(new GUIContent("Select Working Directory"), false, () => SelectWorkingFolderInProject());
+        } else {
+            menu.AddDisabledItem(new GUIContent("Select Working Folder (initialize project first)"));
+        }
+        menu.ShowAsContext();
+    }
+
+    void SelectWorkingFolderInProject() {
+        var folderPath = _target.InstanceFolderAssetPath;
+        if (string.IsNullOrEmpty(folderPath)) return;
+        var folder = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(folderPath);
+        if (folder != null) {
+            Selection.activeObject = folder;
+            EditorGUIUtility.PingObject(folder);
+        }
+    }
+
     // MARK: Actions Section
 
     VisualElement CreateActionsSection() {
         var container = new VisualElement { style = { marginTop = 12, marginBottom = 10 } };
-
-        // Divider
-        var divider = new VisualElement();
-        divider.style.height = 1;
-        divider.style.backgroundColor = new Color(0.15f, 0.15f, 0.15f);
-        divider.style.marginBottom = 12;
-        container.Add(divider);
 
         // Row 1: Reload and Build
         var row1 = CreateRow();
