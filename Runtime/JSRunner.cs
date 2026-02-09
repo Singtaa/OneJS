@@ -1185,6 +1185,34 @@ public class JSRunner : MonoBehaviour {
     }
 
     /// <summary>
+    /// When ProjectConfig is assigned or cleared, sync PanelSettings and VisualTreeAsset from the project folder.
+    /// </summary>
+    void OnValidate() {
+        if (_projectConfig == null) {
+            if (_panelSettings != null || _visualTreeAsset != null) {
+                _panelSettings = null;
+                _visualTreeAsset = null;
+                UnityEditor.EditorUtility.SetDirty(this);
+            }
+            return;
+        }
+        var assetPath = UnityEditor.AssetDatabase.GetAssetPath(_projectConfig);
+        if (string.IsNullOrEmpty(assetPath)) return;
+        var folder = Path.GetDirectoryName(assetPath).Replace('\\', '/');
+        if (string.IsNullOrEmpty(folder)) return;
+
+        var psPath = folder + "/PanelSettings.asset";
+        var vtaPath = folder + "/UIDocument.uxml";
+        var ps = UnityEditor.AssetDatabase.LoadAssetAtPath<PanelSettings>(psPath);
+        var vta = UnityEditor.AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(vtaPath);
+
+        bool changed = false;
+        if (_panelSettings != ps) { _panelSettings = ps; changed = true; }
+        if (_visualTreeAsset != vta) { _visualTreeAsset = vta; changed = true; }
+        if (changed) UnityEditor.EditorUtility.SetDirty(this);
+    }
+
+    /// <summary>
     /// Finds and loads default template files from the OneJS Editor/Templates folder.
     /// Uses PackageInfo to robustly locate the package regardless of installation method.
     /// </summary>

@@ -233,10 +233,15 @@ public class JSRunnerEditor : Editor {
         initButton.style.marginTop = 6;
         initButton.style.height = 22;
         _projectTabInitContainer.Add(initButton);
+        // Set initial visibility from serialized config so we don't flash when tab is built (e.g. on Play mode change)
+        var projectConfigProp = serializedObject.FindProperty("_projectConfig");
+        bool hasConfigInitial = projectConfigProp.objectReferenceValue != null;
+        bool notInitializedInitial = !hasConfigInitial && _target.IsSceneSaved;
+        bool needsScaffoldInitial = hasConfigInitial && !_target.HasPackageJson;
+        _projectTabInitContainer.style.display = (notInitializedInitial || needsScaffoldInitial) ? DisplayStyle.Flex : DisplayStyle.None;
         container.Add(_projectTabInitContainer);
 
         // Project Config: assign an existing ProjectConfig to use that project; otherwise use Initialize to create one
-        var projectConfigProp = serializedObject.FindProperty("_projectConfig");
         var projectConfigField = new PropertyField(projectConfigProp, "Project Config");
         projectConfigField.tooltip = "Assign an existing ProjectConfig asset to use that project. Leave empty and click Initialize to create a new one.";
         container.Add(projectConfigField);
@@ -1361,10 +1366,14 @@ public class JSRunnerEditor : Editor {
             }
         }
 
-        // Show init message in Project tab when: not initialized yet (no ProjectConfig), or folder exists but no package.json
+        // Show init message only when config is missing or project not scaffolded. Use serialized property for
+        // ProjectConfig so we don't flash during Play mode enter/exit (when _target can be briefly recreated).
         if (_projectTabInitContainer != null) {
-            bool notInitialized = _target.ProjectConfig == null && _target.IsSceneSaved;
-            bool folderExistsButNoPackageJson = _target.ProjectConfig != null && !_target.HasPackageJson;
+            serializedObject.Update();
+            var projectConfigRef = serializedObject.FindProperty("_projectConfig").objectReferenceValue;
+            bool hasConfig = projectConfigRef != null;
+            bool notInitialized = !hasConfig && _target.IsSceneSaved;
+            bool folderExistsButNoPackageJson = hasConfig && !_target.HasPackageJson;
             bool showInitWarning = notInitialized || folderExistsButNoPackageJson;
             _projectTabInitContainer.style.display = showInitWarning ? DisplayStyle.Flex : DisplayStyle.None;
         }
