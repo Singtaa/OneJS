@@ -1545,7 +1545,7 @@ public class JSRunnerEditor : Editor {
 
     void ShowOpenCodeEditorContextMenu(ContextClickEvent evt) {
         var menu = new GenericMenu();
-        var currentPath = EditorPrefs.GetString(CodeEditorPathPrefKey, null);
+        var currentPath = EditorPrefs.GetString(CodeEditorPathPrefKey, "");
         var useDefault = string.IsNullOrEmpty(currentPath);
 
         menu.AddItem(new GUIContent("Unity Default Editor"), useDefault, () => {
@@ -1612,6 +1612,12 @@ public class JSRunnerEditor : Editor {
 #endif
     }
 
+    static bool IsVSCode(string editorPath) {
+        if (string.IsNullOrEmpty(editorPath)) return false;
+        var name = Path.GetFileNameWithoutExtension(editorPath).ToLowerInvariant();
+        return name == "code" || name == "code - insiders";
+    }
+
     void OpenCodeEditor(bool singleInstance = false) {
         var path = _target.WorkingDirFullPath;
         if (!Directory.Exists(path)) {
@@ -1623,14 +1629,15 @@ public class JSRunnerEditor : Editor {
         var entryFilePath = Path.Combine(fullPath, "index.tsx");
         var openEntryFile = File.Exists(entryFilePath);
 
-        var editorPath = EditorPrefs.GetString(CodeEditorPathPrefKey, null);
+        var editorPath = EditorPrefs.GetString(CodeEditorPathPrefKey, "");
         if (string.IsNullOrEmpty(editorPath))
             editorPath = CodeEditor.CurrentEditorPath;
 
         if (!string.IsNullOrEmpty(editorPath) && File.Exists(editorPath)) {
             try {
+                var isVSCode = IsVSCode(editorPath);
                 string args;
-                if (singleInstance) {
+                if (singleInstance && isVSCode) {
                     // Open only the document/folder in the current window (new tab), don't open project root
                     var pathToOpen = openEntryFile ? entryFilePath : fullPath;
                     args = "--reuse-window " + CodeEditor.QuoteForProcessStart(pathToOpen);
@@ -1646,7 +1653,11 @@ public class JSRunnerEditor : Editor {
             }
         }
 
-        OpenCodeEditorFallback(fullPath, entryFilePath, openEntryFile, singleInstance);
+        // VS Code CLI fallback (only when VS Code is the configured editor or no editor is set)
+        if (string.IsNullOrEmpty(editorPath) || IsVSCode(editorPath))
+            OpenCodeEditorFallback(fullPath, entryFilePath, openEntryFile, singleInstance);
+        else
+            Debug.LogError($"[JSRunner] Failed to open code editor at: {editorPath}");
     }
 
     void OpenCodeEditorFallback(string fullPath, string entryFilePath, bool openEntryFile, bool singleInstance) {
@@ -1669,6 +1680,7 @@ public class JSRunnerEditor : Editor {
                 return;
             } catch { }
         }
+        // Fallback to shell
         var cmdArgs = $"/C code{reuseFlag} \"{pathToOpen}\"";
         if (pathToOpen2 != null)
             cmdArgs += " \"" + pathToOpen2 + "\"";
@@ -1679,18 +1691,20 @@ public class JSRunnerEditor : Editor {
             CreateNoWindow = true
         });
 #elif UNITY_EDITOR_OSX
+        // Try login shell first
         var pathArg = ShellEscape(pathToOpen);
         var cmd = pathToOpen2 != null
             ? $"code -n{reuseFlag} -- '{pathArg}' '{ShellEscape(pathToOpen2)}'"
             : $"code -n{reuseFlag} -- '{pathArg}'";
         if (!LaunchViaLoginShell(cmd)) {
+            // Fallback to open command
             try {
                 var openArgs = (singleInstance ? "--reuse-window " : "") + $"\"{pathToOpen}\"";
                 if (pathToOpen2 != null)
                     openArgs += " \"" + pathToOpen2 + "\"";
                 Process.Start("open", $"-n -b com.microsoft.VSCode --args {openArgs}");
             } catch (Exception ex) {
-                Debug.LogError($"[JSRunner] Failed to open code editor: {ex.Message}");
+                Debug.LogError($"[JSRunner] Failed to open VS Code: {ex.Message}");
             }
         }
 #elif UNITY_EDITOR_LINUX
@@ -1703,6 +1717,7 @@ public class JSRunnerEditor : Editor {
 
 #if UNITY_EDITOR_WIN
     string GetCodeExecutablePathOnWindows() {
+        // Common installation paths
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
 
@@ -1715,6 +1730,7 @@ public class JSRunnerEditor : Editor {
             if (File.Exists(p)) return p;
         }
 
+        // Check PATH
         var pathEnv = Environment.GetEnvironmentVariable("PATH") ?? "";
         foreach (var dir in pathEnv.Split(Path.PathSeparator)) {
             var codePath = Path.Combine(dir, "code.cmd");
@@ -1751,7 +1767,6 @@ public class JSRunnerEditor : Editor {
 }
 
 // MARK: Style Extensions
-
 static class StyleExtensions {
     public static void SetBorderWidth(this IStyle style, float width) {
         style.borderTopWidth = style.borderBottomWidth = style.borderLeftWidth = style.borderRightWidth = width;
