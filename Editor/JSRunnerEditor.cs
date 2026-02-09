@@ -1621,7 +1621,6 @@ public class JSRunnerEditor : Editor {
         var fullPath = Path.GetFullPath(path);
         var entryFilePath = Path.Combine(fullPath, "index.tsx");
         var openEntryFile = File.Exists(entryFilePath);
-        var projectRoot = !string.IsNullOrEmpty(_target.ProjectRoot) ? Path.GetFullPath(_target.ProjectRoot) : null;
 
         var editorPath = EditorPrefs.GetString(CodeEditorPathPrefKey, null);
         if (string.IsNullOrEmpty(editorPath))
@@ -1630,11 +1629,8 @@ public class JSRunnerEditor : Editor {
         if (!string.IsNullOrEmpty(editorPath) && File.Exists(editorPath)) {
             try {
                 string args;
-                if (singleInstance && !string.IsNullOrEmpty(projectRoot)) {
-                    args = "--reuse-window " + CodeEditor.QuoteForProcessStart(projectRoot);
-                    if (openEntryFile)
-                        args += " " + CodeEditor.QuoteForProcessStart(entryFilePath);
-                } else if (singleInstance) {
+                if (singleInstance) {
+                    // Open only the document/folder in the current window (new tab), don't open project root
                     var pathToOpen = openEntryFile ? entryFilePath : fullPath;
                     args = "--reuse-window " + CodeEditor.QuoteForProcessStart(pathToOpen);
                 } else {
@@ -1649,20 +1645,13 @@ public class JSRunnerEditor : Editor {
             }
         }
 
-        OpenCodeEditorFallback(fullPath, entryFilePath, openEntryFile, singleInstance, projectRoot);
+        OpenCodeEditorFallback(fullPath, entryFilePath, openEntryFile, singleInstance);
     }
 
-    void OpenCodeEditorFallback(string fullPath, string entryFilePath, bool openEntryFile, bool singleInstance, string projectRoot) {
+    void OpenCodeEditorFallback(string fullPath, string entryFilePath, bool openEntryFile, bool singleInstance) {
         var reuseFlag = singleInstance ? " -r" : "";
-        string pathToOpen;
-        string pathToOpen2 = null;
-        if (singleInstance && !string.IsNullOrEmpty(projectRoot)) {
-            pathToOpen = projectRoot;
-            if (openEntryFile) pathToOpen2 = entryFilePath;
-        } else {
-            pathToOpen = fullPath;
-            if (!singleInstance && openEntryFile) pathToOpen2 = entryFilePath;
-        }
+        string pathToOpen = singleInstance ? (openEntryFile ? entryFilePath : fullPath) : fullPath;
+        string pathToOpen2 = (!singleInstance && openEntryFile) ? entryFilePath : null;
 #if UNITY_EDITOR_WIN
         var codePath = GetCodeExecutablePathOnWindows();
         if (!string.IsNullOrEmpty(codePath)) {
