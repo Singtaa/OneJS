@@ -141,6 +141,22 @@ public class JSRunner : MonoBehaviour {
     public TextAsset SourceMapAsset => _sourceMapAsset;
 
     /// <summary>
+    /// Set PanelSettings at runtime and sync to the runtime UIDocument. Use this instead of assigning the field when changing from script.
+    /// </summary>
+    public void SetPanelSettings(PanelSettings panelSettings) {
+        _panelSettings = panelSettings;
+        if (_uiDocument != null) _uiDocument.panelSettings = _panelSettings;
+    }
+
+    /// <summary>
+    /// Set VisualTreeAsset at runtime and sync to the runtime UIDocument. Use this instead of assigning the field when changing from script.
+    /// </summary>
+    public void SetVisualTreeAsset(VisualTreeAsset visualTreeAsset) {
+        _visualTreeAsset = visualTreeAsset;
+        if (_uiDocument != null) _uiDocument.visualTreeAsset = _visualTreeAsset;
+    }
+
+    /// <summary>
     /// Unique instance ID for this JSRunner (generated once, persisted).
     /// </summary>
     public string InstanceId {
@@ -1188,7 +1204,7 @@ public class JSRunner : MonoBehaviour {
     }
 
     /// <summary>
-    /// When PanelSettings is assigned or cleared, sync VisualTreeAsset from the same folder. Clearing PanelSettings clears VisualTreeAsset.
+    /// When PanelSettings is assigned or cleared, sync VisualTreeAsset from the same folder. In Play mode, sync to UIDocument so both use the same assets.
     /// </summary>
     void OnValidate() {
         if (_panelSettings == null) {
@@ -1199,6 +1215,14 @@ public class JSRunner : MonoBehaviour {
             return;
         }
         SyncVisualTreeAssetFromPanelSettingsFolder();
+        // When inspector changes PanelSettings/VisualTreeAsset at runtime, push to UIDocument (no per-frame Update)
+        if (Application.isPlaying) {
+            var ud = GetComponent<UIDocument>();
+            if (ud != null) {
+                ud.panelSettings = _panelSettings;
+                ud.visualTreeAsset = _visualTreeAsset;
+            }
+        }
     }
 
     void SyncVisualTreeAssetFromPanelSettingsFolder() {
