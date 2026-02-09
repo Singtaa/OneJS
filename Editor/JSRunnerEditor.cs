@@ -36,7 +36,8 @@ public class JSRunnerEditor : Editor {
     VisualElement _projectTabInitContainer;
     Button _reloadButton;
     Button _buildButton;
-    HelpBox _buildOutputBox;
+    VisualElement _buildOutputContainer;
+    Label _buildOutputLabel;
 
     // Type generation
     Button _generateTypesButton;
@@ -233,10 +234,8 @@ public class JSRunnerEditor : Editor {
         initBox.style.justifyContent = Justify.SpaceBetween;
         initBox.style.paddingTop = initBox.style.paddingBottom = 8;
         initBox.style.paddingLeft = initBox.style.paddingRight = 10;
-        initBox.style.backgroundColor = new Color(0.22f, 0.2f, 0.05f);
-        initBox.style.borderLeftWidth = 4;
-        initBox.style.borderLeftColor = new Color(0.9f, 0.75f, 0.1f);
-        initBox.style.borderTopRightRadius = initBox.style.borderBottomRightRadius = 3;
+        initBox.style.backgroundColor = new Color(0.28f, 0.28f, 0.28f);
+        initBox.style.borderTopLeftRadius = initBox.style.borderTopRightRadius = initBox.style.borderBottomLeftRadius = initBox.style.borderBottomRightRadius = 3;
         var initLabel = new Label("Assign Panel Settings below for an existing project, or click Initialize to create a new project folder and assets.");
         initLabel.style.flexGrow = 1;
         initLabel.style.flexShrink = 1;
@@ -244,10 +243,17 @@ public class JSRunnerEditor : Editor {
         initLabel.style.marginRight = 12;
         initLabel.style.whiteSpace = WhiteSpace.Normal;
         initLabel.style.overflow = Overflow.Hidden;
+        initLabel.style.color = new Color(0.72f, 0.72f, 0.72f);
         initBox.Add(initLabel);
-        var initButton = new Button(RunInitializeProject) { text = "Initialize Project" };
+        var initButton = new Button(RunInitializeProject) { text = "Initialize Folder" };
         initButton.style.height = 22;
         initButton.style.flexShrink = 0;
+        var initBtnBg = new Color(0.2f, 0.65f, 0.35f);
+        var initBtnHoverBg = new Color(0.28f, 0.72f, 0.42f);
+        initButton.style.backgroundColor = initBtnBg;
+        initButton.style.color = new Color(0.12f, 0.12f, 0.12f);
+        initButton.RegisterCallback<MouseEnterEvent>(_ => initButton.style.backgroundColor = initBtnHoverBg);
+        initButton.RegisterCallback<MouseLeaveEvent>(_ => initButton.style.backgroundColor = initBtnBg);
         initBox.Add(initButton);
         _projectTabInitContainer.Add(initBox);
         // Set initial visibility from serialized Panel Settings so we don't flash when tab is built (e.g. on Play mode change)
@@ -266,8 +272,14 @@ public class JSRunnerEditor : Editor {
         AddSpacer(container);
 
         var liveReloadProp = serializedObject.FindProperty("_liveReload");
-        var liveReloadField = new PropertyField(liveReloadProp);
-        container.Add(liveReloadField);
+        var liveReloadRow = CreateRow();
+        var liveReloadLabel = new Label("Live Reload");
+        liveReloadLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+        liveReloadLabel.style.flexGrow = 1;
+        liveReloadRow.Add(liveReloadLabel);
+        var liveReloadField = new PropertyField(liveReloadProp, "");
+        liveReloadRow.Add(liveReloadField);
+        container.Add(liveReloadRow);
 
         var liveReloadSettings = new VisualElement { style = { marginLeft = 15 } };
         liveReloadSettings.Add(new PropertyField(serializedObject.FindProperty("_pollInterval")));
@@ -391,10 +403,7 @@ public class JSRunnerEditor : Editor {
                 inspector.style.marginLeft = 0;
                 psInspectorContainer.Add(inspector);
             } else {
-                var helpBox = new HelpBox(
-                    "No Panel Settings assigned. Assign one in the Project tab, or click Initialize to create a new project and assets.",
-                    HelpBoxMessageType.Info);
-                psInspectorContainer.Add(helpBox);
+                psInspectorContainer.Add(CreateInfoBox("No Panel Settings assigned. Assign one in the Project tab, or click Initialize to create a new project and assets."));
             }
         }
 
@@ -405,24 +414,29 @@ public class JSRunnerEditor : Editor {
         // Build Settings
         AddSectionHeader(container, "Build Output");
 
-        // Show current bundle asset status
+        // Show current bundle asset status (same style as message boxes)
         var bundleAsset = _target.BundleAsset;
         var sourceMapAsset = _target.SourceMapAsset;
 
-        var statusBox = CreateStyledBox();
+        var statusBox = CreateInfoStyleContainer();
         statusBox.style.marginBottom = 8;
 
+        var messageGray = new Color(0.72f, 0.72f, 0.72f);
+        var bundleLabel = CreateLabel("Bundle:", 80);
+        bundleLabel.style.color = messageGray;
         var bundleRow = CreateRow();
-        bundleRow.Add(CreateLabel("Bundle:", 80));
+        bundleRow.Add(bundleLabel);
         var bundleStatus = new Label(bundleAsset != null ? $"✓ {bundleAsset.name}" : "Not generated");
-        bundleStatus.style.color = bundleAsset != null ? new Color(0.4f, 0.8f, 0.4f) : new Color(0.6f, 0.6f, 0.6f);
+        bundleStatus.style.color = bundleAsset != null ? new Color(0.4f, 0.8f, 0.4f) : messageGray;
         bundleRow.Add(bundleStatus);
         statusBox.Add(bundleRow);
 
+        var sourceMapLabel = CreateLabel("Source Map:", 80);
+        sourceMapLabel.style.color = messageGray;
         var sourceMapRow = CreateRow();
-        sourceMapRow.Add(CreateLabel("Source Map:", 80));
+        sourceMapRow.Add(sourceMapLabel);
         var sourceMapStatus = new Label(sourceMapAsset != null ? $"✓ {sourceMapAsset.name}" : "Not generated");
-        sourceMapStatus.style.color = sourceMapAsset != null ? new Color(0.4f, 0.8f, 0.4f) : new Color(0.6f, 0.6f, 0.6f);
+        sourceMapStatus.style.color = sourceMapAsset != null ? new Color(0.4f, 0.8f, 0.4f) : messageGray;
         sourceMapRow.Add(sourceMapStatus);
         statusBox.Add(sourceMapRow);
 
@@ -431,11 +445,10 @@ public class JSRunnerEditor : Editor {
         // Source map option
         container.Add(new PropertyField(serializedObject.FindProperty("_includeSourceMap"), "Include Source Map"));
 
-        var buildHelpBox = new HelpBox(
+        var bundlePathDisplay = FormatPathFromAssets(_target, _target.BundleAssetPath);
+        var buildHelpBox = CreateInfoBox(
             "Bundle TextAsset is auto-generated during Unity build.\n" +
-            "Path: " + (_target.BundleAssetPath ?? "(save scene first)"),
-            HelpBoxMessageType.Info
-        );
+            "Path: " + (bundlePathDisplay ?? "(assign Pannel Settings first)"));
         buildHelpBox.style.marginTop = 4;
         container.Add(buildHelpBox);
 
@@ -459,7 +472,7 @@ public class JSRunnerEditor : Editor {
         var typeGenRow = CreateRow();
         typeGenRow.style.marginTop = 5;
         _generateTypesButton = new Button(GenerateTypings) { text = "Generate Types Now" };
-        _generateTypesButton.style.height = 24;
+        _generateTypesButton.style.height = _generateTypesButton.style.minHeight = 22;
         _generateTypesButton.style.flexGrow = 1;
         typeGenRow.Add(_generateTypesButton);
         container.Add(typeGenRow);
@@ -487,7 +500,7 @@ public class JSRunnerEditor : Editor {
             serializedObject.Update();
             EditorUtility.SetDirty(_target);
         }) { text = "Reset to Defaults" };
-        repopulateButton.style.height = 22;
+        repopulateButton.style.height = repopulateButton.style.minHeight = 22;
         repopulateButton.style.flexGrow = 1;
         repopulateButton.tooltip = "Repopulate the default files list from OneJS templates";
         scaffoldRow.Add(repopulateButton);
@@ -524,12 +537,10 @@ public class JSRunnerEditor : Editor {
         // Initial build
         RebuildCartridgeList();
 
-        // Help box
-        var helpBox = new HelpBox(
+        // Help box (gray info style)
+        var helpBox = CreateInfoBox(
             "Files are extracted to @cartridges/{path}/. Access via __cart('slug') or __cart('@namespace/slug') at runtime.\n" +
-            "E = Extract (overwrites existing), D = Delete extracted folder, X = Remove from list",
-            HelpBoxMessageType.Info
-        );
+            "E = Extract (overwrites existing), D = Delete extracted folder, X = Remove from list");
         helpBox.style.marginTop = 4;
         container.Add(helpBox);
 
@@ -539,13 +550,13 @@ public class JSRunnerEditor : Editor {
 
         var extractAllBtn = new Button(() => ExtractAllCartridges()) { text = "Extract All" };
         extractAllBtn.style.flexGrow = 1;
-        extractAllBtn.style.height = 22;
+        extractAllBtn.style.height = extractAllBtn.style.minHeight = 22;
         extractAllBtn.tooltip = "Extract all cartridges (with confirmation)";
         bulkRow.Add(extractAllBtn);
 
         var deleteAllBtn = new Button(() => DeleteAllCartridges()) { text = "Delete All Extracted" };
         deleteAllBtn.style.flexGrow = 1;
-        deleteAllBtn.style.height = 22;
+        deleteAllBtn.style.height = deleteAllBtn.style.minHeight = 22;
         deleteAllBtn.tooltip = "Delete all extracted cartridge folders (with confirmation)";
         bulkRow.Add(deleteAllBtn);
 
@@ -1227,10 +1238,10 @@ public class JSRunnerEditor : Editor {
 
         container.Add(row2);
 
-        _buildOutputBox = new HelpBox("", HelpBoxMessageType.Info);
-        _buildOutputBox.style.marginTop = 5;
-        _buildOutputBox.style.display = DisplayStyle.None;
-        container.Add(_buildOutputBox);
+        CreateInfoBoxWithLabel(out _buildOutputContainer, out _buildOutputLabel);
+        _buildOutputContainer.style.marginTop = 5;
+        _buildOutputContainer.style.display = DisplayStyle.None;
+        container.Add(_buildOutputContainer);
 
         return container;
     }
@@ -1248,6 +1259,35 @@ public class JSRunnerEditor : Editor {
         return box;
     }
 
+    /// <summary>Empty container with message-box (info) style. Use for custom content like status rows.</summary>
+    static VisualElement CreateInfoStyleContainer() {
+        var box = new VisualElement();
+        box.style.paddingTop = box.style.paddingBottom = 8;
+        box.style.paddingLeft = box.style.paddingRight = 10;
+        box.style.backgroundColor = new Color(0.28f, 0.28f, 0.28f);
+        box.style.borderTopLeftRadius = box.style.borderTopRightRadius = box.style.borderBottomLeftRadius = box.style.borderBottomRightRadius = 3;
+        return box;
+    }
+
+    /// <summary>Info message box: same structure as the init warning box but gray (dark gray bg, gray left border).</summary>
+    static VisualElement CreateInfoBox(string message) {
+        var box = CreateInfoStyleContainer();
+        var label = new Label(message);
+        label.style.whiteSpace = WhiteSpace.Normal;
+        label.style.color = new Color(0.72f, 0.72f, 0.72f);
+        box.Add(label);
+        return box;
+    }
+
+    /// <summary>Info box with an editable label (for dynamic content like build output). Returns (container, label).</summary>
+    static void CreateInfoBoxWithLabel(out VisualElement container, out Label label) {
+        container = CreateInfoStyleContainer();
+        label = new Label();
+        label.style.whiteSpace = WhiteSpace.Normal;
+        label.style.color = new Color(0.72f, 0.72f, 0.72f);
+        container.Add(label);
+    }
+
     static VisualElement CreateRow() {
         var row = new VisualElement();
         row.style.flexDirection = FlexDirection.Row;
@@ -1260,6 +1300,18 @@ public class JSRunnerEditor : Editor {
         label.style.width = width;
         if (bold) label.style.unityFontStyleAndWeight = FontStyle.Bold;
         return label;
+    }
+
+    /// <summary>Format full path for display: no drive letter, start from Assets, forward slashes (same as Working Folder in status).</summary>
+    static string FormatPathFromAssets(JSRunner runner, string fullPath) {
+        if (string.IsNullOrEmpty(fullPath)) return null;
+        if (runner == null || string.IsNullOrEmpty(runner.ProjectRoot)) return fullPath;
+        try {
+            var relative = System.IO.Path.GetRelativePath(runner.ProjectRoot, fullPath);
+            return relative.Replace(System.IO.Path.DirectorySeparatorChar, '/');
+        } catch {
+            return fullPath;
+        }
     }
 
     static string FormatTimeAgo(DateTime time) {
@@ -1387,9 +1439,13 @@ public class JSRunnerEditor : Editor {
         }
 
         // Build output
-        if (_buildOutputBox != null && !string.IsNullOrEmpty(_buildOutput)) {
-            _buildOutputBox.style.display = DisplayStyle.Flex;
-            _buildOutputBox.text = _buildOutput;
+        if (_buildOutputContainer != null && _buildOutputLabel != null) {
+            if (!string.IsNullOrEmpty(_buildOutput)) {
+                _buildOutputContainer.style.display = DisplayStyle.Flex;
+                _buildOutputLabel.text = _buildOutput;
+            } else {
+                _buildOutputContainer.style.display = DisplayStyle.None;
+            }
         }
 
         // Check if PanelSettings render mode changed - refresh inspector if so
