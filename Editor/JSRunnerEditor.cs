@@ -224,15 +224,32 @@ public class JSRunnerEditor : Editor {
             container.Add(warning);
         }
 
-        // Initialize for new project or assign Panel Settings below for existing — Panel Settings marks the project folder
+        // Initialize for new project or assign Panel Settings below for existing — Panel Settings marks the project folder (message + button inside one box)
         _projectTabInitContainer = new VisualElement();
         _projectTabInitContainer.style.marginBottom = 8;
-        var initHelpBox = new HelpBox("Assign Panel Settings below for an existing project, or click Initialize to create a new project folder and assets.", HelpBoxMessageType.Warning);
-        _projectTabInitContainer.Add(initHelpBox);
+        var initBox = new VisualElement();
+        initBox.style.flexDirection = FlexDirection.Row;
+        initBox.style.alignItems = Align.Center;
+        initBox.style.justifyContent = Justify.SpaceBetween;
+        initBox.style.paddingTop = initBox.style.paddingBottom = 8;
+        initBox.style.paddingLeft = initBox.style.paddingRight = 10;
+        initBox.style.backgroundColor = new Color(0.22f, 0.2f, 0.05f);
+        initBox.style.borderLeftWidth = 4;
+        initBox.style.borderLeftColor = new Color(0.9f, 0.75f, 0.1f);
+        initBox.style.borderTopRightRadius = initBox.style.borderBottomRightRadius = 3;
+        var initLabel = new Label("Assign Panel Settings below for an existing project, or click Initialize to create a new project folder and assets.");
+        initLabel.style.flexGrow = 1;
+        initLabel.style.flexShrink = 1;
+        initLabel.style.minWidth = 0; // allow shrinking so button stays visible
+        initLabel.style.marginRight = 12;
+        initLabel.style.whiteSpace = WhiteSpace.Normal;
+        initLabel.style.overflow = Overflow.Hidden;
+        initBox.Add(initLabel);
         var initButton = new Button(RunInitializeProject) { text = "Initialize Project" };
-        initButton.style.marginTop = 6;
         initButton.style.height = 22;
-        _projectTabInitContainer.Add(initButton);
+        initButton.style.flexShrink = 0;
+        initBox.Add(initButton);
+        _projectTabInitContainer.Add(initBox);
         // Set initial visibility from serialized Panel Settings so we don't flash when tab is built (e.g. on Play mode change)
         var panelSettingsPropProject = serializedObject.FindProperty("_panelSettings");
         bool hasPanelSettingsInitial = panelSettingsPropProject.objectReferenceValue != null;
