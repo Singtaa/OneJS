@@ -1527,6 +1527,7 @@ public class JSRunnerEditor : Editor {
     }
 
     // MARK: Utilities
+
     void OpenWorkingDirectory() {
         var path = _target.WorkingDirFullPath;
         if (Directory.Exists(path)) EditorUtility.RevealInFinder(path);
@@ -1750,6 +1751,7 @@ public class JSRunnerEditor : Editor {
 }
 
 // MARK: Style Extensions
+
 static class StyleExtensions {
     public static void SetBorderWidth(this IStyle style, float width) {
         style.borderTopWidth = style.borderBottomWidth = style.borderLeftWidth = style.borderRightWidth = width;
