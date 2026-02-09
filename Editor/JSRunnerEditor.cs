@@ -17,7 +17,6 @@ using Debug = UnityEngine.Debug;
 public class JSRunnerEditor : Editor {
     const string TabPrefKey = "JSRunner.ActiveTab";
     const string CodeEditorPathPrefKey = "OneJS.CodeEditorPath";
-    const string CodeEditorSingleInstancePrefKey = "OneJS.CodeEditorSingleInstance";
 
     JSRunner _target;
     bool _buildInProgress;
@@ -1182,10 +1181,11 @@ public class JSRunnerEditor : Editor {
         openTerminalButton.RegisterCallback<ContextClickEvent>(evt => ShowOpenTerminalContextMenu(evt));
 #endif
 
-        var openCodeEditorButton = new Button(OpenCodeEditor) { text = "Open Code Editor" };
+        var openCodeEditorButton = new Button() { text = "Open Code Editor" };
         openCodeEditorButton.style.height = 24;
         openCodeEditorButton.style.flexGrow = 1;
         openCodeEditorButton.tooltip = "Open working directory in the code editor configured in Preferences > External Tools. Right-click to select a custom editor.";
+        openCodeEditorButton.RegisterCallback<ClickEvent>(evt => OpenCodeEditor(evt.ctrlKey || evt.commandKey));
         openCodeEditorButton.RegisterCallback<ContextClickEvent>(evt => ShowOpenCodeEditorContextMenu(evt));
         row2.Add(openCodeEditorButton);
 
@@ -1550,6 +1550,7 @@ public class JSRunnerEditor : Editor {
         menu.AddItem(new GUIContent("Unity Default Editor"), useDefault, () => {
             EditorPrefs.DeleteKey(CodeEditorPathPrefKey);
         });
+        menu.AddSeparator("");
 
         var editors = GetAvailableScriptEditors();
         if (editors != null && editors.Count > 0) {
@@ -1564,14 +1565,6 @@ public class JSRunnerEditor : Editor {
                 });
             }
         }
-
-        menu.AddSeparator("");
-        var singleInstanceOn = EditorPrefs.GetBool(CodeEditorSingleInstancePrefKey, false);
-        menu.AddItem(
-            new GUIContent("Single Instance Mode"),
-            singleInstanceOn,
-            () => EditorPrefs.SetBool(CodeEditorSingleInstancePrefKey, !singleInstanceOn)
-        );
 
         menu.ShowAsContext();
     }
@@ -1618,7 +1611,7 @@ public class JSRunnerEditor : Editor {
 #endif
     }
 
-    void OpenCodeEditor() {
+    void OpenCodeEditor(bool singleInstance = false) {
         var path = _target.WorkingDirFullPath;
         if (!Directory.Exists(path)) {
             Debug.LogWarning($"[JSRunner] Directory not found: {path}");
@@ -1628,7 +1621,6 @@ public class JSRunnerEditor : Editor {
         var fullPath = Path.GetFullPath(path);
         var entryFilePath = Path.Combine(fullPath, "index.tsx");
         var openEntryFile = File.Exists(entryFilePath);
-        var singleInstance = EditorPrefs.GetBool(CodeEditorSingleInstancePrefKey, false);
         var projectRoot = !string.IsNullOrEmpty(_target.ProjectRoot) ? Path.GetFullPath(_target.ProjectRoot) : null;
 
         var editorPath = EditorPrefs.GetString(CodeEditorPathPrefKey, null);
