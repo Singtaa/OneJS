@@ -93,65 +93,60 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
             return false;
         }
 
-        // Get paths
         var entryFilePath = runner.EntryFileFullPath;
-        var bundleAssetPath = runner.BundleAssetPath;
-        var sourceMapAssetPath = runner.SourceMapAssetPath;
+        var instanceFolder = runner.InstanceFolder;
+        var bundleDir = !string.IsNullOrEmpty(instanceFolder) ? instanceFolder : Path.GetDirectoryName(entryFilePath);
+        var bundleAssetPathUnity = runner.InstanceFolderAssetPath != null ? runner.InstanceFolderAssetPath + "/app.js.txt" : null;
+        var sourceMapAssetPathUnity = runner.InstanceFolderAssetPath != null ? runner.InstanceFolderAssetPath + "/app.js.map.txt" : null;
 
-        if (string.IsNullOrEmpty(entryFilePath) || string.IsNullOrEmpty(bundleAssetPath)) {
+        if (string.IsNullOrEmpty(entryFilePath) || string.IsNullOrEmpty(bundleAssetPathUnity)) {
             Debug.LogWarning($"[JSRunner] Invalid paths for {runner.gameObject.name}. Is scene saved?");
             return false;
         }
 
-        // Check entry file exists
         if (!File.Exists(entryFilePath)) {
             Debug.LogWarning($"[JSRunner] Entry file not found for {runner.gameObject.name}: {entryFilePath}");
             return false;
         }
 
-        // Skip if already processed (same bundle path)
-        if (_processedRunners.Contains(bundleAssetPath)) {
-            Debug.Log($"[JSRunner] Bundle already processed: {bundleAssetPath}");
+        if (_processedRunners.Contains(bundleAssetPathUnity)) {
+            Debug.Log($"[JSRunner] Bundle already processed: {bundleAssetPathUnity}");
             return false;
         }
-        _processedRunners.Add(bundleAssetPath);
+        _processedRunners.Add(bundleAssetPathUnity);
 
-        // Ensure directory exists
-        var bundleDir = Path.GetDirectoryName(bundleAssetPath);
         if (!string.IsNullOrEmpty(bundleDir) && !Directory.Exists(bundleDir)) {
             Directory.CreateDirectory(bundleDir);
         }
 
-        // Read and create bundle TextAsset
         var bundleContent = File.ReadAllText(entryFilePath);
-        File.WriteAllText(bundleAssetPath, bundleContent);
-        _createdAssets.Add(bundleAssetPath);
-        Debug.Log($"[JSRunner] Created bundle: {bundleAssetPath}");
+        var bundleFullPath = Path.Combine(bundleDir ?? "", "app.js.txt");
+        File.WriteAllText(bundleFullPath, bundleContent);
+        _createdAssets.Add(bundleFullPath);
+        Debug.Log($"[JSRunner] Created bundle: {bundleAssetPathUnity}");
 
-        // Handle source map
         if (runner.IncludeSourceMap) {
             var sourceMapFilePath = runner.SourceMapFilePath;
             if (!string.IsNullOrEmpty(sourceMapFilePath) && File.Exists(sourceMapFilePath)) {
                 var sourceMapContent = File.ReadAllText(sourceMapFilePath);
-                File.WriteAllText(sourceMapAssetPath, sourceMapContent);
-                _createdAssets.Add(sourceMapAssetPath);
-                Debug.Log($"[JSRunner] Created source map: {sourceMapAssetPath}");
+                var sourceMapFullPath = Path.Combine(bundleDir ?? "", "app.js.map.txt");
+                File.WriteAllText(sourceMapFullPath, sourceMapContent);
+                _createdAssets.Add(sourceMapFullPath);
+                Debug.Log($"[JSRunner] Created source map: {sourceMapAssetPathUnity}");
             }
         }
 
-        // Refresh to import the new assets
         AssetDatabase.Refresh();
 
-        // Load and assign the TextAssets
-        var bundleAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(bundleAssetPath);
+        var bundleAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(bundleAssetPathUnity);
         if (bundleAsset != null) {
             runner.SetBundleAsset(bundleAsset);
         } else {
-            Debug.LogError($"[JSRunner] Failed to load created bundle asset: {bundleAssetPath}");
+            Debug.LogError($"[JSRunner] Failed to load created bundle asset: {bundleAssetPathUnity}");
         }
 
-        if (runner.IncludeSourceMap && File.Exists(sourceMapAssetPath)) {
-            var sourceMapAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(sourceMapAssetPath);
+        if (runner.IncludeSourceMap && !string.IsNullOrEmpty(sourceMapAssetPathUnity) && File.Exists(Path.Combine(bundleDir ?? "", "app.js.map.txt"))) {
+            var sourceMapAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(sourceMapAssetPathUnity);
             if (sourceMapAsset != null) {
                 runner.SetSourceMapAsset(sourceMapAsset);
             }

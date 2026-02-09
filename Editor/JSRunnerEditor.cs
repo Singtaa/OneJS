@@ -31,7 +31,10 @@ public class JSRunnerEditor : Editor {
     Label _statusLabel;
     Label _reloadCountLabel;
     Label _watcherStatusLabel;
+    Label _watcherStateLabel;
     Label _workingDirLabel;
+    VisualElement _initWarningContainer;
+    HelpBox _initWarningBox;
     Button _reloadButton;
     Button _buildButton;
     HelpBox _buildOutputBox;
@@ -213,8 +216,9 @@ public class JSRunnerEditor : Editor {
     // MARK: Tab Content Builders
 
     void BuildProjectTab(VisualElement container) {
-        // Scene save warning
-        if (!_target.IsSceneSaved) {
+        // Scene save warning (not needed when editing a prefab asset)
+        bool isPrefabAsset = UnityEditor.PrefabUtility.IsPartOfPrefabAsset(_target.gameObject);
+        if (!_target.IsSceneSaved && !isPrefabAsset) {
             var warning = new HelpBox("Scene must be saved before JSRunner can be configured.", HelpBoxMessageType.Warning);
             warning.style.marginBottom = 8;
             container.Add(warning);
@@ -1112,19 +1116,37 @@ public class JSRunnerEditor : Editor {
         _reloadCountLabel.style.display = DisplayStyle.None;
         container.Add(_reloadCountLabel);
 
-        // Watcher status
-        _watcherStatusLabel = new Label();
-        _watcherStatusLabel.style.marginTop = 4;
+        // Watcher status ("Watcher: " in gray + state in color)
+        var watcherRow = CreateRow();
+        watcherRow.style.marginTop = 4;
+        _watcherStatusLabel = new Label("Watcher: ");
         _watcherStatusLabel.style.fontSize = 11;
-        container.Add(_watcherStatusLabel);
+        _watcherStatusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+        watcherRow.Add(_watcherStatusLabel);
+        _watcherStateLabel = new Label();
+        _watcherStateLabel.style.fontSize = 11;
+        watcherRow.Add(_watcherStateLabel);
+        container.Add(watcherRow);
 
         // Working directory path
         _workingDirLabel = new Label();
         _workingDirLabel.style.marginTop = 4;
-        _workingDirLabel.style.fontSize = 10;
+        _workingDirLabel.style.fontSize = 11;
         _workingDirLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
         _workingDirLabel.style.whiteSpace = WhiteSpace.Normal;
         container.Add(_workingDirLabel);
+
+        // Warning when not initialized or project files not scaffolded, with Initialize button
+        _initWarningContainer = new VisualElement();
+        _initWarningContainer.style.marginTop = 8;
+        _initWarningContainer.style.display = DisplayStyle.None;
+        _initWarningBox = new HelpBox("Run Editor to initialize project files in Working directory.", HelpBoxMessageType.Warning);
+        _initWarningContainer.Add(_initWarningBox);
+        var initButton = new Button(RunInitializeProject) { text = "Initialize" };
+        initButton.style.marginTop = 6;
+        initButton.style.height = 22;
+        _initWarningContainer.Add(initButton);
+        container.Add(_initWarningContainer);
 
         return container;
     }
@@ -1289,36 +1311,55 @@ public class JSRunnerEditor : Editor {
             }
         }
 
-        // Watcher status
-        if (_watcherStatusLabel != null) {
+        // Watcher status ("Watcher: " always gray; only state text is colored)
+        if (_watcherStateLabel != null) {
             var workingDir = _target.WorkingDirFullPath;
             if (string.IsNullOrEmpty(workingDir)) {
-                _watcherStatusLabel.text = "Watcher: (save scene first)";
-                _watcherStatusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+                _watcherStateLabel.text = _target.ProjectConfig == null && _target.IsSceneSaved ? "non initialized yet" : "(save scene first)";
+                _watcherStateLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
             } else {
                 var isWatching = NodeWatcherManager.IsRunning(workingDir);
                 var isStarting = NodeWatcherManager.IsStarting(workingDir);
 
                 if (isStarting) {
-                    _watcherStatusLabel.text = "Watcher: Starting...";
-                    _watcherStatusLabel.style.color = new Color(0.8f, 0.6f, 0.2f);
+                    _watcherStateLabel.text = "Starting...";
+                    _watcherStateLabel.style.color = new Color(0.8f, 0.6f, 0.2f);
                 } else if (isWatching) {
-                    _watcherStatusLabel.text = "Watcher: Running";
-                    _watcherStatusLabel.style.color = new Color(0.4f, 0.8f, 0.4f);
+                    _watcherStateLabel.text = "Running";
+                    _watcherStateLabel.style.color = new Color(0.4f, 0.8f, 0.4f);
                 } else if (Application.isPlaying) {
-                    _watcherStatusLabel.text = "Watcher: Starting...";
-                    _watcherStatusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+                    _watcherStateLabel.text = "Starting...";
+                    _watcherStateLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
                 } else {
-                    _watcherStatusLabel.text = "Watcher: Idle";
-                    _watcherStatusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+                    _watcherStateLabel.text = "Idle";
+                    _watcherStateLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
                 }
             }
         }
 
-        // Working directory path
+        // Working directory path: show path only after initialization (ProjectConfig set); otherwise "non initialized yet" or "(save scene first)"
         if (_workingDirLabel != null) {
-            var workingDir = _target.WorkingDirFullPath;
-            _workingDirLabel.text = string.IsNullOrEmpty(workingDir) ? "(save scene first)" : workingDir;
+            if (_target.ProjectConfig != null) {
+                var workingDir = _target.WorkingDirFullPath;
+                if (!string.IsNullOrEmpty(workingDir)) {
+                    var relative = System.IO.Path.GetRelativePath(_target.ProjectRoot, workingDir).Replace(System.IO.Path.DirectorySeparatorChar, '/');
+                    _workingDirLabel.text = "Working Dir: " + relative;
+                } else {
+                    _workingDirLabel.text = "Working Dir: (save scene first)";
+                }
+            } else if (!_target.IsSceneSaved) {
+                _workingDirLabel.text = "Working Dir: (save scene first)";
+            } else {
+                _workingDirLabel.text = "Working Dir: non initialized yet";
+            }
+        }
+
+        // Show yellow warning when: not initialized yet (no ProjectConfig), or folder exists but project files not scaffolded (no package.json)
+        if (_initWarningContainer != null) {
+            bool notInitialized = _target.ProjectConfig == null && _target.IsSceneSaved;
+            bool folderExistsButNoPackageJson = _target.ProjectConfig != null && !_target.HasPackageJson;
+            bool showInitWarning = notInitialized || folderExistsButNoPackageJson;
+            _initWarningContainer.style.display = showInitWarning ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
         // Buttons
@@ -1498,6 +1539,57 @@ public class JSRunnerEditor : Editor {
     }
 
     // MARK: Utilities
+
+    void RunInitializeProject() {
+        
+        if (!_target.IsSceneSaved) {
+            Debug.LogWarning("[JSRunner] Save the scene before initializing.");
+            return;
+        }
+        Undo.RecordObject(_target, "JSRunner Initialize Project");
+        _target.PopulateDefaultFiles();
+        _target.EnsureProjectConfig();
+        _target.EnsureProjectSetup();
+        if (_target.ProjectConfig != null) {
+            if (serializedObject.FindProperty("_panelSettings").objectReferenceValue == null)
+                _target.CreateDefaultPanelSettingsAsset();
+            if (serializedObject.FindProperty("_visualTreeAsset").objectReferenceValue == null)
+                _target.CreateDefaultVisualTreeAsset();
+            var uiDoc = _target.GetComponent<UIDocument>();
+            if (uiDoc != null) {
+                serializedObject.Update();
+                var ps = serializedObject.FindProperty("_panelSettings").objectReferenceValue as UnityEngine.UIElements.PanelSettings;
+                var vta = serializedObject.FindProperty("_visualTreeAsset").objectReferenceValue as UnityEngine.UIElements.VisualTreeAsset;
+                if (uiDoc.panelSettings == null && ps != null) {
+                    Undo.RecordObject(uiDoc, "Assign PanelSettings");
+                    uiDoc.panelSettings = ps;
+                }
+                if (uiDoc.visualTreeAsset == null && vta != null) {
+                    Undo.RecordObject(uiDoc, "Assign VisualTreeAsset");
+                    uiDoc.visualTreeAsset = vta;
+                }
+            }
+        }
+        EditorUtility.SetDirty(_target);
+        serializedObject.Update();
+        AssetDatabase.Refresh();
+
+        var workingDir = _target.WorkingDirFullPath;
+        if (!string.IsNullOrEmpty(workingDir) && File.Exists(Path.Combine(workingDir, "package.json"))) {
+            RunNpmCommand(workingDir, "install", onSuccess: () => {
+                RunNpmCommand(workingDir, "run build", onSuccess: () => {
+                    AssetDatabase.Refresh();
+                    Debug.Log("[JSRunner] Project initialized. Working directory, default files, node_modules, and build created.");
+                }, onFailure: (code) => {
+                    Debug.LogWarning($"[JSRunner] Build step failed (exit code {code}). Project and node_modules are ready; you can run 'npm run build' manually.");
+                });
+            }, onFailure: (code) => {
+                Debug.LogWarning($"[JSRunner] npm install failed (exit code {code}). Default files and folder were created.");
+            });
+        } else {
+            Debug.Log("[JSRunner] Project initialized. Working directory and default files created.");
+        }
+    }
 
     void OpenWorkingDirectory() {
         var path = _target.WorkingDirFullPath;

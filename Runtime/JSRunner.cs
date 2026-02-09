@@ -53,7 +53,8 @@ public class DefaultFileEntry {
 /// - Zero-config UI: Auto-creates UIDocument (RequireComponent) and PanelSettings
 ///
 /// Directory structure (for scene "Level1.unity" with JSRunner on "MainUI"):
-///   Assets/Scenes/Level1/MainUI_abc123/MainUI~/  (working dir, ignored by Unity)
+///   Assets/Scenes/Level1/MainUI_abc123/~/  (working dir, ignored by Unity)
+///   Assets/Scenes/Level1/MainUI_abc123/ProjectConfig.asset (folder location)
 ///   Assets/Scenes/Level1/MainUI_abc123/app.js.txt (bundle TextAsset)
 ///
 /// Platform behavior:
@@ -79,6 +80,9 @@ public class JSRunner : MonoBehaviour {
 
     [Tooltip("VisualTreeAsset (UXML) for the UI. Auto-created in instance folder on first Play mode if not assigned.")]
     [SerializeField] VisualTreeAsset _visualTreeAsset;
+
+    [Tooltip("ProjectConfig asset that marks the target project folder. Auto-created on first init if not assigned.")]
+    [SerializeField] ProjectConfig _projectConfig;
 
     [SerializeField] ThemeStyleSheet _defaultThemeStylesheet;
 
@@ -139,6 +143,7 @@ public class JSRunner : MonoBehaviour {
     public bool IncludeSourceMap => _includeSourceMap;
     public TextAsset BundleAsset => _bundleAsset;
     public TextAsset SourceMapAsset => _sourceMapAsset;
+    public ProjectConfig ProjectConfig => _projectConfig;
 
     /// <summary>
     /// Unique instance ID for this JSRunner (generated once, persisted).
@@ -185,25 +190,53 @@ public class JSRunner : MonoBehaviour {
     }
 
     /// <summary>
-    /// Instance folder path: {SceneFolder}/{GameObjectName}_{InstanceId}/
+    /// Instance folder path (full filesystem path). Returns non-null only after initialization (ProjectConfig created).
+    /// Before init, returns null so no directory is created or associated.
     /// </summary>
     public string InstanceFolder {
         get {
-            var sceneFolder = SceneFolder;
-            if (string.IsNullOrEmpty(sceneFolder)) return null;
-            return Path.Combine(sceneFolder, $"{gameObject.name}_{InstanceId}");
+#if UNITY_EDITOR
+            if (_projectConfig != null) {
+                var assetPath = UnityEditor.AssetDatabase.GetAssetPath(_projectConfig);
+                if (string.IsNullOrEmpty(assetPath) || !assetPath.StartsWith("Assets", StringComparison.OrdinalIgnoreCase)) return null;
+                var dir = Path.GetDirectoryName(assetPath);
+                if (string.IsNullOrEmpty(dir)) return null;
+                var normalized = dir.Replace('/', Path.DirectorySeparatorChar);
+                return Path.Combine(ProjectRoot, normalized);
+            }
+            return null;
+#else
+            return null;
+#endif
         }
     }
 
+#if UNITY_EDITOR
     /// <summary>
-    /// Working directory path (ignored by Unity due to ~ suffix):
-    /// {InstanceFolder}/{GameObjectName}~/
+    /// Instance folder as Unity asset path (relative, forward slashes) for AssetDatabase APIs.
+    /// </summary>
+    public string InstanceFolderAssetPath {
+        get {
+            var instanceFolder = InstanceFolder;
+            if (string.IsNullOrEmpty(instanceFolder)) return null;
+            if (_projectConfig != null) {
+                var assetPath = UnityEditor.AssetDatabase.GetAssetPath(_projectConfig);
+                if (!string.IsNullOrEmpty(assetPath)) return Path.GetDirectoryName(assetPath);
+            }
+            var relative = Path.GetRelativePath(ProjectRoot, instanceFolder).Replace(Path.DirectorySeparatorChar, '/');
+            return relative;
+        }
+    }
+#endif
+
+    /// <summary>
+    /// Working directory path (ignored by Unity due to ~ suffix): {InstanceFolder}/~/
     /// </summary>
     public string WorkingDirFullPath {
         get {
             var instanceFolder = InstanceFolder;
             if (string.IsNullOrEmpty(instanceFolder)) return null;
-            return Path.Combine(instanceFolder, $"{gameObject.name}~");
+            return Path.Combine(instanceFolder, "~");
         }
     }
 
@@ -243,24 +276,32 @@ public class JSRunner : MonoBehaviour {
     public string SourceMapAssetPath => SourceMapFilePath;
 
     /// <summary>
-    /// Asset path for the PanelSettings: {InstanceFolder}/PanelSettings.asset
+    /// Asset path for the PanelSettings (Unity relative path for AssetDatabase).
     /// </summary>
     public string PanelSettingsAssetPath {
         get {
-            var instanceFolder = InstanceFolder;
-            if (string.IsNullOrEmpty(instanceFolder)) return null;
-            return Path.Combine(instanceFolder, "PanelSettings.asset");
+#if UNITY_EDITOR
+            var folder = InstanceFolderAssetPath;
+            if (string.IsNullOrEmpty(folder)) return null;
+            return folder + "/PanelSettings.asset";
+#else
+            return null;
+#endif
         }
     }
 
     /// <summary>
-    /// Asset path for the VisualTreeAsset: {InstanceFolder}/UIDocument.uxml
+    /// Asset path for the VisualTreeAsset (Unity relative path for AssetDatabase).
     /// </summary>
     public string VisualTreeAssetPath {
         get {
-            var instanceFolder = InstanceFolder;
-            if (string.IsNullOrEmpty(instanceFolder)) return null;
-            return Path.Combine(instanceFolder, "UIDocument.uxml");
+#if UNITY_EDITOR
+            var folder = InstanceFolderAssetPath;
+            if (string.IsNullOrEmpty(folder)) return null;
+            return folder + "/UIDocument.uxml";
+#else
+            return null;
+#endif
         }
     }
 
@@ -294,6 +335,59 @@ public class JSRunner : MonoBehaviour {
         UnityEditor.EditorUtility.SetDirty(this);
     }
 
+
+    /// <summary>
+    /// Ensures ProjectConfig exists: creates project folder, ~ working dir, and ProjectConfig asset when not assigned.
+    /// Migrates existing {GameObjectName}~ folder to ~ when found.
+    /// </summary>
+    public void EnsureProjectConfig() {
+        if (_projectConfig != null) return;
+        if (!IsSceneSaved) return;
+
+        var sceneFolder = SceneFolder;
+        if (string.IsNullOrEmpty(sceneFolder)) return;
+        // Use full path so folder is created in the right place regardless of current directory
+        var instanceFolder = Path.GetFullPath(Path.Combine(ProjectRoot, sceneFolder.Replace('/', Path.DirectorySeparatorChar), $"{gameObject.name}_{InstanceId}"));
+
+        if (!Directory.Exists(instanceFolder)) {
+            Directory.CreateDirectory(instanceFolder);
+            var workingDir = Path.Combine(instanceFolder, "~");
+            Directory.CreateDirectory(workingDir);
+            Debug.Log($"[JSRunner] Created working directory: {workingDir}");
+        } else {
+            // Migration: rename {GameObjectName}~ to ~ if present
+            var oldWorkingDir = Path.Combine(instanceFolder, $"{gameObject.name}~");
+            var newWorkingDir = Path.Combine(instanceFolder, "~");
+            if (Directory.Exists(oldWorkingDir) && !string.Equals(oldWorkingDir, newWorkingDir, StringComparison.OrdinalIgnoreCase)) {
+                try {
+                    Directory.Move(oldWorkingDir, newWorkingDir);
+                    Debug.Log($"[JSRunner] Migrated working directory to ~");
+                } catch (Exception ex) {
+                    Debug.LogWarning($"[JSRunner] Could not rename {gameObject.name}~ to ~: {ex.Message}");
+                }
+            } else if (!Directory.Exists(newWorkingDir)) {
+                Directory.CreateDirectory(newWorkingDir);
+            }
+        }
+
+        var relativeDir = Path.GetRelativePath(ProjectRoot, instanceFolder).Replace(Path.DirectorySeparatorChar, '/');
+        var assetPath = relativeDir + "/ProjectConfig.asset";
+
+        var existing = UnityEditor.AssetDatabase.LoadAssetAtPath<ProjectConfig>(assetPath);
+        if (existing != null) {
+            _projectConfig = existing;
+            UnityEditor.EditorUtility.SetDirty(this);
+            return;
+        }
+
+        var config = ScriptableObject.CreateInstance<ProjectConfig>();
+        config.SetInstanceId(InstanceId);
+        UnityEditor.AssetDatabase.CreateAsset(config, assetPath);
+        UnityEditor.AssetDatabase.SaveAssets();
+        _projectConfig = config;
+        UnityEditor.EditorUtility.SetDirty(this);
+        Debug.Log($"[JSRunner] Created ProjectConfig: {assetPath}");
+    }
 
     /// <summary>
     /// Creates a default PanelSettings asset in the instance folder.
@@ -349,11 +443,11 @@ public class JSRunner : MonoBehaviour {
         var uxmlContent = @"<ui:UXML xmlns:ui=""UnityEngine.UIElements"">
 </ui:UXML>";
 
-        // Write UXML file
-        var assetPath = VisualTreeAssetPath;
-        File.WriteAllText(assetPath, uxmlContent);
+        // Write UXML file (full path for filesystem)
+        var uxmlFullPath = Path.Combine(instanceFolder, "UIDocument.uxml");
+        File.WriteAllText(uxmlFullPath, uxmlContent);
 
-        // Import the asset
+        var assetPath = VisualTreeAssetPath;
         UnityEditor.AssetDatabase.ImportAsset(assetPath);
 
         // Load and assign the VisualTreeAsset
@@ -585,6 +679,9 @@ public class JSRunner : MonoBehaviour {
             return;
         }
 
+        // Ensure project folder and ProjectConfig exist (creates folder + ~ + ProjectConfig on first init)
+        EnsureProjectConfig();
+
         // Auto-create or load PanelSettings asset if not assigned
         if (_panelSettings == null) {
             var psPath = PanelSettingsAssetPath;
@@ -642,17 +739,14 @@ public class JSRunner : MonoBehaviour {
             Debug.Log($"[JSRunner] Created working directory: {workingDir}");
         }
 
-        // Scaffold any missing default files
-        ScaffoldDefaultFiles();
-
-        // Extract cartridge files
-        ExtractCartridges();
-
-        // Ensure entry file exists (fallback if not in defaultFiles)
-        EnsureEntryFile();
-
-        // Refresh AssetDatabase so new folders/files appear in Project panel
-        UnityEditor.AssetDatabase.Refresh();
+        // Skip scaffolding/npm when already initialized (e.g. via Initialize button); just load and run
+        bool alreadyInitialized = HasPackageJson && HasNodeModules && File.Exists(entryFile);
+        if (!alreadyInitialized) {
+            ScaffoldDefaultFiles();
+            ExtractCartridges();
+            EnsureEntryFile();
+            UnityEditor.AssetDatabase.Refresh();
+        }
 
         // Initialize bridge and run script
         InitializeBridge();
@@ -1098,6 +1192,7 @@ public class JSRunner : MonoBehaviour {
         // Get UIDocument (created by RequireComponent)
         _uiDocument = GetComponent<UIDocument>();
 
+        // Do not create project folder here; initialization happens on first Play (InitializeEditor) only.
         // Create PanelSettings if scene is saved
         if (IsSceneSaved && _panelSettings == null) {
             CreateDefaultPanelSettingsAsset();
