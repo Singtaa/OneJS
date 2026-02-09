@@ -234,7 +234,7 @@ public class JSRunnerEditor : Editor {
         initBox.style.justifyContent = Justify.SpaceBetween;
         initBox.style.paddingTop = initBox.style.paddingBottom = 8;
         initBox.style.paddingLeft = initBox.style.paddingRight = 10;
-        initBox.style.backgroundColor = new Color(0.28f, 0.26f, 0.12f);
+        initBox.style.backgroundColor = new Color(0.28f, 0.28f, 0.28f);
         initBox.style.borderTopLeftRadius = initBox.style.borderTopRightRadius = initBox.style.borderBottomLeftRadius = initBox.style.borderBottomRightRadius = 3;
         var initLabel = new Label("Assign Panel Settings below for an existing project, or click Initialize to create a new project folder and assets.");
         initLabel.style.flexGrow = 1;
@@ -248,10 +248,10 @@ public class JSRunnerEditor : Editor {
         var initButton = new Button(RunInitializeProject) { text = "Initialize Folder" };
         initButton.style.height = 22;
         initButton.style.flexShrink = 0;
-        var initBtnBg = new Color(0.95f, 0.78f, 0.15f);
-        var initBtnHoverBg = new Color(0.98f, 0.84f, 0.28f);
+        var initBtnBg = new Color(0.72f, 0.72f, 0.72f);
+        var initBtnHoverBg = new Color(0.82f, 0.82f, 0.82f);
         initButton.style.backgroundColor = initBtnBg;
-        initButton.style.color = new Color(0.12f, 0.12f, 0.12f);
+        initButton.style.color = new Color(0.18f, 0.18f, 0.18f);
         initButton.RegisterCallback<MouseEnterEvent>(_ => initButton.style.backgroundColor = initBtnHoverBg);
         initButton.RegisterCallback<MouseLeaveEvent>(_ => initButton.style.backgroundColor = initBtnBg);
         initBox.Add(initButton);
@@ -275,13 +275,13 @@ public class JSRunnerEditor : Editor {
         var liveReloadRow = CreateRow();
         var liveReloadLabel = new Label("Live Reload");
         liveReloadLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
-        liveReloadLabel.style.flexGrow = 1;
+        liveReloadLabel.style.width = 192;
         liveReloadRow.Add(liveReloadLabel);
         var liveReloadField = new PropertyField(liveReloadProp, "");
         liveReloadRow.Add(liveReloadField);
         container.Add(liveReloadRow);
 
-        var liveReloadSettings = new VisualElement { style = { marginLeft = 15 } };
+        var liveReloadSettings = new VisualElement();
         liveReloadSettings.Add(new PropertyField(serializedObject.FindProperty("_pollInterval")));
 
         var janitorField = new PropertyField(serializedObject.FindProperty("_enableJanitor"), "Enable Janitor");
@@ -795,7 +795,6 @@ public class JSRunnerEditor : Editor {
             var emptyLabel = new Label("No cartridges. Click + to add one.");
             emptyLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
             emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
-            emptyLabel.style.paddingLeft = 4;
             emptyLabel.style.paddingTop = 4;
             emptyLabel.style.paddingBottom = 4;
             _cartridgeListContainer.Add(emptyLabel);
