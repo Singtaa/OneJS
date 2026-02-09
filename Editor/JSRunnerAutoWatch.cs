@@ -39,7 +39,7 @@ namespace OneJS.Editor {
                     break;
 
                 case PlayModeStateChange.ExitingPlayMode:
-                    // Stop all watchers so folders are unlocked for move/rename in Edit mode (ProjectConfig tracks location)
+                    // Stop all watchers so folders are unlocked for move/rename in Edit mode (PanelSettings/InstanceFolder tracks location)
                     NodeWatcherManager.StopAll();
                     _watchersStartedThisSession.Clear();
                     break;
@@ -60,7 +60,7 @@ namespace OneJS.Editor {
             foreach (var runner in runners) {
                 if (runner == null || !runner.enabled || !runner.gameObject.activeInHierarchy) continue;
                 if (!runner.IsSceneSaved) continue;
-                if (runner.ProjectConfig == null) continue;
+                if (runner.InstanceFolder == null) continue;
 
                 runner.EnsureProjectSetup();
             }
@@ -79,7 +79,7 @@ namespace OneJS.Editor {
             foreach (var runner in runners) {
                 if (runner == null || !runner.enabled || !runner.gameObject.activeInHierarchy) continue;
                 if (!runner.IsSceneSaved) continue;
-                if (runner.ProjectConfig == null) continue;
+                if (runner.InstanceFolder == null) continue;
 
                 // Check if PanelSettings already assigned
                 var panelSettingsProp = new SerializedObject(runner).FindProperty("_panelSettings");

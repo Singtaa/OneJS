@@ -34,7 +34,7 @@ namespace OneJS.Editor {
 
             // Find all JSRunner components in loaded scenes and update tracking
             // NOTE: We only ADD/UPDATE here, never remove. Removal is handled by CheckForRemovedRunners().
-            // Folder path comes from ProjectConfig (runner.InstanceFolder).
+            // Folder path comes from PanelSettings (runner.InstanceFolder).
             var runners = UnityEngine.Object.FindObjectsByType<JSRunner>(FindObjectsInactive.Include, FindObjectsSortMode.None);
 
             foreach (var runner in runners) {

@@ -224,27 +224,27 @@ public class JSRunnerEditor : Editor {
             container.Add(warning);
         }
 
-        // Initialize for new project or attach Project Config for existing — above Project Config field
+        // Initialize for new project or assign Panel Settings below for existing — Panel Settings marks the project folder
         _projectTabInitContainer = new VisualElement();
         _projectTabInitContainer.style.marginBottom = 8;
-        var initHelpBox = new HelpBox("Click Initialize Project to create a new project or attach a config of an existing one.", HelpBoxMessageType.Warning);
+        var initHelpBox = new HelpBox("Assign Panel Settings below for an existing project, or click Initialize to create a new project folder and assets.", HelpBoxMessageType.Warning);
         _projectTabInitContainer.Add(initHelpBox);
         var initButton = new Button(RunInitializeProject) { text = "Initialize Project" };
         initButton.style.marginTop = 6;
         initButton.style.height = 22;
         _projectTabInitContainer.Add(initButton);
-        // Set initial visibility from serialized config so we don't flash when tab is built (e.g. on Play mode change)
-        var projectConfigProp = serializedObject.FindProperty("_projectConfig");
-        bool hasConfigInitial = projectConfigProp.objectReferenceValue != null;
-        bool notInitializedInitial = !hasConfigInitial && _target.IsSceneSaved;
-        bool needsScaffoldInitial = hasConfigInitial && !_target.HasPackageJson;
+        // Set initial visibility from serialized Panel Settings so we don't flash when tab is built (e.g. on Play mode change)
+        var panelSettingsPropProject = serializedObject.FindProperty("_panelSettings");
+        bool hasPanelSettingsInitial = panelSettingsPropProject.objectReferenceValue != null;
+        bool notInitializedInitial = !hasPanelSettingsInitial && _target.IsSceneSaved;
+        bool needsScaffoldInitial = hasPanelSettingsInitial && !_target.HasPackageJson;
         _projectTabInitContainer.style.display = (notInitializedInitial || needsScaffoldInitial) ? DisplayStyle.Flex : DisplayStyle.None;
         container.Add(_projectTabInitContainer);
 
-        // Project Config: assign an existing ProjectConfig to use that project; otherwise use Initialize to create one
-        var projectConfigField = new PropertyField(projectConfigProp, "Project Config");
-        projectConfigField.tooltip = "Assign an existing ProjectConfig asset to use that project. Leave empty and click Initialize to create a new one.";
-        container.Add(projectConfigField);
+        // Panel Settings reference (project folder marker) — associated settings stay in UI tab
+        var panelSettingsRefField = new PropertyField(panelSettingsPropProject, "Panel Settings");
+        panelSettingsRefField.tooltip = "Assign a PanelSettings asset from a project folder. That folder becomes this runner's project. Configure the asset in the UI tab.";
+        container.Add(panelSettingsRefField);
 
         AddSpacer(container);
 
@@ -348,18 +348,19 @@ public class JSRunnerEditor : Editor {
 
         AddSpacer(container);
 
-        // PanelSettings field
-        var panelSettingsProp = serializedObject.FindProperty("_panelSettings");
-        var panelSettingsField = new PropertyField(panelSettingsProp, "Panel Settings");
-        container.Add(panelSettingsField);
+        // Panel Settings section header (reference field is on Project tab; configure the asset here)
+        var panelSettingsHeader = CreateRow();
+        panelSettingsHeader.style.marginBottom = 4;
+        var panelSettingsLabel = new Label("Panel Settings");
+        panelSettingsLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+        panelSettingsLabel.style.flexGrow = 1;
+        panelSettingsLabel.tooltip = "Configure the assigned PanelSettings asset. Assign the asset in the Project tab.";
+        panelSettingsHeader.Add(panelSettingsLabel);
+        container.Add(panelSettingsHeader);
 
-        // Container for embedded PanelSettings inspector
+        var panelSettingsProp = serializedObject.FindProperty("_panelSettings");
         var psInspectorContainer = new VisualElement();
-        psInspectorContainer.style.marginTop = 8;
-        psInspectorContainer.style.marginLeft = 4;
-        psInspectorContainer.style.paddingLeft = 10;
-        psInspectorContainer.style.borderLeftWidth = 2;
-        psInspectorContainer.style.borderLeftColor = new Color(0.3f, 0.3f, 0.3f);
+        psInspectorContainer.style.marginTop = 4;
         container.Add(psInspectorContainer);
 
         // Function to rebuild embedded inspector
@@ -368,17 +369,19 @@ public class JSRunnerEditor : Editor {
 
             var ps = panelSettingsProp.objectReferenceValue as PanelSettings;
             if (ps != null) {
-                // Create embedded inspector using InspectorElement
                 var inspector = new InspectorElement(ps);
+                inspector.style.paddingLeft = 0;
+                inspector.style.marginLeft = 0;
                 psInspectorContainer.Add(inspector);
+            } else {
+                var helpBox = new HelpBox(
+                    "No Panel Settings assigned. Assign one in the Project tab, or click Initialize to create a new project and assets.",
+                    HelpBoxMessageType.Info);
+                psInspectorContainer.Add(helpBox);
             }
         }
 
         RebuildPanelSettingsInspector();
-        panelSettingsField.RegisterValueChangeCallback(_ => {
-            serializedObject.Update();
-            RebuildPanelSettingsInspector();
-        });
     }
 
     void BuildBuildTab(VisualElement container) {
@@ -1152,16 +1155,6 @@ public class JSRunnerEditor : Editor {
         return container;
     }
 
-    void SelectWorkingFolderInProject() {
-        var folderPath = _target.InstanceFolderAssetPath;
-        if (string.IsNullOrEmpty(folderPath)) return;
-        var folder = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(folderPath);
-        if (folder != null) {
-            Selection.activeObject = folder;
-            EditorGUIUtility.PingObject(folder);
-        }
-    }
-
     // MARK: Actions Section
 
     VisualElement CreateActionsSection() {
@@ -1189,18 +1182,10 @@ public class JSRunnerEditor : Editor {
         // Row 2: Open Folder, Terminal, and Code Editor
         var row2 = CreateRow();
 
-        var openFolderButton = new Button() { text = "Open Folder" };
+        var openFolderButton = new Button(OpenWorkingDirectory) { text = "Open Folder" };
         openFolderButton.style.height = 24;
         openFolderButton.style.flexGrow = 1;
-        openFolderButton.tooltip = "Open working folder in file explorer. Ctrl+Click to select folder in Project window.";
-        openFolderButton.RegisterCallback<ClickEvent>(evt => {
-            if (evt.ctrlKey || evt.commandKey) {
-                if (_target.ProjectConfig != null && !string.IsNullOrEmpty(_target.InstanceFolderAssetPath))
-                    SelectWorkingFolderInProject();
-            } else {
-                OpenWorkingDirectory();
-            }
-        });
+        openFolderButton.tooltip = "Open working folder in file explorer.";
         row2.Add(openFolderButton);
 
         var openTerminalButton = new Button(OpenTerminal) { text = "Open Terminal" };
@@ -1327,7 +1312,7 @@ public class JSRunnerEditor : Editor {
         if (_watcherStateLabel != null) {
             var workingDir = _target.WorkingDirFullPath;
             if (string.IsNullOrEmpty(workingDir)) {
-                _watcherStateLabel.text = _target.ProjectConfig == null && _target.IsSceneSaved ? "non initialized yet" : "(save scene first)";
+                _watcherStateLabel.text = _target.InstanceFolder == null && _target.IsSceneSaved ? "non initialized yet" : "(save scene first)";
                 _watcherStateLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
             } else {
                 var isWatching = NodeWatcherManager.IsRunning(workingDir);
@@ -1349,9 +1334,9 @@ public class JSRunnerEditor : Editor {
             }
         }
 
-        // Working directory path: show path only after initialization (ProjectConfig set); otherwise "non initialized yet" or "(save scene first)"
+        // Working directory path: show path only after initialization (Panel Settings set); otherwise "non initialized yet" or "(save scene first)"
         if (_workingDirLabel != null) {
-            if (_target.ProjectConfig != null) {
+            if (_target.InstanceFolder != null) {
                 var workingDir = _target.WorkingDirFullPath;
                 if (!string.IsNullOrEmpty(workingDir)) {
                     var relative = System.IO.Path.GetRelativePath(_target.ProjectRoot, workingDir).Replace(System.IO.Path.DirectorySeparatorChar, '/');
@@ -1366,14 +1351,13 @@ public class JSRunnerEditor : Editor {
             }
         }
 
-        // Show init message only when config is missing or project not scaffolded. Use serialized property for
-        // ProjectConfig so we don't flash during Play mode enter/exit (when _target can be briefly recreated).
+        // Show init message only when Panel Settings is missing or project not scaffolded. Use serialized _panelSettings to avoid flash on Play mode change.
         if (_projectTabInitContainer != null) {
             serializedObject.Update();
-            var projectConfigRef = serializedObject.FindProperty("_projectConfig").objectReferenceValue;
-            bool hasConfig = projectConfigRef != null;
-            bool notInitialized = !hasConfig && _target.IsSceneSaved;
-            bool folderExistsButNoPackageJson = hasConfig && !_target.HasPackageJson;
+            var panelSettingsRef = serializedObject.FindProperty("_panelSettings").objectReferenceValue;
+            bool hasPanelSettings = panelSettingsRef != null;
+            bool notInitialized = !hasPanelSettings && _target.IsSceneSaved;
+            bool folderExistsButNoPackageJson = hasPanelSettings && !_target.HasPackageJson;
             bool showInitWarning = notInitialized || folderExistsButNoPackageJson;
             _projectTabInitContainer.style.display = showInitWarning ? DisplayStyle.Flex : DisplayStyle.None;
         }
@@ -1564,15 +1548,8 @@ public class JSRunnerEditor : Editor {
         }
         Undo.RecordObject(_target, "JSRunner Initialize Project");
         _target.PopulateDefaultFiles();
-        _target.EnsureProjectConfig();
+        _target.EnsureProjectFolderAndAssets();
         _target.EnsureProjectSetup();
-        if (_target.ProjectConfig != null) {
-            if (serializedObject.FindProperty("_panelSettings").objectReferenceValue == null)
-                _target.CreateDefaultPanelSettingsAsset();
-            if (serializedObject.FindProperty("_visualTreeAsset").objectReferenceValue == null)
-                _target.CreateDefaultVisualTreeAsset();
-            // UIDocument is added at runtime; assets are stored on JSRunner (_panelSettings, _visualTreeAsset)
-        }
         EditorUtility.SetDirty(_target);
         serializedObject.Update();
         AssetDatabase.Refresh();
