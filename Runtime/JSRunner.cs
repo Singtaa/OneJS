@@ -389,6 +389,7 @@ public class JSRunner : MonoBehaviour {
             _panelSettings = existingPS;
             UnityEditor.EditorUtility.SetDirty(this);
             SyncVisualTreeAssetFromPanelSettingsFolder();
+            EnsureUIDocumentInEditor();
             return;
         }
 
@@ -411,6 +412,7 @@ public class JSRunner : MonoBehaviour {
 
         UnityEditor.EditorUtility.SetDirty(this);
         UnityEditor.AssetDatabase.SaveAssets();
+        EnsureUIDocumentInEditor();
         Debug.Log($"[JSRunner] Created project folder and PanelSettings: {psAssetPath}");
     }
 
@@ -1235,16 +1237,22 @@ public class JSRunner : MonoBehaviour {
                 udoc.visualTreeAsset = _visualTreeAsset;
             }
         } else {
-            // Editor: ensure UIDocument exists and is populated from Panel Settings / Visual Tree
-            if (udoc == null) {
-                udoc = UnityEditor.Undo.AddComponent<UIDocument>(gameObject);
-            }
-            if (udoc != null && (udoc.panelSettings != _panelSettings || udoc.visualTreeAsset != _visualTreeAsset)) {
-                UnityEditor.Undo.RecordObject(udoc, "Sync UIDocument to Panel Settings");
-                udoc.panelSettings = _panelSettings;
-                udoc.visualTreeAsset = _visualTreeAsset;
-                UnityEditor.EditorUtility.SetDirty(udoc);
-            }
+            EnsureUIDocumentInEditor();
+        }
+    }
+
+    /// <summary>Adds UIDocument if missing and syncs Panel Settings / Visual Tree. Call after assigning _panelSettings (e.g. from Initialize).</summary>
+    void EnsureUIDocumentInEditor() {
+        if (_panelSettings == null) return;
+        SyncVisualTreeAssetFromPanelSettingsFolder();
+        var udoc = GetComponent<UIDocument>();
+        if (udoc == null)
+            udoc = UnityEditor.Undo.AddComponent<UIDocument>(gameObject);
+        if (udoc != null && (udoc.panelSettings != _panelSettings || udoc.visualTreeAsset != _visualTreeAsset)) {
+            UnityEditor.Undo.RecordObject(udoc, "Sync UIDocument to Panel Settings");
+            udoc.panelSettings = _panelSettings;
+            udoc.visualTreeAsset = _visualTreeAsset;
+            UnityEditor.EditorUtility.SetDirty(udoc);
         }
     }
 
