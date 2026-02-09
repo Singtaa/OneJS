@@ -1204,7 +1204,9 @@ public class JSRunner : MonoBehaviour {
     }
 
     /// <summary>
-    /// When PanelSettings is assigned or cleared, sync VisualTreeAsset from the same folder. In Play mode, sync to UIDocument so both use the same assets.
+    /// When PanelSettings is assigned or cleared, sync VisualTreeAsset from the same folder.
+    /// In editor: add UIDocument with populated Panel Settings and Visual Tree when assigned; remove UIDocument when cleared.
+    /// In Play mode: push to UIDocument so both use the same assets.
     /// </summary>
     void OnValidate() {
         if (_panelSettings == null) {
@@ -1212,15 +1214,36 @@ public class JSRunner : MonoBehaviour {
                 _visualTreeAsset = null;
                 UnityEditor.EditorUtility.SetDirty(this);
             }
+            // Remove UIDocument when Panel Settings is cleared (deferred so removal isn't ignored during OnValidate)
+            if (!Application.isPlaying) {
+                var ud = GetComponent<UIDocument>();
+                if (ud != null) {
+                    var toRemove = ud;
+                    UnityEditor.EditorApplication.delayCall += () => {
+                        if (toRemove != null && _panelSettings == null)
+                            UnityEditor.Undo.DestroyObjectImmediate(toRemove);
+                    };
+                }
+            }
             return;
         }
         SyncVisualTreeAssetFromPanelSettingsFolder();
-        // When inspector changes PanelSettings/VisualTreeAsset at runtime, push to UIDocument (no per-frame Update)
+        var udoc = GetComponent<UIDocument>();
         if (Application.isPlaying) {
-            var ud = GetComponent<UIDocument>();
-            if (ud != null) {
-                ud.panelSettings = _panelSettings;
-                ud.visualTreeAsset = _visualTreeAsset;
+            if (udoc != null) {
+                udoc.panelSettings = _panelSettings;
+                udoc.visualTreeAsset = _visualTreeAsset;
+            }
+        } else {
+            // Editor: ensure UIDocument exists and is populated from Panel Settings / Visual Tree
+            if (udoc == null) {
+                udoc = UnityEditor.Undo.AddComponent<UIDocument>(gameObject);
+            }
+            if (udoc != null && (udoc.panelSettings != _panelSettings || udoc.visualTreeAsset != _visualTreeAsset)) {
+                UnityEditor.Undo.RecordObject(udoc, "Sync UIDocument to Panel Settings");
+                udoc.panelSettings = _panelSettings;
+                udoc.visualTreeAsset = _visualTreeAsset;
+                UnityEditor.EditorUtility.SetDirty(udoc);
             }
         }
     }
