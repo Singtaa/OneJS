@@ -234,7 +234,7 @@ public class JSRunnerEditor : Editor {
         initBox.style.justifyContent = Justify.SpaceBetween;
         initBox.style.paddingTop = initBox.style.paddingBottom = 8;
         initBox.style.paddingLeft = initBox.style.paddingRight = 10;
-        initBox.style.backgroundColor = new Color(0.28f, 0.28f, 0.28f);
+        initBox.style.backgroundColor = new Color(0.28f, 0.26f, 0.12f);
         initBox.style.borderTopLeftRadius = initBox.style.borderTopRightRadius = initBox.style.borderBottomLeftRadius = initBox.style.borderBottomRightRadius = 3;
         var initLabel = new Label("Assign Panel Settings below for an existing project, or click Initialize to create a new project folder and assets.");
         initLabel.style.flexGrow = 1;
@@ -248,8 +248,8 @@ public class JSRunnerEditor : Editor {
         var initButton = new Button(RunInitializeProject) { text = "Initialize Folder" };
         initButton.style.height = 22;
         initButton.style.flexShrink = 0;
-        var initBtnBg = new Color(0.2f, 0.65f, 0.35f);
-        var initBtnHoverBg = new Color(0.28f, 0.72f, 0.42f);
+        var initBtnBg = new Color(0.95f, 0.78f, 0.15f);
+        var initBtnHoverBg = new Color(0.98f, 0.84f, 0.28f);
         initButton.style.backgroundColor = initBtnBg;
         initButton.style.color = new Color(0.12f, 0.12f, 0.12f);
         initButton.RegisterCallback<MouseEnterEvent>(_ => initButton.style.backgroundColor = initBtnHoverBg);
