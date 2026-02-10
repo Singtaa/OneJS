@@ -1319,7 +1319,12 @@ public class JSRunner : MonoBehaviour {
                 udoc.visualTreeAsset = _visualTreeAsset;
             }
         } else {
-            EnsureUIDocumentInEditor();
+            // Defer so we never AddComponent during OnValidate (SendMessage not allowed there)
+            UnityEditor.EditorApplication.delayCall += () => {
+                if (this == null) return;
+                if (_panelSettings != null && IsPanelSettingsInValidProjectFolder())
+                    EnsureUIDocumentInEditor();
+            };
         }
     }
 
