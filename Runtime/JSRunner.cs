@@ -249,19 +249,41 @@ public class JSRunner : MonoBehaviour {
     /// Default instance folder path for new projects (scene + GameObject + instanceId). Used when creating folder and assets.
     /// When useSceneNameAsRootFolder is true (default), folder is created under {SceneDirectory}/{SceneName}/.
     /// When false, folder is created directly under {SceneDirectory}/ (next to the scene file).
+    /// When this runner is a prefab in the Project (not in a scene), returns a folder next to the prefab asset.
     /// </summary>
     string GetDefaultInstanceFolderPath(bool useSceneNameAsRootFolder) {
         var scenePath = gameObject.scene.path;
-        if (string.IsNullOrEmpty(scenePath)) return null;
+        if (!string.IsNullOrEmpty(scenePath)) {
+            var sceneDir = Path.GetDirectoryName(scenePath);
+            if (string.IsNullOrEmpty(sceneDir)) return null;
 
-        var sceneDir = Path.GetDirectoryName(scenePath);
-        if (string.IsNullOrEmpty(sceneDir)) return null;
+            var root = useSceneNameAsRootFolder
+                ? Path.Combine(sceneDir, Path.GetFileNameWithoutExtension(scenePath))
+                : sceneDir;
 
-        var root = useSceneNameAsRootFolder
-            ? Path.Combine(sceneDir, Path.GetFileNameWithoutExtension(scenePath))
-            : sceneDir;
+            return Path.GetFullPath(Path.Combine(ProjectRoot, root.Replace('/', Path.DirectorySeparatorChar), $"{gameObject.name}_{InstanceId}"));
+        }
 
-        return Path.GetFullPath(Path.Combine(ProjectRoot, root.Replace('/', Path.DirectorySeparatorChar), $"{gameObject.name}_{InstanceId}"));
+        // Prefab in Project (not in a scene): create project folder next to the prefab asset
+        var prefabPath = GetPrefabAssetPath();
+        if (string.IsNullOrEmpty(prefabPath) || !prefabPath.StartsWith("Assets", StringComparison.OrdinalIgnoreCase)) return null;
+
+        var prefabDir = Path.GetDirectoryName(prefabPath);
+        if (string.IsNullOrEmpty(prefabDir)) return null;
+
+        var prefabName = Path.GetFileNameWithoutExtension(prefabPath);
+        var relativeDir = Path.Combine(prefabDir, $"{prefabName}_{InstanceId}").Replace('/', Path.DirectorySeparatorChar);
+        return Path.GetFullPath(Path.Combine(ProjectRoot, relativeDir));
+    }
+
+    /// <summary>
+    /// Returns the asset path of the prefab when this runner is a prefab in the Project (not in a scene). Null otherwise.
+    /// </summary>
+    string GetPrefabAssetPath() {
+        var stage = UnityEditor.SceneManagement.PrefabStageUtility.GetPrefabStage(gameObject);
+        if (stage != null && !string.IsNullOrEmpty(stage.prefabAssetPath)) return stage.prefabAssetPath;
+        var path = UnityEditor.AssetDatabase.GetAssetPath(transform.root.gameObject);
+        return !string.IsNullOrEmpty(path) && path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase) ? path : null;
     }
 #endif
 
@@ -342,9 +364,14 @@ public class JSRunner : MonoBehaviour {
     }
 
     /// <summary>
-    /// Whether the scene is saved and paths are valid.
+    /// True when this runner is in a saved scene; false when it is a prefab in the Project (not placed in a scene).
     /// </summary>
     public bool IsSceneSaved => !string.IsNullOrEmpty(gameObject.scene.path);
+
+    /// <summary>
+    /// True when this runner is in a scene (saved). False when it is a prefab asset only (in Project hierarchy, not in a scene).
+    /// </summary>
+    public bool IsInScene => IsSceneSaved;
 
     /// <summary>
     /// Set the bundle TextAsset (called by build processor).
@@ -378,7 +405,6 @@ public class JSRunner : MonoBehaviour {
     /// </summary>
     public void EnsureProjectFolderAndAssets(bool useSceneNameAsRootFolder = true) {
         if (_panelSettings != null) return;
-        if (!IsSceneSaved) return;
 
         var instanceFolder = GetDefaultInstanceFolderPath(useSceneNameAsRootFolder);
         if (string.IsNullOrEmpty(instanceFolder)) return;
@@ -511,8 +537,6 @@ public class JSRunner : MonoBehaviour {
     /// Returns true if scaffolding was performed (first-time setup).
     /// </summary>
     public bool EnsureProjectSetup() {
-        if (!IsSceneSaved) return false;
-
         var workingDir = WorkingDirFullPath;
         var instanceFolder = InstanceFolder;
 
