@@ -291,20 +291,6 @@ public class JSRunnerEditor : Editor {
         liveReloadField.RegisterValueChangeCallback(_ =>
             liveReloadSettings.style.display = liveReloadProp.boolValue ? DisplayStyle.Flex : DisplayStyle.None);
 
-        // Unity setting: Run In Background
-        var runInBackgroundRow = CreateRow();
-        var runInBackgroundLabel = new Label("Run in Background");
-        runInBackgroundLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
-        runInBackgroundLabel.style.width = 192;
-        runInBackgroundRow.Add(runInBackgroundLabel);
-        var runInBackgroundToggle = new Toggle { value = PlayerSettings.runInBackground };
-        runInBackgroundToggle.text = "";
-        runInBackgroundToggle.RegisterValueChangedCallback(evt => {
-            PlayerSettings.runInBackground = evt.newValue;
-        });
-        runInBackgroundRow.Add(runInBackgroundToggle);
-        container.Add(runInBackgroundRow);
-
         AddSpacer(container);
 
         // Preloads section
@@ -1168,6 +1154,19 @@ public class JSRunnerEditor : Editor {
         container.style.marginTop = 2;
         container.style.marginBottom = 2; // space below status; tab bar marginTop 6 gives total 8 (matches above)
 
+        // Right-click on status dialogue: Run in Background toggle
+        container.RegisterCallback<ContextClickEvent>(evt => {
+            var menu = new GenericMenu();
+            menu.AddItem(new GUIContent("Run in Background"), PlayerSettings.runInBackground, () => {
+                PlayerSettings.runInBackground = !PlayerSettings.runInBackground;
+            });
+            menu.AddItem(new GUIContent("Use Scene Name as Root Folder"), EditorPrefs.GetBool(UseSceneNameAsRootFolderPrefKey, true), () => {
+                EditorPrefs.SetBool(UseSceneNameAsRootFolderPrefKey, !EditorPrefs.GetBool(UseSceneNameAsRootFolderPrefKey, true));
+            });
+            menu.ShowAsContext();
+            evt.StopPropagation();
+        });
+
         // Status row (hidden when showing not-initialized/not-valid blocks; those have their own status row inside)
         _statusRow = CreateRow();
         _statusRow.Add(CreateLabel("Status", 50, true));
@@ -1237,15 +1236,6 @@ public class JSRunnerEditor : Editor {
         initBtn.style.color = new Color(0.18f, 0.18f, 0.18f);
         initBtn.RegisterCallback<MouseEnterEvent>(_ => initBtn.style.backgroundColor = new Color(0.82f, 0.82f, 0.82f));
         initBtn.RegisterCallback<MouseLeaveEvent>(_ => initBtn.style.backgroundColor = new Color(0.72f, 0.72f, 0.72f));
-        initBtn.RegisterCallback<ContextClickEvent>(evt => {
-            var menu = new GenericMenu();
-            bool current = EditorPrefs.GetBool(UseSceneNameAsRootFolderPrefKey, true);
-            menu.AddItem(new GUIContent("Use Scene Name as Root Folder"), current, () => {
-                EditorPrefs.SetBool(UseSceneNameAsRootFolderPrefKey, !current);
-            });
-            menu.ShowAsContext();
-            evt.StopPropagation();
-        });
         initBtnColumn.Add(initBtn);
         _statusNotInitializedContainer.Add(initBtnColumn);
         container.Add(_statusNotInitializedContainer);
