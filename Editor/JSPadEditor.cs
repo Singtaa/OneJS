@@ -174,11 +174,11 @@ public class JSPadEditor : Editor {
 
         // Status section
         var statusBox = new VisualElement();
-        statusBox.style.backgroundColor = new Color(0.24f, 0.24f, 0.24f);
+        statusBox.style.backgroundColor = OneJSEditorDesign.Colors.BoxBg;
         statusBox.style.borderTopWidth = statusBox.style.borderBottomWidth =
             statusBox.style.borderLeftWidth = statusBox.style.borderRightWidth = 1;
         statusBox.style.borderTopColor = statusBox.style.borderBottomColor =
-            statusBox.style.borderLeftColor = statusBox.style.borderRightColor = new Color(0.14f, 0.14f, 0.14f);
+            statusBox.style.borderLeftColor = statusBox.style.borderRightColor = OneJSEditorDesign.Colors.Border;
         statusBox.style.borderTopLeftRadius = statusBox.style.borderTopRightRadius =
             statusBox.style.borderBottomLeftRadius = statusBox.style.borderBottomRightRadius = 3;
         statusBox.style.paddingTop = statusBox.style.paddingBottom = 8;
@@ -189,10 +189,10 @@ public class JSPadEditor : Editor {
         var statusRow = new VisualElement();
         statusRow.style.flexDirection = FlexDirection.Row;
         statusRow.style.alignItems = Align.Center;
-        var statusTitle = new Label("Status");
+        var statusTitle = new Label(OneJSEditorDesign.Texts.Status);
         statusTitle.style.unityFontStyleAndWeight = FontStyle.Bold;
         statusTitle.style.width = 50;
-        _statusLabel = new Label("Not initialized");
+        _statusLabel = new Label(OneJSEditorDesign.Texts.NotInitialized);
         _statusLabel.style.flexGrow = 1;
         statusRow.Add(statusTitle);
         statusRow.Add(_statusLabel);
@@ -215,9 +215,9 @@ public class JSPadEditor : Editor {
         bundleRow.style.marginTop = 4;
         var bundleTitle = new Label("Bundle:");
         bundleTitle.style.width = 50;
-        bundleTitle.style.color = new Color(0.6f, 0.6f, 0.6f);
+        bundleTitle.style.color = OneJSEditorDesign.Colors.TextMuted;
         _bundleSizeLabel = new Label(GetBundleSizeText());
-        _bundleSizeLabel.style.color = new Color(0.5f, 0.5f, 0.5f);
+        _bundleSizeLabel.style.color = OneJSEditorDesign.Colors.TextDim;
         _bundleSizeLabel.style.fontSize = 11;
         bundleRow.Add(bundleTitle);
         bundleRow.Add(_bundleSizeLabel);
@@ -251,10 +251,10 @@ public class JSPadEditor : Editor {
 
         // Tab content container
         _tabContent = new VisualElement();
-        _tabContent.style.backgroundColor = new Color(0.22f, 0.22f, 0.22f);
+        _tabContent.style.backgroundColor = OneJSEditorDesign.Colors.ContentBg;
         _tabContent.style.borderTopWidth = 0; // No top border (tabs handle this)
         _tabContent.style.borderLeftWidth = _tabContent.style.borderRightWidth = _tabContent.style.borderBottomWidth = 1;
-        _tabContent.style.borderLeftColor = _tabContent.style.borderRightColor = _tabContent.style.borderBottomColor = new Color(0.14f, 0.14f, 0.14f);
+        _tabContent.style.borderLeftColor = _tabContent.style.borderRightColor = _tabContent.style.borderBottomColor = OneJSEditorDesign.Colors.Border;
         _tabContent.style.borderTopLeftRadius = _tabContent.style.borderTopRightRadius = 0;
         _tabContent.style.borderBottomLeftRadius = _tabContent.style.borderBottomRightRadius = 3;
         _tabContent.style.paddingTop = _tabContent.style.paddingBottom = 10;
@@ -278,7 +278,7 @@ public class JSPadEditor : Editor {
         var textInput = _codeField.Q<TextElement>();
         if (textInput != null) {
             textInput.style.fontSize = 12;
-            textInput.style.backgroundColor = new Color(0.15f, 0.15f, 0.15f);
+            textInput.style.backgroundColor = OneJSEditorDesign.Colors.TextInputBg;
             textInput.style.paddingTop = textInput.style.paddingBottom = 8;
             textInput.style.paddingLeft = textInput.style.paddingRight = 8;
         }
@@ -299,7 +299,7 @@ public class JSPadEditor : Editor {
     void BuildTabs() {
         _tabContainer.Clear();
 
-        var borderColor = new Color(0.14f, 0.14f, 0.14f);
+        var borderColor = OneJSEditorDesign.Colors.Border;
 
         for (int i = 0; i < _tabNames.Length; i++) {
             var tabIndex = i;
@@ -330,18 +330,18 @@ public class JSPadEditor : Editor {
             tab.style.borderBottomColor = borderColor;
 
             tab.style.backgroundColor = isActive
-                ? new Color(0.22f, 0.22f, 0.22f)  // Match content bg
-                : new Color(0.2f, 0.2f, 0.2f);
+                ? OneJSEditorDesign.Colors.ContentBg
+                : OneJSEditorDesign.Colors.TabInactive;
 
             // Hover effect (just bg color, no outlines)
             tab.RegisterCallback<MouseEnterEvent>(evt => {
                 if (_selectedTab != tabIndex)
-                    tab.style.backgroundColor = new Color(0.26f, 0.26f, 0.26f);
+                    tab.style.backgroundColor = OneJSEditorDesign.Colors.TabHover;
             });
             tab.RegisterCallback<MouseLeaveEvent>(evt => {
                 tab.style.backgroundColor = _selectedTab == tabIndex
-                    ? new Color(0.22f, 0.22f, 0.22f)
-                    : new Color(0.2f, 0.2f, 0.2f);
+                    ? OneJSEditorDesign.Colors.ContentBg
+                    : OneJSEditorDesign.Colors.TabInactive;
             });
 
             _tabContainer.Add(tab);
@@ -434,8 +434,8 @@ public class JSPadEditor : Editor {
         var modulesProp = serializedObject.FindProperty("_modules");
 
         if (modulesProp.arraySize == 0) {
-            var emptyLabel = new Label("No additional modules. Click + to add one.");
-            emptyLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+            var emptyLabel = new Label(OneJSEditorDesign.Texts.NoModules);
+            emptyLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
             emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
             emptyLabel.style.paddingTop = 4;
             emptyLabel.style.paddingBottom = 4;
@@ -503,7 +503,7 @@ public class JSPadEditor : Editor {
         stylesheetsHeader.style.flexDirection = FlexDirection.Row;
         stylesheetsHeader.style.marginBottom = 6;
 
-        var stylesheetsLabel = new Label("Stylesheets");
+        var stylesheetsLabel = new Label(OneJSEditorDesign.Texts.Stylesheets);
         stylesheetsLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
         stylesheetsLabel.style.flexGrow = 1;
         stylesheetsHeader.Add(stylesheetsLabel);
@@ -530,7 +530,7 @@ public class JSPadEditor : Editor {
         // Separator
         var separator = new VisualElement();
         separator.style.height = 1;
-        separator.style.backgroundColor = new Color(0.3f, 0.3f, 0.3f);
+        separator.style.backgroundColor = OneJSEditorDesign.Colors.Separator;
         separator.style.marginTop = 10;
         separator.style.marginBottom = 10;
         _tabContent.Add(separator);
@@ -539,7 +539,7 @@ public class JSPadEditor : Editor {
         var panelSettings = _target.EmbeddedPanelSettings;
         if (panelSettings == null) {
             var errorLabel = new Label("Error: PanelSettings could not be created.");
-            errorLabel.style.color = new Color(0.9f, 0.3f, 0.3f);
+            errorLabel.style.color = OneJSEditorDesign.Colors.ErrorText;
             _tabContent.Add(errorLabel);
             return;
         }
@@ -548,7 +548,7 @@ public class JSPadEditor : Editor {
         _panelSettingsSO = new SerializedObject(panelSettings);
 
         // Panel Settings header
-        var panelHeader = new Label("Panel Settings");
+        var panelHeader = new Label(OneJSEditorDesign.Texts.PanelSettings);
         panelHeader.style.unityFontStyleAndWeight = FontStyle.Bold;
         panelHeader.style.marginBottom = 6;
         _tabContent.Add(panelHeader);
@@ -569,8 +569,8 @@ public class JSPadEditor : Editor {
         var stylesheetsProp = serializedObject.FindProperty("_stylesheets");
 
         if (stylesheetsProp.arraySize == 0) {
-            var emptyLabel = new Label("No stylesheets. Click + to add one.");
-            emptyLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+            var emptyLabel = new Label(OneJSEditorDesign.Texts.NoStylesheets);
+            emptyLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
             emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
             emptyLabel.style.paddingTop = 4;
             emptyLabel.style.paddingBottom = 4;
@@ -632,7 +632,7 @@ public class JSPadEditor : Editor {
         headerRow.style.flexDirection = FlexDirection.Row;
         headerRow.style.marginBottom = 6;
 
-        var headerLabel = new Label("UI Cartridges");
+        var headerLabel = new Label(OneJSEditorDesign.Texts.UICartridges);
         headerLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
         headerLabel.style.flexGrow = 1;
         headerRow.Add(headerLabel);
@@ -670,17 +670,17 @@ public class JSPadEditor : Editor {
 
         // Update status
         if (_isProcessing) {
-            _statusLabel.text = _statusMessage ?? "Processing...";
-            _statusLabel.style.color = new Color(0.9f, 0.7f, 0.2f);
+            _statusLabel.text = _statusMessage ?? OneJSEditorDesign.Texts.Processing;
+            _statusLabel.style.color = OneJSEditorDesign.Colors.StatusWarning;
         } else if (Application.isPlaying && _target.IsRunning) {
-            _statusLabel.text = "Running";
-            _statusLabel.style.color = new Color(0.2f, 0.8f, 0.2f);
+            _statusLabel.text = OneJSEditorDesign.Texts.Running;
+            _statusLabel.style.color = OneJSEditorDesign.Colors.StatusRunning;
         } else if (_target.HasBuiltBundle) {
-            _statusLabel.text = "Ready";
-            _statusLabel.style.color = new Color(0.5f, 0.8f, 0.5f);
+            _statusLabel.text = OneJSEditorDesign.Texts.Ready;
+            _statusLabel.style.color = OneJSEditorDesign.Colors.StatusSuccess;
         } else {
-            _statusLabel.text = "Not built";
-            _statusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+            _statusLabel.text = OneJSEditorDesign.Texts.NotBuilt;
+            _statusLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
         }
 
         // Update bundle size
@@ -992,8 +992,8 @@ public class JSPadEditor : Editor {
         var cartridgesProp = serializedObject.FindProperty("_cartridges");
 
         if (cartridgesProp.arraySize == 0) {
-            var emptyLabel = new Label("No cartridges. Click + to add one.");
-            emptyLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+            var emptyLabel = new Label(OneJSEditorDesign.Texts.NoCartridges);
+            emptyLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
             emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
             emptyLabel.style.paddingLeft = 4;
             emptyLabel.style.paddingTop = 4;
@@ -1020,14 +1020,14 @@ public class JSPadEditor : Editor {
         row.style.paddingBottom = 2;
         row.style.paddingLeft = 4;
         row.style.paddingRight = 4;
-        row.style.backgroundColor = new Color(0.22f, 0.22f, 0.22f);
+        row.style.backgroundColor = OneJSEditorDesign.Colors.RowBg;
         row.style.borderTopLeftRadius = row.style.borderTopRightRadius =
             row.style.borderBottomLeftRadius = row.style.borderBottomRightRadius = 3;
 
         // Index label
         var indexLabel = new Label($"{index}");
         indexLabel.style.width = 16;
-        indexLabel.style.color = new Color(0.5f, 0.5f, 0.5f);
+        indexLabel.style.color = OneJSEditorDesign.Colors.TextDim;
         row.Add(indexLabel);
 
         // Object field for cartridge

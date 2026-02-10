@@ -118,10 +118,10 @@ public class JSRunnerEditor : Editor {
 
         // Tab content container
         _tabContent = new VisualElement();
-        _tabContent.style.backgroundColor = new Color(0.22f, 0.22f, 0.22f);
-        _tabContent.style.borderTopWidth = 0; // No top border (tabs handle this)
+        _tabContent.style.backgroundColor = OneJSEditorDesign.Colors.ContentBg;
+        _tabContent.style.borderTopWidth = 0;
         _tabContent.style.borderLeftWidth = _tabContent.style.borderRightWidth = _tabContent.style.borderBottomWidth = 1;
-        _tabContent.style.borderLeftColor = _tabContent.style.borderRightColor = _tabContent.style.borderBottomColor = new Color(0.14f, 0.14f, 0.14f);
+        _tabContent.style.borderLeftColor = _tabContent.style.borderRightColor = _tabContent.style.borderBottomColor = OneJSEditorDesign.Colors.Border;
         _tabContent.style.borderTopLeftRadius = _tabContent.style.borderTopRightRadius = 0;
         _tabContent.style.borderBottomLeftRadius = _tabContent.style.borderBottomRightRadius = 3;
         _tabContent.style.paddingTop = _tabContent.style.paddingBottom = 10;
@@ -173,10 +173,10 @@ public class JSRunnerEditor : Editor {
         container.style.flexDirection = FlexDirection.Row;
         container.style.marginTop = 6; // with status marginBottom 2 → total 8 (matches space above status)
 
-        string[] tabNames = { "Project", "UI", "Cartridges", "Build" };
+        string[] tabNames = { OneJSEditorDesign.Texts.TabProject, OneJSEditorDesign.Texts.TabUI, OneJSEditorDesign.Texts.TabCartridges, OneJSEditorDesign.Texts.TabBuild };
         _tabButtons = new Button[tabNames.Length];
 
-        var borderColor = new Color(0.14f, 0.14f, 0.14f);
+        var borderColor = OneJSEditorDesign.Colors.Border;
 
         for (int i = 0; i < tabNames.Length; i++) {
             int tabIndex = i;
@@ -189,7 +189,7 @@ public class JSRunnerEditor : Editor {
             // Border: top always, left for first, right only for last (dividers via left border)
             btn.style.borderTopWidth = 1;
             btn.style.borderTopColor = borderColor;
-            btn.style.borderLeftWidth = 1; // All have left border (acts as divider for non-first)
+            btn.style.borderLeftWidth = 1;
             btn.style.borderLeftColor = borderColor;
             btn.style.borderRightWidth = i == tabNames.Length - 1 ? 1 : 0;
             btn.style.borderRightColor = borderColor;
@@ -205,11 +205,11 @@ public class JSRunnerEditor : Editor {
             int idx = i;
             btn.RegisterCallback<MouseEnterEvent>(_ => {
                 if (idx != _activeTab)
-                    btn.style.backgroundColor = new Color(0.26f, 0.26f, 0.26f);
+                    btn.style.backgroundColor = OneJSEditorDesign.Colors.TabHover;
             });
             btn.RegisterCallback<MouseLeaveEvent>(_ => {
                 if (idx != _activeTab)
-                    btn.style.backgroundColor = new Color(0.2f, 0.2f, 0.2f);
+                    btn.style.backgroundColor = OneJSEditorDesign.Colors.TabInactive;
             });
 
             _tabButtons[i] = btn;
@@ -240,15 +240,15 @@ public class JSRunnerEditor : Editor {
     void UpdateTabStyles() {
         if (_tabButtons == null) return;
 
-        var borderColor = new Color(0.14f, 0.14f, 0.14f);
+        var borderColor = OneJSEditorDesign.Colors.Border;
 
         for (int i = 0; i < _tabButtons.Length; i++) {
             bool isActive = i == _activeTab;
             var btn = _tabButtons[i];
 
             btn.style.backgroundColor = isActive
-                ? new Color(0.22f, 0.22f, 0.22f)  // Match content bg
-                : new Color(0.2f, 0.2f, 0.2f);
+                ? OneJSEditorDesign.Colors.ContentBg
+                : OneJSEditorDesign.Colors.TabInactive;
 
             // Active tab: no bottom border (merges with content)
             // Inactive tab: has bottom border
@@ -260,17 +260,9 @@ public class JSRunnerEditor : Editor {
     // MARK: Tab Content Builders
 
     void BuildProjectTab(VisualElement container) {
-        // Scene save warning (not needed when editing a prefab asset)
-        bool isPrefabAsset = UnityEditor.PrefabUtility.IsPartOfPrefabAsset(_target.gameObject);
-        if (!_target.IsSceneSaved && !isPrefabAsset) {
-            var warning = new HelpBox("Scene must be saved before JSRunner can be configured.", HelpBoxMessageType.Warning);
-            warning.style.marginBottom = 8;
-            container.Add(warning);
-        }
-
         var liveReloadProp = serializedObject.FindProperty("_liveReload");
         var liveReloadRow = CreateRow();
-        var liveReloadLabel = new Label("Live Reload");
+        var liveReloadLabel = new Label(OneJSEditorDesign.Texts.LiveReload);
         liveReloadLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
         liveReloadLabel.style.width = 192;
         liveReloadRow.Add(liveReloadLabel);
@@ -296,7 +288,7 @@ public class JSRunnerEditor : Editor {
         // Preloads section
         var preloadsHeader = CreateRow();
         preloadsHeader.style.marginBottom = 4;
-        var preloadsLabel = new Label("Preloads");
+        var preloadsLabel = new Label(OneJSEditorDesign.Texts.Preloads);
         preloadsLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
         preloadsLabel.style.flexGrow = 1;
         preloadsLabel.tooltip = "TextAssets eval'd before entry file (e.g., polyfills)";
@@ -323,7 +315,7 @@ public class JSRunnerEditor : Editor {
         // Globals section
         var globalsHeader = CreateRow();
         globalsHeader.style.marginBottom = 4;
-        var globalsLabel = new Label("Globals");
+        var globalsLabel = new Label(OneJSEditorDesign.Texts.Globals);
         globalsLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
         globalsLabel.style.flexGrow = 1;
         globalsLabel.tooltip = "Key-value pairs injected as globalThis[key]";
@@ -350,7 +342,7 @@ public class JSRunnerEditor : Editor {
         // Stylesheets section (at top)
         var stylesheetsHeader = CreateRow();
         stylesheetsHeader.style.marginBottom = 4;
-        var stylesheetsLabel = new Label("Stylesheets");
+        var stylesheetsLabel = new Label(OneJSEditorDesign.Texts.Stylesheets);
         stylesheetsLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
         stylesheetsLabel.style.flexGrow = 1;
         stylesheetsLabel.tooltip = "Global USS stylesheets applied on init/reload";
@@ -377,7 +369,7 @@ public class JSRunnerEditor : Editor {
         // Panel Settings section header (reference field is on Project tab; configure the asset here)
         var panelSettingsHeader = CreateRow();
         panelSettingsHeader.style.marginBottom = 4;
-        var panelSettingsLabel = new Label("Panel Settings");
+        var panelSettingsLabel = new Label(OneJSEditorDesign.Texts.PanelSettings);
         panelSettingsLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
         panelSettingsLabel.style.flexGrow = 1;
         panelSettingsLabel.tooltip = "Configure the assigned PanelSettings asset. Assign the asset in the Project tab.";
@@ -401,8 +393,8 @@ public class JSRunnerEditor : Editor {
                 psInspectorContainer.Add(inspector);
             } else {
                 // Match Unity's empty-list hint style (e.g. "No stylesheets...")
-                var emptyLabel = new Label("No settings.");
-                emptyLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+                var emptyLabel = new Label(OneJSEditorDesign.Texts.NoSettings);
+                emptyLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
                 emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
                 emptyLabel.style.paddingTop = 4;
                 emptyLabel.style.paddingBottom = 4;
@@ -415,7 +407,7 @@ public class JSRunnerEditor : Editor {
 
     void BuildBuildTab(VisualElement container) {
         // Build Settings
-        AddSectionHeader(container, "Build Output");
+        AddSectionHeader(container, OneJSEditorDesign.Texts.BuildOutput);
 
         // Show current bundle asset status (same style as message boxes)
         var bundleAsset = _target.BundleAsset;
@@ -424,22 +416,21 @@ public class JSRunnerEditor : Editor {
         var statusBox = CreateInfoStyleContainer();
         statusBox.style.marginBottom = 8;
 
-        var messageGray = new Color(0.72f, 0.72f, 0.72f);
         var bundleLabel = CreateLabel("Bundle:", 80);
-        bundleLabel.style.color = messageGray;
+        bundleLabel.style.color = OneJSEditorDesign.Colors.TextInfo;
         var bundleRow = CreateRow();
         bundleRow.Add(bundleLabel);
-        var bundleStatus = new Label(bundleAsset != null ? $"✓ {bundleAsset.name}" : "Not generated");
-        bundleStatus.style.color = bundleAsset != null ? new Color(0.4f, 0.8f, 0.4f) : messageGray;
+        var bundleStatus = new Label(bundleAsset != null ? $"✓ {bundleAsset.name}" : OneJSEditorDesign.Texts.NotGenerated);
+        bundleStatus.style.color = bundleAsset != null ? OneJSEditorDesign.Colors.StatusSuccess : OneJSEditorDesign.Colors.TextInfo;
         bundleRow.Add(bundleStatus);
         statusBox.Add(bundleRow);
 
         var sourceMapLabel = CreateLabel("Source Map:", 80);
-        sourceMapLabel.style.color = messageGray;
+        sourceMapLabel.style.color = OneJSEditorDesign.Colors.TextInfo;
         var sourceMapRow = CreateRow();
         sourceMapRow.Add(sourceMapLabel);
-        var sourceMapStatus = new Label(sourceMapAsset != null ? $"✓ {sourceMapAsset.name}" : "Not generated");
-        sourceMapStatus.style.color = sourceMapAsset != null ? new Color(0.4f, 0.8f, 0.4f) : messageGray;
+        var sourceMapStatus = new Label(sourceMapAsset != null ? $"✓ {sourceMapAsset.name}" : OneJSEditorDesign.Texts.NotGenerated);
+        sourceMapStatus.style.color = sourceMapAsset != null ? OneJSEditorDesign.Colors.StatusSuccess : OneJSEditorDesign.Colors.TextInfo;
         sourceMapRow.Add(sourceMapStatus);
         statusBox.Add(sourceMapRow);
 
@@ -455,7 +446,7 @@ public class JSRunnerEditor : Editor {
         // Output: {path} below message box, same style as Type Generation output
         _buildOutputPathLabel = new Label();
         _buildOutputPathLabel.style.marginTop = 4;
-        _buildOutputPathLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+        _buildOutputPathLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
         _buildOutputPathLabel.style.fontSize = 10;
         container.Add(_buildOutputPathLabel);
         UpdateBuildOutputPath();
@@ -463,7 +454,7 @@ public class JSRunnerEditor : Editor {
         AddSpacer(container);
 
         // Type Generation
-        AddSectionHeader(container, "Type Generation");
+        AddSectionHeader(container, OneJSEditorDesign.Texts.TypeGeneration);
 
         var assembliesField = new PropertyField(serializedObject.FindProperty("_typingAssemblies"));
         assembliesField.label = "Assemblies";
@@ -479,7 +470,7 @@ public class JSRunnerEditor : Editor {
 
         var typeGenRow = CreateRow();
         typeGenRow.style.marginTop = 5;
-        _generateTypesButton = new Button(GenerateTypings) { text = "Generate Types Now" };
+        _generateTypesButton = new Button(GenerateTypings) { text = OneJSEditorDesign.Texts.GenerateTypesNow };
         _generateTypesButton.style.height = _generateTypesButton.style.minHeight = 22;
         _generateTypesButton.style.flexGrow = 1;
         typeGenRow.Add(_generateTypesButton);
@@ -487,7 +478,7 @@ public class JSRunnerEditor : Editor {
 
         _typeGenStatusLabel = new Label();
         _typeGenStatusLabel.style.marginTop = 4;
-        _typeGenStatusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+        _typeGenStatusLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
         _typeGenStatusLabel.style.fontSize = 10;
         container.Add(_typeGenStatusLabel);
         UpdateTypeGenStatus();
@@ -495,7 +486,7 @@ public class JSRunnerEditor : Editor {
         AddSpacer(container);
 
         // Scaffolding
-        AddSectionHeader(container, "Scaffolding");
+        AddSectionHeader(container, OneJSEditorDesign.Texts.Scaffolding);
 
         var defaultFilesField = new PropertyField(serializedObject.FindProperty("_defaultFiles"), "Default Files");
         defaultFilesField.tooltip = "Template files scaffolded when working directory is empty";
@@ -507,7 +498,7 @@ public class JSRunnerEditor : Editor {
             _target.PopulateDefaultFiles();
             serializedObject.Update();
             EditorUtility.SetDirty(_target);
-        }) { text = "Reset to Defaults" };
+        }) { text = OneJSEditorDesign.Texts.ResetToDefaults };
         repopulateButton.style.height = repopulateButton.style.minHeight = 22;
         repopulateButton.style.flexGrow = 1;
         repopulateButton.tooltip = "Repopulate the default files list from OneJS templates";
@@ -520,7 +511,7 @@ public class JSRunnerEditor : Editor {
         var headerRow = CreateRow();
         headerRow.style.marginBottom = 4;
 
-        var headerLabel = new Label("UI Cartridges");
+        var headerLabel = new Label(OneJSEditorDesign.Texts.UICartridges);
         headerLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
         headerLabel.style.flexGrow = 1;
         headerRow.Add(headerLabel);
@@ -556,13 +547,13 @@ public class JSRunnerEditor : Editor {
         var bulkRow = CreateRow();
         bulkRow.style.marginTop = 8;
 
-        var extractAllBtn = new Button(() => ExtractAllCartridges()) { text = "Extract All" };
+        var extractAllBtn = new Button(() => ExtractAllCartridges()) { text = OneJSEditorDesign.Texts.ExtractAll };
         extractAllBtn.style.flexGrow = 1;
         extractAllBtn.style.height = extractAllBtn.style.minHeight = 22;
         extractAllBtn.tooltip = "Extract all cartridges (with confirmation)";
         bulkRow.Add(extractAllBtn);
 
-        var deleteAllBtn = new Button(() => DeleteAllCartridges()) { text = "Delete All Extracted" };
+        var deleteAllBtn = new Button(() => DeleteAllCartridges()) { text = OneJSEditorDesign.Texts.DeleteAllExtracted };
         deleteAllBtn.style.flexGrow = 1;
         deleteAllBtn.style.height = deleteAllBtn.style.minHeight = 22;
         deleteAllBtn.tooltip = "Delete all extracted cartridge folders (with confirmation)";
@@ -599,8 +590,8 @@ public class JSRunnerEditor : Editor {
         var prop = serializedObject.FindProperty("_stylesheets");
 
         if (prop.arraySize == 0) {
-            var emptyLabel = new Label("No stylesheets. Click + to add one.");
-            emptyLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+            var emptyLabel = new Label(OneJSEditorDesign.Texts.NoStylesheets);
+            emptyLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
             emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
             emptyLabel.style.paddingTop = 4;
             emptyLabel.style.paddingBottom = 4;
@@ -622,7 +613,7 @@ public class JSRunnerEditor : Editor {
 
         var indexLabel = new Label($"{index}");
         indexLabel.style.width = 16;
-        indexLabel.style.color = new Color(0.5f, 0.5f, 0.5f);
+        indexLabel.style.color = OneJSEditorDesign.Colors.TextDim;
         row.Add(indexLabel);
 
         var objectField = new ObjectField();
@@ -660,8 +651,8 @@ public class JSRunnerEditor : Editor {
         var prop = serializedObject.FindProperty("_preloads");
 
         if (prop.arraySize == 0) {
-            var emptyLabel = new Label("No preloads. Click + to add one.");
-            emptyLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+            var emptyLabel = new Label(OneJSEditorDesign.Texts.NoPreloads);
+            emptyLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
             emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
             emptyLabel.style.paddingTop = 4;
             emptyLabel.style.paddingBottom = 4;
@@ -683,7 +674,7 @@ public class JSRunnerEditor : Editor {
 
         var indexLabel = new Label($"{index}");
         indexLabel.style.width = 16;
-        indexLabel.style.color = new Color(0.5f, 0.5f, 0.5f);
+        indexLabel.style.color = OneJSEditorDesign.Colors.TextDim;
         row.Add(indexLabel);
 
         var objectField = new ObjectField();
@@ -721,8 +712,8 @@ public class JSRunnerEditor : Editor {
         var prop = serializedObject.FindProperty("_globals");
 
         if (prop.arraySize == 0) {
-            var emptyLabel = new Label("No globals. Click + to add one.");
-            emptyLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+            var emptyLabel = new Label(OneJSEditorDesign.Texts.NoGlobals);
+            emptyLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
             emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
             emptyLabel.style.paddingTop = 4;
             emptyLabel.style.paddingBottom = 4;
@@ -746,7 +737,7 @@ public class JSRunnerEditor : Editor {
 
         var indexLabel = new Label($"{index}");
         indexLabel.style.width = 16;
-        indexLabel.style.color = new Color(0.5f, 0.5f, 0.5f);
+        indexLabel.style.color = OneJSEditorDesign.Colors.TextDim;
         row.Add(indexLabel);
 
         var keyField = new TextField();
@@ -762,7 +753,7 @@ public class JSRunnerEditor : Editor {
         var arrow = new Label("→");
         arrow.style.marginLeft = 4;
         arrow.style.marginRight = 4;
-        arrow.style.color = new Color(0.5f, 0.5f, 0.5f);
+        arrow.style.color = OneJSEditorDesign.Colors.TextDim;
         row.Add(arrow);
 
         var valueField = new ObjectField();
@@ -800,8 +791,8 @@ public class JSRunnerEditor : Editor {
         var cartridgesProp = serializedObject.FindProperty("_cartridges");
 
         if (cartridgesProp.arraySize == 0) {
-            var emptyLabel = new Label("No cartridges. Click + to add one.");
-            emptyLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+            var emptyLabel = new Label(OneJSEditorDesign.Texts.NoCartridges);
+            emptyLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
             emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
             emptyLabel.style.paddingTop = 4;
             emptyLabel.style.paddingBottom = 4;
@@ -827,13 +818,13 @@ public class JSRunnerEditor : Editor {
         row.style.paddingBottom = 2;
         row.style.paddingLeft = 4;
         row.style.paddingRight = 4;
-        row.style.backgroundColor = new Color(0.22f, 0.22f, 0.22f);
+        row.style.backgroundColor = OneJSEditorDesign.Colors.RowBg;
         row.style.SetBorderRadius(3);
 
         // Index label
         var indexLabel = new Label($"{index}");
         indexLabel.style.width = 16;
-        indexLabel.style.color = new Color(0.5f, 0.5f, 0.5f);
+        indexLabel.style.color = OneJSEditorDesign.Colors.TextDim;
         indexLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
         row.Add(indexLabel);
 
@@ -863,18 +854,18 @@ public class JSRunnerEditor : Editor {
             bool isExtracted = !string.IsNullOrEmpty(cartridgePath) && Directory.Exists(cartridgePath);
 
             if (isExtracted) {
-                statusLabel.text = "Extracted";
-                statusLabel.style.color = new Color(0.4f, 0.8f, 0.4f);
+                statusLabel.text = OneJSEditorDesign.Texts.Extracted;
+                statusLabel.style.color = OneJSEditorDesign.Colors.StatusSuccess;
             } else {
-                statusLabel.text = "Not extracted";
-                statusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+                statusLabel.text = OneJSEditorDesign.Texts.NotExtracted;
+                statusLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
             }
         } else if (!_target.IsSceneSaved) {
-            statusLabel.text = "Save scene";
-            statusLabel.style.color = new Color(0.8f, 0.6f, 0.2f);
+            statusLabel.text = OneJSEditorDesign.Texts.NonInitializedYet;
+            statusLabel.style.color = OneJSEditorDesign.Colors.StatusWarning;
         } else {
-            statusLabel.text = cartridge == null ? "" : "No slug";
-            statusLabel.style.color = new Color(0.8f, 0.6f, 0.2f);
+            statusLabel.text = cartridge == null ? "" : OneJSEditorDesign.Texts.NoSlug;
+            statusLabel.style.color = OneJSEditorDesign.Colors.StatusWarning;
         }
         row.Add(statusLabel);
 
@@ -903,7 +894,7 @@ public class JSRunnerEditor : Editor {
         removeBtn.style.width = 24;
         removeBtn.style.height = 20;
         removeBtn.style.marginLeft = 2;
-        removeBtn.style.backgroundColor = new Color(0.5f, 0.2f, 0.2f);
+        removeBtn.style.backgroundColor = OneJSEditorDesign.Colors.ButtonDanger;
         removeBtn.tooltip = "Remove from list (does not delete extracted files)";
         row.Add(removeBtn);
 
@@ -1169,9 +1160,9 @@ public class JSRunnerEditor : Editor {
 
         // Status row (hidden when showing not-initialized/not-valid blocks; those have their own status row inside)
         _statusRow = CreateRow();
-        _statusRow.Add(CreateLabel("Status", 50, true));
-        _statusLabel = new Label("Stopped");
-        _statusLabel.style.color = new Color(0.28f, 0.82f, 0.82f);
+        _statusRow.Add(CreateLabel(OneJSEditorDesign.Texts.Status, 50, true));
+        _statusLabel = new Label(OneJSEditorDesign.Texts.Stopped);
+        _statusLabel.style.color = OneJSEditorDesign.Colors.StatusStopped;
         _statusRow.Add(_statusLabel);
         container.Add(_statusRow);
 
@@ -1184,9 +1175,9 @@ public class JSRunnerEditor : Editor {
         // Watcher status ("Watcher: " in gray + state in color) — hidden when Panel Settings not set/invalid
         _watcherRow = CreateRow();
         _watcherRow.style.marginTop = 4;
-        _watcherStatusLabel = new Label("Watcher: ");
+        _watcherStatusLabel = new Label(OneJSEditorDesign.Texts.Watcher);
         _watcherStatusLabel.style.fontSize = 11;
-        _watcherStatusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+        _watcherStatusLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
         _watcherRow.Add(_watcherStatusLabel);
         _watcherStateLabel = new Label();
         _watcherStateLabel.style.fontSize = 11;
@@ -1197,7 +1188,7 @@ public class JSRunnerEditor : Editor {
         _workingDirLabel = new Label();
         _workingDirLabel.style.marginTop = 4;
         _workingDirLabel.style.fontSize = 11;
-        _workingDirLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+        _workingDirLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
         _workingDirLabel.style.whiteSpace = WhiteSpace.Normal;
         container.Add(_workingDirLabel);
 
@@ -1212,16 +1203,16 @@ public class JSRunnerEditor : Editor {
         notInitLeft.style.minWidth = 0;
         notInitLeft.style.marginRight = 12;
         var notInitStatusRow = CreateRow();
-        notInitStatusRow.Add(CreateLabel("Status", 50, true));
-        _statusLabelNotInit = new Label("Not Initialized");
-        _statusLabelNotInit.style.color = new Color(0.7f, 0.7f, 0.7f);
+        notInitStatusRow.Add(CreateLabel(OneJSEditorDesign.Texts.Status, 50, true));
+        _statusLabelNotInit = new Label(OneJSEditorDesign.Texts.NotInitialized);
+        _statusLabelNotInit.style.color = OneJSEditorDesign.Colors.TextNeutral;
         notInitStatusRow.Add(_statusLabelNotInit);
         notInitLeft.Add(notInitStatusRow);
         var notInitMsg = new Label("Initialize a new OneJS project, or assign a Panel Settings asset. The assigned asset’s folder becomes the active project folder for this runner.");
         notInitMsg.style.marginTop = 4;
         notInitMsg.style.whiteSpace = WhiteSpace.Normal;
         notInitMsg.style.fontSize = 11;
-        notInitMsg.style.color = new Color(0.6f, 0.6f, 0.6f);
+        notInitMsg.style.color = OneJSEditorDesign.Colors.TextMuted;
         notInitLeft.Add(notInitMsg);
         _statusNotInitializedContainer.Add(notInitLeft);
         var initBtnColumn = new VisualElement();
@@ -1229,13 +1220,13 @@ public class JSRunnerEditor : Editor {
         initBtnColumn.style.flexDirection = FlexDirection.Row;
         initBtnColumn.style.alignItems = Align.Center;
         initBtnColumn.style.justifyContent = Justify.Center;
-        var initBtn = new Button(RunInitializeProject) { text = "Initialize Project" };
+        var initBtn = new Button(RunInitializeProject) { text = OneJSEditorDesign.Texts.InitializeProject };
         initBtn.style.height = 22;
         initBtn.style.flexShrink = 0;
-        initBtn.style.backgroundColor = new Color(0.72f, 0.72f, 0.72f);
-        initBtn.style.color = new Color(0.18f, 0.18f, 0.18f);
-        initBtn.RegisterCallback<MouseEnterEvent>(_ => initBtn.style.backgroundColor = new Color(0.82f, 0.82f, 0.82f));
-        initBtn.RegisterCallback<MouseLeaveEvent>(_ => initBtn.style.backgroundColor = new Color(0.72f, 0.72f, 0.72f));
+        initBtn.style.backgroundColor = OneJSEditorDesign.Colors.ButtonPrimaryBg;
+        initBtn.style.color = OneJSEditorDesign.Colors.ButtonPrimaryText;
+        initBtn.RegisterCallback<MouseEnterEvent>(_ => initBtn.style.backgroundColor = OneJSEditorDesign.Colors.ButtonPrimaryHover);
+        initBtn.RegisterCallback<MouseLeaveEvent>(_ => initBtn.style.backgroundColor = OneJSEditorDesign.Colors.ButtonPrimaryBg);
         initBtnColumn.Add(initBtn);
         _statusNotInitializedContainer.Add(initBtnColumn);
         container.Add(_statusNotInitializedContainer);
@@ -1251,16 +1242,16 @@ public class JSRunnerEditor : Editor {
         notValidLeft.style.minWidth = 0;
         notValidLeft.style.marginRight = 12;
         var notValidStatusRow = CreateRow();
-        notValidStatusRow.Add(CreateLabel("Status", 50, true));
-        _statusLabelNotValid = new Label("Not Valid");
-        _statusLabelNotValid.style.color = new Color(0.8f, 0.6f, 0.2f);
+        notValidStatusRow.Add(CreateLabel(OneJSEditorDesign.Texts.Status, 50, true));
+        _statusLabelNotValid = new Label(OneJSEditorDesign.Texts.NotValid);
+        _statusLabelNotValid.style.color = OneJSEditorDesign.Colors.StatusWarning;
         notValidStatusRow.Add(_statusLabelNotValid);
         notValidLeft.Add(notValidStatusRow);
         var notValidMsg = new Label("Panel Settings is not valid. The asset must be located in a valid project folder that contains OneJS project files.");
         notValidMsg.style.marginTop = 4;
         notValidMsg.style.whiteSpace = WhiteSpace.Normal;
         notValidMsg.style.fontSize = 11;
-        notValidMsg.style.color = new Color(0.6f, 0.6f, 0.6f);
+        notValidMsg.style.color = OneJSEditorDesign.Colors.TextMuted;
         notValidLeft.Add(notValidMsg);
         _statusNotValidContainer.Add(notValidLeft);
         var removeBtnColumn = new VisualElement();
@@ -1268,13 +1259,13 @@ public class JSRunnerEditor : Editor {
         removeBtnColumn.style.flexDirection = FlexDirection.Row;
         removeBtnColumn.style.alignItems = Align.Center;
         removeBtnColumn.style.justifyContent = Justify.Center;
-        var removeBtn = new Button(RunRemovePanelSettings) { text = "Remove Settings" };
+        var removeBtn = new Button(RunRemovePanelSettings) { text = OneJSEditorDesign.Texts.RemoveSettings };
         removeBtn.style.height = 22;
         removeBtn.style.flexShrink = 0;
-        removeBtn.style.backgroundColor = new Color(0.72f, 0.72f, 0.72f);
-        removeBtn.style.color = new Color(0.18f, 0.18f, 0.18f);
-        removeBtn.RegisterCallback<MouseEnterEvent>(_ => removeBtn.style.backgroundColor = new Color(0.82f, 0.82f, 0.82f));
-        removeBtn.RegisterCallback<MouseLeaveEvent>(_ => removeBtn.style.backgroundColor = new Color(0.72f, 0.72f, 0.72f));
+        removeBtn.style.backgroundColor = OneJSEditorDesign.Colors.ButtonPrimaryBg;
+        removeBtn.style.color = OneJSEditorDesign.Colors.ButtonPrimaryText;
+        removeBtn.RegisterCallback<MouseEnterEvent>(_ => removeBtn.style.backgroundColor = OneJSEditorDesign.Colors.ButtonPrimaryHover);
+        removeBtn.RegisterCallback<MouseLeaveEvent>(_ => removeBtn.style.backgroundColor = OneJSEditorDesign.Colors.ButtonPrimaryBg);
         removeBtnColumn.Add(removeBtn);
         _statusNotValidContainer.Add(removeBtnColumn);
         container.Add(_statusNotValidContainer);
@@ -1291,14 +1282,14 @@ public class JSRunnerEditor : Editor {
         var row1 = CreateRow();
         row1.style.marginBottom = 4;
 
-        _reloadButton = new Button(() => _target.ForceReload()) { text = "Reload" };
+        _reloadButton = new Button(() => _target.ForceReload()) { text = OneJSEditorDesign.Texts.Reload };
         _reloadButton.style.height = 30;
         _reloadButton.style.flexGrow = 1;
         _reloadButton.tooltip = "Reload/Rerun this JavaScript runtime (Play Mode only)";
         _reloadButton.SetEnabled(false);
         row1.Add(_reloadButton);
 
-        _buildButton = new Button(RunRebuild) { text = "Rebuild" };
+        _buildButton = new Button(RunRebuild) { text = OneJSEditorDesign.Texts.Rebuild };
         _buildButton.style.height = 30;
         _buildButton.style.flexGrow = 1;
         _buildButton.tooltip = "Delete node_modules and reinstall dependencies, then build";
@@ -1349,9 +1340,9 @@ public class JSRunnerEditor : Editor {
 
     VisualElement CreateStyledBox() {
         var box = new VisualElement();
-        box.style.backgroundColor = new Color(0.24f, 0.24f, 0.24f);
+        box.style.backgroundColor = OneJSEditorDesign.Colors.BoxBg;
         box.style.SetBorderWidth(1);
-        box.style.SetBorderColor(new Color(0.14f, 0.14f, 0.14f));
+        box.style.SetBorderColor(OneJSEditorDesign.Colors.Border);
         box.style.SetBorderRadius(3);
         box.style.paddingTop = box.style.paddingBottom = 8;
         box.style.paddingLeft = box.style.paddingRight = 10;
@@ -1363,7 +1354,7 @@ public class JSRunnerEditor : Editor {
         var box = new VisualElement();
         box.style.paddingTop = box.style.paddingBottom = 8;
         box.style.paddingLeft = box.style.paddingRight = 10;
-        box.style.backgroundColor = new Color(0.28f, 0.28f, 0.28f);
+        box.style.backgroundColor = OneJSEditorDesign.Colors.InfoBoxBg;
         box.style.borderTopLeftRadius = box.style.borderTopRightRadius = box.style.borderBottomLeftRadius = box.style.borderBottomRightRadius = 3;
         return box;
     }
@@ -1373,7 +1364,7 @@ public class JSRunnerEditor : Editor {
         var box = CreateInfoStyleContainer();
         var label = new Label(message);
         label.style.whiteSpace = WhiteSpace.Normal;
-        label.style.color = new Color(0.72f, 0.72f, 0.72f);
+        label.style.color = OneJSEditorDesign.Colors.TextInfo;
         box.Add(label);
         return box;
     }
@@ -1383,7 +1374,7 @@ public class JSRunnerEditor : Editor {
         container = CreateInfoStyleContainer();
         label = new Label();
         label.style.whiteSpace = WhiteSpace.Normal;
-        label.style.color = new Color(0.72f, 0.72f, 0.72f);
+        label.style.color = OneJSEditorDesign.Colors.TextInfo;
         container.Add(label);
     }
 
@@ -1430,10 +1421,10 @@ public class JSRunnerEditor : Editor {
     void GenerateTypings() {
         if (TypeGeneratorService.GenerateTypingsFor(_target, silent: false)) {
             _typeGenStatusLabel.text = $"Generated at {DateTime.Now:HH:mm:ss}";
-            _typeGenStatusLabel.style.color = new Color(0.2f, 0.8f, 0.2f);
+            _typeGenStatusLabel.style.color = OneJSEditorDesign.Colors.StatusSuccessAlt;
         } else {
             _typeGenStatusLabel.text = "Generation failed - check console";
-            _typeGenStatusLabel.style.color = new Color(0.8f, 0.4f, 0.4f);
+            _typeGenStatusLabel.style.color = OneJSEditorDesign.Colors.StatusError;
         }
     }
 
@@ -1448,10 +1439,10 @@ public class JSRunnerEditor : Editor {
         } else if (File.Exists(outputPath)) {
             _typeGenStatusLabel.style.display = DisplayStyle.Flex;
             var lastWrite = File.GetLastWriteTime(outputPath);
-            _typeGenStatusLabel.text = $"Output: {_target.TypingsOutputPath} (last updated: {lastWrite:g})";
+            _typeGenStatusLabel.text = $"{OneJSEditorDesign.Texts.Output}{_target.TypingsOutputPath} (last updated: {lastWrite:g})";
         } else {
             _typeGenStatusLabel.style.display = DisplayStyle.Flex;
-            _typeGenStatusLabel.text = $"Output: {_target.TypingsOutputPath} (not yet generated)";
+            _typeGenStatusLabel.text = $"{OneJSEditorDesign.Texts.Output}{_target.TypingsOutputPath} (not yet generated)";
         }
     }
 
@@ -1464,7 +1455,7 @@ public class JSRunnerEditor : Editor {
             _buildOutputPathLabel.text = "";
         } else {
             _buildOutputPathLabel.style.display = DisplayStyle.Flex;
-            _buildOutputPathLabel.text = "Output: " + path;
+            _buildOutputPathLabel.text = OneJSEditorDesign.Texts.Output + path;
         }
     }
 
@@ -1486,13 +1477,13 @@ public class JSRunnerEditor : Editor {
             if (_statusRow != null) _statusRow.style.display = DisplayStyle.None; // hide main status row; not-init/not-valid blocks have their own
             if (hasPanelSettings && !validFolder) {
                 if (_statusLabelNotValid != null) {
-                    _statusLabelNotValid.text = "Not Valid";
-                    _statusLabelNotValid.style.color = new Color(0.8f, 0.6f, 0.2f);
+                    _statusLabelNotValid.text = OneJSEditorDesign.Texts.NotValid;
+                    _statusLabelNotValid.style.color = OneJSEditorDesign.Colors.StatusWarning;
                 }
             } else {
                 if (_statusLabelNotInit != null) {
-                    _statusLabelNotInit.text = "Not Initialized";
-                    _statusLabelNotInit.style.color = new Color(0.7f, 0.7f, 0.7f);
+                    _statusLabelNotInit.text = OneJSEditorDesign.Texts.NotInitialized;
+                    _statusLabelNotInit.style.color = OneJSEditorDesign.Colors.TextNeutral;
                 }
             }
             if (_watcherRow != null) _watcherRow.style.display = DisplayStyle.None;
@@ -1509,18 +1500,18 @@ public class JSRunnerEditor : Editor {
 
             // Status text (normal)
             if (Application.isPlaying) {
-                _statusLabel.text = _target.IsRunning ? "Running" : "Loading...";
-                _statusLabel.style.color = _target.IsRunning ? new Color(0.2f, 0.8f, 0.2f) : new Color(0.8f, 0.6f, 0.2f);
+                _statusLabel.text = _target.IsRunning ? OneJSEditorDesign.Texts.Running : OneJSEditorDesign.Texts.Loading;
+                _statusLabel.style.color = _target.IsRunning ? OneJSEditorDesign.Colors.StatusRunning : OneJSEditorDesign.Colors.StatusWarning;
             } else {
-                _statusLabel.text = "Stopped";
-                _statusLabel.style.color = new Color(0.28f, 0.82f, 0.82f);
+                _statusLabel.text = OneJSEditorDesign.Texts.Stopped;
+                _statusLabel.style.color = OneJSEditorDesign.Colors.StatusStopped;
             }
 
             // Last reload time
             if (_reloadCountLabel != null) {
                 if (Application.isPlaying && _target.IsRunning && _target.ReloadCount > 0) {
                     _reloadCountLabel.style.display = DisplayStyle.Flex;
-                    _reloadCountLabel.text = $"Last Reload: {FormatTimeAgo(_target.LastReloadTime)}";
+                    _reloadCountLabel.text = $"{OneJSEditorDesign.Texts.LastReload}{FormatTimeAgo(_target.LastReloadTime)}";
                 } else {
                     _reloadCountLabel.style.display = DisplayStyle.None;
                 }
@@ -1530,23 +1521,23 @@ public class JSRunnerEditor : Editor {
             if (_watcherStateLabel != null) {
                 var workingDir = _target.WorkingDirFullPath;
                 if (string.IsNullOrEmpty(workingDir)) {
-                    _watcherStateLabel.text = _target.InstanceFolder == null && _target.IsSceneSaved ? "non initialized yet" : "(save scene first)";
-                    _watcherStateLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+                    _watcherStateLabel.text = OneJSEditorDesign.Texts.NonInitializedYet;
+                    _watcherStateLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
                 } else {
                     var isWatching = NodeWatcherManager.IsRunning(workingDir);
                     var isStarting = NodeWatcherManager.IsStarting(workingDir);
                     if (isStarting) {
-                        _watcherStateLabel.text = "Starting...";
-                        _watcherStateLabel.style.color = new Color(0.8f, 0.6f, 0.2f);
+                        _watcherStateLabel.text = OneJSEditorDesign.Texts.WatcherStarting;
+                        _watcherStateLabel.style.color = OneJSEditorDesign.Colors.StatusWarning;
                     } else if (isWatching) {
-                        _watcherStateLabel.text = "Running";
-                        _watcherStateLabel.style.color = new Color(0.4f, 0.8f, 0.4f);
+                        _watcherStateLabel.text = OneJSEditorDesign.Texts.Running;
+                        _watcherStateLabel.style.color = OneJSEditorDesign.Colors.StatusSuccess;
                     } else if (Application.isPlaying) {
-                        _watcherStateLabel.text = "Starting...";
-                        _watcherStateLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+                        _watcherStateLabel.text = OneJSEditorDesign.Texts.WatcherStarting;
+                        _watcherStateLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
                     } else {
-                        _watcherStateLabel.text = "Idle (enter Play Mode to run)";
-                        _watcherStateLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+                        _watcherStateLabel.text = OneJSEditorDesign.Texts.WatcherIdle;
+                        _watcherStateLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
                     }
                 }
             }
@@ -1557,14 +1548,14 @@ public class JSRunnerEditor : Editor {
                     var workingDir = _target.WorkingDirFullPath;
                     if (!string.IsNullOrEmpty(workingDir)) {
                         var relative = System.IO.Path.GetRelativePath(_target.ProjectRoot, workingDir).Replace(System.IO.Path.DirectorySeparatorChar, '/');
-                        _workingDirLabel.text = "Project Folder: " + relative;
+                        _workingDirLabel.text = OneJSEditorDesign.Texts.ProjectFolder + relative;
                     } else {
-                        _workingDirLabel.text = "Project Folder: (save scene first)";
+                        _workingDirLabel.text = OneJSEditorDesign.Texts.ProjectFolder + OneJSEditorDesign.Texts.NonInitializedYet;
                     }
                 } else if (!_target.IsSceneSaved) {
                     _workingDirLabel.text = "Project Folder: (save scene first)";
                 } else {
-                    _workingDirLabel.text = "Project Folder: non initialized yet";
+                    _workingDirLabel.text = OneJSEditorDesign.Texts.ProjectFolder + OneJSEditorDesign.Texts.NonInitializedYet;
                 }
             }
         }
@@ -1584,7 +1575,7 @@ public class JSRunnerEditor : Editor {
         _reloadButton?.SetEnabled(Application.isPlaying && _target.IsRunning);
         if (_buildButton != null) {
             _buildButton.SetEnabled(!_buildInProgress);
-            _buildButton.text = _buildInProgress ? "Rebuilding..." : "Rebuild";
+            _buildButton.text = _buildInProgress ? OneJSEditorDesign.Texts.Rebuilding : OneJSEditorDesign.Texts.Rebuild;
         }
 
         // Build output
