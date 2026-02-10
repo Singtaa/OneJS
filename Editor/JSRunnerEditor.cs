@@ -23,26 +23,23 @@ public class JSRunnerEditor : Editor {
     bool _buildInProgress;
     string _buildOutput;
 
-    // Tab system
     VisualElement _tabBarContainer;
     VisualElement _tabContent;
     Button[] _tabButtons;
     int _activeTab;
     VisualElement _actionsContainer;
-
-    // UI Elements that need updating
     VisualElement _statusContainer;
-    VisualElement _statusRow; // hidden when showing not-initialized/not-valid (those containers have their own status row)
+    VisualElement _statusRow;
     Label _statusLabel;
-    Label _statusLabelNotInit; // status value inside not-initialized block
-    Label _statusLabelNotValid; // status value inside not-valid block
+    Label _statusLabelNotInit;
+    Label _statusLabelNotValid;
     Label _reloadCountLabel;
     VisualElement _watcherRow;
     Label _watcherStatusLabel;
     Label _watcherStateLabel;
     Label _workingDirLabel;
-    VisualElement _statusNotInitializedContainer; // message + Initialize Project when Panel Settings not set
-    VisualElement _statusNotValidContainer; // message + Remove Settings when Panel Settings invalid
+    VisualElement _statusNotInitializedContainer;
+    VisualElement _statusNotValidContainer;
     Button _reloadButton;
     Button _buildButton;
     VisualElement _buildOutputContainer;
@@ -51,7 +48,7 @@ public class JSRunnerEditor : Editor {
     // Type generation
     Button _generateTypesButton;
     Label _typeGenStatusLabel;
-    Label _buildOutputPathLabel; // "Output: {path}" below Build Output message box, same style as type gen output
+    Label _buildOutputPathLabel;
 
     // Cartridges
     VisualElement _cartridgeListContainer;
