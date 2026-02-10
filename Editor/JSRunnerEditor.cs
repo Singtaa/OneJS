@@ -17,23 +17,32 @@ using Debug = UnityEngine.Debug;
 public class JSRunnerEditor : Editor {
     const string TabPrefKey = "JSRunner.ActiveTab";
     const string CodeEditorPathPrefKey = "OneJS.CodeEditorPath";
+    const string UseSceneNameAsRootFolderPrefKey = "OneJS.Initialize.UseSceneNameAsRootFolder";
 
     JSRunner _target;
     bool _buildInProgress;
     string _buildOutput;
 
     // Tab system
+    VisualElement _tabBarContainer;
     VisualElement _tabContent;
     Button[] _tabButtons;
     int _activeTab;
+    VisualElement _actionsContainer;
 
     // UI Elements that need updating
+    VisualElement _statusContainer;
+    VisualElement _statusRow; // hidden when showing not-initialized/not-valid (those containers have their own status row)
     Label _statusLabel;
+    Label _statusLabelNotInit; // status value inside not-initialized block
+    Label _statusLabelNotValid; // status value inside not-valid block
     Label _reloadCountLabel;
+    VisualElement _watcherRow;
     Label _watcherStatusLabel;
     Label _watcherStateLabel;
     Label _workingDirLabel;
-    VisualElement _projectTabInitContainer;
+    VisualElement _statusNotInitializedContainer; // message + Initialize Project when Panel Settings not set
+    VisualElement _statusNotValidContainer; // message + Remove Settings when Panel Settings invalid
     Button _reloadButton;
     Button _buildButton;
     VisualElement _buildOutputContainer;
@@ -42,6 +51,7 @@ public class JSRunnerEditor : Editor {
     // Type generation
     Button _generateTypesButton;
     Label _typeGenStatusLabel;
+    Label _buildOutputPathLabel; // "Output: {path}" below Build Output message box, same style as type gen output
 
     // Cartridges
     VisualElement _cartridgeListContainer;
@@ -95,11 +105,16 @@ public class JSRunnerEditor : Editor {
     public override VisualElement CreateInspectorGUI() {
         var root = new VisualElement();
 
-        // Status - always visible at top
-        root.Add(CreateStatusSection());
+        // Panel Settings + Initialize (above everything, including status)
+        root.Add(CreatePanelSettingsSection());
 
-        // Tab bar
-        root.Add(CreateTabBar());
+        // Status (hidden when Panel Settings not attached or invalid)
+        _statusContainer = CreateStatusSection();
+        root.Add(_statusContainer);
+
+        // Tab bar (hidden when Panel Settings not attached or invalid)
+        _tabBarContainer = CreateTabBar();
+        root.Add(_tabBarContainer);
 
         // Tab content container
         _tabContent = new VisualElement();
@@ -117,10 +132,38 @@ public class JSRunnerEditor : Editor {
         // Show initial tab
         ShowTab(_activeTab);
 
-        // Actions - always visible at bottom
-        root.Add(CreateActionsSection());
+        // Actions (hidden when Panel Settings not attached or invalid)
+        _actionsContainer = CreateActionsSection();
+        root.Add(_actionsContainer);
+
+        // Initial visibility of tabs + actions: show only when Panel Settings is valid (status block always visible)
+        serializedObject.Update();
+        var hasPSInitial = serializedObject.FindProperty("_panelSettings").objectReferenceValue != null;
+        var validInitial = hasPSInitial && _target.IsPanelSettingsInValidProjectFolder();
+        var debugModeInitialProp = serializedObject.FindProperty("_enableDebugMode");
+        var debugModeInitial = debugModeInitialProp != null && debugModeInitialProp.boolValue;
+        var showTabsAndActions = validInitial || debugModeInitial;
+        _tabBarContainer.style.display = showTabsAndActions ? DisplayStyle.Flex : DisplayStyle.None;
+        _tabContent.style.display = showTabsAndActions ? DisplayStyle.Flex : DisplayStyle.None;
+        _actionsContainer.style.display = showTabsAndActions ? DisplayStyle.Flex : DisplayStyle.None;
 
         return root;
+    }
+
+    // MARK: Panel Settings (above tabs)
+
+    VisualElement CreatePanelSettingsSection() {
+        var section = new VisualElement();
+        section.style.marginTop = 2;
+        section.style.marginBottom = 6; // match space below status block
+
+        var panelSettingsPropProject = serializedObject.FindProperty("_panelSettings");
+
+        // Panel Settings field first
+        var panelSettingsRefField = new PropertyField(panelSettingsPropProject, "Panel Settings");
+        section.Add(panelSettingsRefField);
+
+        return section;
     }
 
     // MARK: Tab System
@@ -128,7 +171,7 @@ public class JSRunnerEditor : Editor {
     VisualElement CreateTabBar() {
         var container = new VisualElement();
         container.style.flexDirection = FlexDirection.Row;
-        container.style.marginTop = 8;
+        container.style.marginTop = 6; // with status marginBottom 2 → total 8 (matches space above status)
 
         string[] tabNames = { "Project", "UI", "Cartridges", "Build" };
         _tabButtons = new Button[tabNames.Length];
@@ -225,52 +268,6 @@ public class JSRunnerEditor : Editor {
             container.Add(warning);
         }
 
-        // Initialize for new project or assign Panel Settings below for existing — Panel Settings marks the project folder (message + button inside one box)
-        _projectTabInitContainer = new VisualElement();
-        _projectTabInitContainer.style.marginBottom = 8;
-        var initBox = new VisualElement();
-        initBox.style.flexDirection = FlexDirection.Row;
-        initBox.style.alignItems = Align.Center;
-        initBox.style.justifyContent = Justify.SpaceBetween;
-        initBox.style.paddingTop = initBox.style.paddingBottom = 8;
-        initBox.style.paddingLeft = initBox.style.paddingRight = 10;
-        initBox.style.backgroundColor = new Color(0.28f, 0.28f, 0.28f);
-        initBox.style.borderTopLeftRadius = initBox.style.borderTopRightRadius = initBox.style.borderBottomLeftRadius = initBox.style.borderBottomRightRadius = 3;
-        var initLabel = new Label("Assign Panel Settings below for an existing project, or click Initialize to create a new project folder and assets.");
-        initLabel.style.flexGrow = 1;
-        initLabel.style.flexShrink = 1;
-        initLabel.style.minWidth = 0; // allow shrinking so button stays visible
-        initLabel.style.marginRight = 12;
-        initLabel.style.whiteSpace = WhiteSpace.Normal;
-        initLabel.style.overflow = Overflow.Hidden;
-        initLabel.style.color = new Color(0.72f, 0.72f, 0.72f);
-        initBox.Add(initLabel);
-        var initButton = new Button(RunInitializeProject) { text = "Initialize Folder" };
-        initButton.style.height = 22;
-        initButton.style.flexShrink = 0;
-        var initBtnBg = new Color(0.72f, 0.72f, 0.72f);
-        var initBtnHoverBg = new Color(0.82f, 0.82f, 0.82f);
-        initButton.style.backgroundColor = initBtnBg;
-        initButton.style.color = new Color(0.18f, 0.18f, 0.18f);
-        initButton.RegisterCallback<MouseEnterEvent>(_ => initButton.style.backgroundColor = initBtnHoverBg);
-        initButton.RegisterCallback<MouseLeaveEvent>(_ => initButton.style.backgroundColor = initBtnBg);
-        initBox.Add(initButton);
-        _projectTabInitContainer.Add(initBox);
-        // Set initial visibility from serialized Panel Settings so we don't flash when tab is built (e.g. on Play mode change)
-        var panelSettingsPropProject = serializedObject.FindProperty("_panelSettings");
-        bool hasPanelSettingsInitial = panelSettingsPropProject.objectReferenceValue != null;
-        bool notInitializedInitial = !hasPanelSettingsInitial && _target.IsSceneSaved;
-        bool needsScaffoldInitial = hasPanelSettingsInitial && !_target.HasPackageJson;
-        _projectTabInitContainer.style.display = (notInitializedInitial || needsScaffoldInitial) ? DisplayStyle.Flex : DisplayStyle.None;
-        container.Add(_projectTabInitContainer);
-
-        // Panel Settings reference (project folder marker) — associated settings stay in UI tab
-        var panelSettingsRefField = new PropertyField(panelSettingsPropProject, "Panel Settings");
-        panelSettingsRefField.tooltip = "Assign a PanelSettings asset from a project folder. That folder becomes this runner's project. Configure the asset in the UI tab.";
-        container.Add(panelSettingsRefField);
-
-        AddSpacer(container);
-
         var liveReloadProp = serializedObject.FindProperty("_liveReload");
         var liveReloadRow = CreateRow();
         var liveReloadLabel = new Label("Live Reload");
@@ -293,6 +290,20 @@ public class JSRunnerEditor : Editor {
         liveReloadSettings.style.display = liveReloadProp.boolValue ? DisplayStyle.Flex : DisplayStyle.None;
         liveReloadField.RegisterValueChangeCallback(_ =>
             liveReloadSettings.style.display = liveReloadProp.boolValue ? DisplayStyle.Flex : DisplayStyle.None);
+
+        // Unity setting: Run In Background
+        var runInBackgroundRow = CreateRow();
+        var runInBackgroundLabel = new Label("Run in Background");
+        runInBackgroundLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+        runInBackgroundLabel.style.width = 192;
+        runInBackgroundRow.Add(runInBackgroundLabel);
+        var runInBackgroundToggle = new Toggle { value = PlayerSettings.runInBackground };
+        runInBackgroundToggle.text = "";
+        runInBackgroundToggle.RegisterValueChangedCallback(evt => {
+            PlayerSettings.runInBackground = evt.newValue;
+        });
+        runInBackgroundRow.Add(runInBackgroundToggle);
+        container.Add(runInBackgroundRow);
 
         AddSpacer(container);
 
@@ -403,7 +414,13 @@ public class JSRunnerEditor : Editor {
                 inspector.style.marginLeft = 0;
                 psInspectorContainer.Add(inspector);
             } else {
-                psInspectorContainer.Add(CreateInfoBox("No Panel Settings assigned. Assign one in the Project tab, or click Initialize to create a new project and assets."));
+                // Match Unity's empty-list hint style (e.g. "No stylesheets...")
+                var emptyLabel = new Label("No settings.");
+                emptyLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+                emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
+                emptyLabel.style.paddingTop = 4;
+                emptyLabel.style.paddingBottom = 4;
+                psInspectorContainer.Add(emptyLabel);
             }
         }
 
@@ -445,12 +462,17 @@ public class JSRunnerEditor : Editor {
         // Source map option
         container.Add(new PropertyField(serializedObject.FindProperty("_includeSourceMap"), "Include Source Map"));
 
-        var bundlePathDisplay = FormatPathFromAssets(_target, _target.BundleAssetPath);
-        var buildHelpBox = CreateInfoBox(
-            "Bundle TextAsset is auto-generated during Unity build.\n" +
-            "Path: " + (bundlePathDisplay ?? "(assign Pannel Settings first)"));
+        var buildHelpBox = CreateInfoBox("Bundle TextAsset is auto-generated during Unity build.");
         buildHelpBox.style.marginTop = 4;
         container.Add(buildHelpBox);
+
+        // Output: {path} below message box, same style as Type Generation output
+        _buildOutputPathLabel = new Label();
+        _buildOutputPathLabel.style.marginTop = 4;
+        _buildOutputPathLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+        _buildOutputPathLabel.style.fontSize = 10;
+        container.Add(_buildOutputPathLabel);
+        UpdateBuildOutputPath();
 
         AddSpacer(container);
 
@@ -1144,14 +1166,15 @@ public class JSRunnerEditor : Editor {
     VisualElement CreateStatusSection() {
         var container = CreateStyledBox();
         container.style.marginTop = 2;
-        container.style.marginBottom = 6;
+        container.style.marginBottom = 2; // space below status; tab bar marginTop 6 gives total 8 (matches above)
 
-        // Status row
-        var statusRow = CreateRow();
-        statusRow.Add(CreateLabel("Status", 50, true));
-        _statusLabel = new Label("Stopped (Enter Play Mode to run)");
-        statusRow.Add(_statusLabel);
-        container.Add(statusRow);
+        // Status row (hidden when showing not-initialized/not-valid blocks; those have their own status row inside)
+        _statusRow = CreateRow();
+        _statusRow.Add(CreateLabel("Status", 50, true));
+        _statusLabel = new Label("Stopped");
+        _statusLabel.style.color = new Color(0.28f, 0.82f, 0.82f);
+        _statusRow.Add(_statusLabel);
+        container.Add(_statusRow);
 
         // Live reload count (shown when > 0)
         _reloadCountLabel = new Label();
@@ -1159,25 +1182,112 @@ public class JSRunnerEditor : Editor {
         _reloadCountLabel.style.display = DisplayStyle.None;
         container.Add(_reloadCountLabel);
 
-        // Watcher status ("Watcher: " in gray + state in color)
-        var watcherRow = CreateRow();
-        watcherRow.style.marginTop = 4;
+        // Watcher status ("Watcher: " in gray + state in color) — hidden when Panel Settings not set/invalid
+        _watcherRow = CreateRow();
+        _watcherRow.style.marginTop = 4;
         _watcherStatusLabel = new Label("Watcher: ");
         _watcherStatusLabel.style.fontSize = 11;
         _watcherStatusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
-        watcherRow.Add(_watcherStatusLabel);
+        _watcherRow.Add(_watcherStatusLabel);
         _watcherStateLabel = new Label();
         _watcherStateLabel.style.fontSize = 11;
-        watcherRow.Add(_watcherStateLabel);
-        container.Add(watcherRow);
+        _watcherRow.Add(_watcherStateLabel);
+        container.Add(_watcherRow);
 
-        // Working directory path
+        // Working directory path — hidden when Panel Settings not set/invalid
         _workingDirLabel = new Label();
         _workingDirLabel.style.marginTop = 4;
         _workingDirLabel.style.fontSize = 11;
         _workingDirLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
         _workingDirLabel.style.whiteSpace = WhiteSpace.Normal;
         container.Add(_workingDirLabel);
+
+        // When Panel Settings not set: one row with [ status+message column | button column ] so button centers in full height
+        _statusNotInitializedContainer = new VisualElement();
+        _statusNotInitializedContainer.style.flexDirection = FlexDirection.Row;
+        _statusNotInitializedContainer.style.alignItems = Align.Stretch;
+        _statusNotInitializedContainer.style.display = DisplayStyle.None;
+        var notInitLeft = new VisualElement();
+        notInitLeft.style.flexGrow = 1;
+        notInitLeft.style.flexShrink = 1;
+        notInitLeft.style.minWidth = 0;
+        notInitLeft.style.marginRight = 12;
+        var notInitStatusRow = CreateRow();
+        notInitStatusRow.Add(CreateLabel("Status", 50, true));
+        _statusLabelNotInit = new Label("Not Initialized");
+        _statusLabelNotInit.style.color = new Color(0.7f, 0.7f, 0.7f);
+        notInitStatusRow.Add(_statusLabelNotInit);
+        notInitLeft.Add(notInitStatusRow);
+        var notInitMsg = new Label("Initialize a new OneJS project, or assign a Panel Settings asset. The assigned asset’s folder becomes the active project folder for this runner.");
+        notInitMsg.style.marginTop = 4;
+        notInitMsg.style.whiteSpace = WhiteSpace.Normal;
+        notInitMsg.style.fontSize = 11;
+        notInitMsg.style.color = new Color(0.6f, 0.6f, 0.6f);
+        notInitLeft.Add(notInitMsg);
+        _statusNotInitializedContainer.Add(notInitLeft);
+        var initBtnColumn = new VisualElement();
+        initBtnColumn.style.flexShrink = 0;
+        initBtnColumn.style.flexDirection = FlexDirection.Row;
+        initBtnColumn.style.alignItems = Align.Center;
+        initBtnColumn.style.justifyContent = Justify.Center;
+        var initBtn = new Button(RunInitializeProject) { text = "Initialize Project" };
+        initBtn.style.height = 22;
+        initBtn.style.flexShrink = 0;
+        initBtn.style.backgroundColor = new Color(0.72f, 0.72f, 0.72f);
+        initBtn.style.color = new Color(0.18f, 0.18f, 0.18f);
+        initBtn.RegisterCallback<MouseEnterEvent>(_ => initBtn.style.backgroundColor = new Color(0.82f, 0.82f, 0.82f));
+        initBtn.RegisterCallback<MouseLeaveEvent>(_ => initBtn.style.backgroundColor = new Color(0.72f, 0.72f, 0.72f));
+        initBtn.RegisterCallback<ContextClickEvent>(evt => {
+            var menu = new GenericMenu();
+            bool current = EditorPrefs.GetBool(UseSceneNameAsRootFolderPrefKey, true);
+            menu.AddItem(new GUIContent("Use Scene Name as Root Folder"), current, () => {
+                EditorPrefs.SetBool(UseSceneNameAsRootFolderPrefKey, !current);
+            });
+            menu.ShowAsContext();
+            evt.StopPropagation();
+        });
+        initBtnColumn.Add(initBtn);
+        _statusNotInitializedContainer.Add(initBtnColumn);
+        container.Add(_statusNotInitializedContainer);
+
+        // When Panel Settings invalid: one row with [ status+message column | button column ] so button centers in full height
+        _statusNotValidContainer = new VisualElement();
+        _statusNotValidContainer.style.flexDirection = FlexDirection.Row;
+        _statusNotValidContainer.style.alignItems = Align.Stretch;
+        _statusNotValidContainer.style.display = DisplayStyle.None;
+        var notValidLeft = new VisualElement();
+        notValidLeft.style.flexGrow = 1;
+        notValidLeft.style.flexShrink = 1;
+        notValidLeft.style.minWidth = 0;
+        notValidLeft.style.marginRight = 12;
+        var notValidStatusRow = CreateRow();
+        notValidStatusRow.Add(CreateLabel("Status", 50, true));
+        _statusLabelNotValid = new Label("Not Valid");
+        _statusLabelNotValid.style.color = new Color(0.8f, 0.6f, 0.2f);
+        notValidStatusRow.Add(_statusLabelNotValid);
+        notValidLeft.Add(notValidStatusRow);
+        var notValidMsg = new Label("Panel Settings is not valid. The asset must be located in a valid project folder that contains OneJS project files.");
+        notValidMsg.style.marginTop = 4;
+        notValidMsg.style.whiteSpace = WhiteSpace.Normal;
+        notValidMsg.style.fontSize = 11;
+        notValidMsg.style.color = new Color(0.6f, 0.6f, 0.6f);
+        notValidLeft.Add(notValidMsg);
+        _statusNotValidContainer.Add(notValidLeft);
+        var removeBtnColumn = new VisualElement();
+        removeBtnColumn.style.flexShrink = 0;
+        removeBtnColumn.style.flexDirection = FlexDirection.Row;
+        removeBtnColumn.style.alignItems = Align.Center;
+        removeBtnColumn.style.justifyContent = Justify.Center;
+        var removeBtn = new Button(RunRemovePanelSettings) { text = "Remove Settings" };
+        removeBtn.style.height = 22;
+        removeBtn.style.flexShrink = 0;
+        removeBtn.style.backgroundColor = new Color(0.72f, 0.72f, 0.72f);
+        removeBtn.style.color = new Color(0.18f, 0.18f, 0.18f);
+        removeBtn.RegisterCallback<MouseEnterEvent>(_ => removeBtn.style.backgroundColor = new Color(0.82f, 0.82f, 0.82f));
+        removeBtn.RegisterCallback<MouseLeaveEvent>(_ => removeBtn.style.backgroundColor = new Color(0.72f, 0.72f, 0.72f));
+        removeBtnColumn.Add(removeBtn);
+        _statusNotValidContainer.Add(removeBtnColumn);
+        container.Add(_statusNotValidContainer);
 
         return container;
     }
@@ -1342,12 +1452,29 @@ public class JSRunnerEditor : Editor {
 
         var outputPath = _target.TypingsFullPath;
         if (string.IsNullOrEmpty(outputPath)) {
-            _typeGenStatusLabel.text = "Output: (save scene first)";
+            _typeGenStatusLabel.style.display = DisplayStyle.None;
+            _typeGenStatusLabel.text = "";
+            return;
         } else if (File.Exists(outputPath)) {
+            _typeGenStatusLabel.style.display = DisplayStyle.Flex;
             var lastWrite = File.GetLastWriteTime(outputPath);
             _typeGenStatusLabel.text = $"Output: {_target.TypingsOutputPath} (last updated: {lastWrite:g})";
         } else {
+            _typeGenStatusLabel.style.display = DisplayStyle.Flex;
             _typeGenStatusLabel.text = $"Output: {_target.TypingsOutputPath} (not yet generated)";
+        }
+    }
+
+    void UpdateBuildOutputPath() {
+        if (_buildOutputPathLabel == null) return;
+
+        var path = FormatPathFromAssets(_target, _target.BundleAssetPath);
+        if (string.IsNullOrEmpty(path)) {
+            _buildOutputPathLabel.style.display = DisplayStyle.None;
+            _buildOutputPathLabel.text = "";
+        } else {
+            _buildOutputPathLabel.style.display = DisplayStyle.Flex;
+            _buildOutputPathLabel.text = "Output: " + path;
         }
     }
 
@@ -1356,79 +1483,112 @@ public class JSRunnerEditor : Editor {
     void UpdateDynamicUI() {
         // Check if target was destroyed (e.g., user deleted the GameObject)
         if (_target == null || _statusLabel == null) return;
+        serializedObject.Update();
 
-        // Status
-        if (Application.isPlaying) {
-            _statusLabel.text = _target.IsRunning ? "Running" : "Loading...";
-            _statusLabel.style.color = _target.IsRunning ? new Color(0.2f, 0.8f, 0.2f) : new Color(0.8f, 0.6f, 0.2f);
+        var panelSettingsRef = serializedObject.FindProperty("_panelSettings").objectReferenceValue;
+        bool hasPanelSettings = panelSettingsRef != null;
+        bool validFolder = hasPanelSettings && _target.IsPanelSettingsInValidProjectFolder();
+        bool showAsNotInitialized = !hasPanelSettings || !validFolder;
+        bool treatAsNotInitializedInPlay = Application.isPlaying && hasPanelSettings && !validFolder;
+
+        // Status block always visible; content switches by Panel Settings state
+        if (showAsNotInitialized) {
+            if (_statusRow != null) _statusRow.style.display = DisplayStyle.None; // hide main status row; not-init/not-valid blocks have their own
+            if (hasPanelSettings && !validFolder) {
+                if (_statusLabelNotValid != null) {
+                    _statusLabelNotValid.text = "Not Valid";
+                    _statusLabelNotValid.style.color = new Color(0.8f, 0.6f, 0.2f);
+                }
+            } else {
+                if (_statusLabelNotInit != null) {
+                    _statusLabelNotInit.text = "Not Initialized";
+                    _statusLabelNotInit.style.color = new Color(0.7f, 0.7f, 0.7f);
+                }
+            }
+            if (_watcherRow != null) _watcherRow.style.display = DisplayStyle.None;
+            if (_workingDirLabel != null) _workingDirLabel.style.display = DisplayStyle.None;
+            if (_statusNotInitializedContainer != null) _statusNotInitializedContainer.style.display = (hasPanelSettings && !validFolder) ? DisplayStyle.None : DisplayStyle.Flex;
+            if (_statusNotValidContainer != null) _statusNotValidContainer.style.display = (hasPanelSettings && !validFolder) ? DisplayStyle.Flex : DisplayStyle.None;
+            if (_reloadCountLabel != null) _reloadCountLabel.style.display = DisplayStyle.None;
         } else {
-            _statusLabel.text = "Stopped (Enter Play Mode to run)";
-            _statusLabel.style.color = Color.white;
-        }
+            if (_statusRow != null) _statusRow.style.display = DisplayStyle.Flex;
+            if (_watcherRow != null) _watcherRow.style.display = DisplayStyle.Flex;
+            if (_workingDirLabel != null) _workingDirLabel.style.display = DisplayStyle.Flex;
+            if (_statusNotInitializedContainer != null) _statusNotInitializedContainer.style.display = DisplayStyle.None;
+            if (_statusNotValidContainer != null) _statusNotValidContainer.style.display = DisplayStyle.None;
 
-        // Last reload time
-        if (_reloadCountLabel != null) {
-            if (Application.isPlaying && _target.IsRunning && _target.ReloadCount > 0) {
-                _reloadCountLabel.style.display = DisplayStyle.Flex;
-                _reloadCountLabel.text = $"Last Reload: {FormatTimeAgo(_target.LastReloadTime)}";
+            // Status text (normal)
+            if (Application.isPlaying) {
+                _statusLabel.text = _target.IsRunning ? "Running" : "Loading...";
+                _statusLabel.style.color = _target.IsRunning ? new Color(0.2f, 0.8f, 0.2f) : new Color(0.8f, 0.6f, 0.2f);
             } else {
-                _reloadCountLabel.style.display = DisplayStyle.None;
+                _statusLabel.text = "Stopped";
+                _statusLabel.style.color = new Color(0.28f, 0.82f, 0.82f);
             }
-        }
 
-        // Watcher status ("Watcher: " always gray; only state text is colored)
-        if (_watcherStateLabel != null) {
-            var workingDir = _target.WorkingDirFullPath;
-            if (string.IsNullOrEmpty(workingDir)) {
-                _watcherStateLabel.text = _target.InstanceFolder == null && _target.IsSceneSaved ? "non initialized yet" : "(save scene first)";
-                _watcherStateLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
-            } else {
-                var isWatching = NodeWatcherManager.IsRunning(workingDir);
-                var isStarting = NodeWatcherManager.IsStarting(workingDir);
-
-                if (isStarting) {
-                    _watcherStateLabel.text = "Starting...";
-                    _watcherStateLabel.style.color = new Color(0.8f, 0.6f, 0.2f);
-                } else if (isWatching) {
-                    _watcherStateLabel.text = "Running";
-                    _watcherStateLabel.style.color = new Color(0.4f, 0.8f, 0.4f);
-                } else if (Application.isPlaying) {
-                    _watcherStateLabel.text = "Starting...";
-                    _watcherStateLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+            // Last reload time
+            if (_reloadCountLabel != null) {
+                if (Application.isPlaying && _target.IsRunning && _target.ReloadCount > 0) {
+                    _reloadCountLabel.style.display = DisplayStyle.Flex;
+                    _reloadCountLabel.text = $"Last Reload: {FormatTimeAgo(_target.LastReloadTime)}";
                 } else {
-                    _watcherStateLabel.text = "Idle";
-                    _watcherStateLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+                    _reloadCountLabel.style.display = DisplayStyle.None;
                 }
             }
-        }
 
-        // Working directory path: show path only after initialization (Panel Settings set); otherwise "non initialized yet" or "(save scene first)"
-        if (_workingDirLabel != null) {
-            if (_target.InstanceFolder != null) {
+            // Watcher status
+            if (_watcherStateLabel != null) {
                 var workingDir = _target.WorkingDirFullPath;
-                if (!string.IsNullOrEmpty(workingDir)) {
-                    var relative = System.IO.Path.GetRelativePath(_target.ProjectRoot, workingDir).Replace(System.IO.Path.DirectorySeparatorChar, '/');
-                    _workingDirLabel.text = "Working Folder: " + relative;
+                if (string.IsNullOrEmpty(workingDir)) {
+                    _watcherStateLabel.text = _target.InstanceFolder == null && _target.IsSceneSaved ? "non initialized yet" : "(save scene first)";
+                    _watcherStateLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
                 } else {
-                    _workingDirLabel.text = "Working Folder: (save scene first)";
+                    var isWatching = NodeWatcherManager.IsRunning(workingDir);
+                    var isStarting = NodeWatcherManager.IsStarting(workingDir);
+                    if (isStarting) {
+                        _watcherStateLabel.text = "Starting...";
+                        _watcherStateLabel.style.color = new Color(0.8f, 0.6f, 0.2f);
+                    } else if (isWatching) {
+                        _watcherStateLabel.text = "Running";
+                        _watcherStateLabel.style.color = new Color(0.4f, 0.8f, 0.4f);
+                    } else if (Application.isPlaying) {
+                        _watcherStateLabel.text = "Starting...";
+                        _watcherStateLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+                    } else {
+                        _watcherStateLabel.text = "Idle (enter Play Mode to run)";
+                        _watcherStateLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+                    }
                 }
-            } else if (!_target.IsSceneSaved) {
-                _workingDirLabel.text = "Working Folder: (save scene first)";
-            } else {
-                _workingDirLabel.text = "Working Folder: non initialized yet";
+            }
+
+            // Working directory path
+            if (_workingDirLabel != null) {
+                if (_target.InstanceFolder != null) {
+                    var workingDir = _target.WorkingDirFullPath;
+                    if (!string.IsNullOrEmpty(workingDir)) {
+                        var relative = System.IO.Path.GetRelativePath(_target.ProjectRoot, workingDir).Replace(System.IO.Path.DirectorySeparatorChar, '/');
+                        _workingDirLabel.text = "Project Folder: " + relative;
+                    } else {
+                        _workingDirLabel.text = "Project Folder: (save scene first)";
+                    }
+                } else if (!_target.IsSceneSaved) {
+                    _workingDirLabel.text = "Project Folder: (save scene first)";
+                } else {
+                    _workingDirLabel.text = "Project Folder: non initialized yet";
+                }
             }
         }
 
-        // Show init message only when Panel Settings is missing or project not scaffolded. Use serialized _panelSettings to avoid flash on Play mode change.
-        if (_projectTabInitContainer != null) {
-            serializedObject.Update();
-            var panelSettingsRef = serializedObject.FindProperty("_panelSettings").objectReferenceValue;
-            bool hasPanelSettings = panelSettingsRef != null;
-            bool notInitialized = !hasPanelSettings && _target.IsSceneSaved;
-            bool folderExistsButNoPackageJson = hasPanelSettings && !_target.HasPackageJson;
-            bool showInitWarning = notInitialized || folderExistsButNoPackageJson;
-            _projectTabInitContainer.style.display = showInitWarning ? DisplayStyle.Flex : DisplayStyle.None;
-        }
+        // Hide tab bar, tab content, and actions when Panel Settings not attached or invalid
+        var debugModeProp = serializedObject.FindProperty("_enableDebugMode");
+        var debugMode = debugModeProp != null && debugModeProp.boolValue;
+        var showBlocks = debugMode || (hasPanelSettings && validFolder);
+        if (_tabBarContainer != null)
+            _tabBarContainer.style.display = showBlocks ? DisplayStyle.Flex : DisplayStyle.None;
+        if (_tabContent != null)
+            _tabContent.style.display = showBlocks ? DisplayStyle.Flex : DisplayStyle.None;
+        if (_actionsContainer != null)
+            _actionsContainer.style.display = showBlocks ? DisplayStyle.Flex : DisplayStyle.None;
 
         // Buttons
         _reloadButton?.SetEnabled(Application.isPlaying && _target.IsRunning);
@@ -1446,6 +1606,9 @@ public class JSRunnerEditor : Editor {
                 _buildOutputContainer.style.display = DisplayStyle.None;
             }
         }
+
+        UpdateBuildOutputPath();
+        UpdateTypeGenStatus();
 
         // Check if PanelSettings render mode changed - refresh inspector if so
         var panelSettings = serializedObject.FindProperty("_panelSettings").objectReferenceValue as PanelSettings;
@@ -1612,15 +1775,25 @@ public class JSRunnerEditor : Editor {
 
     // MARK: Utilities
 
+    void RunRemovePanelSettings() {
+        serializedObject.Update();
+        var prop = serializedObject.FindProperty("_panelSettings");
+        if (prop != null && prop.objectReferenceValue != null) {
+            Undo.RecordObject(_target, "JSRunner Remove Panel Settings");
+            prop.objectReferenceValue = null;
+            serializedObject.ApplyModifiedProperties();
+            EditorUtility.SetDirty(_target);
+        }
+    }
+
     void RunInitializeProject() {
-        
         if (!_target.IsSceneSaved) {
             Debug.LogWarning("[JSRunner] Save the scene before initializing.");
             return;
         }
         Undo.RecordObject(_target, "JSRunner Initialize Project");
         _target.PopulateDefaultFiles();
-        _target.EnsureProjectFolderAndAssets();
+        _target.EnsureProjectFolderAndAssets(EditorPrefs.GetBool(UseSceneNameAsRootFolderPrefKey, true));
         _target.EnsureProjectSetup();
         EditorUtility.SetDirty(_target);
         serializedObject.Update();
