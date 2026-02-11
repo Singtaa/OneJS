@@ -27,6 +27,13 @@ let __eventHandlers = new Map();
 // to simulate bubble-phase propagation (matching UI Toolkit's native behavior).
 const __parentMap = new Map();
 
+// Callback handle tracking: "objectHandle:propertyName" → callbackHandle
+// When a JS function is assigned to a C# delegate property (e.g., generateVisualContent),
+// __resolveValue registers a native callback and returns { __csCallbackHandle: N }.
+// Without tracking, re-assigning the property leaks the old handle in the fixed-size
+// 4096-slot callback table. This map lets the proxy setter free the old handle first.
+const __delegateHandleMap = new Map();
+
 const __handleRegistry = new FinalizationRegistry((handle) => {
     // Always clean proxy cache when a proxy is finalized
     __proxyCache.delete(handle);
@@ -53,6 +60,16 @@ function __cleanupHandle(handle) {
     __eventHandlers.delete(handle);
     // Clean up parent mapping
     __parentMap.delete(handle);
+    // Clean up delegate callback handles for all properties on this object
+    if (typeof __unregisterCallback === "function") {
+        const prefix = handle + ":";
+        for (const [key, cbHandle] of __delegateHandleMap) {
+            if (key.startsWith(prefix)) {
+                __unregisterCallback(cbHandle);
+                __delegateHandleMap.delete(key);
+            }
+        }
+    }
 }
 
 /**
@@ -458,7 +475,26 @@ function __wrapObject(typeName, handle) {
             if (typeof prop === "symbol") return false;
 
             const propName = String(prop);
+
+            // Free old delegate callback handle before resolving the new value.
+            // This prevents the 4096-slot native callback table from leaking
+            // when function props (e.g., generateVisualContent) are reassigned.
+            const delegateKey = handle + ":" + propName;
+            if (typeof __unregisterCallback === "function") {
+                const oldCbHandle = __delegateHandleMap.get(delegateKey);
+                if (oldCbHandle !== undefined) {
+                    __unregisterCallback(oldCbHandle);
+                    __delegateHandleMap.delete(delegateKey);
+                }
+            }
+
             const resolvedValue = __resolveValue(value);
+
+            // Track new callback handle if a function was just registered
+            if (resolvedValue && typeof resolvedValue === "object" &&
+                resolvedValue.__csCallbackHandle !== undefined) {
+                __delegateHandleMap.set(delegateKey, resolvedValue.__csCallbackHandle);
+            }
 
             // Numeric indexer support: obj[0] = value, obj[1] = value, etc.
             // Routes to set_Item(int, value) for List<T>, arrays, and other indexed collections
