@@ -47,30 +47,47 @@ Custom UI Toolkit controls for OneJS applications. See `Controls/README.md` for 
 
 The `JSRunner` MonoBehaviour is the primary way to run JavaScript apps in Unity.
 
-### Scene-Based Path System
+### Panel Settings as Project Marker
 
-JSRunner uses a **zero-config, scene-based path system**. All paths are automatically derived from the scene location:
+JSRunner uses the **assigned PanelSettings asset** as the source of truth for project identity and location. The folder containing the PanelSettings asset is the **instance folder** — all project files (working directory, bundle, source map) live alongside it.
+
+**Setup flow:**
+1. Add JSRunner to a GameObject
+2. Click **Initialize Project** in the inspector
+3. This creates the instance folder, PanelSettings, working directory, and runs `npm install` + `npm run build`
+
+**Or** assign an existing PanelSettings asset — its folder becomes the active project folder.
+
+### Directory Structure
 
 ```
 Assets/Scenes/Level1.unity          # Your scene
 Assets/Scenes/Level1/               # Auto-created folder next to scene
-├── MainUI_abc123/                  # Per-JSRunner folder (name + instanceId)
-│   ├── MainUI~/                    # Working directory (~ makes Unity ignore it)
-│   │   ├── package.json            # Scaffolded on first run
+├── MainUI_abc123/                  # Instance folder (name + instanceId)
+│   ├── ~/                          # Working directory (~ makes Unity ignore it)
+│   │   ├── package.json            # Scaffolded on Initialize
 │   │   ├── index.tsx               # Source file
 │   │   └── esbuild.config.mjs      # Outputs to ../app.js.txt
-│   ├── PanelSettings.asset         # Auto-created UI panel settings
+│   ├── PanelSettings.asset         # Project marker (source of truth)
+│   ├── UIDocument.uxml             # Auto-synced VisualTreeAsset
 │   ├── app.js.txt                  # Built bundle (esbuild output + TextAsset)
 │   └── app.js.txt.map              # Source map (optional)
 ```
 
-**Key benefits:**
-- No manual path configuration needed
-- Each JSRunner gets its own isolated workspace
-- Instance ID suffix prevents naming collisions
-- `~` suffix makes Unity ignore the working directory (no .meta files)
-- TextAssets are created automatically during build
-- **Cleanup on removal**: When JSRunner is removed in Edit mode, prompts to delete instance folder
+**Key points:**
+- **PanelSettings location = project folder**. Moving the PanelSettings asset moves the project.
+- Each JSRunner gets its own isolated workspace via instance ID suffix
+- `~` suffix on the working directory makes Unity ignore it (no .meta files)
+- UIDocument component is added at runtime (not `[RequireComponent]`)
+- VisualTreeAsset is auto-synced from the PanelSettings folder
+
+### Folder Validation
+
+A PanelSettings folder is considered **valid** when it contains:
+- A `~` subfolder (working directory), **or**
+- An `app.js` / `app.js.txt` file
+
+When PanelSettings points to a folder that doesn't meet this criteria, the inspector shows a "Not Valid" status and hides the project tabs.
 
 ### Platform Behavior
 
@@ -80,17 +97,20 @@ Assets/Scenes/Level1/               # Auto-created folder next to scene
 | Standalone/Mobile | TextAsset (auto-created during build) | No |
 | WebGL | TextAsset embedded in build | No |
 
-### Zero-Config UI Setup
-JSRunner automatically creates `UIDocument` at runtime and a `PanelSettings.asset` in the instance folder on first Play mode. No manual asset creation required.
+### Initialization Flow
 
-**Setup options:**
-1. **Zero-config**: Just add JSRunner to any GameObject and hit Play - PanelSettings asset is auto-created
-2. **Custom PanelSettings**: Drag any PanelSettings asset to the Panel Settings field to override the default
+Unlike previous versions where project setup happened automatically on first Play mode, initialization is now **explicit**:
 
-The auto-created PanelSettings asset is stored at `{InstanceFolder}/PanelSettings.asset` and can be modified directly in the inspector. Changes persist across sessions.
+1. **Initialize Project** button creates the instance folder, PanelSettings asset, VisualTreeAsset, working directory, scaffolds default files, and runs `npm install` + `npm run build`
+2. **Play mode** runs the project if PanelSettings is assigned and valid — no auto-creation of assets
+3. **Assigning PanelSettings** manually (drag & drop) syncs the VisualTreeAsset from the same folder and adds a UIDocument component in the editor
+
+The "Use Scene Name as Root Folder" option (right-click the status block) controls whether the instance folder is created under `{SceneDir}/{SceneName}/` (default) or directly under `{SceneDir}/`.
+
+Prefabs in the Project window (not placed in a scene) are also supported — the instance folder is created next to the prefab asset.
 
 ### Auto-Scaffolding (Editor Only)
-On first run, JSRunner creates missing files from its **Default Files** list. This is non-destructive - existing files are never overwritten.
+On Initialize (or first Play mode if not already set up), JSRunner creates missing files from its **Default Files** list. This is non-destructive — existing files are never overwritten.
 
 Configure scaffolding in the inspector:
 - **Default Files**: List of `path → TextAsset` pairs. Each path is relative to Working Dir.
@@ -105,28 +125,53 @@ Default template files (in `Assets/Singtaa/OneJS/Editor/Templates/`):
 - `main.uss.txt` - Sample USS stylesheet
 - `gitignore.txt` - Git ignore for node_modules
 
+### Inspector Layout
+
+The inspector adapts to the project state:
+
+**When PanelSettings is not assigned:**
+- Panel Settings field shown at top
+- Status block shows "Not Initialized" with **Initialize Project** button
+- Tabs and actions are hidden
+
+**When PanelSettings is assigned but invalid:**
+- Status block shows "Not Valid" with **Remove Settings** button
+- Tabs and actions are hidden
+
+**When PanelSettings is valid (normal state):**
+- Status block shows Running/Stopped, watcher state, project folder path
+- Four tabs: **Project**, **UI**, **Cartridges**, **Build**
+- Action buttons: Reload, Rebuild, Open Folder, Open Terminal, Open Code Editor
+
+**Dev Mode** (right-click script header > Toggle Dev Mode): shows tabs and actions even without valid PanelSettings — useful for debugging.
+
 ### Inspector Fields
 
 | Field | Purpose |
 |-------|---------|
-| **Project** (auto-computed) | |
-| Scene Folder | `{SceneName}/` next to scene file |
-| Working Dir | `{SceneName}/{Name}_{InstanceId}/{Name}~/` |
-| Bundle File | `{InstanceFolder}/app.js.txt` (esbuild output) |
-| **Build** | |
-| Bundle Asset | TextAsset for built JS (auto-created during build) |
-| Source Map Asset | TextAsset for source map (optional) |
-| Include Source Map | Whether to include source maps in builds |
-| **UI Panel** | |
-| Panel Settings | PanelSettings asset (auto-created in instance folder on first Play, or assign custom) |
-| Default Theme | ThemeStyleSheet applied to PanelSettings |
-| *(embedded inspector)* | Full PanelSettings inspector shown inline for easy configuration |
-| **Scaffolding** | |
-| Default Files | `path → TextAsset` pairs for auto-scaffolding on first run |
-| **Advanced** | |
-| Stylesheets | List of USS StyleSheets applied on init/reload |
-| Preloads | List of TextAssets eval'd before entry file |
+| **Panel Settings** (top-level) | PanelSettings asset — its folder is the project folder |
+| **Project tab** | |
+| Live Reload | Toggle live reload on/off |
+| Poll Interval | How often to check for file changes (default 0.5s) |
+| Enable Janitor | Auto-cleanup of JS-created GameObjects on reload |
+| Preloads | TextAssets eval'd before entry file (e.g., polyfills) |
 | Globals | `key → Object` pairs injected as `globalThis[key]` |
+| **UI tab** | |
+| Stylesheets | USS StyleSheets applied on init/reload |
+| Panel Settings | Embedded PanelSettings inspector for inline configuration |
+| **Build tab** | |
+| Include Source Map | Whether to include source maps in builds |
+| Bundle/Source Map status | Shows current TextAsset assignment state |
+| Type Generation | Generate `.d.ts` files from C# assemblies |
+| Scaffolding | Default Files list and Reset to Defaults |
+| **Cartridges tab** | |
+| UI Cartridges | Packaged UI module assets with extract/delete controls |
+
+### Context Menu Options
+
+**Right-click on status block:**
+- **Run in Background** — toggle Unity's `PlayerSettings.runInBackground`
+- **Use Scene Name as Root Folder** — toggle whether instance folder is nested under scene name
 
 ### Live Reload (Editor Only)
 - Polls the entry file for changes (Mono-compatible, no FileSystemWatcher)
@@ -158,19 +203,9 @@ const cube = new CS.UnityEngine.GameObject("MyCube")
 ### Build Support
 For standalone/mobile builds, JSRunner loads from a TextAsset:
 - **Same file**: esbuild outputs directly to `app.js.txt` which is also the TextAsset
-- **Bundle path**: `{SceneName}/{Name}_{InstanceId}/app.js.txt`
+- **Bundle path**: `{InstanceFolder}/app.js.txt`
 - **Source maps**: Optional `app.js.txt.map` for error stack translation
 - **Pre-assigned**: If a bundle TextAsset is already assigned, build processor skips it
-
-### Custom Inspector
-The `JSRunnerEditor` provides:
-- Status display (running/stopped, reload count, working directory path)
-- **Refresh** button - Force reload in Play mode
-- **Rebuild** button - Delete node_modules, reinstall, and rebuild
-- **Open Folder** - Open working directory in file explorer
-- **Open Terminal** - Open terminal at working directory
-- **Open VSCode** - Open working directory in VS Code
-- Watcher status (auto-starts on Play mode)
 
 ### Public API
 ```csharp
@@ -180,17 +215,27 @@ bool IsLiveReloadEnabled { get; }
 int ReloadCount { get; }
 DateTime LastModifiedTime { get; }
 
-// Path properties (Editor only, auto-computed from scene)
-string SceneFolder { get; }           // {SceneName}/
-string InstanceFolder { get; }        // {SceneFolder}/{Name}_{InstanceId}/
-string WorkingDirFullPath { get; }    // {InstanceFolder}/{Name}~/
-string EntryFileFullPath { get; }     // {InstanceFolder}/app.js.txt
-string BundleAssetPath { get; }       // Same as EntryFileFullPath
-string SourceMapAssetPath { get; }    // {InstanceFolder}/app.js.txt.map
-string PanelSettingsAssetPath { get; } // {InstanceFolder}/PanelSettings.asset
+// Path properties (Editor only, derived from PanelSettings location)
+string SceneFolder { get; }            // {SceneName}/ next to scene file
+string InstanceFolder { get; }         // Folder containing PanelSettings asset (full path)
+string InstanceFolderAssetPath { get; } // Same as above, Unity-relative asset path
+string WorkingDirFullPath { get; }     // {InstanceFolder}/~/
+string EntryFileFullPath { get; }      // {InstanceFolder}/app.js.txt
+string BundleAssetPath { get; }        // Same as EntryFileFullPath
+string SourceMapAssetPath { get; }     // {InstanceFolder}/app.js.txt.map
+string PanelSettingsAssetPath { get; }  // {InstanceFolder}/PanelSettings.asset
+string VisualTreeAssetPath { get; }     // {InstanceFolder}/UIDocument.uxml
+
+// Validation
+bool IsSceneSaved { get; }                    // True when scene has been saved
+bool IsPanelSettingsInValidProjectFolder();   // True when PanelSettings folder is valid
 
 // Methods
-void ForceReload();  // Manually trigger reload (Editor only)
+void ForceReload();                                        // Manually trigger reload (Editor only)
+void SetPanelSettings(PanelSettings ps);                   // Assign PanelSettings at runtime
+void SetVisualTreeAsset(VisualTreeAsset vta);              // Assign VisualTreeAsset at runtime
+void EnsureProjectFolderAndAssets(bool useSceneName);      // Create folder + PanelSettings + UXML
+void EnsureProjectSetup();                                 // Scaffold files into working dir
 ```
 
 ## JSRunner vs JSPad: Choosing the Right Tool
@@ -229,12 +274,12 @@ OneJS provides two MonoBehaviours for running JavaScript: **JSRunner** (producti
 | Aspect | JSRunner | JSPad |
 |--------|----------|-------|
 | Source | External files | Inline TextArea |
-| Working Dir | User-facing `{Scene}/{Name}~/` | Hidden in `Temp/OneJSPad/` |
+| Working Dir | `{InstanceFolder}/~/` (next to PanelSettings) | Hidden in `Temp/OneJSPad/` |
 | Live Reload | Yes (automatic file polling) | No (manual Build & Run) |
 | Build | Developer runs npm | Editor runs esbuild |
 | Scaffolding | Full project (package.json, tsconfig, etc.) | Minimal essentials |
 | npm Management | Developer responsibility | Automated by editor |
-| Build Output | `app.js.txt` (same folder as source) | `@outputs/app.js` in temp |
+| Build Output | `app.js.txt` (in instance folder) | `@outputs/app.js` in temp |
 | Standalone Build | Pre-built TextAsset | Serialized to component |
 
 ## JSPad (Inline TSX Runner)

@@ -61,6 +61,9 @@ public class DefaultFileEntry {
 /// - Editor: Loads JS from filesystem with live reload support
 /// - Builds: Loads from embedded TextAsset (auto-generated during build)
 /// </summary>
+#if UNITY_EDITOR
+[ExecuteAlways]
+#endif
 public class JSRunner : MonoBehaviour {
     const string DefaultEntryContent = "console.log(\"OneJS is good to go!\");\n";
     const string DefaultBundleFile = "app.js.txt";
@@ -140,6 +143,13 @@ public class JSRunner : MonoBehaviour {
     string _lastContentHash;
     Janitor _janitor;
 
+#if UNITY_EDITOR
+    // Edit-mode preview state (non-serialized, rebuilt on enable)
+    bool _editModePreviewActive;
+    float _nextEditModeTick;
+    const float EditModeTickInterval = 1f / 30f; // 30Hz throttle
+#endif
+
     // Public API
     public QuickJSUIBridge Bridge => _bridge;
     public bool IsRunning => _scriptLoaded && _bridge != null;
@@ -150,6 +160,9 @@ public class JSRunner : MonoBehaviour {
     public bool IncludeSourceMap => _includeSourceMap;
     public TextAsset BundleAsset => _bundleAsset;
     public TextAsset SourceMapAsset => _sourceMapAsset;
+#if UNITY_EDITOR
+    public bool IsEditModePreviewActive => _editModePreviewActive;
+#endif
 
     /// <summary>
     /// Set PanelSettings at runtime and sync to the runtime UIDocument. Use this instead of assigning the field when changing from script.
@@ -697,6 +710,7 @@ public class JSRunner : MonoBehaviour {
     }
 
     void Start() {
+        if (!Application.isPlaying) return; // [ExecuteAlways] guard
         try {
 #if UNITY_EDITOR
             if (_panelSettings != null && !IsPanelSettingsInValidProjectFolder()) {
@@ -717,6 +731,13 @@ public class JSRunner : MonoBehaviour {
     }
 
     void OnEnable() {
+#if UNITY_EDITOR
+        if (!Application.isPlaying) {
+            // Defer to let UIDocument panel settle after domain reload
+            UnityEditor.EditorApplication.delayCall += TryStartEditModePreview;
+            return;
+        }
+#endif
         if (!_initialized) {
             // First enable - let Start() handle initialization
             return;
@@ -724,6 +745,15 @@ public class JSRunner : MonoBehaviour {
 
         // Re-enable - reload to reconnect to new rootVisualElement
         ReloadOnEnable();
+    }
+
+    void OnDisable() {
+#if UNITY_EDITOR
+        if (!Application.isPlaying) {
+            StopEditModePreview();
+            return;
+        }
+#endif
     }
 
     void ReloadOnEnable() {
@@ -1112,6 +1142,81 @@ public class JSRunner : MonoBehaviour {
         }
     }
 
+    // MARK: Edit-Mode Preview
+
+    void TryStartEditModePreview() {
+        if (this == null || Application.isPlaying) return;
+        if (_editModePreviewActive) return;
+        if (_panelSettings == null || !IsPanelSettingsInValidProjectFolder()) return;
+
+        // Need a built bundle to preview
+        var entryFile = EntryFileFullPath;
+        if (string.IsNullOrEmpty(entryFile) || !File.Exists(entryFile)) return;
+
+        // Ensure UIDocument exists and has a valid rootVisualElement
+        _uiDocument = GetComponent<UIDocument>();
+        if (_uiDocument == null || _uiDocument.rootVisualElement == null) return;
+
+        try {
+            // Reuse existing init infrastructure
+            _uiDocument.rootVisualElement.Clear();
+            _uiDocument.rootVisualElement.styleSheets.Clear();
+            InitializeBridge();
+
+            var code = File.ReadAllText(entryFile);
+            RunScript(code, Path.GetFileName(entryFile));
+
+            // Set up file watching for live reload in edit-mode
+            _lastModifiedTime = File.GetLastWriteTime(entryFile);
+            _lastContentHash = ComputeFileHash(entryFile);
+            _nextPollTime = Time.realtimeSinceStartup + _pollInterval;
+
+            _editModePreviewActive = true;
+            UnityEditor.EditorApplication.update += EditModeTick;
+
+            // Force initial repaint so the Game view shows the UI
+            UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
+        } catch (Exception ex) {
+            Debug.LogError($"[JSRunner] Edit-mode preview failed: {ex.Message}");
+            // Clean up partial init
+            _bridge?.Dispose();
+            _bridge = null;
+            _scriptLoaded = false;
+        }
+    }
+
+    void StopEditModePreview() {
+        if (!_editModePreviewActive) return;
+
+        UnityEditor.EditorApplication.update -= EditModeTick;
+        _editModePreviewActive = false;
+
+        if (_uiDocument != null && _uiDocument.rootVisualElement != null) {
+            _uiDocument.rootVisualElement.Clear();
+            _uiDocument.rootVisualElement.styleSheets.Clear();
+        }
+
+        _bridge?.Dispose();
+        _bridge = null;
+        _scriptLoaded = false;
+    }
+
+    void EditModeTick() {
+        if (!_editModePreviewActive || _bridge == null) return;
+        if (Application.isPlaying) {
+            // PlayMode started - stop edit-mode preview, Start() will take over
+            StopEditModePreview();
+            return;
+        }
+
+        // Throttle tick rate to ~30Hz
+        if (Time.realtimeSinceStartup < _nextEditModeTick) return;
+        _nextEditModeTick = Time.realtimeSinceStartup + EditModeTickInterval;
+
+        _bridge.Tick();
+        CheckForFileChanges(); // Live reload in edit-mode
+    }
+
     [ContextMenu("Link Local Packages")]
     void LinkLocalPackagesContextMenu() {
         var workingDir = WorkingDirFullPath;
@@ -1205,6 +1310,7 @@ public class JSRunner : MonoBehaviour {
     }
 
     void Update() {
+        if (!Application.isPlaying) return; // [ExecuteAlways] guard - edit-mode uses EditorApplication.update
 #if UNITY_EDITOR
         // Editor: Use Unity's Update loop to drive the tick
         if (_scriptLoaded) {
@@ -1256,6 +1362,11 @@ public class JSRunner : MonoBehaviour {
     }
 
     void OnDestroy() {
+#if UNITY_EDITOR
+        if (_editModePreviewActive) {
+            StopEditModePreview();
+        }
+#endif
         _bridge?.Dispose();
         _bridge = null;
         _initialized = false;
@@ -1310,6 +1421,10 @@ public class JSRunner : MonoBehaviour {
                 if (_panelSettings != null && IsPanelSettingsInValidProjectFolder())
                     EnsureUIDocumentInEditor();
             };
+            // Also try to start edit-mode preview when PanelSettings changes
+            if (!_editModePreviewActive) {
+                UnityEditor.EditorApplication.delayCall += TryStartEditModePreview;
+            }
         }
     }
 

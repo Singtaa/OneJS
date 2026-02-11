@@ -1282,7 +1282,7 @@ public class JSRunnerEditor : Editor {
         _reloadButton = new Button(() => _target.ForceReload()) { text = OneJSEditorDesign.Texts.Reload };
         _reloadButton.style.height = 30;
         _reloadButton.style.flexGrow = 1;
-        _reloadButton.tooltip = "Reload/Rerun this JavaScript runtime (Play Mode only)";
+        _reloadButton.tooltip = "Reload/Rerun this JavaScript runtime";
         _reloadButton.SetEnabled(false);
         row1.Add(_reloadButton);
 
@@ -1569,7 +1569,7 @@ public class JSRunnerEditor : Editor {
             _actionsContainer.style.display = showBlocks ? DisplayStyle.Flex : DisplayStyle.None;
 
         // Buttons
-        _reloadButton?.SetEnabled(Application.isPlaying && _target.IsRunning);
+        _reloadButton?.SetEnabled(_target.IsRunning);
         if (_buildButton != null) {
             _buildButton.SetEnabled(!_buildInProgress);
             _buildButton.text = _buildInProgress ? OneJSEditorDesign.Texts.Rebuilding : OneJSEditorDesign.Texts.Rebuild;
