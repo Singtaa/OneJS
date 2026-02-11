@@ -1,3 +1,4 @@
+using OneJS.Editor;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -40,7 +41,7 @@ public class UICartridgeEditor : Editor {
 
     VisualElement CreateHeaderSection() {
         var container = new VisualElement();
-        container.style.backgroundColor = new Color(0.18f, 0.28f, 0.38f);
+        container.style.backgroundColor = OneJSEditorDesign.Colors.CartridgeHeaderBg;
         container.style.SetBorderRadius(4);
         container.style.paddingTop = container.style.paddingBottom = 12;
         container.style.paddingLeft = container.style.paddingRight = 14;
@@ -50,7 +51,7 @@ public class UICartridgeEditor : Editor {
         // Path preview
         _pathPreviewLabel = new Label();
         _pathPreviewLabel.style.fontSize = 11;
-        _pathPreviewLabel.style.color = new Color(0.7f, 0.85f, 1f);
+        _pathPreviewLabel.style.color = OneJSEditorDesign.Colors.CartridgePathPreview;
         _pathPreviewLabel.style.whiteSpace = WhiteSpace.Normal;
         container.Add(_pathPreviewLabel);
 
@@ -67,11 +68,11 @@ public class UICartridgeEditor : Editor {
 
         if (string.IsNullOrEmpty(slug)) {
             _pathPreviewLabel.text = "Set a slug to see the extraction path";
-            _pathPreviewLabel.style.color = new Color(0.8f, 0.6f, 0.4f);
+            _pathPreviewLabel.style.color = OneJSEditorDesign.Colors.CartridgePathWarning;
         } else {
             var relativePath = _target.RelativePath;
             _pathPreviewLabel.text = $"@cartridges/{relativePath}/";
-            _pathPreviewLabel.style.color = new Color(0.7f, 0.85f, 1f);
+            _pathPreviewLabel.style.color = OneJSEditorDesign.Colors.CartridgePathPreview;
 
             if (!string.IsNullOrEmpty(ns)) {
                 _pathPreviewLabel.text += $"\n__cart('@{ns}/{slug}')";
@@ -101,7 +102,7 @@ public class UICartridgeEditor : Editor {
         namespaceRow.Add(namespaceField);
 
         var nsHint = new Label("optional");
-        nsHint.style.color = new Color(0.5f, 0.5f, 0.5f);
+        nsHint.style.color = OneJSEditorDesign.Colors.TextDim;
         nsHint.style.fontSize = 10;
         nsHint.style.marginLeft = 6;
         nsHint.style.unityTextAlign = TextAnchor.MiddleCenter;
@@ -159,7 +160,7 @@ public class UICartridgeEditor : Editor {
 
         var headerLabel = new Label("Cartridge files to extract");
         headerLabel.style.flexGrow = 1;
-        headerLabel.style.color = new Color(0.7f, 0.7f, 0.7f);
+        headerLabel.style.color = OneJSEditorDesign.Colors.TextNeutral;
         headerLabel.style.fontSize = 11;
         headerRow.Add(headerLabel);
 
@@ -181,7 +182,7 @@ public class UICartridgeEditor : Editor {
 
         // Help text
         var helpLabel = new Label("path \u2190 TextAsset content");
-        helpLabel.style.color = new Color(0.5f, 0.5f, 0.5f);
+        helpLabel.style.color = OneJSEditorDesign.Colors.TextDim;
         helpLabel.style.fontSize = 10;
         helpLabel.style.marginTop = 4;
         container.Add(helpLabel);
@@ -199,7 +200,7 @@ public class UICartridgeEditor : Editor {
 
         if (prop.arraySize == 0) {
             var emptyLabel = new Label("No files. Click + to add one.");
-            emptyLabel.style.color = new Color(0.5f, 0.5f, 0.5f);
+            emptyLabel.style.color = OneJSEditorDesign.Colors.TextDim;
             emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
             emptyLabel.style.paddingTop = 4;
             emptyLabel.style.paddingBottom = 4;
@@ -234,7 +235,7 @@ public class UICartridgeEditor : Editor {
         var arrow = new Label("\u2190");
         arrow.style.marginLeft = 6;
         arrow.style.marginRight = 6;
-        arrow.style.color = new Color(0.5f, 0.5f, 0.5f);
+        arrow.style.color = OneJSEditorDesign.Colors.TextDim;
         row.Add(arrow);
 
         // Content field
@@ -270,7 +271,7 @@ public class UICartridgeEditor : Editor {
 
         var headerLabel = new Label("Unity objects to inject as globals");
         headerLabel.style.flexGrow = 1;
-        headerLabel.style.color = new Color(0.7f, 0.7f, 0.7f);
+        headerLabel.style.color = OneJSEditorDesign.Colors.TextNeutral;
         headerLabel.style.fontSize = 11;
         headerRow.Add(headerLabel);
 
@@ -292,7 +293,7 @@ public class UICartridgeEditor : Editor {
 
         // Help text
         var helpLabel = new Label("key \u2192 __cart('slug').{key}");
-        helpLabel.style.color = new Color(0.5f, 0.5f, 0.5f);
+        helpLabel.style.color = OneJSEditorDesign.Colors.TextDim;
         helpLabel.style.fontSize = 10;
         helpLabel.style.marginTop = 4;
         container.Add(helpLabel);
@@ -310,7 +311,7 @@ public class UICartridgeEditor : Editor {
 
         if (prop.arraySize == 0) {
             var emptyLabel = new Label("No objects. Click + to add one.");
-            emptyLabel.style.color = new Color(0.5f, 0.5f, 0.5f);
+            emptyLabel.style.color = OneJSEditorDesign.Colors.TextDim;
             emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
             emptyLabel.style.paddingTop = 4;
             emptyLabel.style.paddingBottom = 4;
@@ -345,7 +346,7 @@ public class UICartridgeEditor : Editor {
         var arrow = new Label("\u2192");
         arrow.style.marginLeft = 6;
         arrow.style.marginRight = 6;
-        arrow.style.color = new Color(0.5f, 0.5f, 0.5f);
+        arrow.style.color = OneJSEditorDesign.Colors.TextDim;
         row.Add(arrow);
 
         // Value field
@@ -374,9 +375,9 @@ public class UICartridgeEditor : Editor {
 
     VisualElement CreateSectionContainer(string title) {
         var container = new VisualElement();
-        container.style.backgroundColor = new Color(0.22f, 0.22f, 0.22f);
+        container.style.backgroundColor = OneJSEditorDesign.Colors.ContentBg;
         container.style.SetBorderWidth(1);
-        container.style.SetBorderColor(new Color(0.14f, 0.14f, 0.14f));
+        container.style.SetBorderColor(OneJSEditorDesign.Colors.Border);
         container.style.SetBorderRadius(4);
         container.style.paddingTop = container.style.paddingBottom = 10;
         container.style.paddingLeft = container.style.paddingRight = 12;
@@ -386,7 +387,7 @@ public class UICartridgeEditor : Editor {
         header.style.unityFontStyleAndWeight = FontStyle.Bold;
         header.style.fontSize = 12;
         header.style.marginBottom = 8;
-        header.style.color = new Color(0.9f, 0.9f, 0.9f);
+        header.style.color = Color.white;
         container.Add(header);
 
         return container;
@@ -412,7 +413,7 @@ public class UICartridgeEditor : Editor {
         row.style.marginBottom = 3;
         row.style.paddingTop = row.style.paddingBottom = 3;
         row.style.paddingLeft = row.style.paddingRight = 6;
-        row.style.backgroundColor = new Color(0.18f, 0.18f, 0.18f);
+        row.style.backgroundColor = OneJSEditorDesign.Colors.TabInactive;
         row.style.SetBorderRadius(3);
         return row;
     }
@@ -423,7 +424,7 @@ public class UICartridgeEditor : Editor {
         btn.style.height = 20;
         btn.style.fontSize = 14;
         btn.style.unityFontStyleAndWeight = FontStyle.Bold;
-        btn.style.backgroundColor = new Color(0.2f, 0.4f, 0.3f);
+        btn.style.backgroundColor = OneJSEditorDesign.Colors.CartridgeAddBtn;
         btn.style.SetBorderRadius(3);
         return btn;
     }
@@ -434,7 +435,7 @@ public class UICartridgeEditor : Editor {
         btn.style.height = 18;
         btn.style.marginLeft = 6;
         btn.style.fontSize = 12;
-        btn.style.backgroundColor = new Color(0.4f, 0.2f, 0.2f);
+        btn.style.backgroundColor = OneJSEditorDesign.Colors.CartridgeRemoveBtn;
         btn.style.SetBorderRadius(3);
         return btn;
     }

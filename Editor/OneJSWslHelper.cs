@@ -54,13 +54,16 @@ namespace OneJS.Editor {
         }
 
         /// <summary>
-        /// Builds wsl.exe arguments to run npm in a login shell so that profile
-        /// files where nvm/fnm/n are configured are loaded automatically.
+        /// Builds wsl.exe arguments to run npm in a shell. Sources common profile files
+        /// (.profile, .bashrc, nvm, fnm) so that Node/npm from nvm/fnm are on PATH.
         /// </summary>
         public static string GetWslNpmArguments(string workingDir, string npmArguments) {
             var wslPath = ToWslPath(workingDir);
             var escapedPath = wslPath.Replace("'", "'\\''");
-            return "bash -lc \"cd '" + escapedPath + "' && npm " + npmArguments + "\"";
+            // Login shell may not source .bashrc; nvm/fnm typically live there. Source them explicitly.
+            var source = "source ~/.profile 2>/dev/null; source ~/.bashrc 2>/dev/null; " +
+                "source ~/.nvm/nvm.sh 2>/dev/null; source ~/.fnm/env 2>/dev/null; ";
+            return "bash -lc \"" + source + "cd '" + escapedPath + "' && npm " + npmArguments + "\"";
         }
 
         /// <summary>

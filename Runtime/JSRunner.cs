@@ -50,17 +50,17 @@ public class DefaultFileEntry {
 /// - Auto-scaffolding: Creates project structure on first run
 /// - Live Reload: Polls entry file for changes and hot-reloads
 /// - Hard Reload: Disposes context and recreates fresh on file change
-/// - Zero-config UI: Auto-creates UIDocument (RequireComponent) and PanelSettings
+/// - Zero-config UI: UIDocument is added at runtime; PanelSettings/VisualTreeAsset assigned then.
 ///
 /// Directory structure (for scene "Level1.unity" with JSRunner on "MainUI"):
-///   Assets/Scenes/Level1/MainUI_abc123/MainUI~/  (working dir, ignored by Unity)
+///   Assets/Scenes/Level1/MainUI_abc123/~/  (working dir, ignored by Unity)
+///   Assets/Scenes/Level1/MainUI_abc123/PanelSettings.asset (folder marker)
 ///   Assets/Scenes/Level1/MainUI_abc123/app.js.txt (bundle TextAsset)
 ///
 /// Platform behavior:
 /// - Editor: Loads JS from filesystem with live reload support
 /// - Builds: Loads from embedded TextAsset (auto-generated during build)
 /// </summary>
-[RequireComponent(typeof(UIDocument))]
 public class JSRunner : MonoBehaviour {
     const string DefaultEntryContent = "console.log(\"OneJS is good to go!\");\n";
     const string DefaultBundleFile = "app.js.txt";
@@ -71,13 +71,13 @@ public class JSRunner : MonoBehaviour {
     // Tracks whether initialization has completed (for re-enable handling)
     [SerializeField, HideInInspector] bool _initialized;
 
-    [Tooltip("UIDocument component for the UI. Auto-created at runtime if not assigned.")]
-    [SerializeField] UIDocument _uiDocument;
+    // UIDocument is added at runtime and assigned from _panelSettings/_visualTreeAsset; not shown in editor.
+    UIDocument _uiDocument;
 
-    [Tooltip("PanelSettings asset for the UI. Auto-created in instance folder on first Play mode if not assigned.")]
+    [Tooltip("PanelSettings asset for the UI. Assigned to the runtime UIDocument. Auto-created in instance folder on Initialize if not set.")]
     [SerializeField] PanelSettings _panelSettings;
 
-    [Tooltip("VisualTreeAsset (UXML) for the UI. Auto-created in instance folder on first Play mode if not assigned.")]
+    [Tooltip("VisualTreeAsset (UXML) for the UI. Assigned to the runtime UIDocument. Auto-synced from project folder when Panel Settings is set.")]
     [SerializeField] VisualTreeAsset _visualTreeAsset;
 
     [SerializeField] ThemeStyleSheet _defaultThemeStylesheet;
@@ -91,6 +91,17 @@ public class JSRunner : MonoBehaviour {
 
     [Tooltip("Include source map in build for better error messages")]
     [SerializeField] bool _includeSourceMap = true;
+
+    [Tooltip("Editor-only: show the JSRunner tabs even when Panel Settings is not assigned (for debugging UI).")]
+    [SerializeField, HideInInspector] bool _enableDebugMode;
+
+#if UNITY_EDITOR
+    [ContextMenu("Toggle Dev Mode")]
+    void ToggleDevMode() {
+        _enableDebugMode = !_enableDebugMode;
+        UnityEditor.EditorUtility.SetDirty(this);
+    }
+#endif
 
     // Auto-generated TextAssets (created during build)
     [SerializeField, HideInInspector] TextAsset _bundleAsset;
@@ -141,6 +152,22 @@ public class JSRunner : MonoBehaviour {
     public TextAsset SourceMapAsset => _sourceMapAsset;
 
     /// <summary>
+    /// Set PanelSettings at runtime and sync to the runtime UIDocument. Use this instead of assigning the field when changing from script.
+    /// </summary>
+    public void SetPanelSettings(PanelSettings panelSettings) {
+        _panelSettings = panelSettings;
+        if (_uiDocument != null) _uiDocument.panelSettings = _panelSettings;
+    }
+
+    /// <summary>
+    /// Set VisualTreeAsset at runtime and sync to the runtime UIDocument. Use this instead of assigning the field when changing from script.
+    /// </summary>
+    public void SetVisualTreeAsset(VisualTreeAsset visualTreeAsset) {
+        _visualTreeAsset = visualTreeAsset;
+        if (_uiDocument != null) _uiDocument.visualTreeAsset = _visualTreeAsset;
+    }
+
+    /// <summary>
     /// Unique instance ID for this JSRunner (generated once, persisted).
     /// </summary>
     public string InstanceId {
@@ -185,25 +212,89 @@ public class JSRunner : MonoBehaviour {
     }
 
     /// <summary>
-    /// Instance folder path: {SceneFolder}/{GameObjectName}_{InstanceId}/
+    /// Instance folder path (full filesystem path). Derived from PanelSettings asset path; null when no PanelSettings or when Panel Settings is invalid (so we behave as if not attached).
     /// </summary>
     public string InstanceFolder {
         get {
-            var sceneFolder = SceneFolder;
-            if (string.IsNullOrEmpty(sceneFolder)) return null;
-            return Path.Combine(sceneFolder, $"{gameObject.name}_{InstanceId}");
+#if UNITY_EDITOR
+            if (_panelSettings == null) return null;
+            if (!IsPanelSettingsInValidProjectFolder()) return null;
+            var assetPath = UnityEditor.AssetDatabase.GetAssetPath(_panelSettings);
+            if (string.IsNullOrEmpty(assetPath) || !assetPath.StartsWith("Assets", StringComparison.OrdinalIgnoreCase)) return null;
+            var dir = Path.GetDirectoryName(assetPath);
+            if (string.IsNullOrEmpty(dir)) return null;
+            var normalized = dir.Replace('/', Path.DirectorySeparatorChar);
+            return Path.Combine(ProjectRoot, normalized);
+#else
+            return null;
+#endif
+        }
+    }
+
+#if UNITY_EDITOR
+    /// <summary>
+    /// Instance folder as Unity asset path (relative, forward slashes) for AssetDatabase APIs. Null when Panel Settings is invalid.
+    /// </summary>
+    public string InstanceFolderAssetPath {
+        get {
+            if (_panelSettings == null) return null;
+            if (!IsPanelSettingsInValidProjectFolder()) return null;
+            var assetPath = UnityEditor.AssetDatabase.GetAssetPath(_panelSettings);
+            if (string.IsNullOrEmpty(assetPath)) return null;
+            return Path.GetDirectoryName(assetPath);
         }
     }
 
     /// <summary>
-    /// Working directory path (ignored by Unity due to ~ suffix):
-    /// {InstanceFolder}/{GameObjectName}~/
+    /// Default instance folder path for new projects (scene + GameObject + instanceId). Used when creating folder and assets.
+    /// When useSceneNameAsRootFolder is true (default), folder is created under {SceneDirectory}/{SceneName}/.
+    /// When false, folder is created directly under {SceneDirectory}/ (next to the scene file).
+    /// When this runner is a prefab in the Project (not in a scene), returns a folder next to the prefab asset.
+    /// </summary>
+    string GetDefaultInstanceFolderPath(bool useSceneNameAsRootFolder) {
+        var scenePath = gameObject.scene.path;
+        if (!string.IsNullOrEmpty(scenePath)) {
+            var sceneDir = Path.GetDirectoryName(scenePath);
+            if (string.IsNullOrEmpty(sceneDir)) return null;
+
+            var root = useSceneNameAsRootFolder
+                ? Path.Combine(sceneDir, Path.GetFileNameWithoutExtension(scenePath))
+                : sceneDir;
+
+            return Path.GetFullPath(Path.Combine(ProjectRoot, root.Replace('/', Path.DirectorySeparatorChar), $"{gameObject.name}_{InstanceId}"));
+        }
+
+        // Prefab in Project (not in a scene): create project folder next to the prefab asset
+        var prefabPath = GetPrefabAssetPath();
+        if (string.IsNullOrEmpty(prefabPath) || !prefabPath.StartsWith("Assets", StringComparison.OrdinalIgnoreCase)) return null;
+
+        var prefabDir = Path.GetDirectoryName(prefabPath);
+        if (string.IsNullOrEmpty(prefabDir)) return null;
+
+        var prefabName = Path.GetFileNameWithoutExtension(prefabPath);
+        var relativeDir = Path.Combine(prefabDir, $"{prefabName}_{InstanceId}").Replace('/', Path.DirectorySeparatorChar);
+        return Path.GetFullPath(Path.Combine(ProjectRoot, relativeDir));
+    }
+
+    /// <summary>
+    /// Returns the asset path of the prefab when this runner is a prefab in the Project (not in a scene). Null otherwise.
+    /// </summary>
+    string GetPrefabAssetPath() {
+        var stage = UnityEditor.SceneManagement.PrefabStageUtility.GetPrefabStage(gameObject);
+        if (stage != null && !string.IsNullOrEmpty(stage.prefabAssetPath)) return stage.prefabAssetPath;
+        var path = UnityEditor.AssetDatabase.GetAssetPath(transform.root.gameObject);
+        return !string.IsNullOrEmpty(path) && path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase) ? path : null;
+    }
+#endif
+
+    /// <summary>
+    /// Working directory path (ignored by Unity due to ~ suffix): {InstanceFolder}/~/
     /// </summary>
     public string WorkingDirFullPath {
         get {
             var instanceFolder = InstanceFolder;
             if (string.IsNullOrEmpty(instanceFolder)) return null;
-            return Path.Combine(instanceFolder, $"{gameObject.name}~");
+            return Path.Combine(instanceFolder, "~");
         }
     }
 
@@ -243,29 +334,37 @@ public class JSRunner : MonoBehaviour {
     public string SourceMapAssetPath => SourceMapFilePath;
 
     /// <summary>
-    /// Asset path for the PanelSettings: {InstanceFolder}/PanelSettings.asset
+    /// Asset path for the PanelSettings (Unity relative path for AssetDatabase).
     /// </summary>
     public string PanelSettingsAssetPath {
         get {
-            var instanceFolder = InstanceFolder;
-            if (string.IsNullOrEmpty(instanceFolder)) return null;
-            return Path.Combine(instanceFolder, "PanelSettings.asset");
+#if UNITY_EDITOR
+            var folder = InstanceFolderAssetPath;
+            if (string.IsNullOrEmpty(folder)) return null;
+            return folder + "/PanelSettings.asset";
+#else
+            return null;
+#endif
         }
     }
 
     /// <summary>
-    /// Asset path for the VisualTreeAsset: {InstanceFolder}/UIDocument.uxml
+    /// Asset path for the VisualTreeAsset (Unity relative path for AssetDatabase).
     /// </summary>
     public string VisualTreeAssetPath {
         get {
-            var instanceFolder = InstanceFolder;
-            if (string.IsNullOrEmpty(instanceFolder)) return null;
-            return Path.Combine(instanceFolder, "UIDocument.uxml");
+#if UNITY_EDITOR
+            var folder = InstanceFolderAssetPath;
+            if (string.IsNullOrEmpty(folder)) return null;
+            return folder + "/UIDocument.uxml";
+#else
+            return null;
+#endif
         }
     }
 
     /// <summary>
-    /// Whether the scene is saved and paths are valid.
+    /// True when this runner is in a saved scene; false when it is a prefab in the Project (not placed in a scene).
     /// </summary>
     public bool IsSceneSaved => !string.IsNullOrEmpty(gameObject.scene.path);
 
@@ -294,6 +393,70 @@ public class JSRunner : MonoBehaviour {
         UnityEditor.EditorUtility.SetDirty(this);
     }
 
+
+    /// <summary>
+    /// Ensures project folder and PanelSettings/VisualTreeAsset exist. Creates folder and assets when PanelSettings not set.
+    /// PanelSettings is the single marker for the project folder (no separate ProjectConfig).
+    /// </summary>
+    public void EnsureProjectFolderAndAssets(bool useSceneNameAsRootFolder = true) {
+        if (_panelSettings != null) return;
+
+        var instanceFolder = GetDefaultInstanceFolderPath(useSceneNameAsRootFolder);
+        if (string.IsNullOrEmpty(instanceFolder)) return;
+
+        if (!Directory.Exists(instanceFolder)) {
+            Directory.CreateDirectory(instanceFolder);
+            var workingDir = Path.Combine(instanceFolder, "~");
+            Directory.CreateDirectory(workingDir);
+            Debug.Log($"[JSRunner] Created working directory: {workingDir}");
+        } else {
+            var oldWorkingDir = Path.Combine(instanceFolder, $"{gameObject.name}~");
+            var newWorkingDir = Path.Combine(instanceFolder, "~");
+            if (Directory.Exists(oldWorkingDir) && !string.Equals(oldWorkingDir, newWorkingDir, StringComparison.OrdinalIgnoreCase)) {
+                try {
+                    Directory.Move(oldWorkingDir, newWorkingDir);
+                    Debug.Log($"[JSRunner] Migrated working directory to ~");
+                } catch (Exception ex) {
+                    Debug.LogWarning($"[JSRunner] Could not rename {gameObject.name}~ to ~: {ex.Message}");
+                }
+            } else if (!Directory.Exists(newWorkingDir)) {
+                Directory.CreateDirectory(newWorkingDir);
+            }
+        }
+
+        var relativeDir = Path.GetRelativePath(ProjectRoot, instanceFolder).Replace(Path.DirectorySeparatorChar, '/');
+        var psAssetPath = relativeDir + "/PanelSettings.asset";
+        var existingPS = UnityEditor.AssetDatabase.LoadAssetAtPath<PanelSettings>(psAssetPath);
+        if (existingPS != null) {
+            _panelSettings = existingPS;
+            UnityEditor.EditorUtility.SetDirty(this);
+            SyncVisualTreeAssetFromPanelSettingsFolder();
+            EnsureUIDocumentInEditor();
+            return;
+        }
+
+        var ps = ScriptableObject.CreateInstance<PanelSettings>();
+        ps.scaleMode = PanelScaleMode.ScaleWithScreenSize;
+        ps.referenceResolution = new Vector2Int(1920, 1080);
+        ps.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight;
+        ps.match = 0.5f;
+        if (_defaultThemeStylesheet != null) ps.themeStyleSheet = _defaultThemeStylesheet;
+        UnityEditor.AssetDatabase.CreateAsset(ps, psAssetPath);
+        _panelSettings = ps;
+
+        var uxmlPath = Path.Combine(instanceFolder, "UIDocument.uxml");
+        var uxmlContent = @"<ui:UXML xmlns:ui=""UnityEngine.UIElements"">
+</ui:UXML>";
+        File.WriteAllText(uxmlPath, uxmlContent);
+        var vtaAssetPath = relativeDir + "/UIDocument.uxml";
+        UnityEditor.AssetDatabase.ImportAsset(vtaAssetPath);
+        _visualTreeAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(vtaAssetPath);
+
+        UnityEditor.EditorUtility.SetDirty(this);
+        UnityEditor.AssetDatabase.SaveAssets();
+        EnsureUIDocumentInEditor();
+        Debug.Log($"[JSRunner] Created project folder and PanelSettings: {psAssetPath}");
+    }
 
     /// <summary>
     /// Creates a default PanelSettings asset in the instance folder.
@@ -349,11 +512,11 @@ public class JSRunner : MonoBehaviour {
         var uxmlContent = @"<ui:UXML xmlns:ui=""UnityEngine.UIElements"">
 </ui:UXML>";
 
-        // Write UXML file
-        var assetPath = VisualTreeAssetPath;
-        File.WriteAllText(assetPath, uxmlContent);
+        // Write UXML file (full path for filesystem)
+        var uxmlFullPath = Path.Combine(instanceFolder, "UIDocument.uxml");
+        File.WriteAllText(uxmlFullPath, uxmlContent);
 
-        // Import the asset
+        var assetPath = VisualTreeAssetPath;
         UnityEditor.AssetDatabase.ImportAsset(assetPath);
 
         // Load and assign the VisualTreeAsset
@@ -369,8 +532,6 @@ public class JSRunner : MonoBehaviour {
     /// Returns true if scaffolding was performed (first-time setup).
     /// </summary>
     public bool EnsureProjectSetup() {
-        if (!IsSceneSaved) return false;
-
         var workingDir = WorkingDirFullPath;
         var instanceFolder = InstanceFolder;
 
@@ -470,6 +631,26 @@ public class JSRunner : MonoBehaviour {
             return File.Exists(Path.Combine(workingDir, "package.json"));
         }
     }
+
+    /// <summary>
+    /// True when PanelSettings is assigned and its folder is a valid project folder:
+    /// the folder contains a "~" subfolder or an "app.js" / "app.js.txt" file.
+    /// When false, we behave as if Panel Settings is not attached (no paths, no file creation).
+    /// </summary>
+    public bool IsPanelSettingsInValidProjectFolder() {
+        if (_panelSettings == null) return false;
+        var assetPath = UnityEditor.AssetDatabase.GetAssetPath(_panelSettings);
+        if (string.IsNullOrEmpty(assetPath) || !assetPath.StartsWith("Assets", StringComparison.OrdinalIgnoreCase)) return false;
+        var dir = Path.GetDirectoryName(assetPath);
+        if (string.IsNullOrEmpty(dir)) return false;
+        var normalized = dir.Replace('/', Path.DirectorySeparatorChar);
+        var instanceFolder = Path.Combine(ProjectRoot, normalized);
+        if (string.IsNullOrEmpty(instanceFolder) || !Directory.Exists(instanceFolder)) return false;
+        var tildeDir = Path.Combine(instanceFolder, "~");
+        var appJs = Path.Combine(instanceFolder, "app.js");
+        var appJsTxt = Path.Combine(instanceFolder, "app.js.txt");
+        return Directory.Exists(tildeDir) || File.Exists(appJs) || File.Exists(appJsTxt);
+    }
 #endif
 
     // Type Generation properties
@@ -489,31 +670,42 @@ public class JSRunner : MonoBehaviour {
     }
 #endif
 
+    /// <summary>
+    /// Gets or adds UIDocument at runtime and assigns PanelSettings/VisualTreeAsset. No UIDocument in editor.
+    /// </summary>
+    bool EnsureUIDocument() {
+        if (_uiDocument == null) {
+            _uiDocument = GetComponent<UIDocument>();
+            if (_uiDocument == null) {
+                _uiDocument = gameObject.AddComponent<UIDocument>();
+            }
+        }
+#if UNITY_EDITOR
+        bool valid = _panelSettings != null && IsPanelSettingsInValidProjectFolder();
+        if (!valid) return false;
+        if (_uiDocument.panelSettings != _panelSettings)
+            _uiDocument.panelSettings = _panelSettings;
+        if (_visualTreeAsset != null && _uiDocument.visualTreeAsset != _visualTreeAsset)
+            _uiDocument.visualTreeAsset = _visualTreeAsset;
+#else
+        if (_panelSettings != null && _uiDocument.panelSettings != _panelSettings)
+            _uiDocument.panelSettings = _panelSettings;
+        if (_visualTreeAsset != null && _uiDocument.visualTreeAsset != _visualTreeAsset)
+            _uiDocument.visualTreeAsset = _visualTreeAsset;
+#endif
+        return _uiDocument != null && _uiDocument.rootVisualElement != null;
+    }
+
     void Start() {
         try {
-            // Get UIDocument (created by RequireComponent)
-            if (_uiDocument == null) {
-                _uiDocument = GetComponent<UIDocument>();
-            }
-
-            if (_uiDocument == null) {
-                Debug.LogError("[JSRunner] UIDocument component not found");
+#if UNITY_EDITOR
+            if (_panelSettings != null && !IsPanelSettingsInValidProjectFolder()) {
+                Debug.LogError("[JSRunner] Panel Settings is not valid: its folder must contain a '~' subfolder or an 'app.js' file. Assign a PanelSettings from a valid project folder or use Initialize.");
                 return;
             }
-
-            // Ensure PanelSettings is assigned
-            if (_uiDocument.panelSettings == null && _panelSettings != null) {
-                _uiDocument.panelSettings = _panelSettings;
-            }
-
-            // Ensure VisualTreeAsset is assigned
-            if (_uiDocument.visualTreeAsset == null && _visualTreeAsset != null) {
-                _uiDocument.visualTreeAsset = _visualTreeAsset;
-            }
-
-            // Verify we have a valid root element
-            if (_uiDocument.rootVisualElement == null) {
-                Debug.LogError("[JSRunner] UIDocument rootVisualElement is null");
+#endif
+            if (!EnsureUIDocument()) {
+                Debug.LogError("[JSRunner] UIDocument could not be created or rootVisualElement is null. Assign PanelSettings and VisualTreeAsset (e.g. via Initialize).");
                 return;
             }
 
@@ -579,54 +771,37 @@ public class JSRunner : MonoBehaviour {
 
 #if UNITY_EDITOR
     void InitializeEditor() {
-        // Check if scene is saved
         if (!IsSceneSaved) {
             Debug.LogError("[JSRunner] Scene must be saved before JSRunner can initialize. Save the scene and enter Play mode again.");
             return;
         }
 
-        // Auto-create or load PanelSettings asset if not assigned
+        // Only run when project was initialized (PanelSettings marks the folder)
         if (_panelSettings == null) {
-            var psPath = PanelSettingsAssetPath;
-            var existingPS = UnityEditor.AssetDatabase.LoadAssetAtPath<PanelSettings>(psPath);
-            if (existingPS != null) {
-                // Found existing asset, use it
-                _panelSettings = existingPS;
-                UnityEditor.EditorUtility.SetDirty(this);
-            } else {
-                // Create new PanelSettings asset
-                CreateDefaultPanelSettingsAsset();
-            }
+            return;
         }
 
-        // Auto-create or load VisualTreeAsset if not assigned
+        // When Panel Settings is not valid (folder has no ~ or app.js), do nothing in Play mode
+        if (!IsPanelSettingsInValidProjectFolder()) {
+            return;
+        }
+
+        // Sync VisualTreeAsset from PanelSettings folder if not already set
         if (_visualTreeAsset == null) {
             var vtaPath = VisualTreeAssetPath;
-            var existingVTA = UnityEditor.AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(vtaPath);
-            if (existingVTA != null) {
-                // Found existing asset, use it
-                _visualTreeAsset = existingVTA;
-                UnityEditor.EditorUtility.SetDirty(this);
-            } else {
-                // Create new VisualTreeAsset
-                CreateDefaultVisualTreeAsset();
+            if (!string.IsNullOrEmpty(vtaPath)) {
+                var existingVTA = UnityEditor.AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(vtaPath);
+                if (existingVTA != null) {
+                    _visualTreeAsset = existingVTA;
+                    UnityEditor.EditorUtility.SetDirty(this);
+                } else {
+                    CreateDefaultVisualTreeAsset();
+                }
             }
         }
 
-        // Ensure UIDocument reference is set
-        if (_uiDocument == null) {
-            _uiDocument = GetComponent<UIDocument>();
-        }
-
-        // Ensure PanelSettings is assigned to UIDocument
-        if (_uiDocument != null && _uiDocument.panelSettings == null && _panelSettings != null) {
-            _uiDocument.panelSettings = _panelSettings;
-        }
-
-        // Ensure VisualTreeAsset is assigned to UIDocument
-        if (_uiDocument != null && _uiDocument.visualTreeAsset == null && _visualTreeAsset != null) {
-            _uiDocument.visualTreeAsset = _visualTreeAsset;
-        }
+        // UIDocument is added at runtime and assigned from _panelSettings/_visualTreeAsset
+        EnsureUIDocument();
 
         var workingDir = WorkingDirFullPath;
         var entryFile = EntryFileFullPath;
@@ -642,17 +817,14 @@ public class JSRunner : MonoBehaviour {
             Debug.Log($"[JSRunner] Created working directory: {workingDir}");
         }
 
-        // Scaffold any missing default files
-        ScaffoldDefaultFiles();
-
-        // Extract cartridge files
-        ExtractCartridges();
-
-        // Ensure entry file exists (fallback if not in defaultFiles)
-        EnsureEntryFile();
-
-        // Refresh AssetDatabase so new folders/files appear in Project panel
-        UnityEditor.AssetDatabase.Refresh();
+        // Skip scaffolding/npm when already initialized (e.g. via Initialize button); just load and run
+        bool alreadyInitialized = HasPackageJson && HasNodeModules && File.Exists(entryFile);
+        if (!alreadyInitialized) {
+            ScaffoldDefaultFiles();
+            ExtractCartridges();
+            EnsureEntryFile();
+            UnityEditor.AssetDatabase.Refresh();
+        }
 
         // Initialize bridge and run script
         InitializeBridge();
@@ -1095,30 +1267,79 @@ public class JSRunner : MonoBehaviour {
     /// Auto-creates PanelSettings, configures UIDocument, and populates default files.
     /// </summary>
     void Reset() {
-        // Get UIDocument (created by RequireComponent)
-        _uiDocument = GetComponent<UIDocument>();
-
-        // Create PanelSettings if scene is saved
-        if (IsSceneSaved && _panelSettings == null) {
-            CreateDefaultPanelSettingsAsset();
-        }
-
-        // Create VisualTreeAsset if scene is saved
-        if (IsSceneSaved && _visualTreeAsset == null) {
-            CreateDefaultVisualTreeAsset();
-        }
-
-        // Assign PanelSettings to UIDocument
-        if (_uiDocument != null && _panelSettings != null && _uiDocument.panelSettings == null) {
-            _uiDocument.panelSettings = _panelSettings;
-        }
-
-        // Assign VisualTreeAsset to UIDocument
-        if (_uiDocument != null && _visualTreeAsset != null && _uiDocument.visualTreeAsset == null) {
-            _uiDocument.visualTreeAsset = _visualTreeAsset;
-        }
-
+        // UIDocument is added at runtime only. Project folder and PanelSettings are created when user clicks Initialize.
         PopulateDefaultFiles();
+    }
+
+    /// <summary>
+    /// When PanelSettings is assigned or cleared, sync VisualTreeAsset from the same folder.
+    /// In editor: add UIDocument with populated Panel Settings and Visual Tree when assigned; remove UIDocument when cleared.
+    /// In Play mode: push to UIDocument so both use the same assets.
+    /// </summary>
+    void OnValidate() {
+        bool shouldUsePanelSettings = _panelSettings != null && IsPanelSettingsInValidProjectFolder();
+        if (_panelSettings == null || !shouldUsePanelSettings) {
+            if (_panelSettings == null && _visualTreeAsset != null) {
+                _visualTreeAsset = null;
+                UnityEditor.EditorUtility.SetDirty(this);
+            }
+            // Remove UIDocument when Panel Settings is cleared or invalid (deferred so removal isn't ignored during OnValidate)
+            if (!Application.isPlaying) {
+                var ud = GetComponent<UIDocument>();
+                if (ud != null) {
+                    var toRemove = ud;
+                    UnityEditor.EditorApplication.delayCall += () => {
+                        if (toRemove != null && (_panelSettings == null || !IsPanelSettingsInValidProjectFolder()))
+                            UnityEditor.Undo.DestroyObjectImmediate(toRemove);
+                    };
+                }
+            }
+            if (!shouldUsePanelSettings) return;
+        }
+        SyncVisualTreeAssetFromPanelSettingsFolder();
+        var udoc = GetComponent<UIDocument>();
+        if (Application.isPlaying) {
+            if (udoc != null && shouldUsePanelSettings) {
+                udoc.panelSettings = _panelSettings;
+                udoc.visualTreeAsset = _visualTreeAsset;
+            }
+        } else {
+            // Defer so we never AddComponent during OnValidate (SendMessage not allowed there)
+            UnityEditor.EditorApplication.delayCall += () => {
+                if (this == null) return;
+                if (_panelSettings != null && IsPanelSettingsInValidProjectFolder())
+                    EnsureUIDocumentInEditor();
+            };
+        }
+    }
+
+    /// <summary>Adds UIDocument if missing and syncs Panel Settings / Visual Tree. Call after assigning _panelSettings (e.g. from Initialize). Only runs when Panel Settings is in a valid project folder.</summary>
+    void EnsureUIDocumentInEditor() {
+        if (_panelSettings == null || !IsPanelSettingsInValidProjectFolder()) return;
+        SyncVisualTreeAssetFromPanelSettingsFolder();
+        var udoc = GetComponent<UIDocument>();
+        if (udoc == null)
+            udoc = UnityEditor.Undo.AddComponent<UIDocument>(gameObject);
+        if (udoc != null && (udoc.panelSettings != _panelSettings || udoc.visualTreeAsset != _visualTreeAsset)) {
+            UnityEditor.Undo.RecordObject(udoc, "Sync UIDocument to Panel Settings");
+            udoc.panelSettings = _panelSettings;
+            udoc.visualTreeAsset = _visualTreeAsset;
+            UnityEditor.EditorUtility.SetDirty(udoc);
+        }
+    }
+
+    void SyncVisualTreeAssetFromPanelSettingsFolder() {
+        if (_panelSettings == null) return;
+        var assetPath = UnityEditor.AssetDatabase.GetAssetPath(_panelSettings);
+        if (string.IsNullOrEmpty(assetPath)) return;
+        var folder = Path.GetDirectoryName(assetPath).Replace('\\', '/');
+        if (string.IsNullOrEmpty(folder)) return;
+        var vtaPath = folder + "/UIDocument.uxml";
+        var vta = UnityEditor.AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(vtaPath);
+        if (_visualTreeAsset != vta) {
+            _visualTreeAsset = vta;
+            UnityEditor.EditorUtility.SetDirty(this);
+        }
     }
 
     /// <summary>
