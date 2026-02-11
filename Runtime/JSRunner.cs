@@ -1079,6 +1079,11 @@ public class JSRunner : MonoBehaviour {
             return;
         }
 
+        if (_uiDocument == null || _uiDocument.rootVisualElement == null) {
+            Debug.LogWarning("[JSRunner] Reload skipped: UIDocument or rootVisualElement is null");
+            return;
+        }
+
         try {
             // 0. Clean up GameObjects created by JS (if Janitor enabled)
             if (_enableJanitor && _janitor != null) {
@@ -1107,9 +1112,17 @@ public class JSRunner : MonoBehaviour {
             _lastReloadTime = DateTime.Now;
             _reloadCount++;
             Debug.Log($"[JSRunner] Reloaded ({_reloadCount})");
+
+            // Force Game view repaint so edit-mode preview updates immediately
+            if (_editModePreviewActive)
+                UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
         } catch (Exception ex) {
             var message = TranslateErrorMessage(ex.Message);
             Debug.LogError($"[JSRunner] Reload failed: {message}");
+            // If edit-mode preview is active, stop it to avoid a broken state
+            // (bridge may be disposed but EditModeTick still firing)
+            if (_editModePreviewActive)
+                StopEditModePreview();
         }
     }
 
@@ -1202,7 +1215,7 @@ public class JSRunner : MonoBehaviour {
     }
 
     void EditModeTick() {
-        if (!_editModePreviewActive || _bridge == null) return;
+        if (this == null || !_editModePreviewActive || _bridge == null) return;
         if (Application.isPlaying) {
             // PlayMode started - stop edit-mode preview, Start() will take over
             StopEditModePreview();
