@@ -138,6 +138,9 @@ namespace OneJS.Dom {
         }
 
         public void clearCache() {
+            foreach (var tex in _imageCache.Values) {
+                if (tex != null) Object.Destroy(tex);
+            }
             _imageCache.Clear();
             _fontCache.Clear();
             _fontDefinitionCache.Clear();
