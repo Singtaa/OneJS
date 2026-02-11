@@ -500,12 +500,42 @@ function callStatic(typeName, methodName, ...args) {
     return __wrapResultFromCs(typeName, raw);
 }
 
+/**
+ * Register a JS function as a native callback with argument wrapping.
+ * Returns the callback handle (slot index), or -1 on WebGL/fallback.
+ * Use __freeDelegateCallback to release when no longer needed.
+ */
+function __createDelegateCallback(fn) {
+    if (typeof fn !== "function" || typeof __registerCallback !== "function") return -1;
+    const wrappedCallback = function(...args) {
+        const wrappedArgs = args.map(arg => {
+            if (arg && typeof arg === "object" && arg.__csHandle) {
+                return __wrapObject(arg.__csType || "", arg.__csHandle);
+            }
+            return arg;
+        });
+        return fn.apply(this, wrappedArgs);
+    };
+    return __registerCallback(wrappedCallback);
+}
+
+/**
+ * Free a native callback handle previously created by __createDelegateCallback.
+ */
+function __freeDelegateCallback(handle) {
+    if (typeof handle === "number" && handle >= 0 && typeof __unregisterCallback === "function") {
+        __unregisterCallback(handle);
+    }
+}
+
 globalThis.__csHelpers = {
     newObject,
     callMethod,
     callStatic,
     wrapObject: __wrapObject,
-    releaseObject
+    releaseObject,
+    createDelegateCallback: __createDelegateCallback,
+    freeDelegateCallback: __freeDelegateCallback
 };
 
 /**
