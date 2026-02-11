@@ -369,11 +369,6 @@ public class JSRunner : MonoBehaviour {
     public bool IsSceneSaved => !string.IsNullOrEmpty(gameObject.scene.path);
 
     /// <summary>
-    /// True when this runner is in a scene (saved). False when it is a prefab asset only (in Project hierarchy, not in a scene).
-    /// </summary>
-    public bool IsInScene => IsSceneSaved;
-
-    /// <summary>
     /// Set the bundle TextAsset (called by build processor).
     /// </summary>
     public void SetBundleAsset(TextAsset asset) {
@@ -791,31 +786,17 @@ public class JSRunner : MonoBehaviour {
             return;
         }
 
-        // Auto-create or load PanelSettings asset if not assigned
-        if (_panelSettings == null) {
-            var psPath = PanelSettingsAssetPath;
-            var existingPS = UnityEditor.AssetDatabase.LoadAssetAtPath<PanelSettings>(psPath);
-            if (existingPS != null) {
-                // Found existing asset, use it
-                _panelSettings = existingPS;
-                UnityEditor.EditorUtility.SetDirty(this);
-            } else {
-                // Create new PanelSettings asset
-                CreateDefaultPanelSettingsAsset();
-            }
-        }
-
-        // Auto-create or load VisualTreeAsset if not assigned
+        // Sync VisualTreeAsset from PanelSettings folder if not already set
         if (_visualTreeAsset == null) {
             var vtaPath = VisualTreeAssetPath;
-            var existingVTA = UnityEditor.AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(vtaPath);
-            if (existingVTA != null) {
-                // Found existing asset, use it
-                _visualTreeAsset = existingVTA;
-                UnityEditor.EditorUtility.SetDirty(this);
-            } else {
-                // Create new VisualTreeAsset
-                CreateDefaultVisualTreeAsset();
+            if (!string.IsNullOrEmpty(vtaPath)) {
+                var existingVTA = UnityEditor.AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(vtaPath);
+                if (existingVTA != null) {
+                    _visualTreeAsset = existingVTA;
+                    UnityEditor.EditorUtility.SetDirty(this);
+                } else {
+                    CreateDefaultVisualTreeAsset();
+                }
             }
         }
 
@@ -931,6 +912,10 @@ public class JSRunner : MonoBehaviour {
 
         // Inject platform defines before any user code runs
         InjectPlatformDefines();
+
+        // Expose the working directory to JS for asset path resolution
+        var escapedWorkingDir = CartridgeUtils.EscapeJsString(_bridge.WorkingDir);
+        _bridge.Eval($"globalThis.__workingDir = '{escapedWorkingDir}'");
 
         // Expose the root element to JS as globalThis.__root
         var rootHandle = QuickJSNative.RegisterObject(_uiDocument.rootVisualElement);

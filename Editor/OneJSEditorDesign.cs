@@ -131,7 +131,7 @@ public static class OneJSEditorDesign {
         public const string Watcher = "Watcher: ";
         public const string WatcherStarting = "Starting...";
         public const string WatcherIdle = "Idle (enter Play Mode to run)";
-        public const string NonInitializedYet = "non initialized yet";
+        public const string NonInitializedYet = "Not initialized yet";
 
         // --- Misc ---
         public const string ProjectFolder = "Project Folder: ";
