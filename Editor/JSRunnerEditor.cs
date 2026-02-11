@@ -1796,7 +1796,7 @@ public class JSRunnerEditor : Editor
 
     void RunInitializeProject() {
         if (!_target.IsSceneSaved) {
-            Debug.LogWarning("[JSRunner] Save the scene before initializing.");
+            Debug.LogWarning("[JSRunner] Place the prefab in a scene before initializing the project.");
             return;
         }
         Undo.RecordObject(_target, "JSRunner Initialize Project");
