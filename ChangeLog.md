@@ -1,4 +1,11 @@
-﻿# [2025-11-30] v2.3.3 - Bug Fixes
+﻿# [2026-02-11] v2.3.4
+
+- Fixed memory leaks in `Resource` (added caching for images, fonts, and font definitions)
+- Fixed `Document.clearCache()` not destroying cached `Texture2D` objects (GPU memory leak)
+- CoroutineUtil Instance fix
+- WebGL PuerTS tweak for Unity 6.3 (robust WASM table lookup, `updateMemoryViews` hook)
+
+# [2025-11-30] v2.3.3 - Bug Fixes
 
 - Make Sample code to use "PhysicMaterial" for pre Unity 6 versions
 - Guard Coroutine Eval in Runner
