@@ -52,7 +52,7 @@ When fully initialized, the inspector shows four tabs:
 
 ### Actions
 
-- **Reload** - Force reload the JavaScript runtime (Play mode only)
+- **Reload** - Force reload the JavaScript runtime (works in both Play mode and edit-mode preview)
 - **Rebuild** - Delete node_modules, reinstall dependencies, and rebuild
 - **Open Folder** - Open working directory in file explorer
 - **Open Terminal** - Open terminal at working directory

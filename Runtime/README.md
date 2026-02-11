@@ -89,11 +89,42 @@ A PanelSettings folder is considered **valid** when it contains:
 
 When PanelSettings points to a folder that doesn't meet this criteria, the inspector shows a "Not Valid" status and hides the project tabs.
 
+### Edit-Mode Preview (Editor Only)
+
+JSRunner supports rendering UI in the Game view **without entering Play mode**. This is driven by `[ExecuteAlways]` (conditionally applied via `#if UNITY_EDITOR`) and `EditorApplication.update`.
+
+**How it works:**
+1. When JSRunner is enabled in edit mode and has a valid PanelSettings + built entry file, it automatically starts the preview
+2. The existing `InitializeBridge()` → `RunScript()` path is reused — no separate code path
+3. A 30Hz tick via `EditorApplication.update` drives `bridge.Tick()` and `CheckForFileChanges()`
+4. Live reload works in edit mode (file changes trigger `Reload()`)
+
+**Lifecycle:**
+| Event | Action |
+|-------|--------|
+| `OnEnable()` (edit mode) | `delayCall` → `TryStartEditModePreview()` |
+| `OnDisable()` (edit mode) | `StopEditModePreview()` — unregisters tick, disposes bridge, clears UI |
+| Domain reload | `OnDisable` → reload → `OnEnable` → reinit from scratch |
+| Enter Play mode | `EditModeTick()` detects `isPlaying` → stops preview; `Start()` takes over |
+| Exit Play mode | `OnEnable()` → `delayCall` → restarts preview |
+
+**Key implementation details:**
+- `EditorApplication.delayCall` defers init until UIDocument panel settles after domain reload
+- `QueuePlayerLoopUpdate()` forces Game view repaint on initial render and after live reload
+- `Update()` and `Start()` are guarded with `if (!Application.isPlaying) return;`
+- Reload failures in edit mode call `StopEditModePreview()` to prevent broken state
+
+**Public API:**
+```csharp
+bool IsEditModePreviewActive { get; }  // Whether edit-mode preview is currently running
+```
+
 ### Platform Behavior
 
 | Context | JS Loading | Live Reload |
 |---------|------------|-------------|
-| Editor | From disk (working directory) | Yes (polling) |
+| Editor (Play mode) | From disk (working directory) | Yes (polling) |
+| Editor (Edit mode) | From disk (edit-mode preview) | Yes (polling, 30Hz tick) |
 | Standalone/Mobile | TextAsset (auto-created during build) | No |
 | WebGL | TextAsset embedded in build | No |
 
@@ -212,6 +243,7 @@ For standalone/mobile builds, JSRunner loads from a TextAsset:
 // Properties
 bool IsRunning { get; }
 bool IsLiveReloadEnabled { get; }
+bool IsEditModePreviewActive { get; }  // Editor only
 int ReloadCount { get; }
 DateTime LastModifiedTime { get; }
 
@@ -436,6 +468,22 @@ __cleanupHandle(handle);     // Called before releasing to C#
 ```
 
 This prevents memory leaks where stale event handlers could accumulate for destroyed UI elements.
+
+### Delegate Handle Tracking (QuickJSBootstrap.js)
+When JS functions are assigned to C# delegate properties (e.g., `element.generateVisualContent = callback`), the bootstrap's `__resolveValue` registers a native callback slot. Without tracking, reassigning the delegate leaks the old slot, eventually filling the fixed-size native callback table (4096 slots).
+
+**Solution**: A `__delegateHandleMap` (Map) tracks callback handles keyed by `"{objectHandle}:{propertyName}"` for instance properties and `"s:{typeName}:{propertyName}"` for static properties. The proxy `set` handler frees the old handle before resolving the new value.
+
+**Cleanup paths:**
+- **Reassignment**: Proxy setter frees old handle, stores new handle
+- **Object release**: `__cleanupHandle(handle)` iterates the map and frees all delegate handles with matching object handle prefix
+- **Context dispose**: Entire map is cleared when the QuickJS context is destroyed
+
+**Native callback table:**
+- Fixed 4096-slot array (`QJS_MAX_CALLBACKS`) in `quickjs_unity.c`
+- `__registerCallback(fn)` → returns slot index
+- `__unregisterCallback(handle)` → frees slot for reuse
+- "callback table full" error means all slots are occupied (indicates a leak)
 
 ### Double-Free Prevention (QuickJSBootstrap.js)
 The `FinalizationRegistry` callback can race with manual `releaseObject()` calls. A tracking Set prevents double-free:
