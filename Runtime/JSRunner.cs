@@ -1135,15 +1135,10 @@ public class JSRunner : MonoBehaviour {
         try {
             if (!File.Exists(EntryFileFullPath)) return;
 
-            // Fast path: check mtime first (no I/O beyond stat)
-            var currentModTime = File.GetLastWriteTime(EntryFileFullPath);
-            if (currentModTime == _lastModifiedTime) return;
-
-            // mtime changed - compute content hash to detect actual changes
+            // Content hash is the source of truth for detecting changes.
+            // mtime is unreliable on Windows (NTFS tunneling can return stale timestamps
+            // when files are deleted and recreated, which is how esbuild writes output).
             var currentHash = ComputeFileHash(EntryFileFullPath);
-            _lastModifiedTime = currentModTime;
-
-            // Skip reload if content unchanged (e.g., esbuild rebuild with same output)
             if (currentHash == _lastContentHash) return;
 
             _lastContentHash = currentHash;
