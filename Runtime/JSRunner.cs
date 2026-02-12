@@ -1039,7 +1039,10 @@ public class JSRunner : MonoBehaviour {
     /// </summary>
     static string ComputeFileHash(string filePath) {
         using var md5 = System.Security.Cryptography.MD5.Create();
-        using var stream = File.OpenRead(filePath);
+        // Use FileShare.ReadWrite so we can read even when another process (esbuild, Unity
+        // asset importer) has the file open for writing. File.OpenRead uses FileShare.Read
+        // which fails on Windows when a write handle is held by another process.
+        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         var hash = md5.ComputeHash(stream);
         return BitConverter.ToString(hash);
     }
