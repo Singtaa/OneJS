@@ -20,9 +20,10 @@ namespace OneJS.Editor {
             All = 1
         }
 
-        const string SceneUpdateModePrefKey = "OneJS.EditMode.UpdateMode.Scene";
-        const string GameUpdateModePrefKey = "OneJS.EditMode.UpdateMode.Game";
+        const string SceneUpdateModePrefKey = "OneJS.EditMode.SceneUpdateMode";
+        const string GameUpdateModePrefKey = "OneJS.EditMode.GameUpdateMode";
         static readonly Type GameViewType = typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView");
+        static Camera _lastRenderedGameCamera;
         static int _cachedFrustumFrame = -1;
         static Camera _cachedFrustumCamera;
         static Plane[] _cachedFrustumPlanes;
@@ -50,23 +51,32 @@ namespace OneJS.Editor {
         }
 
         static OneJSOverlayUpdateModeBridge() {
-            JSRunner.EditModeUpdateFilter = ShouldUpdateInEditMode;
-            JSRunner.PlayModeUpdateFilter = ShouldUpdateInPlayMode;
+            JSRunner.EditModeUpdateFilter = ShouldUpdateRunnerInEditMode;
+            JSRunner.PlayModeUpdateFilter = ShouldUpdateRunnerInPlayMode;
+            Camera.onPreCull -= OnCameraPreCull;
+            Camera.onPreCull += OnCameraPreCull;
         }
 
-        static bool ShouldUpdateInEditMode(JSRunner runner) {
+        static void OnCameraPreCull(Camera camera) {
+            if (camera == null || camera.cameraType != CameraType.Game) return;
+            if (!camera.enabled || !camera.gameObject.activeInHierarchy) return;
+            _lastRenderedGameCamera = camera;
+        }
+
+        static bool ShouldUpdateRunnerInEditMode(JSRunner runner) {
             if (runner == null) return false;
-            return IsGameViewFocused()
-                ? ShouldUpdateForGameMode(runner)
-                : ShouldUpdateForSceneMode(runner);
+            if (IsGameViewFocused()) {
+                return EvaluateGameMode(runner);
+            }
+            return EvaluateSceneMode(runner);
         }
 
-        static bool ShouldUpdateInPlayMode(JSRunner runner) {
+        static bool ShouldUpdateRunnerInPlayMode(JSRunner runner) {
             if (runner == null) return false;
-            return ShouldUpdateForGameMode(runner);
+            return EvaluateGameMode(runner);
         }
 
-        static bool ShouldUpdateForSceneMode(JSRunner runner) {
+        static bool EvaluateSceneMode(JSRunner runner) {
             switch (CurrentSceneMode) {
                 case SceneUpdateMode.None:
                     return false;
@@ -78,7 +88,7 @@ namespace OneJS.Editor {
             }
         }
 
-        static bool ShouldUpdateForGameMode(JSRunner runner) {
+        static bool EvaluateGameMode(JSRunner runner) {
             switch (CurrentGameMode) {
                 case GameUpdateMode.All:
                     return true;
@@ -101,22 +111,28 @@ namespace OneJS.Editor {
         }
 
         static Camera GetGameViewCamera() {
-            return Camera.main != null ? Camera.main : Camera.current;
+            var main = Camera.main;
+            if (main != null && main.enabled && main.gameObject.activeInHierarchy) {
+                return main;
+            }
+            if (_lastRenderedGameCamera != null && _lastRenderedGameCamera.enabled && _lastRenderedGameCamera.gameObject.activeInHierarchy) {
+                return _lastRenderedGameCamera;
+            }
+            return null;
         }
 
         static bool IsRunnerVisibleInCamera(JSRunner runner, Camera camera) {
             if (runner == null) return false;
-            if (camera == null || !camera.enabled || !camera.gameObject.activeInHierarchy) {
-                // If we cannot resolve a valid camera, do not block updates.
-                return true;
-            }
+            if (camera == null) return true;
 
             var frustumPlanes = GetCachedFrustumPlanes(camera);
             if (frustumPlanes == null) return true;
 
             var runnerGameObject = runner.gameObject;
             if (runnerGameObject.TryGetComponent<Renderer>(out var renderer) && renderer.enabled && runnerGameObject.activeInHierarchy) {
-                return GeometryUtility.TestPlanesAABB(frustumPlanes, renderer.bounds);
+                if (GeometryUtility.TestPlanesAABB(frustumPlanes, renderer.bounds)) {
+                    return true;
+                }
             }
 
             var viewportPoint = camera.WorldToViewportPoint(runner.transform.position);
@@ -176,22 +192,21 @@ namespace OneJS.Editor {
             fpsRow.Add(_fpsValueButton);
             root.Add(fpsRow);
 
-            var updateModeHeader = new Label("Update Mode:");
-            root.Add(updateModeHeader);
+            var updateModeLabel = new Label("Update Mode:");
+            root.Add(updateModeLabel);
 
             var sceneOptions = new List<string> {
                 "Camera",
                 "Selected",
                 "None"
             };
-            var currentSceneMode = OneJSOverlayUpdateModeBridge.CurrentSceneMode;
-            var currentSceneIndex = currentSceneMode switch {
+            var sceneIndex = OneJSOverlayUpdateModeBridge.CurrentSceneMode switch {
                 OneJSOverlayUpdateModeBridge.SceneUpdateMode.Camera => 0,
                 OneJSOverlayUpdateModeBridge.SceneUpdateMode.Selected => 1,
                 OneJSOverlayUpdateModeBridge.SceneUpdateMode.None => 2,
                 _ => 0
             };
-            var scenePopup = new PopupField<string>("Scene:", sceneOptions, currentSceneIndex);
+            var scenePopup = new PopupField<string>("Scene:", sceneOptions, sceneIndex);
             scenePopup.labelElement.style.minWidth = FieldLabelWidth;
             scenePopup.labelElement.style.width = FieldLabelWidth;
             scenePopup.RegisterValueChangedCallback(evt => {
@@ -207,9 +222,12 @@ namespace OneJS.Editor {
                 "Camera",
                 "All"
             };
-            var currentGameMode = OneJSOverlayUpdateModeBridge.CurrentGameMode;
-            var currentGameIndex = currentGameMode == OneJSOverlayUpdateModeBridge.GameUpdateMode.All ? 1 : 0;
-            var gamePopup = new PopupField<string>("Game:", gameOptions, currentGameIndex);
+            var gameIndex = OneJSOverlayUpdateModeBridge.CurrentGameMode switch {
+                OneJSOverlayUpdateModeBridge.GameUpdateMode.Camera => 0,
+                OneJSOverlayUpdateModeBridge.GameUpdateMode.All => 1,
+                _ => 0
+            };
+            var gamePopup = new PopupField<string>("Game:", gameOptions, gameIndex);
             gamePopup.labelElement.style.minWidth = FieldLabelWidth;
             gamePopup.labelElement.style.width = FieldLabelWidth;
             gamePopup.RegisterValueChangedCallback(evt => {

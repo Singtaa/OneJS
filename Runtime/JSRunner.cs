@@ -1334,11 +1334,9 @@ public class JSRunner : MonoBehaviour {
         if (!Application.isPlaying) return; // [ExecuteAlways] guard - edit-mode uses EditorApplication.update
 #if UNITY_EDITOR
         // Editor: Use Unity's Update loop to drive the tick
-        if (_scriptLoaded) {
-            if (PlayModeUpdateFilter == null || PlayModeUpdateFilter(this)) {
-                _bridge?.Tick();
-                CheckForFileChanges();
-            }
+        if (_scriptLoaded && (PlayModeUpdateFilter == null || PlayModeUpdateFilter(this))) {
+            _bridge?.Tick();
+            CheckForFileChanges();
         }
 #elif !UNITY_WEBGL
         // Standalone/Mobile builds: Use Unity's Update loop
