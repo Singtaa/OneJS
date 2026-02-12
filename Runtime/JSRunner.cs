@@ -1140,6 +1140,9 @@ public class JSRunner : MonoBehaviour {
         try {
             if (!File.Exists(EntryFileFullPath)) return;
 
+            // Content hash is the source of truth for detecting changes.
+            // mtime is unreliable on Windows (NTFS tunneling can return stale timestamps
+            // when files are deleted and recreated, which is how esbuild writes output).
             var currentHash = ComputeFileHash(EntryFileFullPath);
             if (currentHash == _lastContentHash) return;
 
