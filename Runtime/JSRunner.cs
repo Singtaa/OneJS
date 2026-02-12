@@ -1117,7 +1117,6 @@ public class JSRunner : MonoBehaviour {
             _reloadCount++;
             Debug.Log($"[JSRunner] Reloaded ({_reloadCount})");
 
-            // Force Game view repaint so edit-mode preview updates immediately
             if (_editModePreviewActive)
                 UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
         } catch (Exception ex) {
@@ -1139,9 +1138,6 @@ public class JSRunner : MonoBehaviour {
         try {
             if (!File.Exists(EntryFileFullPath)) return;
 
-            // Content hash is the source of truth for detecting changes.
-            // mtime is unreliable on Windows (NTFS tunneling can return stale timestamps
-            // when files are deleted and recreated, which is how esbuild writes output).
             var currentHash = ComputeFileHash(EntryFileFullPath);
             if (currentHash == _lastContentHash) return;
 
@@ -1233,7 +1229,6 @@ public class JSRunner : MonoBehaviour {
     void EditModeTick() {
         if (this == null || !_editModePreviewActive || _bridge == null) return;
         if (Application.isPlaying) {
-            // PlayMode started - stop edit-mode preview, Start() will take over
             StopEditModePreview();
             return;
         }
@@ -1243,7 +1238,7 @@ public class JSRunner : MonoBehaviour {
         _nextEditModeTick = Time.realtimeSinceStartup + EditModeTickInterval;
 
         _bridge.Tick();
-        CheckForFileChanges(); // Live reload in edit-mode
+        CheckForFileChanges();
     }
 
     [ContextMenu("Link Local Packages")]
