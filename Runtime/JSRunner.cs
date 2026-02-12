@@ -148,6 +148,7 @@ public class JSRunner : MonoBehaviour {
     bool _editModePreviewActive;
     float _nextEditModeTick;
     const float EditModeTickInterval = 1f / 30f; // 30Hz throttle
+    FileSystemWatcher _editModeWatcher;
 #endif
 
     // Public API
@@ -1185,6 +1186,21 @@ public class JSRunner : MonoBehaviour {
             _editModePreviewActive = true;
             UnityEditor.EditorApplication.update += EditModeTick;
 
+            // Watch the entry file so we can wake the editor when it's unfocused.
+            // EditorApplication.update throttles when the editor loses focus; the
+            // FileSystemWatcher fires from a thread pool thread regardless of focus
+            // and QueuePlayerLoopUpdate wakes the editor to process the change.
+            try {
+                _editModeWatcher = new FileSystemWatcher(
+                    Path.GetDirectoryName(entryFile), Path.GetFileName(entryFile));
+                _editModeWatcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size;
+                _editModeWatcher.Changed += (_, __) =>
+                    UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
+                _editModeWatcher.EnableRaisingEvents = true;
+            } catch {
+                // Non-critical: fall back to polling-only (e.g., network drives)
+            }
+
             // Force initial repaint so the Game view shows the UI
             UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
         } catch (Exception ex) {
@@ -1200,6 +1216,8 @@ public class JSRunner : MonoBehaviour {
         if (!_editModePreviewActive) return;
 
         UnityEditor.EditorApplication.update -= EditModeTick;
+        _editModeWatcher?.Dispose();
+        _editModeWatcher = null;
         _editModePreviewActive = false;
 
         if (_uiDocument != null && _uiDocument.rootVisualElement != null) {
