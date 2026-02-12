@@ -12,7 +12,8 @@ namespace OneJS.Editor {
         internal enum SceneUpdateMode {
             Camera = 0,
             Selected = 1,
-            None = 2
+            None = 2,
+            Auto = 3
         }
 
         internal enum GameUpdateMode {
@@ -27,12 +28,15 @@ namespace OneJS.Editor {
         static int _cachedFrustumFrame = -1;
         static Camera _cachedFrustumCamera;
         static Plane[] _cachedFrustumPlanes;
+        static int _cachedClosestRunnerFrame = -1;
+        static Camera _cachedClosestRunnerCamera;
+        static JSRunner _cachedClosestRunner;
 
         internal static SceneUpdateMode CurrentSceneMode {
             get {
-                var storedValue = EditorPrefs.GetInt(SceneUpdateModePrefKey, (int)SceneUpdateMode.Camera);
-                if (storedValue < (int)SceneUpdateMode.Camera || storedValue > (int)SceneUpdateMode.None) {
-                    return SceneUpdateMode.Camera;
+                var storedValue = EditorPrefs.GetInt(SceneUpdateModePrefKey, (int)SceneUpdateMode.Auto);
+                if (storedValue < (int)SceneUpdateMode.Camera || storedValue > (int)SceneUpdateMode.Auto) {
+                    return SceneUpdateMode.Auto;
                 }
                 return (SceneUpdateMode)storedValue;
             }
@@ -78,6 +82,8 @@ namespace OneJS.Editor {
 
         static bool EvaluateSceneMode(JSRunner runner) {
             switch (CurrentSceneMode) {
+                case SceneUpdateMode.Auto:
+                    return EvaluateSceneAutoMode(runner);
                 case SceneUpdateMode.None:
                     return false;
                 case SceneUpdateMode.Selected:
@@ -86,6 +92,16 @@ namespace OneJS.Editor {
                 default:
                     return IsRunnerVisibleInCamera(runner, GetSceneViewCamera());
             }
+        }
+
+        static bool EvaluateSceneAutoMode(JSRunner runner) {
+            if (runner == null) return false;
+
+            if (HasSelectedRunner()) {
+                return Selection.Contains(runner.gameObject);
+            }
+
+            return runner == GetClosestRunnerToCamera(GetSceneViewCamera());
         }
 
         static bool EvaluateGameMode(JSRunner runner) {
@@ -150,6 +166,49 @@ namespace OneJS.Editor {
             }
             return _cachedFrustumPlanes;
         }
+
+        static bool HasSelectedRunner() {
+            var selected = Selection.gameObjects;
+            for (var i = 0; i < selected.Length; i++) {
+                var go = selected[i];
+                if (go == null) continue;
+                if (go.GetComponent<JSRunner>() != null) return true;
+            }
+            return false;
+        }
+
+        static JSRunner GetClosestRunnerToCamera(Camera camera) {
+            if (_cachedClosestRunnerFrame == Time.frameCount &&
+                _cachedClosestRunnerCamera == camera) {
+                return _cachedClosestRunner;
+            }
+
+            _cachedClosestRunnerFrame = Time.frameCount;
+            _cachedClosestRunnerCamera = camera;
+            _cachedClosestRunner = null;
+
+            var runners = UnityEngine.Object.FindObjectsByType<JSRunner>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            if (runners == null || runners.Length == 0) return null;
+
+            if (camera == null) {
+                return null;
+            }
+
+            var cameraPos = camera.transform.position;
+            var bestSqrDist = float.PositiveInfinity;
+            for (var i = 0; i < runners.Length; i++) {
+                var candidate = runners[i];
+                if (candidate == null || !candidate.enabled || !candidate.gameObject.activeInHierarchy) continue;
+                if (!IsRunnerVisibleInCamera(candidate, camera)) continue;
+                var sqrDist = (candidate.transform.position - cameraPos).sqrMagnitude;
+                if (sqrDist < bestSqrDist) {
+                    bestSqrDist = sqrDist;
+                    _cachedClosestRunner = candidate;
+                }
+            }
+
+            return _cachedClosestRunner;
+        }
     }
 
     [Overlay(typeof(SceneView), "OneJS")]
@@ -184,14 +243,16 @@ namespace OneJS.Editor {
             root.Add(updateModeLabel);
 
             var sceneOptions = new List<string> {
+                "Auto",
                 "Camera",
                 "Selected",
                 "None"
             };
             var sceneIndex = OneJSOverlayUpdateModeBridge.CurrentSceneMode switch {
-                OneJSOverlayUpdateModeBridge.SceneUpdateMode.Camera => 0,
-                OneJSOverlayUpdateModeBridge.SceneUpdateMode.Selected => 1,
-                OneJSOverlayUpdateModeBridge.SceneUpdateMode.None => 2,
+                OneJSOverlayUpdateModeBridge.SceneUpdateMode.Auto => 0,
+                OneJSOverlayUpdateModeBridge.SceneUpdateMode.Camera => 1,
+                OneJSOverlayUpdateModeBridge.SceneUpdateMode.Selected => 2,
+                OneJSOverlayUpdateModeBridge.SceneUpdateMode.None => 3,
                 _ => 0
             };
             var scenePopup = CreateScenePopup(sceneOptions, sceneIndex, compact: false);
@@ -225,11 +286,12 @@ namespace OneJS.Editor {
             fpsRow.style.marginRight = 8f;
             root.Add(fpsRow);
 
-            var sceneOptions = new List<string> { "Camera", "Selected", "None" };
+            var sceneOptions = new List<string> { "Auto", "Camera", "Selected", "None" };
             var sceneIndex = OneJSOverlayUpdateModeBridge.CurrentSceneMode switch {
-                OneJSOverlayUpdateModeBridge.SceneUpdateMode.Camera => 0,
-                OneJSOverlayUpdateModeBridge.SceneUpdateMode.Selected => 1,
-                OneJSOverlayUpdateModeBridge.SceneUpdateMode.None => 2,
+                OneJSOverlayUpdateModeBridge.SceneUpdateMode.Auto => 0,
+                OneJSOverlayUpdateModeBridge.SceneUpdateMode.Camera => 1,
+                OneJSOverlayUpdateModeBridge.SceneUpdateMode.Selected => 2,
+                OneJSOverlayUpdateModeBridge.SceneUpdateMode.None => 3,
                 _ => 0
             };
             var scenePopup = CreateScenePopup(sceneOptions, sceneIndex, compact: true);
@@ -295,6 +357,7 @@ namespace OneJS.Editor {
             }
             popup.RegisterValueChangedCallback(evt => {
                 OneJSOverlayUpdateModeBridge.CurrentSceneMode = evt.newValue switch {
+                    "Auto" => OneJSOverlayUpdateModeBridge.SceneUpdateMode.Auto,
                     "Selected" => OneJSOverlayUpdateModeBridge.SceneUpdateMode.Selected,
                     "None" => OneJSOverlayUpdateModeBridge.SceneUpdateMode.None,
                     _ => OneJSOverlayUpdateModeBridge.SceneUpdateMode.Camera
