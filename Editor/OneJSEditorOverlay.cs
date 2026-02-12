@@ -177,7 +177,8 @@ namespace OneJS.Editor {
             var fpsRow = new VisualElement {
                 style = {
                     flexDirection = FlexDirection.Row,
-                    alignItems = Align.Center
+                    alignItems = Align.Center,
+                    marginBottom = 6f
                 }
             };
             var fpsLabel = new Label("FPS:");
@@ -188,6 +189,7 @@ namespace OneJS.Editor {
             _fpsValueButton = new Button { text = "--", tooltip = "Editor FPS (updates in Edit Mode)" };
             _fpsValueButton.SetEnabled(false);
             _fpsValueButton.style.flexGrow = 1f;
+            _fpsValueButton.style.marginLeft = 4f;
             _fpsValueButton.style.unityTextAlign = TextAnchor.MiddleCenter;
             fpsRow.Add(_fpsValueButton);
             root.Add(fpsRow);
