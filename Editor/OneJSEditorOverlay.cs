@@ -153,18 +153,20 @@ namespace OneJS.Editor {
     }
 
     [Overlay(typeof(SceneView), "OneJS")]
-    internal class OneJSEditorOverlay : Overlay {
+    internal class OneJSEditorOverlay : Overlay, ICreateHorizontalToolbar {
         const int SampleWindow = 45;
         const double UiRefreshIntervalSeconds = 0.25d;
         const float FieldLabelWidth = 58f;
+        const float CompactFpsValueWidth = 45f;
+        const float CompactDropdownWidth = 115f;
 
         readonly double[] _frameDurations = new double[SampleWindow];
+        readonly List<Button> _fpsValueButtons = new List<Button>();
         int _sampleCount;
         int _nextSampleIndex;
         double _lastSampleTime;
         double _nextUiRefreshTime;
         bool _isSubscribed;
-        Button _fpsValueButton;
 
         public override VisualElement CreatePanelContent() {
             var root = new VisualElement {
@@ -174,24 +176,8 @@ namespace OneJS.Editor {
                 }
             };
 
-            var fpsRow = new VisualElement {
-                style = {
-                    flexDirection = FlexDirection.Row,
-                    alignItems = Align.Center,
-                    marginBottom = 6f
-                }
-            };
-            var fpsLabel = new Label("FPS:");
-            fpsLabel.style.minWidth = FieldLabelWidth;
-            fpsLabel.style.width = FieldLabelWidth;
-            fpsRow.Add(fpsLabel);
-
-            _fpsValueButton = new Button { text = "--", tooltip = "Editor FPS (updates in Edit Mode)" };
-            _fpsValueButton.SetEnabled(false);
-            _fpsValueButton.style.flexGrow = 1f;
-            _fpsValueButton.style.marginLeft = 4f;
-            _fpsValueButton.style.unityTextAlign = TextAnchor.MiddleCenter;
-            fpsRow.Add(_fpsValueButton);
+            var fpsRow = CreateFpsRow(root, compact: false);
+            fpsRow.style.marginBottom = 6f;
             root.Add(fpsRow);
 
             var updateModeLabel = new Label("Update Mode:");
@@ -208,16 +194,7 @@ namespace OneJS.Editor {
                 OneJSOverlayUpdateModeBridge.SceneUpdateMode.None => 2,
                 _ => 0
             };
-            var scenePopup = new PopupField<string>("Scene:", sceneOptions, sceneIndex);
-            scenePopup.labelElement.style.minWidth = FieldLabelWidth;
-            scenePopup.labelElement.style.width = FieldLabelWidth;
-            scenePopup.RegisterValueChangedCallback(evt => {
-                OneJSOverlayUpdateModeBridge.CurrentSceneMode = evt.newValue switch {
-                    "Selected" => OneJSOverlayUpdateModeBridge.SceneUpdateMode.Selected,
-                    "None" => OneJSOverlayUpdateModeBridge.SceneUpdateMode.None,
-                    _ => OneJSOverlayUpdateModeBridge.SceneUpdateMode.Camera
-                };
-            });
+            var scenePopup = CreateScenePopup(sceneOptions, sceneIndex, compact: false);
             root.Add(scenePopup);
 
             var gameOptions = new List<string> {
@@ -229,21 +206,129 @@ namespace OneJS.Editor {
                 OneJSOverlayUpdateModeBridge.GameUpdateMode.All => 1,
                 _ => 0
             };
-            var gamePopup = new PopupField<string>("Game:", gameOptions, gameIndex);
-            gamePopup.labelElement.style.minWidth = FieldLabelWidth;
-            gamePopup.labelElement.style.width = FieldLabelWidth;
-            gamePopup.RegisterValueChangedCallback(evt => {
+            var gamePopup = CreateGamePopup(gameOptions, gameIndex, compact: false);
+            root.Add(gamePopup);
+
+            HookRootLifecycle(root);
+            return root;
+        }
+
+        public OverlayToolbar CreateHorizontalToolbarContent() {
+            var root = new OverlayToolbar {
+                style = {
+                    flexDirection = FlexDirection.Row,
+                    alignItems = Align.Center
+                }
+            };
+
+            var fpsRow = CreateFpsRow(root, compact: true);
+            fpsRow.style.marginRight = 8f;
+            root.Add(fpsRow);
+
+            var sceneOptions = new List<string> { "Camera", "Selected", "None" };
+            var sceneIndex = OneJSOverlayUpdateModeBridge.CurrentSceneMode switch {
+                OneJSOverlayUpdateModeBridge.SceneUpdateMode.Camera => 0,
+                OneJSOverlayUpdateModeBridge.SceneUpdateMode.Selected => 1,
+                OneJSOverlayUpdateModeBridge.SceneUpdateMode.None => 2,
+                _ => 0
+            };
+            var scenePopup = CreateScenePopup(sceneOptions, sceneIndex, compact: true);
+            scenePopup.style.marginRight = 8f;
+            root.Add(scenePopup);
+
+            var gameOptions = new List<string> { "Camera", "All" };
+            var gameIndex = OneJSOverlayUpdateModeBridge.CurrentGameMode switch {
+                OneJSOverlayUpdateModeBridge.GameUpdateMode.Camera => 0,
+                OneJSOverlayUpdateModeBridge.GameUpdateMode.All => 1,
+                _ => 0
+            };
+            var gamePopup = CreateGamePopup(gameOptions, gameIndex, compact: true);
+            root.Add(gamePopup);
+
+            HookRootLifecycle(root);
+            return root;
+        }
+
+        VisualElement CreateFpsRow(VisualElement ownerRoot, bool compact) {
+            var fpsRow = new VisualElement {
+                style = {
+                    flexDirection = FlexDirection.Row,
+                    alignItems = Align.Center
+                }
+            };
+            var fpsLabel = new Label("FPS:");
+            if (compact) {
+                fpsLabel.style.minWidth = StyleKeyword.Auto;
+                fpsLabel.style.width = StyleKeyword.Auto;
+            } else {
+                fpsLabel.style.minWidth = FieldLabelWidth;
+                fpsLabel.style.width = FieldLabelWidth;
+            }
+            fpsRow.Add(fpsLabel);
+
+            var fpsValueButton = new Button { text = "---", tooltip = "Editor FPS (updates in Edit Mode)" };
+            fpsValueButton.SetEnabled(false);
+            fpsValueButton.style.minWidth = compact ? CompactFpsValueWidth : 0f;
+            fpsValueButton.style.flexGrow = compact ? 0f : 1f;
+            fpsValueButton.style.marginLeft = compact ? 0f : 6f;
+            fpsValueButton.style.unityTextAlign = TextAnchor.MiddleCenter;
+            fpsRow.Add(fpsValueButton);
+
+            _fpsValueButtons.Add(fpsValueButton);
+            ownerRoot.RegisterCallback<DetachFromPanelEvent>(_ => _fpsValueButtons.Remove(fpsValueButton));
+
+            return fpsRow;
+        }
+
+        PopupField<string> CreateScenePopup(List<string> options, int index, bool compact) {
+            var popup = new PopupField<string>("Scene:", options, index);
+            if (compact) {
+                popup.labelElement.style.minWidth = StyleKeyword.Auto;
+                popup.labelElement.style.width = StyleKeyword.Auto;
+                popup.labelElement.style.marginRight = 0f;
+                popup.style.minWidth = CompactDropdownWidth;
+                popup.style.width = CompactDropdownWidth;
+                popup.style.flexShrink = 0f;
+            } else {
+                popup.labelElement.style.minWidth = FieldLabelWidth;
+                popup.labelElement.style.width = FieldLabelWidth;
+            }
+            popup.RegisterValueChangedCallback(evt => {
+                OneJSOverlayUpdateModeBridge.CurrentSceneMode = evt.newValue switch {
+                    "Selected" => OneJSOverlayUpdateModeBridge.SceneUpdateMode.Selected,
+                    "None" => OneJSOverlayUpdateModeBridge.SceneUpdateMode.None,
+                    _ => OneJSOverlayUpdateModeBridge.SceneUpdateMode.Camera
+                };
+            });
+            return popup;
+        }
+
+        PopupField<string> CreateGamePopup(List<string> options, int index, bool compact) {
+            var popup = new PopupField<string>("Game:", options, index);
+            if (compact) {
+                popup.labelElement.style.minWidth = StyleKeyword.Auto;
+                popup.labelElement.style.width = StyleKeyword.Auto;
+                popup.labelElement.style.marginRight = 0f;
+                popup.style.minWidth = CompactDropdownWidth;
+                popup.style.width = CompactDropdownWidth;
+                popup.style.flexShrink = 0f;
+            } else {
+                popup.labelElement.style.minWidth = FieldLabelWidth;
+                popup.labelElement.style.width = FieldLabelWidth;
+            }
+            popup.RegisterValueChangedCallback(evt => {
                 OneJSOverlayUpdateModeBridge.CurrentGameMode = evt.newValue == "All"
                     ? OneJSOverlayUpdateModeBridge.GameUpdateMode.All
                     : OneJSOverlayUpdateModeBridge.GameUpdateMode.Camera;
             });
-            root.Add(gamePopup);
+            return popup;
+        }
 
+        void HookRootLifecycle(VisualElement root) {
             _lastSampleTime = EditorApplication.timeSinceStartup;
             SubscribeToEditorUpdate();
             root.RegisterCallback<DetachFromPanelEvent>(_ => UnsubscribeFromEditorUpdate());
             root.RegisterCallback<AttachToPanelEvent>(_ => SubscribeToEditorUpdate());
-            return root;
         }
 
         void SubscribeToEditorUpdate() {
@@ -259,7 +344,7 @@ namespace OneJS.Editor {
         }
 
         void OnEditorUpdate() {
-            if (_fpsValueButton == null) return;
+            if (_fpsValueButtons.Count == 0) return;
 
             var now = EditorApplication.timeSinceStartup;
             var delta = now - _lastSampleTime;
@@ -278,7 +363,15 @@ namespace OneJS.Editor {
 
             var averageFrameTime = sum / _sampleCount;
             var fps = averageFrameTime > 0d ? 1d / averageFrameTime : 0d;
-            _fpsValueButton.text = Mathf.RoundToInt((float)fps).ToString();
+            var fpsText = Mathf.RoundToInt((float)fps).ToString();
+            for (var i = _fpsValueButtons.Count - 1; i >= 0; i--) {
+                var button = _fpsValueButtons[i];
+                if (button == null) {
+                    _fpsValueButtons.RemoveAt(i);
+                    continue;
+                }
+                button.text = fpsText;
+            }
         }
     }
 }
