@@ -149,6 +149,7 @@ public class JSRunner : MonoBehaviour {
     float _nextEditModeTick;
     const float EditModeTickInterval = 1f / 30f; // 30Hz throttle
     public static Func<JSRunner, bool> EditModeUpdateFilter;
+    public static Func<JSRunner, bool> PlayModeUpdateFilter;
 #endif
 
     // Public API
@@ -758,6 +759,11 @@ public class JSRunner : MonoBehaviour {
     }
 
     void ReloadOnEnable() {
+        if (!EnsureUIDocument()) {
+            Debug.LogWarning("[JSRunner] Reload on enable skipped: UIDocument is not ready yet.");
+            return;
+        }
+
         // Clean up GameObjects created by JS (if Janitor enabled)
 #if UNITY_EDITOR
         if (_enableJanitor && _janitor != null) {
@@ -1329,8 +1335,10 @@ public class JSRunner : MonoBehaviour {
 #if UNITY_EDITOR
         // Editor: Use Unity's Update loop to drive the tick
         if (_scriptLoaded) {
-            _bridge?.Tick();
-            CheckForFileChanges();
+            if (PlayModeUpdateFilter == null || PlayModeUpdateFilter(this)) {
+                _bridge?.Tick();
+                CheckForFileChanges();
+            }
         }
 #elif !UNITY_WEBGL
         // Standalone/Mobile builds: Use Unity's Update loop
