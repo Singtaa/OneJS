@@ -148,6 +148,7 @@ public class JSRunner : MonoBehaviour {
     bool _editModePreviewActive;
     float _nextEditModeTick;
     const float EditModeTickInterval = 1f / 30f; // 30Hz throttle
+    public static Func<JSRunner, bool> EditModeUpdateFilter;
 #endif
 
     // Public API
@@ -1217,17 +1218,18 @@ public class JSRunner : MonoBehaviour {
     void EditModeTick() {
         if (this == null || !_editModePreviewActive || _bridge == null) return;
         if (Application.isPlaying) {
-            // PlayMode started - stop edit-mode preview, Start() will take over
             StopEditModePreview();
             return;
         }
+        if (EditModeUpdateFilter != null && !EditModeUpdateFilter(this)) {
+            return;
+        }
 
-        // Throttle tick rate to ~30Hz
         if (Time.realtimeSinceStartup < _nextEditModeTick) return;
         _nextEditModeTick = Time.realtimeSinceStartup + EditModeTickInterval;
 
         _bridge.Tick();
-        CheckForFileChanges(); // Live reload in edit-mode
+        CheckForFileChanges();
     }
 
     [ContextMenu("Link Local Packages")]
