@@ -1234,6 +1234,7 @@ public class JSRunner : MonoBehaviour {
     void EditModeTick() {
         if (this == null || !_editModePreviewActive || _bridge == null) return;
         if (Application.isPlaying) {
+            // PlayMode started - stop edit-mode preview, Start() will take over
             StopEditModePreview();
             return;
         }
@@ -1243,7 +1244,7 @@ public class JSRunner : MonoBehaviour {
         _nextEditModeTick = Time.realtimeSinceStartup + EditModeTickInterval;
 
         _bridge.Tick();
-        CheckForFileChanges();
+        CheckForFileChanges(); // Live reload in edit-mode
     }
 
     [ContextMenu("Link Local Packages")]
