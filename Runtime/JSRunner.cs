@@ -1117,6 +1117,8 @@ public class JSRunner : MonoBehaviour {
             _reloadCount++;
             Debug.Log($"[JSRunner] Reloaded ({_reloadCount})");
 
+            // Force UI Toolkit to process layout so the Game view reflects
+            // the new content when the editor regains focus.
             if (_editModePreviewActive)
                 UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
         } catch (Exception ex) {
