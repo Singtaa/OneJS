@@ -163,6 +163,12 @@ public class JSRunner : MonoBehaviour {
     public TextAsset SourceMapAsset => _sourceMapAsset;
 #if UNITY_EDITOR
     public bool IsEditModePreviewActive => _editModePreviewActive;
+
+    /// <summary>
+    /// Fired when edit-mode preview starts successfully. Editor code (e.g., JSRunnerAutoWatch)
+    /// subscribes to this to start the esbuild watcher so source changes rebuild the bundle.
+    /// </summary>
+    public static event Action<JSRunner> EditModePreviewStarted;
 #endif
 
     /// <summary>
@@ -1204,6 +1210,8 @@ public class JSRunner : MonoBehaviour {
 
             // Force initial repaint so the Game view shows the UI
             UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
+
+            EditModePreviewStarted?.Invoke(this);
         } catch (Exception ex) {
             Debug.LogError($"[JSRunner] Edit-mode preview failed: {ex.Message}");
             // Clean up partial init

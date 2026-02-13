@@ -20,6 +20,7 @@ namespace OneJS.Editor {
 
         static JSRunnerAutoWatch() {
             EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
+            JSRunner.EditModePreviewStarted += OnEditModePreviewStarted;
         }
 
         static void OnPlayModeStateChanged(PlayModeStateChange state) {
@@ -48,6 +49,22 @@ namespace OneJS.Editor {
 
         static void PrepareWatchers() {
             _watchersStartedThisSession.Clear();
+        }
+
+        /// <summary>
+        /// Called when a JSRunner's edit-mode preview starts. Starts an esbuild watcher
+        /// so source file changes rebuild the bundle automatically.
+        /// </summary>
+        static void OnEditModePreviewStarted(JSRunner runner) {
+            if (Application.isPlaying) return;
+
+            var workingDir = runner.WorkingDirFullPath;
+            if (string.IsNullOrEmpty(workingDir) || !Directory.Exists(workingDir)) return;
+            if (NodeWatcherManager.IsRunning(workingDir)) return;
+            if (!File.Exists(Path.Combine(workingDir, "package.json"))) return;
+            if (!runner.HasNodeModules) return;
+
+            StartWatcher(workingDir, runner.name);
         }
 
         /// <summary>
