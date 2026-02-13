@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using OneJS;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -1130,9 +1131,19 @@ public class JSRunner : MonoBehaviour {
             // 3. Recreate bridge and globals
             InitializeBridge();
 
-            // 4. Load and run script
-            var code = File.ReadAllText(EntryFileFullPath);
-            RunScript(code, Path.GetFileName(EntryFileFullPath));
+            // 4. Load and run script (retry on sharing violation while esbuild is still writing)
+            var entryPath = EntryFileFullPath;
+            string code = null;
+            for (int i = 0; i < 5; i++) {
+                try {
+                    code = File.ReadAllText(entryPath);
+                    break;
+                } catch (IOException) {
+                    if (i == 4) throw;
+                    Thread.Sleep(50);
+                }
+            }
+            RunScript(code, Path.GetFileName(entryPath));
 
             // 5. Update state
             _lastModifiedTime = File.GetLastWriteTime(EntryFileFullPath);
@@ -1264,6 +1275,8 @@ public class JSRunner : MonoBehaviour {
             StopEditModePreview();
             return;
         }
+        // Always check for file changes so TSX edits apply even when overlay filter disables ticking
+        CheckForFileChanges();
         if (EditModeUpdateFilter != null && !EditModeUpdateFilter(this)) {
             return;
         }
@@ -1273,7 +1286,6 @@ public class JSRunner : MonoBehaviour {
         _nextEditModeTick = Time.realtimeSinceStartup + EditModeTickInterval;
 
         _bridge.Tick();
-        CheckForFileChanges(); // Live reload in edit-mode
     }
 
     [ContextMenu("Link Local Packages")]
