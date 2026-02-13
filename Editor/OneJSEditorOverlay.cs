@@ -1,6 +1,7 @@
 #if UNITY_6000_0_OR_NEWER && UNITY_EDITOR
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEditor;
 using UnityEditor.Overlays;
 using UnityEngine;
@@ -24,6 +25,9 @@ namespace OneJS.Editor {
         const string SceneUpdateModePrefKey = "OneJS.EditMode.SceneUpdateMode";
         const string GameUpdateModePrefKey = "OneJS.EditMode.GameUpdateMode";
         static readonly Type GameViewType = typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView");
+        // PanelRenderMode is internal; use reflection to read m_RenderMode (0 = ScreenSpaceOverlay)
+        static readonly FieldInfo RenderModeField =
+            typeof(PanelSettings).GetField("m_RenderMode", BindingFlags.NonPublic | BindingFlags.Instance);
         static Camera _lastRenderedGameCamera;
         static int _cachedFrustumFrame = -1;
         static Camera _cachedFrustumCamera;
@@ -140,6 +144,10 @@ namespace OneJS.Editor {
         static bool IsRunnerVisibleInCamera(JSRunner runner, Camera camera) {
             if (runner == null) return false;
             if (camera == null) return true;
+
+            // Screen-space panels are always visible regardless of camera
+            var ps = runner.PanelSettingsAsset;
+            if (ps != null && RenderModeField != null && (int)RenderModeField.GetValue(ps) == 0) return true;
 
             var frustumPlanes = GetCachedFrustumPlanes(camera);
             if (frustumPlanes == null) return true;

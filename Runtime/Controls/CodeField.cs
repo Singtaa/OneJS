@@ -726,6 +726,7 @@ namespace OneJS {
 #endif
                 if (isCommentShortcut) {
                     evt.StopPropagation();
+                    evt.PreventDefault();
                     HandleToggleComment();
                 }
             }

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Threading;
 using OneJS;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -144,15 +143,14 @@ public class JSRunner : MonoBehaviour {
     string _lastContentHash;
     Janitor _janitor;
 
+#if UNITY_EDITOR
     static readonly List<JSRunner> _instances = new List<JSRunner>();
 
     /// <summary>
     /// All enabled JSRunner instances. Avoids FindObjectsByType; register/unregister in OnEnable/OnDisable.
-    /// Callers should filter for non-null, enabled, and gameObject.activeInHierarchy as needed.
     /// </summary>
     public static IReadOnlyList<JSRunner> Instances => _instances;
 
-#if UNITY_EDITOR
     // Edit-mode preview state (non-serialized, rebuilt on enable)
     bool _editModePreviewActive;
     float _nextEditModeTick;
@@ -170,6 +168,7 @@ public class JSRunner : MonoBehaviour {
     public DateTime LastModifiedTime => _lastModifiedTime;
     public DateTime LastReloadTime => _lastReloadTime;
     public bool IncludeSourceMap => _includeSourceMap;
+    public PanelSettings PanelSettingsAsset => _panelSettings;
     public TextAsset BundleAsset => _bundleAsset;
     public TextAsset SourceMapAsset => _sourceMapAsset;
 #if UNITY_EDITOR
@@ -312,7 +311,7 @@ public class JSRunner : MonoBehaviour {
     /// </summary>
     string GetPrefabAssetPath() {
         var stage = UnityEditor.SceneManagement.PrefabStageUtility.GetPrefabStage(gameObject);
-        if (stage != null && !string.IsNullOrEmpty(stage.assetPath)) return stage.assetPath;
+        if (stage != null && !string.IsNullOrEmpty(stage.prefabAssetPath)) return stage.prefabAssetPath;
         var path = UnityEditor.AssetDatabase.GetAssetPath(transform.root.gameObject);
         return !string.IsNullOrEmpty(path) && path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase) ? path : null;
     }
@@ -749,9 +748,9 @@ public class JSRunner : MonoBehaviour {
     }
 
     void OnEnable() {
+#if UNITY_EDITOR
         if (!_instances.Contains(this))
             _instances.Add(this);
-#if UNITY_EDITOR
         if (!Application.isPlaying) {
             // Defer to let UIDocument panel settle after domain reload
             UnityEditor.EditorApplication.delayCall += TryStartEditModePreview;
@@ -768,8 +767,8 @@ public class JSRunner : MonoBehaviour {
     }
 
     void OnDisable() {
-        _instances.Remove(this);
 #if UNITY_EDITOR
+        _instances.Remove(this);
         if (!Application.isPlaying) {
             StopEditModePreview();
             return;
@@ -778,11 +777,6 @@ public class JSRunner : MonoBehaviour {
     }
 
     void ReloadOnEnable() {
-        if (!EnsureUIDocument()) {
-            Debug.LogWarning("[JSRunner] Reload on enable skipped: UIDocument is not ready yet.");
-            return;
-        }
-
         // Clean up GameObjects created by JS (if Janitor enabled)
 #if UNITY_EDITOR
         if (_enableJanitor && _janitor != null) {
@@ -1131,19 +1125,9 @@ public class JSRunner : MonoBehaviour {
             // 3. Recreate bridge and globals
             InitializeBridge();
 
-            // 4. Load and run script (retry on sharing violation while esbuild is still writing)
-            var entryPath = EntryFileFullPath;
-            string code = null;
-            for (int i = 0; i < 5; i++) {
-                try {
-                    code = File.ReadAllText(entryPath);
-                    break;
-                } catch (IOException) {
-                    if (i == 4) throw;
-                    Thread.Sleep(50);
-                }
-            }
-            RunScript(code, Path.GetFileName(entryPath));
+            // 4. Load and run script
+            var code = File.ReadAllText(EntryFileFullPath);
+            RunScript(code, Path.GetFileName(EntryFileFullPath));
 
             // 5. Update state
             _lastModifiedTime = File.GetLastWriteTime(EntryFileFullPath);
