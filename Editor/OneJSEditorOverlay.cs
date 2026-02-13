@@ -187,8 +187,8 @@ namespace OneJS.Editor {
             _cachedClosestRunnerCamera = camera;
             _cachedClosestRunner = null;
 
-            var runners = UnityEngine.Object.FindObjectsByType<JSRunner>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-            if (runners == null || runners.Length == 0) return null;
+            var runners = JSRunner.Instances;
+            if (runners == null || runners.Count == 0) return null;
 
             if (camera == null) {
                 return null;
@@ -196,7 +196,7 @@ namespace OneJS.Editor {
 
             var cameraPos = camera.transform.position;
             var bestSqrDist = float.PositiveInfinity;
-            for (var i = 0; i < runners.Length; i++) {
+            for (var i = 0; i < runners.Count; i++) {
                 var candidate = runners[i];
                 if (candidate == null || !candidate.enabled || !candidate.gameObject.activeInHierarchy) continue;
                 if (!IsRunnerVisibleInCamera(candidate, camera)) continue;

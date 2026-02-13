@@ -143,6 +143,14 @@ public class JSRunner : MonoBehaviour {
     string _lastContentHash;
     Janitor _janitor;
 
+    static readonly List<JSRunner> _instances = new List<JSRunner>();
+
+    /// <summary>
+    /// All enabled JSRunner instances. Avoids FindObjectsByType; register/unregister in OnEnable/OnDisable.
+    /// Callers should filter for non-null, enabled, and gameObject.activeInHierarchy as needed.
+    /// </summary>
+    public static IReadOnlyList<JSRunner> Instances => _instances;
+
 #if UNITY_EDITOR
     // Edit-mode preview state (non-serialized, rebuilt on enable)
     bool _editModePreviewActive;
@@ -150,6 +158,7 @@ public class JSRunner : MonoBehaviour {
     const float EditModeTickInterval = 1f / 30f; // 30Hz throttle
     public static Func<JSRunner, bool> EditModeUpdateFilter;
     public static Func<JSRunner, bool> PlayModeUpdateFilter;
+    FileSystemWatcher _editModeWatcher;
 #endif
 
     // Public API
@@ -164,6 +173,12 @@ public class JSRunner : MonoBehaviour {
     public TextAsset SourceMapAsset => _sourceMapAsset;
 #if UNITY_EDITOR
     public bool IsEditModePreviewActive => _editModePreviewActive;
+
+    /// <summary>
+    /// Fired when edit-mode preview starts successfully. Editor code (e.g., JSRunnerAutoWatch)
+    /// subscribes to this to start the esbuild watcher so source changes rebuild the bundle.
+    /// </summary>
+    public static event Action<JSRunner> EditModePreviewStarted;
 #endif
 
     /// <summary>
@@ -296,7 +311,7 @@ public class JSRunner : MonoBehaviour {
     /// </summary>
     string GetPrefabAssetPath() {
         var stage = UnityEditor.SceneManagement.PrefabStageUtility.GetPrefabStage(gameObject);
-        if (stage != null && !string.IsNullOrEmpty(stage.prefabAssetPath)) return stage.prefabAssetPath;
+        if (stage != null && !string.IsNullOrEmpty(stage.assetPath)) return stage.assetPath;
         var path = UnityEditor.AssetDatabase.GetAssetPath(transform.root.gameObject);
         return !string.IsNullOrEmpty(path) && path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase) ? path : null;
     }
@@ -733,6 +748,8 @@ public class JSRunner : MonoBehaviour {
     }
 
     void OnEnable() {
+        if (!_instances.Contains(this))
+            _instances.Add(this);
 #if UNITY_EDITOR
         if (!Application.isPlaying) {
             // Defer to let UIDocument panel settle after domain reload
@@ -750,6 +767,7 @@ public class JSRunner : MonoBehaviour {
     }
 
     void OnDisable() {
+        _instances.Remove(this);
 #if UNITY_EDITOR
         if (!Application.isPlaying) {
             StopEditModePreview();
@@ -1046,7 +1064,10 @@ public class JSRunner : MonoBehaviour {
     /// </summary>
     static string ComputeFileHash(string filePath) {
         using var md5 = System.Security.Cryptography.MD5.Create();
-        using var stream = File.OpenRead(filePath);
+        // Use FileShare.ReadWrite so we can read even when another process (esbuild, Unity
+        // asset importer) has the file open for writing. File.OpenRead uses FileShare.Read
+        // which fails on Windows when a write handle is held by another process.
+        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         var hash = md5.ComputeHash(stream);
         return BitConverter.ToString(hash);
     }
@@ -1120,7 +1141,8 @@ public class JSRunner : MonoBehaviour {
             _reloadCount++;
             Debug.Log($"[JSRunner] Reloaded ({_reloadCount})");
 
-            // Force Game view repaint so edit-mode preview updates immediately
+            // Force UI Toolkit to process layout so the Game view reflects
+            // the new content when the editor regains focus.
             if (_editModePreviewActive)
                 UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
         } catch (Exception ex) {
@@ -1142,15 +1164,10 @@ public class JSRunner : MonoBehaviour {
         try {
             if (!File.Exists(EntryFileFullPath)) return;
 
-            // Fast path: check mtime first (no I/O beyond stat)
-            var currentModTime = File.GetLastWriteTime(EntryFileFullPath);
-            if (currentModTime == _lastModifiedTime) return;
-
-            // mtime changed - compute content hash to detect actual changes
+            // Content hash is the source of truth for detecting changes.
+            // mtime is unreliable on Windows (NTFS tunneling can return stale timestamps
+            // when files are deleted and recreated, which is how esbuild writes output).
             var currentHash = ComputeFileHash(EntryFileFullPath);
-            _lastModifiedTime = currentModTime;
-
-            // Skip reload if content unchanged (e.g., esbuild rebuild with same output)
             if (currentHash == _lastContentHash) return;
 
             _lastContentHash = currentHash;
@@ -1194,8 +1211,25 @@ public class JSRunner : MonoBehaviour {
             _editModePreviewActive = true;
             UnityEditor.EditorApplication.update += EditModeTick;
 
+            // Watch the entry file so we can wake the editor when it's unfocused.
+            // EditorApplication.update throttles when the editor loses focus; the
+            // FileSystemWatcher fires from a thread pool thread regardless of focus
+            // and QueuePlayerLoopUpdate wakes the editor to process the change.
+            try {
+                _editModeWatcher = new FileSystemWatcher(
+                    Path.GetDirectoryName(entryFile), Path.GetFileName(entryFile));
+                _editModeWatcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size;
+                _editModeWatcher.Changed += (_, __) =>
+                    UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
+                _editModeWatcher.EnableRaisingEvents = true;
+            } catch {
+                // Non-critical: fall back to polling-only (e.g., network drives)
+            }
+
             // Force initial repaint so the Game view shows the UI
             UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
+
+            EditModePreviewStarted?.Invoke(this);
         } catch (Exception ex) {
             Debug.LogError($"[JSRunner] Edit-mode preview failed: {ex.Message}");
             // Clean up partial init
@@ -1209,6 +1243,8 @@ public class JSRunner : MonoBehaviour {
         if (!_editModePreviewActive) return;
 
         UnityEditor.EditorApplication.update -= EditModeTick;
+        _editModeWatcher?.Dispose();
+        _editModeWatcher = null;
         _editModePreviewActive = false;
 
         if (_uiDocument != null && _uiDocument.rootVisualElement != null) {
@@ -1224,6 +1260,7 @@ public class JSRunner : MonoBehaviour {
     void EditModeTick() {
         if (this == null || !_editModePreviewActive || _bridge == null) return;
         if (Application.isPlaying) {
+            // PlayMode started - stop edit-mode preview, Start() will take over
             StopEditModePreview();
             return;
         }
@@ -1231,11 +1268,12 @@ public class JSRunner : MonoBehaviour {
             return;
         }
 
+        // Throttle tick rate to ~30Hz
         if (Time.realtimeSinceStartup < _nextEditModeTick) return;
         _nextEditModeTick = Time.realtimeSinceStartup + EditModeTickInterval;
 
         _bridge.Tick();
-        CheckForFileChanges();
+        CheckForFileChanges(); // Live reload in edit-mode
     }
 
     [ContextMenu("Link Local Packages")]
