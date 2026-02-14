@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
+using FontAsset = UnityEngine.TextCore.Text.FontAsset;
 
 namespace OneJS {
     /// <summary>
@@ -351,7 +352,7 @@ namespace OneJS {
             }
         }
 
-        private static Font _monospaceFont;
+        private static FontAsset _monospaceFontAsset;
         private static bool _fontLoadAttempted;
 
         private ISyntaxHighlighter _highlighter;
@@ -371,16 +372,17 @@ namespace OneJS {
         private const long HighlightDebounceMs = 50; // Debounce delay in milliseconds
 
         /// <summary>
-        /// Gets a monospace font from the system. Caches the result.
+        /// Gets a monospace font from the system via TextCore's FontAsset pipeline. Caches the result.
+        /// Uses FontAsset.CreateFontAsset(familyName, styleName) which works reliably across all
+        /// platforms (the legacy Font.CreateDynamicFontFromOSFont returns broken objects on Linux).
         /// </summary>
-        private static Font GetMonospaceFont() {
+        private static void EnsureMonospaceFontLoaded() {
             // Check if cached font is still valid (can become invalid after play mode exit)
-            if (_fontLoadAttempted && _monospaceFont == null) {
+            if (_fontLoadAttempted && _monospaceFontAsset == null) {
                 _fontLoadAttempted = false; // Reset to allow reload
             }
 
-            if (_fontLoadAttempted)
-                return _monospaceFont;
+            if (_fontLoadAttempted) return;
 
             _fontLoadAttempted = true;
 
@@ -391,16 +393,15 @@ namespace OneJS {
 #elif UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
             fontNames = new[] { "Consolas", "Cascadia Code", "Courier New", "Lucida Console" };
 #else
-            fontNames =
- new[] { "DejaVu Sans Mono", "Liberation Mono", "Consolas", "Courier New", "monospace" };
+            fontNames = new[] { "DejaVu Sans Mono", "Liberation Mono", "Consolas", "Courier New", "monospace" };
 #endif
 
             foreach (var fontName in fontNames) {
                 try {
-                    var font = Font.CreateDynamicFontFromOSFont(fontName, 14);
-                    if (font != null) {
-                        _monospaceFont = font;
-                        return font;
+                    var fa = FontAsset.CreateFontAsset(fontName, "Regular");
+                    if (fa != null && fa.faceInfo.pointSize > 0) {
+                        _monospaceFontAsset = fa;
+                        return;
                     }
                 } catch {
                     // Font not available, try next
@@ -408,27 +409,19 @@ namespace OneJS {
             }
 
             Debug.LogWarning("[CodeField] Could not load any monospace font");
-            return null;
         }
 
         /// <summary>
         /// Applies the monospace font to a VisualElement and all its TextElement children.
         /// </summary>
         private static void ApplyMonospaceFont(VisualElement element) {
-            // On Linux, Font.CreateDynamicFontFromOSFont returns non-null Font objects that
-            // are internally broken (font face fails to load). Applying such a font causes
-            // TextElement to produce empty/invalid TextGenerationInfo, which crashes native
-            // code (TextSelectionService::SelectCurrentWord segfault) when the user clicks.
-            // Skip custom font on Linux and let UI Toolkit use its default font.
-            if (Application.platform == RuntimePlatform.LinuxEditor ||
-                Application.platform == RuntimePlatform.LinuxPlayer)
-                return;
+            if (element == null) return;
 
-            var font = GetMonospaceFont();
-            if (font == null || element == null)
-                return;
+            EnsureMonospaceFontLoaded();
 
-            var fontDef = new StyleFontDefinition(FontDefinition.FromFont(font));
+            if (_monospaceFontAsset == null) return;
+
+            var fontDef = new StyleFontDefinition(FontDefinition.FromSDFFont(_monospaceFontAsset));
 
             // Apply to all TextElements in the hierarchy
             element.Query<TextElement>().ForEach(te => { te.style.unityFontDefinition = fontDef; });
