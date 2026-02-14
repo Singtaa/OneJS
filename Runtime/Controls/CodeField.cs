@@ -415,6 +415,15 @@ namespace OneJS {
         /// Applies the monospace font to a VisualElement and all its TextElement children.
         /// </summary>
         private static void ApplyMonospaceFont(VisualElement element) {
+            // On Linux, Font.CreateDynamicFontFromOSFont returns non-null Font objects that
+            // are internally broken (font face fails to load). Applying such a font causes
+            // TextElement to produce empty/invalid TextGenerationInfo, which crashes native
+            // code (TextSelectionService::SelectCurrentWord segfault) when the user clicks.
+            // Skip custom font on Linux and let UI Toolkit use its default font.
+            if (Application.platform == RuntimePlatform.LinuxEditor ||
+                Application.platform == RuntimePlatform.LinuxPlayer)
+                return;
+
             var font = GetMonospaceFont();
             if (font == null || element == null)
                 return;
