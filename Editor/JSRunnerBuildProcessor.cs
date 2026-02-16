@@ -14,8 +14,8 @@ using UnityEngine.SceneManagement;
 /// Scans all enabled scenes in Build Settings and generates TextAssets for each JSRunner.
 ///
 /// Directory structure:
-///   {SceneDir}/{SceneName}/{GameObjectName}_{InstanceId}/app.js.txt
-///   {SceneDir}/{SceneName}/{GameObjectName}_{InstanceId}/app.js.txt.map (optional)
+///   {SceneDir}/{SceneName}/{GameObjectName}/app.js.txt
+///   {SceneDir}/{SceneName}/{GameObjectName}/app.js.txt.map (optional)
 /// </summary>
 public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBuildWithReport {
     public int callbackOrder => 0;
