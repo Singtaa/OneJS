@@ -53,9 +53,9 @@ public class DefaultFileEntry {
 /// - Zero-config UI: UIDocument is added at runtime; PanelSettings/VisualTreeAsset assigned then.
 ///
 /// Directory structure (for scene "Level1.unity" with JSRunner on "MainUI"):
-///   Assets/Scenes/Level1/MainUI_abc123/~/  (working dir, ignored by Unity)
-///   Assets/Scenes/Level1/MainUI_abc123/PanelSettings.asset (folder marker)
-///   Assets/Scenes/Level1/MainUI_abc123/app.js.txt (bundle TextAsset)
+///   Assets/Scenes/Level1/MainUI/~/  (working dir, ignored by Unity)
+///   Assets/Scenes/Level1/MainUI/PanelSettings.asset (folder marker)
+///   Assets/Scenes/Level1/MainUI/app.js.txt (bundle TextAsset)
 ///
 /// Platform behavior:
 /// - Editor: Loads JS from filesystem with live reload support
@@ -67,9 +67,6 @@ public class DefaultFileEntry {
 public class JSRunner : MonoBehaviour {
     const string DefaultEntryContent = "console.log(\"OneJS is good to go!\");\n";
     const string DefaultBundleFile = "app.js.txt";
-
-    // Instance identification (generated once, persisted)
-    [SerializeField, HideInInspector] string _instanceId;
 
     // Tracks whether initialization has completed (for re-enable handling)
     [SerializeField, HideInInspector] bool _initialized;
@@ -188,21 +185,6 @@ public class JSRunner : MonoBehaviour {
     }
 
     /// <summary>
-    /// Unique instance ID for this JSRunner (generated once, persisted).
-    /// </summary>
-    public string InstanceId {
-        get {
-            if (string.IsNullOrEmpty(_instanceId)) {
-                _instanceId = Guid.NewGuid().ToString("N").Substring(0, 8);
-#if UNITY_EDITOR
-                UnityEditor.EditorUtility.SetDirty(this);
-#endif
-            }
-            return _instanceId;
-        }
-    }
-
-    /// <summary>
     /// Project root path (Assets folder parent in Editor, dataPath in builds).
     /// </summary>
     public string ProjectRoot {
@@ -266,7 +248,8 @@ public class JSRunner : MonoBehaviour {
     }
 
     /// <summary>
-    /// Default instance folder path for new projects (scene + GameObject + instanceId). Used when creating folder and assets.
+    /// Default instance folder path for new projects. Used when creating folder and assets.
+    /// Uses clean counter-based naming: "App", "App_1", "App_2", etc.
     /// When useSceneNameAsRootFolder is true (default), folder is created under {SceneDirectory}/{SceneName}/.
     /// When false, folder is created directly under {SceneDirectory}/ (next to the scene file).
     /// When this runner is a prefab in the Project (not in a scene), returns a folder next to the prefab asset.
@@ -281,7 +264,8 @@ public class JSRunner : MonoBehaviour {
                 ? Path.Combine(sceneDir, Path.GetFileNameWithoutExtension(scenePath))
                 : sceneDir;
 
-            return Path.GetFullPath(Path.Combine(ProjectRoot, root.Replace('/', Path.DirectorySeparatorChar), $"{gameObject.name}_{InstanceId}"));
+            var parentDir = Path.GetFullPath(Path.Combine(ProjectRoot, root.Replace('/', Path.DirectorySeparatorChar)));
+            return FindAvailableFolderPath(parentDir, gameObject.name);
         }
 
         // Prefab in Project (not in a scene): create project folder next to the prefab asset
@@ -292,8 +276,25 @@ public class JSRunner : MonoBehaviour {
         if (string.IsNullOrEmpty(prefabDir)) return null;
 
         var prefabName = Path.GetFileNameWithoutExtension(prefabPath);
-        var relativeDir = Path.Combine(prefabDir, $"{prefabName}_{InstanceId}").Replace('/', Path.DirectorySeparatorChar);
-        return Path.GetFullPath(Path.Combine(ProjectRoot, relativeDir));
+        var parentDir2 = Path.GetFullPath(Path.Combine(ProjectRoot, prefabDir.Replace('/', Path.DirectorySeparatorChar)));
+        return FindAvailableFolderPath(parentDir2, prefabName);
+    }
+
+    /// <summary>
+    /// Finds the next available folder path using counter-based naming.
+    /// Tries "{baseName}", then "{baseName}_1", "{baseName}_2", etc.
+    /// </summary>
+    static string FindAvailableFolderPath(string parentDir, string baseName) {
+        var candidate = Path.Combine(parentDir, baseName);
+        if (!Directory.Exists(candidate)) return candidate;
+
+        for (int i = 1; i <= 1000; i++) {
+            candidate = Path.Combine(parentDir, $"{baseName}_{i}");
+            if (!Directory.Exists(candidate)) return candidate;
+        }
+
+        // Fallback for the (impossible) 1000+ case
+        return Path.Combine(parentDir, $"{baseName}_{Guid.NewGuid():N}");
     }
 
     /// <summary>

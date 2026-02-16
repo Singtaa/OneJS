@@ -63,7 +63,7 @@ JSRunner uses the **assigned PanelSettings asset** as the source of truth for pr
 ```
 Assets/Scenes/Level1.unity          # Your scene
 Assets/Scenes/Level1/               # Auto-created folder next to scene
-├── MainUI_abc123/                  # Instance folder (name + instanceId)
+├── MainUI/                         # Instance folder (counter-based: MainUI, MainUI_1, ...)
 │   ├── ~/                          # Working directory (~ makes Unity ignore it)
 │   │   ├── package.json            # Scaffolded on Initialize
 │   │   ├── index.tsx               # Source file
@@ -76,7 +76,7 @@ Assets/Scenes/Level1/               # Auto-created folder next to scene
 
 **Key points:**
 - **PanelSettings location = project folder**. Moving the PanelSettings asset moves the project.
-- Each JSRunner gets its own isolated workspace via instance ID suffix
+- Each JSRunner gets its own isolated workspace (counter suffix added if name conflicts)
 - `~` suffix on the working directory makes Unity ignore it (no .meta files)
 - UIDocument component is added at runtime (not `[RequireComponent]`)
 - VisualTreeAsset is auto-synced from the PanelSettings folder
