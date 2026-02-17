@@ -1,6 +1,6 @@
 /*
  * Tencent is pleased to support the open source community by making Puerts available.
- * Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
+ * Copyright (C) 2020 Tencent.  All rights reserved.
  * Puerts is licensed under the BSD 3-Clause License, except for the third-party components listed in the file 'LICENSE' which may be subject to their corresponding license terms. 
  * This file is subject to the terms and conditions defined in file 'LICENSE', which is part of this source code package.
  */
@@ -26,6 +26,7 @@ function csTypeToClass(csType) {
 
         let readonlyStaticMembers;
         if (readonlyStaticMembers = cls.__puertsMetadata.get('readonlyStaticMembers')) {
+            cls.__puertsMetadata.set('readonlyStaticMembers', undefined);
             for (var key in cls) {
                 let desc = Object.getOwnPropertyDescriptor(cls, key);
                 if (readonlyStaticMembers.has(key) && desc && (typeof desc.get) == 'function' && (typeof desc.value) == 'undefined') {
@@ -33,21 +34,23 @@ function csTypeToClass(csType) {
                     let value;
                     let valueGetted = false;
     
-                    Object.defineProperty(
-                        cls, key, 
-                        Object.assign(desc, {
-                            get() {
-                                if (!valueGetted) {
-                                    value = getter();
-                                    valueGetted = true;
-                                }
-                                
-                                return value;
-                            },
-                            configurable: false
-                        })
-                    );
-                    if (cls.__p_isEnum) {
+                    if (desc.configurable) {
+                        Object.defineProperty(
+                            cls, key, 
+                            Object.assign(desc, {
+                                get() {
+                                    if (!valueGetted) {
+                                        value = getter();
+                                        valueGetted = true;
+                                    }
+                                    
+                                    return value;
+                                },
+                                configurable: false
+                            })
+                        );
+                    }
+                    if (cls.__p_innerType.IsEnum) {
                         const val = cls[key];
                         if ((typeof val) == 'number') {
                             cls[val] = key;
@@ -173,9 +176,26 @@ function makeGeneric(genericTypeInfo, ...genericArgs) {
 
         let typName = genericTypeInfo.get('$name')
         let typ = puer.loadType(typName, ...genericArgs)
-        if (getType(csharpModule.System.Collections.IEnumerable).IsAssignableFrom(getType(typ))) {
+        let csType =  getType(typ)
+        if (getType(csharpModule.System.Collections.IEnumerable).IsAssignableFrom(csType)) {
             typ.prototype[Symbol.iterator] = function () {
                 return genIterator(this);
+            }
+        }
+        
+        let nestedTypes = puer.getNestedTypes(csType);
+        if (nestedTypes) {
+            for(var i = 0; i < nestedTypes.Length; i++) {
+                let ntype = nestedTypes.get_Item(i);
+                if (ntype.IsGenericTypeDefinition) {
+                    genericArgs = genericArgs.map(g => puer.$typeof(g) || g);
+                    ntype = ntype.MakeGenericType(...genericArgs);
+                }
+                try {
+                    typ[ntype.Name] = csTypeToClass(ntype);
+                } catch (e) {
+                    console.warn(`load nestedtype [${ntype.Name || ntype}] of ${csType.Name || csType} fail: ${e}`);
+                }
             }
         }
         p.set('$type', typ);

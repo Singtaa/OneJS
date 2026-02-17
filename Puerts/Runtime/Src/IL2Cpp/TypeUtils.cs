@@ -1,6 +1,6 @@
 /*
 * Tencent is pleased to support the open source community by making Puerts available.
-* Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
+* Copyright (C) 2020 Tencent.  All rights reserved.
 * Puerts is licensed under the BSD 3-Clause License, except for the third-party components listed in the file 'LICENSE' which may be subject to their corresponding license terms. 
 * This file is subject to the terms and conditions defined in file 'LICENSE', which is part of this source code package.
 */
@@ -161,10 +161,8 @@ namespace PuertsIl2cpp
             foreach (var field in type.GetFields(BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
             {
                 // special handling circular definition by pointer
-                if (
-                    (field.FieldType.IsByRef || field.FieldType.IsPointer) &&
-                    field.FieldType.GetElementType() == type
-                ) {
+                if (field.FieldType.IsPointer || (field.FieldType.IsByRef && field.FieldType.GetElementType() == type))
+                {
                     sb.Append("Pv");
                 } 
                 else
@@ -246,6 +244,10 @@ namespace PuertsIl2cpp
             else if (type == typeof(object)) //object特殊处理，比如check可以不用判断，比如return可以优化
             {
                 return TypeSignatures.SystemObject;
+            }
+            else if (type.IsPointer)
+            {
+                return TypeSignatures.RefOrPointerPrefix + "v";
             }
             else if (type.IsByRef || type.IsPointer)
             {

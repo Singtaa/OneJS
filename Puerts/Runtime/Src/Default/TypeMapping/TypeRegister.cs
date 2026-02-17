@@ -1,6 +1,6 @@
 ﻿/*
 * Tencent is pleased to support the open source community by making Puerts available.
-* Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
+* Copyright (C) 2020 Tencent.  All rights reserved.
 * Puerts is licensed under the BSD 3-Clause License, except for the third-party components listed in the file 'LICENSE' which may be subject to their corresponding license terms. 
 * This file is subject to the terms and conditions defined in file 'LICENSE', which is part of this source code package.
 */
@@ -654,11 +654,6 @@ namespace Puerts
             {
                 translateFunc(jsEnv.Idx, isolate1, NativeValueApi.SetValueToResult, info, type);
             }), null, 0, true);
-
-            if (type.IsEnum)
-            {
-                PuertsDLL.RegisterProperty(jsEnv.isolate, typeId, "__p_isEnum", true, returnTrue, 0, null, 0, false);
-            }
 
             return typeId;
         }

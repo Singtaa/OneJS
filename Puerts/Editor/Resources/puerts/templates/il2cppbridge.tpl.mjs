@@ -1,6 +1,6 @@
 /*
 * Tencent is pleased to support the open source community by making Puerts available.
-* Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
+* Copyright (C) 2020 Tencent.  All rights reserved.
 * Puerts is licensed under the BSD 3-Clause License, except for the third-party components listed in the file 'LICENSE' which may be subject to their corresponding license terms. 
 * This file is subject to the terms and conditions defined in file 'LICENSE', which is part of this source code package.
 */
@@ -40,7 +40,8 @@ function genBridge(bridgeInfo, isOptimizeSize) {
     var parameterSignatures = il2cpp_snippets.listToJsArray(bridgeInfo.ParameterSignatures);
     let hasVarArgs = parameterSignatures.length > 0 && parameterSignatures[parameterSignatures.length -1][0] == 'V'
     return t`
-static ${il2cpp_snippets.SToCPPType(bridgeInfo.ReturnSignature)} b_${bridgeInfo.Signature}${isOptimizeSize ? '_inner' : ''}(void* target, ${parameterSignatures.map((S, i) => `${il2cpp_snippets.SToCPPType(S)} p${i}`).map(s => `${s}, `).join('')}MethodInfo* method) {
+// ${bridgeInfo.CsName}
+static ${il2cpp_snippets.SToCPPType(bridgeInfo.ReturnSignature)} b_${bridgeInfo.Signature}(void* target, ${parameterSignatures.map((S, i) => `${il2cpp_snippets.SToCPPType(S)} p${i}`).map(s => `${s}, `).join('')}MethodInfo* method) {
     // PLog("Running b_${bridgeInfo.Signature}");
 
     ${IF(bridgeInfo.ReturnSignature && !(il2cpp_snippets.getSignatureWithoutRefAndPrefix(bridgeInfo.ReturnSignature) in il2cpp_snippets.PrimitiveSignatureCppTypeMap))}
@@ -84,11 +85,11 @@ static ${il2cpp_snippets.SToCPPType(bridgeInfo.ReturnSignature)} b_${bridgeInfo.
 }
 ${IF(isOptimizeSize)}
 
-static void b_${bridgeInfo.Signature}(void* target, ${parameterSignatures.map((S, i) => `Il2CppFullySharedGenericAny p${i}`).map(s => `${s}, `).join('')}${bridgeInfo.ReturnSignature != 'v' ? `Il2CppFullySharedGenericAny * il2ppRetVal,` : ''}MethodInfo* method) {
+static void b_${bridgeInfo.Signature}_Shared(void* target, ${parameterSignatures.map((S, i) => `Il2CppFullySharedGenericAny p${i}`).map(s => `${s}, `).join('')}${bridgeInfo.ReturnSignature != 'v' ? `Il2CppFullySharedGenericAny * il2ppRetVal,` : ''}MethodInfo* method) {
     ${IF(bridgeInfo.ReturnSignature != 'v')}
     *((${il2cpp_snippets.SToCPPType(bridgeInfo.ReturnSignature)} *)il2ppRetVal) =
     ${ENDIF()}
-    b_${bridgeInfo.Signature}_inner(target, ${parameterSignatures.map((S, i) => `${il2cpp_snippets.FromAny(S)}p${i}`).map(s => `${s}, `).join('')}method);
+    b_${bridgeInfo.Signature}(target, ${parameterSignatures.map((S, i) => `${il2cpp_snippets.FromAny(S)}p${i}`).map(s => `${s}, `).join('')}method);
 }
 ${ENDIF()}
 `;
@@ -132,14 +133,23 @@ static BridgeFuncInfo g_bridgeFuncInfos[] = {
     {nullptr, nullptr}
 };
 
+${genInfos.IsOptimizeSize ? `
+static Il2CppMethodPointer g_bridgeSharedFuncs[] = {
+    ${FOR(bridgeInfos, info => t`
+    (Il2CppMethodPointer)b_${info.Signature}_Shared,
+    `)}
+    nullptr
+};` : ''
+}
 
-Il2CppMethodPointer FindBridgeFunc(const char* signature)
+
+Il2CppMethodPointer FindBridgeFunc(const char* signature, bool IsShared)
 {
     auto begin = &g_bridgeFuncInfos[0];
     auto end = &g_bridgeFuncInfos[sizeof(g_bridgeFuncInfos) / sizeof(BridgeFuncInfo) - 1];
     auto first = std::lower_bound(begin, end, signature, [](const BridgeFuncInfo& x, const char* signature) {return strcmp(x.Signature, signature) < 0;});
     if (first != end && strcmp(first->Signature, signature) == 0) {
-        return first->Method;
+        ${genInfos.IsOptimizeSize ? 'return IsShared ? g_bridgeSharedFuncs[first - begin] : first->Method' : 'return first->Method'};
     }
     return nullptr;
 }

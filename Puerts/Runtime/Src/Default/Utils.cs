@@ -1,6 +1,6 @@
 ﻿/*
 * Tencent is pleased to support the open source community by making Puerts available.
-* Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
+* Copyright (C) 2020 Tencent.  All rights reserved.
 * Puerts is licensed under the BSD 3-Clause License, except for the third-party components listed in the file 'LICENSE' which may be subject to their corresponding license terms. 
 * This file is subject to the terms and conditions defined in file 'LICENSE', which is part of this source code package.
 */
@@ -329,38 +329,6 @@ namespace Puerts
                     if (type.IsDefined(typeof(ExtensionAttribute), false))
                     {
                         type_def_extention_method.Add(type);
-                    }
-
-                    if (!type.IsAbstract() || !type.IsSealed()) continue;
-
-                    var fields = type.GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
-                    for (int i = 0; i < fields.Length; i++)
-                    {
-                        var field = fields[i];
-                        if ((typeof(IEnumerable<Type>)).IsAssignableFrom(field.FieldType))
-                        {
-                            var types = field.GetValue(null) as IEnumerable<Type>;
-                            if (types != null)
-                            {
-                                type_def_extention_method.AddRange(types.Where(t => t != null && t.IsDefined(typeof(ExtensionAttribute), false)));
-                            }
-                        }
-                    }
-
-                    var props = type.GetProperties(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
-                    for (int i = 0; i < props.Length; i++)
-                    {
-                        var prop = props[i];
-                        if (!prop.CanRead)
-                            continue;
-                        if ((typeof(IEnumerable<Type>)).IsAssignableFrom(prop.PropertyType))
-                        {
-                            var types = prop.GetValue(null, null) as IEnumerable<Type>;
-                            if (types != null)
-                            {
-                                type_def_extention_method.AddRange(types.Where(t => t != null && t.IsDefined(typeof(ExtensionAttribute), false)));
-                            }
-                        }
                     }
                 }
                 enumerator.Dispose();

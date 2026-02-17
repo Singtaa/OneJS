@@ -1,6 +1,6 @@
 /*
  * Tencent is pleased to support the open source community by making Puerts available.
- * Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
+ * Copyright (C) 2020 Tencent.  All rights reserved.
  * Puerts is licensed under the BSD 3-Clause License, except for the third-party components listed in the file 'LICENSE' which may be subject to their corresponding license terms. 
  * This file is subject to the terms and conditions defined in file 'LICENSE', which is part of this source code package.
  */
@@ -17,7 +17,7 @@ puer.loadType = function(nameOrCSType, ...genericArgs) {
         csType = jsEnv.GetTypeByString(nameOrCSType)
     }
     if (csType) {
-        if (genericArgs && csType.IsGenericTypeDefinition) {
+        if (genericArgs && genericArgs.length > 0 && csType.IsGenericTypeDefinition) {
             genericArgs = genericArgs.map(g => puer.$typeof(g));
             csType = csType.MakeGenericType(...genericArgs);
         }
@@ -29,6 +29,18 @@ puer.loadType = function(nameOrCSType, ...genericArgs) {
         cls.__p_innerType = csType;
         // todo
         cls.__puertsMetadata = cls.__puertsMetadata || new Map();
+        let fields = csType.GetFields(26);
+        for (var i = 0; i < fields.Length; ++i ) {
+            let field = fields.get_Item(i);
+            if (field.IsInitOnly || field.IsLiteral) {
+                let readonlyStaticMembers = cls.__puertsMetadata.get('readonlyStaticMembers');
+                if (!readonlyStaticMembers) {
+                    readonlyStaticMembers = new Set();
+                    cls.__puertsMetadata.set('readonlyStaticMembers', readonlyStaticMembers);
+                }
+                readonlyStaticMembers.add(field.Name);
+            }
+        }
         return cls
     }
 }
