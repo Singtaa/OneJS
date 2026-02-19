@@ -15,6 +15,19 @@ public class InteropTestState {
 }
 
 /// <summary>
+/// Typed item for collection sync tests.
+/// Simulates a game inventory item with mutable properties
+/// that JS watches via useFrameSync selector mode.
+/// </summary>
+public class InteropTestItem {
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public int Durability { get; set; }
+    public int StackCount { get; set; }
+    public int Version { get; set; }
+}
+
+/// <summary>
 /// Static helper for interop tests.
 /// Exposes state and collections via methods (not PascalCase properties)
 /// because the bootstrap path proxy treats uppercase-first property access
@@ -24,9 +37,11 @@ public class InteropTestState {
 public static class InteropTestHelper {
     static InteropTestState _state;
     static List<string> _items = new();
+    static List<InteropTestItem> _inventory = new();
 
     public static InteropTestState GetState() => _state;
     public static List<string> GetItems() => _items;
+    public static List<InteropTestItem> GetInventory() => _inventory;
 
     public static void Init(string name, int version) {
         _state = new InteropTestState { Name = name, Version = version };
@@ -43,9 +58,42 @@ public static class InteropTestHelper {
     public static void ClearItems() => _items.Clear();
     public static void AddItem(string item) => _items.Add(item);
 
+    public static void AddInventoryItem(int id, string name, int durability, int stackCount) {
+        _inventory.Add(new InteropTestItem {
+            Id = id, Name = name, Durability = durability, StackCount = stackCount, Version = 1
+        });
+    }
+
+    public static void SetItemDurability(int index, int durability) {
+        if (index >= 0 && index < _inventory.Count) {
+            _inventory[index].Durability = durability;
+            _inventory[index].Version++;
+        }
+    }
+
+    public static void SetItemName(int index, string name) {
+        if (index >= 0 && index < _inventory.Count) {
+            _inventory[index].Name = name;
+            _inventory[index].Version++;
+        }
+    }
+
+    public static void SetItemStackCount(int index, int count) {
+        if (index >= 0 && index < _inventory.Count) {
+            _inventory[index].StackCount = count;
+            _inventory[index].Version++;
+        }
+    }
+
+    public static void RemoveInventoryItem(int index) {
+        if (index >= 0 && index < _inventory.Count)
+            _inventory.RemoveAt(index);
+    }
+
     public static void Reset() {
         _state = null;
         _items.Clear();
+        _inventory.Clear();
     }
 }
 
@@ -410,6 +458,319 @@ public class QuickJSInteropPlaymodeTests {
         StringAssert.Contains("\"nameAfter\":\"Market\"", result);
         StringAssert.Contains("\"itemsBefore\":\"ale,bread\"", result);
         StringAssert.Contains("\"itemsAfter\":\"ale,bread,cheese\"", result);
+        yield return null;
+    }
+
+    // =========================================================================
+    // MARK: Collection Sync — Typed Item Tests
+    //
+    // These tests validate the exact interop contract that useFrameSync's
+    // selector mode + toArray rely on for the parent/child collection pattern:
+    //   - Parent watches list.Count via selector → re-renders on add/remove
+    //   - Each child watches its own item's properties → re-renders on mutation
+    //   - Item proxies are cached (same C# object → same JS reference)
+    //   - Extracted primitives from item proxies detect changes via Object.is
+    // =========================================================================
+
+    [UnityTest]
+    public IEnumerator TypedCollection_ItemProxyCaching_SameReference() {
+        InteropTestHelper.AddInventoryItem(1, "Sword", 100, 1);
+        InteropTestHelper.AddInventoryItem(2, "Shield", 80, 1);
+
+        var result = _ctx.Eval(@"
+            var inv = CS.InteropTestHelper.GetInventory();
+            var item0a = inv[0];
+            var item0b = inv[0];
+            var item1 = inv[1];
+            (item0a === item0b) + '|' + (item0a === item1);
+        ");
+        Assert.AreEqual("true|false", result,
+            "Same list index should return same proxy; different indices should differ");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator TypedCollection_ItemPropertyRead_Works() {
+        InteropTestHelper.AddInventoryItem(1, "Sword", 100, 1);
+        InteropTestHelper.AddInventoryItem(2, "Shield", 80, 3);
+
+        var result = _ctx.Eval(@"
+            var inv = CS.InteropTestHelper.GetInventory();
+            var sword = inv[0];
+            var shield = inv[1];
+            sword.Id + '|' + sword.Name + '|' + sword.Durability + '|' + sword.StackCount
+                + '||' + shield.Id + '|' + shield.Name + '|' + shield.Durability + '|' + shield.StackCount;
+        ");
+        Assert.AreEqual("1|Sword|100|1||2|Shield|80|3", result,
+            "All item properties should be readable through proxy");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator TypedCollection_ItemPropertyChange_VisibleThroughProxy() {
+        InteropTestHelper.AddInventoryItem(1, "Sword", 100, 1);
+
+        var result = _ctx.Eval(@"
+            var inv = CS.InteropTestHelper.GetInventory();
+            var sword = inv[0];
+            var durBefore = sword.Durability;
+            var verBefore = sword.Version;
+
+            CS.InteropTestHelper.SetItemDurability(0, 75);
+
+            var durAfter = sword.Durability;
+            var verAfter = sword.Version;
+            durBefore + '|' + durAfter + '|' + verBefore + '|' + verAfter;
+        ");
+        Assert.AreEqual("100|75|1|2", result,
+            "Mutating item in C# should be visible through the same JS proxy");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator TypedCollection_ItemDepsDetectChange_OnlyAffectedItem() {
+        InteropTestHelper.AddInventoryItem(1, "Sword", 100, 1);
+        InteropTestHelper.AddInventoryItem(2, "Shield", 80, 1);
+
+        // This simulates the exact pattern each child component uses:
+        // selector: (item) => [item.Name, item.Durability, item.StackCount]
+        var result = _ctx.Eval(@"
+            var inv = CS.InteropTestHelper.GetInventory();
+
+            function itemDeps(item) {
+                return [item.Name, item.Durability, item.StackCount];
+            }
+
+            var swordDeps1 = itemDeps(inv[0]);
+            var shieldDeps1 = itemDeps(inv[1]);
+
+            // Only change the sword's durability
+            CS.InteropTestHelper.SetItemDurability(0, 50);
+
+            var swordDeps2 = itemDeps(inv[0]);
+            var shieldDeps2 = itemDeps(inv[1]);
+
+            function depsChanged(a, b) {
+                return a.some(function(val, i) { return !Object.is(val, b[i]); });
+            }
+
+            var swordChanged = depsChanged(swordDeps1, swordDeps2);
+            var shieldChanged = depsChanged(shieldDeps1, shieldDeps2);
+            swordChanged + '|' + shieldChanged;
+        ");
+        Assert.AreEqual("true|false", result,
+            "Only the mutated item's deps should change — " +
+            "this is what makes per-child re-rendering work");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator TypedCollection_VersionStamp_CatchesAnyChange() {
+        InteropTestHelper.AddInventoryItem(1, "Sword", 100, 1);
+        InteropTestHelper.AddInventoryItem(2, "Shield", 80, 1);
+
+        // Version stamp pattern: selector: (item) => [item.Version]
+        var result = _ctx.Eval(@"
+            var inv = CS.InteropTestHelper.GetInventory();
+
+            var swordVer1 = inv[0].Version;
+            var shieldVer1 = inv[1].Version;
+
+            CS.InteropTestHelper.SetItemDurability(0, 50);
+
+            var swordVer2 = inv[0].Version;
+            var shieldVer2 = inv[1].Version;
+
+            var swordChanged = !Object.is(swordVer1, swordVer2);
+            var shieldChanged = !Object.is(shieldVer1, shieldVer2);
+            swordChanged + '|' + shieldChanged + '|' + swordVer1 + '|' + swordVer2;
+        ");
+        Assert.AreEqual("true|false|1|2", result,
+            "Version stamp should increment only on the mutated item");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator TypedCollection_CountChange_DetectedByParentDeps() {
+        InteropTestHelper.AddInventoryItem(1, "Sword", 100, 1);
+        InteropTestHelper.AddInventoryItem(2, "Shield", 80, 1);
+
+        // Parent pattern: selector: (inv) => [inv.Count]
+        var result = _ctx.Eval(@"
+            var inv = CS.InteropTestHelper.GetInventory();
+            var countBefore = inv.Count;
+
+            CS.InteropTestHelper.AddInventoryItem(3, 'Potion', 1, 5);
+
+            var countAfter = inv.Count;
+
+            var countChanged = !Object.is(countBefore, countAfter);
+            countChanged + '|' + countBefore + '|' + countAfter;
+        ");
+        Assert.AreEqual("true|2|3", result,
+            "Adding an item should change Count — detected by parent selector");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator TypedCollection_ItemMutation_DoesNotChangeCount() {
+        InteropTestHelper.AddInventoryItem(1, "Sword", 100, 1);
+        InteropTestHelper.AddInventoryItem(2, "Shield", 80, 1);
+
+        // Verifies the parent does NOT re-render when only an item property changes
+        var result = _ctx.Eval(@"
+            var inv = CS.InteropTestHelper.GetInventory();
+            var countBefore = inv.Count;
+
+            CS.InteropTestHelper.SetItemDurability(0, 50);
+            CS.InteropTestHelper.SetItemName(1, 'Broken Shield');
+
+            var countAfter = inv.Count;
+            var countChanged = !Object.is(countBefore, countAfter);
+            '' + countChanged;
+        ");
+        Assert.AreEqual("false", result,
+            "Item property mutations should NOT change Count — parent stays stable");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator TypedCollection_RemoveItem_ChangesCount() {
+        InteropTestHelper.AddInventoryItem(1, "Sword", 100, 1);
+        InteropTestHelper.AddInventoryItem(2, "Shield", 80, 1);
+        InteropTestHelper.AddInventoryItem(3, "Potion", 1, 5);
+
+        var result = _ctx.Eval(@"
+            var inv = CS.InteropTestHelper.GetInventory();
+            var countBefore = inv.Count;
+
+            CS.InteropTestHelper.RemoveInventoryItem(1);
+
+            var countAfter = inv.Count;
+            var remaining0 = inv[0].Name;
+            var remaining1 = inv[1].Name;
+            countBefore + '|' + countAfter + '|' + remaining0 + '|' + remaining1;
+        ");
+        Assert.AreEqual("3|2|Sword|Potion", result,
+            "Removing an item should change Count and shift indices");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator TypedCollection_ToArrayLoop_ProducesJSArray() {
+        InteropTestHelper.AddInventoryItem(1, "Sword", 100, 1);
+        InteropTestHelper.AddInventoryItem(2, "Shield", 80, 1);
+        InteropTestHelper.AddInventoryItem(3, "Potion", 1, 5);
+
+        var result = _ctx.Eval(@"
+            var inv = CS.InteropTestHelper.GetInventory();
+            var jsArr = [];
+            for (var i = 0; i < inv.Count; i++) {
+                jsArr.push(inv[i]);
+            }
+
+            // Verify it's a real JS array with array methods
+            var names = jsArr.map(function(item) { return item.Name; });
+            var highDur = jsArr.filter(function(item) { return item.Durability > 50; });
+            jsArr.length + '|' + names.join(',') + '|' + highDur.length;
+        ");
+        Assert.AreEqual("3|Sword,Shield,Potion|2", result,
+            "toArray loop should produce a real JS array with working map/filter");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator TypedCollection_FullParentChildPattern_EndToEnd() {
+        InteropTestHelper.AddInventoryItem(1, "Sword", 100, 1);
+        InteropTestHelper.AddInventoryItem(2, "Shield", 80, 1);
+
+        // Simulates the complete pattern:
+        //   Parent: selector = (inv) => [inv.Count]
+        //   Children: selector = (item) => [item.Name, item.Durability, item.StackCount]
+        var result = _ctx.Eval(@"
+            var inv = CS.InteropTestHelper.GetInventory();
+
+            function parentDeps() { return [inv.Count]; }
+            function childDeps(item) { return [item.Name, item.Durability, item.StackCount]; }
+            function toArray(coll) {
+                var arr = [];
+                for (var i = 0; i < coll.Count; i++) arr.push(coll[i]);
+                return arr;
+            }
+            function depsChanged(a, b) {
+                if (a.length !== b.length) return true;
+                return a.some(function(v, i) { return !Object.is(v, b[i]); });
+            }
+
+            // --- Snapshot 1: initial state ---
+            var pDeps1 = parentDeps();
+            var items1 = toArray(inv);
+            var cDeps1_0 = childDeps(items1[0]);
+            var cDeps1_1 = childDeps(items1[1]);
+
+            // --- Mutation: change only Sword's durability ---
+            CS.InteropTestHelper.SetItemDurability(0, 50);
+
+            var pDeps2 = parentDeps();
+            var cDeps2_0 = childDeps(inv[0]);
+            var cDeps2_1 = childDeps(inv[1]);
+
+            var parentChanged = depsChanged(pDeps1, pDeps2);
+            var child0Changed = depsChanged(cDeps1_0, cDeps2_0);
+            var child1Changed = depsChanged(cDeps1_1, cDeps2_1);
+
+            // --- Mutation: add a new item ---
+            CS.InteropTestHelper.AddInventoryItem(3, 'Potion', 1, 5);
+
+            var pDeps3 = parentDeps();
+            var parentChangedAfterAdd = depsChanged(pDeps2, pDeps3);
+
+            JSON.stringify({
+                parentChangedOnMutation: parentChanged,
+                swordChildChanged: child0Changed,
+                shieldChildChanged: child1Changed,
+                parentChangedOnAdd: parentChangedAfterAdd,
+                newCount: inv.Count,
+                newItemName: inv[2].Name
+            });
+        ");
+
+        StringAssert.Contains("\"parentChangedOnMutation\":false", result);
+        StringAssert.Contains("\"swordChildChanged\":true", result);
+        StringAssert.Contains("\"shieldChildChanged\":false", result);
+        StringAssert.Contains("\"parentChangedOnAdd\":true", result);
+        StringAssert.Contains("\"newCount\":3", result);
+        StringAssert.Contains("\"newItemName\":\"Potion\"", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator TypedCollection_MultiplePropertyChanges_AllDetected() {
+        InteropTestHelper.AddInventoryItem(1, "Sword", 100, 1);
+
+        var result = _ctx.Eval(@"
+            var inv = CS.InteropTestHelper.GetInventory();
+            var sword = inv[0];
+
+            var deps1 = [sword.Name, sword.Durability, sword.StackCount, sword.Version];
+
+            CS.InteropTestHelper.SetItemName(0, 'Broken Sword');
+            CS.InteropTestHelper.SetItemStackCount(0, 2);
+            // Note: SetItemName and SetItemStackCount each bump Version,
+            // so Version goes from 1 → 2 → 3
+
+            var deps2 = [sword.Name, sword.Durability, sword.StackCount, sword.Version];
+
+            var changes = [];
+            var labels = ['Name', 'Durability', 'StackCount', 'Version'];
+            for (var i = 0; i < deps1.length; i++) {
+                if (!Object.is(deps1[i], deps2[i])) changes.push(labels[i]);
+            }
+            changes.join(',') + '|' + deps2[0] + '|' + deps2[2] + '|' + deps2[3];
+        ");
+        Assert.AreEqual("Name,StackCount,Version|Broken Sword|2|3", result,
+            "Multiple property changes should all be detected; " +
+            "Durability was not changed so it should not appear");
         yield return null;
     }
 }
