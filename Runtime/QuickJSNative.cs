@@ -20,16 +20,17 @@ using System.Runtime.InteropServices;
 /// </summary>
 public static partial class QuickJSNative {
     // MARK: Native Library Name
-    // WebGL uses __Internal which routes to OneJSWebGL.jslib
-    // iOS uses __Internal for static linking
+    // Editor always uses the native library (even when build target is iOS/WebGL)
+    // WebGL builds use __Internal which routes to OneJSWebGL.jslib
+    // iOS builds use __Internal for static linking
     // All other platforms use the native QuickJS library
     const string LibName =
-#if UNITY_WEBGL && !UNITY_EDITOR
+#if UNITY_EDITOR
+        "quickjs_unity";
+#elif UNITY_WEBGL
         "__Internal";
 #elif UNITY_IOS
         "__Internal";
-#elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
-        "quickjs_unity";
 #else
         "quickjs_unity";
 #endif
