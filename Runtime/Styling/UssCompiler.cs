@@ -42,7 +42,10 @@ namespace OneJS.CustomStyleSheets {
 
         public UssCompiler(string workingDir = null) {
             _builder = new StyleSheetBuilderWrapper();
-            _parser = new StylesheetParser();
+            _parser = new StylesheetParser(
+                includeUnknownDeclarations: true,
+                tolerateInvalidValues: true
+            );
             _workingDir = workingDir ?? "";
         }
 
@@ -280,6 +283,7 @@ namespace OneJS.CustomStyleSheets {
         static readonly Regex NumberWithUnitRegex = new Regex(@"^(-?[\d.]+)(px|%|s|ms|deg|grad|rad|turn)?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         static readonly Regex UrlRegex = new Regex(@"^url\s*\(\s*['""]?(.+?)['""]?\s*\)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         static readonly Regex ResourceRegex = new Regex(@"^resource\s*\(\s*['""]?(.+?)['""]?\s*\)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        static readonly Regex VarRegex = new Regex(@"^var\s*\(\s*(.+)\s*\)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         void ParseAndAddValue(string value) {
             if (string.IsNullOrWhiteSpace(value)) return;
@@ -360,6 +364,13 @@ namespace OneJS.CustomStyleSheets {
             if (string.IsNullOrWhiteSpace(value)) return;
             value = value.Trim();
 
+            // Try var() function
+            var varMatch = VarRegex.Match(value);
+            if (varMatch.Success) {
+                CompileVarFunction(varMatch.Groups[1].Value.Trim());
+                return;
+            }
+
             // Try hex color
             var hexMatch = ColorHexRegex.Match(value);
             if (hexMatch.Success) {
@@ -434,6 +445,52 @@ namespace OneJS.CustomStyleSheets {
 
             // Default: treat as enum or string
             _builder.AddValue(value, StyleValueType.Enum);
+        }
+
+        void CompileVarFunction(string inner) {
+            // Split into variable name and optional fallback at the first top-level comma
+            string varName;
+            string fallback = null;
+
+            int depth = 0;
+            int commaIndex = -1;
+            for (int i = 0; i < inner.Length; i++) {
+                char c = inner[i];
+                if (c == '(' || c == '[') depth++;
+                else if (c == ')' || c == ']') depth--;
+                else if (c == ',' && depth == 0) {
+                    commaIndex = i;
+                    break;
+                }
+            }
+
+            if (commaIndex >= 0) {
+                varName = inner.Substring(0, commaIndex).Trim();
+                fallback = inner.Substring(commaIndex + 1).Trim();
+            } else {
+                varName = inner;
+            }
+
+            // Calculate arg count to match Unity's token counting:
+            // variable name (1) + comma (1) + fallback value count
+            int argCount = 1;
+            List<string> fallbackParts = null;
+            if (fallback != null) {
+                argCount++; // comma token
+                fallbackParts = SplitSpaceSeparated(fallback);
+                argCount += fallbackParts.Count;
+            }
+
+            _builder.AddValue(StyleFunction.Var);
+            _builder.AddValue((float)argCount);
+            _builder.AddValue(varName, StyleValueType.Variable);
+
+            if (fallbackParts != null) {
+                _builder.AddCommaSeparator();
+                foreach (var part in fallbackParts) {
+                    ParseSingleValue(part);
+                }
+            }
         }
 
         bool TryParseNamedColor(string name, out UnityEngine.Color color) {
