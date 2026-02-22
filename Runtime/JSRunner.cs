@@ -141,10 +141,19 @@ public class JSRunner : MonoBehaviour {
     Janitor _janitor;
 
 #if UNITY_EDITOR
+    static readonly List<JSRunner> _instances = new List<JSRunner>();
+
+    /// <summary>
+    /// All enabled JSRunner instances. Avoids FindObjectsByType; register/unregister in OnEnable/OnDisable.
+    /// </summary>
+    public static IReadOnlyList<JSRunner> Instances => _instances;
+
     // Edit-mode preview state (non-serialized, rebuilt on enable)
     bool _editModePreviewActive;
     float _nextEditModeTick;
     const float EditModeTickInterval = 1f / 30f; // 30Hz throttle
+    public static Func<JSRunner, bool> EditModeUpdateFilter;
+    public static Func<JSRunner, bool> PlayModeUpdateFilter;
     FileSystemWatcher _editModeWatcher;
 #endif
 
@@ -156,6 +165,7 @@ public class JSRunner : MonoBehaviour {
     public DateTime LastModifiedTime => _lastModifiedTime;
     public DateTime LastReloadTime => _lastReloadTime;
     public bool IncludeSourceMap => _includeSourceMap;
+    public PanelSettings PanelSettingsAsset => _panelSettings;
     public TextAsset BundleAsset => _bundleAsset;
     public TextAsset SourceMapAsset => _sourceMapAsset;
 #if UNITY_EDITOR
@@ -740,6 +750,8 @@ public class JSRunner : MonoBehaviour {
 
     void OnEnable() {
 #if UNITY_EDITOR
+        if (!_instances.Contains(this))
+            _instances.Add(this);
         if (!Application.isPlaying) {
             // Defer to let UIDocument panel settle after domain reload
             UnityEditor.EditorApplication.delayCall += TryStartEditModePreview;
@@ -757,6 +769,7 @@ public class JSRunner : MonoBehaviour {
 
     void OnDisable() {
 #if UNITY_EDITOR
+        _instances.Remove(this);
         if (!Application.isPlaying) {
             StopEditModePreview();
             return;
@@ -1247,13 +1260,17 @@ public class JSRunner : MonoBehaviour {
             StopEditModePreview();
             return;
         }
+        // Always check for file changes so TSX edits apply even when overlay filter disables ticking
+        CheckForFileChanges();
+        if (EditModeUpdateFilter != null && !EditModeUpdateFilter(this)) {
+            return;
+        }
 
         // Throttle tick rate to ~30Hz
         if (Time.realtimeSinceStartup < _nextEditModeTick) return;
         _nextEditModeTick = Time.realtimeSinceStartup + EditModeTickInterval;
 
         _bridge.Tick();
-        CheckForFileChanges(); // Live reload in edit-mode
     }
 
     [ContextMenu("Link Local Packages")]
@@ -1352,7 +1369,7 @@ public class JSRunner : MonoBehaviour {
         if (!Application.isPlaying) return; // [ExecuteAlways] guard - edit-mode uses EditorApplication.update
 #if UNITY_EDITOR
         // Editor: Use Unity's Update loop to drive the tick
-        if (_scriptLoaded) {
+        if (_scriptLoaded && (PlayModeUpdateFilter == null || PlayModeUpdateFilter(this))) {
             _bridge?.Tick();
             CheckForFileChanges();
         }
