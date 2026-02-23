@@ -412,6 +412,7 @@ function __wrapObject(typeName, handle) {
             if (prop === "__csTypeRef") return undefined;
             if (prop === "__csPath") return undefined;
             if (prop === "__csBoundTypeName") return undefined;
+            if (prop === "__csCallbackHandle") return undefined;
 
             if (prop === "toString") {
                 return function () {
@@ -574,6 +575,23 @@ globalThis.$typeof = function(typeRef) {
         throw new Error("$typeof: argument must be a type reference (e.g., CS.UnityEngine.MeshFilter)");
     }
     return { __csTypeRef: typeName };
+};
+
+/**
+ * Register a C# static class's extension methods so they can be called
+ * as instance methods on the extended type. Mirrors C#'s `using` pattern.
+ *
+ * Usage:
+ *   useExtensions(CS.UnityEngine.ImageConversion)
+ *   const tex = new CS.UnityEngine.Texture2D(2, 2)
+ *   tex.LoadImage(bytes) // now works as instance method!
+ */
+globalThis.useExtensions = function(typeRef) {
+    const typeName = __getTypeName(typeRef);
+    if (!typeName) {
+        throw new Error("useExtensions: argument must be a type reference (e.g., CS.UnityEngine.ImageConversion)");
+    }
+    __cs.invoke(typeName, "", 9, 0, 0, []);
 };
 
 // MARK: CS Proxy

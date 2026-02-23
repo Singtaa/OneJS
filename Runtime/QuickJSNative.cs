@@ -146,7 +146,8 @@ public static partial class QuickJSNative {
         SetField = 5,
         TypeExists = 6,
         IsEnumType = 7,
-        MakeGenericType = 8
+        MakeGenericType = 8,
+        RegisterExtensionType = 9
     }
 
     // MARK: Interop Structs

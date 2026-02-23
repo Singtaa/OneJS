@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 public static partial class QuickJSNative {
     // MARK: Type and Member Caches
@@ -9,6 +10,14 @@ public static partial class QuickJSNative {
     static readonly ConcurrentDictionary<(Type, string, bool, int), MethodInfo> _methodCache = new();
     static readonly ConcurrentDictionary<(Type, string, bool), PropertyInfo> _propertyCache = new();
     static readonly ConcurrentDictionary<(Type, string, bool), FieldInfo> _fieldCache = new();
+
+    // MARK: Extension Method Registry
+    // targetType → { methodName → List<MethodInfo> }
+    static readonly Dictionary<Type, Dictionary<string, List<MethodInfo>>> _extensionMethodRegistry = new();
+    // Quick existence check for HasExtensionMethodByName path
+    static readonly HashSet<(Type, string)> _extensionMethodNames = new();
+    // Prevent duplicate scanning
+    static readonly HashSet<Type> _registeredExtensionTypes = new();
 
     // MARK: BindingFlags Helpers
     const BindingFlags PublicNonPublic = BindingFlags.Public | BindingFlags.NonPublic;
@@ -146,6 +155,99 @@ public static partial class QuickJSNative {
             }
             type = type.BaseType;
         }
+        return false;
+    }
+
+    // MARK: Extension Methods
+
+    /// <summary>
+    /// Register all extension methods from a static class.
+    /// Scans public static methods with [Extension] attribute and indexes them
+    /// by the type of their first parameter (the 'this' target).
+    /// Idempotent — skips if already registered.
+    /// </summary>
+    static void RegisterExtensionType(Type extensionClass) {
+        if (!_registeredExtensionTypes.Add(extensionClass)) return;
+
+        foreach (var method in extensionClass.GetMethods(BindingFlags.Public | BindingFlags.Static)) {
+            if (!method.IsDefined(typeof(ExtensionAttribute), false)) continue;
+
+            var parms = method.GetParameters();
+            if (parms.Length == 0) continue;
+
+            var targetType = parms[0].ParameterType;
+
+            if (!_extensionMethodRegistry.TryGetValue(targetType, out var byName)) {
+                byName = new Dictionary<string, List<MethodInfo>>();
+                _extensionMethodRegistry[targetType] = byName;
+            }
+
+            if (!byName.TryGetValue(method.Name, out var overloads)) {
+                overloads = new List<MethodInfo>();
+                byName[method.Name] = overloads;
+            }
+
+            overloads.Add(method);
+            _extensionMethodNames.Add((targetType, method.Name));
+        }
+    }
+
+    /// <summary>
+    /// Find an extension method for the given instance type and name.
+    /// Walks the type hierarchy (type + base types + interfaces).
+    /// Extension params are [thisParam, ...rest]; matches rest against args.
+    /// </summary>
+    static MethodInfo FindExtensionMethod(Type instanceType, string name, object[] args) {
+        var current = instanceType;
+        while (current != null) {
+            var method = FindExtensionMethodForExactType(current, name, args);
+            if (method != null) return method;
+            current = current.BaseType;
+        }
+
+        foreach (var iface in instanceType.GetInterfaces()) {
+            var method = FindExtensionMethodForExactType(iface, name, args);
+            if (method != null) return method;
+        }
+
+        return null;
+    }
+
+    static MethodInfo FindExtensionMethodForExactType(Type targetType, string name, object[] args) {
+        if (!_extensionMethodRegistry.TryGetValue(targetType, out var byName)) return null;
+        if (!byName.TryGetValue(name, out var overloads)) return null;
+
+        foreach (var method in overloads) {
+            var parms = method.GetParameters();
+            // First param is 'this', rest must match args
+            if (parms.Length - 1 != args.Length) continue;
+
+            bool match = true;
+            for (int i = 0; i < args.Length && match; i++) {
+                match = IsArgCompatible(parms[i + 1].ParameterType, args[i]);
+            }
+
+            if (match) return method;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Check if any extension method with the given name exists for the instance type.
+    /// Walks the type hierarchy. Used by GetProp path to detect method references.
+    /// </summary>
+    static bool HasExtensionMethodByName(Type instanceType, string name) {
+        var current = instanceType;
+        while (current != null) {
+            if (_extensionMethodNames.Contains((current, name))) return true;
+            current = current.BaseType;
+        }
+
+        foreach (var iface in instanceType.GetInterfaces()) {
+            if (_extensionMethodNames.Contains((iface, name))) return true;
+        }
+
         return false;
     }
 

@@ -117,6 +117,17 @@ public static partial class QuickJSNative {
                 return;
             }
 
+            // RegisterExtensionType: scan and cache extension methods from a static class
+            if (reqPtr->callKind == InteropInvokeCallKind.RegisterExtensionType) {
+                if (type == null) {
+                    resPtr->errorCode = 1;
+                    Debug.LogError("[QuickJS] Extension type not found: " + typeName);
+                    return;
+                }
+                RegisterExtensionType(type);
+                return;
+            }
+
             // MakeGenericType: List`1 + [Int32] => List<Int32>
             if (reqPtr->callKind == InteropInvokeCallKind.MakeGenericType) {
                 if (type == null) {
@@ -239,6 +250,20 @@ public static partial class QuickJSNative {
             switch (reqPtr->callKind) {
                 case InteropInvokeCallKind.Method: {
                     MethodInfo method = FindMethodCached(type, memberName, isStatic, args);
+                    if (method == null && !isStatic) {
+                        // Fallback: try extension methods before property fallback
+                        var extMethod = FindExtensionMethod(type, memberName, args);
+                        if (extMethod != null) {
+                            var extParms = extMethod.GetParameters();
+                            var extArgs = new object[args.Length + 1];
+                            extArgs[0] = ConvertToTargetType(target, extParms[0].ParameterType);
+                            for (int i = 0; i < args.Length; i++)
+                                extArgs[i + 1] = ConvertToTargetType(args[i], extParms[i + 1].ParameterType);
+                            object extResult = extMethod.Invoke(null, extArgs);
+                            SetReturnValue(resPtr, extResult);
+                            return;
+                        }
+                    }
                     if (method == null) {
                         // Fallback: try as property getter if no method found
                         // This allows JS to access C# properties with PascalCase names naturally
@@ -270,6 +295,12 @@ public static partial class QuickJSNative {
                         // Fallback: check if there's a method with this name (any signature)
                         // Return magic string so JS can create a function wrapper
                         if (HasMethodByName(type, memberName, isStatic)) {
+                            SetReturnValue(resPtr, "__oneJS_methodRef__");
+                            return;
+                        }
+
+                        // Fallback: check extension methods
+                        if (!isStatic && HasExtensionMethodByName(type, memberName)) {
                             SetReturnValue(resPtr, "__oneJS_methodRef__");
                             return;
                         }
