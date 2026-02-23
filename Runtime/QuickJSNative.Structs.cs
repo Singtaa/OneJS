@@ -128,6 +128,36 @@ public static partial class QuickJSNative {
         RegisterStructType<UnityEngine.UIElements.Length>();
         RegisterStructType<UnityEngine.UIElements.Angle>();
 
+        // Rotate needs custom handling: axis property is internal, invisible to generic serializer.
+        // Default Activator.CreateInstance() leaves axis as Vector3.zero, but constructors set it
+        // to Vector3.forward (0,0,1). Without axis, Quaternion.AngleAxis produces identity rotation.
+        var rotateAxisField = typeof(UnityEngine.UIElements.Rotate).GetField("m_Axis",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+        RegisterStructType<UnityEngine.UIElements.Rotate>(
+            r => {
+                var a = r.angle;
+                var axis = rotateAxisField != null ? (Vector3)rotateAxisField.GetValue(r) : Vector3.forward;
+                return $"{{\"__type\":\"UnityEngine.UIElements.Rotate\",\"angle\":{{\"__type\":\"UnityEngine.UIElements.Angle\",\"value\":{F(a.value)},\"unit\":{(int)a.unit}}},\"axisX\":{F(axis.x)},\"axisY\":{F(axis.y)},\"axisZ\":{F(axis.z)}}}";
+            },
+            dict => {
+                float axisX = dict.TryGetValue("axisX", out var ax) ? Convert.ToSingle(ax) : 0f;
+                float axisY = dict.TryGetValue("axisY", out var ay) ? Convert.ToSingle(ay) : 0f;
+                float axisZ = dict.TryGetValue("axisZ", out var az) ? Convert.ToSingle(az) : 1f;
+                var axis = new Vector3(axisX, axisY, axisZ);
+
+                float angleVal = 0f;
+                var angleUnit = UnityEngine.UIElements.AngleUnit.Degree;
+                if (dict.TryGetValue("angle", out var angleObj) && angleObj is Dictionary<string, object> angleDict) {
+                    angleVal = angleDict.TryGetValue("value", out var av) ? Convert.ToSingle(av) : 0f;
+                    angleUnit = angleDict.TryGetValue("unit", out var au)
+                        ? (UnityEngine.UIElements.AngleUnit)Convert.ToInt32(au)
+                        : UnityEngine.UIElements.AngleUnit.Degree;
+                }
+                return new UnityEngine.UIElements.Rotate(
+                    new UnityEngine.UIElements.Angle(angleVal, angleUnit), axis);
+            }
+        );
+
         // Style types need custom handling due to keyword field
         RegisterStyleTypes();
     }
