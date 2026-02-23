@@ -42,7 +42,7 @@ PluginImporter:
     second:
       enabled: 1
       settings:
-        CPU: ARM64
+        CPU: AnyCPU
   userData:
   assetBundleName:
   assetBundleVariant:

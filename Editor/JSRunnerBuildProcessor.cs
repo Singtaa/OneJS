@@ -23,11 +23,13 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
     static List<string> _createdAssets = new List<string>();
     static HashSet<string> _processedRunners = new HashSet<string>();
     static List<Scene> _modifiedScenes = new List<Scene>();
+    static int _copiedAssetCount = 0;
 
     public void OnPreprocessBuild(BuildReport report) {
         _createdAssets.Clear();
         _processedRunners.Clear();
         _modifiedScenes.Clear();
+        _copiedAssetCount = 0;
 
         Debug.Log("[JSRunner] Processing JSRunner components in build scenes...");
 
@@ -62,7 +64,8 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
             EditorSceneManager.OpenScene(originalScenePath);
         }
 
-        Debug.Log($"[JSRunner] Build preprocessing complete. Processed {_processedRunners.Count} runner(s), created {_createdAssets.Count} asset(s).");
+        var assetMsg = _copiedAssetCount > 0 ? $", copied {_copiedAssetCount} asset file(s) to StreamingAssets" : "";
+        Debug.Log($"[JSRunner] Build preprocessing complete. Processed {_processedRunners.Count} runner(s), created {_createdAssets.Count} asset(s){assetMsg}.");
     }
 
     void ProcessScene(Scene scene) {
@@ -78,6 +81,7 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
                     sceneModified = true;
                 }
                 ExtractCartridges(runner);
+                CopyAssets(runner);
             }
         }
 
@@ -201,6 +205,47 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
         if (extracted > 0) {
             Debug.Log($"[JSRunner] Extracted {extracted} cartridge(s) for: {runner.gameObject.name}");
         }
+    }
+
+    void CopyAssets(JSRunner runner) {
+        var workingDir = runner.WorkingDirFullPath;
+        if (string.IsNullOrEmpty(workingDir)) return;
+
+        var assetsDir = Path.Combine(workingDir, "assets");
+        if (!Directory.Exists(assetsDir)) return;
+
+        var destDir = Path.Combine(Application.dataPath, "StreamingAssets", "onejs", "assets");
+        if (Directory.Exists(destDir)) {
+            Directory.Delete(destDir, true);
+        }
+        int count = CopyDirectoryRecursive(assetsDir, destDir);
+        _copiedAssetCount += count;
+
+        if (count > 0) {
+            Debug.Log($"[JSRunner] Copied {count} asset file(s) to StreamingAssets for: {runner.gameObject.name}");
+        }
+    }
+
+    int CopyDirectoryRecursive(string src, string dest) {
+        int count = 0;
+
+        if (!Directory.Exists(dest)) {
+            Directory.CreateDirectory(dest);
+        }
+
+        foreach (var file in Directory.GetFiles(src)) {
+            if (file.EndsWith(".meta")) continue;
+            var destFile = Path.Combine(dest, Path.GetFileName(file));
+            File.Copy(file, destFile, true);
+            count++;
+        }
+
+        foreach (var dir in Directory.GetDirectories(src)) {
+            var destSubDir = Path.Combine(dest, Path.GetFileName(dir));
+            count += CopyDirectoryRecursive(dir, destSubDir);
+        }
+
+        return count;
     }
 
     public void OnPostprocessBuild(BuildReport report) {
