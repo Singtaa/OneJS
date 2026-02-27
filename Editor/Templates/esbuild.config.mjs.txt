@@ -21,8 +21,8 @@ const config = {
     entryPoints: ["index.tsx"],
     bundle: true,
     outfile: "../app.js.txt",
-    format: "iife",
-    globalName: "__exports",
+    format: "iife",                // IIFE required for onPlay/onStop lifecycle hooks
+    globalName: "__exports",       // Exported functions available as __exports.onPlay, etc.
     target: "es2022",
     jsx: "automatic",
     // Generate source maps for better error messages

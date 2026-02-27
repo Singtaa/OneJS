@@ -119,6 +119,52 @@ JSRunner supports rendering UI in the Game view **without entering Play mode**. 
 bool IsEditModePreviewActive { get; }  // Whether edit-mode preview is currently running
 ```
 
+### Lifecycle Hooks (`onPlay` / `onStop`)
+
+JSRunner supports `onPlay()` and `onStop()` lifecycle hooks exported from the user's entry file. These let users separate game logic (play mode only) from UI setup (runs in both edit-mode preview and play mode).
+
+**User-facing API:**
+```tsx
+import { render, View, Label } from "onejs-react"
+
+// Module-level: runs in BOTH edit-mode preview and play mode
+render(<App />, __root)
+
+// Only called when entering Play mode (or after live reload during play)
+export function onPlay() {
+    // Spawn GameObjects, start physics, connect to game systems
+}
+
+// Only called when exiting Play mode (or before live reload during play)
+export function onStop() {
+    // Cleanup, save state, disconnect
+}
+```
+
+**How it works:**
+1. esbuild bundles with `format: "iife"` and `globalName: "__exports"`, so exported functions become `__exports.onPlay` / `__exports.onStop`
+2. After `RunScript()`, `CacheLifecycleCallbacks()` checks for these exports and registers them via `__registerCallback()` (same pattern as `CacheTickCallback()`)
+3. `InvokeOnPlay()` / `InvokeOnStop()` use `InvokeCallbackNoAlloc()` for zero-allocation invocation
+
+**Lifecycle flow:**
+
+| Context | onPlay | onStop |
+|---------|--------|--------|
+| Edit-mode preview | Never | Never |
+| Enter Play mode | After `RunScript()` | — |
+| Live reload (play mode) | After rebuild | Before teardown |
+| Exit Play mode | — | On `ExitingPlayMode` |
+| `OnDestroy()` (play mode) | — | Before bridge disposal |
+
+**Implementation fields:**
+```csharp
+int _onPlayHandle = -1;    // Native callback handle for onPlay
+int _onStopHandle = -1;    // Native callback handle for onStop
+bool _onStopInvoked;       // Guard against double-invocation
+```
+
+**`__isPlaying` global:** Injected in `InitializeBridge()` — `true` in play mode, `false` in edit-mode preview. Useful for conditional rendering without lifecycle hooks.
+
 ### Platform Behavior
 
 | Context | JS Loading | Live Reload |

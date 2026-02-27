@@ -291,8 +291,11 @@ function __createBoundGenericType(genericDefName, typeArgs) {
         },
         apply(target, thisArg, args) {
             // Nested generics: Dict(String, List(Int32))
-            if (args.length > 0 && args.every(__isTypeRef)) {
-                return __createBoundGenericType(boundTypeName, args);
+            if (args.length > 0) {
+                const resolved = args.map(__resolvePathProxy);
+                if (resolved.every(__isTypeRef)) {
+                    return __createBoundGenericType(boundTypeName, resolved);
+                }
             }
             return newObject(boundTypeName, ...args);
         },
@@ -630,9 +633,14 @@ function __createCsPathProxy(path) {
         },
         apply(target, thisArg, args) {
             // Check if this is a generic type binding: List(Int32), Dict(String, Int32)
-            // All args must be type references
-            if (args.length > 0 && args.every(__isTypeRef)) {
-                return __createBoundGenericType(typeName, args);
+            // All args must be type references after resolving path proxies.
+            // Enum values (e.g., PrimitiveType.Plane) are path proxies that resolve
+            // to primitives, so resolve first to avoid misidentifying them as types.
+            if (args.length > 0) {
+                const resolved = args.map(__resolvePathProxy);
+                if (resolved.every(__isTypeRef)) {
+                    return __createBoundGenericType(typeName, resolved);
+                }
             }
 
             // Check if this is a static method call on parent type

@@ -210,6 +210,13 @@ Centralized design tokens for all OneJS editor UIs (`OneJSEditorDesign.cs`). Pro
 
 All editor scripts (JSRunnerEditor, JSPadEditor, UICartridgeEditor) reference these tokens instead of hardcoding colors or text strings. This ensures visual consistency and makes theme changes a single-file edit.
 
+## Templates
+
+The `Templates/` directory contains TextAsset templates scaffolded by `Initialize Project`:
+
+- `esbuild.config.mjs.txt` uses `format: "iife"` with `globalName: "__exports"` (not ESM). This is required for `onPlay()`/`onStop()` lifecycle hook support — QuickJS evaluates in global scope where ESM `export {}` would be a syntax error.
+- `global.d.ts.txt` declares runtime globals (`__root`, `__isPlaying`, `__eventAPI`, etc.)
+
 ## TypeGenerator
 
 Generates TypeScript declaration files (`.d.ts`) from C# types. Provides:
