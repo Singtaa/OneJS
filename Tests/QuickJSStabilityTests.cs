@@ -115,6 +115,72 @@ public class QuickJSStabilityTests {
         yield return null;
     }
 
+    [UnityTest]
+    public IEnumerator HandleRefCount_UnregisterDecrementsBeforeRemoval() {
+        var go = new GameObject("RefCountTest");
+
+        // Register same object 3 times (simulates 3 JS proxies for same C# object)
+        var handle1 = QuickJSNative.RegisterObject(go);
+        var handle2 = QuickJSNative.RegisterObject(go);
+        var handle3 = QuickJSNative.RegisterObject(go);
+
+        Assert.AreEqual(handle1, handle2);
+        Assert.AreEqual(handle1, handle3);
+        Assert.AreEqual(1, QuickJSNative.GetHandleCount());
+
+        // First unregister: ref count 3 -> 2, handle should survive
+        QuickJSNative.UnregisterObjectForTest(handle1);
+        Assert.IsNotNull(QuickJSNative.GetObjectByHandle(handle1), "Handle should survive first unregister");
+        Assert.AreEqual(1, QuickJSNative.GetHandleCount());
+
+        // Second unregister: ref count 2 -> 1, handle should survive
+        QuickJSNative.UnregisterObjectForTest(handle1);
+        Assert.IsNotNull(QuickJSNative.GetObjectByHandle(handle1), "Handle should survive second unregister");
+        Assert.AreEqual(1, QuickJSNative.GetHandleCount());
+
+        // Third unregister: ref count 1 -> 0, handle should be removed
+        QuickJSNative.UnregisterObjectForTest(handle1);
+        Assert.IsNull(QuickJSNative.GetObjectByHandle(handle1), "Handle should be removed after final unregister");
+        Assert.AreEqual(0, QuickJSNative.GetHandleCount());
+
+        Object.DestroyImmediate(go);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator HandleRefCount_SingleRegistrationRemovesImmediately() {
+        var go = new GameObject("SingleRefTest");
+
+        var handle = QuickJSNative.RegisterObject(go);
+        Assert.AreEqual(1, QuickJSNative.GetHandleCount());
+
+        // Single registration, single unregister should remove
+        QuickJSNative.UnregisterObjectForTest(handle);
+        Assert.IsNull(QuickJSNative.GetObjectByHandle(handle), "Handle should be removed after single unregister");
+        Assert.AreEqual(0, QuickJSNative.GetHandleCount());
+
+        Object.DestroyImmediate(go);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator HandleRefCount_ReregistrationAfterFullRelease() {
+        var go = new GameObject("ReregTest");
+
+        // Register, fully unregister
+        var handle1 = QuickJSNative.RegisterObject(go);
+        QuickJSNative.UnregisterObjectForTest(handle1);
+        Assert.IsNull(QuickJSNative.GetObjectByHandle(handle1));
+
+        // Re-register same object should get a new handle
+        var handle2 = QuickJSNative.RegisterObject(go);
+        Assert.IsNotNull(QuickJSNative.GetObjectByHandle(handle2));
+        Assert.AreEqual(1, QuickJSNative.GetHandleCount());
+
+        Object.DestroyImmediate(go);
+        yield return null;
+    }
+
     // MARK: Task Queue Monitoring Tests
 
     [UnityTest]
