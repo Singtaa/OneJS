@@ -4,6 +4,9 @@
 // Root UI element
 declare const __root: CS.UnityEngine.UIElements.VisualElement;
 
+// True when running in Play mode, false during edit-mode preview
+declare const __isPlaying: boolean;
+
 // Event API for UI Toolkit elements
 declare const __eventAPI: {
     addEventListener: (element: CS.UnityEngine.UIElements.VisualElement, eventType: string, callback: Function) => void;

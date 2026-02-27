@@ -132,6 +132,11 @@ public class JSRunner : MonoBehaviour {
     QuickJSUIBridge _bridge;
     bool _scriptLoaded;
 
+    // Lifecycle hook state
+    int _onPlayHandle = -1;
+    int _onStopHandle = -1;
+    bool _onStopInvoked;
+
     // Live reload state
     DateTime _lastModifiedTime;
     DateTime _lastReloadTime;
@@ -745,6 +750,7 @@ public class JSRunner : MonoBehaviour {
             UnityEditor.EditorApplication.delayCall += TryStartEditModePreview;
             return;
         }
+        UnityEditor.EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
 #endif
         if (!_initialized) {
             // First enable - let Start() handle initialization
@@ -761,6 +767,7 @@ public class JSRunner : MonoBehaviour {
             StopEditModePreview();
             return;
         }
+        UnityEditor.EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
 #endif
     }
 
@@ -790,11 +797,13 @@ public class JSRunner : MonoBehaviour {
         if (File.Exists(entryFile)) {
             var code = File.ReadAllText(entryFile);
             RunScript(code, Path.GetFileName(entryFile));
+            if (Application.isPlaying) InvokeOnPlay();
         }
 #else
         // Build: reload from bundled asset
         if (_bundleAsset != null) {
             RunScript(_bundleAsset.text, "app.js");
+            InvokeOnPlay();
         }
 #endif
     }
@@ -875,6 +884,7 @@ public class JSRunner : MonoBehaviour {
 
         var code = File.ReadAllText(entryFile);
         RunScript(code, Path.GetFileName(entryFile));
+        if (Application.isPlaying) InvokeOnPlay();
 
         // Initialize file watching
         if (_liveReload) {
@@ -950,6 +960,9 @@ public class JSRunner : MonoBehaviour {
 
         // Inject platform defines before any user code runs
         InjectPlatformDefines();
+
+        // Expose play mode state so JS can check without lifecycle callbacks
+        _bridge.Eval($"globalThis.__isPlaying = {(Application.isPlaying ? "true" : "false")}");
 
         // Expose the working directory to JS for asset path resolution
         var escapedWorkingDir = CartridgeUtils.EscapeJsString(_bridge.WorkingDir);
@@ -1063,11 +1076,51 @@ public class JSRunner : MonoBehaviour {
 
         // Cache __tick callback handle for zero-allocation per-frame invocation
         _bridge.CacheTickCallback();
+        CacheLifecycleCallbacks();
 
 #if UNITY_WEBGL && !UNITY_EDITOR
         // Start the native RAF tick loop for WebGL
         StartWebGLTick();
 #endif
+    }
+
+    void CacheLifecycleCallbacks() {
+        _onPlayHandle = ParseLifecycleHandle(
+            "typeof __exports !== 'undefined' && typeof __exports.onPlay === 'function' ? __registerCallback(__exports.onPlay) : -1");
+        _onStopHandle = ParseLifecycleHandle(
+            "typeof __exports !== 'undefined' && typeof __exports.onStop === 'function' ? __registerCallback(__exports.onStop) : -1");
+        _onStopInvoked = false;
+    }
+
+    int ParseLifecycleHandle(string expr) {
+        try {
+            var result = _bridge.Eval(expr);
+            return int.TryParse(result, out var h) ? h : -1;
+        } catch {
+            return -1;
+        }
+    }
+
+    void InvokeOnPlay() {
+        if (_onPlayHandle < 0 || _bridge == null) return;
+        try {
+            _bridge.Context.InvokeCallbackNoAlloc(_onPlayHandle);
+            _bridge.Context.ExecutePendingJobs();
+        } catch (Exception ex) {
+            Debug.LogError($"[JSRunner] onPlay() error: {TranslateErrorMessage(ex.Message)}");
+        }
+        _onStopInvoked = false;
+    }
+
+    void InvokeOnStop() {
+        if (_onStopInvoked || _onStopHandle < 0 || _bridge == null) return;
+        _onStopInvoked = true;
+        try {
+            _bridge.Context.InvokeCallbackNoAlloc(_onStopHandle);
+            _bridge.Context.ExecutePendingJobs();
+        } catch (Exception ex) {
+            Debug.LogError($"[JSRunner] onStop() error: {TranslateErrorMessage(ex.Message)}");
+        }
     }
 
     /// <summary>
@@ -1096,28 +1149,32 @@ public class JSRunner : MonoBehaviour {
         }
 
         try {
-            // 0. Clean up GameObjects created by JS (if Janitor enabled)
+            // 0. Invoke onStop before teardown (play mode only)
+            if (Application.isPlaying) InvokeOnStop();
+
+            // 1. Clean up GameObjects created by JS (if Janitor enabled)
             if (_enableJanitor && _janitor != null) {
                 _janitor.Clean();
             }
 
-            // 1. Clear UI and stylesheets
+            // 2. Clear UI and stylesheets
             _uiDocument.rootVisualElement.Clear();
             _uiDocument.rootVisualElement.styleSheets.Clear();
 
-            // 2. Dispose old bridge/context
+            // 3. Dispose old bridge/context
             _bridge?.Dispose();
             _bridge = null;
             _scriptLoaded = false;
 
-            // 3. Recreate bridge and globals
+            // 4. Recreate bridge and globals
             InitializeBridge();
 
-            // 4. Load and run script
+            // 5. Load and run script
             var code = File.ReadAllText(EntryFileFullPath);
             RunScript(code, Path.GetFileName(EntryFileFullPath));
+            if (Application.isPlaying) InvokeOnPlay();
 
-            // 5. Update state
+            // 6. Update state
             _lastModifiedTime = File.GetLastWriteTime(EntryFileFullPath);
             _lastContentHash = ComputeFileHash(EntryFileFullPath);
             _lastReloadTime = DateTime.Now;
@@ -1163,6 +1220,12 @@ public class JSRunner : MonoBehaviour {
     }
 
     // MARK: Edit-Mode Preview
+
+    void OnPlayModeStateChanged(UnityEditor.PlayModeStateChange state) {
+        if (state == UnityEditor.PlayModeStateChange.ExitingPlayMode) {
+            InvokeOnStop();
+        }
+    }
 
     void TryStartEditModePreview() {
         if (this == null || Application.isPlaying) return;
@@ -1373,6 +1436,7 @@ public class JSRunner : MonoBehaviour {
         // Use the auto-generated bundle TextAsset
         if (_bundleAsset != null) {
             RunScript(_bundleAsset.text, "app.js");
+            InvokeOnPlay();
             return;
         }
 
@@ -1405,7 +1469,9 @@ public class JSRunner : MonoBehaviour {
         if (_editModePreviewActive) {
             StopEditModePreview();
         }
+        UnityEditor.EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
 #endif
+        if (Application.isPlaying) InvokeOnStop();
         _bridge?.Dispose();
         _bridge = null;
         _initialized = false;
