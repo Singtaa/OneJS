@@ -274,6 +274,23 @@ public static partial class QuickJSNative {
                             return;
                         }
 
+                        // Fallback: C# arrays don't expose get_Item/set_Item via reflection.
+                        // Array indexing compiles to ldelem/stelem IL, not method calls.
+                        // Handle them directly via System.Array.GetValue/SetValue.
+                        if (type.IsArray && target is System.Array arr) {
+                            if (memberName == "get_Item" && args.Length == 1) {
+                                int index = Convert.ToInt32(args[0]);
+                                SetReturnValue(resPtr, arr.GetValue(index));
+                                return;
+                            }
+                            if (memberName == "set_Item" && args.Length == 2) {
+                                int index = Convert.ToInt32(args[0]);
+                                object value = ConvertToTargetType(args[1], type.GetElementType());
+                                arr.SetValue(value, index);
+                                return;
+                            }
+                        }
+
                         resPtr->errorCode = 1;
                         Debug.LogError("[QuickJS] Method not found: " + type.FullName + "." + memberName);
                         return;

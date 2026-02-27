@@ -41,6 +41,7 @@ public static class InteropTestHelper {
 
     public static InteropTestState GetState() => _state;
     public static List<string> GetItems() => _items;
+    public static string[] GetItemsAsArray() => _items.ToArray();
     public static List<InteropTestItem> GetInventory() => _inventory;
 
     public static void Init(string name, int version) {
@@ -402,6 +403,65 @@ public class QuickJSInteropPlaymodeTests {
         ");
         Assert.AreEqual("1|2|added", result,
             "Collection changes should be visible through the same proxy");
+        yield return null;
+    }
+
+    // MARK: Array Indexing Tests (C# arrays, not List<T>)
+
+    [UnityTest]
+    public IEnumerator Array_Length_Works() {
+        InteropTestHelper.AddItem("sword");
+        InteropTestHelper.AddItem("shield");
+
+        var result = _ctx.Eval(@"
+            var arr = CS.InteropTestHelper.GetItemsAsArray();
+            '' + arr.Length;
+        ");
+        Assert.AreEqual("2", result, "Array.Length should be accessible from JS");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Array_Indexer_Works() {
+        InteropTestHelper.AddItem("sword");
+        InteropTestHelper.AddItem("shield");
+        InteropTestHelper.AddItem("potion");
+
+        var result = _ctx.Eval(@"
+            var arr = CS.InteropTestHelper.GetItemsAsArray();
+            arr[0] + '|' + arr[1] + '|' + arr[2];
+        ");
+        Assert.AreEqual("sword|shield|potion", result,
+            "Array numeric indexer should work from JS");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Array_ToJSArrayLoop_Works() {
+        InteropTestHelper.AddItem("a");
+        InteropTestHelper.AddItem("b");
+        InteropTestHelper.AddItem("c");
+
+        var result = _ctx.Eval(@"
+            var csArr = CS.InteropTestHelper.GetItemsAsArray();
+            var jsArr = [];
+            for (var i = 0; i < csArr.Length; i++) {
+                jsArr.push(csArr[i]);
+            }
+            jsArr.length + '|' + jsArr.join(',');
+        ");
+        Assert.AreEqual("3|a,b,c", result,
+            "Manual for-loop conversion from C# array to JS array should work (toArray pattern)");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Array_EmptyArray_LengthIsZero() {
+        var result = _ctx.Eval(@"
+            var arr = CS.InteropTestHelper.GetItemsAsArray();
+            '' + arr.Length;
+        ");
+        Assert.AreEqual("0", result, "Empty array should have Length = 0");
         yield return null;
     }
 
