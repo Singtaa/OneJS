@@ -1,12 +1,36 @@
 #!/bin/bash
-cd quickjs && make libquickjs.a && cd ..
+set -e
 
+# Build QuickJS native plugin for macOS
+# Requires: Xcode command line tools (clang, make)
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+BUILD_DIR="build-macos"
+
+rm -rf "$BUILD_DIR"
+mkdir -p "$BUILD_DIR/quickjs"
+
+# Copy QuickJS source to isolated build dir
+cp -R quickjs/ "$BUILD_DIR/quickjs/"
+
+echo "=== Building QuickJS static library for macOS ==="
+make -C "$BUILD_DIR/quickjs" clean 2>/dev/null || true
+make -C "$BUILD_DIR/quickjs" libquickjs.a
+
+echo "=== Building libquickjs_unity.dylib ==="
 clang -dynamiclib -O2 \
-    -I./quickjs \
-    -o libquickjs_unity.dylib \
+    -I"$BUILD_DIR/quickjs" \
+    -o "$BUILD_DIR/libquickjs_unity.dylib" \
     src/quickjs_unity.c \
-    quickjs/libquickjs.a
+    "$BUILD_DIR/quickjs/libquickjs.a"
 
-cp libquickjs_unity.dylib ../../Plugins/macOS
+echo "=== Installing to Plugins/macOS ==="
+cp "$BUILD_DIR/libquickjs_unity.dylib" ../../Plugins/macOS/
 
-echo "DONE. Generated libquickjs_unity.dylib under Plugins/macOS"
+echo ""
+echo "DONE. Generated libquickjs_unity.dylib at Plugins/macOS/"
+
+# --- Cleanup ---
+rm -rf "$BUILD_DIR"

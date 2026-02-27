@@ -81,11 +81,12 @@ build_abi() {
         CC="$CC" \
         AR="$AR" \
         CONFIG_DEFAULT_AR=y \
-        CFLAGS_OPT="-O2 -fPIC -fwrapv -D_GNU_SOURCE -DCONFIG_VERSION=\\\"2025-09-13\\\""
+        CFLAGS_OPT="-O2 -fPIC -fwrapv -funsigned-char -D_GNU_SOURCE -DCONFIG_VERSION=\\\"$(cat quickjs/VERSION)\\\""
 
     echo "  Building libquickjs_unity.so..."
     $CC -shared -O2 -fPIC \
         -Wl,-z,max-page-size=16384 \
+        -Wl,-z,relro,-z,now \
         -I"$QJS_BUILD" \
         -o "$ABI_DIR/libquickjs_unity.so" \
         src/quickjs_unity.c \
