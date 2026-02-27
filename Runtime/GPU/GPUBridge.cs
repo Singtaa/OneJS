@@ -444,6 +444,32 @@ namespace OneJS.GPU {
         }
 
         /// <summary>
+        /// Set the backgroundImage style property from any supported Unity Object
+        /// (Texture2D, Sprite, VectorImage, or RenderTexture).
+        /// </summary>
+        public static void SetElementBackgroundFromObject(UnityEngine.UIElements.VisualElement element, UnityEngine.Object obj) {
+            if (element == null || obj == null) return;
+            switch (obj) {
+                case Texture2D tex:
+                    element.style.backgroundImage = new UnityEngine.UIElements.StyleBackground(
+                        UnityEngine.UIElements.Background.FromTexture2D(tex));
+                    break;
+                case Sprite sprite:
+                    element.style.backgroundImage = new UnityEngine.UIElements.StyleBackground(
+                        UnityEngine.UIElements.Background.FromSprite(sprite));
+                    break;
+                case UnityEngine.UIElements.VectorImage vi:
+                    element.style.backgroundImage = new UnityEngine.UIElements.StyleBackground(
+                        UnityEngine.UIElements.Background.FromVectorImage(vi));
+                    break;
+                case RenderTexture rt:
+                    element.style.backgroundImage = new UnityEngine.UIElements.StyleBackground(
+                        UnityEngine.UIElements.Background.FromRenderTexture(rt));
+                    break;
+            }
+        }
+
+        /// <summary>
         /// Clear the backgroundImage style property of a VisualElement.
         /// </summary>
         public static void ClearElementBackgroundImage(UnityEngine.UIElements.VisualElement element) {
