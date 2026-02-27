@@ -190,6 +190,31 @@ public class JSRunner : MonoBehaviour {
     }
 
     /// <summary>
+    /// Set the bundle TextAsset at runtime. Useful for sharing a single bundle across multiple JSRunner instances.
+    /// </summary>
+    public void SetBundleAsset(TextAsset asset) {
+        _bundleAsset = asset;
+#if UNITY_EDITOR
+        UnityEditor.EditorUtility.SetDirty(this);
+#endif
+    }
+
+    /// <summary>
+    /// Run a JavaScript code string. Initializes the bridge if needed, evaluates the code,
+    /// processes pending jobs, and caches lifecycle callbacks (onPlay/onStop).
+    /// </summary>
+    public void RunScript(string code) {
+        if (_bridge == null) {
+            if (!EnsureUIDocument()) {
+                Debug.LogError("[JSRunner] Cannot RunScript: UIDocument not ready. Assign PanelSettings first.");
+                return;
+            }
+            InitializeBridge();
+        }
+        RunScript(code, "runtime.js");
+    }
+
+    /// <summary>
     /// Project root path (Assets folder parent in Editor, dataPath in builds).
     /// </summary>
     public string ProjectRoot {
@@ -393,14 +418,6 @@ public class JSRunner : MonoBehaviour {
     /// True when this runner is in a saved scene; false when it is a prefab in the Project (not placed in a scene).
     /// </summary>
     public bool IsSceneSaved => !string.IsNullOrEmpty(gameObject.scene.path);
-
-    /// <summary>
-    /// Set the bundle TextAsset (called by build processor).
-    /// </summary>
-    public void SetBundleAsset(TextAsset asset) {
-        _bundleAsset = asset;
-        UnityEditor.EditorUtility.SetDirty(this);
-    }
 
     /// <summary>
     /// Set the source map TextAsset (called by build processor).
