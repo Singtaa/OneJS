@@ -445,7 +445,7 @@ function __wrapObject(typeName, handle) {
 
             if (typeof prop === "symbol") return undefined;
 
-            const propName = __propertyAliases[prop] || String(prop);
+            const propName = String(prop);
             const typeName = obj.__csType || "";
             const handle = obj.__csHandle || 0;
 
@@ -613,9 +613,6 @@ const __staticPropertyNames = new Set([
 const __instancePropertyNames = new Set([
     "Count", "Length", "Capacity", "Keys", "Values", "IsReadOnly"
 ]);
-
-// JS-to-C# property name aliases (e.g. arr.length → arr.Length)
-const __propertyAliases = { "length": "Length", "count": "Count" };
 
 function __typeExists(typeName) {
     if (!typeName) return false;
