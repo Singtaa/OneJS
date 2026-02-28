@@ -100,11 +100,19 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
         var entryFilePath = runner.EntryFileFullPath;
         var instanceFolder = runner.InstanceFolder;
         var bundleDir = !string.IsNullOrEmpty(instanceFolder) ? instanceFolder : Path.GetDirectoryName(entryFilePath);
-        var bundleAssetPathUnity = runner.InstanceFolderAssetPath != null ? runner.InstanceFolderAssetPath + "/app.js.txt" : null;
-        var sourceMapAssetPathUnity = runner.InstanceFolderAssetPath != null ? runner.InstanceFolderAssetPath + "/app.js.map.txt" : null;
+        var instanceFolderAssetPath = runner.InstanceFolderAssetPath;
+
+        // Normalize to forward slashes for AssetDatabase consistency
+        if (instanceFolderAssetPath != null)
+            instanceFolderAssetPath = instanceFolderAssetPath.Replace('\\', '/');
+
+        var bundleAssetPathUnity = instanceFolderAssetPath != null ? instanceFolderAssetPath + "/app.js.txt" : null;
+        var sourceMapAssetPathUnity = instanceFolderAssetPath != null ? instanceFolderAssetPath + "/app.js.map.txt" : null;
 
         if (string.IsNullOrEmpty(entryFilePath) || string.IsNullOrEmpty(bundleAssetPathUnity)) {
-            Debug.LogWarning($"[JSRunner] Invalid paths for {runner.gameObject.name}. Is scene saved?");
+            Debug.LogWarning($"[JSRunner] Invalid paths for {runner.gameObject.name}. " +
+                $"InstanceFolderAssetPath={instanceFolderAssetPath ?? "null"}, " +
+                $"InstanceFolder={instanceFolder ?? "null"}, EntryFile={entryFilePath ?? "null"}");
             return false;
         }
 
@@ -140,16 +148,29 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
             }
         }
 
-        AssetDatabase.Refresh();
+        // Use ImportAsset for synchronous import instead of Refresh which can be async on Windows
+        AssetDatabase.ImportAsset(bundleAssetPathUnity, ImportAssetOptions.ForceSynchronousImport);
+        if (runner.IncludeSourceMap && sourceMapAssetPathUnity != null)
+            AssetDatabase.ImportAsset(sourceMapAssetPathUnity, ImportAssetOptions.ForceSynchronousImport);
 
         var bundleAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(bundleAssetPathUnity);
         if (bundleAsset != null) {
             runner.SetBundleAsset(bundleAsset);
         } else {
-            Debug.LogError($"[JSRunner] Failed to load created bundle asset: {bundleAssetPathUnity}");
+            // Fallback: try a full Refresh and retry once
+            Debug.LogWarning($"[JSRunner] ImportAsset did not find bundle, retrying with full Refresh: {bundleAssetPathUnity}");
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            bundleAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(bundleAssetPathUnity);
+            if (bundleAsset != null) {
+                runner.SetBundleAsset(bundleAsset);
+            } else {
+                Debug.LogError($"[JSRunner] Failed to load bundle asset after retry: {bundleAssetPathUnity}. " +
+                    $"File exists on disk: {File.Exists(bundleFullPath)}");
+                return false;
+            }
         }
 
-        if (runner.IncludeSourceMap && !string.IsNullOrEmpty(sourceMapAssetPathUnity) && File.Exists(Path.Combine(bundleDir ?? "", "app.js.map.txt"))) {
+        if (runner.IncludeSourceMap && !string.IsNullOrEmpty(sourceMapAssetPathUnity)) {
             var sourceMapAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(sourceMapAssetPathUnity);
             if (sourceMapAsset != null) {
                 runner.SetSourceMapAsset(sourceMapAsset);
