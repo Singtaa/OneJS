@@ -429,13 +429,17 @@ public static partial class QuickJSNative {
         // Primitives
         if (TrySetReturnValueForPrimitive(resPtr, value, t)) return;
 
-        // Serializable structs
+        // Serializable structs — only JSON-serialize data-only structs.
+        // Structs with instance methods (e.g. Scene.GetRootGameObjects()) fall through
+        // to RegisterObject so JS gets a proxy that can dispatch method calls.
         if (IsSerializableStruct(t)) {
-            var json = SerializeStruct(value);
-            if (json != null) {
-                resPtr->returnValue.type = InteropType.String;
-                resPtr->returnValue.str = StringToUtf8(json);
-                return;
+            if (!StructHasInstanceMethods(t)) {
+                var json = SerializeStruct(value);
+                if (json != null) {
+                    resPtr->returnValue.type = InteropType.String;
+                    resPtr->returnValue.str = StringToUtf8(json);
+                    return;
+                }
             }
         }
 

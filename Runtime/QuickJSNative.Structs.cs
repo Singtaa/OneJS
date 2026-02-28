@@ -18,6 +18,9 @@ public static partial class QuickJSNative {
     // Cache for struct field/property info (performance optimization)
     static readonly ConcurrentDictionary<Type, StructFieldInfo[]> _structFieldCache = new();
 
+    // Cache for whether a struct has domain-specific instance methods (not just Object overrides)
+    static readonly ConcurrentDictionary<Type, bool> _structHasMethodsCache = new();
+
     struct StructFieldInfo {
         public string Name;
         public Func<object, object> Getter;
@@ -77,6 +80,25 @@ public static partial class QuickJSNative {
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Checks if a struct type has domain-specific instance methods (beyond Object overrides
+    /// and property accessors). Structs with instance methods need to be boxed as handles
+    /// so JS can dispatch method calls back to C#.
+    /// </summary>
+    static bool StructHasInstanceMethods(Type type) {
+        if (_structHasMethodsCache.TryGetValue(type, out var cached)) return cached;
+        var methods = type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+        bool hasMethods = false;
+        for (int i = 0; i < methods.Length; i++) {
+            if (methods[i].IsSpecialName) continue; // skip property accessors
+            if (methods[i].Name is "ToString" or "Equals" or "GetHashCode") continue;
+            hasMethods = true;
+            break;
+        }
+        _structHasMethodsCache[type] = hasMethods;
+        return hasMethods;
     }
 
     /// <summary>

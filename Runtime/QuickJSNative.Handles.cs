@@ -20,19 +20,14 @@ public static partial class QuickJSNative {
     public static int RegisterObject(object obj) {
         if (obj == null) return 0;
 
-        // Value types should not go through the handle table - they should be serialized directly.
-        // Boxing creates new objects each time, breaking reverse lookup and causing handle leaks.
         var objType = obj.GetType();
-        if (objType.IsValueType && !objType.IsPrimitive && !objType.IsEnum) {
-            // This is a struct like Vector3, Color, Quaternion, etc.
-            // These should be serialized specially, not registered as handles.
-            throw new ArgumentException(
-                $"Value types should not be registered as handles: {objType.FullName}. " +
-                "Serialize them directly using SetReturnValueForStruct.");
-        }
+        // Boxed structs with instance methods are allowed through the handle table so JS can
+        // dispatch method calls. Skip reverse lookup for them since boxing creates new heap
+        // objects each time (reverse lookup would never match).
+        bool isBoxedStruct = objType.IsValueType && !objType.IsPrimitive && !objType.IsEnum;
 
         lock (_handleLock) {
-            if (_reverseHandleTable.TryGetValue(obj, out int existingHandle)) {
+            if (!isBoxedStruct && _reverseHandleTable.TryGetValue(obj, out int existingHandle)) {
                 _handleRefCount[existingHandle]++;
                 return existingHandle;
             }
@@ -51,7 +46,7 @@ public static partial class QuickJSNative {
             if (_nextHandle <= 0) _nextHandle = 1;
 
             _handleTable[handle] = obj;
-            _reverseHandleTable[obj] = handle;
+            if (!isBoxedStruct) _reverseHandleTable[obj] = handle;
             _handleRefCount[handle] = 1;
 
             // Track peak and check thresholds

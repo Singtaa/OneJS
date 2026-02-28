@@ -847,7 +847,7 @@ public static partial class QuickJSNative {
             return;
         }
 
-        if (type.IsValueType) {
+        if (type.IsValueType && !StructHasInstanceMethods(type)) {
             var json = SerializeStruct(value);
             if (json != null) {
                 result->type = InteropType.String;
