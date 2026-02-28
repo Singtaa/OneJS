@@ -68,8 +68,9 @@ public class JSRunner : MonoBehaviour {
     const string DefaultEntryContent = "console.log(\"OneJS is good to go!\");\n";
     const string DefaultBundleFile = "app.js.txt";
 
-    // Tracks whether initialization has completed (for re-enable handling)
-    [SerializeField, HideInInspector] bool _initialized;
+    // Tracks whether initialization has completed (for re-enable handling).
+    // Non-serialized: managed explicitly by EnteredPlayMode/ResetPlayModeState.
+    bool _initialized;
 
     // UIDocument is added at runtime and assigned from _panelSettings/_visualTreeAsset; not shown in editor.
     UIDocument _uiDocument;
@@ -741,36 +742,26 @@ public class JSRunner : MonoBehaviour {
 
     void Start() {
         if (!Application.isPlaying) return; // [ExecuteAlways] guard
-        try {
-#if UNITY_EDITOR
-            if (_panelSettings != null && !IsPanelSettingsInValidProjectFolder()) {
-                Debug.LogError("[JSRunner] Panel Settings is not valid: its folder must contain a '~' subfolder or an 'app.js' file. Assign a PanelSettings from a valid project folder or use Initialize.");
-                return;
-            }
-#endif
-            if (!EnsureUIDocument()) {
-                Debug.LogError("[JSRunner] UIDocument could not be created or rootVisualElement is null. Assign PanelSettings and VisualTreeAsset (e.g. via Initialize).");
-                return;
-            }
-
-            Initialize();
-            _initialized = true;
-        } catch (Exception ex) {
-            Debug.LogError($"[JSRunner] Start() exception: {ex}");
-        }
+        try { TryInitializePlayMode(); }
+        catch (Exception ex) { Debug.LogError($"[JSRunner] Start() exception: {ex}"); }
     }
 
     void OnEnable() {
 #if UNITY_EDITOR
+        // Subscribe in both edit and play mode so we catch all transitions.
+        // Critical for "Enter Play Mode Settings" with domain reload disabled:
+        // without this, we miss ExitingEditMode/EnteredPlayMode events.
+        UnityEditor.EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
+        UnityEditor.EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
+
         if (!Application.isPlaying) {
             // Defer to let UIDocument panel settle after domain reload
             UnityEditor.EditorApplication.delayCall += TryStartEditModePreview;
             return;
         }
-        UnityEditor.EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
 #endif
         if (!_initialized) {
-            // First enable - let Start() handle initialization
+            // First enable - Start() or EnteredPlayMode handler will initialize
             return;
         }
 
@@ -784,7 +775,8 @@ public class JSRunner : MonoBehaviour {
             StopEditModePreview();
             return;
         }
-        UnityEditor.EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
+        // Don't unsubscribe playModeStateChanged - it must persist across play
+        // mode transitions for the no-domain-reload case. OnDestroy handles final cleanup.
 #endif
     }
 
@@ -1239,9 +1231,73 @@ public class JSRunner : MonoBehaviour {
     // MARK: Edit-Mode Preview
 
     void OnPlayModeStateChanged(UnityEditor.PlayModeStateChange state) {
-        if (state == UnityEditor.PlayModeStateChange.ExitingPlayMode) {
-            InvokeOnStop();
+        switch (state) {
+            case UnityEditor.PlayModeStateChange.ExitingEditMode:
+                // About to enter play mode. Stop edit-mode preview and reset state
+                // so the play-mode path initializes fresh. Critical when domain
+                // reload is disabled and Start() won't be called again.
+                if (_editModePreviewActive)
+                    StopEditModePreview();
+                ResetPlayModeState();
+                break;
+
+            case UnityEditor.PlayModeStateChange.EnteredPlayMode:
+                // Initialize if Start() won't run. This handles the case where
+                // domain reload is disabled: Start() was already consumed during
+                // edit mode (returned early) and Unity won't call it again.
+                // With domain reload enabled, Start() runs after this and the
+                // _initialized guard in TryInitializePlayMode() prevents double init.
+                if (!_initialized) {
+                    try { TryInitializePlayMode(); }
+                    catch (Exception ex) { Debug.LogError($"[JSRunner] Play mode init error: {ex}"); }
+                }
+                break;
+
+            case UnityEditor.PlayModeStateChange.ExitingPlayMode:
+                InvokeOnStop();
+                break;
+
+            case UnityEditor.PlayModeStateChange.EnteredEditMode:
+                // Play mode ended. Dispose bridge and reset state so edit-mode
+                // preview (started via OnEnable → delayCall) gets a clean slate.
+                // Without this, the play-mode bridge leaks when domain/scene
+                // reload is disabled.
+                if (_enableJanitor && _janitor != null)
+                    _janitor.Clean();
+                if (_uiDocument != null && _uiDocument.rootVisualElement != null) {
+                    _uiDocument.rootVisualElement.Clear();
+                    _uiDocument.rootVisualElement.styleSheets.Clear();
+                }
+                _bridge?.Dispose();
+                _bridge = null;
+                ResetPlayModeState();
+                break;
         }
+    }
+
+    void ResetPlayModeState() {
+        _initialized = false;
+        _scriptLoaded = false;
+        _onPlayHandle = -1;
+        _onStopHandle = -1;
+        _onStopInvoked = false;
+    }
+
+    bool TryInitializePlayMode() {
+        if (_initialized) return true;
+#if UNITY_EDITOR
+        if (_panelSettings != null && !IsPanelSettingsInValidProjectFolder()) {
+            Debug.LogError("[JSRunner] Panel Settings is not valid: its folder must contain a '~' subfolder or an 'app.js' file.");
+            return false;
+        }
+#endif
+        if (!EnsureUIDocument()) {
+            Debug.LogError("[JSRunner] UIDocument could not be created or rootVisualElement is null.");
+            return false;
+        }
+        Initialize();
+        _initialized = true;
+        return true;
     }
 
     void TryStartEditModePreview() {
