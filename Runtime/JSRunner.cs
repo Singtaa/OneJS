@@ -1156,6 +1156,23 @@ public class JSRunner : MonoBehaviour {
 #endif
     }
 
+    bool TryInitializePlayMode() {
+        if (_initialized) return true;
+#if UNITY_EDITOR
+        if (_panelSettings != null && !IsPanelSettingsInValidProjectFolder()) {
+            Debug.LogError("[JSRunner] Panel Settings is not valid: its folder must contain a '~' subfolder or an 'app.js' file.");
+            return false;
+        }
+#endif
+        if (!EnsureUIDocument()) {
+            Debug.LogError("[JSRunner] UIDocument could not be created or rootVisualElement is null.");
+            return false;
+        }
+        Initialize();
+        _initialized = true;
+        return true;
+    }
+
 #if UNITY_EDITOR
     void Reload() {
         if (!File.Exists(EntryFileFullPath)) {
@@ -1292,23 +1309,6 @@ public class JSRunner : MonoBehaviour {
         _onPlayHandle = -1;
         _onStopHandle = -1;
         _onStopInvoked = false;
-    }
-
-    bool TryInitializePlayMode() {
-        if (_initialized) return true;
-#if UNITY_EDITOR
-        if (_panelSettings != null && !IsPanelSettingsInValidProjectFolder()) {
-            Debug.LogError("[JSRunner] Panel Settings is not valid: its folder must contain a '~' subfolder or an 'app.js' file.");
-            return false;
-        }
-#endif
-        if (!EnsureUIDocument()) {
-            Debug.LogError("[JSRunner] UIDocument could not be created or rootVisualElement is null.");
-            return false;
-        }
-        Initialize();
-        _initialized = true;
-        return true;
     }
 
     void TryStartEditModePreview() {
