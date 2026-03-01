@@ -18,6 +18,14 @@ public class PairDrawerAttribute : PropertyAttribute {
 }
 
 /// <summary>
+/// Controls which Unity update loop drives the JS tick.
+/// </summary>
+public enum TickMode {
+    Update,
+    LateUpdate
+}
+
+/// <summary>
 /// A key-value pair for exposing Unity objects as JavaScript globals.
 /// Key is the global variable name, Value is any UnityEngine.Object.
 /// </summary>
@@ -92,6 +100,9 @@ public class JSRunner : MonoBehaviour {
 
     [Tooltip("Include source map in build for better error messages")]
     [SerializeField] bool _includeSourceMap = true;
+
+    [Tooltip("Which Unity update loop drives the JS tick. LateUpdate runs after all Update calls, useful when reading transform/physics results.")]
+    [SerializeField] TickMode _tickMode = TickMode.Update;
 
     [Tooltip("Editor-only: show the JSRunner tabs even when Panel Settings is not assigned (for debugging UI).")]
     [SerializeField, HideInInspector] bool _enableDebugMode;
@@ -1485,15 +1496,21 @@ public class JSRunner : MonoBehaviour {
     }
 
     void Update() {
+        if (_tickMode == TickMode.Update) TickIfReady();
+    }
+
+    void LateUpdate() {
+        if (_tickMode == TickMode.LateUpdate) TickIfReady();
+    }
+
+    void TickIfReady() {
         if (!Application.isPlaying) return; // [ExecuteAlways] guard - edit-mode uses EditorApplication.update
 #if UNITY_EDITOR
-        // Editor: Use Unity's Update loop to drive the tick
         if (_scriptLoaded) {
             _bridge?.Tick();
             CheckForFileChanges();
         }
 #elif !UNITY_WEBGL
-        // Standalone/Mobile builds: Use Unity's Update loop
         // WebGL uses native RAF tick loop started in RunScript()
         if (_scriptLoaded) {
             _bridge?.Tick();

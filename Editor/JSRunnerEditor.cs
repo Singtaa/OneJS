@@ -257,6 +257,11 @@ public class JSRunnerEditor : Editor {
     // MARK: Tab Content Builders
 
     void BuildProjectTab(VisualElement container) {
+        // Tick Mode
+        container.Add(new PropertyField(serializedObject.FindProperty("_tickMode"), "Tick Mode"));
+
+        AddSpacer(container);
+
         var liveReloadProp = serializedObject.FindProperty("_liveReload");
         var liveReloadRow = CreateRow();
         var liveReloadLabel = new Label(OneJSEditorDesign.Texts.LiveReload);
