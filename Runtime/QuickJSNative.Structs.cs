@@ -3,7 +3,9 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
+using UnityEngine.Scripting;
 using UnityEngine;
 
 public static partial class QuickJSNative {
@@ -1216,10 +1218,192 @@ public static partial class QuickJSNative {
     }
 
     static Delegate CreateGenericActionWrapper(Type delegateType, IntPtr ctxPtr, int callbackHandle, ParameterInfo[] parameters) {
-        // For now, return null for unsupported delegate types
-        // This can be extended to support more delegate signatures
-        Debug.LogWarning($"[QuickJS] Unsupported delegate type for callback wrapper: {delegateType.Name}");
-        return null;
+        var invoker = new JsCallbackInvoker(ctxPtr, callbackHandle);
+
+        try {
+            switch (parameters.Length) {
+                case 0: {
+                    var mi = JsCallbackInvoker.Invoke0Method;
+                    return Delegate.CreateDelegate(delegateType, invoker, mi);
+                }
+                case 1: {
+                    var mi = JsCallbackInvoker.GetInvoke1(parameters[0].ParameterType);
+                    return Delegate.CreateDelegate(delegateType, invoker, mi);
+                }
+                case 2: {
+                    var mi = JsCallbackInvoker.GetInvoke2(parameters[0].ParameterType, parameters[1].ParameterType);
+                    return Delegate.CreateDelegate(delegateType, invoker, mi);
+                }
+                case 3: {
+                    var mi = JsCallbackInvoker.GetInvoke3(parameters[0].ParameterType, parameters[1].ParameterType, parameters[2].ParameterType);
+                    return Delegate.CreateDelegate(delegateType, invoker, mi);
+                }
+                case 4: {
+                    var mi = JsCallbackInvoker.GetInvoke4(parameters[0].ParameterType, parameters[1].ParameterType, parameters[2].ParameterType, parameters[3].ParameterType);
+                    return Delegate.CreateDelegate(delegateType, invoker, mi);
+                }
+                default:
+                    Debug.LogWarning($"[QuickJS] Unsupported delegate arity for callback wrapper: {delegateType.FullName} ({parameters.Length} params)");
+                    return null;
+            }
+        } catch (Exception e) {
+            Debug.LogWarning($"[QuickJS] Failed to create callback wrapper for {delegateType.FullName}: {e}");
+            return null;
+        }
+    }
+
+    sealed class JsCallbackInvoker {
+        readonly IntPtr _ctxPtr;
+        readonly int _callbackHandle;
+
+        public JsCallbackInvoker(IntPtr ctxPtr, int callbackHandle) {
+            _ctxPtr = ctxPtr;
+            _callbackHandle = callbackHandle;
+        }
+
+        static readonly ConcurrentDictionary<Type, MethodInfo> _invoke1Cache = new();
+        static readonly ConcurrentDictionary<(Type, Type), MethodInfo> _invoke2Cache = new();
+        static readonly ConcurrentDictionary<(Type, Type, Type), MethodInfo> _invoke3Cache = new();
+        static readonly ConcurrentDictionary<(Type, Type, Type, Type), MethodInfo> _invoke4Cache = new();
+
+        static readonly MethodInfo _invoke0 =
+            typeof(JsCallbackInvoker).GetMethod(nameof(Invoke0), BindingFlags.Instance | BindingFlags.Public);
+
+        static readonly MethodInfo _invoke1Open =
+            typeof(JsCallbackInvoker).GetMethod(nameof(Invoke1), BindingFlags.Instance | BindingFlags.Public);
+
+        static readonly MethodInfo _invoke2Open =
+            typeof(JsCallbackInvoker).GetMethod(nameof(Invoke2), BindingFlags.Instance | BindingFlags.Public);
+
+        static readonly MethodInfo _invoke3Open =
+            typeof(JsCallbackInvoker).GetMethod(nameof(Invoke3), BindingFlags.Instance | BindingFlags.Public);
+
+        static readonly MethodInfo _invoke4Open =
+            typeof(JsCallbackInvoker).GetMethod(nameof(Invoke4), BindingFlags.Instance | BindingFlags.Public);
+
+        public static MethodInfo Invoke0Method => _invoke0;
+
+        public static MethodInfo GetInvoke1(Type t1) =>
+            _invoke1Cache.GetOrAdd(t1, static t => _invoke1Open.MakeGenericMethod(t));
+
+        public static MethodInfo GetInvoke2(Type t1, Type t2) =>
+            _invoke2Cache.GetOrAdd((t1, t2), static k => _invoke2Open.MakeGenericMethod(k.Item1, k.Item2));
+
+        public static MethodInfo GetInvoke3(Type t1, Type t2, Type t3) =>
+            _invoke3Cache.GetOrAdd((t1, t2, t3), static k => _invoke3Open.MakeGenericMethod(k.Item1, k.Item2, k.Item3));
+
+        public static MethodInfo GetInvoke4(Type t1, Type t2, Type t3, Type t4) =>
+            _invoke4Cache.GetOrAdd((t1, t2, t3, t4), static k => _invoke4Open.MakeGenericMethod(k.Item1, k.Item2, k.Item3, k.Item4));
+
+        public void Invoke0() {
+            unsafe {
+                int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, null, 0, null);
+                if (code != 0) Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
+            }
+        }
+
+        public void Invoke1<T1>(T1 a1) {
+            unsafe {
+                var args = stackalloc InteropValue[1];
+                var str = stackalloc IntPtr[1];
+                str[0] = IntPtr.Zero;
+
+                try {
+                    args[0] = ObjectToInteropValue(a1, ref str[0]);
+
+                    int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 1, null);
+                    if (code != 0) Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
+                } finally {
+                    FreeIfAllocated(str[0]);
+                }
+            }
+        }
+
+        public void Invoke2<T1, T2>(T1 a1, T2 a2) {
+            unsafe {
+                var args = stackalloc InteropValue[2];
+                var str = stackalloc IntPtr[2];
+                str[0] = IntPtr.Zero;
+                str[1] = IntPtr.Zero;
+
+                try {
+                    args[0] = ObjectToInteropValue(a1, ref str[0]);
+                    args[1] = ObjectToInteropValue(a2, ref str[1]);
+
+                    int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 2, null);
+                    if (code != 0) Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
+                } finally {
+                    FreeIfAllocated(str[0]);
+                    FreeIfAllocated(str[1]);
+                }
+            }
+        }
+
+        public void Invoke3<T1, T2, T3>(T1 a1, T2 a2, T3 a3) {
+            unsafe {
+                var args = stackalloc InteropValue[3];
+                var str = stackalloc IntPtr[3];
+                str[0] = IntPtr.Zero;
+                str[1] = IntPtr.Zero;
+                str[2] = IntPtr.Zero;
+
+                try {
+                    args[0] = ObjectToInteropValue(a1, ref str[0]);
+                    args[1] = ObjectToInteropValue(a2, ref str[1]);
+                    args[2] = ObjectToInteropValue(a3, ref str[2]);
+
+                    int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 3, null);
+                    if (code != 0) Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
+                } finally {
+                    FreeIfAllocated(str[0]);
+                    FreeIfAllocated(str[1]);
+                    FreeIfAllocated(str[2]);
+                }
+            }
+        }
+
+        public void Invoke4<T1, T2, T3, T4>(T1 a1, T2 a2, T3 a3, T4 a4) {
+            unsafe {
+                var args = stackalloc InteropValue[4];
+                var str = stackalloc IntPtr[4];
+                str[0] = IntPtr.Zero;
+                str[1] = IntPtr.Zero;
+                str[2] = IntPtr.Zero;
+                str[3] = IntPtr.Zero;
+
+                try {
+                    args[0] = ObjectToInteropValue(a1, ref str[0]);
+                    args[1] = ObjectToInteropValue(a2, ref str[1]);
+                    args[2] = ObjectToInteropValue(a3, ref str[2]);
+                    args[3] = ObjectToInteropValue(a4, ref str[3]);
+
+                    int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 4, null);
+                    if (code != 0) Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
+                } finally {
+                    FreeIfAllocated(str[0]);
+                    FreeIfAllocated(str[1]);
+                    FreeIfAllocated(str[2]);
+                    FreeIfAllocated(str[3]);
+                }
+            }
+        }
+
+        [Preserve]
+        static void AotHints() {
+            var dummy = new JsCallbackInvoker(IntPtr.Zero, 0);
+            dummy.Invoke1<int>(default);
+            dummy.Invoke1<float>(default);
+            dummy.Invoke1<double>(default);
+            dummy.Invoke1<bool>(default);
+            dummy.Invoke1<long>(default);
+            dummy.Invoke2<int, int>(default, default);
+            dummy.Invoke2<object, int>(default, default);
+            dummy.Invoke2<int, float>(default, default);
+        }
+
+        static void FreeIfAllocated(IntPtr p) {
+            if (p != IntPtr.Zero) Marshal.FreeCoTaskMem(p);
+        }
     }
 
     static Delegate CreateFuncWrapper(Type delegateType, IntPtr ctxPtr, int callbackHandle, ParameterInfo[] parameters, Type returnType) {
