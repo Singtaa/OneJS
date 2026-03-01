@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using UnityEngine.Scripting;
 using UnityEngine;
 
 public static partial class QuickJSNative {
@@ -1307,12 +1308,14 @@ public static partial class QuickJSNative {
                 var str = stackalloc IntPtr[1];
                 str[0] = IntPtr.Zero;
 
-                args[0] = ObjectToInteropValue_NoAllocArgs(a1, ref str[0]);
+                try {
+                    args[0] = ObjectToInteropValue(a1, ref str[0]);
 
-                int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 1, null);
-                if (code != 0) Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
-
-                FreeIfAllocated(str[0]);
+                    int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 1, null);
+                    if (code != 0) Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
+                } finally {
+                    FreeIfAllocated(str[0]);
+                }
             }
         }
 
@@ -1323,14 +1326,16 @@ public static partial class QuickJSNative {
                 str[0] = IntPtr.Zero;
                 str[1] = IntPtr.Zero;
 
-                args[0] = ObjectToInteropValue_NoAllocArgs(a1, ref str[0]);
-                args[1] = ObjectToInteropValue_NoAllocArgs(a2, ref str[1]);
+                try {
+                    args[0] = ObjectToInteropValue(a1, ref str[0]);
+                    args[1] = ObjectToInteropValue(a2, ref str[1]);
 
-                int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 2, null);
-                if (code != 0) Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
-
-                FreeIfAllocated(str[0]);
-                FreeIfAllocated(str[1]);
+                    int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 2, null);
+                    if (code != 0) Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
+                } finally {
+                    FreeIfAllocated(str[0]);
+                    FreeIfAllocated(str[1]);
+                }
             }
         }
 
@@ -1342,16 +1347,18 @@ public static partial class QuickJSNative {
                 str[1] = IntPtr.Zero;
                 str[2] = IntPtr.Zero;
 
-                args[0] = ObjectToInteropValue_NoAllocArgs(a1, ref str[0]);
-                args[1] = ObjectToInteropValue_NoAllocArgs(a2, ref str[1]);
-                args[2] = ObjectToInteropValue_NoAllocArgs(a3, ref str[2]);
+                try {
+                    args[0] = ObjectToInteropValue(a1, ref str[0]);
+                    args[1] = ObjectToInteropValue(a2, ref str[1]);
+                    args[2] = ObjectToInteropValue(a3, ref str[2]);
 
-                int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 3, null);
-                if (code != 0) Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
-
-                FreeIfAllocated(str[0]);
-                FreeIfAllocated(str[1]);
-                FreeIfAllocated(str[2]);
+                    int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 3, null);
+                    if (code != 0) Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
+                } finally {
+                    FreeIfAllocated(str[0]);
+                    FreeIfAllocated(str[1]);
+                    FreeIfAllocated(str[2]);
+                }
             }
         }
 
@@ -1364,28 +1371,39 @@ public static partial class QuickJSNative {
                 str[2] = IntPtr.Zero;
                 str[3] = IntPtr.Zero;
 
-                args[0] = ObjectToInteropValue_NoAllocArgs(a1, ref str[0]);
-                args[1] = ObjectToInteropValue_NoAllocArgs(a2, ref str[1]);
-                args[2] = ObjectToInteropValue_NoAllocArgs(a3, ref str[2]);
-                args[3] = ObjectToInteropValue_NoAllocArgs(a4, ref str[3]);
+                try {
+                    args[0] = ObjectToInteropValue(a1, ref str[0]);
+                    args[1] = ObjectToInteropValue(a2, ref str[1]);
+                    args[2] = ObjectToInteropValue(a3, ref str[2]);
+                    args[3] = ObjectToInteropValue(a4, ref str[3]);
 
-                int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 4, null);
-                if (code != 0) Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
-
-                FreeIfAllocated(str[0]);
-                FreeIfAllocated(str[1]);
-                FreeIfAllocated(str[2]);
-                FreeIfAllocated(str[3]);
+                    int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 4, null);
+                    if (code != 0) Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
+                } finally {
+                    FreeIfAllocated(str[0]);
+                    FreeIfAllocated(str[1]);
+                    FreeIfAllocated(str[2]);
+                    FreeIfAllocated(str[3]);
+                }
             }
+        }
+
+        [Preserve]
+        static void AotHints() {
+            var dummy = new JsCallbackInvoker(IntPtr.Zero, 0);
+            dummy.Invoke1<int>(default);
+            dummy.Invoke1<float>(default);
+            dummy.Invoke1<double>(default);
+            dummy.Invoke1<bool>(default);
+            dummy.Invoke1<long>(default);
+            dummy.Invoke2<int, int>(default, default);
+            dummy.Invoke2<object, int>(default, default);
+            dummy.Invoke2<int, float>(default, default);
         }
 
         static void FreeIfAllocated(IntPtr p) {
             if (p != IntPtr.Zero) Marshal.FreeCoTaskMem(p);
         }
-    }
-
-    static unsafe InteropValue ObjectToInteropValue_NoAllocArgs<T>(T value, ref IntPtr allocatedStringPtr) {
-        return ObjectToInteropValue(value, ref allocatedStringPtr);
     }
 
     static Delegate CreateFuncWrapper(Type delegateType, IntPtr ctxPtr, int callbackHandle, ParameterInfo[] parameters, Type returnType) {
