@@ -22,13 +22,11 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
 
     static List<string> _createdAssets = new List<string>();
     static HashSet<string> _processedRunners = new HashSet<string>();
-    static List<Scene> _modifiedScenes = new List<Scene>();
     static int _copiedAssetCount = 0;
 
     public void OnPreprocessBuild(BuildReport report) {
         _createdAssets.Clear();
         _processedRunners.Clear();
-        _modifiedScenes.Clear();
         _copiedAssetCount = 0;
 
         Debug.Log("[JSRunner] Processing JSRunner components in build scenes...");
@@ -46,12 +44,11 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
 
                 var scene = EditorSceneManager.OpenScene(buildScene.path);
                 ProcessScene(scene);
-            }
-        }
 
-        // Save all modified scenes
-        foreach (var scene in _modifiedScenes) {
-            EditorSceneManager.SaveScene(scene);
+                if (scene.isDirty) {
+                    EditorSceneManager.SaveScene(scene);
+                }
+            }
         }
 
         // Refresh asset database to pick up new TextAssets
@@ -69,24 +66,16 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
     }
 
     void ProcessScene(Scene scene) {
-        bool sceneModified = false;
-
         foreach (var rootObj in scene.GetRootGameObjects()) {
             var runners = rootObj.GetComponentsInChildren<JSRunner>(true);
             foreach (var runner in runners) {
                 // Only process enabled runners on active GameObjects
                 if (!runner.enabled || !runner.gameObject.activeInHierarchy) continue;
 
-                if (ProcessJSRunner(runner)) {
-                    sceneModified = true;
-                }
+                ProcessJSRunner(runner);
                 ExtractCartridges(runner);
                 CopyAssets(runner);
             }
-        }
-
-        if (sceneModified && !_modifiedScenes.Contains(scene)) {
-            _modifiedScenes.Add(scene);
         }
     }
 
