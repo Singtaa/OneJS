@@ -48,7 +48,7 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
                 if (scene.isDirty) {
                     EditorSceneManager.SaveScene(scene);
                 }
-			}
+            }
         }
 
         // Refresh asset database to pick up new TextAssets
@@ -72,9 +72,7 @@ public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBu
                 // Only process enabled runners on active GameObjects
                 if (!runner.enabled || !runner.gameObject.activeInHierarchy) continue;
 
-                if (!ProcessJSRunner(runner)) {
-                    continue;
-                }
+                ProcessJSRunner(runner);
                 ExtractCartridges(runner);
                 CopyAssets(runner);
             }
