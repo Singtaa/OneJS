@@ -133,3 +133,17 @@ declare function deleteFile(path: string): boolean;
  * @returns Array of file paths
  */
 declare function listFiles(path: string, pattern?: string, recursive?: boolean): string[];
+
+// Async Asset Loading API
+/**
+ * Load a Unity resource asynchronously from the Resources folder.
+ * Returns null if the resource is not found.
+ * @param path - Resource path (relative to Resources folder, no extension)
+ * @param type - Optional C# Type to load as (e.g., CS.UnityEngine.TextAsset)
+ * @returns The loaded asset, or null if not found
+ * @example
+ * const tex = await loadResourceAsync("MyTextures/hero", CS.UnityEngine.Texture2D);
+ * @example
+ * const asset = await loadResourceAsync("Prefabs/Player");
+ */
+declare function loadResourceAsync(path: string, type?: any): Promise<any>;

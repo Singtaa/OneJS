@@ -23,6 +23,7 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `Janitor.cs` | Marker component for live reload cleanup of JS-created GameObjects |
 | `Network.cs` | Fetch API implementation using UnityWebRequest |
 | `FileSystem.cs` | File system access for runtime loading (readTextFile, writeTextFile, etc.) |
+| `AssetLoader.cs` | Async resource loading (loadResourceAsync) wrapping Resources.LoadAsync |
 | `SourceMapParser.cs` | Parses source maps for error stack trace translation |
 | `UICartridge.cs` | Cartridge system for packaged UI modules |
 | `CartridgeTypeGenerator.cs` | Generates TypeScript declarations for cartridge types |

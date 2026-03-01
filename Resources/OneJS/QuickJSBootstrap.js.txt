@@ -445,6 +445,10 @@ function __wrapObject(typeName, handle) {
 
             if (typeof prop === "symbol") return undefined;
 
+            // C# objects are not JS thenables — return undefined for Promise protocol.
+            // Prevents errors during Promise resolution's thenable check (Promises/A+ 2.3.3).
+            if (prop === "then") return undefined;
+
             const propName = String(prop);
             const typeName = obj.__csType || "";
             const handle = obj.__csHandle || 0;
@@ -1317,6 +1321,32 @@ globalThis.listFiles = function(path, pattern, recursive) {
         result.push(csList[i]);
     }
     return result;
+};
+
+// MARK: Async Asset Loading
+
+/**
+ * Load a Unity resource asynchronously from the Resources folder.
+ * Returns null if the resource is not found.
+ *
+ * @param {string} path - Resource path (relative to Resources folder, no extension)
+ * @param {Type} [type] - Optional C# Type to load as (e.g., CS.UnityEngine.TextAsset)
+ * @returns {Promise<Object>} Promise resolving to the loaded asset or null
+ *
+ * @example
+ * // Load as generic Object
+ * const asset = await loadResourceAsync("OneJS/QuickJSBootstrap.js");
+ *
+ * @example
+ * // Load as specific type
+ * const textAsset = await loadResourceAsync("OneJS/QuickJSBootstrap.js", CS.UnityEngine.TextAsset);
+ * console.log(textAsset.text);
+ */
+globalThis.loadResourceAsync = async function(path, type) {
+    if (type) {
+        return await CS.OneJS.AssetLoader.LoadResourceAsync(path, type);
+    }
+    return await CS.OneJS.AssetLoader.LoadResourceAsync(path);
 };
 
 // MARK: Fetch API
