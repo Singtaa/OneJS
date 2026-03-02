@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using OneJS;
 using OneJS.CustomStyleSheets;
 using OneJS.Input;
 using UnityEngine;
@@ -136,6 +137,7 @@ public class QuickJSUIBridge : IDisposable {
 
         UnregisterEventDelegation();
         ClearStyleSheets(); // Clean up JS-loaded stylesheets
+        WebSocketBridge.CloseAll();
         QuickJSNative.ClearPendingTasks();
         _ctx?.Dispose();
 
@@ -192,6 +194,7 @@ public class QuickJSUIBridge : IDisposable {
         try {
             // Process completed C# Tasks and resolve/reject their JS Promises
             QuickJSNative.ProcessCompletedTasks(_ctx);
+            WebSocketBridge.ProcessEvents(_ctx);
 
             float timestamp = (Time.realtimeSinceStartup - _startTime) * 1000f;
 

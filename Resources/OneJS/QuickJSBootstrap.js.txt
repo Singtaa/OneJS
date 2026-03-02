@@ -1538,6 +1538,122 @@ class Headers {
     }
 }
 
+// MARK: WebSocket API
+/**
+ * WebSocket API implementation.
+ * - WebGL: Uses browser's native WebSocket (JIT-optimized, full CORS support)
+ * - Native: Uses C# ClientWebSocket via WebSocketBridge
+ *
+ * Follows the standard WebSocket Web API:
+ * https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
+ *
+ * @example
+ * const ws = new WebSocket("wss://echo.websocket.org");
+ * ws.onopen = () => ws.send("Hello");
+ * ws.onmessage = (e) => console.log(e.data);
+ * ws.onclose = (e) => console.log("closed", e.code);
+ */
+const __nativeWebSocket = globalThis.WebSocket;
+
+if (__nativeWebSocket) {
+    // WebGL: Use browser's native WebSocket directly
+    globalThis.WebSocket = __nativeWebSocket;
+} else {
+    // Native platforms: Polyfill using C# WebSocketBridge
+    const __webSockets = new Map();
+
+    class WebSocket {
+        static CONNECTING = 0;
+        static OPEN = 1;
+        static CLOSING = 2;
+        static CLOSED = 3;
+
+        constructor(url, protocols) {
+            this.url = url;
+            this.readyState = WebSocket.CONNECTING;
+            this.protocol = "";
+            this.extensions = "";
+            this.binaryType = "arraybuffer";
+            this.bufferedAmount = 0;
+
+            this.onopen = null;
+            this.onmessage = null;
+            this.onerror = null;
+            this.onclose = null;
+
+            this._listeners = {};
+
+            var protoStr = Array.isArray(protocols) ? protocols.join(",") : (protocols || "");
+            this._socketId = CS.OneJS.WebSocketBridge.Connect(url, protoStr);
+            __webSockets.set(this._socketId, this);
+        }
+
+        send(data) {
+            if (this.readyState !== WebSocket.OPEN) {
+                throw new Error("WebSocket is not open");
+            }
+            CS.OneJS.WebSocketBridge.Send(this._socketId, String(data));
+        }
+
+        close(code, reason) {
+            if (this.readyState === WebSocket.CLOSING || this.readyState === WebSocket.CLOSED) return;
+            this.readyState = WebSocket.CLOSING;
+            CS.OneJS.WebSocketBridge.Close(this._socketId, code || 1000, reason || "");
+        }
+
+        addEventListener(type, listener) {
+            if (!this._listeners[type]) this._listeners[type] = [];
+            this._listeners[type].push(listener);
+        }
+
+        removeEventListener(type, listener) {
+            var list = this._listeners[type];
+            if (list) {
+                var idx = list.indexOf(listener);
+                if (idx >= 0) list.splice(idx, 1);
+            }
+        }
+
+        _dispatch(event) {
+            var handler = this["on" + event.type];
+            if (handler) {
+                try { handler.call(this, event); } catch (e) { console.error("WebSocket handler error:", e); }
+            }
+            var list = this._listeners[event.type];
+            if (list) {
+                for (var i = 0; i < list.length; i++) {
+                    try { list[i].call(this, event); } catch (e) { console.error("WebSocket listener error:", e); }
+                }
+            }
+        }
+    }
+
+    globalThis.__dispatchWebSocketEvent = function(socketId, type, data, code, reason) {
+        var ws = __webSockets.get(socketId);
+        if (!ws) return;
+
+        switch (type) {
+            case "open":
+                ws.readyState = WebSocket.OPEN;
+                ws._dispatch({ type: "open" });
+                break;
+            case "message":
+                ws._dispatch({ type: "message", data: data });
+                break;
+            case "error":
+                ws._dispatch({ type: "error", message: data });
+                break;
+            case "close":
+                ws.readyState = WebSocket.CLOSED;
+                ws._dispatch({ type: "close", code: code, reason: reason, wasClean: code === 1000 });
+                __webSockets.delete(socketId);
+                break;
+        }
+    };
+
+    globalThis.WebSocket = WebSocket;
+}
+
 // MARK: Storage API
 /**
  * localStorage implementation using Unity's PlayerPrefs.

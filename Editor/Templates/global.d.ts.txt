@@ -134,6 +134,47 @@ declare function deleteFile(path: string): boolean;
  */
 declare function listFiles(path: string, pattern?: string, recursive?: boolean): string[];
 
+// WebSocket API
+interface WebSocketEvent {
+    readonly type: string;
+}
+
+interface WebSocketMessageEvent extends WebSocketEvent {
+    readonly data: string;
+}
+
+interface WebSocketCloseEvent extends WebSocketEvent {
+    readonly code: number;
+    readonly reason: string;
+    readonly wasClean: boolean;
+}
+
+declare class WebSocket {
+    static readonly CONNECTING: 0;
+    static readonly OPEN: 1;
+    static readonly CLOSING: 2;
+    static readonly CLOSED: 3;
+
+    constructor(url: string, protocols?: string | string[]);
+
+    readonly url: string;
+    readonly readyState: number;
+    readonly protocol: string;
+    readonly extensions: string;
+    readonly bufferedAmount: number;
+    binaryType: string;
+
+    onopen: ((event: WebSocketEvent) => void) | null;
+    onmessage: ((event: WebSocketMessageEvent) => void) | null;
+    onerror: ((event: WebSocketEvent) => void) | null;
+    onclose: ((event: WebSocketCloseEvent) => void) | null;
+
+    send(data: string): void;
+    close(code?: number, reason?: string): void;
+    addEventListener(type: string, listener: (event: any) => void): void;
+    removeEventListener(type: string, listener: (event: any) => void): void;
+}
+
 // Async Asset Loading API
 /**
  * Load a Unity resource asynchronously from the Resources folder.
