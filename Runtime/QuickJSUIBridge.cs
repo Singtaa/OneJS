@@ -213,7 +213,7 @@ public class QuickJSUIBridge : IDisposable {
             // (InvokeCallbackNoAlloc) bypasses Eval(), which is the only other place
             // GC runs. Without this, FinalizationRegistry callbacks never fire and
             // C# handles leak unboundedly during normal operation.
-            _ctx.MaybeRunGC();
+            _ctx.MaybeRunGC(QuickJSContext.HandleCountThreshold);
         } catch (System.Exception ex) {
             UnityEngine.Debug.LogError($"[QuickJSUIBridge] Tick error: {ex.Message}");
         } finally {

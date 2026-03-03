@@ -9,7 +9,7 @@ using UnityEngine;
 public sealed class QuickJSContext : IDisposable {
     const string DefaultBootstrapResourcePath = "OneJS/QuickJSBootstrap.js";
     const int GCInterval = 100; // Run GC every N evals
-    const int HandleCountThreshold = 100; // Also run GC if handles exceed this count
+    public const int HandleCountThreshold = 100; // Also run GC if handles exceed this count
     static string _cachedBootstrap;
 
     IntPtr _ptr;
