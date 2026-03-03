@@ -1906,9 +1906,10 @@ class URLSearchParams {
  */
 class URL {
     constructor(url, base) {
+        url = url instanceof URL ? url.toString() : String(url);
         if (base !== undefined) {
             // Resolve relative URL against base
-            var baseUrl = new URL(base);
+            var baseUrl = new URL(base instanceof URL ? base.toString() : String(base));
             url = this._resolveRelative(baseUrl, url);
         }
 
