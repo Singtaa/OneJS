@@ -208,6 +208,12 @@ public class QuickJSUIBridge : IDisposable {
 
             // Execute pending Promise jobs (microtasks) - critical for React scheduler
             _ctx.ExecutePendingJobs();
+
+            // Run GC if handle count exceeds threshold. The zero-allocation tick path
+            // (InvokeCallbackNoAlloc) bypasses Eval(), which is the only other place
+            // GC runs. Without this, FinalizationRegistry callbacks never fire and
+            // C# handles leak unboundedly during normal operation.
+            _ctx.MaybeRunGC();
         } catch (System.Exception ex) {
             UnityEngine.Debug.LogError($"[QuickJSUIBridge] Tick error: {ex.Message}");
         } finally {
