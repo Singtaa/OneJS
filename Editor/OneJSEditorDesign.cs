@@ -124,8 +124,15 @@ public static class OneJSEditorDesign {
         // --- Buttons ---
         public const string GenerateTypesNow = "Generate Types Now";
         public const string ResetToDefaults = "Reset to Defaults";
+        public const string Restore = "Restore";
+        public const string RestoreAll = "Restore All";
         public const string ExtractAll = "Extract All";
         public const string DeleteAllExtracted = "Delete All Extracted";
+
+        // --- File status ---
+        public const string FileUpToDate = "Up to date";
+        public const string FileModified = "Modified";
+        public const string FileMissing = "Missing";
 
         // --- Watcher ---
         public const string Watcher = "Watcher: ";

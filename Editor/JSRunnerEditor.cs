@@ -50,6 +50,9 @@ public class JSRunnerEditor : Editor {
     Label _typeGenStatusLabel;
     Label _buildOutputPathLabel;
 
+    // Default files
+    VisualElement _defaultFilesListContainer;
+
     // Cartridges
     VisualElement _cartridgeListContainer;
 
@@ -490,21 +493,30 @@ public class JSRunnerEditor : Editor {
         // Scaffolding
         AddSectionHeader(container, OneJSEditorDesign.Texts.Scaffolding);
 
-        var defaultFilesField = new PropertyField(serializedObject.FindProperty("_defaultFiles"), "Default Files");
-        defaultFilesField.tooltip = "Template files scaffolded when working directory is empty";
-        container.Add(defaultFilesField);
+        _defaultFilesListContainer = new VisualElement();
+        container.Add(_defaultFilesListContainer);
+        RebuildDefaultFilesList();
 
         var scaffoldRow = CreateRow();
         scaffoldRow.style.marginTop = 5;
+
         var repopulateButton = new Button(() => {
             _target.PopulateDefaultFiles();
             serializedObject.Update();
             EditorUtility.SetDirty(_target);
+            RebuildDefaultFilesList();
         }) { text = OneJSEditorDesign.Texts.ResetToDefaults };
         repopulateButton.style.height = repopulateButton.style.minHeight = 22;
         repopulateButton.style.flexGrow = 1;
         repopulateButton.tooltip = "Repopulate the default files list from OneJS templates";
         scaffoldRow.Add(repopulateButton);
+
+        var restoreAllButton = new Button(() => RestoreAllDefaultFiles()) { text = OneJSEditorDesign.Texts.RestoreAll };
+        restoreAllButton.style.height = restoreAllButton.style.minHeight = 22;
+        restoreAllButton.style.flexGrow = 1;
+        restoreAllButton.tooltip = "Restore all modified or missing files to match templates";
+        scaffoldRow.Add(restoreAllButton);
+
         container.Add(scaffoldRow);
     }
 
@@ -780,6 +792,129 @@ public class JSRunnerEditor : Editor {
         row.Add(removeBtn);
 
         return row;
+    }
+
+    // MARK: Default Files Management
+
+    void RebuildDefaultFilesList() {
+        if (_defaultFilesListContainer == null) return;
+        _defaultFilesListContainer.Clear();
+        serializedObject.Update();
+
+        var defaultFilesProp = serializedObject.FindProperty("_defaultFiles");
+
+        if (defaultFilesProp.arraySize == 0) {
+            var emptyLabel = new Label("No default files. Click \"Reset to Defaults\" to populate.");
+            emptyLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
+            emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
+            emptyLabel.style.paddingTop = 4;
+            emptyLabel.style.paddingBottom = 4;
+            _defaultFilesListContainer.Add(emptyLabel);
+            return;
+        }
+
+        for (int i = 0; i < defaultFilesProp.arraySize; i++) {
+            var row = CreateDefaultFileRow(i);
+            _defaultFilesListContainer.Add(row);
+        }
+    }
+
+    VisualElement CreateDefaultFileRow(int index) {
+        var status = _target.GetDefaultFileStatus(index);
+        var entry = serializedObject.FindProperty("_defaultFiles").GetArrayElementAtIndex(index);
+        var pathProp = entry.FindPropertyRelative("path");
+        var pathValue = pathProp.stringValue;
+
+        var row = new VisualElement();
+        row.style.flexDirection = FlexDirection.Row;
+        row.style.alignItems = Align.Center;
+        row.style.marginBottom = 2;
+        row.style.paddingTop = 2;
+        row.style.paddingBottom = 2;
+        row.style.paddingLeft = 4;
+        row.style.paddingRight = 4;
+        row.style.backgroundColor = OneJSEditorDesign.Colors.RowBg;
+        row.style.SetBorderRadius(3);
+
+        // Path label
+        var pathLabel = new Label(string.IsNullOrEmpty(pathValue) ? "(empty)" : pathValue);
+        pathLabel.style.flexGrow = 1;
+        if (string.IsNullOrEmpty(pathValue))
+            pathLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
+        row.Add(pathLabel);
+
+        // Status label
+        var statusLabel = new Label();
+        statusLabel.style.width = 70;
+        statusLabel.style.fontSize = 10;
+        statusLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
+        statusLabel.style.marginRight = 4;
+
+        switch (status) {
+            case DefaultFileStatus.UpToDate:
+                statusLabel.text = OneJSEditorDesign.Texts.FileUpToDate;
+                statusLabel.style.color = OneJSEditorDesign.Colors.StatusSuccess;
+                break;
+            case DefaultFileStatus.Modified:
+                statusLabel.text = OneJSEditorDesign.Texts.FileModified;
+                statusLabel.style.color = OneJSEditorDesign.Colors.StatusWarning;
+                break;
+            case DefaultFileStatus.Missing:
+                statusLabel.text = OneJSEditorDesign.Texts.FileMissing;
+                statusLabel.style.color = OneJSEditorDesign.Colors.StatusError;
+                break;
+            default:
+                statusLabel.text = "";
+                statusLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
+                break;
+        }
+        row.Add(statusLabel);
+
+        // Restore button
+        var capturedIndex = index;
+        var restoreBtn = new Button(() => {
+            if (status == DefaultFileStatus.Modified) {
+                if (!EditorUtility.DisplayDialog("Restore File",
+                    $"Overwrite '{pathValue}' with the template version?", "Restore", "Cancel"))
+                    return;
+            }
+            _target.RestoreDefaultFile(capturedIndex);
+            RebuildDefaultFilesList();
+        }) { text = OneJSEditorDesign.Texts.Restore };
+        restoreBtn.style.width = 56;
+        restoreBtn.style.height = 20;
+        restoreBtn.SetEnabled(status == DefaultFileStatus.Modified || status == DefaultFileStatus.Missing);
+        row.Add(restoreBtn);
+
+        return row;
+    }
+
+    void RestoreAllDefaultFiles() {
+        serializedObject.Update();
+        var prop = serializedObject.FindProperty("_defaultFiles");
+
+        // Collect indices that need restoring
+        var toRestore = new List<int>();
+        for (int i = 0; i < prop.arraySize; i++) {
+            var s = _target.GetDefaultFileStatus(i);
+            if (s == DefaultFileStatus.Modified || s == DefaultFileStatus.Missing)
+                toRestore.Add(i);
+        }
+
+        if (toRestore.Count == 0) {
+            EditorUtility.DisplayDialog("Restore All", "All files are already up to date.", "OK");
+            return;
+        }
+
+        if (!EditorUtility.DisplayDialog("Restore All",
+            $"Restore {toRestore.Count} file(s) to match templates? Modified files will be overwritten.",
+            "Restore All", "Cancel"))
+            return;
+
+        foreach (var i in toRestore)
+            _target.RestoreDefaultFile(i);
+
+        RebuildDefaultFilesList();
     }
 
     // MARK: Cartridge Management

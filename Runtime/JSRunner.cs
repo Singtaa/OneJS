@@ -50,6 +50,11 @@ public class DefaultFileEntry {
 }
 
 /// <summary>
+/// Status of a default file relative to its template.
+/// </summary>
+public enum DefaultFileStatus { UpToDate, Modified, Missing, Invalid }
+
+/// <summary>
 /// MonoBehaviour that runs JavaScript from an auto-managed working directory.
 /// Automatically creates UIDocument and PanelSettings if not present.
 ///
@@ -1730,6 +1735,42 @@ public class JSRunner : MonoBehaviour {
         }
 
         Debug.Log($"[JSRunner] Populated {_defaultFiles.Count} default files from templates");
+    }
+
+    /// <summary>
+    /// Returns the status of a default file entry by comparing disk content to the template.
+    /// </summary>
+    public DefaultFileStatus GetDefaultFileStatus(int index) {
+        if (index < 0 || index >= _defaultFiles.Count) return DefaultFileStatus.Invalid;
+        var entry = _defaultFiles[index];
+        if (string.IsNullOrEmpty(entry.path) || entry.content == null) return DefaultFileStatus.Invalid;
+        var workingDir = WorkingDirFullPath;
+        if (string.IsNullOrEmpty(workingDir)) return DefaultFileStatus.Invalid;
+
+        var fullPath = Path.Combine(workingDir, entry.path);
+        if (!File.Exists(fullPath)) return DefaultFileStatus.Missing;
+
+        var diskContent = File.ReadAllText(fullPath);
+        return diskContent == entry.content.text ? DefaultFileStatus.UpToDate : DefaultFileStatus.Modified;
+    }
+
+    /// <summary>
+    /// Overwrites (or creates) a single default file on disk with its template content.
+    /// </summary>
+    public bool RestoreDefaultFile(int index) {
+        if (index < 0 || index >= _defaultFiles.Count) return false;
+        var entry = _defaultFiles[index];
+        if (string.IsNullOrEmpty(entry.path) || entry.content == null) return false;
+        var workingDir = WorkingDirFullPath;
+        if (string.IsNullOrEmpty(workingDir)) return false;
+
+        var fullPath = Path.Combine(workingDir, entry.path);
+        var dir = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            Directory.CreateDirectory(dir);
+
+        File.WriteAllText(fullPath, entry.content.text);
+        return true;
     }
 #endif
 }

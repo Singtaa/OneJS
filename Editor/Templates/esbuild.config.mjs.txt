@@ -4,9 +4,7 @@ import path from "path"
 import { fileURLToPath } from "url"
 
 // Import plugins from onejs-unity
-import { importTransformPlugin, tailwindPlugin } from "onejs-unity/esbuild"
-// Optional: USS Modules support (scoped class names)
-// import { ussModulesPlugin } from "onejs-unity/esbuild"
+import { importTransformPlugin, tailwindPlugin, ussModulesPlugin } from "onejs-unity/esbuild"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -25,6 +23,8 @@ const config = {
     globalName: "__exports",       // Exported functions available as __exports.onPlay, etc.
     target: "es2022",
     jsx: "automatic",
+    // Resolve .tsx/.ts files in node_modules (for packages that ship as TypeScript source)
+    resolveExtensions: [".tsx", ".ts", ".jsx", ".js", ".json"],
     // Generate source maps for better error messages
     sourcemap: true,
     alias: {
@@ -40,8 +40,8 @@ const config = {
         importTransformPlugin(),
         // Tailwind support - use `import "onejs:tailwind"` to activate
         tailwindPlugin({ content: ["./**/*.{tsx,ts,jsx,js}"] }),
-        // Optional: USS Modules support (scoped class names)
-        // ussModulesPlugin({ generateTypes: true }),
+        // USS Modules support (scoped class names, auto-generates .d.ts files)
+        ussModulesPlugin({ generateTypes: true }),
     ],
 }
 
