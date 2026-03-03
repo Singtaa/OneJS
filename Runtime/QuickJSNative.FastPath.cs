@@ -782,6 +782,11 @@ public static partial class QuickJSNative {
             result->i64 = UnsafeUtility.As<T, long>(ref value);
             return;
         }
+        if (typeof(T) == typeof(ulong)) {
+            result->type = InteropType.Double;
+            result->f64 = (double)UnsafeUtility.As<T, ulong>(ref value);
+            return;
+        }
 
         if (typeof(T) == typeof(Vector3)) {
             var vec = UnsafeUtility.As<T, Vector3>(ref value);

@@ -977,6 +977,87 @@ public class QuickJSPlaymodeTests {
         Assert.AreEqual("1000", result);
         yield return null;
     }
+
+    // MARK: Int64/UInt64 Tests
+
+    [UnityTest]
+    public IEnumerator Long_ReturnZero_Works() {
+        var result = _ctx.Eval("CS.Int64TestHelper.GetLongZero()");
+        Assert.AreEqual("0", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Long_ReturnSmallValue_Works() {
+        var result = _ctx.Eval("CS.Int64TestHelper.GetLongSmall()");
+        Assert.AreEqual("42", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Long_ReturnNegative_Works() {
+        var result = _ctx.Eval("CS.Int64TestHelper.GetLongNegative()");
+        Assert.AreEqual("-12345", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Long_ReturnMaxSafeInteger_Works() {
+        var result = _ctx.Eval("CS.Int64TestHelper.GetLongMaxSafe()");
+        Assert.AreEqual("9007199254740991", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Long_ReturnMinSafeInteger_Works() {
+        var result = _ctx.Eval("CS.Int64TestHelper.GetLongMinSafe()");
+        Assert.AreEqual("-9007199254740991", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator ULong_ReturnZero_Works() {
+        var result = _ctx.Eval("CS.Int64TestHelper.GetULongZero()");
+        Assert.AreEqual("0", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator ULong_ReturnSmallValue_Works() {
+        var result = _ctx.Eval("CS.Int64TestHelper.GetULongSmall()");
+        Assert.AreEqual("42", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator ULong_ReturnLargeValue_Works() {
+        var result = _ctx.Eval("CS.Int64TestHelper.GetULongLarge()");
+        Assert.AreEqual("9007199254740991", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Long_RoundTrip_Works() {
+        // Pass a value from JS to C# and back
+        var result = _ctx.Eval("CS.Int64TestHelper.EchoLong(12345)");
+        Assert.AreEqual("12345", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator ULong_RoundTrip_Works() {
+        var result = _ctx.Eval("CS.Int64TestHelper.EchoULong(67890)");
+        Assert.AreEqual("67890", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator ULong_IsNumeric_NotObjectHandle() {
+        // Verify ulong arrives as a number, not a C# object proxy
+        var result = _ctx.Eval("typeof CS.Int64TestHelper.GetULongSmall()");
+        Assert.AreEqual("number", result);
+        yield return null;
+    }
 }
 
 // MARK: Array Test Helper
@@ -1019,5 +1100,19 @@ public static class ArrayTestHelper {
         if (arr == null || arr.Length == 0) return "";
         return string.Join("", arr);
     }
+}
+
+// MARK: Int64/UInt64 Test Helper
+public static class Int64TestHelper {
+    public static long GetLongZero() => 0L;
+    public static long GetLongSmall() => 42L;
+    public static long GetLongNegative() => -12345L;
+    public static long GetLongMaxSafe() => 9007199254740991L; // 2^53 - 1 (Number.MAX_SAFE_INTEGER)
+    public static long GetLongMinSafe() => -9007199254740991L;
+    public static ulong GetULongZero() => 0UL;
+    public static ulong GetULongSmall() => 42UL;
+    public static ulong GetULongLarge() => 9007199254740991UL; // 2^53 - 1
+    public static long EchoLong(long value) => value;
+    public static ulong EchoULong(ulong value) => value;
 }
 

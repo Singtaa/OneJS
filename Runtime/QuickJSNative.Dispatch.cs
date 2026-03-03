@@ -709,6 +709,10 @@ public static partial class QuickJSNative {
                 v.type = InteropType.Int64;
                 v.i64 = l;
                 break;
+            case ulong ul:
+                v.type = InteropType.Double;
+                v.f64 = ul;
+                break;
             case float f:
                 v.type = InteropType.Float32;
                 v.f32 = f;
