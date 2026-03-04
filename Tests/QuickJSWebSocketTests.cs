@@ -332,6 +332,56 @@ public class QuickJSWebSocketTests {
         Assert.IsTrue(resultJson.Contains("\"code\":1006"), $"Expected code:1006, got: {resultJson}");
     }
 
+    // MARK: Binary Frame Tests
+
+    [UnityTest]
+    public IEnumerator WebSocket_BinaryType_DefaultsToArrayBuffer() {
+        var result = _bridge.Eval(@"
+            var ws = new WebSocket('wss://ws.postman-echo.com/raw');
+            ws.binaryType;
+        ");
+        Assert.AreEqual("arraybuffer", result);
+        _bridge.Eval("ws.close()");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator WebSocket_Binary_Base64RoundTrip() {
+        // Test the base64 encode/decode pipeline without a server
+        var result = _bridge.Eval(@"
+            var original = [0, 1, 127, 128, 254, 255];
+            var arr = new Uint8Array(original);
+            var b64 = __arrayBufferToBase64(arr.buffer);
+            var decoded = __base64ToArrayBuffer(b64);
+            var roundTripped = Array.from(new Uint8Array(decoded));
+            JSON.stringify({ b64: b64, match: JSON.stringify(original) === JSON.stringify(roundTripped), bytes: roundTripped });
+        ");
+        Assert.IsTrue(result.Contains("\"match\":true"), $"Base64 round-trip failed: {result}");
+        Assert.IsTrue(result.Contains("\"bytes\":[0,1,127,128,254,255]"), $"Byte values wrong: {result}");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator WebSocket_Binary_SendDetectsTypes() {
+        // Verify send() correctly detects binary types vs text
+        var result = _bridge.Eval(@"
+            var ab = new ArrayBuffer(2);
+            var u8 = new Uint8Array([1, 2, 3]);
+            var i32 = new Int32Array([42]);
+            JSON.stringify({
+                abIsAB: ab instanceof ArrayBuffer,
+                u8IsView: ArrayBuffer.isView(u8),
+                i32IsView: ArrayBuffer.isView(i32),
+                strIsView: ArrayBuffer.isView('hello')
+            });
+        ");
+        Assert.IsTrue(result.Contains("\"abIsAB\":true"), $"ArrayBuffer detection failed: {result}");
+        Assert.IsTrue(result.Contains("\"u8IsView\":true"), $"Uint8Array detection failed: {result}");
+        Assert.IsTrue(result.Contains("\"i32IsView\":true"), $"Int32Array detection failed: {result}");
+        Assert.IsTrue(result.Contains("\"strIsView\":false"), $"String falsely detected as view: {result}");
+        yield return null;
+    }
+
     // MARK: Multiple Connections Test
 
     [UnityTest]

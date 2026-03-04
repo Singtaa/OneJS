@@ -20,7 +20,13 @@ namespace OneJS {
     /// - QuickJSUIBridge.Tick() calls ProcessEvents() to dispatch to JS
     /// </summary>
     public static class WebSocketBridge {
-        static int _nextSocketId = 1;
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStaticState() {
+            CloseAll();
+            _nextSocketId = 0;
+        }
+
+        static int _nextSocketId = 0;
         static readonly ConcurrentDictionary<int, SocketState> _sockets = new();
         static readonly ConcurrentQueue<WebSocketEvent> _events = new();
 
@@ -29,20 +35,23 @@ namespace OneJS {
         struct WebSocketEvent {
             public int SocketId;
             public string Type;   // "open", "message", "error", "close"
-            public string Data;   // message text or error message
+            public string Data;   // message text, base64 binary data, or error message
             public int Code;      // close code
             public string Reason; // close reason
+            public bool IsBinary; // true if Data contains base64-encoded binary
         }
 
         class SocketState {
             public ClientWebSocket Socket;
             public CancellationTokenSource Cts;
             public readonly ConcurrentQueue<SendItem> SendQueue = new();
-            public volatile bool SendLoopRunning;
+            public int SendLoopFlag; // 0 = not running, 1 = running (use Interlocked)
         }
 
         struct SendItem {
             public string Data;
+            public byte[] BinaryData;
+            public bool IsBinary;
         }
 
         /// <summary>
@@ -50,7 +59,7 @@ namespace OneJS {
         /// Connection happens asynchronously; "open" or "error" event fires when ready.
         /// </summary>
         public static int Connect(string url, string protocols) {
-            int id = _nextSocketId++;
+            int id = Interlocked.Increment(ref _nextSocketId);
             var ws = new ClientWebSocket();
 
             if (!string.IsNullOrEmpty(protocols)) {
@@ -80,8 +89,30 @@ namespace OneJS {
 
             state.SendQueue.Enqueue(new SendItem { Data = data });
 
-            if (!state.SendLoopRunning) {
-                state.SendLoopRunning = true;
+            if (Interlocked.CompareExchange(ref state.SendLoopFlag, 1, 0) == 0) {
+                Task.Run(() => ProcessSendQueueAsync(socketId, state));
+            }
+        }
+
+        /// <summary>
+        /// Send a binary message on an open WebSocket.
+        /// Accepts base64-encoded data from JS, decodes to bytes on C# side.
+        /// </summary>
+        public static void SendBinary(int socketId, string base64Data) {
+            if (!_sockets.TryGetValue(socketId, out var state)) return;
+            if (state.Socket.State != WebSocketState.Open) return;
+
+            byte[] bytes;
+            try {
+                bytes = Convert.FromBase64String(base64Data);
+            } catch (FormatException ex) {
+                Debug.LogError($"[WebSocketBridge] Invalid base64 data: {ex.Message}");
+                return;
+            }
+
+            state.SendQueue.Enqueue(new SendItem { BinaryData = bytes, IsBinary = true });
+
+            if (Interlocked.CompareExchange(ref state.SendLoopFlag, 1, 0) == 0) {
                 Task.Run(() => ProcessSendQueueAsync(socketId, state));
             }
         }
@@ -198,10 +229,20 @@ namespace OneJS {
                     messageBuffer.Write(buffer, 0, result.Count);
 
                     if (result.EndOfMessage) {
-                        var messageData = Encoding.UTF8.GetString(
-                            messageBuffer.GetBuffer(), 0, (int)messageBuffer.Length);
+                        bool isBinary = result.MessageType == WebSocketMessageType.Binary;
+                        string messageData;
+
+                        if (isBinary) {
+                            messageData = Convert.ToBase64String(
+                                messageBuffer.GetBuffer(), 0, (int)messageBuffer.Length);
+                        } else {
+                            messageData = Encoding.UTF8.GetString(
+                                messageBuffer.GetBuffer(), 0, (int)messageBuffer.Length);
+                        }
+
                         _events.Enqueue(new WebSocketEvent {
-                            SocketId = id, Type = "message", Data = messageData
+                            SocketId = id, Type = "message",
+                            Data = messageData, IsBinary = isBinary
                         });
                         messageBuffer.SetLength(0);
                     }
@@ -235,28 +276,36 @@ namespace OneJS {
                 while (state.SendQueue.TryDequeue(out var item)) {
                     if (state.Socket.State != WebSocketState.Open) break;
 
-                    var bytes = Encoding.UTF8.GetBytes(item.Data);
-                    var segment = new ArraySegment<byte>(bytes);
-                    await state.Socket.SendAsync(
-                        segment, WebSocketMessageType.Text, true, state.Cts.Token);
+                    if (item.IsBinary) {
+                        var segment = new ArraySegment<byte>(item.BinaryData);
+                        await state.Socket.SendAsync(
+                            segment, WebSocketMessageType.Binary, true, state.Cts.Token);
+                    } else {
+                        var bytes = Encoding.UTF8.GetBytes(item.Data);
+                        var segment = new ArraySegment<byte>(bytes);
+                        await state.Socket.SendAsync(
+                            segment, WebSocketMessageType.Text, true, state.Cts.Token);
+                    }
                 }
             } catch (Exception ex) {
                 _events.Enqueue(new WebSocketEvent {
                     SocketId = id, Type = "error", Data = ex.Message
                 });
             } finally {
-                state.SendLoopRunning = false;
+                Interlocked.Exchange(ref state.SendLoopFlag, 0);
 
                 // Check if more items were enqueued while we were finishing
                 if (!state.SendQueue.IsEmpty && state.Socket.State == WebSocketState.Open) {
-                    state.SendLoopRunning = true;
-                    _ = Task.Run(() => ProcessSendQueueAsync(id, state));
+                    if (Interlocked.CompareExchange(ref state.SendLoopFlag, 1, 0) == 0) {
+                        _ = Task.Run(() => ProcessSendQueueAsync(id, state));
+                    }
                 }
             }
         }
 
         static void CleanupSocket(int id) {
             if (_sockets.TryRemove(id, out var state)) {
+                try { state.Cts.Cancel(); } catch { }
                 try { state.Socket.Dispose(); } catch { }
                 try { state.Cts.Dispose(); } catch { }
             }
@@ -267,7 +316,8 @@ namespace OneJS {
         static void DispatchToJs(QuickJSContext ctx, WebSocketEvent evt) {
             string dataEscaped = EscapeJsString(evt.Data ?? "");
             string reasonEscaped = EscapeJsString(evt.Reason ?? "");
-            string code = $"__dispatchWebSocketEvent({evt.SocketId},\"{evt.Type}\",\"{dataEscaped}\",{evt.Code},\"{reasonEscaped}\")";
+            string isBinary = evt.IsBinary ? "true" : "false";
+            string code = $"__dispatchWebSocketEvent({evt.SocketId},\"{evt.Type}\",\"{dataEscaped}\",{evt.Code},\"{reasonEscaped}\",{isBinary})";
             ctx.Eval(code, "<ws-event>");
             ctx.ExecutePendingJobs();
         }
@@ -279,7 +329,10 @@ namespace OneJS {
                 .Replace("\"", "\\\"")
                 .Replace("\n", "\\n")
                 .Replace("\r", "\\r")
-                .Replace("\t", "\\t");
+                .Replace("\t", "\\t")
+                .Replace("\0", "\\0")
+                .Replace("\u2028", "\\u2028")
+                .Replace("\u2029", "\\u2029");
         }
     }
 }

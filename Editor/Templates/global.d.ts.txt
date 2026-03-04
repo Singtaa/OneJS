@@ -140,7 +140,7 @@ interface WebSocketEvent {
 }
 
 interface WebSocketMessageEvent extends WebSocketEvent {
-    readonly data: string;
+    readonly data: string | ArrayBuffer;
 }
 
 interface WebSocketCloseEvent extends WebSocketEvent {
@@ -162,14 +162,14 @@ declare class WebSocket {
     readonly protocol: string;
     readonly extensions: string;
     readonly bufferedAmount: number;
-    binaryType: string;
+    binaryType: "arraybuffer";
 
     onopen: ((event: WebSocketEvent) => void) | null;
     onmessage: ((event: WebSocketMessageEvent) => void) | null;
     onerror: ((event: WebSocketEvent) => void) | null;
     onclose: ((event: WebSocketCloseEvent) => void) | null;
 
-    send(data: string): void;
+    send(data: string | ArrayBuffer | ArrayBufferView): void;
     close(code?: number, reason?: string): void;
     addEventListener(type: string, listener: (event: any) => void): void;
     removeEventListener(type: string, listener: (event: any) => void): void;

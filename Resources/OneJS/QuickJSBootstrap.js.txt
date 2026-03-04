@@ -1562,6 +1562,46 @@ if (__nativeWebSocket) {
     // Native platforms: Polyfill using C# WebSocketBridge
     const __webSockets = new Map();
 
+    // Base64 helpers for binary WebSocket frames.
+    // The global atob/btoa are defined later in the bootstrap, so we use local versions here.
+    var __wsB64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    function __arrayBufferToBase64(buffer) {
+        var bytes = new Uint8Array(buffer);
+        var len = bytes.length;
+        var result = "";
+        for (var i = 0; i < len; i += 3) {
+            var a = bytes[i];
+            var b = i + 1 < len ? bytes[i + 1] : 0;
+            var c = i + 2 < len ? bytes[i + 2] : 0;
+            var n = (a << 16) | (b << 8) | c;
+            result += __wsB64Chars[(n >> 18) & 63];
+            result += __wsB64Chars[(n >> 12) & 63];
+            result += (i + 1 < len) ? __wsB64Chars[(n >> 6) & 63] : "=";
+            result += (i + 2 < len) ? __wsB64Chars[n & 63] : "=";
+        }
+        return result;
+    }
+
+    function __base64ToArrayBuffer(base64) {
+        var str = base64.replace(/=+$/, "");
+        var len = str.length;
+        var outLen = (len * 3) >> 2;
+        var bytes = new Uint8Array(outLen);
+        var p = 0;
+        for (var i = 0; i < len; i += 4) {
+            var a = __wsB64Chars.indexOf(str.charAt(i));
+            var b = i + 1 < len ? __wsB64Chars.indexOf(str.charAt(i + 1)) : 0;
+            var c = i + 2 < len ? __wsB64Chars.indexOf(str.charAt(i + 2)) : 0;
+            var d = i + 3 < len ? __wsB64Chars.indexOf(str.charAt(i + 3)) : 0;
+            var n = (a << 18) | (b << 12) | (c << 6) | d;
+            bytes[p++] = (n >> 16) & 255;
+            if (i + 2 < len) bytes[p++] = (n >> 8) & 255;
+            if (i + 3 < len) bytes[p++] = n & 255;
+        }
+        return bytes.buffer;
+    }
+
     class WebSocket {
         static CONNECTING = 0;
         static OPEN = 1;
@@ -1592,7 +1632,13 @@ if (__nativeWebSocket) {
             if (this.readyState !== WebSocket.OPEN) {
                 throw new Error("WebSocket is not open");
             }
-            CS.OneJS.WebSocketBridge.Send(this._socketId, String(data));
+            if (data instanceof ArrayBuffer) {
+                CS.OneJS.WebSocketBridge.SendBinary(this._socketId, __arrayBufferToBase64(data));
+            } else if (ArrayBuffer.isView(data)) {
+                CS.OneJS.WebSocketBridge.SendBinary(this._socketId, __arrayBufferToBase64(data.buffer));
+            } else {
+                CS.OneJS.WebSocketBridge.Send(this._socketId, String(data));
+            }
         }
 
         close(code, reason) {
@@ -1628,7 +1674,7 @@ if (__nativeWebSocket) {
         }
     }
 
-    globalThis.__dispatchWebSocketEvent = function(socketId, type, data, code, reason) {
+    globalThis.__dispatchWebSocketEvent = function(socketId, type, data, code, reason, isBinary) {
         var ws = __webSockets.get(socketId);
         if (!ws) return;
 
@@ -1638,7 +1684,11 @@ if (__nativeWebSocket) {
                 ws._dispatch({ type: "open" });
                 break;
             case "message":
-                ws._dispatch({ type: "message", data: data });
+                var payload = data;
+                if (isBinary) {
+                    payload = __base64ToArrayBuffer(data);
+                }
+                ws._dispatch({ type: "message", data: payload });
                 break;
             case "error":
                 ws._dispatch({ type: "error", message: data });
