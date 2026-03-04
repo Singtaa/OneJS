@@ -137,6 +137,8 @@ declare function listFiles(path: string, pattern?: string, recursive?: boolean):
 // WebSocket API
 interface WebSocketEvent {
     readonly type: string;
+    readonly target: WebSocket;
+    readonly currentTarget: WebSocket;
 }
 
 interface WebSocketMessageEvent extends WebSocketEvent {
@@ -154,6 +156,11 @@ declare class WebSocket {
     static readonly OPEN: 1;
     static readonly CLOSING: 2;
     static readonly CLOSED: 3;
+
+    readonly CONNECTING: 0;
+    readonly OPEN: 1;
+    readonly CLOSING: 2;
+    readonly CLOSED: 3;
 
     constructor(url: string, protocols?: string | string[]);
 
@@ -173,6 +180,7 @@ declare class WebSocket {
     close(code?: number, reason?: string): void;
     addEventListener(type: string, listener: (event: any) => void): void;
     removeEventListener(type: string, listener: (event: any) => void): void;
+    dispatchEvent(event: { type: string; [key: string]: any }): boolean;
 }
 
 // Async Asset Loading API
