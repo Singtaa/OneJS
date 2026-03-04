@@ -1624,7 +1624,7 @@ if (__nativeWebSocket) {
             this._listeners = {};
 
             var protoStr = Array.isArray(protocols) ? protocols.join(",") : (protocols || "");
-            this._socketId = CS.OneJS.WebSocketBridge.Connect(url, protoStr);
+            this._socketId = CS.OneJS.WebSocketBridge.Connect(url, protoStr, globalThis.__wsContextId || 0);
             __webSockets.set(this._socketId, this);
         }
 
@@ -1635,7 +1635,9 @@ if (__nativeWebSocket) {
             if (data instanceof ArrayBuffer) {
                 CS.OneJS.WebSocketBridge.SendBinary(this._socketId, __arrayBufferToBase64(data));
             } else if (ArrayBuffer.isView(data)) {
-                CS.OneJS.WebSocketBridge.SendBinary(this._socketId, __arrayBufferToBase64(data.buffer));
+                // Slice to respect byteOffset/byteLength of TypedArray views
+                var slice = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+                CS.OneJS.WebSocketBridge.SendBinary(this._socketId, __arrayBufferToBase64(slice));
             } else {
                 CS.OneJS.WebSocketBridge.Send(this._socketId, String(data));
             }
@@ -1660,7 +1662,14 @@ if (__nativeWebSocket) {
             }
         }
 
+        dispatchEvent(event) {
+            this._dispatch(event);
+            return true;
+        }
+
         _dispatch(event) {
+            event.target = this;
+            event.currentTarget = this;
             var handler = this["on" + event.type];
             if (handler) {
                 try { handler.call(this, event); } catch (e) { console.error("WebSocket handler error:", e); }
@@ -1674,6 +1683,12 @@ if (__nativeWebSocket) {
         }
     }
 
+    // Instance-level constants (ws.OPEN etc.) per the WebSocket spec
+    WebSocket.prototype.CONNECTING = 0;
+    WebSocket.prototype.OPEN = 1;
+    WebSocket.prototype.CLOSING = 2;
+    WebSocket.prototype.CLOSED = 3;
+
     globalThis.__dispatchWebSocketEvent = function(socketId, type, data, code, reason, isBinary) {
         var ws = __webSockets.get(socketId);
         if (!ws) return;
@@ -1681,6 +1696,7 @@ if (__nativeWebSocket) {
         switch (type) {
             case "open":
                 ws.readyState = WebSocket.OPEN;
+                ws.protocol = data || "";
                 ws._dispatch({ type: "open" });
                 break;
             case "message":

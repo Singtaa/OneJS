@@ -24,6 +24,7 @@ public class QuickJSUIBridge : IDisposable {
     float _startTime;
     bool _inEval; // Recursion guard to prevent re-entrant JS execution (all platforms)
     int _tickCallbackHandle = -1; // Cached handle for zero-alloc tick
+    readonly int _wsContextId; // WebSocketBridge context ID for per-context event routing
 
     // Viewport tracking for responsive design
     float _lastViewportWidth;
@@ -32,6 +33,7 @@ public class QuickJSUIBridge : IDisposable {
     public QuickJSContext Context => _ctx;
     public VisualElement Root => _root;
     public string WorkingDir => _workingDir;
+    public int WebSocketContextId => _wsContextId;
 
     // MARK: Lifecycle
     public QuickJSUIBridge(VisualElement root, string workingDir = null, int bufferSize = 16 * 1024) {
@@ -40,6 +42,10 @@ public class QuickJSUIBridge : IDisposable {
         _ctx = new QuickJSContext(bufferSize);
         _ussCompiler = new UssCompiler(_workingDir);
         _startTime = Time.realtimeSinceStartup;
+        _wsContextId = WebSocketBridge.RegisterContext();
+
+        // Inject context ID so the bootstrap WebSocket class can pass it to C# Connect()
+        _ctx.Eval($"globalThis.__wsContextId = {_wsContextId}");
 
         RegisterEventDelegation();
     }
@@ -137,7 +143,8 @@ public class QuickJSUIBridge : IDisposable {
 
         UnregisterEventDelegation();
         ClearStyleSheets(); // Clean up JS-loaded stylesheets
-        WebSocketBridge.CloseAll();
+        WebSocketBridge.CloseAll(_wsContextId);
+        WebSocketBridge.UnregisterContext(_wsContextId);
         QuickJSNative.ClearPendingTasks();
         _ctx?.Dispose();
 
@@ -194,7 +201,7 @@ public class QuickJSUIBridge : IDisposable {
         try {
             // Process completed C# Tasks and resolve/reject their JS Promises
             QuickJSNative.ProcessCompletedTasks(_ctx);
-            WebSocketBridge.ProcessEvents(_ctx);
+            WebSocketBridge.ProcessEvents(_ctx, _wsContextId);
 
             float timestamp = (Time.realtimeSinceStartup - _startTime) * 1000f;
 

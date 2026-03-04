@@ -420,6 +420,159 @@ public class QuickJSWebSocketTests {
         Assert.IsTrue(resultJson.Contains("\"count\":2"), $"Expected count:2, got: {resultJson}");
     }
 
+    // MARK: Protocol Tests
+
+    [UnityTest]
+    public IEnumerator WebSocket_Protocol_SetAfterOpen() {
+        _bridge.Eval(@"
+            globalThis.__wsDone = false;
+            globalThis.__wsResult = null;
+            var ws = new WebSocket('wss://ws.postman-echo.com/raw');
+            ws.onopen = function() {
+                globalThis.__wsResult = {
+                    protocolType: typeof ws.protocol,
+                    protocolIsString: typeof ws.protocol === 'string'
+                };
+                ws.close();
+                globalThis.__wsDone = true;
+            };
+            ws.onerror = function() {
+                globalThis.__wsResult = { error: 'connection failed' };
+                globalThis.__wsDone = true;
+            };
+        ");
+        _bridge.Context.ExecutePendingJobs();
+
+        float timeout = 10f;
+        float elapsed = 0f;
+        while (elapsed < timeout) {
+            _bridge.Tick();
+            var done = _bridge.Eval("globalThis.__wsDone");
+            if (done == "true") break;
+            yield return new WaitForSeconds(0.1f);
+            elapsed += 0.1f;
+        }
+
+        var resultJson = _bridge.Eval("JSON.stringify(globalThis.__wsResult)");
+        Assert.IsTrue(resultJson.Contains("\"protocolIsString\":true"), $"Expected protocol to be a string after open, got: {resultJson}");
+    }
+
+    // MARK: Instance Constants Tests
+
+    [UnityTest]
+    public IEnumerator WebSocket_InstanceConstants_Accessible() {
+        var result = _bridge.Eval(@"
+            var ws = new WebSocket('wss://ws.postman-echo.com/raw');
+            var r = JSON.stringify({
+                connecting: ws.CONNECTING,
+                open: ws.OPEN,
+                closing: ws.CLOSING,
+                closed: ws.CLOSED
+            });
+            ws.close();
+            r;
+        ");
+        Assert.IsTrue(result.Contains("\"connecting\":0"), $"Expected CONNECTING=0 on instance, got: {result}");
+        Assert.IsTrue(result.Contains("\"open\":1"), $"Expected OPEN=1 on instance, got: {result}");
+        Assert.IsTrue(result.Contains("\"closing\":2"), $"Expected CLOSING=2 on instance, got: {result}");
+        Assert.IsTrue(result.Contains("\"closed\":3"), $"Expected CLOSED=3 on instance, got: {result}");
+        yield return null;
+    }
+
+    // MARK: EventTarget Tests
+
+    [UnityTest]
+    public IEnumerator WebSocket_EventTarget_HasTargetProperty() {
+        _bridge.Eval(@"
+            globalThis.__wsDone = false;
+            globalThis.__wsResult = null;
+            var ws = new WebSocket('wss://ws.postman-echo.com/raw');
+            ws.onopen = function(event) {
+                globalThis.__wsResult = {
+                    openTargetMatch: event.target === ws,
+                    openCurrentTargetMatch: event.currentTarget === ws
+                };
+                ws.close();
+            };
+            ws.onclose = function(event) {
+                globalThis.__wsResult.closeTargetMatch = event.target === ws;
+                globalThis.__wsDone = true;
+            };
+            ws.onerror = function() {
+                globalThis.__wsResult = { error: 'connection failed' };
+                globalThis.__wsDone = true;
+            };
+        ");
+        _bridge.Context.ExecutePendingJobs();
+
+        float timeout = 10f;
+        float elapsed = 0f;
+        while (elapsed < timeout) {
+            _bridge.Tick();
+            var done = _bridge.Eval("globalThis.__wsDone");
+            if (done == "true") break;
+            yield return new WaitForSeconds(0.1f);
+            elapsed += 0.1f;
+        }
+
+        var resultJson = _bridge.Eval("JSON.stringify(globalThis.__wsResult)");
+        Assert.IsTrue(resultJson.Contains("\"openTargetMatch\":true"), $"Expected event.target === ws in onopen, got: {resultJson}");
+        Assert.IsTrue(resultJson.Contains("\"openCurrentTargetMatch\":true"), $"Expected event.currentTarget === ws in onopen, got: {resultJson}");
+        Assert.IsTrue(resultJson.Contains("\"closeTargetMatch\":true"), $"Expected event.target === ws in onclose, got: {resultJson}");
+    }
+
+    [UnityTest]
+    public IEnumerator WebSocket_DispatchEvent_Works() {
+        var result = _bridge.Eval(@"
+            var ws = new WebSocket('wss://ws.postman-echo.com/raw');
+            var received = null;
+            ws.addEventListener('message', function(event) {
+                received = {
+                    data: event.data,
+                    targetMatch: event.target === ws
+                };
+            });
+            ws.dispatchEvent({ type: 'message', data: 'test' });
+            ws.close();
+            JSON.stringify(received);
+        ");
+        Assert.IsTrue(result.Contains("\"data\":\"test\""), $"Expected dispatched event data, got: {result}");
+        Assert.IsTrue(result.Contains("\"targetMatch\":true"), $"Expected event.target === ws in dispatchEvent, got: {result}");
+        yield return null;
+    }
+
+    // MARK: TypedArray Subview Tests
+
+    [UnityTest]
+    public IEnumerator WebSocket_TypedArraySubview_SlicesCorrectly() {
+        var result = _bridge.Eval(@"
+            var big = new ArrayBuffer(10);
+            var view = new Uint8Array(big);
+            for (var i = 0; i < 10; i++) view[i] = i;
+            var sub = new Uint8Array(big, 3, 4);
+            var slice = sub.buffer.slice(sub.byteOffset, sub.byteOffset + sub.byteLength);
+            var result = Array.from(new Uint8Array(slice));
+            JSON.stringify(result);
+        ");
+        Assert.AreEqual("[3,4,5,6]", result, $"Expected [3,4,5,6], got: {result}");
+        yield return null;
+    }
+
+    // MARK: Per-Context Isolation Tests
+
+    [UnityTest]
+    public IEnumerator WebSocket_PerContext_EventIsolation() {
+        var result = _bridge.Eval(@"
+            JSON.stringify({
+                type: typeof globalThis.__wsContextId,
+                isPositive: typeof globalThis.__wsContextId === 'number' && globalThis.__wsContextId > 0
+            });
+        ");
+        Assert.IsTrue(result.Contains("\"type\":\"number\""), $"Expected __wsContextId to be a number, got: {result}");
+        Assert.IsTrue(result.Contains("\"isPositive\":true"), $"Expected __wsContextId > 0, got: {result}");
+        yield return null;
+    }
+
     // MARK: Cleanup Tests
 
     [UnityTest]

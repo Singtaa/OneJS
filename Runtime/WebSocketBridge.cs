@@ -17,23 +17,28 @@ namespace OneJS {
     /// Architecture:
     /// - JS calls Connect/Send/Close via CS.OneJS.WebSocketBridge
     /// - Background threads handle async I/O and enqueue events
-    /// - QuickJSUIBridge.Tick() calls ProcessEvents() to dispatch to JS
+    /// - QuickJSUIBridge.Tick() calls ProcessEvents(contextId) to dispatch to JS
+    /// - Each QuickJSUIBridge registers a context so events route to the correct JS runtime
     /// </summary>
     public static class WebSocketBridge {
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStaticState() {
             CloseAll();
             _nextSocketId = 0;
+            _nextContextId = 0;
+            _contextQueues.Clear();
         }
 
         static int _nextSocketId = 0;
+        static int _nextContextId = 0;
         static readonly ConcurrentDictionary<int, SocketState> _sockets = new();
-        static readonly ConcurrentQueue<WebSocketEvent> _events = new();
+        static readonly ConcurrentDictionary<int, ConcurrentQueue<WebSocketEvent>> _contextQueues = new();
 
         const int MaxEventsPerTick = 50;
 
         struct WebSocketEvent {
             public int SocketId;
+            public int ContextId;
             public string Type;   // "open", "message", "error", "close"
             public string Data;   // message text, base64 binary data, or error message
             public int Code;      // close code
@@ -44,6 +49,7 @@ namespace OneJS {
         class SocketState {
             public ClientWebSocket Socket;
             public CancellationTokenSource Cts;
+            public int ContextId;
             public readonly ConcurrentQueue<SendItem> SendQueue = new();
             public int SendLoopFlag; // 0 = not running, 1 = running (use Interlocked)
         }
@@ -55,10 +61,26 @@ namespace OneJS {
         }
 
         /// <summary>
+        /// Register a new context and return its ID. Call from QuickJSUIBridge constructor.
+        /// </summary>
+        public static int RegisterContext() {
+            int id = Interlocked.Increment(ref _nextContextId);
+            _contextQueues[id] = new ConcurrentQueue<WebSocketEvent>();
+            return id;
+        }
+
+        /// <summary>
+        /// Unregister a context and clean up its event queue. Call from QuickJSUIBridge.Dispose().
+        /// </summary>
+        public static void UnregisterContext(int contextId) {
+            _contextQueues.TryRemove(contextId, out _);
+        }
+
+        /// <summary>
         /// Open a new WebSocket connection. Returns a socket ID immediately.
         /// Connection happens asynchronously; "open" or "error" event fires when ready.
         /// </summary>
-        public static int Connect(string url, string protocols) {
+        public static int Connect(string url, string protocols, int contextId) {
             int id = Interlocked.Increment(ref _nextSocketId);
             var ws = new ClientWebSocket();
 
@@ -72,7 +94,7 @@ namespace OneJS {
             }
 
             var cts = new CancellationTokenSource();
-            var state = new SocketState { Socket = ws, Cts = cts };
+            var state = new SocketState { Socket = ws, Cts = cts, ContextId = contextId };
             _sockets[id] = state;
 
             Task.Run(() => ConnectAndReceiveAsync(id, url, state));
@@ -156,14 +178,15 @@ namespace OneJS {
         }
 
         /// <summary>
-        /// Process queued events and dispatch to JS.
+        /// Process queued events for a specific context and dispatch to JS.
         /// Called from QuickJSUIBridge.Tick() on the main thread.
         /// </summary>
-        public static int ProcessEvents(QuickJSContext ctx) {
+        public static int ProcessEvents(QuickJSContext ctx, int contextId) {
             if (ctx == null) return 0;
+            if (!_contextQueues.TryGetValue(contextId, out var queue)) return 0;
 
             int processed = 0;
-            while (processed < MaxEventsPerTick && _events.TryDequeue(out var evt)) {
+            while (processed < MaxEventsPerTick && queue.TryDequeue(out var evt)) {
                 try {
                     DispatchToJs(ctx, evt);
                     processed++;
@@ -176,31 +199,58 @@ namespace OneJS {
         }
 
         /// <summary>
-        /// Close all WebSocket connections. Call on context destruction / live reload.
+        /// Close all WebSocket connections, optionally filtered by context.
+        /// When contextId is provided, only closes sockets belonging to that context.
+        /// When contextId is -1 (default), closes all sockets.
         /// </summary>
-        public static void CloseAll() {
+        public static void CloseAll(int contextId = -1) {
             foreach (var kvp in _sockets) {
+                if (contextId >= 0 && kvp.Value.ContextId != contextId) continue;
                 try {
                     kvp.Value.Cts.Cancel();
                     kvp.Value.Socket.Dispose();
                 } catch { }
+                _sockets.TryRemove(kvp.Key, out _);
             }
-            _sockets.Clear();
-            while (_events.TryDequeue(out _)) { }
+
+            // If closing all, clear all context queues too
+            if (contextId < 0) {
+                foreach (var kvp in _contextQueues) {
+                    while (kvp.Value.TryDequeue(out _)) { }
+                }
+                _sockets.Clear();
+            } else if (_contextQueues.TryGetValue(contextId, out var queue)) {
+                while (queue.TryDequeue(out _)) { }
+            }
         }
 
         // MARK: Background Async
 
+        /// <summary>
+        /// Enqueue an event to the correct per-context queue.
+        /// </summary>
+        static void EnqueueEvent(WebSocketEvent evt) {
+            if (_contextQueues.TryGetValue(evt.ContextId, out var queue)) {
+                queue.Enqueue(evt);
+            }
+        }
+
         static async Task ConnectAndReceiveAsync(int id, string url, SocketState state) {
+            int ctxId = state.ContextId;
+
             try {
                 await state.Socket.ConnectAsync(new Uri(url), state.Cts.Token);
-                _events.Enqueue(new WebSocketEvent { SocketId = id, Type = "open" });
-            } catch (Exception ex) {
-                _events.Enqueue(new WebSocketEvent {
-                    SocketId = id, Type = "error", Data = ex.Message
+                // Pass negotiated sub-protocol in the Data field of the "open" event
+                EnqueueEvent(new WebSocketEvent {
+                    SocketId = id, ContextId = ctxId, Type = "open",
+                    Data = state.Socket.SubProtocol ?? ""
                 });
-                _events.Enqueue(new WebSocketEvent {
-                    SocketId = id, Type = "close", Code = 1006,
+            } catch (Exception ex) {
+                EnqueueEvent(new WebSocketEvent {
+                    SocketId = id, ContextId = ctxId, Type = "error", Data = ex.Message
+                });
+                EnqueueEvent(new WebSocketEvent {
+                    SocketId = id, ContextId = ctxId, Type = "close", Code = 1006,
                     Reason = "Connection failed"
                 });
                 CleanupSocket(id);
@@ -219,8 +269,8 @@ namespace OneJS {
                     if (result.MessageType == WebSocketMessageType.Close) {
                         int closeCode = (int)(state.Socket.CloseStatus ?? WebSocketCloseStatus.NormalClosure);
                         string closeReason = state.Socket.CloseStatusDescription ?? "";
-                        _events.Enqueue(new WebSocketEvent {
-                            SocketId = id, Type = "close",
+                        EnqueueEvent(new WebSocketEvent {
+                            SocketId = id, ContextId = ctxId, Type = "close",
                             Code = closeCode, Reason = closeReason
                         });
                         break;
@@ -240,8 +290,8 @@ namespace OneJS {
                                 messageBuffer.GetBuffer(), 0, (int)messageBuffer.Length);
                         }
 
-                        _events.Enqueue(new WebSocketEvent {
-                            SocketId = id, Type = "message",
+                        EnqueueEvent(new WebSocketEvent {
+                            SocketId = id, ContextId = ctxId, Type = "message",
                             Data = messageData, IsBinary = isBinary
                         });
                         messageBuffer.SetLength(0);
@@ -250,19 +300,19 @@ namespace OneJS {
             } catch (OperationCanceledException) {
                 // Normal shutdown
             } catch (WebSocketException ex) {
-                _events.Enqueue(new WebSocketEvent {
-                    SocketId = id, Type = "error", Data = ex.Message
+                EnqueueEvent(new WebSocketEvent {
+                    SocketId = id, ContextId = ctxId, Type = "error", Data = ex.Message
                 });
-                _events.Enqueue(new WebSocketEvent {
-                    SocketId = id, Type = "close", Code = 1006,
+                EnqueueEvent(new WebSocketEvent {
+                    SocketId = id, ContextId = ctxId, Type = "close", Code = 1006,
                     Reason = "Connection lost"
                 });
             } catch (Exception ex) {
-                _events.Enqueue(new WebSocketEvent {
-                    SocketId = id, Type = "error", Data = ex.Message
+                EnqueueEvent(new WebSocketEvent {
+                    SocketId = id, ContextId = ctxId, Type = "error", Data = ex.Message
                 });
-                _events.Enqueue(new WebSocketEvent {
-                    SocketId = id, Type = "close", Code = 1006,
+                EnqueueEvent(new WebSocketEvent {
+                    SocketId = id, ContextId = ctxId, Type = "close", Code = 1006,
                     Reason = ex.Message
                 });
             } finally {
@@ -288,8 +338,8 @@ namespace OneJS {
                     }
                 }
             } catch (Exception ex) {
-                _events.Enqueue(new WebSocketEvent {
-                    SocketId = id, Type = "error", Data = ex.Message
+                EnqueueEvent(new WebSocketEvent {
+                    SocketId = id, ContextId = state.ContextId, Type = "error", Data = ex.Message
                 });
             } finally {
                 Interlocked.Exchange(ref state.SendLoopFlag, 0);
