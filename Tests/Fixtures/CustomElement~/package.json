@@ -1,0 +1,15 @@
+{
+  "name": "test-custom-element",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node esbuild.config.mjs"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "onejs-react": "file:../../../../../../JSModules/onejs-react"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}
