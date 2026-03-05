@@ -284,6 +284,47 @@ public class QuickJSUIBridgePlaymodeTests {
         yield return null;
     }
 
+    // MARK: Pointer Capture Tests
+
+    [UnityTest]
+    public IEnumerator PointerCapture_UseExtensions_CaptureAndRelease_Works() {
+        // Add element to the panel (required for pointer capture)
+        var root = _uiDocument.rootVisualElement;
+        int rootHandle = QuickJSNative.RegisterObject(root);
+
+        _bridge.Eval($@"
+            var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+            useExtensions(CS.UnityEngine.UIElements.PointerCaptureHelper);
+
+            var el = new CS.UnityEngine.UIElements.VisualElement();
+            el.name = 'CaptureTestElement';
+            el.style.width = 100;
+            el.style.height = 100;
+            root.Add(el);
+
+            globalThis.__captureTestEl = el;
+        ");
+
+        yield return null; // Wait for layout
+
+        // Now test capture
+        var captureResult = _bridge.Eval(@"
+            try {
+                var el = globalThis.__captureTestEl;
+                el.CapturePointer(0);
+                var hasCap = el.HasPointerCapture(0);
+                el.ReleasePointer(0);
+                var hasCapAfter = el.HasPointerCapture(0);
+                JSON.stringify({ captured: hasCap, released: !hasCapAfter });
+            } catch(e) {
+                JSON.stringify({ error: e.message });
+            }
+        ");
+
+        StringAssert.Contains("\"captured\":true", captureResult);
+        StringAssert.Contains("\"released\":true", captureResult);
+    }
+
     [UnityTest]
     public IEnumerator Event_EventData_PassedCorrectly() {
         _bridge.Eval(@"
