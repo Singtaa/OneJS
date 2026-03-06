@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -330,7 +331,7 @@ public class QuickJSUIBridgePlaymodeTests {
         _bridge.Eval(@"
             globalThis.__eventDataResult = null;
             var el = new CS.UnityEngine.UIElements.VisualElement();
-            
+
             __eventAPI.addEventListener(el, 'pointerdown', (e) => {
                 globalThis.__eventDataResult = {
                     type: e.type,
@@ -340,7 +341,7 @@ public class QuickJSUIBridgePlaymodeTests {
                     hasPreventDefault: typeof e.preventDefault === 'function'
                 };
             });
-            
+
             globalThis.__dataTestHandle = el.__csHandle;
         ");
 
@@ -354,5 +355,105 @@ public class QuickJSUIBridgePlaymodeTests {
         StringAssert.Contains("\"button\":1", result);
         StringAssert.Contains("\"hasPreventDefault\":true", result);
         yield return null;
+    }
+
+    // MARK: Pointer Capture + PointerMove Tests
+
+    /// <summary>
+    /// Integration test: Does the JS onPointerMove handler fire when a captured
+    /// PointerMoveEvent propagates through QuickJSUIBridge's TrickleDown handler?
+    /// </summary>
+    [UnityTest]
+    public IEnumerator PointerCapture_PointerMove_JSHandlerFiresDuringCapture() {
+        var root = _uiDocument.rootVisualElement;
+        int rootHandle = QuickJSNative.RegisterObject(root);
+
+        _bridge.Eval($@"
+            var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+            useExtensions(CS.UnityEngine.UIElements.PointerCaptureHelper);
+
+            var el = new CS.UnityEngine.UIElements.VisualElement();
+            el.name = 'PointerMoveCaptureTest';
+            el.style.width = 200;
+            el.style.height = 200;
+            root.Add(el);
+
+            globalThis.__pmCaptureMoveCount = 0;
+            globalThis.__pmCaptureLastEvent = null;
+
+            __eventAPI.addEventListener(el, 'pointermove', (e) => {{
+                globalThis.__pmCaptureMoveCount++;
+                globalThis.__pmCaptureLastEvent = {{ type: e.type, x: e.x, y: e.y }};
+            }});
+
+            globalThis.__pmCaptureTestEl = el;
+            globalThis.__pmCaptureTestHandle = el.__csHandle;
+        ");
+
+        yield return null; // layout
+
+        // Capture pointer
+        _bridge.Eval("globalThis.__pmCaptureTestEl.CapturePointer(0)");
+        var hasCap = _bridge.Eval("globalThis.__pmCaptureTestEl.HasPointerCapture(0)");
+        Assert.AreEqual("true", hasCap, "Element should have pointer capture");
+
+        // Send synthetic PointerMoveEvent through the panel
+        using (var evt = PointerMoveEvent.GetPooled()) {
+            SetPointerEventPointerId(evt, PointerId.mousePointerId);
+            root.SendEvent(evt);
+        }
+
+        var count = _bridge.Eval("globalThis.__pmCaptureMoveCount");
+        Debug.Log($"[PointerCapture Integration] JS pointermove handler called {count} time(s)");
+
+        Assert.AreEqual("1", count,
+            "JS onPointerMove handler should fire during pointer capture. " +
+            "If 0, the C# TrickleDown handler may not fire for captured events.");
+
+        // Cleanup
+        _bridge.Eval("globalThis.__pmCaptureTestEl.ReleasePointer(0)");
+    }
+
+    /// <summary>
+    /// Helper: set pointerId on a PointerEventBase via reflection.
+    /// PointerEventBase.pointerId has a protected setter, so we use reflection for tests.
+    /// </summary>
+    static void SetPointerEventPointerId(EventBase evt, int pointerId) {
+        // Walk the type hierarchy to find the pointerId property
+        var type = evt.GetType();
+        while (type != null) {
+            var prop = type.GetProperty("pointerId",
+                BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+            if (prop != null) {
+                var setter = prop.GetSetMethod(true); // true = include non-public
+                if (setter != null) {
+                    setter.Invoke(evt, new object[] { pointerId });
+                    return;
+                }
+            }
+            type = type.BaseType;
+        }
+
+        // Fallback: try the backing field directly
+        type = evt.GetType();
+        while (type != null) {
+            var field = type.GetField("<pointerId>k__BackingField",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+            if (field != null) {
+                field.SetValue(evt, pointerId);
+                return;
+            }
+            // Also try common Unity field naming conventions
+            field = type.GetField("m_PointerId",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+            if (field != null) {
+                field.SetValue(evt, pointerId);
+                return;
+            }
+            type = type.BaseType;
+        }
+
+        Debug.LogWarning("[Test] Could not set pointerId via reflection - " +
+                         "test may not properly simulate captured pointer events");
     }
 }

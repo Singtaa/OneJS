@@ -30,6 +30,16 @@ public class QuickJSUIBridge : IDisposable {
     float _lastViewportWidth;
     float _lastViewportHeight;
 
+    // Per-element pointer handler support for pointer capture.
+    // Unity 6 dispatches captured pointer events directly to the capturing element,
+    // bypassing TrickleDown propagation on _root. Per-element handlers ensure
+    // JS event handlers fire even during pointer capture.
+    readonly Dictionary<(int handle, string eventType), VisualElement> _perElementHandlers = new();
+    // Dedup: prevent double-dispatch when both _root TrickleDown and per-element fire
+    object _lastDispatchedPointerDown;
+    object _lastDispatchedPointerUp;
+    object _lastDispatchedPointerMove;
+
     public QuickJSContext Context => _ctx;
     public VisualElement Root => _root;
     public string WorkingDir => _workingDir;
@@ -47,6 +57,7 @@ public class QuickJSUIBridge : IDisposable {
         // Inject context ID so the bootstrap WebSocket class can pass it to C# Connect()
         _ctx.Eval($"globalThis.__wsContextId = {_wsContextId}");
 
+        PointerCaptureSupport.RegisterBridge(_wsContextId, this);
         RegisterEventDelegation();
     }
 
@@ -142,6 +153,8 @@ public class QuickJSUIBridge : IDisposable {
         _disposed = true;
 
         UnregisterEventDelegation();
+        UnregisterAllPerElementHandlers();
+        PointerCaptureSupport.UnregisterBridge(_wsContextId);
         ClearStyleSheets(); // Clean up JS-loaded stylesheets
         WebSocketBridge.CloseAll(_wsContextId);
         WebSocketBridge.UnregisterContext(_wsContextId);
@@ -198,6 +211,12 @@ public class QuickJSUIBridge : IDisposable {
     public void Tick() {
         if (_disposed || _inEval) return;
         _inEval = true;
+
+        // Reset pointer event dedup references to prevent stale pooled-event matches
+        _lastDispatchedPointerDown = null;
+        _lastDispatchedPointerUp = null;
+        _lastDispatchedPointerMove = null;
+
         try {
             // Process completed C# Tasks and resolve/reject their JS Promises
             QuickJSNative.ProcessCompletedTasks(_ctx);
@@ -267,10 +286,23 @@ public class QuickJSUIBridge : IDisposable {
 
     // MARK: Event Handlers
     void OnClick(ClickEvent e) => DispatchPointerEvent("click", e.target, e.position, e.button);
-    void OnPointerDown(PointerDownEvent e) => DispatchPointerEvent("pointerdown", e.target, e.position, e.button, e.pointerId);
-    void OnPointerUp(PointerUpEvent e) => DispatchPointerEvent("pointerup", e.target, e.position, e.button, e.pointerId);
+
+    void OnPointerDown(PointerDownEvent e) {
+        if (ReferenceEquals(e, _lastDispatchedPointerDown)) return;
+        _lastDispatchedPointerDown = e;
+        DispatchPointerEvent("pointerdown", e.target, e.position, e.button, e.pointerId);
+    }
+
+    void OnPointerUp(PointerUpEvent e) {
+        if (ReferenceEquals(e, _lastDispatchedPointerUp)) return;
+        _lastDispatchedPointerUp = e;
+        DispatchPointerEvent("pointerup", e.target, e.position, e.button, e.pointerId);
+    }
+
     void OnPointerMove(PointerMoveEvent e) {
         if (!InputBridge.PointerMoveEventsEnabled) return;
+        if (ReferenceEquals(e, _lastDispatchedPointerMove)) return;
+        _lastDispatchedPointerMove = e;
         DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
     }
     void OnPointerEnter(PointerEnterEvent e) => DispatchPointerEvent("pointerenter", e.target, e.position, 0, e.pointerId);
@@ -383,6 +415,87 @@ public class QuickJSUIBridge : IDisposable {
             (modifiers & EventModifiers.Command) != 0 ? "true" : "false");
 
         DispatchEventInternal(handle, eventType, data);
+    }
+
+    // MARK: Per-Element Pointer Handlers (capture support)
+    // Unity 6 dispatches captured pointer events directly to the capturing element,
+    // bypassing TrickleDown/BubbleUp on ancestors. These per-element handlers ensure
+    // JS event handlers fire during pointer capture. Dedup via reference equality
+    // prevents double-dispatch when both _root TrickleDown and per-element fire.
+
+    internal void RegisterPerElementHandler(VisualElement element, string eventType) {
+        int handle = QuickJSNative.GetHandleForObject(element);
+        if (handle <= 0) return;
+        var key = (handle, eventType);
+        if (_perElementHandlers.TryGetValue(key, out var existing)) {
+            if (ReferenceEquals(existing, element)) return; // Same element, already registered
+            // Stale entry from recycled handle — unregister old before re-registering
+            UnregisterCallbackForEventType(existing, eventType);
+            _perElementHandlers.Remove(key);
+        }
+        _perElementHandlers[key] = element;
+
+        switch (eventType) {
+            case "pointerdown":
+                element.RegisterCallback<PointerDownEvent>(OnPerElementPointerDown);
+                break;
+            case "pointerup":
+                element.RegisterCallback<PointerUpEvent>(OnPerElementPointerUp);
+                break;
+            case "pointermove":
+                element.RegisterCallback<PointerMoveEvent>(OnPerElementPointerMove);
+                break;
+        }
+    }
+
+    internal void UnregisterPerElementHandler(VisualElement element, string eventType) {
+        int handle = QuickJSNative.GetHandleForObject(element);
+        if (handle <= 0) return;
+        var key = (handle, eventType);
+        // Only remove if the registered element matches (handles can be recycled)
+        if (!_perElementHandlers.TryGetValue(key, out var existing) || !ReferenceEquals(existing, element))
+            return;
+        _perElementHandlers.Remove(key);
+        UnregisterCallbackForEventType(element, eventType);
+    }
+
+    void UnregisterCallbackForEventType(VisualElement element, string eventType) {
+        switch (eventType) {
+            case "pointerdown":
+                element.UnregisterCallback<PointerDownEvent>(OnPerElementPointerDown);
+                break;
+            case "pointerup":
+                element.UnregisterCallback<PointerUpEvent>(OnPerElementPointerUp);
+                break;
+            case "pointermove":
+                element.UnregisterCallback<PointerMoveEvent>(OnPerElementPointerMove);
+                break;
+        }
+    }
+
+    void UnregisterAllPerElementHandlers() {
+        _perElementHandlers.Clear();
+        // Element callbacks hold method references but elements are being destroyed
+        // during bridge disposal, so explicit unregistration is not needed here.
+    }
+
+    void OnPerElementPointerDown(PointerDownEvent e) {
+        if (ReferenceEquals(e, _lastDispatchedPointerDown)) return;
+        _lastDispatchedPointerDown = e;
+        DispatchPointerEvent("pointerdown", e.target, e.position, e.button, e.pointerId);
+    }
+
+    void OnPerElementPointerUp(PointerUpEvent e) {
+        if (ReferenceEquals(e, _lastDispatchedPointerUp)) return;
+        _lastDispatchedPointerUp = e;
+        DispatchPointerEvent("pointerup", e.target, e.position, e.button, e.pointerId);
+    }
+
+    void OnPerElementPointerMove(PointerMoveEvent e) {
+        if (!InputBridge.PointerMoveEventsEnabled) return;
+        if (ReferenceEquals(e, _lastDispatchedPointerMove)) return;
+        _lastDispatchedPointerMove = e;
+        DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
     }
 
     // MARK: Data Builders
