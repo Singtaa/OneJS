@@ -155,7 +155,6 @@ namespace OneJS.GPU {
                 if (el.BlurRadius > maxSigma)
                     maxSigma = el.BlurRadius;
             }
-            if (maxSigma <= 0f) return;
 
             // Clone main camera settings and render 3D scene only into our RT.
             // UITK panels are NOT rendered per-camera — they composite on the
@@ -169,17 +168,21 @@ namespace OneJS.GPU {
             _captureCam.backgroundColor = new Color(bg.r, bg.g, bg.b, 1f);
             _captureCam.Render();
 
-            // Sigma is in screen pixels; since we're already at reduced res, adjust
-            float downsampledSigma = maxSigma / DownsampleFactor;
-
-            // Two-pass separable Gaussian blur
-            _blurMat.SetFloat(_sigmaId, downsampledSigma);
-            Graphics.Blit(_captureRT, _blurTemp, _blurMat, 0); // Horizontal
-            Graphics.Blit(_blurTemp, _blurResult, _blurMat, 1); // Vertical
+            // Apply two-pass Gaussian blur (skip if blur is zero — use raw capture)
+            RenderTexture result;
+            if (maxSigma > 0f) {
+                float downsampledSigma = maxSigma / DownsampleFactor;
+                _blurMat.SetFloat(_sigmaId, downsampledSigma);
+                Graphics.Blit(_captureRT, _blurTemp, _blurMat, 0); // Horizontal
+                Graphics.Blit(_blurTemp, _blurResult, _blurMat, 1); // Vertical
+                result = _blurResult;
+            } else {
+                result = _captureRT;
+            }
 
             // Update all registered elements
             foreach (var el in _elements) {
-                el.UpdateBlurredBackground(_blurResult, screenW, screenH);
+                el.UpdateBlurredBackground(result, screenW, screenH);
             }
         }
     }

@@ -36,6 +36,7 @@ namespace OneJS.GPU {
 
         float _blurRadius = 10f;
         Color _tintColor = new Color(1f, 1f, 1f, 0.15f);
+        VisualElement _blurBackground;
         VisualElement _tintOverlay;
 
         /// <summary>
@@ -62,8 +63,15 @@ namespace OneJS.GPU {
         public FrostedGlassElement() {
             style.overflow = Overflow.Hidden;
 
-            // Internal overlay for tint color, rendered ON TOP of backgroundImage (blur)
-            // but BEHIND user children (added at index 0 before any React children).
+            // Internal child for the blurred background. Uses counter-rotation to stay
+            // screen-aligned when the element (or its ancestors) are rotated.
+            _blurBackground = new VisualElement();
+            _blurBackground.style.position = Position.Absolute;
+            _blurBackground.pickingMode = PickingMode.Ignore;
+            hierarchy.Add(_blurBackground);
+
+            // Internal overlay for tint color, rendered ON TOP of blur
+            // but BEHIND user children.
             _tintOverlay = new VisualElement();
             _tintOverlay.style.position = Position.Absolute;
             _tintOverlay.style.top = 0;
@@ -89,51 +97,67 @@ namespace OneJS.GPU {
 
         void OnDetach(DetachFromPanelEvent evt) {
             BackdropBlurManager.Unregister(this);
-            style.backgroundImage = StyleKeyword.Null;
-            style.backgroundSize = StyleKeyword.Null;
-            style.backgroundPositionX = StyleKeyword.Null;
-            style.backgroundPositionY = StyleKeyword.Null;
+            if (_blurBackground != null) {
+                _blurBackground.style.backgroundImage = StyleKeyword.Null;
+                _blurBackground.style.backgroundSize = StyleKeyword.Null;
+                _blurBackground.style.backgroundPositionX = StyleKeyword.Null;
+                _blurBackground.style.backgroundPositionY = StyleKeyword.Null;
+            }
         }
 
         /// <summary>
         /// Called by BackdropBlurManager each frame with the blurred screen texture.
-        /// Computes UV crop based on this element's screen-space position.
+        /// Positions and counter-rotates the blur child so it stays screen-aligned.
         /// </summary>
         internal void UpdateBlurredBackground(RenderTexture blurredRT, int screenW, int screenH) {
-            if (panel == null || float.IsNaN(worldBound.width) || worldBound.width <= 0) return;
+            if (panel == null || _blurBackground == null) return;
 
-            // Set blurred texture as background (full opacity — tint is handled by _tintOverlay)
-            style.backgroundImage = new StyleBackground(Background.FromRenderTexture(blurredRT));
+            float w = resolvedStyle.width;
+            float h = resolvedStyle.height;
+            if (float.IsNaN(w) || float.IsNaN(h) || w <= 0 || h <= 0) return;
 
-            // Compute UV crop: map element's world bounds to normalized screen coords
-            var bounds = worldBound;
             var panelRoot = panel.visualTree;
             var panelBounds = panelRoot.worldBound;
-
             if (panelBounds.width <= 0 || panelBounds.height <= 0) return;
 
-            // Normalize element position within the panel (0..1)
-            float u = (bounds.x - panelBounds.x) / panelBounds.width;
-            float v = (bounds.y - panelBounds.y) / panelBounds.height;
+            // Extract cumulative rotation from world transform
+            var m = worldTransform;
+            float angle = Mathf.Atan2(m.m10, m.m00) * Mathf.Rad2Deg;
 
-            float scaleX = panelBounds.width / bounds.width * 100f;
-            float scaleY = panelBounds.height / bounds.height * 100f;
+            // Size the blur child to the diagonal so it covers the parent at any rotation
+            float d = Mathf.Sqrt(w * w + h * h);
+            _blurBackground.style.width = d;
+            _blurBackground.style.height = d;
+            _blurBackground.style.left = (w - d) / 2f;
+            _blurBackground.style.top = (h - d) / 2f;
 
-            style.backgroundSize = new StyleBackgroundSize(
+            // Counter-rotate to cancel parent rotation and stay screen-aligned
+            _blurBackground.style.rotate = new StyleRotate(new Rotate(Angle.Degrees(-angle)));
+
+            // Set blurred texture
+            _blurBackground.style.backgroundImage = new StyleBackground(Background.FromRenderTexture(blurredRT));
+
+            // Compute UV based on the blur child's effective screen-space position.
+            // After counter-rotation it occupies a d×d rect centered at the element's world center.
+            var center = worldBound.center;
+            float childScreenLeft = center.x - d / 2f;
+            float childScreenTop = center.y - d / 2f;
+
+            float u = (childScreenLeft - panelBounds.x) / panelBounds.width;
+            float v = (childScreenTop - panelBounds.y) / panelBounds.height;
+
+            _blurBackground.style.backgroundSize = new StyleBackgroundSize(
                 new BackgroundSize(
-                    new Length(scaleX, LengthUnit.Percent),
-                    new Length(scaleY, LengthUnit.Percent)
+                    new Length(panelBounds.width / d * 100f, LengthUnit.Percent),
+                    new Length(panelBounds.height / d * 100f, LengthUnit.Percent)
                 )
             );
 
-            float posX = -(u * panelBounds.width);
-            float posY = -(v * panelBounds.height);
-
-            style.backgroundPositionX = new StyleBackgroundPosition(
-                new BackgroundPosition(BackgroundPositionKeyword.Left, new Length(posX, LengthUnit.Pixel))
+            _blurBackground.style.backgroundPositionX = new StyleBackgroundPosition(
+                new BackgroundPosition(BackgroundPositionKeyword.Left, new Length(-(u * panelBounds.width), LengthUnit.Pixel))
             );
-            style.backgroundPositionY = new StyleBackgroundPosition(
-                new BackgroundPosition(BackgroundPositionKeyword.Top, new Length(posY, LengthUnit.Pixel))
+            _blurBackground.style.backgroundPositionY = new StyleBackgroundPosition(
+                new BackgroundPosition(BackgroundPositionKeyword.Top, new Length(-(v * panelBounds.height), LengthUnit.Pixel))
             );
         }
     }
