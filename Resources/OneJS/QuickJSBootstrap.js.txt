@@ -395,6 +395,12 @@ function __wrapObject(typeName, handle) {
     if (cachedRef) {
         const cached = cachedRef.deref();
         if (cached) {
+            // C# RegisterObject incremented the refcount for this handle, but we're
+            // reusing the existing proxy (no new FinalizationRegistry entry), so
+            // decrement to keep refcount in sync with the single cleanup entry.
+            if (typeof __releaseHandle === "function") {
+                __releaseHandle(handle);
+            }
             return cached;
         }
         // WeakRef target was collected but FinalizationRegistry hasn't run yet

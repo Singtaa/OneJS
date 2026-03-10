@@ -97,6 +97,16 @@ public static partial class QuickJSNative {
     /// </summary>
     public static bool UnregisterObjectForTest(int handle) => UnregisterObject(handle);
 
+    /// <summary>
+    /// Test-only: returns the current refcount for a handle.
+    /// Returns 0 if the handle doesn't exist.
+    /// </summary>
+    public static int GetRefCountForTest(int handle) {
+        lock (_handleLock) {
+            return _handleRefCount.TryGetValue(handle, out int count) ? count : 0;
+        }
+    }
+
     public static object GetObjectByHandle(int handle) {
         if (handle == 0) return null;
         lock (_handleLock) {

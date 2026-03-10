@@ -181,6 +181,111 @@ public class QuickJSStabilityTests {
         yield return null;
     }
 
+    // MARK: Proxy Cache Refcount Fix Tests
+    // Verifies that proxy cache hits correctly counteract RegisterObject refcount increments.
+    // Without the fix, each interop return of the same C# object increments the refcount
+    // in RegisterObject, but the JS proxy cache reuses the existing proxy (no new
+    // FinalizationRegistry entry), causing the refcount to diverge from cleanup entries.
+
+    [UnityTest]
+    public IEnumerator ProxyCacheRefcount_RepeatedAccess_RefcountStaysAtOne() {
+        InteropTestHelper.Init("Town", 1);
+
+        // Access the same C# object 50 times from JS.
+        // Each call: C# RegisterObject (refcount++) → JS wrapObject → cache hit → __releaseHandle (refcount--)
+        _ctx.Eval(@"
+            for (var i = 0; i < 50; i++) {
+                CS.InteropTestHelper.GetState();
+            }
+        ");
+
+        var state = InteropTestHelper.GetState();
+        var handle = QuickJSNative.GetHandleForObject(state);
+        Assert.AreNotEqual(0, handle, "State object should have a handle");
+
+        // With fix: refcount = 1 (each cache hit counteracts the RegisterObject increment)
+        // Without fix: refcount = 50
+        Assert.AreEqual(1, QuickJSNative.GetRefCountForTest(handle),
+            "Refcount should be 1 after repeated access — proxy cache fix must counteract RegisterObject increments");
+
+        InteropTestHelper.Reset();
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator ProxyCacheRefcount_CollectionItemAccess_RefcountStaysAtOne() {
+        InteropTestHelper.AddInventoryItem(1, "Sword", 100, 1);
+        InteropTestHelper.AddInventoryItem(2, "Shield", 80, 1);
+
+        // Simulate repeated access to collection items (like panel mount/unmount)
+        _ctx.Eval(@"
+            var inv = CS.InteropTestHelper.GetInventory();
+            for (var i = 0; i < 50; i++) {
+                var sword = inv[0];
+                var shield = inv[1];
+            }
+        ");
+
+        var inventory = InteropTestHelper.GetInventory();
+        var swordHandle = QuickJSNative.GetHandleForObject(inventory[0]);
+        var shieldHandle = QuickJSNative.GetHandleForObject(inventory[1]);
+        Assert.AreNotEqual(0, swordHandle, "Sword should have a handle");
+        Assert.AreNotEqual(0, shieldHandle, "Shield should have a handle");
+
+        Assert.AreEqual(1, QuickJSNative.GetRefCountForTest(swordHandle),
+            "Sword refcount should be 1 after 50 accesses");
+        Assert.AreEqual(1, QuickJSNative.GetRefCountForTest(shieldHandle),
+            "Shield refcount should be 1 after 50 accesses");
+
+        InteropTestHelper.Reset();
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator ProxyCacheRefcount_SingleUnregisterFreesHandle() {
+        InteropTestHelper.Init("Town", 1);
+
+        _ctx.Eval(@"
+            for (var i = 0; i < 50; i++) {
+                CS.InteropTestHelper.GetState();
+            }
+        ");
+
+        var state = InteropTestHelper.GetState();
+        var handle = QuickJSNative.GetHandleForObject(state);
+        Assert.AreNotEqual(0, handle);
+
+        // With fix: refcount=1, single unregister frees the handle
+        // Without fix: refcount=50, handle would survive 49 more unregisters
+        QuickJSNative.UnregisterObjectForTest(handle);
+        Assert.IsNull(QuickJSNative.GetObjectByHandle(handle),
+            "Handle should be fully freed after single unregister — confirms refcount was 1");
+        Assert.AreEqual(0, QuickJSNative.GetRefCountForTest(handle),
+            "Refcount should be 0 after unregister");
+
+        InteropTestHelper.Reset();
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator ProxyCacheRefcount_ProxyIdentityPreserved() {
+        InteropTestHelper.Init("Town", 1);
+
+        // Verify the fix doesn't break proxy identity (cache still returns same proxy)
+        var result = _ctx.Eval(@"
+            var refs = [];
+            for (var i = 0; i < 10; i++) {
+                refs.push(CS.InteropTestHelper.GetState());
+            }
+            refs.every(function(r) { return r === refs[0]; });
+        ");
+        Assert.AreEqual("true", result,
+            "All references should be the same proxy — cache must still work after refcount fix");
+
+        InteropTestHelper.Reset();
+        yield return null;
+    }
+
     // MARK: Task Queue Monitoring Tests
 
     [UnityTest]
