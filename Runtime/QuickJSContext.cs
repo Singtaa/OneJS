@@ -132,6 +132,8 @@ public sealed class QuickJSContext : IDisposable {
         if (_disposed) return;
         _disposed = true;
 
+        QuickJSNative.ClearDelegateCache();
+
         if (_ptr != IntPtr.Zero) {
             QuickJSNative.qjs_destroy(_ptr);
             _ptr = IntPtr.Zero;

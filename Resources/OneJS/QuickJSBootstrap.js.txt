@@ -34,6 +34,13 @@ const __parentMap = new Map();
 // 4096-slot callback table. This map lets the proxy setter free the old handle first.
 const __delegateHandleMap = new Map();
 
+// Event callback tracking: jsFunction → Map("typeName:eventName" → callbackHandle)
+// When add_EventName(handler) is called, __resolveValue creates a new callback handle.
+// Without tracking, remove_EventName(handler) would create a DIFFERENT callback handle,
+// so C# can't match the delegate for removal. This WeakMap lets remove_ reuse the
+// original callback handle, enabling proper unsubscription.
+const __eventCbHandles = new WeakMap();
+
 const __handleRegistry = new FinalizationRegistry((handle) => {
     // Always clean proxy cache when a proxy is finalized
     __proxyCache.delete(handle);
@@ -476,12 +483,46 @@ function __wrapObject(typeName, handle) {
                 return __wrapResultFromCs(null, value);
             }
 
-            // Indexer methods (get_Item, set_Item) and event methods (add_, remove_) should be treated as methods
-            if (propName.startsWith("get_") || propName.startsWith("set_") ||
-                propName.startsWith("add_") || propName.startsWith("remove_")) {
+            // Indexer methods (get_Item, set_Item) should be treated as methods
+            if (propName.startsWith("get_") || propName.startsWith("set_")) {
                 return function (...args) {
                     const raw = __cs.invoke(typeName, propName, 1, 0, handle, __resolveArgs(args));
                     return __wrapResultFromCs(null, raw);
+                };
+            }
+
+            // Event methods (add_, remove_) need callback handle tracking for proper unsubscription
+            if (propName.startsWith("add_")) {
+                return function (callback) {
+                    if (typeof callback !== "function") {
+                        const raw = __cs.invoke(typeName, propName, 1, 0, handle, __resolveArgs([callback]));
+                        return __wrapResultFromCs(null, raw);
+                    }
+                    const resolved = __resolveValue(callback);
+                    const eventKey = handle + ":" + typeName + ":" + propName.slice(4);
+                    if (resolved && resolved.__csCallbackHandle !== undefined) {
+                        let map = __eventCbHandles.get(callback);
+                        if (!map) { map = new Map(); __eventCbHandles.set(callback, map); }
+                        map.set(eventKey, resolved.__csCallbackHandle);
+                    }
+                    __cs.invoke(typeName, propName, 1, 0, handle, [resolved]);
+                };
+            }
+            if (propName.startsWith("remove_")) {
+                return function (callback) {
+                    if (typeof callback !== "function") {
+                        const raw = __cs.invoke(typeName, propName, 1, 0, handle, __resolveArgs([callback]));
+                        return __wrapResultFromCs(null, raw);
+                    }
+                    const eventKey = handle + ":" + typeName + ":" + propName.slice(7);
+                    const map = __eventCbHandles.get(callback);
+                    const storedHandle = map && map.get(eventKey);
+                    if (storedHandle !== undefined) {
+                        __cs.invoke(typeName, propName, 1, 0, handle, [{ __csCallbackHandle: storedHandle }]);
+                        map.delete(eventKey);
+                    } else {
+                        __cs.invoke(typeName, propName, 1, 0, handle, __resolveArgs([callback]));
+                    }
                 };
             }
 
@@ -701,12 +742,55 @@ function __createCsPathProxy(path) {
             const propName = String(prop);
             const firstChar = propName.charAt(0);
             const isLower = firstChar >= "a" && firstChar <= "z";
-        
+
+            // Accessor methods (get_, set_) should be treated as static method calls
+            if (propName.startsWith("get_") || propName.startsWith("set_")) {
+                return function (...args) {
+                    const raw = __cs.invoke(typeName, propName, 1, 1, 0, __resolveArgs(args));
+                    return __wrapResultFromCs(null, raw);
+                };
+            }
+
+            // Event methods (add_, remove_) need callback handle tracking for proper unsubscription
+            if (propName.startsWith("add_")) {
+                return function (callback) {
+                    if (typeof callback !== "function") {
+                        const raw = __cs.invoke(typeName, propName, 1, 1, 0, __resolveArgs([callback]));
+                        return __wrapResultFromCs(null, raw);
+                    }
+                    const resolved = __resolveValue(callback);
+                    const eventKey = "s:" + typeName + ":" + propName.slice(4);
+                    if (resolved && resolved.__csCallbackHandle !== undefined) {
+                        let map = __eventCbHandles.get(callback);
+                        if (!map) { map = new Map(); __eventCbHandles.set(callback, map); }
+                        map.set(eventKey, resolved.__csCallbackHandle);
+                    }
+                    __cs.invoke(typeName, propName, 1, 1, 0, [resolved]);
+                };
+            }
+            if (propName.startsWith("remove_")) {
+                return function (callback) {
+                    if (typeof callback !== "function") {
+                        const raw = __cs.invoke(typeName, propName, 1, 1, 0, __resolveArgs([callback]));
+                        return __wrapResultFromCs(null, raw);
+                    }
+                    const eventKey = "s:" + typeName + ":" + propName.slice(7);
+                    const map = __eventCbHandles.get(callback);
+                    const storedHandle = map && map.get(eventKey);
+                    if (storedHandle !== undefined) {
+                        __cs.invoke(typeName, propName, 1, 1, 0, [{ __csCallbackHandle: storedHandle }]);
+                        map.delete(eventKey);
+                    } else {
+                        __cs.invoke(typeName, propName, 1, 1, 0, __resolveArgs([callback]));
+                    }
+                };
+            }
+
             if (isLower || __staticPropertyNames.has(propName)) {
                 const raw = __cs.invoke(typeName, propName, 2, 1, 0, []);
                 return __wrapResultFromCs(null, raw);
             }
-        
+
             const nextPath = path.concat(propName);
             return __createCsPathProxy(nextPath);
         },

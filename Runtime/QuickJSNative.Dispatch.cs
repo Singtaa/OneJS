@@ -309,6 +309,14 @@ public static partial class QuickJSNative {
                 case InteropInvokeCallKind.GetProp: {
                     PropertyInfo prop = FindPropertyCached(type, memberName, isStatic);
                     if (prop == null) {
+                        // Fallback: try field access (JS proxy doesn't distinguish fields from properties)
+                        FieldInfo fallbackField = FindFieldCached(type, memberName, isStatic);
+                        if (fallbackField != null) {
+                            object fieldResult = fallbackField.GetValue(isStatic ? null : target);
+                            SetReturnValue(resPtr, fieldResult);
+                            return;
+                        }
+
                         // Fallback: check if there's a method with this name (any signature)
                         // Return magic string so JS can create a function wrapper
                         if (HasMethodByName(type, memberName, isStatic)) {
@@ -335,9 +343,19 @@ public static partial class QuickJSNative {
                 case InteropInvokeCallKind.SetProp: {
                     PropertyInfo prop = FindPropertyCached(type, memberName, isStatic);
                     if (prop == null) {
+                        // Fallback: try field access (JS proxy doesn't distinguish fields from properties)
+                        FieldInfo fallbackField = FindFieldCached(type, memberName, isStatic);
+                        if (fallbackField != null) {
+                            object fieldVal = args.Length > 0 ? args[0] : null;
+                            fieldVal = ConvertToTargetType(fieldVal, fallbackField.FieldType);
+                            fallbackField.SetValue(isStatic ? null : target, fieldVal);
+                            resPtr->returnValue.type = InteropType.Null;
+                            return;
+                        }
+
                         resPtr->errorCode = 1;
-                        Debug.LogError("[QuickJS] Property not found (set): " + type.FullName + "." +
-                                       memberName);
+                        Debug.LogError("[QuickJS] Property or field not found (set): " + type.FullName +
+                                       "." + memberName);
                         return;
                     }
 

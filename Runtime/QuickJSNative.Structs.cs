@@ -1062,15 +1062,27 @@ public static partial class QuickJSNative {
 
     // MARK: Delegate Wrapper Creation
 
+    // Cache: callbackHandle → delegate, so add_/remove_ event pairs get the same delegate instance.
+    // Without this, Delegate.Remove can't match the delegate for unsubscription.
+    static readonly Dictionary<int, Delegate> _callbackDelegateCache = new();
+
+    /// <summary>Clear the delegate cache (call on context dispose or reset).</summary>
+    internal static void ClearDelegateCache() => _callbackDelegateCache.Clear();
+
     /// <summary>
     /// Creates a C# delegate that wraps a JS callback function.
     /// When the delegate is invoked, it calls the JS callback via qjs_invoke_callback.
+    /// Delegates are cached by callback handle so that add_/remove_ event pairs
+    /// receive the same delegate instance, enabling proper Delegate.Remove matching.
     /// </summary>
     /// <param name="delegateType">The target delegate type (e.g., Action&lt;T&gt;, Func&lt;T&gt;)</param>
     /// <param name="callbackHandle">The JS callback handle from __registerCallback</param>
     /// <returns>A delegate that invokes the JS callback</returns>
     internal static Delegate CreateDelegateWrapper(Type delegateType, int callbackHandle) {
         if (delegateType == null || callbackHandle < 0) return null;
+
+        // Return cached delegate if available (ensures add_/remove_ get same instance)
+        if (_callbackDelegateCache.TryGetValue(callbackHandle, out var cached)) return cached;
 
         // Capture the current context pointer for later invocation
         IntPtr ctxPtr = CurrentContextPtr;
@@ -1087,13 +1099,17 @@ public static partial class QuickJSNative {
         var returnType = invokeMethod.ReturnType;
 
         // Create wrapper based on delegate signature
+        Delegate result;
         // For Action<T> delegates (no return value)
         if (returnType == typeof(void)) {
-            return CreateActionWrapper(delegateType, ctxPtr, callbackHandle, parameters);
+            result = CreateActionWrapper(delegateType, ctxPtr, callbackHandle, parameters);
+        } else {
+            // For Func<T, TResult> delegates (with return value)
+            result = CreateFuncWrapper(delegateType, ctxPtr, callbackHandle, parameters, returnType);
         }
 
-        // For Func<T, TResult> delegates (with return value)
-        return CreateFuncWrapper(delegateType, ctxPtr, callbackHandle, parameters, returnType);
+        if (result != null) _callbackDelegateCache[callbackHandle] = result;
+        return result;
     }
 
     static Delegate CreateActionWrapper(Type delegateType, IntPtr ctxPtr, int callbackHandle, ParameterInfo[] parameters) {
