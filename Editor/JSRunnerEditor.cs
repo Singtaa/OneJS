@@ -271,14 +271,8 @@ public class JSRunnerEditor : Editor {
         AddSpacer(container);
 
         var liveReloadProp = serializedObject.FindProperty("_liveReload");
-        var liveReloadRow = CreateRow();
-        var liveReloadLabel = new Label(OneJSEditorDesign.Texts.LiveReload);
-        liveReloadLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
-        liveReloadLabel.style.width = 192;
-        liveReloadRow.Add(liveReloadLabel);
-        var liveReloadField = new PropertyField(liveReloadProp, "");
-        liveReloadRow.Add(liveReloadField);
-        container.Add(liveReloadRow);
+        var liveReloadField = new PropertyField(liveReloadProp, "Live Reload");
+        container.Add(liveReloadField);
 
         var liveReloadSettings = new VisualElement();
         liveReloadSettings.Add(new PropertyField(serializedObject.FindProperty("_pollInterval")));
