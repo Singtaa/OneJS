@@ -263,6 +263,11 @@ public class JSRunnerEditor : Editor {
         // Tick Mode
         container.Add(new PropertyField(serializedObject.FindProperty("_tickMode"), "Tick Mode"));
 
+        // Don't Destroy On Load
+        var ddolField = new PropertyField(serializedObject.FindProperty("_dontDestroyOnLoad"), "Don't Destroy On Load");
+        ddolField.tooltip = "Mark this GameObject as DontDestroyOnLoad so it persists across scene changes.";
+        container.Add(ddolField);
+
         AddSpacer(container);
 
         var liveReloadProp = serializedObject.FindProperty("_liveReload");

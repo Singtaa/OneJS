@@ -109,6 +109,9 @@ public class JSRunner : MonoBehaviour {
     [Tooltip("Which Unity update loop drives the JS tick. LateUpdate runs after all Update calls, useful when reading transform/physics results.")]
     [SerializeField] TickMode _tickMode = TickMode.Update;
 
+    [Tooltip("Mark this GameObject as DontDestroyOnLoad so it persists across scene changes.")]
+    [SerializeField] bool _dontDestroyOnLoad;
+
     [Tooltip("Editor-only: show the JSRunner tabs even when Panel Settings is not assigned (for debugging UI).")]
     [SerializeField, HideInInspector] bool _enableDebugMode;
 
@@ -768,6 +771,7 @@ public class JSRunner : MonoBehaviour {
 
     void Start() {
         if (!Application.isPlaying) return; // [ExecuteAlways] guard
+        if (_dontDestroyOnLoad) DontDestroyOnLoad(gameObject);
         try { TryInitializePlayMode(); }
         catch (Exception ex) { Debug.LogError($"[JSRunner] Start() exception: {ex}"); }
     }
