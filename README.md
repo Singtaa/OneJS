@@ -1,6 +1,6 @@
 # OneJS
 
-JavaScript runtime for Unity UI Toolkit. Write UI with React and TypeScript, render natively through Unity's GPU-accelerated UI system.
+Build cross-platform apps and games with React 19, powered by Unity's GPU-accelerated rendering.
 
 ## V3 vs V2
 
