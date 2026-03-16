@@ -165,6 +165,12 @@ public class JSRunner : MonoBehaviour {
     string _lastContentHash;
     Janitor _janitor;
 
+    // Self-healing state: staleness detection + deferred init retry
+    float _lastReloadFromStaleness; // Time.realtimeSinceStartup of last staleness-triggered reload
+    int _stalenessReloadCount;      // Consecutive staleness-triggered reloads (reset on successful tick)
+    const int MaxStalenessReloads = 3;
+    const float StalenessReloadCooldown = 2f;
+
 #if UNITY_EDITOR
     static readonly List<JSRunner> _instances = new List<JSRunner>();
 
@@ -829,25 +835,40 @@ public class JSRunner : MonoBehaviour {
 
         _bridge?.Dispose();
         _bridge = null;
+        _scriptLoaded = false;
 
-        // Recreate bridge with fresh __root
-        InitializeBridge();
+        // rootVisualElement may be transiently null (panel rebuilding).
+        // If so, bail out — the deferred init retry in TickIfReady will pick it up.
+        if (_uiDocument == null || _uiDocument.rootVisualElement == null) {
+            ResetPlayModeState();
+            return;
+        }
+
+        try {
+            // Recreate bridge with fresh __root
+            InitializeBridge();
 
 #if UNITY_EDITOR
-        // Editor: reload from file
-        var entryFile = EntryFileFullPath;
-        if (File.Exists(entryFile)) {
-            var code = File.ReadAllText(entryFile);
-            RunScript(code, Path.GetFileName(entryFile));
-            if (Application.isPlaying) InvokeOnPlay();
-        }
+            // Editor: reload from file
+            var entryFile = EntryFileFullPath;
+            if (File.Exists(entryFile)) {
+                var code = File.ReadAllText(entryFile);
+                RunScript(code, Path.GetFileName(entryFile));
+                if (Application.isPlaying) InvokeOnPlay();
+            }
 #else
-        // Build: reload from bundled asset
-        if (_bundleAsset != null) {
-            RunScript(_bundleAsset.text, "app.js");
-            InvokeOnPlay();
-        }
+            // Build: reload from bundled asset
+            if (_bundleAsset != null) {
+                RunScript(_bundleAsset.text, "app.js");
+                InvokeOnPlay();
+            }
 #endif
+        } catch (Exception ex) {
+            Debug.LogError($"[JSRunner] ReloadOnEnable failed: {ex.Message}");
+            _bridge?.Dispose();
+            _bridge = null;
+            ResetPlayModeState();
+        }
     }
 
     void Initialize() {
@@ -1178,16 +1199,17 @@ public class JSRunner : MonoBehaviour {
 #endif
     }
 
-    bool TryInitializePlayMode() {
+    bool TryInitializePlayMode(bool silent = false) {
         if (_initialized) return true;
 #if UNITY_EDITOR
         if (_panelSettings != null && !IsPanelSettingsInValidProjectFolder()) {
-            Debug.LogError("[JSRunner] Panel Settings is not valid: its folder must contain a '~' subfolder or an 'app.js' file.");
+            if (!silent)
+                Debug.LogError("[JSRunner] Panel Settings is not valid: its folder must contain a '~' subfolder or an 'app.js' file.");
             return false;
         }
 #endif
         if (!EnsureUIDocument()) {
-            Debug.LogError("[JSRunner] UIDocument could not be created or rootVisualElement is null.");
+            // Silently return false during deferred retry (rootVisualElement not ready yet)
             return false;
         }
         Initialize();
@@ -1416,6 +1438,21 @@ public class JSRunner : MonoBehaviour {
             StopEditModePreview();
             return;
         }
+
+        // Detect stale root: rootVisualElement identity changed (panel rebuilt).
+        // Cooldown prevents infinite reload loops.
+        if (_uiDocument != null && _uiDocument.rootVisualElement != null
+            && _uiDocument.rootVisualElement != _bridge.Root
+            && _stalenessReloadCount < MaxStalenessReloads
+            && Time.realtimeSinceStartup - _lastReloadFromStaleness > StalenessReloadCooldown) {
+            _stalenessReloadCount++;
+            _lastReloadFromStaleness = Time.realtimeSinceStartup;
+            Debug.Log($"[JSRunner] rootVisualElement changed, reloading edit-mode preview ({_stalenessReloadCount}/{MaxStalenessReloads})");
+            StopEditModePreview();
+            TryStartEditModePreview();
+            return;
+        }
+
         // Always check for file changes so TSX edits apply even when overlay filter disables ticking
         CheckForFileChanges();
         if (EditModeUpdateFilter != null && !EditModeUpdateFilter(this)) {
@@ -1531,6 +1568,34 @@ public class JSRunner : MonoBehaviour {
 
     void TickIfReady() {
         if (!Application.isPlaying) return; // [ExecuteAlways] guard - edit-mode uses EditorApplication.update
+
+        // Deferred init retry: if initialization failed (rootVisualElement wasn't ready),
+        // keep trying each frame until it succeeds (silent — no log spam).
+        if (!_initialized) {
+            try { TryInitializePlayMode(silent: true); }
+            catch (Exception ex) { Debug.LogError($"[JSRunner] Deferred init error: {ex.Message}"); }
+            return;
+        }
+
+        // Detect stale root: rootVisualElement changed, or bridge root detached from panel.
+        // Cooldown prevents infinite reload loops (e.g., panel rebuilt every frame).
+        if (_bridge != null && _uiDocument != null
+            && _stalenessReloadCount < MaxStalenessReloads) {
+            var currentRoot = _uiDocument.rootVisualElement;
+            if (currentRoot != null && currentRoot != _bridge.Root) {
+                if (Time.realtimeSinceStartup - _lastReloadFromStaleness > StalenessReloadCooldown) {
+                    _stalenessReloadCount++;
+                    _lastReloadFromStaleness = Time.realtimeSinceStartup;
+                    Debug.Log($"[JSRunner] rootVisualElement changed, reloading ({_stalenessReloadCount}/{MaxStalenessReloads})");
+                    ReloadOnEnable();
+                    return;
+                }
+            }
+        }
+
+        // Reset staleness counter on a successful tick
+        _stalenessReloadCount = 0;
+
 #if UNITY_EDITOR
         if (_scriptLoaded && (PlayModeUpdateFilter == null || PlayModeUpdateFilter(this))) {
             _bridge?.Tick();
