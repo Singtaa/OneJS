@@ -10,6 +10,7 @@ public static partial class QuickJSNative {
     static readonly ConcurrentDictionary<(Type, string, bool, int), MethodInfo> _methodCache = new();
     static readonly ConcurrentDictionary<(Type, string, bool), PropertyInfo> _propertyCache = new();
     static readonly ConcurrentDictionary<(Type, string, bool), FieldInfo> _fieldCache = new();
+    static readonly ConcurrentDictionary<(Type, string, bool), bool> _hasMethodCache = new();
 
     // MARK: Extension Method Registry
     // targetType → { methodName → List<MethodInfo> }
@@ -148,13 +149,21 @@ public static partial class QuickJSNative {
     /// Used for property-first access pattern to detect method references.
     /// </summary>
     static bool HasMethodByName(Type type, string name, bool isStatic) {
+        var key = (type, name, isStatic);
+        if (_hasMethodCache.TryGetValue(key, out var cached)) return cached;
+
         var flags = GetFlags(isStatic);
-        while (type != null) {
-            foreach (var m in type.GetMethods(flags | BindingFlags.DeclaredOnly)) {
-                if (m.Name == name) return true;
+        var current = type;
+        while (current != null) {
+            foreach (var m in current.GetMethods(flags | BindingFlags.DeclaredOnly)) {
+                if (m.Name == name) {
+                    _hasMethodCache[key] = true;
+                    return true;
+                }
             }
-            type = type.BaseType;
+            current = current.BaseType;
         }
+        _hasMethodCache[key] = false;
         return false;
     }
 
