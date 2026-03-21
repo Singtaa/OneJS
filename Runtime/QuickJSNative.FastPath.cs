@@ -552,22 +552,33 @@ public static partial class QuickJSNative {
         /// <summary>
         /// Check if any fast path registrations exist for a type.
         /// </summary>
-        public static bool IsTypeRegistered<T>() => _registeredMembers.ContainsKey(typeof(T));
-        public static bool IsTypeRegistered(Type type) => type != null && _registeredMembers.ContainsKey(type);
+        public static bool IsTypeRegistered<T>() {
+            EnsureFastPathInitialized();
+            return _registeredMembers.ContainsKey(typeof(T));
+        }
+        public static bool IsTypeRegistered(Type type) {
+            EnsureFastPathInitialized();
+            return type != null && _registeredMembers.ContainsKey(type);
+        }
 
         /// <summary>
         /// Check if a specific member is registered for a type.
         /// </summary>
-        public static bool IsRegistered<T>(string memberName) =>
-            _registeredMembers.TryGetValue(typeof(T), out var m) && m.Contains(memberName);
-        public static bool IsRegistered(Type type, string memberName) =>
-            type != null && _registeredMembers.TryGetValue(type, out var m) && m.Contains(memberName);
+        public static bool IsRegistered<T>(string memberName) {
+            EnsureFastPathInitialized();
+            return _registeredMembers.TryGetValue(typeof(T), out var m) && m.Contains(memberName);
+        }
+        public static bool IsRegistered(Type type, string memberName) {
+            EnsureFastPathInitialized();
+            return type != null && _registeredMembers.TryGetValue(type, out var m) && m.Contains(memberName);
+        }
 
         /// <summary>
         /// Get all registered member names for a type. Returns empty array if none.
         /// </summary>
         public static string[] GetRegisteredMembers<T>() => GetRegisteredMembers(typeof(T));
         public static string[] GetRegisteredMembers(Type type) {
+            EnsureFastPathInitialized();
             if (type != null && _registeredMembers.TryGetValue(type, out var members)) {
                 var arr = new string[members.Count];
                 members.CopyTo(arr);
