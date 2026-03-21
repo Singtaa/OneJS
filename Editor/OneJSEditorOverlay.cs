@@ -29,6 +29,7 @@ namespace OneJS.Editor {
         static readonly FieldInfo RenderModeField =
             typeof(PanelSettings).GetField("m_RenderMode", BindingFlags.NonPublic | BindingFlags.Instance);
         static Camera _lastRenderedGameCamera;
+        static readonly Dictionary<int, bool> _screenSpacePanelCache = new();
         static int _cachedFrustumFrame = -1;
         static Camera _cachedFrustumCamera;
         static Plane[] _cachedFrustumPlanes;
@@ -147,7 +148,14 @@ namespace OneJS.Editor {
 
             // Screen-space panels are always visible regardless of camera
             var ps = runner.PanelSettingsAsset;
-            if (ps != null && RenderModeField != null && (int)RenderModeField.GetValue(ps) == 0) return true;
+            if (ps != null && RenderModeField != null) {
+                var id = ps.GetInstanceID();
+                if (!_screenSpacePanelCache.TryGetValue(id, out var isScreenSpace)) {
+                    isScreenSpace = (int)RenderModeField.GetValue(ps) == 0;
+                    _screenSpacePanelCache[id] = isScreenSpace;
+                }
+                if (isScreenSpace) return true;
+            }
 
             var frustumPlanes = GetCachedFrustumPlanes(camera);
             if (frustumPlanes == null) return true;

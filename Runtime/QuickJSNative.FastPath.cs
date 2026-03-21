@@ -56,6 +56,15 @@ public static partial class QuickJSNative {
     static readonly Dictionary<Type, Delegate> _structPackers = new();
     static readonly Dictionary<Type, Delegate> _structUnpackers = new();
     static readonly Dictionary<Type, Delegate> _dictConverters = new();
+    static readonly Dictionary<Type, HashSet<string>> _registeredMembers = new();
+
+    static void Track(Type type, string memberName) {
+        if (!_registeredMembers.TryGetValue(type, out var members)) {
+            members = new HashSet<string>();
+            _registeredMembers[type] = members;
+        }
+        members.Add(memberName);
+    }
 
     // Static type hash cache - maps hash of type name to Type
     static readonly Dictionary<int, Type> _staticTypeHashCache = new();
@@ -71,6 +80,7 @@ public static partial class QuickJSNative {
             Func<TTarget, TValue> getter,
             Action<TTarget, TValue> setter = null) where TTarget : class {
             var type = typeof(TTarget);
+            Track(type, name);
             var typeHash = type.GetHashCode();
             var memberHash = HashString(name);
 
@@ -103,6 +113,7 @@ public static partial class QuickJSNative {
             Action<TValue> setter = null) {
             var type = typeof(TOwner);
             CacheStaticTypeHash(type);
+            Track(type, name);
             var typeHash = type.GetHashCode();
             var memberHash = HashString(name);
 
@@ -132,6 +143,7 @@ public static partial class QuickJSNative {
         /// </summary>
         public static void Method<TTarget>(string name, Action<TTarget> method) where TTarget : class {
             var type = typeof(TTarget);
+            Track(type, name);
             var key = MakeFastPathKey(type.GetHashCode(), HashString(name), InteropInvokeCallKind.Method,
                 false);
             unsafe {
@@ -148,6 +160,7 @@ public static partial class QuickJSNative {
         public static void Method<TTarget, TResult>(string name, Func<TTarget, TResult> method)
             where TTarget : class {
             var type = typeof(TTarget);
+            Track(type, name);
             var key = MakeFastPathKey(type.GetHashCode(), HashString(name), InteropInvokeCallKind.Method,
                 false);
             unsafe {
@@ -164,6 +177,7 @@ public static partial class QuickJSNative {
         public static void Method<TTarget, TArg0, TResult>(string name, Func<TTarget, TArg0, TResult> method)
             where TTarget : class {
             var type = typeof(TTarget);
+            Track(type, name);
             var key = MakeFastPathKey(type.GetHashCode(), HashString(name), InteropInvokeCallKind.Method,
                 false);
             unsafe {
@@ -181,6 +195,7 @@ public static partial class QuickJSNative {
         public static void Method<TTarget, TArg0>(string name, Action<TTarget, TArg0> method)
             where TTarget : class {
             var type = typeof(TTarget);
+            Track(type, name);
             var key = MakeFastPathKey(type.GetHashCode(), HashString(name), InteropInvokeCallKind.Method,
                 false);
             unsafe {
@@ -198,6 +213,7 @@ public static partial class QuickJSNative {
         public static void StaticMethod<TOwner, TResult>(string name, Func<TResult> method) {
             var type = typeof(TOwner);
             CacheStaticTypeHash(type);
+            Track(type, name);
             var key = MakeFastPathKey(type.GetHashCode(), HashString(name), InteropInvokeCallKind.Method,
                 true);
             unsafe {
@@ -214,6 +230,7 @@ public static partial class QuickJSNative {
         public static void StaticMethod<TOwner, TArg0, TResult>(string name, Func<TArg0, TResult> method) {
             var type = typeof(TOwner);
             CacheStaticTypeHash(type);
+            Track(type, name);
             var key = MakeFastPathKey(type.GetHashCode(), HashString(name), InteropInvokeCallKind.Method,
                 true);
             unsafe {
@@ -231,6 +248,7 @@ public static partial class QuickJSNative {
         public static void StaticMethod<TOwner, TArg0, TArg1, TResult>(string name, Func<TArg0, TArg1, TResult> method) {
             var type = typeof(TOwner);
             CacheStaticTypeHash(type);
+            Track(type, name);
             var key = MakeFastPathKey(type.GetHashCode(), HashString(name), InteropInvokeCallKind.Method,
                 true);
             unsafe {
@@ -249,6 +267,7 @@ public static partial class QuickJSNative {
         public static void StaticMethod<TOwner, TArg0, TArg1, TArg2, TResult>(string name, Func<TArg0, TArg1, TArg2, TResult> method) {
             var type = typeof(TOwner);
             CacheStaticTypeHash(type);
+            Track(type, name);
             var key = MakeFastPathKey(type.GetHashCode(), HashString(name), InteropInvokeCallKind.Method,
                 true);
             unsafe {
@@ -268,6 +287,7 @@ public static partial class QuickJSNative {
         public static void StaticMethod<TOwner, TArg0, TArg1, TArg2, TArg3, TResult>(string name, Func<TArg0, TArg1, TArg2, TArg3, TResult> method) {
             var type = typeof(TOwner);
             CacheStaticTypeHash(type);
+            Track(type, name);
             var key = MakeFastPathKey(type.GetHashCode(), HashString(name), InteropInvokeCallKind.Method,
                 true);
             unsafe {
@@ -288,6 +308,7 @@ public static partial class QuickJSNative {
         public static void StaticMethod<TOwner, TArg0, TArg1, TArg2, TArg3, TArg4, TResult>(string name, Func<TArg0, TArg1, TArg2, TArg3, TArg4, TResult> method) {
             var type = typeof(TOwner);
             CacheStaticTypeHash(type);
+            Track(type, name);
             var key = MakeFastPathKey(type.GetHashCode(), HashString(name), InteropInvokeCallKind.Method,
                 true);
             unsafe {
@@ -309,6 +330,7 @@ public static partial class QuickJSNative {
         public static void StaticMethod<TOwner, TArg0, TArg1, TArg2, TArg3, TArg4, TArg5, TResult>(string name, Func<TArg0, TArg1, TArg2, TArg3, TArg4, TArg5, TResult> method) {
             var type = typeof(TOwner);
             CacheStaticTypeHash(type);
+            Track(type, name);
             var key = MakeFastPathKey(type.GetHashCode(), HashString(name), InteropInvokeCallKind.Method,
                 true);
             unsafe {
@@ -527,11 +549,39 @@ public static partial class QuickJSNative {
         public static bool HasStructHandler<T>() where T : struct => _structPackers.ContainsKey(typeof(T));
         public static bool HasStructHandler(Type type) => _structPackers.ContainsKey(type);
 
+        /// <summary>
+        /// Check if any fast path registrations exist for a type.
+        /// </summary>
+        public static bool IsTypeRegistered<T>() => _registeredMembers.ContainsKey(typeof(T));
+        public static bool IsTypeRegistered(Type type) => type != null && _registeredMembers.ContainsKey(type);
+
+        /// <summary>
+        /// Check if a specific member is registered for a type.
+        /// </summary>
+        public static bool IsRegistered<T>(string memberName) =>
+            _registeredMembers.TryGetValue(typeof(T), out var m) && m.Contains(memberName);
+        public static bool IsRegistered(Type type, string memberName) =>
+            type != null && _registeredMembers.TryGetValue(type, out var m) && m.Contains(memberName);
+
+        /// <summary>
+        /// Get all registered member names for a type. Returns empty array if none.
+        /// </summary>
+        public static string[] GetRegisteredMembers<T>() => GetRegisteredMembers(typeof(T));
+        public static string[] GetRegisteredMembers(Type type) {
+            if (type != null && _registeredMembers.TryGetValue(type, out var members)) {
+                var arr = new string[members.Count];
+                members.CopyTo(arr);
+                return arr;
+            }
+            return Array.Empty<string>();
+        }
+
         public static void Clear() {
             _fastPathRegistryLong.Clear();
             _structPackers.Clear();
             _structUnpackers.Clear();
             _dictConverters.Clear();
+            _registeredMembers.Clear();
             _staticTypeHashCache.Clear();
             _staticClassTypeNameHashes.Clear();
             _fastPathInitialized = false;
@@ -754,8 +804,7 @@ public static partial class QuickJSNative {
     // MARK: Read/Write
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static unsafe void WriteToInterop<T>(T value, InteropValue* result) {
-        result->type = InteropType.Null;
-        result->typeHint = IntPtr.Zero;
+        *result = default; // Clear entire struct (matches SetReturnValue behavior)
 
         if (typeof(T) == typeof(float)) {
             result->type = InteropType.Float32;
