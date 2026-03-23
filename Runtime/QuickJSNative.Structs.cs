@@ -122,7 +122,22 @@ public static partial class QuickJSNative {
         var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
         if (fields.Length == 0 && props.Length == 0) return false;
 
+        // Skip structs containing UnityEngine.Object references (e.g., FontDefinition).
+        // These references cannot survive JSON round-tripping (ToString() destroys them).
+        // They must fall through to the ObjectHandle path to preserve C# references.
+        if (HasUnityObjectMembers(fields, props)) return false;
+
         return true;
+    }
+
+    static bool HasUnityObjectMembers(FieldInfo[] fields, PropertyInfo[] props) {
+        for (int i = 0; i < fields.Length; i++) {
+            if (typeof(UnityEngine.Object).IsAssignableFrom(fields[i].FieldType)) return true;
+        }
+        for (int i = 0; i < props.Length; i++) {
+            if (typeof(UnityEngine.Object).IsAssignableFrom(props[i].PropertyType)) return true;
+        }
+        return false;
     }
 
     // MARK: Init

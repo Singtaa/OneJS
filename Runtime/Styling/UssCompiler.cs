@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using ExCSS;
 using UnityEngine;
+using UnityEngine.TextCore.Text;
 using UnityEngine.UIElements;
 
 namespace OneJS.CustomStyleSheets {
@@ -533,8 +534,9 @@ namespace OneJS.CustomStyleSheets {
 
                 case ".ttf":
                 case ".otf":
-                    var font = new Font(fullPath);
-                    _builder.AddValue(font);
+                    var legacyFont = new Font(fullPath);
+                    var fontAsset = FontAsset.CreateFontAsset(legacyFont);
+                    _builder.AddValue(fontAsset);
                     break;
             }
         }
