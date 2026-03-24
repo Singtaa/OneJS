@@ -3,6 +3,49 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public static partial class QuickJSNative {
+    // MARK: Domain Reload Support
+    /// <summary>
+    /// Reset all static state when entering play mode.
+    /// Critical for "Enter Play Mode Settings" with domain reload disabled:
+    /// without this, stale handles/caches from the previous session persist and
+    /// cause MissingReferenceExceptions or return destroyed object data.
+    /// </summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStaticState() {
+        // Handle table
+        lock (_handleLock) {
+            _handleTable.Clear();
+            _reverseHandleTable.Clear();
+            _handleRefCount.Clear();
+            _nextHandle = 1;
+            _warningLogged = false;
+            _criticalWarningLogged = false;
+            _peakHandleCount = 0;
+        }
+
+        // Delegate cache (wraps JS callbacks — stale after context destruction)
+        ClearDelegateCache();
+
+        // Pending async tasks (stale after context destruction)
+        ClearPendingTasks();
+
+        // FastPath registry (re-registered by component Awake methods)
+        FastPath.Clear();
+
+        // Zero-alloc bindings (re-registered during FastPath init)
+        _bindings.Clear();
+        _nextBindingId = 1;
+        _zeroAllocInitialized = false;
+
+        // Struct serialization (re-registered lazily via EnsureStructsInitialized)
+        _structsInitialized = false;
+
+        // Context pointer (set per-dispatch, but clear for safety)
+        _currentContextPtr = IntPtr.Zero;
+
+        // Reflection caches are safe to keep — types don't change across play mode.
+    }
+
     // MARK: Handle Table
     static int _nextHandle = 1;
     internal static readonly Dictionary<int, object> _handleTable = new Dictionary<int, object>();

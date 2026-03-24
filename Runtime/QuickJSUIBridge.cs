@@ -160,6 +160,7 @@ public class QuickJSUIBridge : IDisposable {
         WebSocketBridge.UnregisterContext(_wsContextId);
         QuickJSNative.ClearPendingTasks();
         _ctx?.Dispose();
+        QuickJSNative.ClearAllHandles();
 
         GC.SuppressFinalize(this);
     }

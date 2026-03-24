@@ -11,6 +11,31 @@ namespace OneJS.Input {
     /// All methods are static and designed to be called via the CS proxy.
     /// </summary>
     public static class InputBridge {
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStaticState() {
+            PointerMoveEventsEnabled = true;
+            _lastKeyboardFrame = -1;
+            _lastMouseFrame = -1;
+            _lastGamepadFrame = -1;
+            _keysPressed.Clear();
+            _keysReleased.Clear();
+            _mouseButtonsPressed = 0;
+            _mouseButtonsReleased = 0;
+            Array.Clear(_gamepadButtonsPressed, 0, _gamepadButtonsPressed.Length);
+            Array.Clear(_gamepadButtonsReleased, 0, _gamepadButtonsReleased.Length);
+            // _keyNameMap and _gamepadButtonMap are populated by static ctor and safe to keep.
+            // Input action handles (dispose active assets first)
+            _nextAssetHandle = 1;
+            _nextActionHandle = 1;
+            _assetHandles.Clear();
+            _actionHandles.Clear();
+            _nextDynamicMapHandle = 1;
+            _dynamicMaps.Clear();
+            // Zero-alloc bindings (re-registered lazily)
+            _bindingsRegistered = false;
+            _bindingIds = default;
+        }
+
         // ============ Pointer Event Control ============
 
         /// <summary>
