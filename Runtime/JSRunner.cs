@@ -1217,6 +1217,14 @@ public class JSRunner : MonoBehaviour {
         return true;
     }
 
+    void ResetPlayModeState() {
+        _initialized = false;
+        _scriptLoaded = false;
+        _onPlayHandle = -1;
+        _onStopHandle = -1;
+        _onStopInvoked = false;
+    }
+
 #if UNITY_EDITOR
     void Reload() {
         if (!File.Exists(EntryFileFullPath)) {
@@ -1345,14 +1353,6 @@ public class JSRunner : MonoBehaviour {
                 ResetPlayModeState();
                 break;
         }
-    }
-
-    void ResetPlayModeState() {
-        _initialized = false;
-        _scriptLoaded = false;
-        _onPlayHandle = -1;
-        _onStopHandle = -1;
-        _onStopInvoked = false;
     }
 
     void TryStartEditModePreview() {
