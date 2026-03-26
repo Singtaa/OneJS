@@ -310,8 +310,7 @@ public static partial class QuickJSNative {
             var field = fields[i];
             var fieldValue = field.Getter(value);
             sb.Append(",\"");
-            sb.Append(char.ToLowerInvariant(field.Name[0]));
-            if (field.Name.Length > 1) sb.Append(field.Name, 1, field.Name.Length - 1);
+            sb.Append(field.Name);
             sb.Append("\":");
             AppendJsonValue(sb, fieldValue, field.FieldType);
         }
