@@ -653,32 +653,10 @@ public class JSRunner : MonoBehaviour {
             }
         }
 
-        // Extract cartridges
+        // Extract cartridges (skip existing, generates .d.ts)
         if (_cartridges != null && _cartridges.Count > 0) {
-            foreach (var cartridge in _cartridges) {
-                if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) continue;
-
-                var destPath = GetCartridgePath(cartridge);
-                if (string.IsNullOrEmpty(destPath)) continue;
-
-                // Skip if folder already exists
-                if (Directory.Exists(destPath)) continue;
-
-                Directory.CreateDirectory(destPath);
-
-                // Extract files
-                foreach (var file in cartridge.Files) {
-                    if (file.content == null) continue;
-                    var filePath = Path.Combine(destPath, file.path);
-                    var fileDir = Path.GetDirectoryName(filePath);
-                    if (!string.IsNullOrEmpty(fileDir) && !Directory.Exists(fileDir)) {
-                        Directory.CreateDirectory(fileDir);
-                    }
-                    File.WriteAllText(filePath, file.content.text);
-                }
-                Debug.Log($"[JSRunner] Extracted cartridge: {cartridge.Slug}");
-                didScaffold = true;
-            }
+            var created = CartridgeUtils.ExtractCartridges(workingDir, _cartridges, overwriteExisting: false, "[JSRunner]");
+            if (created.Count > 0) didScaffold = true;
         }
 
         return didScaffold;

@@ -1054,31 +1054,12 @@ public class JSRunnerEditor : Editor {
         }
 
         try {
-            if (alreadyExists) {
-                Directory.Delete(destPath, true);
-            }
+            var created = CartridgeUtils.ExtractCartridges(
+                _target.WorkingDirFullPath,
+                new List<UICartridge> { cartridge },
+                overwriteExisting: true);
 
-            Directory.CreateDirectory(destPath);
-
-            int fileCount = 0;
-            foreach (var file in cartridge.Files) {
-                if (string.IsNullOrEmpty(file.path) || file.content == null) continue;
-
-                var filePath = Path.Combine(destPath, file.path);
-                var fileDir = Path.GetDirectoryName(filePath);
-
-                if (!string.IsNullOrEmpty(fileDir) && !Directory.Exists(fileDir)) {
-                    Directory.CreateDirectory(fileDir);
-                }
-
-                File.WriteAllText(filePath, file.content.text);
-                fileCount++;
-            }
-
-            var dts = OneJS.CartridgeTypeGenerator.Generate(cartridge);
-            File.WriteAllText(Path.Combine(destPath, $"{cartridge.Slug}.d.ts"), dts);
-
-            Debug.Log($"[JSRunner] Extracted cartridge '{cartridge.DisplayName}' ({fileCount} files + .d.ts) to: {destPath}");
+            Debug.Log($"[JSRunner] Extracted cartridge '{cartridge.DisplayName}' ({created.Count} files) to: {destPath}");
             AssetDatabase.Refresh();
             RebuildCartridgeList();
 
@@ -1185,30 +1166,10 @@ public class JSRunnerEditor : Editor {
             if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) continue;
 
             try {
-                var destPath = _target.GetCartridgePath(cartridge);
-
-                if (Directory.Exists(destPath)) {
-                    Directory.Delete(destPath, true);
-                }
-
-                Directory.CreateDirectory(destPath);
-
-                foreach (var file in cartridge.Files) {
-                    if (string.IsNullOrEmpty(file.path) || file.content == null) continue;
-
-                    var filePath = Path.Combine(destPath, file.path);
-                    var fileDir = Path.GetDirectoryName(filePath);
-
-                    if (!string.IsNullOrEmpty(fileDir) && !Directory.Exists(fileDir)) {
-                        Directory.CreateDirectory(fileDir);
-                    }
-
-                    File.WriteAllText(filePath, file.content.text);
-                }
-
-                var dts = OneJS.CartridgeTypeGenerator.Generate(cartridge);
-                File.WriteAllText(Path.Combine(destPath, $"{cartridge.Slug}.d.ts"), dts);
-
+                CartridgeUtils.ExtractCartridges(
+                    _target.WorkingDirFullPath,
+                    new List<UICartridge> { cartridge },
+                    overwriteExisting: true);
                 extracted++;
             } catch (Exception ex) {
                 Debug.LogError($"[JSRunner] Failed to extract '{cartridge.DisplayName}': {ex.Message}");

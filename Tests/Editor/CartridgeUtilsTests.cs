@@ -433,6 +433,51 @@ public class CartridgeUtilsTests {
         Object.DestroyImmediate(cartWithoutNs);
     }
 
+    // MARK: ExtractCartridges Return Value Tests
+
+    [Test]
+    public void ExtractCartridges_ReturnsCreatedFilePaths() {
+        var cartridge = CreateTestCartridge("returnTest");
+        var cartridges = new List<UICartridge> { cartridge };
+
+        var created = CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
+
+        Assert.IsNotNull(created);
+        // Should contain at least the .d.ts file
+        Assert.IsTrue(created.Count > 0, "Should return at least the .d.ts path");
+        Assert.IsTrue(created.Exists(p => p.EndsWith(".d.ts")), "Should include .d.ts file");
+
+        Object.DestroyImmediate(cartridge);
+    }
+
+    [Test]
+    public void ExtractCartridges_SkipsExisting_ReturnsEmptyList() {
+        var cartridge = CreateTestCartridge("skipReturn");
+        var cartridges = new List<UICartridge> { cartridge };
+
+        // First extraction
+        CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
+
+        // Second extraction with overwrite=false should skip
+        var created = CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
+
+        Assert.IsNotNull(created);
+        Assert.AreEqual(0, created.Count, "Should return empty list when skipping existing");
+
+        Object.DestroyImmediate(cartridge);
+    }
+
+    [Test]
+    public void ExtractCartridges_NullInputs_ReturnsEmptyList() {
+        var result1 = CartridgeUtils.ExtractCartridges(_testBasePath, null, false);
+        Assert.IsNotNull(result1);
+        Assert.AreEqual(0, result1.Count);
+
+        var result2 = CartridgeUtils.ExtractCartridges(null, new List<UICartridge>(), false);
+        Assert.IsNotNull(result2);
+        Assert.AreEqual(0, result2.Count);
+    }
+
     // MARK: Helper Methods
 
     /// <summary>

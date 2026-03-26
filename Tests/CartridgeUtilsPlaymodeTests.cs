@@ -184,13 +184,9 @@ public class CartridgeUtilsPlaymodeTests {
 
         CartridgeUtils.InjectCartridgeGlobals(_bridge, cartridges);
 
-        // __cart("myCart") should return the cartridge SO
+        // __cart("myCart") should return a plain JS object
         var result = _bridge.Eval("typeof __cart('myCart')");
         Assert.AreEqual("object", result, "__cart('myCart') should return an object");
-
-        // It should have a __csHandle (wrapped C# object)
-        result = _bridge.Eval("typeof __cart('myCart').__csHandle");
-        Assert.AreEqual("number", result, "Cartridge should have a handle");
 
         Object.DestroyImmediate(cartridge);
         yield return null;
@@ -272,6 +268,88 @@ public class CartridgeUtilsPlaymodeTests {
         var result = _bridge.Eval("typeof __cart(\"my'Cart\")");
         Assert.AreEqual("object", result);
 
+        Object.DestroyImmediate(cartridge);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator InjectCartridgeGlobals_WithObjects_PropertiesAccessible() {
+        var tex = new Texture2D(2, 2);
+        var cartridge = CreateTestCartridgeWithObject("assetCart", "myTexture", tex);
+        var cartridges = new List<UICartridge> { cartridge };
+
+        CartridgeUtils.InjectCartridgeGlobals(_bridge, cartridges);
+
+        // Object entry should be directly accessible as a property
+        var result = _bridge.Eval("typeof __cart('assetCart').myTexture");
+        Assert.AreEqual("object", result, "Object entry should be accessible as property");
+
+        // It should be a wrapped C# object with a handle
+        result = _bridge.Eval("typeof __cart('assetCart').myTexture.__csHandle");
+        Assert.AreEqual("number", result, "Object entry should have a C# handle");
+
+        Object.DestroyImmediate(tex);
+        Object.DestroyImmediate(cartridge);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator InjectCartridgeGlobals_WithoutObjects_ReturnsEmptyObject() {
+        var cartridge = CreateTestCartridge("emptyCart");
+        var cartridges = new List<UICartridge> { cartridge };
+
+        CartridgeUtils.InjectCartridgeGlobals(_bridge, cartridges);
+
+        var result = _bridge.Eval("typeof __cart('emptyCart')");
+        Assert.AreEqual("object", result, "Should return an object even with no entries");
+
+        result = _bridge.Eval("Object.keys(__cart('emptyCart')).length");
+        Assert.AreEqual("0", result, "Empty cartridge should have no properties");
+
+        Object.DestroyImmediate(cartridge);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator InjectCartridgeGlobals_MultipleObjects_AllAccessible() {
+        var tex = new Texture2D(2, 2);
+        var mat = new Material(Shader.Find("UI/Default"));
+        var cartridge = CreateTestCartridge("multiCart");
+        AddCartridgeObject(cartridge, "texture", tex);
+        AddCartridgeObject(cartridge, "material", mat);
+        var cartridges = new List<UICartridge> { cartridge };
+
+        CartridgeUtils.InjectCartridgeGlobals(_bridge, cartridges);
+
+        var result = _bridge.Eval("typeof __cart('multiCart').texture");
+        Assert.AreEqual("object", result);
+
+        result = _bridge.Eval("typeof __cart('multiCart').material");
+        Assert.AreEqual("object", result);
+
+        Object.DestroyImmediate(mat);
+        Object.DestroyImmediate(tex);
+        Object.DestroyImmediate(cartridge);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator InjectCartridgeGlobals_SkipsNullObjectEntries() {
+        var tex = new Texture2D(2, 2);
+        var cartridge = CreateTestCartridge("nullEntryCart");
+        AddCartridgeObject(cartridge, "", tex);      // empty key
+        AddCartridgeObject(cartridge, "valid", tex);
+        AddCartridgeObject(cartridge, "nullVal", null); // null value
+        var cartridges = new List<UICartridge> { cartridge };
+
+        Assert.DoesNotThrow(() => {
+            CartridgeUtils.InjectCartridgeGlobals(_bridge, cartridges);
+        });
+
+        var result = _bridge.Eval("typeof __cart('nullEntryCart').valid");
+        Assert.AreEqual("object", result, "Valid entry should be accessible");
+
+        Object.DestroyImmediate(tex);
         Object.DestroyImmediate(cartridge);
         yield return null;
     }

@@ -23,9 +23,11 @@ Tests/
 ├── ProcTexturePlaymodeTests.cs     # Procedural texture tests
 ├── JSRunnerPlaymodeTests.cs     # JSRunner MonoBehaviour tests
 ├── JSPadPlaymodeTests.cs        # JSPad MonoBehaviour tests
+├── CartridgeUtilsPlaymodeTests.cs  # Cartridge injection and platform defines
 ├── Editor/                      # EditMode tests
 │   ├── OneJS.Tests.Editor.asmdef
 │   ├── JSRunnerBuildProcessorTests.cs
+│   ├── CartridgeUtilsTests.cs
 │   └── BuildValidationTests.cs
 ├── BuildValidation/             # Standalone build testing
 │   ├── BuildValidationRunner.cs
@@ -62,6 +64,8 @@ Tests/
 | `GPUBridgeJSPlaymodeTests.cs` | PlayMode | GPU operations from JavaScript |
 | `ProcNoisePlaymodeTests.cs` | PlayMode | Procedural noise generation (Perlin, Value, FBM) |
 | `ProcTexturePlaymodeTests.cs` | PlayMode | Procedural texture generation (checkerboard, gradient) |
+| `CartridgeUtilsPlaymodeTests.cs` | PlayMode | Cartridge global injection, platform defines, `__cart()` API |
+| `CartridgeUtilsTests.cs` | EditMode | String escaping, path calculation, file extraction, stylesheets |
 | `JSRunnerBuildProcessorTests.cs` | EditMode | Asset copying, namespace detection |
 | `BuildValidationTests.cs` | EditMode | Full build + run validation (slow) |
 
@@ -78,6 +82,13 @@ Tests/
 - **Source Code**: Index.tsx writing, content preservation
 - **Build State**: State transitions, output detection
 - **Execution**: Script execution, stop/cleanup
+
+### CartridgeUtils Tests (CartridgeUtilsTests + CartridgeUtilsPlaymodeTests)
+- **String Escaping**: JS string literal escaping for special characters
+- **Path Calculation**: Cartridge path resolution with/without namespaces
+- **File Extraction**: Folder creation, `.d.ts` generation, overwrite behavior, return value
+- **Stylesheet Application**: USS stylesheet application to root elements
+- **Cartridge Globals** (PlayMode): `__cart()` function, plain-object injection with individual object entries as properties, platform defines
 
 ### Build Processor Tests (JSRunnerBuildProcessorTests)
 - **File Copying**: Recursive copy, content preservation

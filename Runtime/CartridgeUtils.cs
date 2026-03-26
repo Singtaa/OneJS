@@ -39,9 +39,11 @@ public static class CartridgeUtils {
     /// <param name="cartridges">List of cartridges to extract</param>
     /// <param name="overwriteExisting">If true, deletes existing folders before extracting. If false, skips existing.</param>
     /// <param name="logPrefix">Prefix for log messages (e.g., "[JSRunner]" or "[JSPad]")</param>
-    public static void ExtractCartridges(string baseDir, IReadOnlyList<UICartridge> cartridges, bool overwriteExisting, string logPrefix = null) {
-        if (cartridges == null || cartridges.Count == 0) return;
-        if (string.IsNullOrEmpty(baseDir)) return;
+    /// <returns>List of file paths that were created on disk.</returns>
+    public static List<string> ExtractCartridges(string baseDir, IReadOnlyList<UICartridge> cartridges, bool overwriteExisting, string logPrefix = null) {
+        var createdFiles = new List<string>();
+        if (cartridges == null || cartridges.Count == 0) return createdFiles;
+        if (string.IsNullOrEmpty(baseDir)) return createdFiles;
 
         foreach (var cartridge in cartridges) {
             if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) continue;
@@ -69,22 +71,27 @@ public static class CartridgeUtils {
                     Directory.CreateDirectory(fileDir);
                 }
                 File.WriteAllText(filePath, file.content.text);
+                createdFiles.Add(filePath);
             }
 
             // Generate TypeScript definitions
             var dts = CartridgeTypeGenerator.Generate(cartridge);
-            File.WriteAllText(Path.Combine(destPath, $"{cartridge.Slug}.d.ts"), dts);
+            var dtsPath = Path.Combine(destPath, $"{cartridge.Slug}.d.ts");
+            File.WriteAllText(dtsPath, dts);
+            createdFiles.Add(dtsPath);
 
             if (!string.IsNullOrEmpty(logPrefix)) {
                 Debug.Log($"{logPrefix} Extracted cartridge: {cartridge.RelativePath}");
             }
         }
+
+        return createdFiles;
     }
 
     /// <summary>
     /// Inject cartridges as JavaScript globals accessible via __cart(path) function.
-    /// Access pattern: __cart("colorPicker") or __cart("@myCompany/colorPicker")
-    /// Returns the UICartridge ScriptableObject directly.
+    /// Access pattern: __cart("colorPicker").myTexture or __cart("@myCompany/colorPicker").config
+    /// Each cartridge's object entries become properties on the returned JS object.
     /// </summary>
     /// <param name="bridge">The QuickJS bridge to inject globals into</param>
     /// <param name="cartridges">List of cartridges to inject</param>
@@ -106,12 +113,21 @@ globalThis.__cart = function(path) {
         foreach (var cartridge in cartridges) {
             if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) continue;
 
-            // Register the UICartridge SO itself
-            var handle = QuickJSNative.RegisterObject(cartridge);
-            var typeName = typeof(UICartridge).FullName;
             var path = EscapeJsString(cartridge.RelativePath);
 
-            bridge.Eval($"__cartRegistry['{path}'] = __csHelpers.wrapObject('{typeName}', {handle})");
+            // Build a plain JS object with each CartridgeObjectEntry as a property
+            bridge.Eval($"__cartRegistry['{path}'] = {{}}", $"__cart-{cartridge.Slug}.js");
+
+            if (cartridge.Objects != null) {
+                foreach (var entry in cartridge.Objects) {
+                    if (string.IsNullOrEmpty(entry.key) || entry.value == null) continue;
+
+                    var handle = QuickJSNative.RegisterObject(entry.value);
+                    var typeName = entry.value.GetType().FullName;
+                    var escapedKey = EscapeJsString(entry.key);
+                    bridge.Eval($"__cartRegistry['{path}']['{escapedKey}'] = __csHelpers.wrapObject('{typeName}', {handle})");
+                }
+            }
         }
     }
 
