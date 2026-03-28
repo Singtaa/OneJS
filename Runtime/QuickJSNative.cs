@@ -147,7 +147,8 @@ public static partial class QuickJSNative {
         TypeExists = 6,
         IsEnumType = 7,
         MakeGenericType = 8,
-        RegisterExtensionType = 9
+        RegisterExtensionType = 9,
+        TryGetProp = 10
     }
 
     // MARK: Interop Structs

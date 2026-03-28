@@ -791,6 +791,22 @@ function __createCsPathProxy(path) {
                 return __wrapResultFromCs(null, raw);
             }
 
+            // For PascalCase names: if current path is a known non-enum type and
+            // the extended path is NOT a type, resolve as static property/field.
+            // This allows CS.Namespace.Type.StaticProp without whitelisting.
+            // Skip enums (their values use the valueOf/apply path for proper resolution).
+            // Skip methods (__oneJS_methodRef__) so they keep the apply trap for calling.
+            // Uses TryGetProp (10) instead of GetProp (2) to avoid error logging on miss.
+            if (__typeExists(typeName) && !__cs.invoke(typeName, "", 7, 0, 0, [])) {
+                const nextType = typeName + "." + propName;
+                if (!__typeExists(nextType)) {
+                    const raw = __cs.invoke(typeName, propName, 10, 1, 0, []);
+                    if (raw != null && raw !== "__oneJS_methodRef__") {
+                        return __wrapResultFromCs(null, raw);
+                    }
+                }
+            }
+
             const nextPath = path.concat(propName);
             return __createCsPathProxy(nextPath);
         },

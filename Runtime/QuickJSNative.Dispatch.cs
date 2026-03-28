@@ -395,6 +395,34 @@ public static partial class QuickJSNative {
                     return;
                 }
 
+                case InteropInvokeCallKind.TryGetProp: {
+                    // Silent variant of GetProp — returns null instead of logging on failure.
+                    // Used by the CS path proxy for speculative static property resolution.
+                    PropertyInfo prop = FindPropertyCached(type, memberName, isStatic);
+                    if (prop != null) {
+                        object result = prop.GetValue(isStatic ? null : target);
+                        SetReturnValue(resPtr, result);
+                        return;
+                    }
+                    FieldInfo fallbackField = FindFieldCached(type, memberName, isStatic);
+                    if (fallbackField != null) {
+                        object fieldResult = fallbackField.GetValue(isStatic ? null : target);
+                        SetReturnValue(resPtr, fieldResult);
+                        return;
+                    }
+                    if (HasMethodByName(type, memberName, isStatic)) {
+                        SetReturnValue(resPtr, "__oneJS_methodRef__");
+                        return;
+                    }
+                    if (!isStatic && HasExtensionMethodByName(type, memberName)) {
+                        SetReturnValue(resPtr, "__oneJS_methodRef__");
+                        return;
+                    }
+                    // Not found — return null silently (no error log)
+                    resPtr->returnValue.type = InteropType.Null;
+                    return;
+                }
+
                 default:
                     resPtr->errorCode = 1;
                     Debug.LogError("[QuickJS] Unsupported call kind: " + reqPtr->callKind);
