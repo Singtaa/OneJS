@@ -226,6 +226,28 @@ namespace OneJS {
             return headers;
         }
 
+        /// <summary>
+        /// Load a Texture2D from a URL. Called from JavaScript via loadImageFromUrl().
+        /// Uses UnityWebRequestTexture for efficient image downloading and decoding.
+        /// </summary>
+        /// <param name="url">The image URL to fetch</param>
+        /// <returns>Texture2D, or null on failure</returns>
+        public static async Task<Texture2D> LoadTextureFromUrl(string url) {
+            using (var request = UnityWebRequestTexture.GetTexture(url)) {
+                var operation = request.SendWebRequest();
+                while (!operation.isDone) {
+                    await Task.Yield();
+                }
+
+                if (request.result != UnityWebRequest.Result.Success) {
+                    Debug.LogWarning($"[Network] Failed to load texture from {url}: {request.error}");
+                    return null;
+                }
+
+                return DownloadHandlerTexture.GetContent(request);
+            }
+        }
+
         static string GetStatusText(long code) {
             switch (code) {
                 case 200: return "OK";
