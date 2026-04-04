@@ -24,7 +24,23 @@ public class QuickJSUIBridge : IDisposable {
     float _startTime;
     bool _inEval; // Recursion guard to prevent re-entrant JS execution (all platforms)
     int _tickCallbackHandle = -1; // Cached handle for zero-alloc tick
+    int _eventDispatchHandle = -1; // Cached handle for zero-alloc event dispatch
     readonly int _wsContextId; // WebSocketBridge context ID for per-context event routing
+
+
+    // Event type IDs for zero-alloc dispatch. Must match QuickJSBootstrap.js.txt __EVT_* constants.
+    const int EVT_CHANGE_FLOAT = 1;
+    const int EVT_CHANGE_INT = 2;
+    const int EVT_CHANGE_BOOL = 3;
+    const int EVT_CLICK = 10;
+    const int EVT_POINTER_DOWN = 11;
+    const int EVT_POINTER_UP = 12;
+    const int EVT_POINTER_MOVE = 13;
+    const int EVT_POINTER_ENTER = 14;
+    const int EVT_POINTER_LEAVE = 15;
+    const int EVT_FOCUS = 20;
+    const int EVT_BLUR = 21;
+    const int EVT_VIEWPORT_CHANGE = 30;
 
     // Viewport tracking for responsive design
     float _lastViewportWidth;
@@ -152,6 +168,9 @@ public class QuickJSUIBridge : IDisposable {
         if (_disposed) return;
         _disposed = true;
 
+        _tickCallbackHandle = -1;
+        _eventDispatchHandle = -1;
+
         UnregisterEventDelegation();
         UnregisterAllPerElementHandlers();
         PointerCaptureSupport.UnregisterBridge(_wsContextId);
@@ -186,6 +205,24 @@ public class QuickJSUIBridge : IDisposable {
             Debug.LogWarning($"[QuickJSUIBridge] Failed to cache __tick callback: {ex.Message}");
             _tickCallbackHandle = -1;
         }
+    }
+
+    /// <summary>
+    /// Cache the __dispatchEventFast callback handle for zero-allocation event dispatch.
+    /// Call this once after the bootstrap has been evaluated.
+    /// </summary>
+    public void CacheEventDispatchCallback() {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        return; // WebGL uses its own fast dispatch via qjs_dispatch_event
+#else
+        try {
+            var handleStr = _ctx.Eval("typeof __dispatchEventFast === 'function' ? __registerCallback(__dispatchEventFast) : -1");
+            _eventDispatchHandle = int.Parse(handleStr);
+        } catch (Exception ex) {
+            Debug.LogWarning($"[QuickJSUIBridge] Failed to cache event dispatch callback: {ex.Message}");
+            _eventDispatchHandle = -1;
+        }
+#endif
     }
 
     /// <summary>
@@ -286,36 +323,120 @@ public class QuickJSUIBridge : IDisposable {
     }
 
     // MARK: Event Handlers
-    void OnClick(ClickEvent e) => DispatchPointerEvent("click", e.target, e.position, e.button);
+
+    void OnClick(ClickEvent e) {
+        if (_eventDispatchHandle >= 0) {
+            int handle = FindElementHandle(e.target);
+            DispatchEventFast(EVT_CLICK, handle, e.position.x, e.position.y, e.button, 0);
+        } else {
+            DispatchPointerEvent("click", e.target, e.position, e.button);
+        }
+    }
 
     void OnPointerDown(PointerDownEvent e) {
         if (ReferenceEquals(e, _lastDispatchedPointerDown)) return;
         _lastDispatchedPointerDown = e;
-        DispatchPointerEvent("pointerdown", e.target, e.position, e.button, e.pointerId);
+        if (_eventDispatchHandle >= 0) {
+            int handle = FindElementHandle(e.target);
+            DispatchEventFast(EVT_POINTER_DOWN, handle, e.position.x, e.position.y, e.button, e.pointerId);
+        } else {
+            DispatchPointerEvent("pointerdown", e.target, e.position, e.button, e.pointerId);
+        }
     }
 
     void OnPointerUp(PointerUpEvent e) {
         if (ReferenceEquals(e, _lastDispatchedPointerUp)) return;
         _lastDispatchedPointerUp = e;
-        DispatchPointerEvent("pointerup", e.target, e.position, e.button, e.pointerId);
+        if (_eventDispatchHandle >= 0) {
+            int handle = FindElementHandle(e.target);
+            DispatchEventFast(EVT_POINTER_UP, handle, e.position.x, e.position.y, e.button, e.pointerId);
+        } else {
+            DispatchPointerEvent("pointerup", e.target, e.position, e.button, e.pointerId);
+        }
     }
 
     void OnPointerMove(PointerMoveEvent e) {
         if (!InputBridge.PointerMoveEventsEnabled) return;
         if (ReferenceEquals(e, _lastDispatchedPointerMove)) return;
         _lastDispatchedPointerMove = e;
-        DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
+        if (_eventDispatchHandle >= 0) {
+            int handle = FindElementHandle(e.target);
+            DispatchEventFast(EVT_POINTER_MOVE, handle, e.position.x, e.position.y, e.button, e.pointerId);
+        } else {
+            DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
+        }
     }
-    void OnPointerEnter(PointerEnterEvent e) => DispatchPointerEvent("pointerenter", e.target, e.position, 0, e.pointerId);
-    void OnPointerLeave(PointerLeaveEvent e) => DispatchPointerEvent("pointerleave", e.target, e.position, 0, e.pointerId);
-    void OnFocusIn(FocusInEvent e) => DispatchEvent("focus", e.target, "{}");
-    void OnFocusOut(FocusOutEvent e) => DispatchEvent("blur", e.target, "{}");
+
+    void OnPointerEnter(PointerEnterEvent e) {
+        if (_eventDispatchHandle >= 0) {
+            int handle = FindElementHandle(e.target);
+            DispatchEventFast(EVT_POINTER_ENTER, handle, e.position.x, e.position.y, 0, e.pointerId);
+        } else {
+            DispatchPointerEvent("pointerenter", e.target, e.position, 0, e.pointerId);
+        }
+    }
+
+    void OnPointerLeave(PointerLeaveEvent e) {
+        if (_eventDispatchHandle >= 0) {
+            int handle = FindElementHandle(e.target);
+            DispatchEventFast(EVT_POINTER_LEAVE, handle, e.position.x, e.position.y, 0, e.pointerId);
+        } else {
+            DispatchPointerEvent("pointerleave", e.target, e.position, 0, e.pointerId);
+        }
+    }
+
+    void OnFocusIn(FocusInEvent e) {
+        if (_eventDispatchHandle >= 0) {
+            DispatchEventFast(EVT_FOCUS, FindElementHandle(e.target));
+        } else {
+            DispatchEvent("focus", e.target, "{}");
+        }
+    }
+
+    void OnFocusOut(FocusOutEvent e) {
+        if (_eventDispatchHandle >= 0) {
+            DispatchEventFast(EVT_BLUR, FindElementHandle(e.target));
+        } else {
+            DispatchEvent("blur", e.target, "{}");
+        }
+    }
+
+    // Key events stay on eval path (need string args)
     void OnKeyDown(KeyDownEvent e) => DispatchKeyEvent("keydown", e.target, e.keyCode, e.character, e.modifiers);
     void OnKeyUp(KeyUpEvent e) => DispatchKeyEvent("keyup", e.target, e.keyCode, '\0', e.modifiers);
-    void OnChangeString(ChangeEvent<string> e) => DispatchEvent("change", e.target, BuildChangeData($"\"{EscapeForJson(e.newValue)}\""));
-    void OnChangeBool(ChangeEvent<bool> e) => DispatchEvent("change", e.target, BuildChangeData(e.newValue ? "true" : "false"));
-    void OnChangeFloat(ChangeEvent<float> e) => DispatchEvent("change", e.target, BuildChangeData(e.newValue.ToString("G", CultureInfo.InvariantCulture)));
-    void OnChangeInt(ChangeEvent<int> e) => DispatchEvent("change", e.target, BuildChangeData(e.newValue.ToString()));
+
+    // String change events stay on eval path (need string value)
+    void OnChangeString(ChangeEvent<string> e) {
+        // Skip ChangeEvent<string> from controls that already fire typed change events
+        // (ChangeEvent<float/int/bool>). Their internal text fields generate redundant
+        // string change events that are expensive to dispatch via eval.
+        if (e.target is BaseSlider<float> or BaseSlider<int> or Toggle) return;
+        DispatchEvent("change", e.target, BuildChangeData($"\"{EscapeForJson(e.newValue)}\""));
+    }
+
+    void OnChangeBool(ChangeEvent<bool> e) {
+        if (_eventDispatchHandle >= 0) {
+            DispatchEventFast(EVT_CHANGE_BOOL, FindElementHandle(e.target), e.newValue ? 1 : 0);
+        } else {
+            DispatchEvent("change", e.target, BuildChangeData(e.newValue ? "true" : "false"));
+        }
+    }
+
+    void OnChangeFloat(ChangeEvent<float> e) {
+        if (_eventDispatchHandle >= 0) {
+            DispatchEventFast(EVT_CHANGE_FLOAT, FindElementHandle(e.target), e.newValue);
+        } else {
+            DispatchEvent("change", e.target, BuildChangeData(e.newValue.ToString("G", CultureInfo.InvariantCulture)));
+        }
+    }
+
+    void OnChangeInt(ChangeEvent<int> e) {
+        if (_eventDispatchHandle >= 0) {
+            DispatchEventFast(EVT_CHANGE_INT, FindElementHandle(e.target), e.newValue);
+        } else {
+            DispatchEvent("change", e.target, BuildChangeData(e.newValue.ToString()));
+        }
+    }
 
     void OnGeometryChanged(GeometryChangedEvent e) {
         float newWidth = e.newRect.width;
@@ -331,10 +452,14 @@ public class QuickJSUIBridge : IDisposable {
         _lastViewportHeight = newHeight;
 
         int handle = QuickJSNative.GetHandleForObject(_root);
-        int w = (int)newWidth;
-        int h = (int)newHeight;
-        string data = $"{{\"width\":{w},\"height\":{h}}}";
-        DispatchEventInternal(handle, "viewportchange", data);
+        if (_eventDispatchHandle >= 0) {
+            DispatchEventFastViewport(handle, newWidth, newHeight);
+        } else {
+            int w = (int)newWidth;
+            int h = (int)newHeight;
+            string data = $"{{\"width\":{w},\"height\":{h}}}";
+            DispatchEventInternal(handle, "viewportchange", data);
+        }
     }
 
     // MARK: Event Dispatch - Core
@@ -366,13 +491,75 @@ public class QuickJSUIBridge : IDisposable {
         _sb.Append(dataJson);
         _sb.Append(")");
 
+        // Hold _inEval through ExecutePendingJobs to prevent cascading events
+        // during React reconciliation (matches DispatchEventFast semantics).
+        _inEval = true;
         try {
-            SafeEval(_sb.ToString());
+            _ctx.Eval(_sb.ToString());
             _ctx.ExecutePendingJobs();
         } catch (Exception ex) {
             Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error: {ex.Message}\nEval: {_sb}");
+        } finally {
+            _inEval = false;
         }
 #endif
+    }
+
+    // MARK: Zero-Alloc Event Dispatch
+
+    void DispatchEventFast(int eventTypeId, int elemHandle) {
+        if (elemHandle == 0 || _inEval) return;
+        _inEval = true;
+        try {
+            _ctx.InvokeCallbackNoAlloc(_eventDispatchHandle, eventTypeId, elemHandle, 0);
+            _ctx.ExecutePendingJobs();
+        } catch (Exception ex) {
+            Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error ({eventTypeId}): {ex.Message}");
+        } finally { _inEval = false; }
+    }
+
+    void DispatchEventFast(int eventTypeId, int elemHandle, float a0) {
+        if (elemHandle == 0 || _inEval) return;
+        _inEval = true;
+        try {
+            _ctx.InvokeCallbackNoAlloc(_eventDispatchHandle, eventTypeId, elemHandle, a0);
+            _ctx.ExecutePendingJobs();
+        } catch (Exception ex) {
+            Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error ({eventTypeId}): {ex.Message}");
+        } finally { _inEval = false; }
+    }
+
+    void DispatchEventFast(int eventTypeId, int elemHandle, int a0) {
+        if (elemHandle == 0 || _inEval) return;
+        _inEval = true;
+        try {
+            _ctx.InvokeCallbackNoAlloc(_eventDispatchHandle, eventTypeId, elemHandle, a0);
+            _ctx.ExecutePendingJobs();
+        } catch (Exception ex) {
+            Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error ({eventTypeId}): {ex.Message}");
+        } finally { _inEval = false; }
+    }
+
+    void DispatchEventFast(int eventTypeId, int elemHandle, float x, float y, int button, int pointerId) {
+        if (elemHandle == 0 || _inEval) return;
+        _inEval = true;
+        try {
+            _ctx.InvokeCallbackNoAlloc(_eventDispatchHandle, eventTypeId, elemHandle, x, y, button, pointerId);
+            _ctx.ExecutePendingJobs();
+        } catch (Exception ex) {
+            Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error ({eventTypeId}): {ex.Message}");
+        } finally { _inEval = false; }
+    }
+
+    void DispatchEventFastViewport(int elemHandle, float width, float height) {
+        if (elemHandle == 0 || _inEval) return;
+        _inEval = true;
+        try {
+            _ctx.InvokeCallbackNoAlloc(_eventDispatchHandle, EVT_VIEWPORT_CHANGE, elemHandle, width, height);
+            _ctx.ExecutePendingJobs();
+        } catch (Exception ex) {
+            Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error (viewport): {ex.Message}");
+        } finally { _inEval = false; }
     }
 
     /// <summary>

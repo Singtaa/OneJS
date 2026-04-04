@@ -1115,8 +1115,9 @@ public class JSRunner : MonoBehaviour {
         _bridge.Context.ExecutePendingJobs();
         _scriptLoaded = true;
 
-        // Cache __tick callback handle for zero-allocation per-frame invocation
+        // Cache callback handles for zero-allocation per-frame invocation
         _bridge.CacheTickCallback();
+        _bridge.CacheEventDispatchCallback();
         CacheLifecycleCallbacks();
 
 #if UNITY_WEBGL && !UNITY_EDITOR

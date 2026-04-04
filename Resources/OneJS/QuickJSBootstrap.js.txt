@@ -1031,6 +1031,60 @@ globalThis.__dispatchEvent = function(elementHandle, eventType, eventData) {
     }
 };
 
+/**
+ * Zero-alloc event dispatch. Called from C# via InvokeCallbackNoAlloc with numeric args only.
+ * Event type IDs must match QuickJSUIBridge.cs EVT_* constants.
+ */
+const __EVT_CHANGE_FLOAT = 1;
+const __EVT_CHANGE_INT = 2;
+const __EVT_CHANGE_BOOL = 3;
+const __EVT_CLICK = 10;
+const __EVT_POINTER_DOWN = 11;
+const __EVT_POINTER_UP = 12;
+const __EVT_POINTER_MOVE = 13;
+const __EVT_POINTER_ENTER = 14;
+const __EVT_POINTER_LEAVE = 15;
+const __EVT_FOCUS = 20;
+const __EVT_BLUR = 21;
+const __EVT_VIEWPORT_CHANGE = 30;
+
+const __EVT_TYPE_NAMES = {
+    [__EVT_CHANGE_FLOAT]: "change",
+    [__EVT_CHANGE_INT]: "change",
+    [__EVT_CHANGE_BOOL]: "change",
+    [__EVT_CLICK]: "click",
+    [__EVT_POINTER_DOWN]: "pointerdown",
+    [__EVT_POINTER_UP]: "pointerup",
+    [__EVT_POINTER_MOVE]: "pointermove",
+    [__EVT_POINTER_ENTER]: "pointerenter",
+    [__EVT_POINTER_LEAVE]: "pointerleave",
+    [__EVT_FOCUS]: "focus",
+    [__EVT_BLUR]: "blur",
+    [__EVT_VIEWPORT_CHANGE]: "viewportchange",
+};
+
+globalThis.__dispatchEventFast = function(eventTypeId, elementHandle, a0, a1, a2, a3) {
+    const eventType = __EVT_TYPE_NAMES[eventTypeId];
+    if (!eventType) return;
+
+    var eventData;
+    if (eventTypeId <= 3) {
+        // Change events: a0 = value
+        eventData = { value: eventTypeId === __EVT_CHANGE_BOOL ? (a0 !== 0) : a0 };
+    } else if (eventTypeId < 20) {
+        // Pointer/click events: a0=x, a1=y, a2=button, a3=pointerId
+        eventData = { x: a0, y: a1, button: a2, pointerId: a3 };
+    } else if (eventTypeId < 30) {
+        // Focus/blur: no data
+        eventData = {};
+    } else {
+        // Viewport: a0=width, a1=height
+        eventData = { width: a0, height: a1 };
+    }
+
+    __dispatchEvent(elementHandle, eventType, eventData);
+};
+
 // Expose event API
 globalThis.__eventAPI = {
     addEventListener,

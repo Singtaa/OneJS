@@ -320,4 +320,32 @@ public sealed class QuickJSContext : IDisposable {
         var args = stackalloc QuickJSNative.InteropValue[2] { MakeFloat(arg0), MakeVec3(arg1) };
         InvokeAndCheck(handle, args, 2);
     }
+
+    /// <summary>Invoke a callback with 3 int arguments. ZERO ALLOCATION.</summary>
+    public unsafe void InvokeCallbackNoAlloc(int handle, int arg0, int arg1, int arg2) {
+        ThrowIfInvalid();
+        var args = stackalloc QuickJSNative.InteropValue[3] { MakeInt(arg0), MakeInt(arg1), MakeInt(arg2) };
+        InvokeAndCheck(handle, args, 3);
+    }
+
+    /// <summary>Invoke a callback with 2 int + 1 float arguments. ZERO ALLOCATION.</summary>
+    public unsafe void InvokeCallbackNoAlloc(int handle, int arg0, int arg1, float arg2) {
+        ThrowIfInvalid();
+        var args = stackalloc QuickJSNative.InteropValue[3] { MakeInt(arg0), MakeInt(arg1), MakeFloat(arg2) };
+        InvokeAndCheck(handle, args, 3);
+    }
+
+    /// <summary>Invoke a callback with 2 int + 2 float arguments. ZERO ALLOCATION.</summary>
+    public unsafe void InvokeCallbackNoAlloc(int handle, int arg0, int arg1, float arg2, float arg3) {
+        ThrowIfInvalid();
+        var args = stackalloc QuickJSNative.InteropValue[4] { MakeInt(arg0), MakeInt(arg1), MakeFloat(arg2), MakeFloat(arg3) };
+        InvokeAndCheck(handle, args, 4);
+    }
+
+    /// <summary>Invoke a callback with 2 int + 2 float + 2 int arguments. ZERO ALLOCATION.</summary>
+    public unsafe void InvokeCallbackNoAlloc(int handle, int arg0, int arg1, float arg2, float arg3, int arg4, int arg5) {
+        ThrowIfInvalid();
+        var args = stackalloc QuickJSNative.InteropValue[6] { MakeInt(arg0), MakeInt(arg1), MakeFloat(arg2), MakeFloat(arg3), MakeInt(arg4), MakeInt(arg5) };
+        InvokeAndCheck(handle, args, 6);
+    }
 }
