@@ -13,7 +13,9 @@ rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR/quickjs"
 
 # Copy QuickJS source to isolated build dir
-cp -R quickjs/ "$BUILD_DIR/quickjs/"
+# Note: "quickjs/." (not "quickjs/") ensures contents are copied on both BSD (macOS)
+# and GNU (Linux) cp - without "/.", GNU cp nests the directory when dest exists.
+cp -R quickjs/. "$BUILD_DIR/quickjs/"
 
 echo "=== Building QuickJS static library for macOS ==="
 make -C "$BUILD_DIR/quickjs" clean 2>/dev/null || true

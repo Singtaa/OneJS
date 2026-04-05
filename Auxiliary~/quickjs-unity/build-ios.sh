@@ -27,7 +27,9 @@ build_arch() {
     mkdir -p "$QJS_BUILD"
 
     # Copy QuickJS source to isolated build dir (Makefile builds in-tree)
-    cp -R quickjs/ "$QJS_BUILD/"
+    # Note: "quickjs/." (not "quickjs/") ensures contents are copied on both BSD (macOS)
+    # and GNU (Linux) cp - without "/.", GNU cp nests the directory when dest exists.
+    cp -R quickjs/. "$QJS_BUILD/"
 
     local SDK_PATH
     SDK_PATH=$(xcrun --sdk "$SDK" --show-sdk-path)

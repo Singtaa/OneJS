@@ -64,7 +64,9 @@ build_abi() {
     mkdir -p "$QJS_BUILD"
 
     # Copy QuickJS source to isolated build dir
-    cp -R quickjs/ "$QJS_BUILD/"
+    # Note: "quickjs/." (not "quickjs/") ensures contents are copied on both BSD (macOS)
+    # and GNU (Linux) cp - without "/.", GNU cp nests the directory when dest exists.
+    cp -R quickjs/. "$QJS_BUILD/"
 
     local CC="$TOOLCHAIN/bin/${TRIPLE}${API_LEVEL}-clang"
     local AR="$TOOLCHAIN/bin/llvm-ar"
