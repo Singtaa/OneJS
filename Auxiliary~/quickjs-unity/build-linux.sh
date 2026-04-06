@@ -19,7 +19,8 @@ cp -R quickjs/. "$BUILD_DIR/quickjs/"
 
 echo "=== Building QuickJS static library for Linux x64 ==="
 make -C "$BUILD_DIR/quickjs" clean 2>/dev/null || true
-make -C "$BUILD_DIR/quickjs" libquickjs.a
+make -C "$BUILD_DIR/quickjs" libquickjs.a \
+    CFLAGS_OPT="-O2 -fPIC -fwrapv -funsigned-char -D_GNU_SOURCE -DCONFIG_VERSION=\"$(cat quickjs/VERSION)\""
 
 echo "=== Building libquickjs_unity.so ==="
 gcc -shared -O2 -fPIC \
