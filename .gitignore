@@ -2,3 +2,5 @@
 
 Runtime/csc.rsp
 Runtime/csc.rsp.meta
+
+BuildScripts~/_build_tmp/
