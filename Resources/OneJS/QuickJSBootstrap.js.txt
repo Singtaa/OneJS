@@ -1047,6 +1047,9 @@ const __EVT_POINTER_LEAVE = 15;
 const __EVT_FOCUS = 20;
 const __EVT_BLUR = 21;
 const __EVT_VIEWPORT_CHANGE = 30;
+const __EVT_NAVIGATION_MOVE = 40;
+const __EVT_NAVIGATION_SUBMIT = 41;
+const __EVT_NAVIGATION_CANCEL = 42;
 
 const __EVT_TYPE_NAMES = {
     [__EVT_CHANGE_FLOAT]: "change",
@@ -1061,7 +1064,13 @@ const __EVT_TYPE_NAMES = {
     [__EVT_FOCUS]: "focus",
     [__EVT_BLUR]: "blur",
     [__EVT_VIEWPORT_CHANGE]: "viewportchange",
+    [__EVT_NAVIGATION_MOVE]: "navigationmove",
+    [__EVT_NAVIGATION_SUBMIT]: "navigationsubmit",
+    [__EVT_NAVIGATION_CANCEL]: "navigationcancel",
 };
+
+// Mirrors UnityEngine.UIElements.NavigationMoveEvent.Direction
+const __NAV_DIRECTION_NAMES = ["none", "left", "up", "right", "down", "next", "previous"];
 
 globalThis.__dispatchEventFast = function(eventTypeId, elementHandle, a0, a1, a2, a3) {
     const eventType = __EVT_TYPE_NAMES[eventTypeId];
@@ -1077,9 +1086,15 @@ globalThis.__dispatchEventFast = function(eventTypeId, elementHandle, a0, a1, a2
     } else if (eventTypeId < 30) {
         // Focus/blur: no data
         eventData = {};
-    } else {
+    } else if (eventTypeId < 40) {
         // Viewport: a0=width, a1=height
         eventData = { width: a0, height: a1 };
+    } else if (eventTypeId === __EVT_NAVIGATION_MOVE) {
+        // Navigation move: a0 = direction enum value (0=None..6=Previous)
+        eventData = { direction: __NAV_DIRECTION_NAMES[a0] || "none" };
+    } else {
+        // Navigation submit/cancel: no payload
+        eventData = {};
     }
 
     __dispatchEvent(elementHandle, eventType, eventData);
