@@ -98,19 +98,10 @@ namespace OneJS.Editor.TypeGenerator {
                     }
                 } catch (Exception ex) {
                     UnityEngine.Debug.LogWarning(
-                        $"[TypeAnalyzer] Skipping '{SafeTypeName(type)}': {ex.Message}");
+                        $"[TypeAnalyzer] Skipping '{TypeMapper.SafeTypeName(type)}': {ex.Message}");
                 }
             }
             return results;
-        }
-
-        private static string SafeTypeName(Type type) {
-            if (type == null) return "<null>";
-            try {
-                return type.FullName ?? type.Name;
-            } catch {
-                try { return type.Name; } catch { return "<unknown>"; }
-            }
         }
 
         /// <summary>

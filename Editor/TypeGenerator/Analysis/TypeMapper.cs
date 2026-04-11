@@ -190,7 +190,7 @@ namespace OneJS.Editor.TypeGenerator {
         /// Returns the best name for the type without throwing, even when
         /// metadata access is unreliable (open generics, byref-like, etc.).
         /// </summary>
-        private static string SafeTypeName(Type type) {
+        public static string SafeTypeName(Type type) {
             if (type == null) return "<null>";
             try {
                 return type.FullName ?? type.Name;
