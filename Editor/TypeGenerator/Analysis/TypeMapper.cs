@@ -61,14 +61,26 @@ namespace OneJS.Editor.TypeGenerator {
         /// </summary>
         public static TsTypeRef MapType(Type type) {
             if (type == null) {
-                return new TsTypeRef { Name = "any", IsPrimitive = true, PrimitiveTypeName = "any" };
+                return AnyTypeRef(null);
             }
 
-            var typeRef = new TsTypeRef {
-                OriginalType = type
-            };
+            // Wrap the entire body so any reflection quirk on an exotic type
+            // (e.g. "Array type can not be an open generic type" thrown when
+            // accessing metadata of an open generic with array constituents)
+            // degrades to `any` instead of crashing the whole analysis pass.
+            try {
+                return MapTypeCore(type);
+            } catch (Exception ex) {
+                UnityEngine.Debug.LogWarning(
+                    $"[TypeMapper] Mapping '{SafeTypeName(type)}' failed, using 'any': {ex.Message}");
+                return AnyTypeRef(type);
+            }
+        }
 
-            // Handle by-ref types (ref, out, in)
+        private static TsTypeRef MapTypeCore(Type type) {
+            // Handle by-ref types first (ref, out, in) - they wrap another type.
+            // We unwrap before checking ShouldEmitAsAny so that `ref SomeType` is
+            // classified by the underlying type, not the by-ref wrapper.
             if (type.IsByRef) {
                 var elementType = type.GetElementType();
                 var innerRef = MapType(elementType);
@@ -86,6 +98,20 @@ namespace OneJS.Editor.TypeGenerator {
                     OriginalType = type
                 };
             }
+
+            // Types that would produce invalid TypeScript identifiers
+            // (compiler-generated nested types like `<buttons>e__FixedBuffer`,
+            // closure display classes, async state machines, etc.) must be
+            // mapped to `any` here as well as at the type-definition level,
+            // otherwise their raw names leak into field/property/return type
+            // signatures and produce unparseable output.
+            if (ShouldEmitAsAny(type)) {
+                return AnyTypeRef(type);
+            }
+
+            var typeRef = new TsTypeRef {
+                OriginalType = type
+            };
 
             // Handle array types
             if (type.IsArray) {
@@ -146,6 +172,31 @@ namespace OneJS.Editor.TypeGenerator {
             typeRef.Name = type.Name.Replace('`', '$');
             typeRef.Namespace = type.Namespace;
             return typeRef;
+        }
+
+        /// <summary>
+        /// Build a type ref that emits as TypeScript `any`.
+        /// </summary>
+        private static TsTypeRef AnyTypeRef(Type originalType) {
+            return new TsTypeRef {
+                Name = "any",
+                IsPrimitive = true,
+                PrimitiveTypeName = "any",
+                OriginalType = originalType
+            };
+        }
+
+        /// <summary>
+        /// Returns the best name for the type without throwing, even when
+        /// metadata access is unreliable (open generics, byref-like, etc.).
+        /// </summary>
+        public static string SafeTypeName(Type type) {
+            if (type == null) return "<null>";
+            try {
+                return type.FullName ?? type.Name;
+            } catch {
+                try { return type.Name; } catch { return "<unknown>"; }
+            }
         }
 
         /// <summary>

@@ -86,9 +86,19 @@ namespace OneJS.Editor.TypeGenerator {
         public List<TsTypeInfo> AnalyzeTypes(IEnumerable<Type> types) {
             var results = new List<TsTypeInfo>();
             foreach (var type in types) {
-                var info = AnalyzeType(type);
-                if (info != null) {
-                    results.Add(info);
+                // Per-type isolation: a single reflection failure (e.g.
+                // "Array type can not be an open generic type" thrown when
+                // enumerating members of some Unity.Localization types) must
+                // not abort the entire generation pass. Log and move on so
+                // the remaining types still get their typings emitted.
+                try {
+                    var info = AnalyzeType(type);
+                    if (info != null) {
+                        results.Add(info);
+                    }
+                } catch (Exception ex) {
+                    UnityEngine.Debug.LogWarning(
+                        $"[TypeAnalyzer] Skipping '{TypeMapper.SafeTypeName(type)}': {ex.Message}");
                 }
             }
             return results;
