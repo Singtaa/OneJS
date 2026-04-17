@@ -745,12 +745,27 @@ public class QuickJSUIBridge : IDisposable {
 
     void DispatchGeometryEvent(string eventType, int handle, Rect oldRect, Rect newRect) {
         if (_inEval) return;
-        string data = string.Format(CultureInfo.InvariantCulture,
-            "{{\"oldRect\":{{\"x\":{0:F2},\"y\":{1:F2},\"width\":{2:F2},\"height\":{3:F2}}}," +
-            "\"newRect\":{{\"x\":{4:F2},\"y\":{5:F2},\"width\":{6:F2},\"height\":{7:F2}}}}}",
-            oldRect.x, oldRect.y, oldRect.width, oldRect.height,
-            newRect.x, newRect.y, newRect.width, newRect.height);
+        // Build via concatenation: a single string.Format that ends with a
+        // placeholder followed by `}}}}` lets .NET treat the `}}` inside
+        // the format spec as an escape, producing garbage like "F2}" in
+        // the output. Splitting into per-rect fragments sidesteps the
+        // ambiguity entirely.
+        string data = "{\"oldRect\":" + RectToJson(oldRect)
+                    + ",\"newRect\":" + RectToJson(newRect) + "}";
         DispatchEventInternal(handle, eventType, data);
+    }
+
+    static string RectToJson(Rect r) {
+        // Avoid `string.Format` here: `{3:F2}}}` at the end of a format
+        // string is parsed inconsistently on Mono (the trailing `}}` gets
+        // partially absorbed into the format spec), corrupting the final
+        // field. Plain `.ToString` with the invariant culture sidesteps it.
+        var inv = CultureInfo.InvariantCulture;
+        return "{\"x\":" + r.x.ToString("F2", inv)
+             + ",\"y\":" + r.y.ToString("F2", inv)
+             + ",\"width\":" + r.width.ToString("F2", inv)
+             + ",\"height\":" + r.height.ToString("F2", inv)
+             + "}";
     }
 
     // MARK: Data Builders
