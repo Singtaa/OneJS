@@ -112,21 +112,43 @@ public static partial class QuickJSNative {
     }
 
     static MethodInfo FindMethod(Type type, string name, BindingFlags flags, object[] args) {
+        // Prefer an exact arity/type match. Fall back to a method that declares
+        // additional trailing parameters where every extra has a C# default
+        // value — this lets JS callers omit optional trailing arguments, e.g.
+        //   audioManager.PlaySfx("UI/Submit")
+        // binds to `PlaySfx(string key, float volumeScale = 1, float pitch = 1)`.
+        // The invoke site (QuickJSNative.Dispatch) fills the missing slots with
+        // the declared default values.
+        MethodInfo optionalParamFallback = null;
+
         while (type != null) {
             foreach (var m in type.GetMethods(flags | BindingFlags.DeclaredOnly)) {
                 if (m.Name != name) continue;
                 var parameters = m.GetParameters();
-                if (parameters.Length != args.Length) continue;
 
-                bool match = true;
-                for (int j = 0; j < parameters.Length && match; j++)
-                    match = IsArgCompatible(parameters[j].ParameterType, args[j]);
+                if (parameters.Length == args.Length) {
+                    bool match = true;
+                    for (int j = 0; j < parameters.Length && match; j++)
+                        match = IsArgCompatible(parameters[j].ParameterType, args[j]);
+                    if (match) return m;
+                    continue;
+                }
 
-                if (match) return m;
+                if (parameters.Length > args.Length && optionalParamFallback == null) {
+                    bool match = true;
+                    for (int j = 0; j < args.Length && match; j++)
+                        match = IsArgCompatible(parameters[j].ParameterType, args[j]);
+                    if (match) {
+                        for (int j = args.Length; j < parameters.Length && match; j++)
+                            match = parameters[j].HasDefaultValue;
+                        if (match) optionalParamFallback = m;
+                    }
+                }
             }
             type = type.BaseType;
         }
-        return null;
+
+        return optionalParamFallback;
     }
 
     static PropertyInfo FindProperty(Type type, string name, BindingFlags flags) {

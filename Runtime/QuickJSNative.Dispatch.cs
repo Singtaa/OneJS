@@ -297,11 +297,28 @@ public static partial class QuickJSNative {
                     }
 
                     var parms = method.GetParameters();
-                    for (int i = 0; i < parms.Length; i++) {
-                        args[i] = ConvertToTargetType(args[i], parms[i].ParameterType);
+                    object[] invokeArgs;
+                    if (parms.Length == args.Length) {
+                        for (int i = 0; i < parms.Length; i++) {
+                            args[i] = ConvertToTargetType(args[i], parms[i].ParameterType);
+                        }
+                        invokeArgs = args;
+                    } else {
+                        // FindMethod matched an optional-parameter overload where
+                        // the caller omitted trailing args. Fill the missing
+                        // slots with the declared default values.
+                        invokeArgs = new object[parms.Length];
+                        for (int i = 0; i < args.Length; i++) {
+                            invokeArgs[i] = ConvertToTargetType(args[i], parms[i].ParameterType);
+                        }
+                        for (int i = args.Length; i < parms.Length; i++) {
+                            invokeArgs[i] = parms[i].HasDefaultValue
+                                ? parms[i].DefaultValue
+                                : Type.Missing;
+                        }
                     }
 
-                    object result = method.Invoke(isStatic ? null : target, args);
+                    object result = method.Invoke(isStatic ? null : target, invokeArgs);
                     SetReturnValue(resPtr, result);
                     return;
                 }
