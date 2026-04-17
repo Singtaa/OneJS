@@ -678,6 +678,9 @@ public class QuickJSUIBridge : IDisposable {
             case "pointermove":
                 element.RegisterCallback<PointerMoveEvent>(OnPerElementPointerMove);
                 break;
+            case "geometrychanged":
+                element.RegisterCallback<GeometryChangedEvent>(OnPerElementGeometryChanged);
+                break;
         }
     }
 
@@ -702,6 +705,9 @@ public class QuickJSUIBridge : IDisposable {
                 break;
             case "pointermove":
                 element.UnregisterCallback<PointerMoveEvent>(OnPerElementPointerMove);
+                break;
+            case "geometrychanged":
+                element.UnregisterCallback<GeometryChangedEvent>(OnPerElementGeometryChanged);
                 break;
         }
     }
@@ -729,6 +735,22 @@ public class QuickJSUIBridge : IDisposable {
         if (ReferenceEquals(e, _lastDispatchedPointerMove)) return;
         _lastDispatchedPointerMove = e;
         DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
+    }
+
+    void OnPerElementGeometryChanged(GeometryChangedEvent e) {
+        int handle = FindElementHandle(e.target);
+        if (handle == 0) return;
+        DispatchGeometryEvent("geometrychanged", handle, e.oldRect, e.newRect);
+    }
+
+    void DispatchGeometryEvent(string eventType, int handle, Rect oldRect, Rect newRect) {
+        if (_inEval) return;
+        string data = string.Format(CultureInfo.InvariantCulture,
+            "{{\"oldRect\":{{\"x\":{0:F2},\"y\":{1:F2},\"width\":{2:F2},\"height\":{3:F2}}}," +
+            "\"newRect\":{{\"x\":{4:F2},\"y\":{5:F2},\"width\":{6:F2},\"height\":{7:F2}}}}}",
+            oldRect.x, oldRect.y, oldRect.width, oldRect.height,
+            newRect.x, newRect.y, newRect.width, newRect.height);
+        DispatchEventInternal(handle, eventType, data);
     }
 
     // MARK: Data Builders
