@@ -416,13 +416,11 @@ public class QuickJSUIBridge : IDisposable {
 
     // Navigation events (controller / keyboard focus navigation)
     void OnNavigationMove(NavigationMoveEvent e) {
-        int handle = FindElementHandle(e.target);
-        if (handle == 0) return;
         if (_eventDispatchHandle >= 0) {
-            DispatchEventFast(EVT_NAVIGATION_MOVE, handle, (int)e.direction);
+            DispatchEventFast(EVT_NAVIGATION_MOVE, FindElementHandle(e.target), (int)e.direction);
         } else {
-            string data = $"{{\"direction\":\"{NavigationDirectionName(e.direction)}\"}}";
-            DispatchEventInternal(handle, "navigationmove", data);
+            DispatchEvent("navigationmove", e.target,
+                $"{{\"direction\":\"{NavigationDirectionName(e.direction)}\"}}");
         }
     }
 
