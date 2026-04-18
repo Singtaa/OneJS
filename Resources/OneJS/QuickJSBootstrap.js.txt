@@ -848,29 +848,39 @@ if (typeof globalThis.CS === "undefined") {
 // Event handler registry - maps elementHandle -> { eventType -> Set<callback> }
 // Note: __eventHandlers is declared at top of file for use by __cleanupHandle
 
-// Pointer event types that need per-element C# handlers for capture support.
-// Unity 6 dispatches captured pointer events directly to the capturing element,
-// bypassing TrickleDown on _root. Per-element handlers ensure JS handlers fire.
-const __capturePointerTypes = new Set(["pointerdown", "pointerup", "pointermove"]);
+// Event types that need per-element C# registration.
+//  - Pointer events (pointerdown/up/move): Unity 6 delivers captured
+//    pointer events directly to the capturing element, bypassing the root
+//    TrickleDown hook — per-element registration ensures JS handlers fire.
+//  - GeometryChangedEvent: doesn't bubble, so the root TrickleDown hook
+//    only sees root's own geometry changes (which dispatch as
+//    "viewportchange"). Per-element registration lets descendants receive
+//    their own geometry change events as "geometrychanged".
+const __perElementEventTypes = new Set([
+    "pointerdown", "pointerup", "pointermove",
+    "geometrychanged",
+]);
 
 /**
- * Register a per-element C# pointer event handler for capture support.
- * Called internally when addEventListener is used for pointer events.
+ * Register a per-element C# handler for one of the event types in
+ * __perElementEventTypes. Routes to `bridge.RegisterPerElementHandler` on
+ * the C# side; see QuickJSUIBridge for the eventType → UI Toolkit Event
+ * mapping.
  */
-function __registerCaptureHandler(element, eventType) {
+function __registerPerElementHandler(element, eventType) {
     if (typeof __wsContextId === "undefined") return;
     try {
-        CS.OneJS.PointerCaptureSupport.RegisterHandler(element, eventType, __wsContextId);
+        CS.OneJS.PerElementEventSupport.RegisterHandler(element, eventType, __wsContextId);
     } catch(e) { /* Not available in this context */ }
 }
 
 /**
- * Unregister a per-element C# pointer event handler.
+ * Unregister a previously-registered per-element handler.
  */
-function __unregisterCaptureHandler(element, eventType) {
+function __unregisterPerElementHandler(element, eventType) {
     if (typeof __wsContextId === "undefined") return;
     try {
-        CS.OneJS.PointerCaptureSupport.UnregisterHandler(element, eventType, __wsContextId);
+        CS.OneJS.PerElementEventSupport.UnregisterHandler(element, eventType, __wsContextId);
     } catch(e) {}
 }
 
@@ -901,9 +911,10 @@ function addEventListener(element, eventType, callback) {
     const isFirst = handlers.get(eventType).size === 0;
     handlers.get(eventType).add(callback);
 
-    // Register per-element C# handler for pointer capture support
-    if (isFirst && __capturePointerTypes.has(eventType)) {
-        __registerCaptureHandler(element, eventType);
+    // Register per-element C# handler for event types that don't reach _root
+    // via TrickleDown (pointer capture, non-bubbling events like geometrychanged).
+    if (isFirst && __perElementEventTypes.has(eventType)) {
+        __registerPerElementHandler(element, eventType);
     }
 }
 
@@ -925,8 +936,8 @@ function removeEventListener(element, eventType, callback) {
     if (callbacks.size === 0) {
         handlers.delete(eventType);
         // Unregister per-element C# handler when no JS handlers remain
-        if (__capturePointerTypes.has(eventType)) {
-            __unregisterCaptureHandler(element, eventType);
+        if (__perElementEventTypes.has(eventType)) {
+            __unregisterPerElementHandler(element, eventType);
         }
     }
     if (handlers.size === 0) {
@@ -942,12 +953,12 @@ function removeAllEventListeners(element) {
     if (!element || !element.__csHandle) return;
     const handle = element.__csHandle;
 
-    // Unregister per-element C# handlers for pointer events
+    // Unregister per-element C# handlers for any event types in __perElementEventTypes
     const handlers = __eventHandlers.get(handle);
     if (handlers) {
         for (const eventType of handlers.keys()) {
-            if (__capturePointerTypes.has(eventType)) {
-                __unregisterCaptureHandler(element, eventType);
+            if (__perElementEventTypes.has(eventType)) {
+                __unregisterPerElementHandler(element, eventType);
             }
         }
     }

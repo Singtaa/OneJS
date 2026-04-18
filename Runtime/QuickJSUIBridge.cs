@@ -49,10 +49,9 @@ public class QuickJSUIBridge : IDisposable {
     float _lastViewportWidth;
     float _lastViewportHeight;
 
-    // Per-element pointer handler support for pointer capture.
-    // Unity 6 dispatches captured pointer events directly to the capturing element,
-    // bypassing TrickleDown propagation on _root. Per-element handlers ensure
-    // JS event handlers fire even during pointer capture.
+    // Per-element C# handler registry for events that don't reach _root's
+    // TrickleDown hook: captured pointer events (Unity 6 delivers them directly
+    // to the capturing element) and non-bubbling events like GeometryChangedEvent.
     readonly Dictionary<(int handle, string eventType), VisualElement> _perElementHandlers = new();
     // Dedup: prevent double-dispatch when both _root TrickleDown and per-element fire
     object _lastDispatchedPointerDown;
@@ -76,7 +75,7 @@ public class QuickJSUIBridge : IDisposable {
         // Inject context ID so the bootstrap WebSocket class can pass it to C# Connect()
         _ctx.Eval($"globalThis.__wsContextId = {_wsContextId}");
 
-        PointerCaptureSupport.RegisterBridge(_wsContextId, this);
+        PerElementEventSupport.RegisterBridge(_wsContextId, this);
         RegisterEventDelegation();
     }
 
@@ -176,7 +175,7 @@ public class QuickJSUIBridge : IDisposable {
 
         UnregisterEventDelegation();
         UnregisterAllPerElementHandlers();
-        PointerCaptureSupport.UnregisterBridge(_wsContextId);
+        PerElementEventSupport.UnregisterBridge(_wsContextId);
         ClearStyleSheets(); // Clean up JS-loaded stylesheets
         WebSocketBridge.CloseAll(_wsContextId);
         WebSocketBridge.UnregisterContext(_wsContextId);
@@ -678,6 +677,9 @@ public class QuickJSUIBridge : IDisposable {
             case "pointermove":
                 element.RegisterCallback<PointerMoveEvent>(OnPerElementPointerMove);
                 break;
+            case "geometrychanged":
+                element.RegisterCallback<GeometryChangedEvent>(OnPerElementGeometryChanged);
+                break;
         }
     }
 
@@ -702,6 +704,9 @@ public class QuickJSUIBridge : IDisposable {
                 break;
             case "pointermove":
                 element.UnregisterCallback<PointerMoveEvent>(OnPerElementPointerMove);
+                break;
+            case "geometrychanged":
+                element.UnregisterCallback<GeometryChangedEvent>(OnPerElementGeometryChanged);
                 break;
         }
     }
@@ -729,6 +734,32 @@ public class QuickJSUIBridge : IDisposable {
         if (ReferenceEquals(e, _lastDispatchedPointerMove)) return;
         _lastDispatchedPointerMove = e;
         DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
+    }
+
+    void OnPerElementGeometryChanged(GeometryChangedEvent e) {
+        int handle = FindElementHandle(e.target);
+        if (handle == 0) return;
+        DispatchGeometryEvent("geometrychanged", handle, e.oldRect, e.newRect);
+    }
+
+    void DispatchGeometryEvent(string eventType, int handle, Rect oldRect, Rect newRect) {
+        if (_inEval) return;
+        string data = "{\"oldRect\":" + RectToJson(oldRect)
+                    + ",\"newRect\":" + RectToJson(newRect) + "}";
+        DispatchEventInternal(handle, eventType, data);
+    }
+
+    static string RectToJson(Rect r) {
+        // Avoid `string.Format` here: `{3:F2}}}` at the end of a format
+        // string is parsed inconsistently on Mono (the trailing `}}` gets
+        // partially absorbed into the format spec), corrupting the final
+        // field. Plain `.ToString` with the invariant culture sidesteps it.
+        var inv = CultureInfo.InvariantCulture;
+        return "{\"x\":" + r.x.ToString("F2", inv)
+             + ",\"y\":" + r.y.ToString("F2", inv)
+             + ",\"width\":" + r.width.ToString("F2", inv)
+             + ",\"height\":" + r.height.ToString("F2", inv)
+             + "}";
     }
 
     // MARK: Data Builders
