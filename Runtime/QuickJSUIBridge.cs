@@ -49,10 +49,9 @@ public class QuickJSUIBridge : IDisposable {
     float _lastViewportWidth;
     float _lastViewportHeight;
 
-    // Per-element pointer handler support for pointer capture.
-    // Unity 6 dispatches captured pointer events directly to the capturing element,
-    // bypassing TrickleDown propagation on _root. Per-element handlers ensure
-    // JS event handlers fire even during pointer capture.
+    // Per-element C# handler registry for events that don't reach _root's
+    // TrickleDown hook: captured pointer events (Unity 6 delivers them directly
+    // to the capturing element) and non-bubbling events like GeometryChangedEvent.
     readonly Dictionary<(int handle, string eventType), VisualElement> _perElementHandlers = new();
     // Dedup: prevent double-dispatch when both _root TrickleDown and per-element fire
     object _lastDispatchedPointerDown;
@@ -76,7 +75,7 @@ public class QuickJSUIBridge : IDisposable {
         // Inject context ID so the bootstrap WebSocket class can pass it to C# Connect()
         _ctx.Eval($"globalThis.__wsContextId = {_wsContextId}");
 
-        PointerCaptureSupport.RegisterBridge(_wsContextId, this);
+        PerElementEventSupport.RegisterBridge(_wsContextId, this);
         RegisterEventDelegation();
     }
 
@@ -176,7 +175,7 @@ public class QuickJSUIBridge : IDisposable {
 
         UnregisterEventDelegation();
         UnregisterAllPerElementHandlers();
-        PointerCaptureSupport.UnregisterBridge(_wsContextId);
+        PerElementEventSupport.UnregisterBridge(_wsContextId);
         ClearStyleSheets(); // Clean up JS-loaded stylesheets
         WebSocketBridge.CloseAll(_wsContextId);
         WebSocketBridge.UnregisterContext(_wsContextId);
@@ -745,11 +744,6 @@ public class QuickJSUIBridge : IDisposable {
 
     void DispatchGeometryEvent(string eventType, int handle, Rect oldRect, Rect newRect) {
         if (_inEval) return;
-        // Build via concatenation: a single string.Format that ends with a
-        // placeholder followed by `}}}}` lets .NET treat the `}}` inside
-        // the format spec as an escape, producing garbage like "F2}" in
-        // the output. Splitting into per-rect fragments sidesteps the
-        // ambiguity entirely.
         string data = "{\"oldRect\":" + RectToJson(oldRect)
                     + ",\"newRect\":" + RectToJson(newRect) + "}";
         DispatchEventInternal(handle, eventType, data);

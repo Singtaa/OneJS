@@ -870,7 +870,7 @@ const __perElementEventTypes = new Set([
 function __registerPerElementHandler(element, eventType) {
     if (typeof __wsContextId === "undefined") return;
     try {
-        CS.OneJS.PointerCaptureSupport.RegisterHandler(element, eventType, __wsContextId);
+        CS.OneJS.PerElementEventSupport.RegisterHandler(element, eventType, __wsContextId);
     } catch(e) { /* Not available in this context */ }
 }
 
@@ -880,7 +880,7 @@ function __registerPerElementHandler(element, eventType) {
 function __unregisterPerElementHandler(element, eventType) {
     if (typeof __wsContextId === "undefined") return;
     try {
-        CS.OneJS.PointerCaptureSupport.UnregisterHandler(element, eventType, __wsContextId);
+        CS.OneJS.PerElementEventSupport.UnregisterHandler(element, eventType, __wsContextId);
     } catch(e) {}
 }
 
@@ -911,7 +911,8 @@ function addEventListener(element, eventType, callback) {
     const isFirst = handlers.get(eventType).size === 0;
     handlers.get(eventType).add(callback);
 
-    // Register per-element C# handler for pointer capture support
+    // Register per-element C# handler for event types that don't reach _root
+    // via TrickleDown (pointer capture, non-bubbling events like geometrychanged).
     if (isFirst && __perElementEventTypes.has(eventType)) {
         __registerPerElementHandler(element, eventType);
     }
@@ -952,7 +953,7 @@ function removeAllEventListeners(element) {
     if (!element || !element.__csHandle) return;
     const handle = element.__csHandle;
 
-    // Unregister per-element C# handlers for pointer events
+    // Unregister per-element C# handlers for any event types in __perElementEventTypes
     const handlers = __eventHandlers.get(handle);
     if (handlers) {
         for (const eventType of handlers.keys()) {

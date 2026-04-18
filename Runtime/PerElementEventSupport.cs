@@ -3,20 +3,23 @@ using UnityEngine.UIElements;
 
 namespace OneJS {
     /// <summary>
-    /// Static helper for per-element pointer event handler registration.
+    /// Static helper for per-element C# event handler registration.
     ///
-    /// Unity 6's UI Toolkit dispatches captured pointer events directly to the
-    /// capturing element, bypassing TrickleDown/BubbleUp propagation entirely.
-    /// Since QuickJSUIBridge uses TrickleDown delegation on _root to catch events,
-    /// captured pointer events are never seen by the bridge.
+    /// QuickJSUIBridge registers most UI Toolkit callbacks on <c>_root</c> with
+    /// TrickleDown and delegates events from there — fine for events that pass
+    /// through the root during propagation, but not for:
+    ///   • captured pointer events (Unity 6 delivers these directly to the
+    ///     capturing element, bypassing TrickleDown), and
+    ///   • non-bubbling events like <see cref="GeometryChangedEvent"/>, which
+    ///     only fire on their own target.
     ///
-    /// This class enables the JS bootstrap to register per-element C# handlers
-    /// for pointer events. These fire even during capture, ensuring onPointerMove
-    /// (and other pointer events) work correctly with PointerCaptureHelper.
+    /// This class lets the JS bootstrap register per-element C# handlers so
+    /// those events still reach JS. The eventType → UI Toolkit Event mapping
+    /// lives in <c>QuickJSUIBridge.RegisterPerElementHandler</c>.
     ///
-    /// Called from JS via: CS.OneJS.PointerCaptureSupport.RegisterHandler(element, eventType, contextId)
+    /// Called from JS via: CS.OneJS.PerElementEventSupport.RegisterHandler(element, eventType, contextId)
     /// </summary>
-    public static class PointerCaptureSupport {
+    public static class PerElementEventSupport {
         static readonly Dictionary<int, QuickJSUIBridge> _bridges = new();
 
         public static void RegisterBridge(int contextId, QuickJSUIBridge bridge) {
