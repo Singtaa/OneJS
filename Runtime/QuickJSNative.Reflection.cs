@@ -294,7 +294,7 @@ public static partial class QuickJSNative {
     // MARK: Cached Lookups
     static MethodInfo FindMethodCached(Type type, string name, bool isStatic, object[] args) {
         var key = (type, name, isStatic, ComputeArgTypeHash(args));
-        if (_methodCache.TryGetValue(key, out var cached) && cached.GetParameters().Length == args.Length)
+        if (_methodCache.TryGetValue(key, out var cached) && cached.GetParameters().Length >= args.Length)
             return cached;
 
         var method = FindMethod(type, name, GetFlags(isStatic), args);
