@@ -41,6 +41,9 @@ public class QuickJSUIBridge : IDisposable {
     const int EVT_FOCUS = 20;
     const int EVT_BLUR = 21;
     const int EVT_VIEWPORT_CHANGE = 30;
+    const int EVT_NAVIGATION_MOVE = 40;
+    const int EVT_NAVIGATION_SUBMIT = 41;
+    const int EVT_NAVIGATION_CANCEL = 42;
 
     // Viewport tracking for responsive design
     float _lastViewportWidth;
@@ -297,6 +300,9 @@ public class QuickJSUIBridge : IDisposable {
         _root.RegisterCallback<FocusOutEvent>(OnFocusOut, TrickleDown.TrickleDown);
         _root.RegisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
         _root.RegisterCallback<KeyUpEvent>(OnKeyUp, TrickleDown.TrickleDown);
+        _root.RegisterCallback<NavigationMoveEvent>(OnNavigationMove, TrickleDown.TrickleDown);
+        _root.RegisterCallback<NavigationSubmitEvent>(OnNavigationSubmit, TrickleDown.TrickleDown);
+        _root.RegisterCallback<NavigationCancelEvent>(OnNavigationCancel, TrickleDown.TrickleDown);
         _root.RegisterCallback<ChangeEvent<string>>(OnChangeString, TrickleDown.TrickleDown);
         _root.RegisterCallback<ChangeEvent<bool>>(OnChangeBool, TrickleDown.TrickleDown);
         _root.RegisterCallback<ChangeEvent<float>>(OnChangeFloat, TrickleDown.TrickleDown);
@@ -315,6 +321,9 @@ public class QuickJSUIBridge : IDisposable {
         _root.UnregisterCallback<FocusOutEvent>(OnFocusOut, TrickleDown.TrickleDown);
         _root.UnregisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
         _root.UnregisterCallback<KeyUpEvent>(OnKeyUp, TrickleDown.TrickleDown);
+        _root.UnregisterCallback<NavigationMoveEvent>(OnNavigationMove, TrickleDown.TrickleDown);
+        _root.UnregisterCallback<NavigationSubmitEvent>(OnNavigationSubmit, TrickleDown.TrickleDown);
+        _root.UnregisterCallback<NavigationCancelEvent>(OnNavigationCancel, TrickleDown.TrickleDown);
         _root.UnregisterCallback<ChangeEvent<string>>(OnChangeString, TrickleDown.TrickleDown);
         _root.UnregisterCallback<ChangeEvent<bool>>(OnChangeBool, TrickleDown.TrickleDown);
         _root.UnregisterCallback<ChangeEvent<float>>(OnChangeFloat, TrickleDown.TrickleDown);
@@ -404,6 +413,42 @@ public class QuickJSUIBridge : IDisposable {
     // Key events stay on eval path (need string args)
     void OnKeyDown(KeyDownEvent e) => DispatchKeyEvent("keydown", e.target, e.keyCode, e.character, e.modifiers);
     void OnKeyUp(KeyUpEvent e) => DispatchKeyEvent("keyup", e.target, e.keyCode, '\0', e.modifiers);
+
+    // Navigation events (controller / keyboard focus navigation)
+    void OnNavigationMove(NavigationMoveEvent e) {
+        if (_eventDispatchHandle >= 0) {
+            DispatchEventFast(EVT_NAVIGATION_MOVE, FindElementHandle(e.target), (int)e.direction);
+        } else {
+            DispatchEvent("navigationmove", e.target,
+                $"{{\"direction\":\"{NavigationDirectionName(e.direction)}\"}}");
+        }
+    }
+
+    void OnNavigationSubmit(NavigationSubmitEvent e) {
+        if (_eventDispatchHandle >= 0) {
+            DispatchEventFast(EVT_NAVIGATION_SUBMIT, FindElementHandle(e.target));
+        } else {
+            DispatchEvent("navigationsubmit", e.target, "{}");
+        }
+    }
+
+    void OnNavigationCancel(NavigationCancelEvent e) {
+        if (_eventDispatchHandle >= 0) {
+            DispatchEventFast(EVT_NAVIGATION_CANCEL, FindElementHandle(e.target));
+        } else {
+            DispatchEvent("navigationcancel", e.target, "{}");
+        }
+    }
+
+    static string NavigationDirectionName(NavigationMoveEvent.Direction d) => d switch {
+        NavigationMoveEvent.Direction.Left => "left",
+        NavigationMoveEvent.Direction.Up => "up",
+        NavigationMoveEvent.Direction.Right => "right",
+        NavigationMoveEvent.Direction.Down => "down",
+        NavigationMoveEvent.Direction.Next => "next",
+        NavigationMoveEvent.Direction.Previous => "previous",
+        _ => "none",
+    };
 
     // String change events stay on eval path (need string value)
     void OnChangeString(ChangeEvent<string> e) {
