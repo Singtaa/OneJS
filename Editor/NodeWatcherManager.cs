@@ -83,9 +83,13 @@ namespace OneJS.Editor {
                     return false;
                 }
 
-                // Verify it's a Node process
+                // Sanity guard against PID reuse. The tracked top-level process is node
+                // on Unix, but on Windows it's cmd.exe: Process.Start wraps npm.cmd (a
+                // batch file) in cmd.exe when UseShellExecute=false, so ProcessName is
+                // "cmd" even though the real watcher is node running underneath.
                 var processName = process.ProcessName.ToLowerInvariant();
-                if (!processName.Contains("node")) {
+                bool validName = processName.Contains("node") || processName.Contains("cmd");
+                if (!validName) {
                     ClearSavedState(key);
                     return false;
                 }
