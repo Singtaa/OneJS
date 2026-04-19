@@ -12,6 +12,7 @@ Editor scripts for OneJS Unity integration.
 | `JSPadEditor.cs` | Custom inspector for JSPad inline runner |
 | `JSRunnerBuildProcessor.cs` | Build hook for auto-copying JS bundles |
 | `NodeWatcherManager.cs` | Manages Node.js file watcher processes for live reload |
+| `OneJSProcessUtils.cs` | Process helpers (tree-kill on Windows via `taskkill /T /F`, Unix via `pgrep -P`) |
 | `OneJSEditorDesign.cs` | Centralized design tokens (colors, text labels) for editor UIs |
 | `DefaultFileEntryDrawer.cs` | Property drawer for default file entries in JSRunner |
 | `GlobalEntryDrawer.cs` | Property drawer for global entries in JSRunner |

@@ -218,7 +218,7 @@ namespace OneJS.Editor {
             if (_watchers.TryGetValue(key, out var process)) {
                 if (process != null && !process.HasExited) {
                     try {
-                        process.Kill();
+                        OneJSProcessUtils.KillProcessTree(process);
                         process.WaitForExit(2000);
                     } catch (Exception e) {
                         Debug.LogWarning($"[OneJS] Error stopping watcher: {e.Message}");
@@ -242,7 +242,7 @@ namespace OneJS.Editor {
                 if (_watchers.TryGetValue(key, out var process)) {
                     if (process != null && !process.HasExited) {
                         try {
-                            process.Kill();
+                            OneJSProcessUtils.KillProcessTree(process);
                             process.WaitForExit(1000);
                         } catch { }
                     }

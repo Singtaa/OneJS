@@ -907,7 +907,7 @@ public class JSPadEditor : Editor {
     void KillCurrentProcess() {
         if (_currentProcess != null && !_currentProcess.HasExited) {
             try {
-                _currentProcess.Kill();
+                OneJSProcessUtils.KillProcessTree(_currentProcess);
             } catch { }
             _currentProcess = null;
         }
