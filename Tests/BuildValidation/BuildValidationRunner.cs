@@ -22,7 +22,10 @@ using UnityEngine.UIElements;
 /// 5. Parse [BUILD_TEST] lines for results
 /// </summary>
 public class BuildValidationRunner : MonoBehaviour {
-    // Serialized fields must always exist for consistent serialization layout
+    // Serialized fields must always exist for consistent serialization layout.
+    // CS0414 is suppressed because _testScript is only read when ONEJS_BUILD_VALIDATION
+    // is defined, but Unity still serializes it regardless via reflection.
+#pragma warning disable CS0414
     [Tooltip("Optional: JSRunner to test. If null, will search scene.")]
     [SerializeField] JSRunner _jsRunner;
 
@@ -36,6 +39,7 @@ globalThis.__buildTestResult = {
     csProxyExists: typeof CS !== 'undefined'
 };
 ";
+#pragma warning restore CS0414
 
 #if ONEJS_BUILD_VALIDATION
     List<string> _results = new List<string>();

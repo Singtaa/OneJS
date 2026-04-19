@@ -368,7 +368,7 @@ public class JSRunner : MonoBehaviour {
     /// </summary>
     string GetPrefabAssetPath() {
         var stage = UnityEditor.SceneManagement.PrefabStageUtility.GetPrefabStage(gameObject);
-        if (stage != null && !string.IsNullOrEmpty(stage.prefabAssetPath)) return stage.prefabAssetPath;
+        if (stage != null && !string.IsNullOrEmpty(stage.assetPath)) return stage.assetPath;
         var path = UnityEditor.AssetDatabase.GetAssetPath(transform.root.gameObject);
         return !string.IsNullOrEmpty(path) && path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase) ? path : null;
     }

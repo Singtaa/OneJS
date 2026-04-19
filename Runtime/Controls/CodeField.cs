@@ -728,7 +728,7 @@ namespace OneJS {
 #endif
                 if (isCommentShortcut) {
                     evt.StopPropagation();
-                    evt.PreventDefault();
+                    focusController?.IgnoreEvent(evt);
                     HandleToggleComment();
                 }
             }

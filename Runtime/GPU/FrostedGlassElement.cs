@@ -13,27 +13,8 @@ namespace OneJS.GPU {
     ///
     /// The blur pipeline is fully automatic — no camera or RT setup needed.
     /// </summary>
-    public class FrostedGlassElement : VisualElement {
-        public new class UxmlFactory : UxmlFactory<FrostedGlassElement, UxmlTraits> { }
-
-        public new class UxmlTraits : VisualElement.UxmlTraits {
-            UxmlFloatAttributeDescription _blur = new UxmlFloatAttributeDescription {
-                name = "blur",
-                defaultValue = 10f
-            };
-            UxmlColorAttributeDescription _tint = new UxmlColorAttributeDescription {
-                name = "tint",
-                defaultValue = new Color(1f, 1f, 1f, 0.15f)
-            };
-
-            public override void Init(VisualElement ve, IUxmlAttributes bag, CreationContext cc) {
-                base.Init(ve, bag, cc);
-                var el = (FrostedGlassElement)ve;
-                el.BlurRadius = _blur.GetValueFromBag(bag, cc);
-                el.TintColor = _tint.GetValueFromBag(bag, cc);
-            }
-        }
-
+    [UxmlElement]
+    public partial class FrostedGlassElement : VisualElement {
         float _blurRadius = 10f;
         Color _tintColor = new Color(1f, 1f, 1f, 0.15f);
         VisualElement _blurBackground;
@@ -42,6 +23,7 @@ namespace OneJS.GPU {
         /// <summary>
         /// Blur radius in screen pixels. Higher = more blurry. Default: 10.
         /// </summary>
+        [UxmlAttribute("blur")]
         public float BlurRadius {
             get => _blurRadius;
             set => _blurRadius = Mathf.Max(0f, value);
@@ -52,6 +34,7 @@ namespace OneJS.GPU {
         /// The RGB channels set the tint hue; the alpha controls opacity
         /// (0 = pure blur, 1 = solid tint color).
         /// </summary>
+        [UxmlAttribute("tint")]
         public Color TintColor {
             get => _tintColor;
             set {
