@@ -1759,6 +1759,18 @@ public class JSRunnerEditor : Editor {
             return;
         }
 
+        // Watcher holds locks on node_modules (e.g. esbuild.exe on Windows), so stop it first.
+        // Restart it after the rebuild if it was running, to preserve the user's workflow.
+        bool wasWatcherRunning = NodeWatcherManager.IsRunning(workingDir);
+        if (wasWatcherRunning) {
+            _buildOutput = "Stopping watcher...";
+            NodeWatcherManager.StopWatcher(workingDir);
+        }
+
+        void RestartWatcherIfNeeded() {
+            if (wasWatcherRunning) NodeWatcherManager.StartWatcher(workingDir);
+        }
+
         _buildInProgress = true;
 
         // Delete node_modules for a clean rebuild
@@ -1772,6 +1784,7 @@ public class JSRunnerEditor : Editor {
                 _buildInProgress = false;
                 _buildOutput = $"Failed to delete node_modules: {ex.Message}";
                 Debug.LogError($"[JSRunner] Failed to delete node_modules: {ex.Message}");
+                RestartWatcherIfNeeded();
                 return;
             }
         }
@@ -1784,15 +1797,18 @@ public class JSRunnerEditor : Editor {
                 _buildInProgress = false;
                 _buildOutput = "Rebuild completed successfully!";
                 Debug.Log("[JSRunner] Rebuild completed successfully!");
+                RestartWatcherIfNeeded();
             }, onFailure: (code) => {
                 _buildInProgress = false;
                 _buildOutput = $"Build failed with exit code {code}";
                 Debug.LogError($"[JSRunner] Build failed with exit code {code}");
+                RestartWatcherIfNeeded();
             });
         }, onFailure: (code) => {
             _buildInProgress = false;
             _buildOutput = $"Install failed with exit code {code}";
             Debug.LogError($"[JSRunner] npm install failed with exit code {code}");
+            RestartWatcherIfNeeded();
         });
     }
 
