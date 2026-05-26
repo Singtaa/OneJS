@@ -59,7 +59,8 @@ var OneJSWebGLLib = {
         callbacks: {
             log: null,
             invoke: null,
-            releaseHandle: null
+            releaseHandle: null,
+            zeroalloc: null
         },
 
         // Struct sizes (WASM32)
@@ -492,6 +493,16 @@ var OneJSWebGLLib = {
 
         var global = typeof window !== "undefined" ? window : globalThis;
         global.__releaseHandle = OneJS.releaseHandle;
+    },
+
+    // Zero-alloc fast-path callback registration.
+    // On native, the QuickJS runtime exposes __zaInvoke0..N JS functions that
+    // route through this callback. WebGL uses the browser's JS engine and
+    // doesn't expose those shims, so the callback is stored but never invoked.
+    // The stub exists to satisfy the linker.
+    qjs_set_cs_zeroalloc_callback__deps: ["$OneJS"],
+    qjs_set_cs_zeroalloc_callback: function(callbackPtr) {
+        OneJS.callbacks.zeroalloc = callbackPtr;
     },
 
     // =========================================================================
