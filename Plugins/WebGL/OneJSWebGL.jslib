@@ -496,13 +496,75 @@ var OneJSWebGLLib = {
     },
 
     // Zero-alloc fast-path callback registration.
+    //
     // On native, the QuickJS runtime exposes __zaInvoke0..N JS functions that
-    // route through this callback. WebGL uses the browser's JS engine and
-    // doesn't expose those shims, so the callback is stored but never invoked.
-    // The stub exists to satisfy the linker.
+    // route through this callback. We replicate the same surface on WebGL so
+    // code that uses the fast path (onejs-unity GPU compute, input reader)
+    // works without changes — and so the reconciler can opt-in later.
+    //
+    // The shims marshal args directly into the WASM heap, call the C# zero-
+    // alloc dispatcher via dynCall, and unmarshal the result. Allocation is
+    // per-call (via _malloc/_free) — slower than native's stack-allocated
+    // path but still far cheaper than __cs.invoke since there's no JSON
+    // marshalling or method-resolution on the C# side.
     qjs_set_cs_zeroalloc_callback__deps: ["$OneJS"],
     qjs_set_cs_zeroalloc_callback: function(callbackPtr) {
         OneJS.callbacks.zeroalloc = callbackPtr;
+
+        var invoke = function(bindingId, args) {
+            if (!OneJS.callbacks.zeroalloc) return null;
+
+            var argCount = args.length;
+            var argsPtr = argCount > 0 ? _malloc(argCount * OneJS.SIZEOF_INTEROP_VALUE) : 0;
+            var resultPtr = _malloc(OneJS.SIZEOF_INTEROP_VALUE);
+
+            // Zero result struct
+            for (var i = 0; i < OneJS.SIZEOF_INTEROP_VALUE; i += 4) {
+                HEAP32[(resultPtr + i) >> 2] = 0;
+            }
+
+            for (var i = 0; i < argCount; i++) {
+                OneJS.marshalValue(args[i], argsPtr + i * OneJS.SIZEOF_INTEROP_VALUE);
+            }
+
+            // Signature: void(int bindingId, InteropValue* args, int argCount, InteropValue* outResult)
+            {{{ makeDynCall("viiii", "OneJS.callbacks.zeroalloc") }}}(
+                bindingId, argsPtr, argCount, resultPtr
+            );
+
+            var result = OneJS.unmarshalValue(resultPtr);
+
+            if (argsPtr) {
+                for (var i = 0; i < argCount; i++) {
+                    OneJS.freeValueMemory(argsPtr + i * OneJS.SIZEOF_INTEROP_VALUE);
+                }
+                _free(argsPtr);
+            }
+            // Free strings/JSON allocated by C# in the result (mirrors invokeCs)
+            var rt = HEAP32[resultPtr >> 2];
+            if (rt === OneJS.TYPE_STRING || rt === OneJS.TYPE_JSON_OBJECT) {
+                var sp = HEAPU32[(resultPtr + 8) >> 2];
+                if (sp) _free(sp);
+            }
+            var hp = HEAPU32[(resultPtr + 24) >> 2];
+            if (hp) _free(hp);
+            _free(resultPtr);
+
+            return result;
+        };
+
+        var g = typeof window !== "undefined" ? window : globalThis;
+        // One implementation services all arities — JS doesn't enforce param
+        // counts, and the variadic form keeps the shim small.
+        g.__zaInvoke0 = function(bindingId) { return invoke(bindingId, []); };
+        g.__zaInvoke1 = function(bindingId, a0) { return invoke(bindingId, [a0]); };
+        g.__zaInvoke2 = function(bindingId, a0, a1) { return invoke(bindingId, [a0, a1]); };
+        g.__zaInvoke3 = function(bindingId, a0, a1, a2) { return invoke(bindingId, [a0, a1, a2]); };
+        g.__zaInvoke4 = function(bindingId, a0, a1, a2, a3) { return invoke(bindingId, [a0, a1, a2, a3]); };
+        g.__zaInvoke5 = function(bindingId, a0, a1, a2, a3, a4) { return invoke(bindingId, [a0, a1, a2, a3, a4]); };
+        g.__zaInvoke6 = function(bindingId, a0, a1, a2, a3, a4, a5) { return invoke(bindingId, [a0, a1, a2, a3, a4, a5]); };
+        g.__zaInvoke7 = function(bindingId, a0, a1, a2, a3, a4, a5, a6) { return invoke(bindingId, [a0, a1, a2, a3, a4, a5, a6]); };
+        g.__zaInvoke8 = function(bindingId, a0, a1, a2, a3, a4, a5, a6, a7) { return invoke(bindingId, [a0, a1, a2, a3, a4, a5, a6, a7]); };
     },
 
     // =========================================================================
