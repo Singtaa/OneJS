@@ -63,6 +63,8 @@ public class QuickJSUIBridge : IDisposable {
     int _dragDiagRootMoves;
     int _dragDiagPerElemMoves;
     int _dragDiagRegisters;
+    int _dragDiagDedupDrops;
+    int _dragDiagMouseMoves;
 #endif
 
     public QuickJSContext Context => _ctx;
@@ -311,6 +313,12 @@ public class QuickJSUIBridge : IDisposable {
         _root.RegisterCallback<PointerMoveEvent>(OnPointerMove, TrickleDown.TrickleDown);
         _root.RegisterCallback<PointerEnterEvent>(OnPointerEnter, TrickleDown.TrickleDown);
         _root.RegisterCallback<PointerLeaveEvent>(OnPointerLeave, TrickleDown.TrickleDown);
+#if UNITY_WEBGL && !UNITY_EDITOR
+        // Diagnostic: does Unity WebGL dispatch MouseMoveEvent while button is
+        // held even though PointerMoveEvent goes silent? If so, that's our
+        // signal to bridge MouseMoveEvent as a fallback.
+        _root.RegisterCallback<MouseMoveEvent>(OnDiagMouseMove, TrickleDown.TrickleDown);
+#endif
         _root.RegisterCallback<FocusInEvent>(OnFocusIn, TrickleDown.TrickleDown);
         _root.RegisterCallback<FocusOutEvent>(OnFocusOut, TrickleDown.TrickleDown);
         _root.RegisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
@@ -381,7 +389,18 @@ public class QuickJSUIBridge : IDisposable {
 
     void OnPointerMove(PointerMoveEvent e) {
         if (!InputBridge.PointerMoveEventsEnabled) return;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        bool dedupHit = ReferenceEquals(e, _lastDispatchedPointerMove);
+        if (dedupHit) {
+            if (_dragDiagDedupDrops < 5) {
+                _dragDiagDedupDrops++;
+                Debug.LogWarning($"[onejs/drag] root OnPointerMove DEDUP-DROPPED (same event ref reused) pos={e.position} pid={e.pointerId}");
+            }
+            return;
+        }
+#else
         if (ReferenceEquals(e, _lastDispatchedPointerMove)) return;
+#endif
         _lastDispatchedPointerMove = e;
 #if UNITY_WEBGL && !UNITY_EDITOR
         if (_dragDiagRootMoves < 20) {
@@ -765,6 +784,15 @@ public class QuickJSUIBridge : IDisposable {
         _lastDispatchedPointerUp = e;
         DispatchPointerEvent("pointerup", e.target, e.position, e.button, e.pointerId);
     }
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+    void OnDiagMouseMove(MouseMoveEvent e) {
+        if (_dragDiagMouseMoves < 10) {
+            _dragDiagMouseMoves++;
+            Debug.Log($"[onejs/drag] root OnMouseMove pos={e.mousePosition} buttons={e.pressedButtons}");
+        }
+    }
+#endif
 
     void OnPerElementPointerMove(PointerMoveEvent e) {
         if (!InputBridge.PointerMoveEventsEnabled) return;
