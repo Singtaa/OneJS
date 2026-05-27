@@ -47,20 +47,55 @@ namespace OneJS {
             }
         }
 
-        // Nested objects with __csHandle came through JSON marshalling as
-        // Dictionary<string, object>; resolve them back to live C# objects via
-        // the handle table so ConvertToTargetType can use implicit operators
-        // (e.g. Length -> StyleLength) on the unwrapped object.
+        // Values that arrived as top-level args would be detected by the
+        // WebGL jslib's marshalValue (Color/Vector hints, handle types). Here
+        // they come in nested inside a JSON-stringified dict, so the special
+        // shapes survive only as plain Dictionary<string, object>. Reconstruct
+        // the live C# value before handing off to ConvertToTargetType, which
+        // then handles e.g. Color -> StyleColor and Length -> StyleLength via
+        // implicit operators.
         static object ResolveValue(object value) {
-            if (value is Dictionary<string, object> dict
-                && dict.TryGetValue("__csHandle", out var h) && h != null) {
+            if (value is not Dictionary<string, object> dict) return value;
+
+            if (dict.TryGetValue("__csHandle", out var h) && h != null) {
                 int handle = Convert.ToInt32(h);
                 if (handle > 0) {
                     var resolved = QuickJSNative.GetObjectByHandle(handle);
                     if (resolved != null) return resolved;
                 }
+                return value;
             }
+
+            // {r,g,b,a} -> Color (parseStyleValue returns this for colors).
+            if (dict.ContainsKey("r") && dict.ContainsKey("g") && dict.ContainsKey("b")) {
+                float r = ToFloat(dict, "r");
+                float g = ToFloat(dict, "g");
+                float b = ToFloat(dict, "b");
+                float a = dict.ContainsKey("a") ? ToFloat(dict, "a") : 1f;
+                return new Color(r, g, b, a);
+            }
+
+            // {x,y,z,w} -> Vector4; {x,y,z} -> Vector3.
+            if (dict.ContainsKey("x") && dict.ContainsKey("y")) {
+                float x = ToFloat(dict, "x");
+                float y = ToFloat(dict, "y");
+                if (dict.ContainsKey("z")) {
+                    float z = ToFloat(dict, "z");
+                    if (dict.ContainsKey("w")) {
+                        return new Vector4(x, y, z, ToFloat(dict, "w"));
+                    }
+                    return new Vector3(x, y, z);
+                }
+                return new Vector2(x, y);
+            }
+
             return value;
+        }
+
+        static float ToFloat(Dictionary<string, object> dict, string key) {
+            return dict.TryGetValue(key, out var v) && v != null
+                ? Convert.ToSingle(v)
+                : 0f;
         }
 
         static PropertyInfo FindStyleProperty(Type type, string name) {
