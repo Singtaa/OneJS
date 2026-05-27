@@ -58,6 +58,13 @@ public class QuickJSUIBridge : IDisposable {
     object _lastDispatchedPointerUp;
     object _lastDispatchedPointerMove;
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+    // Diagnostic counters for WebGL drag tracing — bounded so they don't spam.
+    int _dragDiagRootMoves;
+    int _dragDiagPerElemMoves;
+    int _dragDiagRegisters;
+#endif
+
     public QuickJSContext Context => _ctx;
     public VisualElement Root => _root;
     public string WorkingDir => _workingDir;
@@ -376,6 +383,13 @@ public class QuickJSUIBridge : IDisposable {
         if (!InputBridge.PointerMoveEventsEnabled) return;
         if (ReferenceEquals(e, _lastDispatchedPointerMove)) return;
         _lastDispatchedPointerMove = e;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        if (_dragDiagRootMoves < 20) {
+            _dragDiagRootMoves++;
+            int diagHandle = FindElementHandle(e.target);
+            Debug.Log($"[onejs/drag] root OnPointerMove target=#{diagHandle} pos={e.position} pid={e.pointerId}");
+        }
+#endif
         if (_eventDispatchHandle >= 0) {
             int handle = FindElementHandle(e.target);
             DispatchEventFast(EVT_POINTER_MOVE, handle, e.position.x, e.position.y, e.button, e.pointerId);
@@ -666,7 +680,15 @@ public class QuickJSUIBridge : IDisposable {
 
     internal void RegisterPerElementHandler(VisualElement element, string eventType) {
         int handle = QuickJSNative.GetHandleForObject(element);
-        if (handle <= 0) return;
+        if (handle <= 0) {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            if (_dragDiagRegisters < 30) {
+                _dragDiagRegisters++;
+                Debug.LogWarning($"[onejs/drag] RegisterPerElementHandler ({eventType}) skipped: handle<=0 for element {element}");
+            }
+#endif
+            return;
+        }
         var key = (handle, eventType);
         if (_perElementHandlers.TryGetValue(key, out var existing)) {
             if (ReferenceEquals(existing, element)) return; // Same element, already registered
@@ -675,6 +697,12 @@ public class QuickJSUIBridge : IDisposable {
             _perElementHandlers.Remove(key);
         }
         _perElementHandlers[key] = element;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        if (_dragDiagRegisters < 30) {
+            _dragDiagRegisters++;
+            Debug.Log($"[onejs/drag] RegisterPerElementHandler ({eventType}) handle=#{handle}");
+        }
+#endif
 
         switch (eventType) {
             case "pointerdown":
@@ -742,6 +770,13 @@ public class QuickJSUIBridge : IDisposable {
         if (!InputBridge.PointerMoveEventsEnabled) return;
         if (ReferenceEquals(e, _lastDispatchedPointerMove)) return;
         _lastDispatchedPointerMove = e;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        if (_dragDiagPerElemMoves < 20) {
+            _dragDiagPerElemMoves++;
+            int diagHandle = FindElementHandle(e.target);
+            Debug.Log($"[onejs/drag] perElem OnPointerMove target=#{diagHandle} pos={e.position} pid={e.pointerId}");
+        }
+#endif
         DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
     }
 
