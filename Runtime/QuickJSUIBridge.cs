@@ -53,19 +53,17 @@ public class QuickJSUIBridge : IDisposable {
     // TrickleDown hook: captured pointer events (Unity 6 delivers them directly
     // to the capturing element) and non-bubbling events like GeometryChangedEvent.
     readonly Dictionary<(int handle, string eventType), VisualElement> _perElementHandlers = new();
-    // Dedup: prevent double-dispatch when both _root TrickleDown and per-element fire
-    object _lastDispatchedPointerDown;
-    object _lastDispatchedPointerUp;
-    object _lastDispatchedPointerMove;
 
-#if UNITY_WEBGL && !UNITY_EDITOR
-    // Diagnostic counters for WebGL drag tracing — bounded so they don't spam.
-    int _dragDiagRootMoves;
-    int _dragDiagPerElemMoves;
-    int _dragDiagRegisters;
-    int _dragDiagDedupDrops;
-    int _dragDiagMouseMoves;
-#endif
+    // Dedup: prevent double-dispatch when both _root TrickleDown and per-element
+    // fire for the same event. UI Toolkit's event pool reuses instances across
+    // dispatches, so a reference-equality check would treat consecutive pooled
+    // events as duplicates and silently drop them (this was the WebGL drag
+    // regression). EventBase.timestamp is refreshed in Init() each time an event
+    // is acquired from the pool, so it's the same within one dispatch (root +
+    // per-element phases) and different across dispatches.
+    long _lastDispatchedPointerDownTs = -1;
+    long _lastDispatchedPointerUpTs = -1;
+    long _lastDispatchedPointerMoveTs = -1;
 
     public QuickJSContext Context => _ctx;
     public VisualElement Root => _root;
@@ -270,10 +268,9 @@ public class QuickJSUIBridge : IDisposable {
         if (_disposed || _inEval) return;
         _inEval = true;
 
-        // Reset pointer event dedup references to prevent stale pooled-event matches
-        _lastDispatchedPointerDown = null;
-        _lastDispatchedPointerUp = null;
-        _lastDispatchedPointerMove = null;
+        // No per-frame dedup reset needed — dedup uses EventBase.timestamp,
+        // which is unique per dispatch (refreshed in EventBase.Init() each time
+        // the pool reuses an instance).
 
         try {
             // Process completed C# Tasks and resolve/reject their JS Promises
@@ -313,12 +310,6 @@ public class QuickJSUIBridge : IDisposable {
         _root.RegisterCallback<PointerMoveEvent>(OnPointerMove, TrickleDown.TrickleDown);
         _root.RegisterCallback<PointerEnterEvent>(OnPointerEnter, TrickleDown.TrickleDown);
         _root.RegisterCallback<PointerLeaveEvent>(OnPointerLeave, TrickleDown.TrickleDown);
-#if UNITY_WEBGL && !UNITY_EDITOR
-        // Diagnostic: does Unity WebGL dispatch MouseMoveEvent while button is
-        // held even though PointerMoveEvent goes silent? If so, that's our
-        // signal to bridge MouseMoveEvent as a fallback.
-        _root.RegisterCallback<MouseMoveEvent>(OnDiagMouseMove, TrickleDown.TrickleDown);
-#endif
         _root.RegisterCallback<FocusInEvent>(OnFocusIn, TrickleDown.TrickleDown);
         _root.RegisterCallback<FocusOutEvent>(OnFocusOut, TrickleDown.TrickleDown);
         _root.RegisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
@@ -366,8 +357,8 @@ public class QuickJSUIBridge : IDisposable {
     }
 
     void OnPointerDown(PointerDownEvent e) {
-        if (ReferenceEquals(e, _lastDispatchedPointerDown)) return;
-        _lastDispatchedPointerDown = e;
+        if (e.timestamp == _lastDispatchedPointerDownTs) return;
+        _lastDispatchedPointerDownTs = e.timestamp;
         if (_eventDispatchHandle >= 0) {
             int handle = FindElementHandle(e.target);
             DispatchEventFast(EVT_POINTER_DOWN, handle, e.position.x, e.position.y, e.button, e.pointerId);
@@ -377,8 +368,8 @@ public class QuickJSUIBridge : IDisposable {
     }
 
     void OnPointerUp(PointerUpEvent e) {
-        if (ReferenceEquals(e, _lastDispatchedPointerUp)) return;
-        _lastDispatchedPointerUp = e;
+        if (e.timestamp == _lastDispatchedPointerUpTs) return;
+        _lastDispatchedPointerUpTs = e.timestamp;
         if (_eventDispatchHandle >= 0) {
             int handle = FindElementHandle(e.target);
             DispatchEventFast(EVT_POINTER_UP, handle, e.position.x, e.position.y, e.button, e.pointerId);
@@ -389,26 +380,8 @@ public class QuickJSUIBridge : IDisposable {
 
     void OnPointerMove(PointerMoveEvent e) {
         if (!InputBridge.PointerMoveEventsEnabled) return;
-#if UNITY_WEBGL && !UNITY_EDITOR
-        bool dedupHit = ReferenceEquals(e, _lastDispatchedPointerMove);
-        if (dedupHit) {
-            if (_dragDiagDedupDrops < 5) {
-                _dragDiagDedupDrops++;
-                Debug.LogWarning($"[onejs/drag] root OnPointerMove DEDUP-DROPPED (same event ref reused) pos={e.position} pid={e.pointerId}");
-            }
-            return;
-        }
-#else
-        if (ReferenceEquals(e, _lastDispatchedPointerMove)) return;
-#endif
-        _lastDispatchedPointerMove = e;
-#if UNITY_WEBGL && !UNITY_EDITOR
-        if (_dragDiagRootMoves < 20) {
-            _dragDiagRootMoves++;
-            int diagHandle = FindElementHandle(e.target);
-            Debug.Log($"[onejs/drag] root OnPointerMove target=#{diagHandle} pos={e.position} pid={e.pointerId}");
-        }
-#endif
+        if (e.timestamp == _lastDispatchedPointerMoveTs) return;
+        _lastDispatchedPointerMoveTs = e.timestamp;
         if (_eventDispatchHandle >= 0) {
             int handle = FindElementHandle(e.target);
             DispatchEventFast(EVT_POINTER_MOVE, handle, e.position.x, e.position.y, e.button, e.pointerId);
@@ -699,15 +672,7 @@ public class QuickJSUIBridge : IDisposable {
 
     internal void RegisterPerElementHandler(VisualElement element, string eventType) {
         int handle = QuickJSNative.GetHandleForObject(element);
-        if (handle <= 0) {
-#if UNITY_WEBGL && !UNITY_EDITOR
-            if (_dragDiagRegisters < 30) {
-                _dragDiagRegisters++;
-                Debug.LogWarning($"[onejs/drag] RegisterPerElementHandler ({eventType}) skipped: handle<=0 for element {element}");
-            }
-#endif
-            return;
-        }
+        if (handle <= 0) return;
         var key = (handle, eventType);
         if (_perElementHandlers.TryGetValue(key, out var existing)) {
             if (ReferenceEquals(existing, element)) return; // Same element, already registered
@@ -716,12 +681,6 @@ public class QuickJSUIBridge : IDisposable {
             _perElementHandlers.Remove(key);
         }
         _perElementHandlers[key] = element;
-#if UNITY_WEBGL && !UNITY_EDITOR
-        if (_dragDiagRegisters < 30) {
-            _dragDiagRegisters++;
-            Debug.Log($"[onejs/drag] RegisterPerElementHandler ({eventType}) handle=#{handle}");
-        }
-#endif
 
         switch (eventType) {
             case "pointerdown":
@@ -774,37 +733,21 @@ public class QuickJSUIBridge : IDisposable {
     }
 
     void OnPerElementPointerDown(PointerDownEvent e) {
-        if (ReferenceEquals(e, _lastDispatchedPointerDown)) return;
-        _lastDispatchedPointerDown = e;
+        if (e.timestamp == _lastDispatchedPointerDownTs) return;
+        _lastDispatchedPointerDownTs = e.timestamp;
         DispatchPointerEvent("pointerdown", e.target, e.position, e.button, e.pointerId);
     }
 
     void OnPerElementPointerUp(PointerUpEvent e) {
-        if (ReferenceEquals(e, _lastDispatchedPointerUp)) return;
-        _lastDispatchedPointerUp = e;
+        if (e.timestamp == _lastDispatchedPointerUpTs) return;
+        _lastDispatchedPointerUpTs = e.timestamp;
         DispatchPointerEvent("pointerup", e.target, e.position, e.button, e.pointerId);
     }
 
-#if UNITY_WEBGL && !UNITY_EDITOR
-    void OnDiagMouseMove(MouseMoveEvent e) {
-        if (_dragDiagMouseMoves < 10) {
-            _dragDiagMouseMoves++;
-            Debug.Log($"[onejs/drag] root OnMouseMove pos={e.mousePosition} buttons={e.pressedButtons}");
-        }
-    }
-#endif
-
     void OnPerElementPointerMove(PointerMoveEvent e) {
         if (!InputBridge.PointerMoveEventsEnabled) return;
-        if (ReferenceEquals(e, _lastDispatchedPointerMove)) return;
-        _lastDispatchedPointerMove = e;
-#if UNITY_WEBGL && !UNITY_EDITOR
-        if (_dragDiagPerElemMoves < 20) {
-            _dragDiagPerElemMoves++;
-            int diagHandle = FindElementHandle(e.target);
-            Debug.Log($"[onejs/drag] perElem OnPointerMove target=#{diagHandle} pos={e.position} pid={e.pointerId}");
-        }
-#endif
+        if (e.timestamp == _lastDispatchedPointerMoveTs) return;
+        _lastDispatchedPointerMoveTs = e.timestamp;
         DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
     }
 
