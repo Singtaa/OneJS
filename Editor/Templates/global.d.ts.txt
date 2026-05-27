@@ -1,6 +1,9 @@
 // OneJS runtime globals (provided by QuickJSBootstrap.js)
 // Note: CS.* types and ES6 module declarations are provided by unity-types package
 
+// Virtual modules resolved by onejs-unity esbuild plugins (no runtime export).
+declare module "onejs:tailwind";
+
 // Root UI element
 declare const __root: CS.UnityEngine.UIElements.VisualElement;
 
