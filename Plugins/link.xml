@@ -1,0 +1,31 @@
+<linker>
+    <!--
+        Preserve types that OneJS accesses only via reflection (CS proxy from JS,
+        or runtime reflection in C#). IL2CPP managed-code stripping (default in
+        WebGL/iOS/Mobile Release builds) removes anything that isn't statically
+        referenced, which breaks reflection-only access at runtime.
+    -->
+
+    <!-- Unity UI Toolkit internals used by Runtime/Styling/StyleSheetBuilderWrapper.cs.
+         Without these, Activator.CreateInstance(null) throws during JSRunner init. -->
+    <assembly fullname="UnityEngine.UIElementsModule">
+        <type fullname="UnityEngine.UIElements.StyleSheets.StyleSheetBuilder" preserve="all"/>
+        <type fullname="UnityEngine.UIElements.StyleSheets.Dimension" preserve="all"/>
+        <type fullname="UnityEngine.UIElements.StyleValueKeyword" preserve="all"/>
+        <type fullname="UnityEngine.UIElements.StyleValueType" preserve="all"/>
+        <type fullname="UnityEngine.UIElements.StyleValueFunction" preserve="all"/>
+        <type fullname="UnityEngine.UIElements.StyleSelectorPart" preserve="all"/>
+        <type fullname="UnityEngine.UIElements.StyleSelectorRelationship" preserve="all"/>
+        <!-- PointerCaptureHelper is reached from JS as a static class wrapping
+             extension methods (CapturePointer/ReleasePointer). The methods can
+             be stripped because no C# code references them. -->
+        <type fullname="UnityEngine.UIElements.PointerCaptureHelper" preserve="all"/>
+    </assembly>
+
+    <!-- OneJS types reached only via the CS proxy from JS. RegisterBridge is
+         called statically (so the type itself survives), but per-call methods
+         like RegisterHandler/UnregisterHandler are stripped without this hint. -->
+    <assembly fullname="OneJS.Runtime">
+        <type fullname="OneJS.PerElementEventSupport" preserve="all"/>
+    </assembly>
+</linker>

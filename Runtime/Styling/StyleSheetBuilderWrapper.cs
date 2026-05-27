@@ -30,16 +30,16 @@ namespace OneJS.CustomStyleSheets {
 
         public StyleSheetBuilderWrapper() {
             var assembly = typeof(VisualElement).Assembly;
-            _builderType = assembly.GetType("UnityEngine.UIElements.StyleSheets.StyleSheetBuilder");
+            _builderType = RequireType(assembly, "UnityEngine.UIElements.StyleSheets.StyleSheetBuilder");
             _instance = Activator.CreateInstance(_builderType);
 
             // Cache type references
-            _dimensionType = assembly.GetType("UnityEngine.UIElements.StyleSheets.Dimension");
-            _styleValueKeywordType = assembly.GetType("UnityEngine.UIElements.StyleValueKeyword");
-            _styleValueTypeType = assembly.GetType("UnityEngine.UIElements.StyleValueType");
-            _styleValueFunctionType = assembly.GetType("UnityEngine.UIElements.StyleValueFunction");
-            _styleSelectorPartType = assembly.GetType("UnityEngine.UIElements.StyleSelectorPart");
-            _styleSelectorRelationshipType = assembly.GetType("UnityEngine.UIElements.StyleSelectorRelationship");
+            _dimensionType = RequireType(assembly, "UnityEngine.UIElements.StyleSheets.Dimension");
+            _styleValueKeywordType = RequireType(assembly, "UnityEngine.UIElements.StyleValueKeyword");
+            _styleValueTypeType = RequireType(assembly, "UnityEngine.UIElements.StyleValueType");
+            _styleValueFunctionType = RequireType(assembly, "UnityEngine.UIElements.StyleValueFunction");
+            _styleSelectorPartType = RequireType(assembly, "UnityEngine.UIElements.StyleSelectorPart");
+            _styleSelectorRelationshipType = RequireType(assembly, "UnityEngine.UIElements.StyleSelectorRelationship");
 
             // Cache method references
             _addValueFloat = _builderType.GetMethod("AddValue", new[] { typeof(float) });
@@ -49,6 +49,19 @@ namespace OneJS.CustomStyleSheets {
             _addValueKeyword = _builderType.GetMethod("AddValue", new[] { _styleValueKeywordType });
             _addValueStringType = _builderType.GetMethod("AddValue", new[] { typeof(string), _styleValueTypeType });
             _addValueFunction = _builderType.GetMethod("AddValue", new[] { _styleValueFunctionType });
+        }
+
+        static Type RequireType(Assembly assembly, string fullName) {
+            var t = assembly.GetType(fullName);
+            if (t == null) {
+                throw new TypeLoadException(
+                    $"OneJS could not resolve internal Unity type '{fullName}'. " +
+                    "This usually means IL2CPP managed-code stripping removed it " +
+                    "(common in WebGL/iOS Release builds). OneJS ships a link.xml " +
+                    "at Assets/Singtaa/OneJS/Plugins/link.xml to preserve these - " +
+                    "if it's missing or your build still strips, add the type to your project's link.xml.");
+            }
+            return t;
         }
 
         public void BuildTo(StyleSheet styleSheet) {

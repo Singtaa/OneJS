@@ -200,6 +200,14 @@ public class QuickJSUIBridge : IDisposable {
     /// Call this once after the bootstrap and user code have been evaluated.
     /// </summary>
     public void CacheTickCallback() {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        // WebGL runs __tick directly via the browser RAF loop started by
+        // __startWebGLTick. There's no __registerCallback on the WebGL side
+        // (it's provided by the native QuickJS runtime, not the bootstrap),
+        // and JSRunner.TickIfReady doesn't call _bridge.Tick() on WebGL.
+        _tickCallbackHandle = -1;
+        return;
+#else
         try {
             var handleStr = _ctx.Eval("typeof __tick === 'function' ? __registerCallback(__tick) : -1");
             _tickCallbackHandle = int.Parse(handleStr);
@@ -207,6 +215,7 @@ public class QuickJSUIBridge : IDisposable {
             Debug.LogWarning($"[QuickJSUIBridge] Failed to cache __tick callback: {ex.Message}");
             _tickCallbackHandle = -1;
         }
+#endif
     }
 
     /// <summary>

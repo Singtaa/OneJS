@@ -1457,24 +1457,32 @@ globalThis.clearStyleSheets = function() {
  * Path globals for file system access in standalone builds.
  * These are convenience aliases for Unity's Application paths.
  */
+// configurable: true so the bootstrap is safe to re-eval against a shared
+// global scope. WebGL builds run JS in window/globalThis with no per-context
+// isolation, so a deferred-init retry would otherwise hit "Cannot redefine
+// property" on the second bootstrap pass.
 Object.defineProperty(globalThis, "__persistentDataPath", {
     get: function() { return CS.UnityEngine.Application.persistentDataPath; },
-    enumerable: true
+    enumerable: true,
+    configurable: true
 });
 
 Object.defineProperty(globalThis, "__streamingAssetsPath", {
     get: function() { return CS.UnityEngine.Application.streamingAssetsPath; },
-    enumerable: true
+    enumerable: true,
+    configurable: true
 });
 
 Object.defineProperty(globalThis, "__dataPath", {
     get: function() { return CS.UnityEngine.Application.dataPath; },
-    enumerable: true
+    enumerable: true,
+    configurable: true
 });
 
 Object.defineProperty(globalThis, "__temporaryCachePath", {
     get: function() { return CS.UnityEngine.Application.temporaryCachePath; },
-    enumerable: true
+    enumerable: true,
+    configurable: true
 });
 
 /**
