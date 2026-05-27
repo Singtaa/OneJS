@@ -20,19 +20,24 @@ namespace OneJS {
     ///   CS.OneJS.StyleBridge.ApplyStyles(element, { width: ..., height: ... })
     /// </summary>
     public static class StyleBridge {
-        static readonly ConcurrentDictionary<(Type, string), PropertyInfo> _styleProps = new();
+        static readonly ConcurrentDictionary<string, PropertyInfo> _styleProps = new();
+        static readonly Type _iStyleType = typeof(IStyle);
 
         public static void ApplyStyles(VisualElement element, object stylesObj) {
             if (element == null || stylesObj == null) return;
             if (stylesObj is not Dictionary<string, object> styles) return;
 
+            // IStyle is implemented by an internal class (InlineStyleAccess)
+            // via explicit interface implementation — width/height/etc. are not
+            // exposed as public properties on the runtime type, only through
+            // the interface. Reflect on IStyle so PropertyInfo.SetValue routes
+            // through the interface dispatch.
             var style = element.style;
-            var styleType = style.GetType();
 
             foreach (var kvp in styles) {
                 if (string.IsNullOrEmpty(kvp.Key)) continue;
 
-                var prop = FindStyleProperty(styleType, kvp.Key);
+                var prop = FindStyleProperty(kvp.Key);
                 if (prop == null) continue;
 
                 object value = ResolveValue(kvp.Value);
@@ -98,12 +103,11 @@ namespace OneJS {
                 : 0f;
         }
 
-        static PropertyInfo FindStyleProperty(Type type, string name) {
-            var key = (type, name);
-            if (_styleProps.TryGetValue(key, out var cached)) return cached;
-            var prop = type.GetProperty(name,
+        static PropertyInfo FindStyleProperty(string name) {
+            if (_styleProps.TryGetValue(name, out var cached)) return cached;
+            var prop = _iStyleType.GetProperty(name,
                 BindingFlags.Instance | BindingFlags.Public);
-            if (prop != null) _styleProps[key] = prop;
+            if (prop != null) _styleProps[name] = prop;
             return prop;
         }
     }
