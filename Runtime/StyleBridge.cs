@@ -103,6 +103,35 @@ namespace OneJS {
                 : 0f;
         }
 
+        // Batched class-list add. The reconciler used to call AddToClassList
+        // once per class — Tailwind classNames like "justify-center items-center
+        // absolute h-full" cost 4 __cs.invoke crossings. WebGL builds spend
+        // ~3ms per crossing, so heavy className usage was a measurable share of
+        // mount latency. One crossing per element here regardless of class
+        // count. Update path keeps the per-class add/remove flow since changes
+        // are usually small deltas.
+        //
+        // JS arrays of strings come through the {__csArray, __csArrayType:"string"}
+        // marshalling path and arrive as string[]. Untyped arrays would arrive
+        // as List<object> — handle both for safety.
+        public static void AddClassesBatch(VisualElement element, object classesObj) {
+            if (element == null || classesObj == null) return;
+            switch (classesObj) {
+                case string[] arr:
+                    for (int i = 0; i < arr.Length; i++) {
+                        if (!string.IsNullOrEmpty(arr[i])) element.AddToClassList(arr[i]);
+                    }
+                    break;
+                case System.Collections.IList list:
+                    for (int i = 0; i < list.Count; i++) {
+                        if (list[i] is string s && !string.IsNullOrEmpty(s)) {
+                            element.AddToClassList(s);
+                        }
+                    }
+                    break;
+            }
+        }
+
         static PropertyInfo FindStyleProperty(string name) {
             if (_styleProps.TryGetValue(name, out var cached)) return cached;
             var prop = _iStyleType.GetProperty(name,
