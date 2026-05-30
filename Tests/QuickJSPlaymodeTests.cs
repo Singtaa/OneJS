@@ -69,6 +69,19 @@ public struct TestPropertyStruct {
     public float Y { get; set; }
 }
 
+public struct TestHistoryEntry {
+    public int day;
+    public float value;
+}
+
+// Struct with array and List fields, exercising collection round-trip across the bridge.
+public struct TestStructWithArrays {
+    public string name;
+    public int[] streak;
+    public TestHistoryEntry[] history;
+    public System.Collections.Generic.List<string> tags;
+}
+
 /// <summary>
 /// Playmode tests for QuickJS core functionality.
 /// Tests basic eval, static calls, GameObject interop, callbacks, and struct serialization.
@@ -445,6 +458,93 @@ public class QuickJSPlaymodeTests {
 
         StringAssert.Contains("coords", json);
         StringAssert.Contains("7,8", json);
+        yield return null;
+    }
+
+    // MARK: Struct Array/List Field Tests
+
+    [UnityTest]
+    public IEnumerator Struct_ArrayFields_SerializeAsJsonArrays() {
+        var data = new TestStructWithArrays {
+            name = "Exercise",
+            streak = new[] { 1, 2, 3 },
+            history = new[] {
+                new TestHistoryEntry { day = 1, value = 0.5f },
+                new TestHistoryEntry { day = 2, value = 1.5f }
+            },
+            tags = new System.Collections.Generic.List<string> { "health", "daily" }
+        };
+
+        var json = QuickJSNative.SerializeStruct(data);
+        Assert.IsNotNull(json);
+
+        // Arrays/Lists must serialize as real JSON arrays, not ToString'd type names.
+        StringAssert.Contains("\"streak\":[1,2,3]", json);
+        StringAssert.Contains("\"tags\":[\"health\",\"daily\"]", json);
+        StringAssert.Contains("\"history\":[{", json);
+        StringAssert.DoesNotContain("Int32[]", json);
+        StringAssert.DoesNotContain("TestHistoryEntry[]", json);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Struct_ArrayFields_RoundTripFromJson() {
+        var data = new TestStructWithArrays {
+            name = "Exercise",
+            streak = new[] { 1, 2, 3 },
+            history = new[] {
+                new TestHistoryEntry { day = 1, value = 0.5f },
+                new TestHistoryEntry { day = 2, value = 1.5f }
+            },
+            tags = new System.Collections.Generic.List<string> { "health", "daily" }
+        };
+
+        var json = QuickJSNative.SerializeStruct(data);
+        var result = QuickJSNative.DeserializeStruct(json, typeof(TestStructWithArrays));
+
+        Assert.IsInstanceOf<TestStructWithArrays>(result);
+        var rt = (TestStructWithArrays)result;
+
+        Assert.AreEqual("Exercise", rt.name);
+        CollectionAssert.AreEqual(new[] { 1, 2, 3 }, rt.streak);
+
+        Assert.IsNotNull(rt.history, "history array was not restored");
+        Assert.AreEqual(2, rt.history.Length);
+        Assert.AreEqual(1, rt.history[0].day);
+        Assert.AreEqual(0.5f, rt.history[0].value, 0.001f);
+        Assert.AreEqual(2, rt.history[1].day);
+        Assert.AreEqual(1.5f, rt.history[1].value, 0.001f);
+
+        CollectionAssert.AreEqual(new[] { "health", "daily" }, rt.tags);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Struct_ArrayFields_RoundTripFromPlainDict() {
+        // Mirrors how JS passes a struct to C#: a Dictionary whose array/List fields
+        // arrive as List<object>. This is the path that previously threw ArgumentException.
+        var dict = new System.Collections.Generic.Dictionary<string, object> {
+            ["name"] = "Reading",
+            ["streak"] = new System.Collections.Generic.List<object> { 5, 6 },
+            ["history"] = new System.Collections.Generic.List<object> {
+                new System.Collections.Generic.Dictionary<string, object> { ["day"] = 1, ["value"] = 2.0 }
+            },
+            ["tags"] = new System.Collections.Generic.List<object> { "books" }
+        };
+
+        object result = null;
+        Assert.DoesNotThrow(() => {
+            result = QuickJSNative.DeserializeFromDict(dict, typeof(TestStructWithArrays));
+        });
+
+        Assert.IsInstanceOf<TestStructWithArrays>(result);
+        var rt = (TestStructWithArrays)result;
+        Assert.AreEqual("Reading", rt.name);
+        CollectionAssert.AreEqual(new[] { 5, 6 }, rt.streak);
+        Assert.AreEqual(1, rt.history.Length);
+        Assert.AreEqual(1, rt.history[0].day);
+        Assert.AreEqual(2.0f, rt.history[0].value, 0.001f);
+        CollectionAssert.AreEqual(new[] { "books" }, rt.tags);
         yield return null;
     }
 

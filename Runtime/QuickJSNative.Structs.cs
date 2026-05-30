@@ -345,12 +345,45 @@ public static partial class QuickJSNative {
         } else if (IsSerializableStruct(type)) {
             // Nested struct
             sb.Append(SerializeStruct(value));
+        } else if (TryGetCollectionElementType(type, out var elementType)) {
+            // Array or List<T> -> JSON array (recurse per element)
+            AppendJsonArray(sb, (System.Collections.IEnumerable)value, elementType);
         } else {
             // Fallback to ToString
             sb.Append('"');
             sb.Append(EscapeJsonString(value.ToString()));
             sb.Append('"');
         }
+    }
+
+    static void AppendJsonArray(StringBuilder sb, System.Collections.IEnumerable items, Type elementType) {
+        sb.Append('[');
+        bool first = true;
+        foreach (var item in items) {
+            if (!first) sb.Append(',');
+            first = false;
+            // Prefer the element's runtime type so nested structs/enums serialize correctly;
+            // fall back to the declared element type for null entries.
+            AppendJsonValue(sb, item, item?.GetType() ?? elementType);
+        }
+        sb.Append(']');
+    }
+
+    /// <summary>
+    /// Returns the element type for array and List&lt;T&gt; fields, which serialize as JSON arrays.
+    /// Other collection shapes fall through to the ToString fallback (unchanged behavior).
+    /// </summary>
+    static bool TryGetCollectionElementType(Type type, out Type elementType) {
+        if (type.IsArray) {
+            elementType = type.GetElementType();
+            return elementType != null;
+        }
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>)) {
+            elementType = type.GetGenericArguments()[0];
+            return true;
+        }
+        elementType = null;
+        return false;
     }
 
     static string EscapeJsonString(string s) {
@@ -432,6 +465,17 @@ public static partial class QuickJSNative {
         // Handle nested dictionary (nested struct from JS)
         if (value is Dictionary<string, object> nestedDict && IsSerializableStruct(targetType)) {
             return DeserializeFromDict(nestedDict, targetType);
+        }
+
+        // JS array (parsed as a List<object>) -> typed array or List<T>.
+        // Reuses the array-element converter, which handles nested structs and primitives.
+        if (value is System.Collections.IEnumerable && sourceType != typeof(string)) {
+            if (targetType.IsArray) {
+                return ConvertToArray(value, targetType);
+            }
+            if (targetType.IsGenericType && targetType.GetGenericTypeDefinition() == typeof(List<>)) {
+                return ConvertToList(value, targetType);
+            }
         }
 
         // Numeric conversions
@@ -946,6 +990,28 @@ public static partial class QuickJSNative {
                 result.SetValue(converted, i);
             }
             return result;
+        }
+
+        return value;
+    }
+
+    /// <summary>
+    /// Convert a value (typically a List&lt;object&gt; from JS) to a target List&lt;T&gt;.
+    /// Mirrors ConvertToArray but produces a generic List instance.
+    /// </summary>
+    static object ConvertToList(object value, Type targetListType) {
+        if (value == null) return null;
+
+        // Already the right type?
+        if (targetListType.IsAssignableFrom(value.GetType())) return value;
+
+        var elementType = targetListType.GetGenericArguments()[0];
+        if (value is System.Collections.IEnumerable enumerable) {
+            var list = (System.Collections.IList)Activator.CreateInstance(targetListType);
+            foreach (var item in enumerable) {
+                list.Add(ConvertArrayElement(item, elementType));
+            }
+            return list;
         }
 
         return value;

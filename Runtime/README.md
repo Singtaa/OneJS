@@ -459,6 +459,7 @@ Structs are automatically serialized between JS and C# without manual registrati
 - `Vector3 → Vector2`: Automatic (C# returns Vector2 as Vector3 with z=0 for efficiency)
 - `Dictionary → Struct`: Deserialized via field/property matching
 - `JSON String → Struct`: Parsed when `__type` marker present
+- `Array / List<T> fields`: Struct fields typed `T[]` or `List<T>` round-trip as JSON arrays in both directions. Elements may be primitives, strings, enums, or nested structs.
 
 ## Stability & Monitoring
 
