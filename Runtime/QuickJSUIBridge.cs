@@ -64,6 +64,10 @@ public class QuickJSUIBridge : IDisposable {
     long _lastDispatchedPointerDownTs = -1;
     long _lastDispatchedPointerUpTs = -1;
     long _lastDispatchedPointerMoveTs = -1;
+    long _lastDispatchedPointerCancelTs = -1;
+    long _lastDispatchedPointerStationaryTs = -1;
+    long _lastDispatchedPointerCaptureTs = -1;
+    long _lastDispatchedPointerCaptureOutTs = -1;
 
     public QuickJSContext Context => _ctx;
     public VisualElement Root => _root;
@@ -308,6 +312,10 @@ public class QuickJSUIBridge : IDisposable {
         _root.RegisterCallback<PointerDownEvent>(OnPointerDown, TrickleDown.TrickleDown);
         _root.RegisterCallback<PointerUpEvent>(OnPointerUp, TrickleDown.TrickleDown);
         _root.RegisterCallback<PointerMoveEvent>(OnPointerMove, TrickleDown.TrickleDown);
+        _root.RegisterCallback<PointerCancelEvent>(OnPointerCancel, TrickleDown.TrickleDown);
+        _root.RegisterCallback<PointerStationaryEvent>(OnPointerStationary, TrickleDown.TrickleDown);
+        _root.RegisterCallback<PointerCaptureEvent>(OnPointerCapture, TrickleDown.TrickleDown);
+        _root.RegisterCallback<PointerCaptureOutEvent>(OnPointerCaptureOut, TrickleDown.TrickleDown);
         _root.RegisterCallback<PointerEnterEvent>(OnPointerEnter, TrickleDown.TrickleDown);
         _root.RegisterCallback<PointerLeaveEvent>(OnPointerLeave, TrickleDown.TrickleDown);
         _root.RegisterCallback<FocusInEvent>(OnFocusIn, TrickleDown.TrickleDown);
@@ -329,6 +337,10 @@ public class QuickJSUIBridge : IDisposable {
         _root.UnregisterCallback<PointerDownEvent>(OnPointerDown, TrickleDown.TrickleDown);
         _root.UnregisterCallback<PointerUpEvent>(OnPointerUp, TrickleDown.TrickleDown);
         _root.UnregisterCallback<PointerMoveEvent>(OnPointerMove, TrickleDown.TrickleDown);
+        _root.UnregisterCallback<PointerCancelEvent>(OnPointerCancel, TrickleDown.TrickleDown);
+        _root.UnregisterCallback<PointerStationaryEvent>(OnPointerStationary, TrickleDown.TrickleDown);
+        _root.UnregisterCallback<PointerCaptureEvent>(OnPointerCapture, TrickleDown.TrickleDown);
+        _root.UnregisterCallback<PointerCaptureOutEvent>(OnPointerCaptureOut, TrickleDown.TrickleDown);
         _root.UnregisterCallback<PointerEnterEvent>(OnPointerEnter, TrickleDown.TrickleDown);
         _root.UnregisterCallback<PointerLeaveEvent>(OnPointerLeave, TrickleDown.TrickleDown);
         _root.UnregisterCallback<FocusInEvent>(OnFocusIn, TrickleDown.TrickleDown);
@@ -406,6 +418,33 @@ public class QuickJSUIBridge : IDisposable {
         } else {
             DispatchPointerEvent("pointerleave", e.target, e.position, 0, e.pointerId);
         }
+    }
+
+    // Cancel / stationary / capture transitions are infrequent (not per-frame like
+    // pointermove), so they stay on the string dispatch path rather than adding
+    // parallel fast-path EVT_* constants. Capture events carry only a pointerId.
+    void OnPointerCancel(PointerCancelEvent e) {
+        if (e.timestamp == _lastDispatchedPointerCancelTs) return;
+        _lastDispatchedPointerCancelTs = e.timestamp;
+        DispatchPointerEvent("pointercancel", e.target, e.position, e.button, e.pointerId);
+    }
+
+    void OnPointerStationary(PointerStationaryEvent e) {
+        if (e.timestamp == _lastDispatchedPointerStationaryTs) return;
+        _lastDispatchedPointerStationaryTs = e.timestamp;
+        DispatchPointerEvent("pointerstationary", e.target, e.position, e.button, e.pointerId);
+    }
+
+    void OnPointerCapture(PointerCaptureEvent e) {
+        if (e.timestamp == _lastDispatchedPointerCaptureTs) return;
+        _lastDispatchedPointerCaptureTs = e.timestamp;
+        DispatchPointerCaptureEvent("pointercapture", e.target, e.pointerId);
+    }
+
+    void OnPointerCaptureOut(PointerCaptureOutEvent e) {
+        if (e.timestamp == _lastDispatchedPointerCaptureOutTs) return;
+        _lastDispatchedPointerCaptureOutTs = e.timestamp;
+        DispatchPointerCaptureEvent("pointercaptureout", e.target, e.pointerId);
     }
 
     void OnFocusIn(FocusInEvent e) {
@@ -644,6 +683,21 @@ public class QuickJSUIBridge : IDisposable {
     }
 
     /// <summary>
+    /// Dispatch a pointer capture transition event (pointercapture / pointercaptureout).
+    /// Unlike other pointer events these carry no position or button, only the
+    /// pointerId involved in the capture change.
+    /// </summary>
+    void DispatchPointerCaptureEvent(string eventType, IEventHandler target, int pointerId) {
+        int handle = FindElementHandle(target);
+        if (handle == 0) return;
+
+        string data = string.Format(CultureInfo.InvariantCulture,
+            "{{\"pointerId\":{0}}}", pointerId);
+
+        DispatchEventInternal(handle, eventType, data);
+    }
+
+    /// <summary>
     /// Dispatch a keyboard event with key and modifier data.
     /// </summary>
     void DispatchKeyEvent(string eventType, IEventHandler target, KeyCode keyCode, char character, EventModifiers modifiers) {
@@ -692,6 +746,18 @@ public class QuickJSUIBridge : IDisposable {
             case "pointermove":
                 element.RegisterCallback<PointerMoveEvent>(OnPerElementPointerMove);
                 break;
+            case "pointercancel":
+                element.RegisterCallback<PointerCancelEvent>(OnPerElementPointerCancel);
+                break;
+            case "pointerstationary":
+                element.RegisterCallback<PointerStationaryEvent>(OnPerElementPointerStationary);
+                break;
+            case "pointercapture":
+                element.RegisterCallback<PointerCaptureEvent>(OnPerElementPointerCapture);
+                break;
+            case "pointercaptureout":
+                element.RegisterCallback<PointerCaptureOutEvent>(OnPerElementPointerCaptureOut);
+                break;
             case "geometrychanged":
                 element.RegisterCallback<GeometryChangedEvent>(OnPerElementGeometryChanged);
                 break;
@@ -719,6 +785,18 @@ public class QuickJSUIBridge : IDisposable {
                 break;
             case "pointermove":
                 element.UnregisterCallback<PointerMoveEvent>(OnPerElementPointerMove);
+                break;
+            case "pointercancel":
+                element.UnregisterCallback<PointerCancelEvent>(OnPerElementPointerCancel);
+                break;
+            case "pointerstationary":
+                element.UnregisterCallback<PointerStationaryEvent>(OnPerElementPointerStationary);
+                break;
+            case "pointercapture":
+                element.UnregisterCallback<PointerCaptureEvent>(OnPerElementPointerCapture);
+                break;
+            case "pointercaptureout":
+                element.UnregisterCallback<PointerCaptureOutEvent>(OnPerElementPointerCaptureOut);
                 break;
             case "geometrychanged":
                 element.UnregisterCallback<GeometryChangedEvent>(OnPerElementGeometryChanged);
@@ -749,6 +827,30 @@ public class QuickJSUIBridge : IDisposable {
         if (e.timestamp == _lastDispatchedPointerMoveTs) return;
         _lastDispatchedPointerMoveTs = e.timestamp;
         DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
+    }
+
+    void OnPerElementPointerCancel(PointerCancelEvent e) {
+        if (e.timestamp == _lastDispatchedPointerCancelTs) return;
+        _lastDispatchedPointerCancelTs = e.timestamp;
+        DispatchPointerEvent("pointercancel", e.target, e.position, e.button, e.pointerId);
+    }
+
+    void OnPerElementPointerStationary(PointerStationaryEvent e) {
+        if (e.timestamp == _lastDispatchedPointerStationaryTs) return;
+        _lastDispatchedPointerStationaryTs = e.timestamp;
+        DispatchPointerEvent("pointerstationary", e.target, e.position, e.button, e.pointerId);
+    }
+
+    void OnPerElementPointerCapture(PointerCaptureEvent e) {
+        if (e.timestamp == _lastDispatchedPointerCaptureTs) return;
+        _lastDispatchedPointerCaptureTs = e.timestamp;
+        DispatchPointerCaptureEvent("pointercapture", e.target, e.pointerId);
+    }
+
+    void OnPerElementPointerCaptureOut(PointerCaptureOutEvent e) {
+        if (e.timestamp == _lastDispatchedPointerCaptureOutTs) return;
+        _lastDispatchedPointerCaptureOutTs = e.timestamp;
+        DispatchPointerCaptureEvent("pointercaptureout", e.target, e.pointerId);
     }
 
     void OnPerElementGeometryChanged(GeometryChangedEvent e) {
