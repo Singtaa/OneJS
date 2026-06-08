@@ -414,6 +414,143 @@ public class QuickJSUIBridgePlaymodeTests {
         _bridge.Eval("globalThis.__pmCaptureTestEl.ReleasePointer(0)");
     }
 
+    // MARK: Native Event Suppression + Wheel (confirmation for PR #104)
+    // These validate the planned design BEFORE it is wired into JS:
+    //  - A TrickleDown handler on the bridge root that calls StopImmediatePropagation()
+    //    prevents descendant elements (e.g. a nested ScrollView) from acting. This is the
+    //    mechanism the planned `preventDefault -> StopImmediatePropagation` will rely on.
+    //  - The bridge currently does NOT dispatch WheelEvent to JS (wheel is unbridged).
+
+    [UnityTest]
+    public IEnumerator Suppression_RootTrickleDownStop_PreventsDescendantPointerDown() {
+        var root = _uiDocument.rootVisualElement;
+
+        var child = new VisualElement { name = "SuppressChild" };
+        child.style.width = 100;
+        child.style.height = 100;
+        root.Add(child);
+        yield return null; // layout
+
+        bool childGotDown = false;
+        child.RegisterCallback<PointerDownEvent>(_ => childGotDown = true);
+
+        // Baseline: with nothing intercepting, the descendant receives PointerDown.
+        using (var evt = PointerDownEvent.GetPooled()) {
+            evt.target = child;
+            root.SendEvent(evt);
+        }
+        Assert.IsTrue(childGotDown,
+            "Baseline: descendant should receive PointerDown when nothing intercepts it.");
+
+        // Fix mechanism: a TrickleDown handler on root that stops immediate propagation
+        // must prevent the descendant from receiving the event at all.
+        childGotDown = false;
+        EventCallback<PointerDownEvent> stopper = e => e.StopImmediatePropagation();
+        root.RegisterCallback(stopper, TrickleDown.TrickleDown);
+        using (var evt = PointerDownEvent.GetPooled()) {
+            evt.target = child;
+            root.SendEvent(evt);
+        }
+        root.UnregisterCallback(stopper, TrickleDown.TrickleDown);
+
+        Assert.IsFalse(childGotDown,
+            "Fix: StopImmediatePropagation() in a root TrickleDown handler must prevent the " +
+            "descendant from receiving PointerDown. This is the path that lets a JS gesture " +
+            "suppress a nested ScrollView's native pan.");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Suppression_RootTrickleDownStop_StopsScrollViewWheelScroll() {
+        var root = _uiDocument.rootVisualElement;
+
+        var sv = new ScrollView(ScrollViewMode.Vertical);
+        sv.style.width = 200;
+        sv.style.height = 200;
+        var content = new VisualElement { name = "TallContent" };
+        content.style.height = 2000; // taller than the viewport, so it can scroll
+        sv.Add(content);
+        root.Add(sv);
+        yield return null;
+        yield return null; // a couple frames for layout
+
+        // Baseline: a positive wheel delta scrolls the ScrollView down.
+        sv.scrollOffset = Vector2.zero;
+        SendWheel(root, content, 50f);
+        yield return null;
+        float scrolled = sv.scrollOffset.y;
+        Assert.Greater(scrolled, 0f,
+            $"Baseline: ScrollView should scroll on a wheel delta. (scrollOffset.y = {scrolled})");
+
+        // Fix mechanism: root TrickleDown StopImmediatePropagation must keep scrollOffset put.
+        sv.scrollOffset = Vector2.zero;
+        EventCallback<WheelEvent> stopper = e => e.StopImmediatePropagation();
+        root.RegisterCallback(stopper, TrickleDown.TrickleDown);
+        SendWheel(root, content, 50f);
+        yield return null;
+        float suppressed = sv.scrollOffset.y;
+        root.UnregisterCallback(stopper, TrickleDown.TrickleDown);
+
+        Assert.AreEqual(0f, suppressed, 0.0001f,
+            "Fix: with StopImmediatePropagation() in a root TrickleDown WheelEvent handler, the " +
+            $"ScrollView must not scroll. (scrollOffset.y = {suppressed})");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Wheel_DispatchedToJsHandlerWithDelta() {
+        var root = _uiDocument.rootVisualElement;
+        int rootHandle = QuickJSNative.RegisterObject(root);
+
+        // Create a JS element that fills the panel and register onWheel on it (mirrors the
+        // pointer-capture test's JS-created-element pattern, which has correct handle
+        // bookkeeping). A WheelEvent at a point inside it picks it as the target, driving
+        // the real OnWheel -> FindElementHandle -> __dispatchEvent path end to end.
+        _bridge.Eval($@"
+            var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+            var el = new CS.UnityEngine.UIElements.VisualElement();
+            el.style.flexGrow = 1;
+            el.style.width = new CS.UnityEngine.UIElements.Length(100, CS.UnityEngine.UIElements.LengthUnit.Percent);
+            el.style.height = new CS.UnityEngine.UIElements.Length(100, CS.UnityEngine.UIElements.LengthUnit.Percent);
+            root.Add(el);
+            globalThis.__wheelEl = el;
+            globalThis.__wheelCount = 0;
+            globalThis.__wheelDeltaY = 0;
+            __eventAPI.addEventListener(el, 'wheel', (e) => {{
+                globalThis.__wheelCount++;
+                globalThis.__wheelDeltaY = e.deltaY;
+            }});
+        ");
+        yield return null;
+        yield return null; // layout so the element fills the panel and is pickable
+
+        int elHandle = int.Parse(_bridge.Eval("globalThis.__wheelEl.__csHandle"));
+        var elCs = QuickJSNative.GetObjectByHandle(elHandle) as VisualElement;
+        Assert.IsNotNull(elCs, "Should resolve the JS-created element back to C#.");
+
+        var systemEvent = new Event { type = EventType.ScrollWheel, delta = new Vector2(0f, 10f), mousePosition = new Vector2(10f, 10f) };
+        using (var evt = WheelEvent.GetPooled(systemEvent)) {
+            evt.target = elCs;
+            root.SendEvent(evt);
+        }
+        yield return null;
+
+        // Phase 1: WheelEvent is now bridged, so the JS onWheel handler fires with delta.
+        Assert.AreEqual("1", _bridge.Eval("globalThis.__wheelCount"),
+            $"Real WheelEvent should reach JS via the bridge (elHandle={elHandle}).");
+        Assert.AreEqual("true", _bridge.Eval("globalThis.__wheelDeltaY > 0"),
+            "The wheel deltaY should be forwarded to JS (positive for a downward scroll).");
+    }
+
+    // Helper: dispatch a synthetic vertical wheel scroll targeting `target`.
+    static void SendWheel(VisualElement root, VisualElement target, float deltaY) {
+        var systemEvent = new Event { type = EventType.ScrollWheel, delta = new Vector2(0f, deltaY) };
+        using (var evt = WheelEvent.GetPooled(systemEvent)) {
+            evt.target = target;
+            root.SendEvent(evt);
+        }
+    }
+
     /// <summary>
     /// Helper: set pointerId on a PointerEventBase via reflection.
     /// PointerEventBase.pointerId has a protected setter, so we use reflection for tests.

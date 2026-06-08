@@ -330,6 +330,7 @@ public class QuickJSUIBridge : IDisposable {
         _root.RegisterCallback<ChangeEvent<float>>(OnChangeFloat, TrickleDown.TrickleDown);
         _root.RegisterCallback<ChangeEvent<int>>(OnChangeInt, TrickleDown.TrickleDown);
         _root.RegisterCallback<GeometryChangedEvent>(OnGeometryChanged);
+        _root.RegisterCallback<WheelEvent>(OnWheel, TrickleDown.TrickleDown);
     }
 
     void UnregisterEventDelegation() {
@@ -355,6 +356,7 @@ public class QuickJSUIBridge : IDisposable {
         _root.UnregisterCallback<ChangeEvent<float>>(OnChangeFloat, TrickleDown.TrickleDown);
         _root.UnregisterCallback<ChangeEvent<int>>(OnChangeInt, TrickleDown.TrickleDown);
         _root.UnregisterCallback<GeometryChangedEvent>(OnGeometryChanged);
+        _root.UnregisterCallback<WheelEvent>(OnWheel, TrickleDown.TrickleDown);
     }
 
     // MARK: Event Handlers
@@ -445,6 +447,14 @@ public class QuickJSUIBridge : IDisposable {
         if (e.timestamp == _lastDispatchedPointerCaptureOutTs) return;
         _lastDispatchedPointerCaptureOutTs = e.timestamp;
         DispatchPointerCaptureEvent("pointercaptureout", e.target, e.pointerId);
+    }
+
+    // Mouse wheel / trackpad scroll. Like the cancel/capture handlers above, this stays
+    // on the string dispatch path (it is not per-frame like pointermove). Only the root
+    // TrickleDown handler fires (wheel has no per-element/capture handler), so no
+    // timestamp dedup is needed. WheelEvent.delta is a Vector3; the z component is unused.
+    void OnWheel(WheelEvent e) {
+        DispatchWheelEvent("wheel", e.target, e.delta);
     }
 
     void OnFocusIn(FocusInEvent e) {
@@ -678,6 +688,26 @@ public class QuickJSUIBridge : IDisposable {
         string data = string.Format(CultureInfo.InvariantCulture,
             "{{\"x\":{0:F2},\"y\":{1:F2},\"button\":{2},\"pointerId\":{3}}}",
             position.x, position.y, button, pointerId);
+
+        DispatchEventInternal(handle, eventType, data);
+    }
+
+    /// <summary>
+    /// Dispatch a wheel event carrying the scroll delta. WheelEvent.delta is a Vector3
+    /// (z is unused); exposed to JS as flat { deltaX, deltaY } to mirror the DOM WheelEvent
+    /// (e.deltaX / e.deltaY) and to keep the event-data object flat like the other events.
+    /// </summary>
+    void DispatchWheelEvent(string eventType, IEventHandler target, Vector3 delta) {
+        int handle = FindElementHandle(target);
+        if (handle == 0) return;
+
+        // Avoid `string.Format` here: a trailing `{1:F4}}}` (format-spec placeholder
+        // followed by `}}`) is parsed inconsistently on Mono and corrupts the final
+        // field, same hazard documented in RectToJson. Plain `.ToString` sidesteps it.
+        var inv = CultureInfo.InvariantCulture;
+        string data = "{\"deltaX\":" + delta.x.ToString("F4", inv)
+                    + ",\"deltaY\":" + delta.y.ToString("F4", inv)
+                    + "}";
 
         DispatchEventInternal(handle, eventType, data);
     }
