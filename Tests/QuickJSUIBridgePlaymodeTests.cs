@@ -543,6 +543,73 @@ public class QuickJSUIBridgePlaymodeTests {
     }
 
     [UnityTest]
+    public IEnumerator Suppression_FastPath_PreventDefaultInOnPointerDown_Suppresses() {
+        // Validates the PRODUCTION pointer path. JSRunner caches the fast dispatch callback,
+        // so pointer events go through DispatchEventFast -> InvokeCallbackReturnInt (not the
+        // string path the other tests use). A JS onPointerDown calling preventDefault() must
+        // suppress the native event (a descendant's PointerDown callback does not fire);
+        // without it, the descendant fires (backward-compat).
+        var root = _uiDocument.rootVisualElement;
+        int rootHandle = QuickJSNative.RegisterObject(root);
+
+        // Enable the fast path (mirrors JSRunner) and confirm it actually engaged.
+        _bridge.CacheEventDispatchCallback();
+        var dispatchHandleField = typeof(QuickJSUIBridge).GetField(
+            "_eventDispatchHandle", BindingFlags.NonPublic | BindingFlags.Instance);
+        int dispatchHandle = (int)dispatchHandleField.GetValue(_bridge);
+        Assert.GreaterOrEqual(dispatchHandle, 0,
+            "Fast dispatch path should be enabled so this test exercises DispatchEventFast / InvokeCallbackReturnInt.");
+
+        _bridge.Eval($@"
+            var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+            var child = new CS.UnityEngine.UIElements.VisualElement();
+            child.style.flexGrow = 1;
+            root.Add(child);
+            globalThis.__child = child;
+            globalThis.__pdFired = 0;
+            globalThis.__doPreventDefault = false;
+            __eventAPI.addEventListener(child, 'pointerdown', (e) => {{
+                globalThis.__pdFired++;
+                if (globalThis.__doPreventDefault) e.preventDefault();
+            }});
+        ");
+        yield return null;
+
+        int childHandle = int.Parse(_bridge.Eval("globalThis.__child.__csHandle"));
+        var childCs = QuickJSNative.GetObjectByHandle(childHandle) as VisualElement;
+        Assert.IsNotNull(childCs, "Child should resolve back to C#.");
+
+        bool childNativeGotDown = false;
+        childCs.RegisterCallback<PointerDownEvent>(_ => childNativeGotDown = true);
+
+        // Backward-compat: without preventDefault the native PointerDown reaches the child.
+        _bridge.Eval("globalThis.__pdFired = 0; globalThis.__doPreventDefault = false;");
+        childNativeGotDown = false;
+        using (var evt = PointerDownEvent.GetPooled()) {
+            evt.target = childCs;
+            root.SendEvent(evt);
+        }
+        yield return null;
+        Assert.AreEqual("1", _bridge.Eval("globalThis.__pdFired"),
+            "JS onPointerDown should fire via the fast path.");
+        Assert.IsTrue(childNativeGotDown,
+            "Without preventDefault, the child's native PointerDown callback should fire.");
+
+        // Suppression: with preventDefault the native PointerDown is suppressed.
+        _bridge.Eval("globalThis.__pdFired = 0; globalThis.__doPreventDefault = true;");
+        childNativeGotDown = false;
+        using (var evt = PointerDownEvent.GetPooled()) {
+            evt.target = childCs;
+            root.SendEvent(evt);
+        }
+        yield return null;
+        Assert.AreEqual("1", _bridge.Eval("globalThis.__pdFired"),
+            "JS onPointerDown should still fire via the fast path.");
+        Assert.IsFalse(childNativeGotDown,
+            "preventDefault() in onPointerDown must suppress the child's native PointerDown (fast path).");
+    }
+
+    [UnityTest]
     public IEnumerator Suppression_PreventDefaultInOnWheel_StopsScrollViewScroll() {
         // End-to-end Phase 2: a JS onWheel handler calling preventDefault() must stop the
         // enclosing ScrollView from scrolling (native suppression). Without preventDefault
