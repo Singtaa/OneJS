@@ -361,47 +361,48 @@ public class QuickJSUIBridge : IDisposable {
 
     // MARK: Event Handlers
 
+    // JS preventDefault() (defaultPrevented, bit1) is mirrored onto the native event as
+    // StopImmediatePropagation, so a JS gesture can suppress nested native controls (e.g. a
+    // ScrollView's pan/scroll). stopPropagation() (bit0) stays JS-bubble-only and is NOT
+    // mirrored, preserving behavior for handlers that only stop the JS-side bubble.
+    const int FLAG_DEFAULT_PREVENTED = 2;
+    static void ApplyNativeSuppression(EventBase e, int flags) {
+        if ((flags & FLAG_DEFAULT_PREVENTED) != 0) e.StopImmediatePropagation();
+    }
+
     void OnClick(ClickEvent e) {
-        if (_eventDispatchHandle >= 0) {
-            int handle = FindElementHandle(e.target);
-            DispatchEventFast(EVT_CLICK, handle, e.position.x, e.position.y, e.button, 0);
-        } else {
-            DispatchPointerEvent("click", e.target, e.position, e.button);
-        }
+        int flags = _eventDispatchHandle >= 0
+            ? DispatchEventFast(EVT_CLICK, FindElementHandle(e.target), e.position.x, e.position.y, e.button, 0)
+            : DispatchPointerEvent("click", e.target, e.position, e.button);
+        ApplyNativeSuppression(e, flags);
     }
 
     void OnPointerDown(PointerDownEvent e) {
         if (e.timestamp == _lastDispatchedPointerDownTs) return;
         _lastDispatchedPointerDownTs = e.timestamp;
-        if (_eventDispatchHandle >= 0) {
-            int handle = FindElementHandle(e.target);
-            DispatchEventFast(EVT_POINTER_DOWN, handle, e.position.x, e.position.y, e.button, e.pointerId);
-        } else {
-            DispatchPointerEvent("pointerdown", e.target, e.position, e.button, e.pointerId);
-        }
+        int flags = _eventDispatchHandle >= 0
+            ? DispatchEventFast(EVT_POINTER_DOWN, FindElementHandle(e.target), e.position.x, e.position.y, e.button, e.pointerId)
+            : DispatchPointerEvent("pointerdown", e.target, e.position, e.button, e.pointerId);
+        ApplyNativeSuppression(e, flags);
     }
 
     void OnPointerUp(PointerUpEvent e) {
         if (e.timestamp == _lastDispatchedPointerUpTs) return;
         _lastDispatchedPointerUpTs = e.timestamp;
-        if (_eventDispatchHandle >= 0) {
-            int handle = FindElementHandle(e.target);
-            DispatchEventFast(EVT_POINTER_UP, handle, e.position.x, e.position.y, e.button, e.pointerId);
-        } else {
-            DispatchPointerEvent("pointerup", e.target, e.position, e.button, e.pointerId);
-        }
+        int flags = _eventDispatchHandle >= 0
+            ? DispatchEventFast(EVT_POINTER_UP, FindElementHandle(e.target), e.position.x, e.position.y, e.button, e.pointerId)
+            : DispatchPointerEvent("pointerup", e.target, e.position, e.button, e.pointerId);
+        ApplyNativeSuppression(e, flags);
     }
 
     void OnPointerMove(PointerMoveEvent e) {
         if (!InputBridge.PointerMoveEventsEnabled) return;
         if (e.timestamp == _lastDispatchedPointerMoveTs) return;
         _lastDispatchedPointerMoveTs = e.timestamp;
-        if (_eventDispatchHandle >= 0) {
-            int handle = FindElementHandle(e.target);
-            DispatchEventFast(EVT_POINTER_MOVE, handle, e.position.x, e.position.y, e.button, e.pointerId);
-        } else {
-            DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
-        }
+        int flags = _eventDispatchHandle >= 0
+            ? DispatchEventFast(EVT_POINTER_MOVE, FindElementHandle(e.target), e.position.x, e.position.y, e.button, e.pointerId)
+            : DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
+        ApplyNativeSuppression(e, flags);
     }
 
     void OnPointerEnter(PointerEnterEvent e) {
@@ -454,7 +455,8 @@ public class QuickJSUIBridge : IDisposable {
     // TrickleDown handler fires (wheel has no per-element/capture handler), so no
     // timestamp dedup is needed. WheelEvent.delta is a Vector3; the z component is unused.
     void OnWheel(WheelEvent e) {
-        DispatchWheelEvent("wheel", e.target, e.delta);
+        int flags = DispatchWheelEvent("wheel", e.target, e.delta);
+        ApplyNativeSuppression(e, flags);
     }
 
     void OnFocusIn(FocusInEvent e) {
@@ -584,11 +586,14 @@ public class QuickJSUIBridge : IDisposable {
     /// <summary>
     /// Core dispatch method - all event dispatching goes through here.
     /// </summary>
-    void DispatchEventInternal(int handle, string eventType, string dataJson) {
-        if (handle == 0 || _inEval) return;
+    // Returns the suppression-flags bitmask from __dispatchEvent (bit0=propagationStopped,
+    // bit1=defaultPrevented), or 0 if nothing was dispatched.
+    int DispatchEventInternal(int handle, string eventType, string dataJson) {
+        if (handle == 0 || _inEval) return 0;
 
 #if UNITY_WEBGL && !UNITY_EDITOR
         QuickJSNative.qjs_dispatch_event(handle, eventType, dataJson);
+        return 0; // WebGL flag return is Phase 3 (needs qjs_dispatch_event to return int)
 #else
         _sb.Clear();
         _sb.Append("globalThis.__dispatchEvent && __dispatchEvent(");
@@ -603,10 +608,13 @@ public class QuickJSUIBridge : IDisposable {
         // during React reconciliation (matches DispatchEventFast semantics).
         _inEval = true;
         try {
-            _ctx.Eval(_sb.ToString());
+            // __dispatchEvent returns the suppression-flags bitmask; the eval result carries it.
+            string result = _ctx.Eval(_sb.ToString());
             _ctx.ExecutePendingJobs();
+            return (result != null && int.TryParse(result, out int flags)) ? flags : 0;
         } catch (Exception ex) {
             Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error: {ex.Message}\nEval: {_sb}");
+            return 0;
         } finally {
             _inEval = false;
         }
@@ -648,14 +656,18 @@ public class QuickJSUIBridge : IDisposable {
         } finally { _inEval = false; }
     }
 
-    void DispatchEventFast(int eventTypeId, int elemHandle, float x, float y, int button, int pointerId) {
-        if (elemHandle == 0 || _inEval) return;
+    // Pointer/click fast path. Returns the suppression-flags bitmask from the JS dispatch
+    // (bit0=propagationStopped, bit1=defaultPrevented), or 0.
+    int DispatchEventFast(int eventTypeId, int elemHandle, float x, float y, int button, int pointerId) {
+        if (elemHandle == 0 || _inEval) return 0;
         _inEval = true;
         try {
-            _ctx.InvokeCallbackNoAlloc(_eventDispatchHandle, eventTypeId, elemHandle, x, y, button, pointerId);
+            int flags = _ctx.InvokeCallbackReturnInt(_eventDispatchHandle, eventTypeId, elemHandle, x, y, button, pointerId);
             _ctx.ExecutePendingJobs();
+            return flags;
         } catch (Exception ex) {
             Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error ({eventTypeId}): {ex.Message}");
+            return 0;
         } finally { _inEval = false; }
     }
 
@@ -673,23 +685,23 @@ public class QuickJSUIBridge : IDisposable {
     /// <summary>
     /// Dispatch an event with pre-built JSON data.
     /// </summary>
-    void DispatchEvent(string eventType, IEventHandler target, string dataJson) {
+    int DispatchEvent(string eventType, IEventHandler target, string dataJson) {
         int handle = FindElementHandle(target);
-        DispatchEventInternal(handle, eventType, dataJson);
+        return DispatchEventInternal(handle, eventType, dataJson);
     }
 
     /// <summary>
     /// Dispatch a pointer event with position and button data.
     /// </summary>
-    void DispatchPointerEvent(string eventType, IEventHandler target, Vector2 position, int button, int pointerId = 0) {
+    int DispatchPointerEvent(string eventType, IEventHandler target, Vector2 position, int button, int pointerId = 0) {
         int handle = FindElementHandle(target);
-        if (handle == 0) return;
+        if (handle == 0) return 0;
 
         string data = string.Format(CultureInfo.InvariantCulture,
             "{{\"x\":{0:F2},\"y\":{1:F2},\"button\":{2},\"pointerId\":{3}}}",
             position.x, position.y, button, pointerId);
 
-        DispatchEventInternal(handle, eventType, data);
+        return DispatchEventInternal(handle, eventType, data);
     }
 
     /// <summary>
@@ -697,9 +709,9 @@ public class QuickJSUIBridge : IDisposable {
     /// (z is unused); exposed to JS as flat { deltaX, deltaY } to mirror the DOM WheelEvent
     /// (e.deltaX / e.deltaY) and to keep the event-data object flat like the other events.
     /// </summary>
-    void DispatchWheelEvent(string eventType, IEventHandler target, Vector3 delta) {
+    int DispatchWheelEvent(string eventType, IEventHandler target, Vector3 delta) {
         int handle = FindElementHandle(target);
-        if (handle == 0) return;
+        if (handle == 0) return 0;
 
         // Avoid `string.Format` here: a trailing `{1:F4}}}` (format-spec placeholder
         // followed by `}}`) is parsed inconsistently on Mono and corrupts the final
@@ -709,7 +721,7 @@ public class QuickJSUIBridge : IDisposable {
                     + ",\"deltaY\":" + delta.y.ToString("F4", inv)
                     + "}";
 
-        DispatchEventInternal(handle, eventType, data);
+        return DispatchEventInternal(handle, eventType, data);
     }
 
     /// <summary>

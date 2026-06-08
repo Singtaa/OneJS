@@ -542,6 +542,55 @@ public class QuickJSUIBridgePlaymodeTests {
             "The wheel deltaY should be forwarded to JS (positive for a downward scroll).");
     }
 
+    [UnityTest]
+    public IEnumerator Suppression_PreventDefaultInOnWheel_StopsScrollViewScroll() {
+        // End-to-end Phase 2: a JS onWheel handler calling preventDefault() must stop the
+        // enclosing ScrollView from scrolling (native suppression). Without preventDefault
+        // the ScrollView still scrolls (backward-compatible).
+        var root = _uiDocument.rootVisualElement;
+        int rootHandle = QuickJSNative.RegisterObject(root);
+
+        _bridge.Eval($@"
+            var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+            var sv = new CS.UnityEngine.UIElements.ScrollView();
+            sv.style.width = 200; sv.style.height = 200;
+            root.Add(sv);
+            var content = new CS.UnityEngine.UIElements.VisualElement();
+            content.style.height = 2000;
+            sv.Add(content);
+            globalThis.__sv = sv;
+            globalThis.__content = content;
+            globalThis.__doPreventDefault = false;
+            __eventAPI.addEventListener(content, 'wheel', (e) => {{
+                if (globalThis.__doPreventDefault) e.preventDefault();
+            }});
+        ");
+        yield return null;
+        yield return null;
+
+        int contentHandle = int.Parse(_bridge.Eval("globalThis.__content.__csHandle"));
+        var contentCs = QuickJSNative.GetObjectByHandle(contentHandle) as VisualElement;
+        int svHandle = int.Parse(_bridge.Eval("globalThis.__sv.__csHandle"));
+        var sv = QuickJSNative.GetObjectByHandle(svHandle) as ScrollView;
+        Assert.IsNotNull(sv, "ScrollView should resolve back to C#.");
+
+        // Backward-compat: without preventDefault, the wheel scrolls the ScrollView.
+        sv.scrollOffset = Vector2.zero;
+        _bridge.Eval("globalThis.__doPreventDefault = false;");
+        SendWheel(root, contentCs, 50f);
+        yield return null;
+        Assert.Greater(sv.scrollOffset.y, 0f,
+            $"Without preventDefault the ScrollView should scroll. (scrollOffset.y={sv.scrollOffset.y})");
+
+        // Suppression: with preventDefault, the wheel must not scroll the ScrollView.
+        sv.scrollOffset = Vector2.zero;
+        _bridge.Eval("globalThis.__doPreventDefault = true;");
+        SendWheel(root, contentCs, 50f);
+        yield return null;
+        Assert.AreEqual(0f, sv.scrollOffset.y, 0.0001f,
+            $"preventDefault() in onWheel must stop the ScrollView from scrolling. (scrollOffset.y={sv.scrollOffset.y})");
+    }
+
     // Helper: dispatch a synthetic vertical wheel scroll targeting `target`.
     static void SendWheel(VisualElement root, VisualElement target, float deltaY) {
         var systemEvent = new Event { type = EventType.ScrollWheel, delta = new Vector2(0f, deltaY) };
