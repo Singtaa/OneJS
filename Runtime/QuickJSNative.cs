@@ -110,9 +110,10 @@ public static partial class QuickJSNative {
     internal static extern void qjs_set_cs_zeroalloc_callback(CsZeroAllocCallback cb);
 
 #if UNITY_WEBGL && !UNITY_EDITOR
-    // Fast event dispatch for WebGL - avoids eval overhead
+    // Fast event dispatch for WebGL - avoids eval overhead. Returns the suppression-flags
+    // bitmask from __dispatchEvent (bit0=propagationStopped, bit1=defaultPrevented), or 0.
     [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern void qjs_dispatch_event(
+    internal static extern int qjs_dispatch_event(
         int elementHandle,
         [MarshalAs(UnmanagedType.LPUTF8Str)] string eventType,
         [MarshalAs(UnmanagedType.LPUTF8Str)] string eventDataJson

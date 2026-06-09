@@ -586,18 +586,20 @@ var OneJSWebGLLib = {
 
     qjs_dispatch_event__deps: ["$OneJS"],
     qjs_dispatch_event: function(elementHandle, eventTypePtr, eventDataPtr) {
-        // Fast path for event dispatch - avoids eval overhead
+        // Fast path for event dispatch - avoids eval overhead. Returns the suppression-flags
+        // bitmask from __dispatchEvent (bit0=propagationStopped, bit1=defaultPrevented), or 0.
         var eventType = UTF8ToString(eventTypePtr);
         var eventDataJson = UTF8ToString(eventDataPtr);
 
         try {
             var eventData = eventDataJson ? JSON.parse(eventDataJson) : {};
             if (typeof __dispatchEvent === "function") {
-                __dispatchEvent(elementHandle, eventType, eventData);
+                return __dispatchEvent(elementHandle, eventType, eventData) | 0;
             }
         } catch (e) {
             console.error("[OneJS] Event dispatch error:", e);
         }
+        return 0;
     }
 };
 
