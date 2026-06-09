@@ -414,6 +414,253 @@ public class QuickJSUIBridgePlaymodeTests {
         _bridge.Eval("globalThis.__pmCaptureTestEl.ReleasePointer(0)");
     }
 
+    // MARK: Native Event Suppression + Wheel (PR #104)
+    // End-to-end tests for the wired feature: wheel is bridged to JS, and a JS
+    // preventDefault() maps to native StopImmediatePropagation() to suppress nested
+    // controls. Covers the root fast path, the per-element captured-pointer path, and
+    // the wheel -> ScrollView path.
+
+    [UnityTest]
+    public IEnumerator Wheel_DispatchedToJsHandlerWithDelta() {
+        var root = _uiDocument.rootVisualElement;
+        int rootHandle = QuickJSNative.RegisterObject(root);
+
+        // Create a JS element that fills the panel and register onWheel on it (mirrors the
+        // pointer-capture test's JS-created-element pattern, which has correct handle
+        // bookkeeping). A WheelEvent at a point inside it picks it as the target, driving
+        // the real OnWheel -> FindElementHandle -> __dispatchEvent path end to end.
+        _bridge.Eval($@"
+            var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+            var el = new CS.UnityEngine.UIElements.VisualElement();
+            el.style.flexGrow = 1;
+            el.style.width = new CS.UnityEngine.UIElements.Length(100, CS.UnityEngine.UIElements.LengthUnit.Percent);
+            el.style.height = new CS.UnityEngine.UIElements.Length(100, CS.UnityEngine.UIElements.LengthUnit.Percent);
+            root.Add(el);
+            globalThis.__wheelEl = el;
+            globalThis.__wheelCount = 0;
+            globalThis.__wheelDeltaY = 0;
+            __eventAPI.addEventListener(el, 'wheel', (e) => {{
+                globalThis.__wheelCount++;
+                globalThis.__wheelDeltaY = e.deltaY;
+            }});
+        ");
+        yield return null;
+        yield return null; // layout so the element fills the panel and is pickable
+
+        int elHandle = int.Parse(_bridge.Eval("globalThis.__wheelEl.__csHandle"));
+        var elCs = QuickJSNative.GetObjectByHandle(elHandle) as VisualElement;
+        Assert.IsNotNull(elCs, "Should resolve the JS-created element back to C#.");
+
+        var systemEvent = new Event { type = EventType.ScrollWheel, delta = new Vector2(0f, 10f), mousePosition = new Vector2(10f, 10f) };
+        using (var evt = WheelEvent.GetPooled(systemEvent)) {
+            evt.target = elCs;
+            root.SendEvent(evt);
+        }
+        yield return null;
+
+        // Phase 1: WheelEvent is now bridged, so the JS onWheel handler fires with delta.
+        Assert.AreEqual("1", _bridge.Eval("globalThis.__wheelCount"),
+            $"Real WheelEvent should reach JS via the bridge (elHandle={elHandle}).");
+        Assert.AreEqual("true", _bridge.Eval("globalThis.__wheelDeltaY > 0"),
+            "The wheel deltaY should be forwarded to JS (positive for a downward scroll).");
+    }
+
+    [UnityTest]
+    public IEnumerator Suppression_FastPath_PreventDefaultInOnPointerDown_Suppresses() {
+        // Validates the PRODUCTION pointer path. JSRunner caches the fast dispatch callback,
+        // so pointer events go through DispatchEventFast -> InvokeCallbackReturnInt (not the
+        // string path the other tests use). A JS onPointerDown calling preventDefault() must
+        // suppress the native event (a descendant's PointerDown callback does not fire);
+        // without it, the descendant fires (backward-compat).
+        var root = _uiDocument.rootVisualElement;
+        int rootHandle = QuickJSNative.RegisterObject(root);
+
+        // Enable the fast path (mirrors JSRunner) and confirm it actually engaged.
+        _bridge.CacheEventDispatchCallback();
+        var dispatchHandleField = typeof(QuickJSUIBridge).GetField(
+            "_eventDispatchHandle", BindingFlags.NonPublic | BindingFlags.Instance);
+        int dispatchHandle = (int)dispatchHandleField.GetValue(_bridge);
+        Assert.GreaterOrEqual(dispatchHandle, 0,
+            "Fast dispatch path should be enabled so this test exercises DispatchEventFast / InvokeCallbackReturnInt.");
+
+        _bridge.Eval($@"
+            var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+            var child = new CS.UnityEngine.UIElements.VisualElement();
+            child.style.flexGrow = 1;
+            root.Add(child);
+            globalThis.__child = child;
+            globalThis.__pdFired = 0;
+            globalThis.__doPreventDefault = false;
+            __eventAPI.addEventListener(child, 'pointerdown', (e) => {{
+                globalThis.__pdFired++;
+                if (globalThis.__doPreventDefault) e.preventDefault();
+            }});
+        ");
+        yield return null;
+
+        int childHandle = int.Parse(_bridge.Eval("globalThis.__child.__csHandle"));
+        var childCs = QuickJSNative.GetObjectByHandle(childHandle) as VisualElement;
+        Assert.IsNotNull(childCs, "Child should resolve back to C#.");
+
+        bool childNativeGotDown = false;
+        childCs.RegisterCallback<PointerDownEvent>(_ => childNativeGotDown = true);
+
+        // Backward-compat: without preventDefault the native PointerDown reaches the child.
+        _bridge.Eval("globalThis.__pdFired = 0; globalThis.__doPreventDefault = false;");
+        childNativeGotDown = false;
+        using (var evt = PointerDownEvent.GetPooled()) {
+            evt.target = childCs;
+            root.SendEvent(evt);
+        }
+        yield return null;
+        Assert.AreEqual("1", _bridge.Eval("globalThis.__pdFired"),
+            "JS onPointerDown should fire via the fast path.");
+        Assert.IsTrue(childNativeGotDown,
+            "Without preventDefault, the child's native PointerDown callback should fire.");
+
+        // Suppression: with preventDefault the native PointerDown is suppressed.
+        _bridge.Eval("globalThis.__pdFired = 0; globalThis.__doPreventDefault = true;");
+        childNativeGotDown = false;
+        using (var evt = PointerDownEvent.GetPooled()) {
+            evt.target = childCs;
+            root.SendEvent(evt);
+        }
+        yield return null;
+        Assert.AreEqual("1", _bridge.Eval("globalThis.__pdFired"),
+            "JS onPointerDown should still fire via the fast path.");
+        Assert.IsFalse(childNativeGotDown,
+            "preventDefault() in onPointerDown must suppress the child's native PointerDown (fast path).");
+    }
+
+    [UnityTest]
+    public IEnumerator Suppression_PerElement_PreventDefaultDuringCapture_Suppresses() {
+        // Phase 3a: once a pointer is captured, Unity 6 delivers pointer events directly to the
+        // capturing element, bypassing the _root TrickleDown handler — only the per-element
+        // handler (OnPerElementPointerMove) fires (see PerElementEventSupport). A JS
+        // onPointerMove calling preventDefault() must still suppress the native event mid-drag
+        // (e.g. a ScrollView pan); without it the native callback fires (backward-compat).
+        // Guards against the per-element handlers discarding the dispatch flags.
+        var root = _uiDocument.rootVisualElement;
+        int rootHandle = QuickJSNative.RegisterObject(root);
+
+        // String dispatch path (no CacheEventDispatchCallback) — the path per-element handlers use.
+        _bridge.Eval($@"
+            var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+            useExtensions(CS.UnityEngine.UIElements.PointerCaptureHelper);
+            var child = new CS.UnityEngine.UIElements.VisualElement();
+            child.style.width = 200; child.style.height = 200;
+            root.Add(child);
+            globalThis.__child = child;
+            globalThis.__pmFired = 0;
+            globalThis.__doPreventDefault = false;
+            __eventAPI.addEventListener(child, 'pointermove', (e) => {{
+                globalThis.__pmFired++;
+                if (globalThis.__doPreventDefault) e.preventDefault();
+            }});
+        ");
+        yield return null;
+
+        int childHandle = int.Parse(_bridge.Eval("globalThis.__child.__csHandle"));
+        var childCs = QuickJSNative.GetObjectByHandle(childHandle) as VisualElement;
+        Assert.IsNotNull(childCs, "Child should resolve back to C#.");
+
+        // Native PointerMove probe on the same element, registered AFTER the per-element handler
+        // (added via addEventListener above) so a StopImmediatePropagation from it suppresses this.
+        bool nativeGotMove = false;
+        childCs.RegisterCallback<PointerMoveEvent>(_ => nativeGotMove = true);
+
+        // Capture so events reach only the per-element handler, not _root TrickleDown.
+        childCs.CapturePointer(PointerId.mousePointerId);
+        Assert.IsTrue(childCs.HasPointerCapture(PointerId.mousePointerId),
+            "Child should have pointer capture.");
+
+        // Backward-compat: without preventDefault, the native PointerMove probe fires.
+        _bridge.Eval("globalThis.__pmFired = 0; globalThis.__doPreventDefault = false;");
+        nativeGotMove = false;
+        using (var evt = PointerMoveEvent.GetPooled()) {
+            SetPointerEventPointerId(evt, PointerId.mousePointerId);
+            root.SendEvent(evt);
+        }
+        yield return null;
+        Assert.AreEqual("1", _bridge.Eval("globalThis.__pmFired"),
+            "JS onPointerMove should fire via the per-element handler during capture.");
+        Assert.IsTrue(nativeGotMove,
+            "Without preventDefault, the native PointerMove probe should fire during capture.");
+
+        // Suppression: with preventDefault, the per-element handler must suppress the native probe.
+        _bridge.Eval("globalThis.__pmFired = 0; globalThis.__doPreventDefault = true;");
+        nativeGotMove = false;
+        using (var evt = PointerMoveEvent.GetPooled()) {
+            SetPointerEventPointerId(evt, PointerId.mousePointerId);
+            root.SendEvent(evt);
+        }
+        yield return null;
+        Assert.AreEqual("1", _bridge.Eval("globalThis.__pmFired"),
+            "JS onPointerMove should still fire via the per-element handler during capture.");
+        Assert.IsFalse(nativeGotMove,
+            "preventDefault() in onPointerMove must suppress the native event during pointer capture (per-element path).");
+
+        childCs.ReleasePointer(PointerId.mousePointerId);
+    }
+
+    [UnityTest]
+    public IEnumerator Suppression_PreventDefaultInOnWheel_StopsScrollViewScroll() {
+        // End-to-end Phase 2: a JS onWheel handler calling preventDefault() must stop the
+        // enclosing ScrollView from scrolling (native suppression). Without preventDefault
+        // the ScrollView still scrolls (backward-compatible).
+        var root = _uiDocument.rootVisualElement;
+        int rootHandle = QuickJSNative.RegisterObject(root);
+
+        _bridge.Eval($@"
+            var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+            var sv = new CS.UnityEngine.UIElements.ScrollView();
+            sv.style.width = 200; sv.style.height = 200;
+            root.Add(sv);
+            var content = new CS.UnityEngine.UIElements.VisualElement();
+            content.style.height = 2000;
+            sv.Add(content);
+            globalThis.__sv = sv;
+            globalThis.__content = content;
+            globalThis.__doPreventDefault = false;
+            __eventAPI.addEventListener(content, 'wheel', (e) => {{
+                if (globalThis.__doPreventDefault) e.preventDefault();
+            }});
+        ");
+        yield return null;
+        yield return null;
+
+        int contentHandle = int.Parse(_bridge.Eval("globalThis.__content.__csHandle"));
+        var contentCs = QuickJSNative.GetObjectByHandle(contentHandle) as VisualElement;
+        int svHandle = int.Parse(_bridge.Eval("globalThis.__sv.__csHandle"));
+        var sv = QuickJSNative.GetObjectByHandle(svHandle) as ScrollView;
+        Assert.IsNotNull(sv, "ScrollView should resolve back to C#.");
+
+        // Backward-compat: without preventDefault, the wheel scrolls the ScrollView.
+        sv.scrollOffset = Vector2.zero;
+        _bridge.Eval("globalThis.__doPreventDefault = false;");
+        SendWheel(root, contentCs, 50f);
+        yield return null;
+        Assert.Greater(sv.scrollOffset.y, 0f,
+            $"Without preventDefault the ScrollView should scroll. (scrollOffset.y={sv.scrollOffset.y})");
+
+        // Suppression: with preventDefault, the wheel must not scroll the ScrollView.
+        sv.scrollOffset = Vector2.zero;
+        _bridge.Eval("globalThis.__doPreventDefault = true;");
+        SendWheel(root, contentCs, 50f);
+        yield return null;
+        Assert.AreEqual(0f, sv.scrollOffset.y, 0.0001f,
+            $"preventDefault() in onWheel must stop the ScrollView from scrolling. (scrollOffset.y={sv.scrollOffset.y})");
+    }
+
+    // Helper: dispatch a synthetic vertical wheel scroll targeting `target`.
+    static void SendWheel(VisualElement root, VisualElement target, float deltaY) {
+        var systemEvent = new Event { type = EventType.ScrollWheel, delta = new Vector2(0f, deltaY) };
+        using (var evt = WheelEvent.GetPooled(systemEvent)) {
+            evt.target = target;
+            root.SendEvent(evt);
+        }
+    }
+
     /// <summary>
     /// Helper: set pointerId on a PointerEventBase via reflection.
     /// PointerEventBase.pointerId has a protected setter, so we use reflection for tests.

@@ -1069,6 +1069,10 @@ globalThis.__dispatchEvent = function(elementHandle, eventType, eventData) {
             currentHandle = __parentMap.get(currentHandle);
         }
     }
+
+    // Return suppression flags so the C# bridge can mirror them onto the native event.
+    // bit0 = propagationStopped (JS bubble only); bit1 = defaultPrevented (-> native suppression).
+    return (event.propagationStopped ? 1 : 0) | (event.defaultPrevented ? 2 : 0);
 };
 
 /**
@@ -1114,7 +1118,7 @@ const __NAV_DIRECTION_NAMES = ["none", "left", "up", "right", "down", "next", "p
 
 globalThis.__dispatchEventFast = function(eventTypeId, elementHandle, a0, a1, a2, a3) {
     const eventType = __EVT_TYPE_NAMES[eventTypeId];
-    if (!eventType) return;
+    if (!eventType) return 0;
 
     var eventData;
     if (eventTypeId <= 3) {
@@ -1137,7 +1141,7 @@ globalThis.__dispatchEventFast = function(eventTypeId, elementHandle, a0, a1, a2
         eventData = {};
     }
 
-    __dispatchEvent(elementHandle, eventType, eventData);
+    return __dispatchEvent(elementHandle, eventType, eventData);
 };
 
 // Expose event API

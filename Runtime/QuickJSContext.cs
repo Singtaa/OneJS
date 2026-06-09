@@ -348,4 +348,42 @@ public sealed class QuickJSContext : IDisposable {
         var args = stackalloc QuickJSNative.InteropValue[6] { MakeInt(arg0), MakeInt(arg1), MakeFloat(arg2), MakeFloat(arg3), MakeInt(arg4), MakeInt(arg5) };
         InvokeAndCheck(handle, args, 6);
     }
+
+    // Like InvokeAndCheck but reads the marshaled int result instead of discarding it.
+    // Used by the fast event-dispatch path to read suppression flags. Allocation-free
+    // for an int/number return (the JS dispatch returns a small bitmask).
+    unsafe int InvokeAndGetInt(int handle, QuickJSNative.InteropValue* args, int count) {
+        QuickJSNative.InteropValue result = default;
+        int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, args, count, &result);
+        if (code != 0) throw new Exception($"qjs_invoke_callback failed with code {code}");
+
+        int value;
+        switch (result.type) {
+            case QuickJSNative.InteropType.Int32: value = result.i32; break;
+            case QuickJSNative.InteropType.Double: value = (int)result.f64; break;
+            case QuickJSNative.InteropType.Float32: value = (int)result.f32; break;
+            default: value = 0; break;
+        }
+
+        // Defensive: this path only ever returns a small int bitmask, but if a handler
+        // returns a string/object the native side allocates a CoTaskMem buffer in `str`;
+        // free it instead of leaking (mirrors the InvokeAndCheck result handling).
+        if ((result.type == QuickJSNative.InteropType.String ||
+             result.type == QuickJSNative.InteropType.JsonObject) && result.str != IntPtr.Zero) {
+            Marshal.FreeCoTaskMem(result.str);
+        }
+
+        return value;
+    }
+
+    /// <summary>
+    /// Invoke a callback (2 int + 2 float + 2 int args) and return its int result.
+    /// ZERO ALLOCATION. Mirror of the 6-arg InvokeCallbackNoAlloc, but surfaces the
+    /// JS return value (event-dispatch suppression flags) to C#.
+    /// </summary>
+    public unsafe int InvokeCallbackReturnInt(int handle, int arg0, int arg1, float arg2, float arg3, int arg4, int arg5) {
+        ThrowIfInvalid();
+        var args = stackalloc QuickJSNative.InteropValue[6] { MakeInt(arg0), MakeInt(arg1), MakeFloat(arg2), MakeFloat(arg3), MakeInt(arg4), MakeInt(arg5) };
+        return InvokeAndGetInt(handle, args, 6);
+    }
 }
