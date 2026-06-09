@@ -414,88 +414,11 @@ public class QuickJSUIBridgePlaymodeTests {
         _bridge.Eval("globalThis.__pmCaptureTestEl.ReleasePointer(0)");
     }
 
-    // MARK: Native Event Suppression + Wheel (confirmation for PR #104)
-    // These validate the planned design BEFORE it is wired into JS:
-    //  - A TrickleDown handler on the bridge root that calls StopImmediatePropagation()
-    //    prevents descendant elements (e.g. a nested ScrollView) from acting. This is the
-    //    mechanism the planned `preventDefault -> StopImmediatePropagation` will rely on.
-    //  - The bridge currently does NOT dispatch WheelEvent to JS (wheel is unbridged).
-
-    [UnityTest]
-    public IEnumerator Suppression_RootTrickleDownStop_PreventsDescendantPointerDown() {
-        var root = _uiDocument.rootVisualElement;
-
-        var child = new VisualElement { name = "SuppressChild" };
-        child.style.width = 100;
-        child.style.height = 100;
-        root.Add(child);
-        yield return null; // layout
-
-        bool childGotDown = false;
-        child.RegisterCallback<PointerDownEvent>(_ => childGotDown = true);
-
-        // Baseline: with nothing intercepting, the descendant receives PointerDown.
-        using (var evt = PointerDownEvent.GetPooled()) {
-            evt.target = child;
-            root.SendEvent(evt);
-        }
-        Assert.IsTrue(childGotDown,
-            "Baseline: descendant should receive PointerDown when nothing intercepts it.");
-
-        // Fix mechanism: a TrickleDown handler on root that stops immediate propagation
-        // must prevent the descendant from receiving the event at all.
-        childGotDown = false;
-        EventCallback<PointerDownEvent> stopper = e => e.StopImmediatePropagation();
-        root.RegisterCallback(stopper, TrickleDown.TrickleDown);
-        using (var evt = PointerDownEvent.GetPooled()) {
-            evt.target = child;
-            root.SendEvent(evt);
-        }
-        root.UnregisterCallback(stopper, TrickleDown.TrickleDown);
-
-        Assert.IsFalse(childGotDown,
-            "Fix: StopImmediatePropagation() in a root TrickleDown handler must prevent the " +
-            "descendant from receiving PointerDown. This is the path that lets a JS gesture " +
-            "suppress a nested ScrollView's native pan.");
-        yield return null;
-    }
-
-    [UnityTest]
-    public IEnumerator Suppression_RootTrickleDownStop_StopsScrollViewWheelScroll() {
-        var root = _uiDocument.rootVisualElement;
-
-        var sv = new ScrollView(ScrollViewMode.Vertical);
-        sv.style.width = 200;
-        sv.style.height = 200;
-        var content = new VisualElement { name = "TallContent" };
-        content.style.height = 2000; // taller than the viewport, so it can scroll
-        sv.Add(content);
-        root.Add(sv);
-        yield return null;
-        yield return null; // a couple frames for layout
-
-        // Baseline: a positive wheel delta scrolls the ScrollView down.
-        sv.scrollOffset = Vector2.zero;
-        SendWheel(root, content, 50f);
-        yield return null;
-        float scrolled = sv.scrollOffset.y;
-        Assert.Greater(scrolled, 0f,
-            $"Baseline: ScrollView should scroll on a wheel delta. (scrollOffset.y = {scrolled})");
-
-        // Fix mechanism: root TrickleDown StopImmediatePropagation must keep scrollOffset put.
-        sv.scrollOffset = Vector2.zero;
-        EventCallback<WheelEvent> stopper = e => e.StopImmediatePropagation();
-        root.RegisterCallback(stopper, TrickleDown.TrickleDown);
-        SendWheel(root, content, 50f);
-        yield return null;
-        float suppressed = sv.scrollOffset.y;
-        root.UnregisterCallback(stopper, TrickleDown.TrickleDown);
-
-        Assert.AreEqual(0f, suppressed, 0.0001f,
-            "Fix: with StopImmediatePropagation() in a root TrickleDown WheelEvent handler, the " +
-            $"ScrollView must not scroll. (scrollOffset.y = {suppressed})");
-        yield return null;
-    }
+    // MARK: Native Event Suppression + Wheel (PR #104)
+    // End-to-end tests for the wired feature: wheel is bridged to JS, and a JS
+    // preventDefault() maps to native StopImmediatePropagation() to suppress nested
+    // controls. Covers the root fast path, the per-element captured-pointer path, and
+    // the wheel -> ScrollView path.
 
     [UnityTest]
     public IEnumerator Wheel_DispatchedToJsHandlerWithDelta() {

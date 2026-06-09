@@ -356,12 +356,24 @@ public sealed class QuickJSContext : IDisposable {
         QuickJSNative.InteropValue result = default;
         int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, args, count, &result);
         if (code != 0) throw new Exception($"qjs_invoke_callback failed with code {code}");
+
+        int value;
         switch (result.type) {
-            case QuickJSNative.InteropType.Int32: return result.i32;
-            case QuickJSNative.InteropType.Double: return (int)result.f64;
-            case QuickJSNative.InteropType.Float32: return (int)result.f32;
-            default: return 0;
+            case QuickJSNative.InteropType.Int32: value = result.i32; break;
+            case QuickJSNative.InteropType.Double: value = (int)result.f64; break;
+            case QuickJSNative.InteropType.Float32: value = (int)result.f32; break;
+            default: value = 0; break;
         }
+
+        // Defensive: this path only ever returns a small int bitmask, but if a handler
+        // returns a string/object the native side allocates a CoTaskMem buffer in `str`;
+        // free it instead of leaking (mirrors the InvokeAndCheck result handling).
+        if ((result.type == QuickJSNative.InteropType.String ||
+             result.type == QuickJSNative.InteropType.JsonObject) && result.str != IntPtr.Zero) {
+            Marshal.FreeCoTaskMem(result.str);
+        }
+
+        return value;
     }
 
     /// <summary>
