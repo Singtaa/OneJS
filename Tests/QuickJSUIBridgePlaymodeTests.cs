@@ -610,6 +610,77 @@ public class QuickJSUIBridgePlaymodeTests {
     }
 
     [UnityTest]
+    public IEnumerator Suppression_PerElement_PreventDefaultDuringCapture_Suppresses() {
+        // Phase 3a: once a pointer is captured, Unity 6 delivers pointer events directly to the
+        // capturing element, bypassing the _root TrickleDown handler — only the per-element
+        // handler (OnPerElementPointerMove) fires (see PerElementEventSupport). A JS
+        // onPointerMove calling preventDefault() must still suppress the native event mid-drag
+        // (e.g. a ScrollView pan); without it the native callback fires (backward-compat).
+        // Guards against the per-element handlers discarding the dispatch flags.
+        var root = _uiDocument.rootVisualElement;
+        int rootHandle = QuickJSNative.RegisterObject(root);
+
+        // String dispatch path (no CacheEventDispatchCallback) — the path per-element handlers use.
+        _bridge.Eval($@"
+            var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+            useExtensions(CS.UnityEngine.UIElements.PointerCaptureHelper);
+            var child = new CS.UnityEngine.UIElements.VisualElement();
+            child.style.width = 200; child.style.height = 200;
+            root.Add(child);
+            globalThis.__child = child;
+            globalThis.__pmFired = 0;
+            globalThis.__doPreventDefault = false;
+            __eventAPI.addEventListener(child, 'pointermove', (e) => {{
+                globalThis.__pmFired++;
+                if (globalThis.__doPreventDefault) e.preventDefault();
+            }});
+        ");
+        yield return null;
+
+        int childHandle = int.Parse(_bridge.Eval("globalThis.__child.__csHandle"));
+        var childCs = QuickJSNative.GetObjectByHandle(childHandle) as VisualElement;
+        Assert.IsNotNull(childCs, "Child should resolve back to C#.");
+
+        // Native PointerMove probe on the same element, registered AFTER the per-element handler
+        // (added via addEventListener above) so a StopImmediatePropagation from it suppresses this.
+        bool nativeGotMove = false;
+        childCs.RegisterCallback<PointerMoveEvent>(_ => nativeGotMove = true);
+
+        // Capture so events reach only the per-element handler, not _root TrickleDown.
+        childCs.CapturePointer(PointerId.mousePointerId);
+        Assert.IsTrue(childCs.HasPointerCapture(PointerId.mousePointerId),
+            "Child should have pointer capture.");
+
+        // Backward-compat: without preventDefault, the native PointerMove probe fires.
+        _bridge.Eval("globalThis.__pmFired = 0; globalThis.__doPreventDefault = false;");
+        nativeGotMove = false;
+        using (var evt = PointerMoveEvent.GetPooled()) {
+            SetPointerEventPointerId(evt, PointerId.mousePointerId);
+            root.SendEvent(evt);
+        }
+        yield return null;
+        Assert.AreEqual("1", _bridge.Eval("globalThis.__pmFired"),
+            "JS onPointerMove should fire via the per-element handler during capture.");
+        Assert.IsTrue(nativeGotMove,
+            "Without preventDefault, the native PointerMove probe should fire during capture.");
+
+        // Suppression: with preventDefault, the per-element handler must suppress the native probe.
+        _bridge.Eval("globalThis.__pmFired = 0; globalThis.__doPreventDefault = true;");
+        nativeGotMove = false;
+        using (var evt = PointerMoveEvent.GetPooled()) {
+            SetPointerEventPointerId(evt, PointerId.mousePointerId);
+            root.SendEvent(evt);
+        }
+        yield return null;
+        Assert.AreEqual("1", _bridge.Eval("globalThis.__pmFired"),
+            "JS onPointerMove should still fire via the per-element handler during capture.");
+        Assert.IsFalse(nativeGotMove,
+            "preventDefault() in onPointerMove must suppress the native event during pointer capture (per-element path).");
+
+        childCs.ReleasePointer(PointerId.mousePointerId);
+    }
+
+    [UnityTest]
     public IEnumerator Suppression_PreventDefaultInOnWheel_StopsScrollViewScroll() {
         // End-to-end Phase 2: a JS onWheel handler calling preventDefault() must stop the
         // enclosing ScrollView from scrolling (native suppression). Without preventDefault

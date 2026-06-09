@@ -852,35 +852,46 @@ public class QuickJSUIBridge : IDisposable {
         // during bridge disposal, so explicit unregistration is not needed here.
     }
 
+    // Per-element handlers fire during pointer capture, when the captured element
+    // receives events directly and the _root TrickleDown handler may not run (see the
+    // dedup note above). They mirror the root handlers' suppression wiring so
+    // preventDefault() keeps suppressing native controls mid-drag, not just on the
+    // initial press. When both _root and per-element fire, the timestamp dedup makes
+    // this a no-op (the root handler already applied suppression).
     void OnPerElementPointerDown(PointerDownEvent e) {
         if (e.timestamp == _lastDispatchedPointerDownTs) return;
         _lastDispatchedPointerDownTs = e.timestamp;
-        DispatchPointerEvent("pointerdown", e.target, e.position, e.button, e.pointerId);
+        int flags = DispatchPointerEvent("pointerdown", e.target, e.position, e.button, e.pointerId);
+        ApplyNativeSuppression(e, flags);
     }
 
     void OnPerElementPointerUp(PointerUpEvent e) {
         if (e.timestamp == _lastDispatchedPointerUpTs) return;
         _lastDispatchedPointerUpTs = e.timestamp;
-        DispatchPointerEvent("pointerup", e.target, e.position, e.button, e.pointerId);
+        int flags = DispatchPointerEvent("pointerup", e.target, e.position, e.button, e.pointerId);
+        ApplyNativeSuppression(e, flags);
     }
 
     void OnPerElementPointerMove(PointerMoveEvent e) {
         if (!InputBridge.PointerMoveEventsEnabled) return;
         if (e.timestamp == _lastDispatchedPointerMoveTs) return;
         _lastDispatchedPointerMoveTs = e.timestamp;
-        DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
+        int flags = DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
+        ApplyNativeSuppression(e, flags);
     }
 
     void OnPerElementPointerCancel(PointerCancelEvent e) {
         if (e.timestamp == _lastDispatchedPointerCancelTs) return;
         _lastDispatchedPointerCancelTs = e.timestamp;
-        DispatchPointerEvent("pointercancel", e.target, e.position, e.button, e.pointerId);
+        int flags = DispatchPointerEvent("pointercancel", e.target, e.position, e.button, e.pointerId);
+        ApplyNativeSuppression(e, flags);
     }
 
     void OnPerElementPointerStationary(PointerStationaryEvent e) {
         if (e.timestamp == _lastDispatchedPointerStationaryTs) return;
         _lastDispatchedPointerStationaryTs = e.timestamp;
-        DispatchPointerEvent("pointerstationary", e.target, e.position, e.button, e.pointerId);
+        int flags = DispatchPointerEvent("pointerstationary", e.target, e.position, e.button, e.pointerId);
+        ApplyNativeSuppression(e, flags);
     }
 
     void OnPerElementPointerCapture(PointerCaptureEvent e) {
