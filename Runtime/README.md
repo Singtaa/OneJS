@@ -166,6 +166,18 @@ bool _onStopInvoked;       // Guard against double-invocation
 
 **`__isPlaying` global:** Injected in `InitializeBridge()` — `true` in play mode, `false` in edit-mode preview. Useful for conditional rendering without lifecycle hooks.
 
+### Teardown Hooks (framework cleanup before context destruction)
+
+Distinct from the user-facing `onStop`, teardown hooks are a framework-level mechanism that runs **on every teardown path** (hot reload, play/edit stop, destroy) in **both edit and play mode**. They let JS code release resources while the context is still alive.
+
+The React reconciler registers `unmountAll` as a teardown hook (via `globalThis.__onTeardown`) the first time `render()` is called. Without this, hot reload would destroy the context without unmounting the React tree, so `useEffect`/`useLayoutEffect` cleanup functions would never run — leaving stale C# subscriptions (e.g. from `useEventSync`) that fail with `[QuickJS] Callback invocation failed with code -3` after reload.
+
+**How it works:**
+1. The bootstrap exposes `globalThis.__onTeardown(fn)` and `globalThis.__runTeardown()` (idempotent: it drains its callback list, so repeat calls are no-ops).
+2. `QuickJSUIBridge.Dispose(disposing: true)` calls `RunTeardownHooks()` **first** — evaluating `__runTeardown()` and flushing pending jobs while the context is still alive. This is the single chokepoint covering all teardown paths.
+3. The finalizer path (`Dispose(false)`, GC thread) skips this — calling back into QuickJS off the main thread would be unsafe.
+4. React's `unmount` tears the tree down synchronously (`updateContainerSync` + `flushSyncWork` + `flushPassiveEffects`) so cleanups run immediately rather than waiting for a scheduler tick that never comes before the context is destroyed.
+
 ### Platform Behavior
 
 | Context | JS Loading | Live Reload |

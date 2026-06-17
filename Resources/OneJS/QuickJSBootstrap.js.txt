@@ -1435,6 +1435,36 @@ function __flushMicrotasks() {
     }
 }
 
+// MARK: Teardown
+// Teardown hooks run right before the JS context is destroyed (hot reload, stop,
+// or shutdown). They let framework code release resources and fire component
+// cleanup while the context is still alive - e.g. the React reconciler unmounts
+// its roots here so useEffect/useLayoutEffect cleanup functions run on hot reload.
+// C# (QuickJSUIBridge.Dispose) invokes __runTeardown() before tearing the context
+// down; without it, cleanups never fire and stale C# subscriptions (e.g. from
+// useEventSync) outlive the components that registered them.
+const __teardownCallbacks = [];
+
+globalThis.__onTeardown = function(callback) {
+    if (typeof callback === "function" && __teardownCallbacks.indexOf(callback) === -1) {
+        __teardownCallbacks.push(callback);
+    }
+};
+
+globalThis.__runTeardown = function() {
+    // Drain the list so this is idempotent: it can be invoked explicitly and is
+    // also invoked from Dispose() as a safety net, and re-evals are no-ops.
+    // LIFO: the last hook registered tears down first.
+    while (__teardownCallbacks.length > 0) {
+        const callback = __teardownCallbacks.pop();
+        try {
+            callback();
+        } catch (e) {
+            console.error("Teardown hook error:", e);
+        }
+    }
+};
+
 // MARK: setImmediate
 // setImmediate - executes callback via microtask queue (synchronously in same tick)
 // This is needed by React's scheduler as a priority over setTimeout

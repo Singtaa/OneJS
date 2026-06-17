@@ -178,8 +178,21 @@ public class QuickJSUIBridge : IDisposable {
     public IEnumerable<string> GetStyleSheetNames() => _jsStyleSheets.Keys;
 
     public void Dispose() {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    void Dispose(bool disposing) {
         if (_disposed) return;
         _disposed = true;
+
+        // Run JS-registered teardown hooks (e.g. React unmounts its roots, firing
+        // useEffect/useLayoutEffect cleanups) while the context is still alive. This
+        // is the single chokepoint for every teardown path (hot reload, play/edit
+        // stop, destroy), so cleanups fire consistently before the context is torn
+        // down. Skipped on the finalizer path: it runs on a GC thread where calling
+        // back into QuickJS would be unsafe.
+        if (disposing) RunTeardownHooks();
 
         _tickCallbackHandle = -1;
         _eventDispatchHandle = -1;
@@ -193,12 +206,26 @@ public class QuickJSUIBridge : IDisposable {
         QuickJSNative.ClearPendingTasks();
         _ctx?.Dispose();
         QuickJSNative.ClearAllHandles();
-
-        GC.SuppressFinalize(this);
     }
 
     ~QuickJSUIBridge() {
-        Dispose();
+        Dispose(false);
+    }
+
+    /// <summary>
+    /// Run JS teardown hooks registered via globalThis.__onTeardown (e.g. the React
+    /// reconciler's root unmount, which fires component cleanup functions). Runs on
+    /// the main thread with the context still alive. Idempotent: __runTeardown drains
+    /// its callback list, so repeat calls are no-ops.
+    /// </summary>
+    void RunTeardownHooks() {
+        if (_ctx == null) return;
+        try {
+            _ctx.Eval("typeof globalThis.__runTeardown === 'function' && globalThis.__runTeardown()");
+            _ctx.ExecutePendingJobs();
+        } catch (Exception ex) {
+            Debug.LogWarning($"[QuickJSUIBridge] Teardown hook error: {ex.Message}");
+        }
     }
 
     // MARK: Public API
