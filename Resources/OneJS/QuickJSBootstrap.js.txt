@@ -673,6 +673,9 @@ const __instancePropertyNames = new Set([
 // dominating mount latency on WebGL.
 const __typeExistsCache = new Map();
 const __isEnumTypeCache = new Map();
+// Enum members are compile-time constants, so their resolved numeric values are
+// cached forever (keyed by "Type.Member"). See __resolveEnumMember.
+const __enumValueCache = new Map();
 
 function __typeExists(typeName) {
     if (!typeName) return false;
@@ -692,6 +695,31 @@ function __isEnumType(typeName) {
     const result = raw === true || raw === 1;
     __isEnumTypeCache.set(typeName, result);
     return result;
+}
+
+// Resolve an enum member (e.g. "UnityEngine.PrimitiveType", "Plane") to its
+// underlying numeric value. Enums are marshaled as plain numbers everywhere in
+// OneJS (a field read like `mb.SomeEnum` returns a number, and C# arg binding
+// accepts numbers for enum parameters), so resolving the member eagerly makes
+// `CS.Type.Member` behave like the number it represents:
+//   value === CS.Type.Member        // works (both are numbers)
+//   typeof CS.Type.Member === "number"
+//   `${CS.Type.Member}`             // prints the number
+// TryGetProp (10) reads the static field silently; if the name isn't a value
+// member (a rare static method on the enum type, or a typo) it returns the
+// method sentinel / null and we fall back to a path proxy, preserving the old
+// behavior for those cases.
+function __resolveEnumMember(path, typeName, memberName) {
+    const key = typeName + "." + memberName;
+    const cached = __enumValueCache.get(key);
+    if (cached !== undefined) return cached;
+    const raw = __cs.invoke(typeName, memberName, 10, 1, 0, []);
+    if (raw == null || raw === "__oneJS_methodRef__") {
+        return __createCsPathProxy(path.concat(memberName));
+    }
+    const value = __wrapResultFromCs(null, raw);
+    __enumValueCache.set(key, value);
+    return value;
 }
 
 function __createCsPathProxy(path) {
@@ -807,6 +835,13 @@ function __createCsPathProxy(path) {
                         __cs.invoke(typeName, propName, 1, 1, 0, __resolveArgs([callback]));
                     }
                 };
+            }
+
+            // Enum member access (e.g. CS.UnityEngine.PrimitiveType.Plane).
+            // Resolve to the underlying number eagerly so enum constants compare
+            // and read as plain numbers in JS. See __resolveEnumMember.
+            if (__typeExists(typeName) && __isEnumType(typeName)) {
+                return __resolveEnumMember(path, typeName, propName);
             }
 
             if (isLower || __staticPropertyNames.has(propName)) {

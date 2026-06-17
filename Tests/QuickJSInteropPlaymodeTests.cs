@@ -28,6 +28,16 @@ public class InteropTestItem {
 }
 
 /// <summary>
+/// Enum for interop enum-resolution tests. Mirrors the user-reported scenario
+/// where a C# enum is compared against an enum field value in JS.
+/// </summary>
+public enum InteropTestEnum {
+    Foo,
+    Bar,
+    Baz
+}
+
+/// <summary>
 /// Static helper for interop tests.
 /// Exposes state and collections via methods (not PascalCase properties)
 /// because the bootstrap path proxy treats uppercase-first property access
@@ -38,6 +48,11 @@ public static class InteropTestHelper {
     static InteropTestState _state;
     static List<string> _items = new();
     static List<InteropTestItem> _inventory = new();
+    static InteropTestEnum _mode = InteropTestEnum.Foo;
+
+    public static void SetMode(InteropTestEnum mode) => _mode = mode;
+    public static InteropTestEnum GetMode() => _mode;
+    public static int GetModeAsInt() => (int)_mode;
 
     public static InteropTestState GetState() => _state;
     public static List<string> GetItems() => _items;
@@ -95,6 +110,7 @@ public static class InteropTestHelper {
         _state = null;
         _items.Clear();
         _inventory.Clear();
+        _mode = InteropTestEnum.Foo;
     }
 }
 
@@ -222,6 +238,58 @@ public class QuickJSInteropPlaymodeTests {
         ");
         Assert.AreEqual("false|false", result,
             "Unchanged primitive values should be equal via Object.is");
+        yield return null;
+    }
+
+    // MARK: Enum Resolution Tests
+
+    [UnityTest]
+    public IEnumerator Enum_Constant_ResolvesToNumber() {
+        var result = _ctx.Eval(@"
+            var foo = CS.InteropTestEnum.Foo;
+            var bar = CS.InteropTestEnum.Bar;
+            (typeof foo) + '|' + foo + '|' + bar;
+        ");
+        Assert.AreEqual("number|0|1", result,
+            "An enum constant should resolve to its underlying number, not a path proxy");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Enum_Constant_StrictEqualsItself() {
+        var result = _ctx.Eval(@"
+            CS.InteropTestEnum.Bar === CS.InteropTestEnum.Bar;
+        ");
+        Assert.AreEqual("true", result,
+            "Two references to the same enum constant should be strictly equal");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Enum_FieldValue_StrictEqualsConstant() {
+        // The exact user-reported scenario: an enum field read comes back as a
+        // number and must compare === against the enum constant.
+        var result = _ctx.Eval(@"
+            CS.InteropTestHelper.SetMode(CS.InteropTestEnum.Bar);
+            var mode = CS.InteropTestHelper.GetMode();
+            (typeof mode) + '|' + (mode === CS.InteropTestEnum.Bar) + '|' +
+                (mode === CS.InteropTestEnum.Foo);
+        ");
+        Assert.AreEqual("number|true|false", result,
+            "An enum field value should strictly equal the matching enum constant");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator Enum_Constant_PassesToCSharpMethod() {
+        // Passing the (now numeric) enum constant to a C# method that takes the
+        // enum must still bind correctly — guards the C#-arg pass-through path.
+        var result = _ctx.Eval(@"
+            CS.InteropTestHelper.SetMode(CS.InteropTestEnum.Baz);
+            CS.InteropTestHelper.GetModeAsInt();
+        ");
+        Assert.AreEqual("2", result,
+            "A numeric enum constant should still bind to a C# enum parameter");
         yield return null;
     }
 
