@@ -703,4 +703,126 @@ public class QuickJSUIBridgePlaymodeTests {
         Debug.LogWarning("[Test] Could not set pointerId via reflection - " +
                          "test may not properly simulate captured pointer events");
     }
+
+    [UnityTest]
+    public IEnumerator Wheel_FastPath_DispatchedToJsHandlerWithDelta() {
+        // Mirrors Wheel_DispatchedToJsHandlerWithDelta but with the zero-alloc fast path
+        // enabled (CacheEventDispatchCallback, as JSRunner does), so wheel goes through
+        // DispatchEventFast(EVT_WHEEL) -> InvokeCallbackReturnInt -> __dispatchEventFast,
+        // which must rebuild { deltaX, deltaY } for the JS handler.
+        var root = _uiDocument.rootVisualElement;
+        int rootHandle = QuickJSNative.RegisterObject(root);
+
+        _bridge.CacheEventDispatchCallback();
+        var dispatchHandleField = typeof(QuickJSUIBridge).GetField(
+            "_eventDispatchHandle", BindingFlags.NonPublic | BindingFlags.Instance);
+        Assert.GreaterOrEqual((int)dispatchHandleField.GetValue(_bridge), 0,
+            "Fast dispatch path should be enabled so this test exercises the wheel fast path.");
+
+        _bridge.Eval($@"
+            var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+            var el = new CS.UnityEngine.UIElements.VisualElement();
+            el.style.flexGrow = 1;
+            root.Add(el);
+            globalThis.__wheelEl = el;
+            globalThis.__wheelCount = 0;
+            globalThis.__wheelDeltaX = -1;
+            globalThis.__wheelDeltaY = 0;
+            __eventAPI.addEventListener(el, 'wheel', (e) => {{
+                globalThis.__wheelCount++;
+                globalThis.__wheelDeltaX = e.deltaX;
+                globalThis.__wheelDeltaY = e.deltaY;
+            }});
+        ");
+        yield return null;
+        yield return null;
+
+        int elHandle = int.Parse(_bridge.Eval("globalThis.__wheelEl.__csHandle"));
+        var elCs = QuickJSNative.GetObjectByHandle(elHandle) as VisualElement;
+        Assert.IsNotNull(elCs, "Should resolve the JS-created element back to C#.");
+
+        SendWheel(root, elCs, 10f);
+        yield return null;
+
+        Assert.AreEqual("1", _bridge.Eval("globalThis.__wheelCount"),
+            "Wheel should reach the JS handler once via the fast path.");
+        Assert.AreEqual("true", _bridge.Eval("globalThis.__wheelDeltaY > 0"),
+            "deltaY should be forwarded as a positive number through the fast path.");
+        Assert.AreEqual("number", _bridge.Eval("typeof globalThis.__wheelDeltaX"),
+            "deltaX should be present and numeric (fast path must rebuild { deltaX, deltaY }, not { x, y, ... }).");
+    }
+
+    [UnityTest]
+    public IEnumerator Suppression_PerElementFastPath_PreventDefaultDuringCapture_Suppresses() {
+        // Covers the per-element pointermove FAST path during capture (the OnPerElementPointerMove
+        // fast-path branch). With the fast dispatch callback cached (as JSRunner does), a captured
+        // pointermove must still fire the JS handler AND honor preventDefault() to suppress the
+        // native event mid-drag. The slow-path variant is covered by
+        // Suppression_PerElement_PreventDefaultDuringCapture_Suppresses.
+        var root = _uiDocument.rootVisualElement;
+        int rootHandle = QuickJSNative.RegisterObject(root);
+
+        _bridge.CacheEventDispatchCallback();
+        var dispatchHandleField = typeof(QuickJSUIBridge).GetField(
+            "_eventDispatchHandle", BindingFlags.NonPublic | BindingFlags.Instance);
+        Assert.GreaterOrEqual((int)dispatchHandleField.GetValue(_bridge), 0,
+            "Fast dispatch path should be enabled so this test exercises the per-element fast path.");
+
+        _bridge.Eval($@"
+            var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+            useExtensions(CS.UnityEngine.UIElements.PointerCaptureHelper);
+            var child = new CS.UnityEngine.UIElements.VisualElement();
+            child.style.width = 200; child.style.height = 200;
+            root.Add(child);
+            globalThis.__child = child;
+            globalThis.__pmFired = 0;
+            globalThis.__doPreventDefault = false;
+            __eventAPI.addEventListener(child, 'pointermove', (e) => {{
+                globalThis.__pmFired++;
+                if (globalThis.__doPreventDefault) e.preventDefault();
+            }});
+        ");
+        yield return null;
+
+        int childHandle = int.Parse(_bridge.Eval("globalThis.__child.__csHandle"));
+        var childCs = QuickJSNative.GetObjectByHandle(childHandle) as VisualElement;
+        Assert.IsNotNull(childCs, "Child should resolve back to C#.");
+
+        // Native PointerMove probe registered AFTER the per-element handler, so a
+        // StopImmediatePropagation from suppression keeps it from firing.
+        bool nativeGotMove = false;
+        childCs.RegisterCallback<PointerMoveEvent>(_ => nativeGotMove = true);
+
+        childCs.CapturePointer(PointerId.mousePointerId);
+        Assert.IsTrue(childCs.HasPointerCapture(PointerId.mousePointerId),
+            "Child should have pointer capture.");
+
+        // Backward-compat: without preventDefault, the native PointerMove probe fires.
+        _bridge.Eval("globalThis.__pmFired = 0; globalThis.__doPreventDefault = false;");
+        nativeGotMove = false;
+        using (var evt = PointerMoveEvent.GetPooled()) {
+            SetPointerEventPointerId(evt, PointerId.mousePointerId);
+            root.SendEvent(evt);
+        }
+        yield return null;
+        Assert.AreEqual("1", _bridge.Eval("globalThis.__pmFired"),
+            "JS onPointerMove should fire via the per-element fast path during capture.");
+        Assert.IsTrue(nativeGotMove,
+            "Without preventDefault, the native PointerMove probe should fire during capture.");
+
+        // Suppression: with preventDefault, the per-element fast path must suppress the native probe.
+        _bridge.Eval("globalThis.__pmFired = 0; globalThis.__doPreventDefault = true;");
+        nativeGotMove = false;
+        using (var evt = PointerMoveEvent.GetPooled()) {
+            SetPointerEventPointerId(evt, PointerId.mousePointerId);
+            root.SendEvent(evt);
+        }
+        yield return null;
+        Assert.AreEqual("1", _bridge.Eval("globalThis.__pmFired"),
+            "JS onPointerMove should still fire via the per-element fast path during capture.");
+        Assert.IsFalse(nativeGotMove,
+            "preventDefault() in onPointerMove must suppress the native event during capture (per-element fast path).");
+
+        childCs.ReleasePointer(PointerId.mousePointerId);
+    }
 }

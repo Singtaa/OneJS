@@ -38,6 +38,7 @@ public class QuickJSUIBridge : IDisposable {
     const int EVT_POINTER_MOVE = 13;
     const int EVT_POINTER_ENTER = 14;
     const int EVT_POINTER_LEAVE = 15;
+    const int EVT_WHEEL = 16; // shares the pointer id block; JS handles it via an explicit branch before the pointer range
     const int EVT_FOCUS = 20;
     const int EVT_BLUR = 21;
     const int EVT_VIEWPORT_CHANGE = 30;
@@ -321,11 +322,12 @@ public class QuickJSUIBridge : IDisposable {
             // Execute pending Promise jobs (microtasks) - critical for React scheduler
             _ctx.ExecutePendingJobs();
 
-            // Run GC if handle count exceeds threshold. The zero-allocation tick path
-            // (InvokeCallbackNoAlloc) bypasses Eval(), which is the only other place
-            // GC runs. Without this, FinalizationRegistry callbacks never fire and
-            // C# handles leak unboundedly during normal operation.
-            _ctx.MaybeRunGC(QuickJSContext.HandleCountThreshold);
+            // Drain FinalizationRegistry callbacks (which free C# handles). The
+            // zero-allocation tick path (InvokeCallbackNoAlloc) bypasses Eval(), which is
+            // the only other place GC runs. Without this, C# handles leak unboundedly
+            // during normal operation. MaybeRunGC only runs a full GC once handles have
+            // grown past a delta since the last GC, so idle UIs don't pay per-frame.
+            _ctx.MaybeRunGC();
         } catch (System.Exception ex) {
             UnityEngine.Debug.LogError($"[QuickJSUIBridge] Tick error: {ex.Message}");
         } finally {
@@ -477,12 +479,16 @@ public class QuickJSUIBridge : IDisposable {
         DispatchPointerCaptureEvent("pointercaptureout", e.target, e.pointerId);
     }
 
-    // Mouse wheel / trackpad scroll. Like the cancel/capture handlers above, this stays
-    // on the string dispatch path (it is not per-frame like pointermove). Only the root
-    // TrickleDown handler fires (wheel has no per-element/capture handler), so no
-    // timestamp dedup is needed. WheelEvent.delta is a Vector3; the z component is unused.
+    // Mouse wheel / trackpad scroll. Takes the zero-alloc fast path when available
+    // (active-scroll bursts can approach frame rate on trackpads), falling back to the
+    // string path otherwise. The fast path passes the delta as (x=deltaX, y=deltaY); the
+    // JS side rebuilds { deltaX, deltaY } for EVT_WHEEL. Only the root TrickleDown handler
+    // fires (wheel has no per-element/capture handler), so no timestamp dedup is needed.
+    // WheelEvent.delta is a Vector3; the z component is unused.
     void OnWheel(WheelEvent e) {
-        int flags = DispatchWheelEvent("wheel", e.target, e.delta);
+        int flags = _eventDispatchHandle >= 0
+            ? DispatchEventFast(EVT_WHEEL, FindElementHandle(e.target), e.delta.x, e.delta.y, 0, 0)
+            : DispatchWheelEvent("wheel", e.target, e.delta);
         ApplyNativeSuppression(e, flags);
     }
 
@@ -882,21 +888,26 @@ public class QuickJSUIBridge : IDisposable {
 
     // Per-element handlers fire during pointer capture, when the captured element
     // receives events directly and the _root TrickleDown handler may not run (see the
-    // dedup note above). They mirror the root handlers' suppression wiring so
-    // preventDefault() keeps suppressing native controls mid-drag, not just on the
-    // initial press. When both _root and per-element fire, the timestamp dedup makes
-    // this a no-op (the root handler already applied suppression).
+    // dedup note above). They mirror the root handlers' fast-path branch and suppression
+    // wiring: captured pointermove (the hottest drag path) takes the same zero-alloc
+    // DispatchEventFast route as the root, and preventDefault() keeps suppressing native
+    // controls mid-drag, not just on the initial press. When both _root and per-element
+    // fire, the timestamp dedup makes this a no-op (the root handler already ran).
     void OnPerElementPointerDown(PointerDownEvent e) {
         if (e.timestamp == _lastDispatchedPointerDownTs) return;
         _lastDispatchedPointerDownTs = e.timestamp;
-        int flags = DispatchPointerEvent("pointerdown", e.target, e.position, e.button, e.pointerId);
+        int flags = _eventDispatchHandle >= 0
+            ? DispatchEventFast(EVT_POINTER_DOWN, FindElementHandle(e.target), e.position.x, e.position.y, e.button, e.pointerId)
+            : DispatchPointerEvent("pointerdown", e.target, e.position, e.button, e.pointerId);
         ApplyNativeSuppression(e, flags);
     }
 
     void OnPerElementPointerUp(PointerUpEvent e) {
         if (e.timestamp == _lastDispatchedPointerUpTs) return;
         _lastDispatchedPointerUpTs = e.timestamp;
-        int flags = DispatchPointerEvent("pointerup", e.target, e.position, e.button, e.pointerId);
+        int flags = _eventDispatchHandle >= 0
+            ? DispatchEventFast(EVT_POINTER_UP, FindElementHandle(e.target), e.position.x, e.position.y, e.button, e.pointerId)
+            : DispatchPointerEvent("pointerup", e.target, e.position, e.button, e.pointerId);
         ApplyNativeSuppression(e, flags);
     }
 
@@ -904,7 +915,9 @@ public class QuickJSUIBridge : IDisposable {
         if (!InputBridge.PointerMoveEventsEnabled) return;
         if (e.timestamp == _lastDispatchedPointerMoveTs) return;
         _lastDispatchedPointerMoveTs = e.timestamp;
-        int flags = DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
+        int flags = _eventDispatchHandle >= 0
+            ? DispatchEventFast(EVT_POINTER_MOVE, FindElementHandle(e.target), e.position.x, e.position.y, e.button, e.pointerId)
+            : DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
         ApplyNativeSuppression(e, flags);
     }
 

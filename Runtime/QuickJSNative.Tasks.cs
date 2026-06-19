@@ -140,15 +140,22 @@ public static partial class QuickJSNative {
             }
         }
 
+        // Drain microtasks once for the whole batch rather than after every task. The
+        // Promise .then callbacks scheduled by the resolves/rejects above all run here, in
+        // the same order, matching how a real event loop drains microtasks after a batch of
+        // synchronous resolutions (and avoiding up to MaxTasksPerTick redundant drains).
+        if (processed > 0) ctx.ExecutePendingJobs();
+
         return processed;
     }
 
+    // ResolveTaskInJs/RejectTaskInJs only schedule the promise settlement; ProcessCompletedTasks
+    // drains the resulting microtasks once after the batch.
     static void ResolveTaskInJs(QuickJSContext ctx, int taskId, object result) {
         // Convert result to JSON-safe string representation
         string resultJson = ConvertResultToJson(result);
         string code = $"__resolveTask({taskId}, {resultJson})";
         ctx.Eval(code, "<task-resolve>");
-        ctx.ExecutePendingJobs();
     }
 
     static void RejectTaskInJs(QuickJSContext ctx, int taskId, string errorMessage) {
@@ -156,7 +163,6 @@ public static partial class QuickJSNative {
         string escaped = EscapeJsString(errorMessage ?? "Unknown error");
         string code = $"__rejectTask({taskId}, \"{escaped}\")";
         ctx.Eval(code, "<task-reject>");
-        ctx.ExecutePendingJobs();
     }
 
     static string ConvertResultToJson(object result) {

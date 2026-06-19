@@ -8,14 +8,15 @@ using UnityEngine;
 /// </summary>
 public sealed class QuickJSContext : IDisposable {
     const string DefaultBootstrapResourcePath = "OneJS/QuickJSBootstrap.js";
-    const int GCInterval = 100; // Run GC every N evals
-    public const int HandleCountThreshold = 100; // Also run GC if handles exceed this count
+    const int GCInterval = 100;     // Eval backstop: run GC at least every N evals
+    const int GCHandleDelta = 1024; // Run GC once live handles grow by this many since the last GC
     static string _cachedBootstrap;
 
     IntPtr _ptr;
     byte[] _buffer;
     bool _disposed;
     int _evalCount;
+    int _lastGCHandleCount;     // Live handle count right after the last GC (for delta-triggered GC)
     bool _bufferOverflowWarned; // Only warn once per context to avoid log spam
 
     public IntPtr NativePtr => _ptr;
@@ -87,13 +88,16 @@ public sealed class QuickJSContext : IDisposable {
                     "File: {filename}");
             }
 
-            // Run GC periodically to trigger FinalizationRegistry callbacks
-            // Also run if handle count exceeds threshold to prevent leaks from chained property access
-            // (e.g., go.transform.position creates intermediate handles that need cleanup)
+            // Run GC to trigger FinalizationRegistry callbacks (which free C# handles).
+            // Backstop every GCInterval evals, plus whenever handles have grown by
+            // GCHandleDelta since the last GC (e.g. chained property access like
+            // go.transform.position creating intermediate handles that need cleanup).
+            // Growth, not absolute count, is the right signal: steadily-retained handles
+            // don't need re-collection.
             _evalCount++;
-            if (_evalCount >= GCInterval || QuickJSNative.GetHandleCount() > HandleCountThreshold) {
+            if (_evalCount >= GCInterval || HandleGrowthExceedsDelta()) {
                 _evalCount = 0;
-                QuickJSNative.qjs_run_gc(_ptr);
+                RunGCInternal();
             }
 
             return str;
@@ -104,7 +108,7 @@ public sealed class QuickJSContext : IDisposable {
 
     public void RunGC() {
         if (_disposed || _ptr == IntPtr.Zero) return;
-        QuickJSNative.qjs_run_gc(_ptr);
+        RunGCInternal();
     }
 
     /// <summary>
@@ -118,14 +122,28 @@ public sealed class QuickJSContext : IDisposable {
     }
 
     /// <summary>
-    /// Runs GC if the handle table exceeds the given threshold.
-    /// Call this from Update() if you need more aggressive cleanup.
+    /// Runs GC if the live handle count has grown by more than GCHandleDelta since the
+    /// last GC. Called every frame from the tick loop: the zero-allocation tick path
+    /// (InvokeCallbackNoAlloc) bypasses Eval(), so this is the only place finalizers get
+    /// drained during normal operation. Triggering on growth rather than absolute count
+    /// keeps idle / steady-state UIs from running a full heap walk every frame.
     /// </summary>
-    public void MaybeRunGC(int threshold = 50) {
+    public void MaybeRunGC() {
         if (_disposed || _ptr == IntPtr.Zero) return;
-        if (QuickJSNative.GetHandleCount() > threshold) {
-            QuickJSNative.qjs_run_gc(_ptr);
-        }
+        if (HandleGrowthExceedsDelta()) RunGCInternal();
+    }
+
+    // True when enough new handles have been created since the last GC to warrant
+    // draining finalizers. Handle count is monotonic between GCs, so the delta equals
+    // the number of handles created (transient + retained) since the previous GC.
+    bool HandleGrowthExceedsDelta() {
+        return QuickJSNative.GetHandleCount() - _lastGCHandleCount > GCHandleDelta;
+    }
+
+    // All GC paths route through here so _lastGCHandleCount stays in sync.
+    void RunGCInternal() {
+        QuickJSNative.qjs_run_gc(_ptr);
+        _lastGCHandleCount = QuickJSNative.GetHandleCount();
     }
 
     public void Dispose() {
