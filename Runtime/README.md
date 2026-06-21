@@ -28,6 +28,9 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `UICartridge.cs` | Cartridge system for packaged UI modules |
 | `CartridgeTypeGenerator.cs` | Generates TypeScript declarations for cartridge types |
 | `CartridgeUtils.cs` | Shared cartridge utilities used by JSRunner and JSPad |
+| `StyleBridge.cs` | Batched style + class-list application; typed IStyle setters for common props (no reflection), reflection fallback for the long tail |
+| `PainterBridge.cs` | Batched vector drawing - replays a Painter2D command buffer in one crossing |
+| `NodeBridge.cs` | Zero-alloc tree wiring (Add/Insert/RemoveFromHierarchy) by element handle |
 | `GPU/GPUBridge.cs` | Compute shader API for JavaScript |
 | `GPU/ComputeShaderProvider.cs` | MonoBehaviour for registering shaders via inspector |
 | `Input/InputBridge.cs` | Input System bridge for keyboard, mouse, gamepad, touch |
@@ -430,7 +433,7 @@ Temp/OneJSPad/{instanceId}/
 | `QuickJSNative.Reflection.cs` | Type/method/property resolution and caching |
 | `QuickJSNative.Structs.cs` | Struct serialization with auto-registration |
 | `QuickJSNative.Dispatch.cs` | JS→C# callback dispatch, value conversion, exception handling |
-| `QuickJSNative.FastPath.cs` | Zero-allocation fast path for hot properties/methods |
+| `QuickJSNative.FastPath.cs` | Zero-allocation fast path for hot properties/methods/constructors |
 | `QuickJSNative.Tasks.cs` | C# Task/Promise bridging with queue monitoring |
 | `QuickJSNative.ZeroAlloc.cs` | Zero-allocation interop for GPU and hot-path operations |
 
@@ -472,6 +475,14 @@ Structs are automatically serialized between JS and C# without manual registrati
 - `Dictionary → Struct`: Deserialized via field/property matching
 - `JSON String → Struct`: Parsed when `__type` marker present
 - `Array / List<T> fields`: Struct fields typed `T[]` or `List<T>` round-trip as JSON arrays in both directions. Elements may be primitives, strings, enums, or nested structs.
+
+### Zero-Alloc Constructors (QuickJSNative.FastPath.cs)
+
+Constructors are intercepted in the zero-alloc fast path (before any string allocation) and resolved by **type-name hash** - a ctor has no target handle, so this sidesteps the concrete-type keying that limits instance-method fast paths. Registered in `RegisterFastConstructors()`; covered by `FastCtor_*` tests in `QuickJSFastPathPlaymodeTests`.
+
+**Blittable structs** - `new CS.UnityEngine.Vector2/Vector3/Vector4/Color/Quaternion(...)` build through the fast path instead of reflection (`GetConstructors` + `ConvertToTargetType` + `ctor.Invoke`, plus an `object[]` and per-arg boxing). The numeric args are read straight from the `InteropValue` buffer, the struct is built on the stack, and the result is packed with the same field layout the reflection path produces - identical value, no allocation or reflection. Only purely-numeric args qualify; anything else falls through.
+
+**Element types** - the parameterless ctors the reconciler runs on every mount (`VisualElement`, `TextElement`, `Label`, `Button`, `TextField`, `Toggle`, `Slider`, `ScrollView`, `Image`, `ListView`) build via a typed factory instead of the reflection ctor, then return as a handle (same packing as the slow path). Only parameterless construction is fast-pathed; a parameterized element ctor (e.g. `new Slider(0, 100)`) falls through to reflection.
 
 ## Stability & Monitoring
 

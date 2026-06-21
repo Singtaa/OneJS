@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using OneJS;
 using OneJS.GPU;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
@@ -350,6 +351,22 @@ public static partial class QuickJSNative {
         // MARK: Static methods by type name (for static classes that can't be type arguments)
 
         /// <summary>
+        /// Register a static method with 1 argument using explicit type name (for static classes).
+        /// </summary>
+        public static void StaticMethodByTypeName<TArg0, TResult>(string typeName, string methodName, Func<TArg0, TResult> method) {
+            int typeNameHash = HashString(typeName);
+            CacheStaticTypeHashByName(typeName, typeNameHash);
+            var key = MakeFastPathKey(typeNameHash, HashString(methodName), InteropInvokeCallKind.Method, true);
+            unsafe {
+                _fastPathRegistryLong[key] = new FastStaticHandler((args, argCount, result) => {
+                    var arg0 = ReadFromInterop<TArg0>(&args[0]);
+                    var ret = method(arg0);
+                    WriteToInterop(ret, result);
+                });
+            }
+        }
+
+        /// <summary>
         /// Register a static method with 2 arguments using explicit type name (for static classes).
         /// </summary>
         public static void StaticMethodByTypeName<TArg0, TArg1, TResult>(string typeName, string methodName, Func<TArg0, TArg1, TResult> method) {
@@ -589,6 +606,7 @@ public static partial class QuickJSNative {
 
         public static void Clear() {
             _fastPathRegistryLong.Clear();
+            _fastCtorRegistry.Clear();
             _structPackers.Clear();
             _structUnpackers.Clear();
             _dictConverters.Clear();
@@ -728,6 +746,26 @@ public static partial class QuickJSNative {
             GPUBridge.Dispatch(h, k, x, y, z);
             return true;
         });
+
+        // Tree wiring - zero-alloc and type-agnostic (keyed by type name, not the
+        // concrete element type, which is what blocks seeding VisualElement.Add
+        // directly). See NodeBridge.
+        const string nodeBridgeTypeName = "OneJS.NodeBridge";
+        FastPath.StaticMethodByTypeName<int, int, bool>(nodeBridgeTypeName, "Add", (p, c) => {
+            NodeBridge.Add(p, c);
+            return true;
+        });
+        FastPath.StaticMethodByTypeName<int, int, int, bool>(nodeBridgeTypeName, "Insert", (p, i, c) => {
+            NodeBridge.Insert(p, i, c);
+            return true;
+        });
+        FastPath.StaticMethodByTypeName<int, bool>(nodeBridgeTypeName, "RemoveFromHierarchy", c => {
+            NodeBridge.RemoveFromHierarchy(c);
+            return true;
+        });
+
+        // Fast ctor path for hot blittable structs (Vector2/3/4, Color, Quaternion).
+        RegisterFastConstructors();
     }
 
     // MARK: Zero-Alloc Lookup
@@ -760,6 +798,14 @@ public static partial class QuickJSNative {
         int argCount,
         InteropValue* result) {
         EnsureFastPathInitialized();
+
+        // Constructors of registered blittable structs build directly from their
+        // numeric args (no reflection / boxing / object[]). A ctor carries no
+        // target handle, so it is resolved by type-name hash. The result packing
+        // matches the slow ctor path exactly, so JS sees an identical value.
+        if (callKind == InteropInvokeCallKind.Ctor) {
+            return TryFastCtor(typeNamePtr, args, argCount, result);
+        }
 
         // Compute member hash from raw UTF8 bytes
         int memberHash = HashUtf8Ptr(memberNamePtr);
@@ -810,6 +856,120 @@ public static partial class QuickJSNative {
         }
 
         return true;
+    }
+
+    // MARK: Fast Constructors
+    //
+    // `new CS.UnityEngine.Vector2(x, y)` etc. otherwise hit the reflection ctor
+    // path (GetConstructors + GetParameters + ConvertToTargetType + ctor.Invoke,
+    // plus an object[] and per-arg boxing). For the hot blittable structs we read
+    // the numeric args straight out of the InteropValue buffer, build the struct
+    // on the stack, and pack it with WriteToInterop - no reflection, no boxing,
+    // no allocation. The packing matches the slow ctor path's return exactly.
+
+    unsafe delegate bool FastCtorHandler(InteropValue* args, int argCount, InteropValue* result);
+    static readonly Dictionary<Type, FastCtorHandler> _fastCtorRegistry = new();
+
+    static unsafe void RegisterFastConstructors() {
+        RegisterFastCtor(typeof(Vector2), CtorVector2);
+        RegisterFastCtor(typeof(Vector3), CtorVector3);
+        RegisterFastCtor(typeof(Vector4), CtorVector4);
+        RegisterFastCtor(typeof(Color), CtorColor);
+        RegisterFastCtor(typeof(Quaternion), CtorQuaternion);
+
+        // Parameterless ctors of the element types the reconciler creates on every
+        // mount. These resolve by type name (a ctor has no target handle), so unlike
+        // instance methods they are NOT subject to concrete-type keying - one
+        // registration per element type covers it. Any parameterized element ctor
+        // (e.g. `new Slider(0, 100)`) falls through to the reflection ctor path.
+        RegisterFastRefCtor(typeof(UnityEngine.UIElements.VisualElement), () => new UnityEngine.UIElements.VisualElement());
+        RegisterFastRefCtor(typeof(UnityEngine.UIElements.TextElement), () => new UnityEngine.UIElements.TextElement());
+        RegisterFastRefCtor(typeof(UnityEngine.UIElements.Label), () => new UnityEngine.UIElements.Label());
+        RegisterFastRefCtor(typeof(UnityEngine.UIElements.Button), () => new UnityEngine.UIElements.Button());
+        RegisterFastRefCtor(typeof(UnityEngine.UIElements.TextField), () => new UnityEngine.UIElements.TextField());
+        RegisterFastRefCtor(typeof(UnityEngine.UIElements.Toggle), () => new UnityEngine.UIElements.Toggle());
+        RegisterFastRefCtor(typeof(UnityEngine.UIElements.Slider), () => new UnityEngine.UIElements.Slider());
+        RegisterFastRefCtor(typeof(UnityEngine.UIElements.ScrollView), () => new UnityEngine.UIElements.ScrollView());
+        RegisterFastRefCtor(typeof(UnityEngine.UIElements.Image), () => new UnityEngine.UIElements.Image());
+        RegisterFastRefCtor(typeof(UnityEngine.UIElements.ListView), () => new UnityEngine.UIElements.ListView());
+    }
+
+    static unsafe void RegisterFastCtor(Type type, FastCtorHandler handler) {
+        // Cache by FullName hash so TryFastCtor can resolve the type from the
+        // ctor's type-name pointer (a ctor carries no target handle).
+        CacheStaticTypeHash(type);
+        _fastCtorRegistry[type] = handler;
+    }
+
+    static unsafe bool TryFastCtor(IntPtr typeNamePtr, InteropValue* args, int argCount,
+        InteropValue* result) {
+        if (typeNamePtr == IntPtr.Zero) return false;
+        int typeNameHash = HashUtf8Ptr(typeNamePtr);
+        if (!_staticTypeHashCache.TryGetValue(typeNameHash, out var type)) return false;
+        if (!_fastCtorRegistry.TryGetValue(type, out var handler)) return false;
+
+        // Only handle purely-numeric args. Anything else (strings, handles) defers
+        // to the reflection ctor path, which applies ConvertToTargetType per arg.
+        for (int i = 0; i < argCount; i++) {
+            var t = args[i].type;
+            if (t != InteropType.Float32 && t != InteropType.Double && t != InteropType.Int32)
+                return false;
+        }
+
+        return handler(args, argCount, result);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static unsafe float CtorArg(InteropValue* args, int i) => ReadFromInterop<float>(&args[i]);
+
+    static unsafe bool CtorVector2(InteropValue* a, int n, InteropValue* result) {
+        if (n != 2) return false;
+        WriteToInterop(new Vector2(CtorArg(a, 0), CtorArg(a, 1)), result);
+        return true;
+    }
+
+    static unsafe bool CtorVector3(InteropValue* a, int n, InteropValue* result) {
+        if (n == 3) { WriteToInterop(new Vector3(CtorArg(a, 0), CtorArg(a, 1), CtorArg(a, 2)), result); return true; }
+        if (n == 2) { WriteToInterop(new Vector3(CtorArg(a, 0), CtorArg(a, 1), 0f), result); return true; }
+        return false;
+    }
+
+    static unsafe bool CtorVector4(InteropValue* a, int n, InteropValue* result) {
+        if (n != 4) return false;
+        WriteToInterop(new Vector4(CtorArg(a, 0), CtorArg(a, 1), CtorArg(a, 2), CtorArg(a, 3)), result);
+        return true;
+    }
+
+    static unsafe bool CtorColor(InteropValue* a, int n, InteropValue* result) {
+        if (n == 4) { WriteToInterop(new Color(CtorArg(a, 0), CtorArg(a, 1), CtorArg(a, 2), CtorArg(a, 3)), result); return true; }
+        if (n == 3) { WriteToInterop(new Color(CtorArg(a, 0), CtorArg(a, 1), CtorArg(a, 2), 1f), result); return true; }
+        return false;
+    }
+
+    static unsafe bool CtorQuaternion(InteropValue* a, int n, InteropValue* result) {
+        if (n != 4) return false;
+        WriteToInterop(new Quaternion(CtorArg(a, 0), CtorArg(a, 1), CtorArg(a, 2), CtorArg(a, 3)), result);
+        return true;
+    }
+
+    // Reference-type (parameterless) ctor: builds the object with a typed factory
+    // instead of reflection, then returns it as a handle - the same packing the
+    // slow ctor path produces for a class instance.
+    static unsafe void RegisterFastRefCtor(Type type, Func<object> factory) {
+        CacheStaticTypeHash(type);
+        _fastCtorRegistry[type] = (args, argCount, result) => {
+            if (argCount != 0) return false; // only parameterless construction
+            WriteRefHandle(result, factory(), type);
+            return true;
+        };
+    }
+
+    static unsafe void WriteRefHandle(InteropValue* result, object obj, Type type) {
+        *result = default;
+        int handle = RegisterObject(obj);
+        result->type = InteropType.ObjectHandle;
+        result->handle = handle;
+        result->typeHint = StringToUtf8(type.FullName);
     }
 
     // MARK: Read/Write

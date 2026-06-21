@@ -37,14 +37,14 @@ namespace OneJS {
             foreach (var kvp in styles) {
                 if (string.IsNullOrEmpty(kvp.Key)) continue;
 
-                var prop = FindStyleProperty(kvp.Key);
-                if (prop == null) continue;
-
                 object value = ResolveValue(kvp.Value);
 
                 try {
-                    var converted = QuickJSNative.ConvertToTargetType(value, prop.PropertyType);
-                    prop.SetValue(style, converted);
+                    // Fast path: direct typed assignment for the common style
+                    // properties. Anything not covered falls back to reflection.
+                    if (!TryApplyFast(style, kvp.Key, value)) {
+                        ApplyReflective(style, kvp.Key, value);
+                    }
                 } catch (Exception ex) {
                     Debug.LogWarning(
                         $"[StyleBridge] ApplyStyles failed for '{kvp.Key}': {ex.Message}");
@@ -130,6 +130,98 @@ namespace OneJS {
                     }
                     break;
             }
+        }
+
+        // Direct typed setters for the common style properties. Reuses the same
+        // ConvertToTargetType the reflection path uses (so values convert
+        // identically), but assigns through the typed IStyle setter instead of
+        // PropertyInfo.SetValue - no reflection invoke, no per-call object[].
+        // Returns false for properties not covered here (long-tail props like
+        // transforms, transitions, fonts, slices), which take the reflection path.
+        static bool TryApplyFast(IStyle style, string key, object value) {
+            switch (key) {
+                // Lengths
+                case "width": style.width = AsLength(value); return true;
+                case "height": style.height = AsLength(value); return true;
+                case "minWidth": style.minWidth = AsLength(value); return true;
+                case "minHeight": style.minHeight = AsLength(value); return true;
+                case "maxWidth": style.maxWidth = AsLength(value); return true;
+                case "maxHeight": style.maxHeight = AsLength(value); return true;
+                case "top": style.top = AsLength(value); return true;
+                case "right": style.right = AsLength(value); return true;
+                case "bottom": style.bottom = AsLength(value); return true;
+                case "left": style.left = AsLength(value); return true;
+                case "marginTop": style.marginTop = AsLength(value); return true;
+                case "marginRight": style.marginRight = AsLength(value); return true;
+                case "marginBottom": style.marginBottom = AsLength(value); return true;
+                case "marginLeft": style.marginLeft = AsLength(value); return true;
+                case "paddingTop": style.paddingTop = AsLength(value); return true;
+                case "paddingRight": style.paddingRight = AsLength(value); return true;
+                case "paddingBottom": style.paddingBottom = AsLength(value); return true;
+                case "paddingLeft": style.paddingLeft = AsLength(value); return true;
+                case "borderTopLeftRadius": style.borderTopLeftRadius = AsLength(value); return true;
+                case "borderTopRightRadius": style.borderTopRightRadius = AsLength(value); return true;
+                case "borderBottomLeftRadius": style.borderBottomLeftRadius = AsLength(value); return true;
+                case "borderBottomRightRadius": style.borderBottomRightRadius = AsLength(value); return true;
+                case "flexBasis": style.flexBasis = AsLength(value); return true;
+                case "fontSize": style.fontSize = AsLength(value); return true;
+                case "letterSpacing": style.letterSpacing = AsLength(value); return true;
+                case "wordSpacing": style.wordSpacing = AsLength(value); return true;
+
+                // Floats
+                case "flexGrow": style.flexGrow = AsFloat(value); return true;
+                case "flexShrink": style.flexShrink = AsFloat(value); return true;
+                case "opacity": style.opacity = AsFloat(value); return true;
+                case "borderTopWidth": style.borderTopWidth = AsFloat(value); return true;
+                case "borderRightWidth": style.borderRightWidth = AsFloat(value); return true;
+                case "borderBottomWidth": style.borderBottomWidth = AsFloat(value); return true;
+                case "borderLeftWidth": style.borderLeftWidth = AsFloat(value); return true;
+                case "unityTextOutlineWidth": style.unityTextOutlineWidth = AsFloat(value); return true;
+
+                // Colors
+                case "color": style.color = AsColor(value); return true;
+                case "backgroundColor": style.backgroundColor = AsColor(value); return true;
+                case "borderTopColor": style.borderTopColor = AsColor(value); return true;
+                case "borderRightColor": style.borderRightColor = AsColor(value); return true;
+                case "borderBottomColor": style.borderBottomColor = AsColor(value); return true;
+                case "borderLeftColor": style.borderLeftColor = AsColor(value); return true;
+                case "unityBackgroundImageTintColor": style.unityBackgroundImageTintColor = AsColor(value); return true;
+                case "unityTextOutlineColor": style.unityTextOutlineColor = AsColor(value); return true;
+
+                // Enums
+                case "display": style.display = AsEnum<DisplayStyle>(value); return true;
+                case "position": style.position = AsEnum<Position>(value); return true;
+                case "flexDirection": style.flexDirection = AsEnum<FlexDirection>(value); return true;
+                case "flexWrap": style.flexWrap = AsEnum<Wrap>(value); return true;
+                case "alignItems": style.alignItems = AsEnum<Align>(value); return true;
+                case "alignContent": style.alignContent = AsEnum<Align>(value); return true;
+                case "alignSelf": style.alignSelf = AsEnum<Align>(value); return true;
+                case "justifyContent": style.justifyContent = AsEnum<Justify>(value); return true;
+                case "overflow": style.overflow = AsEnum<Overflow>(value); return true;
+                case "visibility": style.visibility = AsEnum<Visibility>(value); return true;
+                case "whiteSpace": style.whiteSpace = AsEnum<WhiteSpace>(value); return true;
+                case "textOverflow": style.textOverflow = AsEnum<TextOverflow>(value); return true;
+                case "unityTextAlign": style.unityTextAlign = AsEnum<TextAnchor>(value); return true;
+                case "unityFontStyleAndWeight": style.unityFontStyleAndWeight = AsEnum<FontStyle>(value); return true;
+
+                default: return false;
+            }
+        }
+
+        static StyleLength AsLength(object v) =>
+            (StyleLength)QuickJSNative.ConvertToTargetType(v, typeof(StyleLength));
+        static StyleFloat AsFloat(object v) =>
+            (StyleFloat)QuickJSNative.ConvertToTargetType(v, typeof(StyleFloat));
+        static StyleColor AsColor(object v) =>
+            (StyleColor)QuickJSNative.ConvertToTargetType(v, typeof(StyleColor));
+        static StyleEnum<T> AsEnum<T>(object v) where T : struct, IConvertible =>
+            (StyleEnum<T>)QuickJSNative.ConvertToTargetType(v, typeof(StyleEnum<T>));
+
+        static void ApplyReflective(IStyle style, string key, object value) {
+            var prop = FindStyleProperty(key);
+            if (prop == null) return;
+            var converted = QuickJSNative.ConvertToTargetType(value, prop.PropertyType);
+            prop.SetValue(style, converted);
         }
 
         static PropertyInfo FindStyleProperty(string name) {

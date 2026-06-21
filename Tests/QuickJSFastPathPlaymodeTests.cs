@@ -129,6 +129,163 @@ public class QuickJSFastPathPlaymodeTests {
         yield return null;
     }
 
+    // MARK: Fast Constructor Tests
+    // `new CS.UnityEngine.Vector2/3/4/Color/Quaternion(...)` build via the
+    // zero-alloc ctor fast path. Returns surface as {x,y,z(,w)} in JS, matching
+    // the reflection ctor path exactly.
+
+    [UnityTest]
+    public IEnumerator FastCtor_Vector2_ReturnsComponents() {
+        var x = _ctx.Eval("new CS.UnityEngine.Vector2(3, 4).x");
+        var y = _ctx.Eval("new CS.UnityEngine.Vector2(3, 4).y");
+        Assert.IsTrue(float.TryParse(x, out var fx) && Mathf.Approximately(fx, 3f), $"x={x}");
+        Assert.IsTrue(float.TryParse(y, out var fy) && Mathf.Approximately(fy, 4f), $"y={y}");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator FastCtor_Vector3_TwoArg_ZeroFillsZ() {
+        var z = _ctx.Eval("new CS.UnityEngine.Vector3(5, 6).z");
+        Assert.IsTrue(float.TryParse(z, out var fz) && Mathf.Approximately(fz, 0f), $"z={z}");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator FastCtor_Color_FourArg_ReturnsRGBA() {
+        var b = _ctx.Eval("new CS.UnityEngine.Color(0.25, 0.5, 0.75, 0.125).z");
+        var a = _ctx.Eval("new CS.UnityEngine.Color(0.25, 0.5, 0.75, 0.125).w");
+        Assert.IsTrue(float.TryParse(b, out var fb) && Mathf.Approximately(fb, 0.75f), $"b={b}");
+        Assert.IsTrue(float.TryParse(a, out var fa) && Mathf.Approximately(fa, 0.125f), $"a={a}");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator FastCtor_Color_ThreeArg_DefaultsAlphaToOne() {
+        var a = _ctx.Eval("new CS.UnityEngine.Color(0.1, 0.2, 0.3).w");
+        Assert.IsTrue(float.TryParse(a, out var fa) && Mathf.Approximately(fa, 1f), $"a={a}");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator FastCtor_Quaternion_ReturnsComponents() {
+        var w = _ctx.Eval("new CS.UnityEngine.Quaternion(0.1, 0.2, 0.3, 0.4).w");
+        Assert.IsTrue(float.TryParse(w, out var fw) && Mathf.Approximately(fw, 0.4f), $"w={w}");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator FastCtor_Element_ConstructsUsableElement() {
+        // Reference-type element ctor (parameterless) goes through the fast path.
+        // The round-trip proves it built a real, usable Button (name set + read back).
+        var result = _ctx.Eval(@"
+            var el = new CS.UnityEngine.UIElements.Button();
+            el.name = 'fastCtorBtn';
+            el.name;
+        ");
+        Assert.AreEqual("fastCtorBtn", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator FastCtor_Element_NonNumericArgFallsThrough() {
+        // A string-arg element ctor is not fast-pathed (non-numeric arg); it must
+        // still work via the reflection ctor path (Label(string text)).
+        var result = _ctx.Eval(@"
+            var lbl = new CS.UnityEngine.UIElements.Label('hello');
+            lbl.text;
+        ");
+        Assert.AreEqual("hello", result);
+        yield return null;
+    }
+
+    // MARK: NodeBridge Tests
+    // Zero-alloc tree wiring by element handle, type-agnostic across element types.
+
+    [UnityTest]
+    public IEnumerator NodeBridge_Add_AttachesChild() {
+        var result = _ctx.Eval(@"
+            var parent = new CS.UnityEngine.UIElements.VisualElement();
+            var child = new CS.UnityEngine.UIElements.Button();
+            CS.OneJS.NodeBridge.Add(parent.__csHandle, child.__csHandle);
+            parent.childCount;
+        ");
+        Assert.AreEqual("1", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator NodeBridge_Insert_AttachesAtIndex() {
+        var result = _ctx.Eval(@"
+            var parent = new CS.UnityEngine.UIElements.VisualElement();
+            var a = new CS.UnityEngine.UIElements.VisualElement();
+            var b = new CS.UnityEngine.UIElements.VisualElement();
+            var c = new CS.UnityEngine.UIElements.VisualElement();
+            CS.OneJS.NodeBridge.Add(parent.__csHandle, a.__csHandle);
+            CS.OneJS.NodeBridge.Add(parent.__csHandle, b.__csHandle);
+            CS.OneJS.NodeBridge.Insert(parent.__csHandle, 1, c.__csHandle);
+            parent.IndexOf(c) + ':' + parent.childCount;
+        ");
+        Assert.AreEqual("1:3", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator NodeBridge_RemoveFromHierarchy_Detaches() {
+        var result = _ctx.Eval(@"
+            var parent = new CS.UnityEngine.UIElements.VisualElement();
+            var child = new CS.UnityEngine.UIElements.VisualElement();
+            CS.OneJS.NodeBridge.Add(parent.__csHandle, child.__csHandle);
+            var before = parent.childCount;
+            CS.OneJS.NodeBridge.RemoveFromHierarchy(child.__csHandle);
+            before + ':' + parent.childCount;
+        ");
+        Assert.AreEqual("1:0", result);
+        yield return null;
+    }
+
+    // MARK: StyleBridge Tests
+    // The batched style application uses direct typed setters for the common
+    // properties (fast path) and reflection for the long tail (fallback).
+
+    [UnityTest]
+    public IEnumerator StyleBridge_ApplyStyles_FastFloatEnumAndFallback() {
+        var result = _ctx.Eval(@"
+            var el = new CS.UnityEngine.UIElements.VisualElement();
+            CS.OneJS.StyleBridge.ApplyStyles(el, {
+                opacity: 0.25,
+                display: CS.UnityEngine.UIElements.DisplayStyle.None,
+                unitySliceScale: 4
+            });
+            el.style.opacity.value + ',' + el.style.display.value + ',' + el.style.unitySliceScale.value;
+        ");
+        // opacity (fast StyleFloat), display=None=1 (fast StyleEnum),
+        // unitySliceScale (StyleFloat, not in the fast switch -> reflection).
+        Assert.AreEqual("0.25,1,4", result);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator StyleBridge_ApplyStyles_ColorAndLengthDoNotThrow() {
+        // Exercises the fast-path AsColor / AsLength setters across several
+        // properties. Reading struct-valued styles (StyleColor/StyleLength) back
+        // through the proxy is unreliable (the Style_* tests use the same
+        // no-throw pattern); visual mapping correctness is covered by rendering.
+        Assert.DoesNotThrow(() => {
+            _ctx.Eval(@"
+                var el = new CS.UnityEngine.UIElements.VisualElement();
+                CS.OneJS.StyleBridge.ApplyStyles(el, {
+                    backgroundColor: { r: 1, g: 0, b: 0, a: 1 },
+                    color: { r: 0, g: 1, b: 0, a: 1 },
+                    width: new CS.UnityEngine.UIElements.Length(100),
+                    height: new CS.UnityEngine.UIElements.Length(50),
+                    marginTop: new CS.UnityEngine.UIElements.Length(12),
+                    paddingLeft: new CS.UnityEngine.UIElements.Length(8)
+                });
+            ");
+        });
+        yield return null;
+    }
+
     [UnityTest]
     public IEnumerator FastPath_ScreenWidth_ReturnsPositiveInt() {
         var result = _ctx.Eval("CS.UnityEngine.Screen.width");
@@ -188,6 +345,32 @@ public class QuickJSFastPathPlaymodeTests {
         } finally {
             Time.timeScale = original;
         }
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator FastCtor_Construction_LowAllocation() {
+        // The reflection ctor path allocates an object[], boxes each arg, builds
+        // ConstructorInfo[]/ParameterInfo[], and boxes the result - per call. The
+        // fast ctor path does none of that, so allocation stays at eval overhead.
+        for (int i = 0; i < 100; i++) {
+            _ctx.Eval("new CS.UnityEngine.Vector2(3, 4)");
+        }
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        long before = GC.GetTotalMemory(false);
+
+        for (int i = 0; i < 1000; i++) {
+            _ctx.Eval("new CS.UnityEngine.Vector2(3, 4)");
+        }
+
+        GC.Collect();
+        long bytes = GC.GetTotalMemory(false) - before;
+
+        Debug.Log($"FastCtor Vector2: ~{bytes} bytes for 1000 calls (~{bytes / 1000} per call)");
+        Assert.Less(bytes, 50000, "Allocation should be low for the fast ctor path");
         yield return null;
     }
 
