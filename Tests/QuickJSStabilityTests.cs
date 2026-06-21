@@ -52,6 +52,29 @@ public class QuickJSStabilityTests {
     }
 
     [UnityTest]
+    public IEnumerator HandleLookup_ElementOrAncestor_ResolvesNearestRegistered() {
+        var parent = new UnityEngine.UIElements.VisualElement();
+        var child = new UnityEngine.UIElements.VisualElement();
+        var grandchild = new UnityEngine.UIElements.VisualElement(); // left unregistered
+        parent.Add(child);
+        child.Add(grandchild);
+
+        QuickJSNative.RegisterObject(parent);
+        int ch = QuickJSNative.RegisterObject(child);
+
+        // Exact match resolves to the element's own handle.
+        Assert.AreEqual(ch, QuickJSNative.GetHandleForElementOrAncestor(child));
+        // An unregistered descendant resolves to its nearest registered ancestor.
+        Assert.AreEqual(ch, QuickJSNative.GetHandleForElementOrAncestor(grandchild));
+        // A detached, unregistered element resolves to 0.
+        Assert.AreEqual(0, QuickJSNative.GetHandleForElementOrAncestor(new UnityEngine.UIElements.VisualElement()));
+        // null is safe.
+        Assert.AreEqual(0, QuickJSNative.GetHandleForElementOrAncestor(null));
+
+        yield return null;
+    }
+
+    [UnityTest]
     public IEnumerator HandleMonitoring_GetPeakHandleCount_TracksPeak() {
         // Register objects
         var objects = new GameObject[5];

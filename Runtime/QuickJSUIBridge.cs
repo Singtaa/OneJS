@@ -607,13 +607,8 @@ public class QuickJSUIBridge : IDisposable {
 
     // MARK: Event Dispatch - Core
     int FindElementHandle(IEventHandler target) {
-        var el = target as VisualElement;
-        while (el != null) {
-            int handle = QuickJSNative.GetHandleForObject(el);
-            if (handle > 0) return handle;
-            el = el.parent;
-        }
-        return 0;
+        // Single-lock parent-chain walk (was one lock + dict lookup per hop).
+        return QuickJSNative.GetHandleForElementOrAncestor(target as VisualElement);
     }
 
     /// <summary>

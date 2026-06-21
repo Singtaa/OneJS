@@ -165,6 +165,24 @@ public static partial class QuickJSNative {
     }
 
     /// <summary>
+    /// Resolve a VisualElement (or its nearest registered ancestor) to a handle,
+    /// walking the parent chain under a SINGLE lock acquisition instead of one
+    /// lock per hop. Used by event dispatch, where the event target may be an
+    /// unregistered internal child of a composite control (e.g. a ScrollView's
+    /// content viewport), so the registered ancestor must be found.
+    /// </summary>
+    public static int GetHandleForElementOrAncestor(UnityEngine.UIElements.VisualElement el) {
+        if (el == null) return 0;
+        lock (_handleLock) {
+            while (el != null) {
+                if (_reverseHandleTable.TryGetValue(el, out int handle)) return handle;
+                el = el.parent;
+            }
+        }
+        return 0;
+    }
+
+    /// <summary>
     /// Returns the number of currently registered object handles.
     /// Useful for debugging memory leaks.
     /// </summary>
