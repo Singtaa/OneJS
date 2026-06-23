@@ -907,7 +907,7 @@ if (typeof globalThis.CS === "undefined") {
 // Note: __eventHandlers is declared at top of file for use by __cleanupHandle
 
 // Event types that need per-element C# registration.
-//  - Pointer events (pointerdown/up/move, cancel, stationary): Unity 6
+//  - Pointer events (pointerdown/up/move, cancel): Unity 6
 //    delivers captured pointer events directly to the capturing element,
 //    bypassing the root TrickleDown hook, so per-element registration
 //    ensures JS handlers fire during capture.
@@ -920,7 +920,7 @@ if (typeof globalThis.CS === "undefined") {
 //    their own geometry change events as "geometrychanged".
 const __perElementEventTypes = new Set([
     "pointerdown", "pointerup", "pointermove",
-    "pointercancel", "pointerstationary",
+    "pointercancel",
     "pointercapture", "pointercaptureout",
     "geometrychanged",
 ]);

@@ -66,7 +66,6 @@ public class QuickJSUIBridge : IDisposable {
     long _lastDispatchedPointerUpTs = -1;
     long _lastDispatchedPointerMoveTs = -1;
     long _lastDispatchedPointerCancelTs = -1;
-    long _lastDispatchedPointerStationaryTs = -1;
     long _lastDispatchedPointerCaptureTs = -1;
     long _lastDispatchedPointerCaptureOutTs = -1;
 
@@ -342,7 +341,6 @@ public class QuickJSUIBridge : IDisposable {
         _root.RegisterCallback<PointerUpEvent>(OnPointerUp, TrickleDown.TrickleDown);
         _root.RegisterCallback<PointerMoveEvent>(OnPointerMove, TrickleDown.TrickleDown);
         _root.RegisterCallback<PointerCancelEvent>(OnPointerCancel, TrickleDown.TrickleDown);
-        _root.RegisterCallback<PointerStationaryEvent>(OnPointerStationary, TrickleDown.TrickleDown);
         _root.RegisterCallback<PointerCaptureEvent>(OnPointerCapture, TrickleDown.TrickleDown);
         _root.RegisterCallback<PointerCaptureOutEvent>(OnPointerCaptureOut, TrickleDown.TrickleDown);
         _root.RegisterCallback<PointerEnterEvent>(OnPointerEnter, TrickleDown.TrickleDown);
@@ -368,7 +366,6 @@ public class QuickJSUIBridge : IDisposable {
         _root.UnregisterCallback<PointerUpEvent>(OnPointerUp, TrickleDown.TrickleDown);
         _root.UnregisterCallback<PointerMoveEvent>(OnPointerMove, TrickleDown.TrickleDown);
         _root.UnregisterCallback<PointerCancelEvent>(OnPointerCancel, TrickleDown.TrickleDown);
-        _root.UnregisterCallback<PointerStationaryEvent>(OnPointerStationary, TrickleDown.TrickleDown);
         _root.UnregisterCallback<PointerCaptureEvent>(OnPointerCapture, TrickleDown.TrickleDown);
         _root.UnregisterCallback<PointerCaptureOutEvent>(OnPointerCaptureOut, TrickleDown.TrickleDown);
         _root.UnregisterCallback<PointerEnterEvent>(OnPointerEnter, TrickleDown.TrickleDown);
@@ -452,19 +449,13 @@ public class QuickJSUIBridge : IDisposable {
         }
     }
 
-    // Cancel / stationary / capture transitions are infrequent (not per-frame like
-    // pointermove), so they stay on the string dispatch path rather than adding
-    // parallel fast-path EVT_* constants. Capture events carry only a pointerId.
+    // Cancel / capture transitions are infrequent (not per-frame like pointermove),
+    // so they stay on the string dispatch path rather than adding parallel fast-path
+    // EVT_* constants. Capture events carry only a pointerId.
     void OnPointerCancel(PointerCancelEvent e) {
         if (e.timestamp == _lastDispatchedPointerCancelTs) return;
         _lastDispatchedPointerCancelTs = e.timestamp;
         DispatchPointerEvent("pointercancel", e.target, e.position, e.button, e.pointerId);
-    }
-
-    void OnPointerStationary(PointerStationaryEvent e) {
-        if (e.timestamp == _lastDispatchedPointerStationaryTs) return;
-        _lastDispatchedPointerStationaryTs = e.timestamp;
-        DispatchPointerEvent("pointerstationary", e.target, e.position, e.button, e.pointerId);
     }
 
     void OnPointerCapture(PointerCaptureEvent e) {
@@ -820,9 +811,6 @@ public class QuickJSUIBridge : IDisposable {
             case "pointercancel":
                 element.RegisterCallback<PointerCancelEvent>(OnPerElementPointerCancel);
                 break;
-            case "pointerstationary":
-                element.RegisterCallback<PointerStationaryEvent>(OnPerElementPointerStationary);
-                break;
             case "pointercapture":
                 element.RegisterCallback<PointerCaptureEvent>(OnPerElementPointerCapture);
                 break;
@@ -859,9 +847,6 @@ public class QuickJSUIBridge : IDisposable {
                 break;
             case "pointercancel":
                 element.UnregisterCallback<PointerCancelEvent>(OnPerElementPointerCancel);
-                break;
-            case "pointerstationary":
-                element.UnregisterCallback<PointerStationaryEvent>(OnPerElementPointerStationary);
                 break;
             case "pointercapture":
                 element.UnregisterCallback<PointerCaptureEvent>(OnPerElementPointerCapture);
@@ -920,13 +905,6 @@ public class QuickJSUIBridge : IDisposable {
         if (e.timestamp == _lastDispatchedPointerCancelTs) return;
         _lastDispatchedPointerCancelTs = e.timestamp;
         int flags = DispatchPointerEvent("pointercancel", e.target, e.position, e.button, e.pointerId);
-        ApplyNativeSuppression(e, flags);
-    }
-
-    void OnPerElementPointerStationary(PointerStationaryEvent e) {
-        if (e.timestamp == _lastDispatchedPointerStationaryTs) return;
-        _lastDispatchedPointerStationaryTs = e.timestamp;
-        int flags = DispatchPointerEvent("pointerstationary", e.target, e.position, e.button, e.pointerId);
         ApplyNativeSuppression(e, flags);
     }
 
