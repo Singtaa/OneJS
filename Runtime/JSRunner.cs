@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using OneJS;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UIElements;
 
 /// <summary>
@@ -850,11 +851,36 @@ public class JSRunner : MonoBehaviour {
     }
 
     void Initialize() {
+        EnsureEventSystem();
 #if UNITY_EDITOR
         InitializeEditor();
 #else
         InitializeBuild();
 #endif
+    }
+
+    /// <summary>
+    /// Ensures a UI Toolkit-compatible EventSystem exists at runtime so the panel
+    /// emits navigation events (NavigationMove/Submit/Cancel) for gamepad/keyboard
+    /// focus movement. Without an EventSystem + input module, runtime panels still
+    /// receive pointer input but never navigation input.
+    ///
+    /// No-op in edit mode (edit-mode preview is pointer-only), when an EventSystem
+    /// already exists, or when the project supplies its own. Created before the
+    /// Janitor spawns so live reload does not destroy it.
+    /// </summary>
+    void EnsureEventSystem() {
+        if (!Application.isPlaying) return;
+        if (EventSystem.current != null || FindFirstObjectByType<EventSystem>() != null) return;
+
+        var go = new GameObject("EventSystem (OneJS)");
+        go.AddComponent<EventSystem>();
+#if ENABLE_INPUT_SYSTEM
+        go.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>().AssignDefaultActions();
+#elif ENABLE_LEGACY_INPUT_MANAGER
+        go.AddComponent<StandaloneInputModule>();
+#endif
+        Debug.Log("[JSRunner] Created EventSystem for UI Toolkit navigation (gamepad/keyboard focus).");
     }
 
 #if UNITY_EDITOR

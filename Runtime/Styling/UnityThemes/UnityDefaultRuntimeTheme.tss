@@ -139,23 +139,24 @@
     transition-timing-function: ease-out;
 }
 
-/* Button states - use combined class selectors for maximum specificity */
-/* Button has both unity-text-element AND unity-button classes */
-.unity-text-element.unity-button:hover {
+/* Button states - single-class specificity (0,2,0) so component libraries (e.g.
+   onejs-ui) can override these with their own class rules, while raw Unity
+   buttons still pick up these defaults. (Previously these used the combined
+   `.unity-text-element.unity-button` selector at (0,3,0), which silently beat
+   every component-library button rule, including focus rings.) */
+.unity-button:hover {
     background-color: rgba(75, 75, 75, 1);
-    border-color: rgba(100, 100, 100, 1);
 }
 
-.unity-text-element.unity-button:active {
+.unity-button:active {
     background-color: rgba(50, 50, 50, 1);
-    border-color: rgba(90, 90, 90, 1);
 }
 
-.unity-text-element.unity-button:focus {
+.unity-button:focus {
     border-color: rgba(77, 144, 254, 1);
 }
 
-.unity-text-element.unity-button:disabled {
+.unity-button:disabled {
     background-color: rgba(45, 45, 45, 1);
     border-color: rgba(55, 55, 55, 1);
     color: rgba(128, 128, 128, 1);
