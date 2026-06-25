@@ -41,6 +41,7 @@ public class QuickJSUIBridge : IDisposable {
     const int EVT_WHEEL = 16; // shares the pointer id block; JS handles it via an explicit branch before the pointer range
     const int EVT_FOCUS = 20;
     const int EVT_BLUR = 21;
+    const int EVT_FOCUSCHANGE = 22;
     const int EVT_VIEWPORT_CHANGE = 30;
     const int EVT_NAVIGATION_MOVE = 40;
     const int EVT_NAVIGATION_SUBMIT = 41;
@@ -49,6 +50,11 @@ public class QuickJSUIBridge : IDisposable {
     // Viewport tracking for responsive design
     float _lastViewportWidth;
     float _lastViewportHeight;
+
+    // Focus tracking: the panel's focusController.focusedElement at the previous
+    // tick. Diffed each Tick to emit a reliable "focuschange" to JS (the event
+    // path drops programmatic focus during eval; this runs outside _inEval).
+    VisualElement _lastFocusedElement;
 
     // Per-element C# handler registry for events that don't reach _root's
     // TrickleDown hook: captured pointer events (Unity 6 delivers them directly
@@ -297,6 +303,12 @@ public class QuickJSUIBridge : IDisposable {
     /// </summary>
     public void Tick() {
         if (_disposed || _inEval) return;
+
+        // Detect focus changes before entering the eval block (CheckFocusChange
+        // dispatches, which sets _inEval itself). Runs outside _inEval so it
+        // captures programmatic focus that the event path drops.
+        CheckFocusChange();
+
         _inEval = true;
 
         // No per-frame dedup reset needed — dedup uses EventBase.timestamp,
@@ -699,6 +711,36 @@ public class QuickJSUIBridge : IDisposable {
             _ctx.ExecutePendingJobs();
         } catch (Exception ex) {
             Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error (viewport): {ex.Message}");
+        } finally { _inEval = false; }
+    }
+
+    /// <summary>
+    /// Emits a "focuschange" event to JS (targeted at the panel root) whenever the
+    /// panel's focused element changes. Called once per Tick, outside _inEval, so it
+    /// observes the settled focus — including programmatic focus that the FocusIn/Out
+    /// event path drops. The JS focus-visible manager subscribes to this to keep the
+    /// focus ring in sync with navigation. Diffs by element reference (cheap); only
+    /// resolves handles + dispatches on an actual change.
+    /// </summary>
+    void CheckFocusChange() {
+        if (_eventDispatchHandle < 0) return;
+        var fe = _root?.focusController?.focusedElement as VisualElement;
+        if (fe == _lastFocusedElement) return;
+        _lastFocusedElement = fe;
+
+        int rootHandle = QuickJSNative.GetHandleForObject(_root);
+        int focusedHandle = fe != null ? QuickJSNative.GetHandleForElementOrAncestor(fe) : 0;
+        DispatchEventFastFocusChange(rootHandle, focusedHandle);
+    }
+
+    void DispatchEventFastFocusChange(int rootHandle, int focusedHandle) {
+        if (rootHandle == 0 || _inEval) return;
+        _inEval = true;
+        try {
+            _ctx.InvokeCallbackNoAlloc(_eventDispatchHandle, EVT_FOCUSCHANGE, rootHandle, focusedHandle);
+            _ctx.ExecutePendingJobs();
+        } catch (Exception ex) {
+            Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error (focuschange): {ex.Message}");
         } finally { _inEval = false; }
     }
 

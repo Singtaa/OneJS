@@ -5,6 +5,9 @@ using OneJS;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UIElements;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 /// <summary>
 /// Attribute for configuring how pair fields are displayed in the inspector.
@@ -85,6 +88,11 @@ public class JSRunner : MonoBehaviour {
     // Tracks whether initialization has completed (for re-enable handling).
     // Non-serialized: managed explicitly by EnteredPlayMode/ResetPlayModeState.
     bool _initialized;
+
+    [Tooltip("On Play start, give the panel initial keyboard focus and route navigation to it (fixes \"must click the panel once before arrow keys work\"). Disable for multi-panel / hybrid world-UI projects that manage EventSystem selection themselves.")]
+    [SerializeField] bool _grabFocusOnStart = true;
+    // One-shot guard for the initial focus; reset on reload so it re-grabs after live reload.
+    bool _initialFocusDone;
 
     // UIDocument is added at runtime and assigned from _panelSettings/_visualTreeAsset; not shown in editor.
     UIDocument _uiDocument;
@@ -815,6 +823,7 @@ public class JSRunner : MonoBehaviour {
         _bridge?.Dispose();
         _bridge = null;
         _scriptLoaded = false;
+        _initialFocusDone = false; // re-grab keyboard focus after the live reload
 
         // rootVisualElement may be transiently null (panel rebuilding).
         // If so, bail out — the deferred init retry in TickIfReady will pick it up.
@@ -876,11 +885,65 @@ public class JSRunner : MonoBehaviour {
         var go = new GameObject("EventSystem (OneJS)");
         go.AddComponent<EventSystem>();
 #if ENABLE_INPUT_SYSTEM
-        go.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>().AssignDefaultActions();
+        var module = go.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+        module.AssignDefaultActions();
+        // Keep the panel selected when clicking non-focusable areas (most of a OneJS
+        // layout is non-focusable Views). The default (true) deselects on such clicks,
+        // which drops the navigation anchor and breaks keyboard/gamepad nav continuity.
+        module.deselectOnBackgroundClick = false;
+        // The default Submit action binds Enter + gamepad only; add Space so focused
+        // controls (toggles, radios, buttons) activate with Space too (the convention).
+        var submit = module.submit != null ? module.submit.action : null;
+        if (submit != null) {
+            bool wasEnabled = submit.enabled;
+            if (wasEnabled) submit.Disable();
+            submit.AddBinding("<Keyboard>/space");
+            if (wasEnabled) submit.Enable();
+        }
 #elif ENABLE_LEGACY_INPUT_MANAGER
         go.AddComponent<StandaloneInputModule>();
 #endif
         Debug.Log("[JSRunner] Created EventSystem for UI Toolkit navigation (gamepad/keyboard focus).");
+    }
+
+    /// <summary>
+    /// One-shot (runs each tick until it succeeds): once the app has rendered a
+    /// focusable control, give the panel initial keyboard focus and route navigation
+    /// to it, so arrow keys/D-pad work without clicking the panel first.
+    ///
+    /// Gated by <c>_grabFocusOnStart</c>; only claims the EventSystem selection when
+    /// nothing is selected yet, so multi-panel / hybrid world-UI projects that manage
+    /// their own selection are unaffected.
+    /// </summary>
+    void TryInitialFocus() {
+        if (!_grabFocusOnStart || _initialFocusDone) return;
+        var root = _uiDocument?.rootVisualElement;
+        if (root == null) return;
+
+        // Wait until the app has produced a real focus target. Per #108, only native
+        // UI Toolkit controls are nav targets, so this resolves to a Button/Toggle/etc.
+        var target = root.Query<VisualElement>().Where(e => e.canGrabFocus).First();
+        if (target == null) return; // not rendered yet; retry next tick
+
+        target.Focus();
+
+        // Route navigation to this panel, but only if nothing else owns the selection.
+        var es = EventSystem.current;
+        if (es != null && es.currentSelectedGameObject == null) {
+            var handler = FindPanelEventHandler(root.panel);
+            if (handler != null) es.SetSelectedGameObject(handler.gameObject);
+        }
+
+        _initialFocusDone = true;
+    }
+
+    static PanelEventHandler FindPanelEventHandler(IPanel panel) {
+        if (panel == null) return null;
+        var handlers = FindObjectsByType<PanelEventHandler>(FindObjectsSortMode.None);
+        foreach (var h in handlers) {
+            if (h.panel == panel) return h;
+        }
+        return null;
     }
 
 #if UNITY_EDITOR
@@ -1225,6 +1288,7 @@ public class JSRunner : MonoBehaviour {
     void ResetPlayModeState() {
         _initialized = false;
         _scriptLoaded = false;
+        _initialFocusDone = false;
         _onPlayHandle = -1;
         _onStopHandle = -1;
         _onStopInvoked = false;
@@ -1604,12 +1668,14 @@ public class JSRunner : MonoBehaviour {
 #if UNITY_EDITOR
         if (_scriptLoaded && (PlayModeUpdateFilter == null || PlayModeUpdateFilter(this))) {
             _bridge?.Tick();
+            TryInitialFocus();
             CheckForFileChanges();
         }
 #elif !UNITY_WEBGL
         // WebGL uses native RAF tick loop started in RunScript()
         if (_scriptLoaded) {
             _bridge?.Tick();
+            TryInitialFocus();
         }
 #endif
     }

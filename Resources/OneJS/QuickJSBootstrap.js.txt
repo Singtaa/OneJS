@@ -1126,6 +1126,7 @@ const __EVT_POINTER_LEAVE = 15;
 const __EVT_WHEEL = 16;
 const __EVT_FOCUS = 20;
 const __EVT_BLUR = 21;
+const __EVT_FOCUSCHANGE = 22;
 const __EVT_VIEWPORT_CHANGE = 30;
 const __EVT_NAVIGATION_MOVE = 40;
 const __EVT_NAVIGATION_SUBMIT = 41;
@@ -1144,6 +1145,7 @@ const __EVT_TYPE_NAMES = {
     [__EVT_WHEEL]: "wheel",
     [__EVT_FOCUS]: "focus",
     [__EVT_BLUR]: "blur",
+    [__EVT_FOCUSCHANGE]: "focuschange",
     [__EVT_VIEWPORT_CHANGE]: "viewportchange",
     [__EVT_NAVIGATION_MOVE]: "navigationmove",
     [__EVT_NAVIGATION_SUBMIT]: "navigationsubmit",
