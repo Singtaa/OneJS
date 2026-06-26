@@ -28,4 +28,14 @@
     <assembly fullname="OneJS.Runtime">
         <type fullname="OneJS.PerElementEventSupport" preserve="all"/>
     </assembly>
+
+    <!-- BCL IO types reached only via the CS proxy from JS (e.g. the
+         onejs-react image/SVG asset loader: CS.System.IO.Path / CS.System.IO.File).
+         IL2CPP keeps the type metadata but strips reflection-only methods like
+         Path.Combine, which crashes Android release builds with
+         "Method not found: System.IO.Path.Combine". -->
+    <assembly fullname="mscorlib">
+        <type fullname="System.IO.Path" preserve="all"/>
+        <type fullname="System.IO.File" preserve="all"/>
+    </assembly>
 </linker>
