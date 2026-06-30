@@ -21,7 +21,19 @@ public class QuickJSUIBridge : IDisposable {
     readonly UssCompiler _ussCompiler;
     readonly Dictionary<string, StyleSheet> _jsStyleSheets = new(); // Track JS-loaded stylesheets by name
     bool _disposed;
+    bool _countedLive; // Whether this bridge incremented _liveBridgeCount (guards a ctor that throws before counting).
     float _startTime;
+
+    // Number of live bridges (== live QuickJS contexts driving UI Toolkit). The
+    // handle table and pending-task queue in QuickJSNative are process-global and
+    // SHARED across every context, so they may only be wiped when the LAST bridge
+    // is disposed. Clearing them on a per-context Dispose() blows away sibling
+    // contexts' handles (causing wrong-element dispatch and dropped events) and
+    // their in-flight async work. Play-mode entry independently hard-resets these
+    // via QuickJSNative.ResetStaticState, so this counter only governs edit-mode /
+    // hot-reload teardown. A fully isolated future design would partition the
+    // handle table by context id and remove this counter entirely.
+    static int _liveBridgeCount;
     bool _inEval; // Recursion guard to prevent re-entrant JS execution (all platforms)
     int _tickCallbackHandle = -1; // Cached handle for zero-alloc tick
     int _eventDispatchHandle = -1; // Cached handle for zero-alloc event dispatch
@@ -94,6 +106,12 @@ public class QuickJSUIBridge : IDisposable {
 
         PerElementEventSupport.RegisterBridge(_wsContextId, this);
         RegisterEventDelegation();
+
+        // Count this bridge as live only after construction has fully succeeded, so
+        // a throw above never leaves the counter (and thus the global-table clears)
+        // out of balance.
+        _countedLive = true;
+        System.Threading.Interlocked.Increment(ref _liveBridgeCount);
     }
 
     // MARK: StyleSheet API
@@ -209,9 +227,16 @@ public class QuickJSUIBridge : IDisposable {
         ClearStyleSheets(); // Clean up JS-loaded stylesheets
         WebSocketBridge.CloseAll(_wsContextId);
         WebSocketBridge.UnregisterContext(_wsContextId);
-        QuickJSNative.ClearPendingTasks();
+
+        // The pending-task queue and handle table are shared by every live context
+        // (see QuickJSNative), so only wipe them when the FINAL bridge is going away.
+        // Decrement exactly once per bridge, and only if construction counted it.
+        bool lastBridge = _countedLive
+            && System.Threading.Interlocked.Decrement(ref _liveBridgeCount) <= 0;
+
+        if (lastBridge) QuickJSNative.ClearPendingTasks();
         _ctx?.Dispose();
-        QuickJSNative.ClearAllHandles();
+        if (lastBridge) QuickJSNative.ClearAllHandles();
     }
 
     ~QuickJSUIBridge() {

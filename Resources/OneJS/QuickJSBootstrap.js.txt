@@ -519,6 +519,10 @@ function __wrapObject(typeName, handle) {
                     const storedHandle = map && map.get(eventKey);
                     if (storedHandle !== undefined) {
                         __cs.invoke(typeName, propName, 1, 0, handle, [{ __csCallbackHandle: storedHandle }]);
+                        // Free the native callback slot. C#'s remove_ only drops the
+                        // delegate subscription; without this the slot leaks toward the
+                        // fixed 4096-entry table across subscribe/unsubscribe churn.
+                        if (typeof __unregisterCallback === "function") __unregisterCallback(storedHandle);
                         map.delete(eventKey);
                     } else {
                         __cs.invoke(typeName, propName, 1, 0, handle, __resolveArgs([callback]));
@@ -830,6 +834,10 @@ function __createCsPathProxy(path) {
                     const storedHandle = map && map.get(eventKey);
                     if (storedHandle !== undefined) {
                         __cs.invoke(typeName, propName, 1, 1, 0, [{ __csCallbackHandle: storedHandle }]);
+                        // Free the native callback slot (see instance-path comment above):
+                        // C#'s remove_ only drops the subscription, leaving the 4096-slot
+                        // table entry allocated unless we release it here.
+                        if (typeof __unregisterCallback === "function") __unregisterCallback(storedHandle);
                         map.delete(eventKey);
                     } else {
                         __cs.invoke(typeName, propName, 1, 1, 0, __resolveArgs([callback]));

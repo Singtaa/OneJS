@@ -10,7 +10,7 @@ namespace OneJS.CustomStyleSheets {
     /// </summary>
     public class StyleSheetBuilderWrapper {
         readonly Type _builderType;
-        readonly object _instance;
+        object _instance;
 
         // Cached MethodInfo for frequently called methods
         MethodInfo _addValueFloat;
@@ -49,6 +49,18 @@ namespace OneJS.CustomStyleSheets {
             _addValueKeyword = _builderType.GetMethod("AddValue", new[] { _styleValueKeywordType });
             _addValueStringType = _builderType.GetMethod("AddValue", new[] { typeof(string), _styleValueTypeType });
             _addValueFunction = _builderType.GetMethod("AddValue", new[] { _styleValueFunctionType });
+        }
+
+        /// <summary>
+        /// Discard any in-progress build state by recreating the underlying
+        /// StyleSheetBuilder instance. Cheap: the cached Type/MethodInfo lookups are
+        /// bound to the type (not the instance) so they remain valid and are not
+        /// re-resolved. Call before each compile so a previous compile that threw
+        /// mid-rule (leaving a half-open selector/property) cannot bleed scratch
+        /// state into the next sheet.
+        /// </summary>
+        public void Reset() {
+            _instance = Activator.CreateInstance(_builderType);
         }
 
         static Type RequireType(Assembly assembly, string fullName) {

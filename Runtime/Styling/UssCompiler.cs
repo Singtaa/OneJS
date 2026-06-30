@@ -54,6 +54,11 @@ namespace OneJS.CustomStyleSheets {
         /// Compiles a USS string into a StyleSheet asset.
         /// </summary>
         public void Compile(StyleSheet asset, string ussContent) {
+            // Start every compile from a pristine builder so a prior compile that
+            // failed part-way (e.g. a malformed value in another sheet) cannot leak
+            // half-built selector/property state into this one.
+            _builder.Reset();
+
             var stylesheet = _parser.Parse(ussContent);
 
             foreach (var rule in stylesheet.StyleRules) {
@@ -381,25 +386,26 @@ namespace OneJS.CustomStyleSheets {
                 }
             }
 
-            // Try rgb/rgba
+            // Try rgb/rgba. The numeric groups permit multiple dots (e.g. "1.2.3"),
+            // so guard every parse and fall through to later cases on a malformed
+            // number rather than throwing (an uncaught throw aborts the whole sheet).
             var rgbMatch = RgbRegex.Match(value);
-            if (rgbMatch.Success) {
-                float r = float.Parse(rgbMatch.Groups[1].Value, CultureInfo.InvariantCulture);
-                float g = float.Parse(rgbMatch.Groups[2].Value, CultureInfo.InvariantCulture);
-                float b = float.Parse(rgbMatch.Groups[3].Value, CultureInfo.InvariantCulture);
-                float a = rgbMatch.Groups[4].Success
-                    ? float.Parse(rgbMatch.Groups[4].Value, CultureInfo.InvariantCulture)
-                    : 1f;
+            if (rgbMatch.Success
+                && TryParseFloat(rgbMatch.Groups[1].Value, out float r)
+                && TryParseFloat(rgbMatch.Groups[2].Value, out float g)
+                && TryParseFloat(rgbMatch.Groups[3].Value, out float b)) {
+                float a = 1f;
+                if (!rgbMatch.Groups[4].Success || TryParseFloat(rgbMatch.Groups[4].Value, out a)) {
+                    // If values are > 1, assume 0-255 range
+                    if (r > 1 || g > 1 || b > 1) {
+                        r /= 255f;
+                        g /= 255f;
+                        b /= 255f;
+                    }
 
-                // If values are > 1, assume 0-255 range
-                if (r > 1 || g > 1 || b > 1) {
-                    r /= 255f;
-                    g /= 255f;
-                    b /= 255f;
+                    _builder.AddValue(new UnityEngine.Color(r, g, b, a));
+                    return;
                 }
-
-                _builder.AddValue(new UnityEngine.Color(r, g, b, a));
-                return;
             }
 
             // Try url()
@@ -416,10 +422,10 @@ namespace OneJS.CustomStyleSheets {
                 return;
             }
 
-            // Try number with unit
+            // Try number with unit. The numeric group permits multiple dots, so use
+            // TryParse and fall through to keyword/enum handling on a malformed number.
             var numMatch = NumberWithUnitRegex.Match(value);
-            if (numMatch.Success) {
-                float num = float.Parse(numMatch.Groups[1].Value, CultureInfo.InvariantCulture);
+            if (numMatch.Success && TryParseFloat(numMatch.Groups[1].Value, out float num)) {
                 string unit = numMatch.Groups[2].Value;
 
                 if (string.IsNullOrEmpty(unit)) {
@@ -447,6 +453,12 @@ namespace OneJS.CustomStyleSheets {
             // Default: treat as enum or string
             _builder.AddValue(value, StyleValueType.Enum);
         }
+
+        // Culture-invariant float parse that never throws. Returns false for malformed
+        // input (e.g. regex-permitted "1.2.3" or out-of-range values) so callers can
+        // fall through gracefully instead of aborting the whole stylesheet.
+        static bool TryParseFloat(string s, out float result) =>
+            float.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out result);
 
         void CompileVarFunction(string inner) {
             // Split into variable name and optional fallback at the first top-level comma
