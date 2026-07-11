@@ -25,6 +25,11 @@ const config = {
     jsx: "automatic",
     // Resolve .tsx/.ts files in node_modules (for packages that ship as TypeScript source)
     resolveExtensions: [".tsx", ".ts", ".jsx", ".js", ".json"],
+    // Import plain .uss files as strings, so styles can be embedded in the bundle
+    // via compileStyleSheet(). Required for styles to work in builds, where
+    // loadStyleSheet() can't reach files from the working directory.
+    // (.module.uss files are handled by ussModulesPlugin instead.)
+    loader: { ".uss": "text" },
     // Generate source maps for better error messages
     sourcemap: true,
     alias: {

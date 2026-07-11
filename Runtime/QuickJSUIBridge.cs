@@ -125,7 +125,14 @@ public class QuickJSUIBridge : IDisposable {
         try {
             string fullPath = Path.Combine(_workingDir, path);
             if (!File.Exists(fullPath)) {
+#if UNITY_EDITOR
                 Debug.LogWarning($"[QuickJSUIBridge] StyleSheet not found: {fullPath}");
+#else
+                Debug.LogWarning($"[QuickJSUIBridge] StyleSheet not found: {fullPath}. " +
+                    "loadStyleSheet() reads from the filesystem at runtime, and working-dir files are not shipped in builds. " +
+                    "Embed styles in the JS bundle instead: import the .uss file as text and call compileStyleSheet(), " +
+                    "or use CSS Modules (.module.uss) / Tailwind.");
+#endif
                 return false;
             }
 

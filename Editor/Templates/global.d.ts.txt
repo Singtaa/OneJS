@@ -4,6 +4,14 @@
 // Virtual modules resolved by onejs-unity esbuild plugins (no runtime export).
 declare module "onejs:tailwind";
 
+// Plain .uss imports resolve to the file contents as a string (esbuild "text" loader).
+// Pass to compileStyleSheet() to embed global styles in the bundle so they work in builds.
+// (.module.uss imports are typed by their auto-generated sibling .d.ts files instead.)
+declare module "*.uss" {
+    const content: string;
+    export default content;
+}
+
 // Root UI element
 declare const __root: CS.UnityEngine.UIElements.VisualElement;
 
