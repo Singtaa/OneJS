@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using OneJS;
+using OneJS.Utils;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UIElements;
@@ -880,7 +881,7 @@ public class JSRunner : MonoBehaviour {
     /// </summary>
     void EnsureEventSystem() {
         if (!Application.isPlaying) return;
-        if (EventSystem.current != null || FindFirstObjectByType<EventSystem>() != null) return;
+        if (EventSystem.current != null || FindAnyObjectByType<EventSystem>() != null) return;
 
         var go = new GameObject("EventSystem (OneJS)");
         go.AddComponent<EventSystem>();
@@ -939,7 +940,7 @@ public class JSRunner : MonoBehaviour {
 
     static PanelEventHandler FindPanelEventHandler(IPanel panel) {
         if (panel == null) return null;
-        var handlers = FindObjectsByType<PanelEventHandler>(FindObjectsSortMode.None);
+        var handlers = FindCompat.FindObjectsByType<PanelEventHandler>();
         foreach (var h in handlers) {
             if (h.panel == panel) return h;
         }

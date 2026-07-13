@@ -173,7 +173,7 @@ globalThis.__buildTestResult = {
     IEnumerator TestJSRunnerExecution() {
         // Find JSRunner if not assigned
         if (_jsRunner == null) {
-            _jsRunner = FindFirstObjectByType<JSRunner>();
+            _jsRunner = FindAnyObjectByType<JSRunner>();
         }
 
         if (_jsRunner == null) {

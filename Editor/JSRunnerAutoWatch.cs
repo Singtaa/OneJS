@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using OneJS.Utils;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -72,7 +73,7 @@ namespace OneJS.Editor {
         /// npm install and build run asynchronously after Play mode starts.
         /// </summary>
         static void EnsureProjectsReady() {
-            var runners = UnityEngine.Object.FindObjectsByType<JSRunner>(FindObjectsSortMode.None);
+            var runners = FindCompat.FindObjectsByType<JSRunner>();
 
             foreach (var runner in runners) {
                 if (runner == null || !runner.enabled || !runner.gameObject.activeInHierarchy) continue;
@@ -90,7 +91,7 @@ namespace OneJS.Editor {
         /// Called before entering Play mode so the assignment persists.
         /// </summary>
         static void EnsurePanelSettingsAssets() {
-            var runners = UnityEngine.Object.FindObjectsByType<JSRunner>(FindObjectsSortMode.None);
+            var runners = FindCompat.FindObjectsByType<JSRunner>();
             bool anyCreated = false;
 
             foreach (var runner in runners) {
@@ -125,7 +126,7 @@ namespace OneJS.Editor {
         }
 
         static void StartWatchersAsync() {
-            var runners = UnityEngine.Object.FindObjectsByType<JSRunner>(FindObjectsSortMode.None);
+            var runners = FindCompat.FindObjectsByType<JSRunner>();
 
             foreach (var runner in runners) {
                 if (runner == null || !runner.enabled || !runner.gameObject.activeInHierarchy) continue;

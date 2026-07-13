@@ -29,7 +29,7 @@ namespace OneJS.Editor {
         static readonly FieldInfo RenderModeField =
             typeof(PanelSettings).GetField("m_RenderMode", BindingFlags.NonPublic | BindingFlags.Instance);
         static Camera _lastRenderedGameCamera;
-#if UNITY_6000_6_OR_NEWER
+#if UNITY_6000_4_OR_NEWER
         static readonly Dictionary<EntityId, bool> _screenSpacePanelCache = new();
 #else
         static readonly Dictionary<int, bool> _screenSpacePanelCache = new();
@@ -153,7 +153,7 @@ namespace OneJS.Editor {
             // Screen-space panels are always visible regardless of camera
             var ps = runner.PanelSettingsAsset;
             if (ps != null && RenderModeField != null) {
-#if UNITY_6000_6_OR_NEWER
+#if UNITY_6000_4_OR_NEWER
                 var id = ps.GetEntityId();
 #else
                 var id = ps.GetInstanceID();

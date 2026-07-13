@@ -36,7 +36,7 @@ namespace OneJS.Utils
         public static string DumpAll(int maxDepth, bool includeStyles)
         {
             var sb = new StringBuilder();
-            var uiDocs = UnityEngine.Object.FindObjectsByType<UIDocument>(FindObjectsSortMode.None);
+            var uiDocs = FindCompat.FindObjectsByType<UIDocument>();
 
             sb.AppendLine($"Found {uiDocs.Length} UIDocument(s) in scene:");
             sb.AppendLine();
@@ -62,7 +62,7 @@ namespace OneJS.Utils
         public static string FindAll(string typeName)
         {
             var sb = new StringBuilder();
-            var uiDocs = UnityEngine.Object.FindObjectsByType<UIDocument>(FindObjectsSortMode.None);
+            var uiDocs = FindCompat.FindObjectsByType<UIDocument>();
 
             foreach (var doc in uiDocs)
             {
@@ -81,7 +81,7 @@ namespace OneJS.Utils
         public static string FindAllByClass(string className)
         {
             var sb = new StringBuilder();
-            var uiDocs = UnityEngine.Object.FindObjectsByType<UIDocument>(FindObjectsSortMode.None);
+            var uiDocs = FindCompat.FindObjectsByType<UIDocument>();
 
             foreach (var doc in uiDocs)
             {

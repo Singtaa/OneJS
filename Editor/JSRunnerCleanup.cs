@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using OneJS.Utils;
 using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
@@ -35,7 +36,7 @@ namespace OneJS.Editor {
             // Find all JSRunner components in loaded scenes and update tracking
             // NOTE: We only ADD/UPDATE here, never remove. Removal is handled by CheckForRemovedRunners().
             // Folder path comes from PanelSettings (runner.InstanceFolder).
-            var runners = UnityEngine.Object.FindObjectsByType<JSRunner>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var runners = FindCompat.FindObjectsByTypeIncludingInactive<JSRunner>();
 
             foreach (var runner in runners) {
                 var stableId = GetStableId(runner);
@@ -80,7 +81,7 @@ namespace OneJS.Editor {
 
             // Get current set of JSRunner IDs
             // IMPORTANT: Include inactive objects - disabled GameObjects still have valid JSRunners
-            var runners = UnityEngine.Object.FindObjectsByType<JSRunner>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var runners = FindCompat.FindObjectsByTypeIncludingInactive<JSRunner>();
             var currentIds = new HashSet<string>();
             foreach (var runner in runners) {
                 currentIds.Add(GetStableId(runner));
