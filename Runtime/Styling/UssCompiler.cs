@@ -418,7 +418,7 @@ namespace OneJS.CustomStyleSheets {
             // Try resource()
             var resourceMatch = ResourceRegex.Match(value);
             if (resourceMatch.Success) {
-                _builder.AddValue(resourceMatch.Groups[1].Value, StyleValueType.ResourcePath);
+                _builder.AddResourcePath(resourceMatch.Groups[1].Value);
                 return;
             }
 

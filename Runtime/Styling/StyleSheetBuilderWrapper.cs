@@ -20,8 +20,10 @@ namespace OneJS.CustomStyleSheets {
         MethodInfo _addValueKeyword;
         MethodInfo _addValueStringType;
         MethodInfo _addValueFunction;
+        MethodInfo _addResourcePath;
 
         Type _dimensionType;
+        Type _resolvedResourcePathType;
         Type _styleValueKeywordType;
         Type _styleValueTypeType;
         Type _styleValueFunctionType;
@@ -49,6 +51,16 @@ namespace OneJS.CustomStyleSheets {
             _addValueKeyword = _builderType.GetMethod("AddValue", new[] { _styleValueKeywordType });
             _addValueStringType = _builderType.GetMethod("AddValue", new[] { typeof(string), _styleValueTypeType });
             _addValueFunction = _builderType.GetMethod("AddValue", new[] { _styleValueFunctionType });
+
+            // Unity 6.5 moved ResourcePath values out of the string table: handles now index a
+            // dedicated resourcePaths array populated via AddResourcePath(ResolvedResourcePath).
+            // Writing them with AddValue(string, ResourcePath) produces handles whose index
+            // overruns that (empty) array, so every resource() font/image resolves to an empty
+            // path. Feature-detect the new API instead of gating on a version define.
+            _resolvedResourcePathType = assembly.GetType("UnityEngine.UIElements.StyleSheets.ResolvedResourcePath");
+            _addResourcePath = _resolvedResourcePathType != null
+                ? _builderType.GetMethod("AddResourcePath", new[] { _resolvedResourcePathType })
+                : null;
         }
 
         /// <summary>
@@ -160,6 +172,15 @@ namespace OneJS.CustomStyleSheets {
 
         public void AddValue(string value, StyleValueType type) {
             _addValueStringType.Invoke(_instance, new object[] { value, (int)type });
+        }
+
+        public void AddResourcePath(string path) {
+            if (_addResourcePath != null) {
+                var resolved = Activator.CreateInstance(_resolvedResourcePathType, path);
+                _addResourcePath.Invoke(_instance, new object[] { resolved });
+            } else {
+                AddValue(path, StyleValueType.ResourcePath);
+            }
         }
 
         public void AddValue(StyleFunction function) {
