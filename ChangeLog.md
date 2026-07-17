@@ -1,4 +1,10 @@
-﻿# [2026-02-11] v2.3.4
+﻿# [2026-04-09] v2.3.5
+
+- Added Android 16KB page size alignment support
+- Fixed WebGL libpuerts.a meta file
+- Updated Linux (x86_64) libpuerts.so
+
+# [2026-02-11] v2.3.4
 
 - Fixed memory leaks in `Resource` (added caching for images, fonts, and font definitions)
 - Fixed `Document.clearCache()` not destroying cached `Texture2D` objects (GPU memory leak)
