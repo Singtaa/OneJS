@@ -877,6 +877,7 @@ localStorage.clear(); // WARNING: Clears ALL PlayerPrefs
 - Synchronous API (matches web localStorage)
 - Values are automatically converted to strings
 - `Save()` is called after each write for reliability
+- **WebGL**: the PlayerPrefs shim is not installed - the browser's native `localStorage`/`sessionStorage` are used (the bootstrap shares the embedding page's global scope and must not redirect its storage)
 
 ### URL API (URL/URLSearchParams)
 Web-compatible URL parsing and query string manipulation:
@@ -913,6 +914,7 @@ params.toString();  // "foo=1&bar=2"
 - WHATWG URL Standard compliant (common cases)
 - Supports relative URL resolution with base URL
 - Automatic encoding/decoding of special characters
+- **WebGL**: the polyfills are not installed - the browser's spec-complete natives are used (the polyfill `URLSearchParams` is not iterable, so it must never shadow the native on a shared page)
 
 ### Base64 Encoding (atob/btoa)
 Web-compatible Base64 encoding and decoding:
@@ -934,6 +936,8 @@ const payload = atob(token.split('.')[1]);
 **Limitations**:
 - Only supports Latin1 characters (0-255). For Unicode, encode to UTF-8 first.
 - `btoa()` throws if string contains characters outside Latin1 range.
+
+**WebGL**: the polyfills are not installed - the browser's native `btoa`/`atob` are used.
 
 **Implementation details**:
 - Pure JavaScript implementation

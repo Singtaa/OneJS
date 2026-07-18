@@ -117,3 +117,7 @@ For WebGL, the app bundle is loaded from StreamingAssets using browser's native 
 3. **Large scripts**: Don't return large scripts through C# eval buffer. Execute directly in JS via `eval()`.
 
 4. **performance.now()**: Don't override browser's `performance` object - Unity WebGL uses it.
+
+5. **Shared global scope**: `qjs_eval` uses indirect eval, so the bootstrap and app code run in the **embedding page's** global scope - there is no isolation from the host website. All bootstrap polyfills (`URL`, `URLSearchParams`, `localStorage`, `sessionStorage`, `btoa`, `atob`, `queueMicrotask`, `performance`, `fetch`, `WebSocket`) are therefore install-if-missing: on WebGL the browser natives win, the polyfills only exist for QuickJS. Never assign a polyfill to `globalThis` unconditionally - it would clobber the native for every script on the host page (e.g. a non-iterable `URLSearchParams` breaks Next.js routing).
+
+6. **Timer overrides capture the host page** (known limitation): `setTimeout`/`setInterval`/`requestAnimationFrame` are intentionally replaced with tick-queue versions (React must run on OneJS's tick), but because the global scope is shared, host-page timers registered after Unity boots are also rerouted - they stop firing if the OneJS tick loop stops, and their IDs are incompatible with native `clearTimeout`. A real fix requires isolating OneJS execution in its own realm (iframe/ShadowRealm) or scoping the overrides to OneJS code only.

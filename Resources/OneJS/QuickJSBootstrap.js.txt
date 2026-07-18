@@ -1429,15 +1429,20 @@ globalThis.__rejectTask = function(taskId, errorMessage) {
 const __microtaskQueue = [];
 let __microtaskScheduled = false;
 
-globalThis.queueMicrotask = function(callback) {
-    __microtaskQueue.push(callback);
-    
-    if (!__microtaskScheduled) {
-        __microtaskScheduled = true;
-        // QuickJS has native Promise, use it to flush microtasks
-        Promise.resolve().then(__flushMicrotasks);
-    }
-};
+// Only polyfill queueMicrotask if it doesn't exist (QuickJS)
+// In WebGL the bootstrap shares the embedding page's global scope, so the
+// browser's native queueMicrotask must not be overridden
+if (typeof globalThis.queueMicrotask === "undefined") {
+    globalThis.queueMicrotask = function(callback) {
+        __microtaskQueue.push(callback);
+
+        if (!__microtaskScheduled) {
+            __microtaskScheduled = true;
+            // QuickJS has native Promise, use it to flush microtasks
+            Promise.resolve().then(__flushMicrotasks);
+        }
+    };
+}
 
 function __flushMicrotasks() {
     __microtaskScheduled = false;
@@ -2081,6 +2086,9 @@ if (__nativeWebSocket) {
 /**
  * localStorage implementation using Unity's PlayerPrefs.
  * Matches the web Storage API for compatibility with React and other libraries.
+ * Only installed when no native Storage exists (QuickJS) - in WebGL the
+ * browser's own localStorage/sessionStorage are used, and the embedding page's
+ * storage must never be redirected into PlayerPrefs.
  *
  * @example
  * localStorage.setItem("theme", "dark");
@@ -2092,7 +2100,7 @@ if (__nativeWebSocket) {
  * const key = localStorage.key(0);
  * const len = localStorage.length;
  */
-globalThis.localStorage = {
+const __playerPrefsStorage = {
     /**
      * Returns the value associated with the given key, or null if not found.
      * @param {string} key - The key to look up
@@ -2156,6 +2164,10 @@ globalThis.localStorage = {
     }
 };
 
+if (typeof globalThis.localStorage === "undefined") {
+    globalThis.localStorage = __playerPrefsStorage;
+}
+
 /**
  * sessionStorage implementation (alias to localStorage).
  * In Unity, there's no concept of browser sessions, so sessionStorage
@@ -2164,7 +2176,9 @@ globalThis.localStorage = {
  * Note: Unlike web sessionStorage, this data persists permanently.
  * Use a prefix like "session_" if you need to manually clear on app start.
  */
-globalThis.sessionStorage = globalThis.localStorage;
+if (typeof globalThis.sessionStorage === "undefined") {
+    globalThis.sessionStorage = __playerPrefsStorage;
+}
 
 // MARK: URL API
 /**
@@ -2555,9 +2569,16 @@ class URL {
     }
 }
 
-// Expose globally
-globalThis.URL = URL;
-globalThis.URLSearchParams = URLSearchParams;
+// Expose globally - only if no native implementation exists (QuickJS)
+// In WebGL the bootstrap shares the embedding page's global scope, and these
+// polyfills are not fully spec-complete (e.g. URLSearchParams is not iterable),
+// so the browser natives must win
+if (typeof globalThis.URL === "undefined") {
+    globalThis.URL = URL;
+}
+if (typeof globalThis.URLSearchParams === "undefined") {
+    globalThis.URLSearchParams = URLSearchParams;
+}
 
 // ============================================================================
 // Base64 Encoding/Decoding (atob/btoa)
@@ -2565,57 +2586,64 @@ globalThis.URLSearchParams = URLSearchParams;
 
 var __base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-globalThis.btoa = function(str) {
-    if (str === undefined || str === null) {
-        throw new Error("btoa: argument required");
-    }
-    str = String(str);
-    if (str.length === 0) return "";
-    var result = "";
-    for (var i = 0; i < str.length; i += 3) {
-        var a = str.charCodeAt(i);
-        var b = i + 1 < str.length ? str.charCodeAt(i + 1) : 0;
-        var c = i + 2 < str.length ? str.charCodeAt(i + 2) : 0;
-
-        // Check for characters outside Latin1 range
-        if (a > 255 || b > 255 || c > 255) {
-            throw new Error("btoa: string contains characters outside Latin1 range");
+// Only polyfill btoa/atob if they don't exist (QuickJS)
+// Unlike localStorage, these are writable on the browser window, so unguarded
+// assignments would replace the natives for the whole embedding page in WebGL
+if (typeof globalThis.btoa === "undefined") {
+    globalThis.btoa = function(str) {
+        if (str === undefined || str === null) {
+            throw new Error("btoa: argument required");
         }
+        str = String(str);
+        if (str.length === 0) return "";
+        var result = "";
+        for (var i = 0; i < str.length; i += 3) {
+            var a = str.charCodeAt(i);
+            var b = i + 1 < str.length ? str.charCodeAt(i + 1) : 0;
+            var c = i + 2 < str.length ? str.charCodeAt(i + 2) : 0;
 
-        var n = (a << 16) | (b << 8) | c;
-        result += __base64Chars[(n >> 18) & 63];
-        result += __base64Chars[(n >> 12) & 63];
-        result += (i + 1 < str.length) ? __base64Chars[(n >> 6) & 63] : "=";
-        result += (i + 2 < str.length) ? __base64Chars[n & 63] : "=";
-    }
-    return result;
-};
+            // Check for characters outside Latin1 range
+            if (a > 255 || b > 255 || c > 255) {
+                throw new Error("btoa: string contains characters outside Latin1 range");
+            }
 
-globalThis.atob = function(str) {
-    if (str === undefined || str === null) {
-        throw new Error("atob: argument required");
-    }
-    str = String(str).replace(/=+$/, "");
-    if (str.length === 0) return "";
-    if (str.length % 4 === 1) {
-        throw new Error("atob: invalid base64 string");
-    }
-    var result = "";
-    for (var i = 0; i < str.length; i += 4) {
-        var a = __base64Chars.indexOf(str.charAt(i));
-        var b = i + 1 < str.length ? __base64Chars.indexOf(str.charAt(i + 1)) : 0;
-        var c = i + 2 < str.length ? __base64Chars.indexOf(str.charAt(i + 2)) : 0;
-        var d = i + 3 < str.length ? __base64Chars.indexOf(str.charAt(i + 3)) : 0;
-
-        if (a === -1 || (i + 1 < str.length && b === -1) ||
-            (i + 2 < str.length && c === -1) || (i + 3 < str.length && d === -1)) {
-            throw new Error("atob: invalid character in base64 string");
+            var n = (a << 16) | (b << 8) | c;
+            result += __base64Chars[(n >> 18) & 63];
+            result += __base64Chars[(n >> 12) & 63];
+            result += (i + 1 < str.length) ? __base64Chars[(n >> 6) & 63] : "=";
+            result += (i + 2 < str.length) ? __base64Chars[n & 63] : "=";
         }
+        return result;
+    };
+}
 
-        var n = (a << 18) | (b << 12) | (c << 6) | d;
-        result += String.fromCharCode((n >> 16) & 255);
-        if (i + 2 < str.length) result += String.fromCharCode((n >> 8) & 255);
-        if (i + 3 < str.length) result += String.fromCharCode(n & 255);
-    }
-    return result;
-};
+if (typeof globalThis.atob === "undefined") {
+    globalThis.atob = function(str) {
+        if (str === undefined || str === null) {
+            throw new Error("atob: argument required");
+        }
+        str = String(str).replace(/=+$/, "");
+        if (str.length === 0) return "";
+        if (str.length % 4 === 1) {
+            throw new Error("atob: invalid base64 string");
+        }
+        var result = "";
+        for (var i = 0; i < str.length; i += 4) {
+            var a = __base64Chars.indexOf(str.charAt(i));
+            var b = i + 1 < str.length ? __base64Chars.indexOf(str.charAt(i + 1)) : 0;
+            var c = i + 2 < str.length ? __base64Chars.indexOf(str.charAt(i + 2)) : 0;
+            var d = i + 3 < str.length ? __base64Chars.indexOf(str.charAt(i + 3)) : 0;
+
+            if (a === -1 || (i + 1 < str.length && b === -1) ||
+                (i + 2 < str.length && c === -1) || (i + 3 < str.length && d === -1)) {
+                throw new Error("atob: invalid character in base64 string");
+            }
+
+            var n = (a << 18) | (b << 12) | (c << 6) | d;
+            result += String.fromCharCode((n >> 16) & 255);
+            if (i + 2 < str.length) result += String.fromCharCode((n >> 8) & 255);
+            if (i + 3 < str.length) result += String.fromCharCode(n & 255);
+        }
+        return result;
+    };
+}
