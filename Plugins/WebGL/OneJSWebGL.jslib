@@ -55,6 +55,11 @@ var OneJSWebGLLib = {
         initialized: false,
         contextPtr: 0,
 
+        // JS->C# delegate callbacks, registered via the global __registerCallback
+        // (WebGL counterpart of the native callback table in quickjs_unity.c)
+        callbackRegistry: null,   // Map<int, function>
+        nextCallbackId: 1,
+
         // Callback function pointers (set by C#)
         callbacks: {
             log: null,
@@ -98,6 +103,22 @@ var OneJSWebGLLib = {
 
             window.onunhandledrejection = function(event) {
                 console.error("[OneJS] Unhandled promise rejection:", event.reason);
+            };
+
+            // Callback registry so the bootstrap's __resolveValue can convert JS
+            // functions into { __csCallbackHandle: N } markers (same contract as the
+            // native __registerCallback provided by quickjs_unity.c). The bootstrap
+            // runs in the page's global scope, so these must be globals.
+            OneJS.callbackRegistry = new Map();
+            var global = typeof window !== "undefined" ? window : globalThis;
+            global.__registerCallback = function(fn) {
+                if (typeof fn !== "function") return -1;
+                var id = OneJS.nextCallbackId++;
+                OneJS.callbackRegistry.set(id, fn);
+                return id;
+            };
+            global.__unregisterCallback = function(id) {
+                if (OneJS.callbackRegistry) OneJS.callbackRegistry.delete(id);
             };
         },
 
@@ -201,6 +222,13 @@ var OneJSWebGLLib = {
                 }
             }
             else {
+                if (type === "function") {
+                    // Functions must be converted to { __csCallbackHandle: N } by the
+                    // bootstrap's __resolveValue before crossing the bridge - a bare
+                    // function here means a path bypassed it
+                    console.error("[OneJS] marshalValue: cannot marshal a JS function directly; " +
+                        "it should have been registered via __registerCallback. Marshaling as null.");
+                }
                 HEAP32[valuePtr >> 2] = OneJS.TYPE_NULL;
             }
         },
@@ -412,6 +440,10 @@ var OneJSWebGLLib = {
     qjs_destroy__deps: ["$OneJS"],
     qjs_destroy: function(ctx) {
         OneJS.contextPtr = 0;
+        // Drop all registered callbacks (mirrors C#'s ClearDelegateCache). Keep
+        // nextCallbackId monotonic so stale C#-side delegate caches can never
+        // alias a handle from a new context.
+        if (OneJS.callbackRegistry) OneJS.callbackRegistry.clear();
     },
 
     // =========================================================================
@@ -578,11 +610,35 @@ var OneJSWebGLLib = {
 
     qjs_invoke_callback__deps: ["$OneJS"],
     qjs_invoke_callback: function(ctx, callbackHandle, argsPtr, argCount, outResultPtr) {
-        // This is for C# calling JS callbacks (RAF, setTimeout, etc.)
-        // The callbacks are stored in the bootstrap's __rafCallbacks, __timeouts, etc.
-        // For now, this shouldn't be called in WebGL since we use native browser APIs
-        console.warn("[OneJS] qjs_invoke_callback called - this should not happen in WebGL");
-        return 0;
+        // Invokes a JS callback registered via __registerCallback. This is how every
+        // C#-side delegate wrapper (CreateDelegateWrapper) and the lifecycle path
+        // (onPlay/onStop) call back into JS. RAF/timer callbacks never come through
+        // here on WebGL (those use native browser APIs).
+        var fn = OneJS.callbackRegistry ? OneJS.callbackRegistry.get(callbackHandle) : undefined;
+        if (!fn) {
+            // Stale handle: log rather than fail, so a C# event raise chain isn't aborted
+            console.error("[OneJS] qjs_invoke_callback: no callback registered for handle " + callbackHandle);
+            return 0;
+        }
+
+        // Argument memory is owned by the C# caller (InvokeCallback/NoAlloc allocate
+        // and free it) - must not be freed here.
+        var args = new Array(argCount);
+        for (var i = 0; i < argCount; i++) {
+            args[i] = OneJS.unmarshalValue(argsPtr + i * OneJS.SIZEOF_INTEROP_VALUE);
+        }
+
+        try {
+            var result = fn.apply(null, args);
+            // outResultPtr is null for the InvokeCallbackNoAlloc family
+            if (outResultPtr) OneJS.marshalValue(result, outResultPtr);
+            return 0;
+        } catch (e) {
+            // Contain handler errors: a non-zero return throws inside the C# raise,
+            // which would abort remaining C# listeners on the same event
+            console.error("[OneJS] Callback error:", e && e.stack ? e.stack : e);
+            return 0;
+        }
     },
 
     // =========================================================================

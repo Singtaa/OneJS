@@ -43,6 +43,26 @@ In WebGL builds, JavaScript runs directly in the browser's JS engine (V8/SpiderM
 4. C# processes request via reflection (same as native QuickJS path)
 5. Result marshaled back to JS
 
+### JS → C# Delegate Callbacks (events, delegate props)
+When JS passes a function to C# (event subscription via `add_X`, delegate-typed
+argument, or delegate property assignment):
+1. Bootstrap's `__resolveValue` calls the page-global `__registerCallback(fn)`
+   (installed by `OneJS.init()`), which stores the function in
+   `OneJS.callbackRegistry` and returns an integer handle
+2. The `{ __csCallbackHandle: N }` marker crosses the bridge as JSON;
+   C# `ConvertToTargetType` wraps it in a cached delegate (`CreateDelegateWrapper`)
+3. When C# raises the event, the delegate calls `qjs_invoke_callback`, which looks
+   up the registry, unmarshals args, and invokes the JS function
+4. `__unregisterCallback(id)` frees the entry (bootstrap's `add_`/`remove_` and
+   delegate-reassignment bookkeeping call it automatically)
+
+Contract notes:
+- Argument memory is owned by the C# caller (`InvokeCallback`/`NoAlloc` allocate
+  and free) - the jslib must not free it
+- `outResultPtr` is null for the zero-alloc invoke family
+- Handler exceptions and stale handles log `console.error` but return success,
+  so one broken JS handler can't abort remaining C# listeners on the same event
+
 ### Event Dispatch (optimized)
 1. C# calls `qjs_dispatch_event()` directly (not eval)
 2. jslib calls `__dispatchEvent()` with parsed JSON
@@ -91,6 +111,7 @@ For WebGL, the app bundle is loaded from StreamingAssets using browser's native 
 - [x] `unmarshalValue` - WASM heap structs to JS values
 - [x] Support for all InteropType values (primitives, strings, handles, vectors)
 - [x] Memory management (alloc/free for strings, args, results)
+- [x] Delegate/callback marshaling (`__registerCallback` registry + `qjs_invoke_callback`) - JS functions as C# event handlers, delegate args, and delegate props; also powers `onPlay`/`onStop`
 
 ### Phase 3 - Production Ready ✅
 - [x] `qjs_dispatch_event` - Fast event dispatch (avoids eval)
@@ -107,6 +128,7 @@ For WebGL, the app bundle is loaded from StreamingAssets using browser's native 
 | Microtasks | `ExecutePendingJobs()` | Browser handles natively |
 | GC | QuickJS GC | Browser GC |
 | Event Dispatch | `qjs_eval()` | `qjs_dispatch_event()` (fast path) |
+| Delegate Callbacks | Native callback table (4096 slots) | Page-global `Map` registry (unbounded) |
 
 ## Gotchas
 

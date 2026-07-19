@@ -1228,7 +1228,11 @@ public class JSRunner : MonoBehaviour {
         try {
             var result = _bridge.Eval(expr);
             return int.TryParse(result, out var h) ? h : -1;
-        } catch {
+        } catch (Exception ex) {
+            // The expr guards on __exports itself, so a throw here means the
+            // registration primitive is broken (e.g. __registerCallback missing) -
+            // surface it instead of silently disabling onPlay/onStop
+            Debug.LogWarning($"[JSRunner] Lifecycle callback registration failed: {ex.Message} (expr: {expr})");
             return -1;
         }
     }
