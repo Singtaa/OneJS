@@ -144,15 +144,29 @@ var OneJSWebGLLib = {
                     HEAP32[valuePtr >> 2] = OneJS.TYPE_OBJECT_HANDLE;
                     HEAP32[(valuePtr + 8) >> 2] = value.__csHandle;
                 }
-                // Check for Vector3-like {x, y, z}
-                else if (value.x !== undefined && value.y !== undefined && value.z !== undefined && value.w === undefined) {
+                // Serialized C# struct (__type marker) or type reference object.
+                // Must be checked before the vector duck-typing: a JSON-round-tripped
+                // struct like UIElements.Translate has x/y/z members that are nested
+                // structs (Length), and the HEAPF32 writes below would mangle them
+                // into NaN. C# rebuilds these from JSON via DeserializeFromDict.
+                else if (value.__type !== undefined || value.__csTypeRef) {
+                    var json = JSON.stringify(value);
+                    HEAP32[valuePtr >> 2] = OneJS.TYPE_JSON_OBJECT;
+                    var jsonLen = lengthBytesUTF8(json) + 1;
+                    var jsonPtr = _malloc(jsonLen);
+                    stringToUTF8(json, jsonPtr, jsonLen);
+                    HEAPU32[(valuePtr + 8) >> 2] = jsonPtr;
+                }
+                // Check for Vector3-like {x, y, z} - numeric members only; objects
+                // with non-numeric x/y/z fall through to the generic JSON branch
+                else if (typeof value.x === "number" && typeof value.y === "number" && typeof value.z === "number" && value.w === undefined) {
                     HEAP32[valuePtr >> 2] = OneJS.TYPE_VECTOR3;
                     HEAPF32[(valuePtr + 8) >> 2] = value.x;
                     HEAPF32[(valuePtr + 12) >> 2] = value.y;
                     HEAPF32[(valuePtr + 16) >> 2] = value.z;
                 }
                 // Check for Vector4-like {x, y, z, w}
-                else if (value.x !== undefined && value.y !== undefined && value.z !== undefined && value.w !== undefined) {
+                else if (typeof value.x === "number" && typeof value.y === "number" && typeof value.z === "number" && typeof value.w === "number") {
                     HEAP32[valuePtr >> 2] = OneJS.TYPE_VECTOR4;
                     HEAPF32[(valuePtr + 8) >> 2] = value.x;
                     HEAPF32[(valuePtr + 12) >> 2] = value.y;
@@ -160,25 +174,16 @@ var OneJSWebGLLib = {
                     HEAPF32[(valuePtr + 20) >> 2] = value.w;
                 }
                 // Check for Color-like {r, g, b, a}
-                else if (value.r !== undefined && value.g !== undefined && value.b !== undefined) {
+                else if (typeof value.r === "number" && typeof value.g === "number" && typeof value.b === "number") {
                     HEAP32[valuePtr >> 2] = OneJS.TYPE_VECTOR4;
                     HEAPF32[(valuePtr + 8) >> 2] = value.r;
                     HEAPF32[(valuePtr + 12) >> 2] = value.g;
                     HEAPF32[(valuePtr + 16) >> 2] = value.b;
-                    HEAPF32[(valuePtr + 20) >> 2] = value.a !== undefined ? value.a : 1.0;
+                    HEAPF32[(valuePtr + 20) >> 2] = typeof value.a === "number" ? value.a : 1.0;
                     // Set typeHint to "color"
                     var hintPtr = _malloc(6);
                     stringToUTF8("color", hintPtr, 6);
                     HEAPU32[(valuePtr + 24) >> 2] = hintPtr;
-                }
-                // Type reference object
-                else if (value.__csTypeRef) {
-                    var json = JSON.stringify(value);
-                    HEAP32[valuePtr >> 2] = OneJS.TYPE_JSON_OBJECT;
-                    var jsonLen = lengthBytesUTF8(json) + 1;
-                    var jsonPtr = _malloc(jsonLen);
-                    stringToUTF8(json, jsonPtr, jsonLen);
-                    HEAPU32[(valuePtr + 8) >> 2] = jsonPtr;
                 }
                 // Generic object - serialize as JSON
                 else {
