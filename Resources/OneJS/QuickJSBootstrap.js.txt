@@ -1,3 +1,16 @@
+// MARK: Scope
+// The whole bootstrap runs inside this IIFE. On WebGL the file is evaluated by
+// indirect eval in the EMBEDDING PAGE's global scope (sloppy mode), where
+// top-level function/var declarations become own properties of the host page's
+// window - e.g. a top-level `function addEventListener(element, ...)` shadows
+// EventTarget.prototype.addEventListener for every script on the page. Keeping
+// all declarations closure-scoped limits the page-visible surface to the
+// explicit `globalThis.*` assignments. Anything the user bundle, C#, or the
+// jslib needs by name MUST be exported via `globalThis.*` - top-level
+// declarations are no longer reachable from other evals on any platform.
+// (Body indentation intentionally left at column 0.)
+(function () {
+
 // MARK: Interop
 if (typeof globalThis.__cs === "undefined") {
     const inv = globalThis.__cs_invoke;
@@ -616,6 +629,10 @@ globalThis.__csHelpers = {
     wrapObject: __wrapObject,
     releaseObject
 };
+
+// releaseObject is documented public API (callable bare from user code), so it
+// needs an explicit export now that top-level declarations are IIFE-scoped
+globalThis.releaseObject = releaseObject;
 
 /**
  * Get System.Type from a type reference (path proxy or bound generic).
@@ -1900,6 +1917,16 @@ class Headers {
     }
 }
 
+// Expose fetch API classes - only if no native implementation exists (QuickJS)
+// In WebGL the browser provides spec-complete Headers/Response and the
+// bootstrap shares the embedding page's global scope, so the natives must win
+if (typeof globalThis.Headers === "undefined") {
+    globalThis.Headers = Headers;
+}
+if (typeof globalThis.Response === "undefined") {
+    globalThis.Response = Response;
+}
+
 // MARK: WebSocket API
 /**
  * WebSocket API implementation.
@@ -2080,6 +2107,12 @@ if (__nativeWebSocket) {
     };
 
     globalThis.WebSocket = WebSocket;
+
+    // Exported system helpers (used by the WS binary path and by tests via
+    // eval). Only exist on QuickJS - on WebGL the native WebSocket branch runs
+    // instead and nothing is added to the page's global scope.
+    globalThis.__arrayBufferToBase64 = __arrayBufferToBase64;
+    globalThis.__base64ToArrayBuffer = __base64ToArrayBuffer;
 }
 
 // MARK: Storage API
@@ -2647,3 +2680,5 @@ if (typeof globalThis.atob === "undefined") {
         return result;
     };
 }
+
+})();
