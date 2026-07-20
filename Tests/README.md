@@ -17,6 +17,7 @@ Tests/
 ├── QuickJSStorageTests.cs
 ├── QuickJSURLTests.cs
 ├── QuickJSBase64Tests.cs
+├── QuickJSBootstrapScopeTests.cs   # Global-scope contract: polyfill guards + IIFE non-leakage (WebGL host-page safety)
 ├── GPUBridgePlaymodeTests.cs
 ├── GPUBridgeJSPlaymodeTests.cs
 ├── ProcNoisePlaymodeTests.cs       # Procedural noise tests
