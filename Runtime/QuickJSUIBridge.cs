@@ -223,7 +223,13 @@ public class QuickJSUIBridge : IDisposable {
         // stop, destroy), so cleanups fire consistently before the context is torn
         // down. Skipped on the finalizer path: it runs on a GC thread where calling
         // back into QuickJS would be unsafe.
-        if (disposing) RunTeardownHooks();
+        if (disposing) {
+            RunTeardownHooks();
+            // Safety net: dispose particle systems the JS side leaked. Normal
+            // disposal already happened via effect cleanups inside the teardown
+            // hooks above. Not on the finalizer path (touches VisualElements).
+            ParticleBridge.DisposeAll();
+        }
 
         _tickCallbackHandle = -1;
         _eventDispatchHandle = -1;
@@ -335,6 +341,11 @@ public class QuickJSUIBridge : IDisposable {
     /// </summary>
     public void Tick() {
         if (_disposed || _inEval) return;
+
+        // Advance C#-side particle simulations (self-guarded against multiple
+        // bridges ticking in the same frame). Lives here so play mode, edit-mode
+        // preview and JSPad all drive particles through one integration point.
+        ParticleBridge.TickAll();
 
         // Detect focus changes before entering the eval block (CheckFocusChange
         // dispatches, which sets _inEval itself). Runs outside _inEval so it

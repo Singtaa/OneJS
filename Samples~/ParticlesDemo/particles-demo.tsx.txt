@@ -1,0 +1,155 @@
+import { useRef } from "react"
+import { View, Text, useParticles, type VisualElement, type PointerEventData } from "onejs-react"
+
+/**
+ * 2D particle engine demo. Three effects, all simulated and rendered in C# -
+ * JS only configures them and forwards pointer input as single crossings.
+ *
+ *   Fountain  - continuous additive sparks with gravity (animates in edit-mode
+ *               preview too, since particles tick at 30Hz there)
+ *   Burst     - click/tap anywhere in the card
+ *   Trail     - move the pointer around the card
+ */
+
+const cardStyle = {
+    width: 300,
+    height: 380,
+    backgroundColor: "#181824",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#2a2a3c",
+    overflow: "hidden" as const,
+}
+
+function CardLabel({ title, hint }: { title: string; hint: string }) {
+    return (
+        <View style={{ position: "absolute", top: 14, left: 16 }}>
+            <Text style={{ color: "#e8e8f0", fontSize: 20, unityFontStyleAndWeight: "bold" }}>{title}</Text>
+            <Text style={{ color: "#8888a0", fontSize: 13, marginTop: 2 }}>{hint}</Text>
+        </View>
+    )
+}
+
+// Pointer events carry panel coords; particles live in element-local space.
+function toLocal(el: VisualElement | null, e: PointerEventData) {
+    if (!el) return { x: e.x, y: e.y }
+    const wb = el.worldBound
+    return { x: e.x - wb.x, y: e.y - wb.y }
+}
+
+function FountainCard() {
+    const ref = useRef<VisualElement | null>(null)
+    useParticles(ref, {
+        max: 3000,
+        emitters: [{
+            rate: 260,
+            pos: [150, 355],
+            shape: { type: "line", length: 30 },
+            angle: [252, 288], // up, with spread (0 = +X, 90 = down)
+            speed: [260, 420],
+            lifetime: [0.9, 1.7],
+            size: [10, 20],
+            gravity: [0, 420],
+            additiveness: 1,
+            colorOverLife: ["#ffe9a0", "#ff9040", "#ff3820aa", "#40102000"],
+            sizeOverLife: [1, 0.85, 0.3],
+        }],
+    })
+    return (
+        <View ref={ref} style={cardStyle}>
+            <CardLabel title="Fountain" hint="continuous emitter, gravity, additive" />
+        </View>
+    )
+}
+
+function BurstCard() {
+    const ref = useRef<VisualElement | null>(null)
+    const fx = useParticles(ref, {
+        max: 3000,
+        emitters: [
+            // ambient shimmer so the card is alive before the first click
+            {
+                rate: 12,
+                pos: [150, 190],
+                shape: { type: "rect", width: 270, height: 330 },
+                speed: [2, 10],
+                lifetime: [1.2, 2.4],
+                size: [4, 9],
+                additiveness: 1,
+                colorOverLife: ["#8fb4ff00", "#8fb4ff", "#8fb4ff00"],
+            },
+            // click burst: rate 0, fired imperatively
+            {
+                rate: 0,
+                speed: [60, 520],
+                lifetime: [0.5, 1.1],
+                size: [8, 18],
+                drag: 2.4,
+                additiveness: 1,
+                colorOverLife: ["#ffffff", "#ffd060", "#ff608000"],
+                sizeOverLife: [1, 0.2],
+            },
+        ],
+    })
+    return (
+        <View
+            ref={ref}
+            style={cardStyle}
+            onPointerDown={(e) => {
+                const p = toLocal(ref.current, e)
+                fx.burst({ x: p.x, y: p.y, count: 80, emitter: 1 })
+            }}
+        >
+            <CardLabel title="Burst" hint="click anywhere" />
+        </View>
+    )
+}
+
+function TrailCard() {
+    const ref = useRef<VisualElement | null>(null)
+    const fx = useParticles(ref, {
+        max: 3000,
+        emitters: [{
+            rate: 220,
+            pos: [150, 190],
+            shape: { type: "circle", radius: 6 },
+            speed: [4, 30],
+            lifetime: [0.6, 1.4],
+            size: [10, 22],
+            gravity: [0, -30], // gentle upward drift
+            additiveness: 1,
+            colorOverLife: ["#40e0ff", "#7060ffcc", "#c040ff00"],
+            sizeOverLife: [1, 0.15],
+        }],
+    })
+    return (
+        <View
+            ref={ref}
+            style={cardStyle}
+            onPointerMove={(e) => {
+                const p = toLocal(ref.current, e)
+                fx.emitters[0]?.pos(p.x, p.y)
+            }}
+        >
+            <CardLabel title="Trail" hint="move the pointer" />
+        </View>
+    )
+}
+
+export function ParticlesDemo() {
+    return (
+        <View style={{ flexGrow: 1, backgroundColor: "#0c0c14", alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ color: "#f0f0f8", fontSize: 30, unityFontStyleAndWeight: "bold" }}>OneJS Particles</Text>
+            <Text style={{ color: "#787890", fontSize: 14, marginTop: 4 }}>
+                C#-simulated, one draw call per system, per-particle additive blending
+            </Text>
+            <View style={{ flexDirection: "row", marginTop: 24 }}>
+                <FountainCard />
+                <View style={{ width: 24 }} />
+                <BurstCard />
+                <View style={{ width: 24 }} />
+                <TrailCard />
+            </View>
+        </View>
+    )
+}

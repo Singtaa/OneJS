@@ -30,6 +30,9 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `CartridgeUtils.cs` | Shared cartridge utilities used by JSRunner and JSPad |
 | `StyleBridge.cs` | Batched style + class-list application; typed IStyle setters for common props (no reflection), reflection fallback for the long tail |
 | `PainterBridge.cs` | Batched vector drawing - replays a Painter2D command buffer in one crossing |
+| `Particles/ParticleSystem2D.cs` | 2D particle system: C#-owned SoA sim + quad mesh write inside a host element |
+| `Particles/ParticleBridge.cs` | JS entry (`Create`), live-system registry, `TickAll` (driven from QuickJSUIBridge.Tick) |
+| `Particles/ParticleWire.cs` | Versioned wire schema + validation (the C#-JS contract; parity with onejs-react particles.test.ts) |
 | `NodeBridge.cs` | Zero-alloc tree wiring (Add/Insert/RemoveFromHierarchy) by element handle |
 | `GPU/GPUBridge.cs` | Compute shader API for JavaScript |
 | `GPU/ComputeShaderProvider.cs` | MonoBehaviour for registering shaders via inspector |
@@ -484,6 +487,45 @@ Constructors are intercepted in the zero-alloc fast path (before any string allo
 **Blittable structs** - `new CS.UnityEngine.Vector2/Vector3/Vector4/Color/Quaternion(...)` build through the fast path instead of reflection (`GetConstructors` + `ConvertToTargetType` + `ctor.Invoke`, plus an `object[]` and per-arg boxing). The numeric args are read straight from the `InteropValue` buffer, the struct is built on the stack, and the result is packed with the same field layout the reflection path produces - identical value, no allocation or reflection. Only purely-numeric args qualify; anything else falls through.
 
 **Element types** - the parameterless ctors the reconciler runs on every mount (`VisualElement`, `TextElement`, `Label`, `Button`, `TextField`, `Toggle`, `Slider`, `ScrollView`, `Image`, `ListView`) build via a typed factory instead of the reflection ctor, then return as a handle (same packing as the slow path). Only parameterless construction is fast-pathed; a parameterized element ctor (e.g. `new Slider(0, 100)`) falls through to reflection.
+
+## 2D Particle Engine (`Particles/` folder)
+
+C#-owned particle systems rendered inside UI Toolkit elements. JS is a control
+plane only: config crosses once as a versioned wire JSON (`ParticleWire`, v1),
+imperative tweaks (`SetEmitterPos`, `Burst`, `SetEmitterRate`, ...) are single
+crossings, and steady-state emission costs zero JS work.
+
+- **Simulation** (`ParticleSystem2D`): SoA arrays sized at creation, swap-back
+  reaping, autonomous emitters (rate/shape/ranges/gravity/drag), <=8-key linear
+  curves for color/size over life, seeded xorshift RNG (deterministic - see
+  `Sim_SameSeed_IsDeterministic`). `space: 1` (panel) keeps positions in panel
+  space and compensates with the element's inverse `worldTransform` so trails
+  don't drag when the element moves.
+- **Rendering**: subscribes to the host element's `generateVisualContent` in C#
+  (no native callback-table slot), writes one quad per particle through
+  `mgc.Allocate` (chunked at 16k quads for the ushort index limit), textured
+  with a lazily generated soft-disc sprite or a user texture (author user
+  textures premultiplied).
+- **Blending**: assigns the `OneJS/UIEParticles` shader (in `Resources/OneJS/`,
+  a thin wrapper over the engine's internal `UnityUIE.cginc` std entry points
+  with `Blend One OneMinusSrcAlpha`) via `style.unityMaterial`. CPU-premultiplied
+  tints (`rgb = color*alpha`, `a = alpha*(1-additiveness)`) give each emitter a
+  per-particle continuum from normal alpha (0) to pure additive (1) in one draw
+  call. If the shader is unavailable (e.g. a Unity upgrade renames the cginc
+  entry points - fails loudly at import), the system falls back to the default
+  material: straight tints, additiveness ignored, everything still renders.
+- **Ticking**: `ParticleBridge.TickAll()` is called from `QuickJSUIBridge.Tick()`
+  (one integration point: play mode, edit-mode preview, JSPad), dt clamped to
+  50ms and guarded against double-ticks when multiple bridges are alive.
+- **Lifecycle**: `ParticleBridge.Create(ve, json, texture)` returns the system
+  (one handle). JS disposes via effect cleanup (runs on unmount and hot reload
+  through the teardown hooks); `ParticleBridge.DisposeAll()` in
+  `QuickJSUIBridge.Dispose()` is the leak safety net. Bursts drop when at
+  capacity (`max` is the budget knob).
+
+Tests: `Tests/ParticleTests.cs` (wire parse/validation, deterministic sim,
+imperative API semantics, and an RT-readback render smoke test that verifies
+the additive path end to end).
 
 ## Stability & Monitoring
 

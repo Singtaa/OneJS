@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 11beb61deafdf41efb56c5c31106dcb1, type: 3}
+  m_Name: ParticlesDemo
+  m_EditorClassIdentifier: OneJS.Runtime::UICartridge
+  _namespace: singtaa
+  _slug: particlesDemo
+  _displayName: Particles Demo
+  _description: 2D particle engine showcase (continuous fountain, click burst, pointer trail) using useParticles from onejs-react. Extracts a single TSX component into your app.
+  _files:
+  - path: particles-demo.tsx
+    content: {fileID: 4900000, guid: a74ff1a3fc6c4e8da10d1362f5a60a36, type: 3}
+  _objects: []

@@ -22,5 +22,11 @@
         "url": "https://github.com/Singtaa/OneJS.git"
     },
     "license": "MIT",
-    "samples": []
+    "samples": [
+        {
+            "displayName": "Particles Demo",
+            "description": "2D particle engine showcase (fountain, click burst, pointer trail) packaged as a UI Cartridge. Drag the cartridge onto your JSRunner to extract the TSX component into your app.",
+            "path": "Samples~/ParticlesDemo"
+        }
+    ]
 }
