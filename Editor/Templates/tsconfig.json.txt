@@ -19,7 +19,6 @@
     "forceConsistentCasingInFileNames": true,
 
     "jsx": "react-jsx",
-    "baseUrl": ".",
     "paths": {
       "onejs-react": ["./node_modules/onejs-react/src"]
     },
