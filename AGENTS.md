@@ -43,7 +43,7 @@ Alternative: skip the button and just enter Play mode. On first play, `JSRunnerA
 Key model:
 
 - **Panel Settings is the project marker.** The folder containing the assigned PanelSettings asset defines the project; the bundle is always loaded from `{that folder}/app.js.txt`. A folder is considered valid when it contains `~/` or `app.js.txt`.
-- **Do not add a UIDocument.** JSRunner adds and wires one at runtime (and an EventSystem if missing).
+- **Do not add a UIDocument.** JSRunner adds and wires one at runtime (and an EventSystem if missing). On Unity 6.5+, do **not** substitute the new `PanelRenderer` either: it never attaches a panel outside Play mode, so edit-mode preview would silently render nothing. OneJS stays on `UIDocument`, which is not `[Obsolete]`. See `Runtime/README.md`.
 - **Edit-mode preview**: JSRunner renders the UI in the Game view without Play mode whenever Panel Settings is valid, `app.js.txt` exists on disk, and the UIDocument root is ready. Ticks at 30 Hz.
 - Scaffolding never overwrites existing files.
 

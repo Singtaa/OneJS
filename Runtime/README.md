@@ -127,6 +127,32 @@ JSRunner supports rendering UI in the Game view **without entering Play mode**. 
 bool IsEditModePreviewActive { get; }  // Whether edit-mode preview is currently running
 ```
 
+### UIDocument vs PanelRenderer (Unity 6.5+)
+
+Unity 6.5 introduced `UnityEngine.UIElements.PanelRenderer` as the successor to `UIDocument` (which moves to *UI Toolkit/Legacy* in the Add Component menu). **OneJS deliberately stays on `UIDocument`** — a considered decision, not an oversight:
+
+- `UIDocument` is **not** marked `[Obsolete]` in 6.5. It compiles clean with no warnings, and Unity has announced no removal.
+- `PanelRenderer` **cannot drive edit-mode preview.** Verified on 6000.5.2f1: with a valid PanelSettings assigned, `root.panel` stays null in edit mode and the registered `UIReloadCallback` never fires. The same GameObject in Play mode fires immediately with a live panel; `UIDocument` under identical conditions is live in edit mode.
+
+The cause is structural, not a toggle:
+
+| Component | Attach path |
+|-----------|-------------|
+| `UIDocument` | `OnEnable()` → `_Enable()` → `RecreateUI()` / `AddRootVisualElementToTree()` — eager, and the component is `[ExecuteAlways]` |
+| `PanelRenderer` | only `IPanelComponent.PerformUpdate()`, reached solely via `UIElementsRuntimeUtility.UpdatePanels()`, which the player loop drives |
+
+`UpdatePanels()` additionally early-returns before `UpdatePanelRenderers()` when there are no player panels. Unity's own authoring-time preview goes through a separate subsystem (`UIElementsRuntimeUtility.FindOrCreateAuthoringPanel`, `UIToolkitAuthoringModule`) that is entirely internal — so there is no supported way to make a `PanelRenderer` live at authoring time.
+
+**Revisit when either** Unity marks `UIDocument` `[Obsolete]` / announces removal, **or** ships a public authoring-panel API. Until then, a `PanelRenderer` path would cost an abstraction plus a second implementation that is strictly less capable.
+
+**Landmines for whoever does the migration:**
+
+- `PanelRenderer` exposes **no public `rootVisualElement`** (it is `internal`). Unity states this is intentional — the register-callback pattern exists so live reload can hand out a fresh root. JSRunner's model is pull-based (`EnsureUIDocument()` → `rootVisualElement` on demand), so porting is a pull → push inversion. That is the bulk of the work.
+- `panelSettings` / `visualTreeAsset` are **native properties**: assigning them from script at edit time does *not* serialize. Go through `SerializedObject` on `m_PanelSettings` / `sourceAsset` (the field is `sourceAsset`, not `m_VisualTreeAsset`) plus `SetDirty`.
+- `sortingOrder` differs: `float` read/write on `UIDocument`, `int` on `PanelRenderer` (inherited from `Renderer`), read-only `float` on the shared interface.
+- `IPanelComponent` (public, implemented by both) covers `panelSettings` / `visualTreeAsset` but has **no root element member**, so it cannot serve as the whole abstraction.
+- `PanelRenderer` tracks an internal `firstChildInsertIndex`; JSRunner's habit of calling `root.Clear()` wholesale needs review on that path.
+
 ### Lifecycle Hooks (`onPlay` / `onStop`)
 
 JSRunner supports `onPlay()` and `onStop()` lifecycle hooks exported from the user's entry file. These let users separate game logic (play mode only) from UI setup (runs in both edit-mode preview and play mode).
