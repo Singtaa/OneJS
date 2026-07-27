@@ -1834,6 +1834,7 @@ public class JSRunner : MonoBehaviour {
             ("global.d.ts.txt", "types/global.d.ts"),
             ("main.uss.txt", "styles/main.uss"),
             ("gitignore.txt", ".gitignore"),
+            ("AGENTS.md.txt", "AGENTS.md"),
         };
 
         _defaultFiles.Clear();
