@@ -110,14 +110,14 @@ JSRunner supports rendering UI in the Game view **without entering Play mode**. 
 **Lifecycle:**
 | Event | Action |
 |-------|--------|
-| `OnEnable()` (edit mode) | `delayCall` → `TryStartEditModePreview()` |
+| `OnEnable()` (edit mode) | `SchedulePreviewAutoStart()` → retried `TryStartEditModePreview()` |
 | `OnDisable()` (edit mode) | `StopEditModePreview()` — unregisters tick, disposes bridge, clears UI |
 | Domain reload | `OnDisable` → reload → `OnEnable` → reinit from scratch |
 | Enter Play mode | `EditModeTick()` detects `isPlaying` → stops preview; `Start()` takes over |
-| Exit Play mode | `OnEnable()` → `delayCall` → restarts preview |
+| Exit Play mode | `OnEnable()` → `SchedulePreviewAutoStart()` → restarts preview |
 
 **Key implementation details:**
-- `EditorApplication.delayCall` defers init until UIDocument panel settles after domain reload
+- `SchedulePreviewAutoStart()` retries `TryStartEditModePreview()` on `EditorApplication.update` (every 0.25s, 10s window) until the UIDocument panel settles after a domain reload. `EditorApplication.delayCall` is deliberately not used: in an unfocused/idle editor the delayCall queue can starve indefinitely (it only drains with inspector/GUI activity), which left the preview off after externally-triggered reloads (MCP agents, scripted recompiles) until the editor regained focus.
 - `QueuePlayerLoopUpdate()` forces Game view repaint on initial render and after live reload
 - `Update()` and `Start()` are guarded with `if (!Application.isPlaying) return;`
 - Reload failures in edit mode call `StopEditModePreview()` to prevent broken state

@@ -193,6 +193,11 @@ public class JSRunner : MonoBehaviour {
     bool _editModePreviewActive;
     float _nextEditModeTick;
     const float EditModeTickInterval = 1f / 30f; // 30Hz throttle
+    // Preview auto-start retry (see SchedulePreviewAutoStart)
+    double _previewStartDeadline;
+    double _nextPreviewStartAttempt;
+    const double PreviewStartRetryWindow = 10.0;
+    const double PreviewStartRetryInterval = 0.25;
     public static Func<JSRunner, bool> EditModeUpdateFilter;
     public static Func<JSRunner, bool> PlayModeUpdateFilter;
     FileSystemWatcher _editModeWatcher;
@@ -781,8 +786,10 @@ public class JSRunner : MonoBehaviour {
         UnityEditor.EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
 
         if (!Application.isPlaying) {
-            // Defer to let UIDocument panel settle after domain reload
-            UnityEditor.EditorApplication.delayCall += TryStartEditModePreview;
+            // Deferred with retries: the UIDocument panel may not have settled yet
+            // after a domain reload, and EditorApplication.delayCall can starve
+            // indefinitely in an unfocused editor (it only drains with GUI activity).
+            SchedulePreviewAutoStart();
             return;
         }
 #endif
@@ -798,6 +805,7 @@ public class JSRunner : MonoBehaviour {
     void OnDisable() {
 #if UNITY_EDITOR
         _instances.Remove(this);
+        UnityEditor.EditorApplication.update -= PreviewAutoStartTick;
         if (!Application.isPlaying) {
             StopEditModePreview();
             return;
@@ -1429,6 +1437,35 @@ public class JSRunner : MonoBehaviour {
         }
     }
 
+    /// <summary>
+    /// Schedules edit-mode preview auto-start via EditorApplication.update with a
+    /// bounded retry window. EditorApplication.delayCall is deliberately NOT used:
+    /// in an unfocused/idle editor the delayCall queue can starve indefinitely (it
+    /// only drains with inspector/GUI activity), which left the preview off after
+    /// externally-triggered domain reloads (MCP agents, scripted recompiles).
+    /// EditorApplication.update ticks regardless of focus, and retrying also covers
+    /// UIDocument.rootVisualElement being transiently null right after a reload.
+    /// </summary>
+    void SchedulePreviewAutoStart() {
+        _previewStartDeadline = UnityEditor.EditorApplication.timeSinceStartup + PreviewStartRetryWindow;
+        _nextPreviewStartAttempt = 0;
+        UnityEditor.EditorApplication.update -= PreviewAutoStartTick;
+        UnityEditor.EditorApplication.update += PreviewAutoStartTick;
+    }
+
+    void PreviewAutoStartTick() {
+        if (this == null || Application.isPlaying || _editModePreviewActive
+            || UnityEditor.EditorApplication.timeSinceStartup > _previewStartDeadline) {
+            UnityEditor.EditorApplication.update -= PreviewAutoStartTick;
+            return;
+        }
+        if (UnityEditor.EditorApplication.timeSinceStartup < _nextPreviewStartAttempt) return;
+        _nextPreviewStartAttempt = UnityEditor.EditorApplication.timeSinceStartup + PreviewStartRetryInterval;
+        TryStartEditModePreview();
+        if (_editModePreviewActive)
+            UnityEditor.EditorApplication.update -= PreviewAutoStartTick;
+    }
+
     void TryStartEditModePreview() {
         if (this == null || Application.isPlaying) return;
         if (_editModePreviewActive) return;
@@ -1785,7 +1822,7 @@ public class JSRunner : MonoBehaviour {
             };
             // Also try to start edit-mode preview when PanelSettings changes
             if (!_editModePreviewActive) {
-                UnityEditor.EditorApplication.delayCall += TryStartEditModePreview;
+                SchedulePreviewAutoStart();
             }
         }
     }
