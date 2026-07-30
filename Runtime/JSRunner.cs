@@ -1421,9 +1421,9 @@ public class JSRunner : MonoBehaviour {
 
             case UnityEditor.PlayModeStateChange.EnteredEditMode:
                 // Play mode ended. Dispose bridge and reset state so edit-mode
-                // preview (started via OnEnable → delayCall) gets a clean slate.
-                // Without this, the play-mode bridge leaks when domain/scene
-                // reload is disabled.
+                // preview (started via OnEnable → SchedulePreviewAutoStart) gets
+                // a clean slate. Without this, the play-mode bridge leaks when
+                // domain/scene reload is disabled.
                 if (_enableJanitor && _janitor != null)
                     _janitor.Clean();
                 if (_uiDocument != null && _uiDocument.rootVisualElement != null) {
