@@ -18,6 +18,16 @@ public static class CartridgeUtils {
     }
 
     /// <summary>
+    /// Convert a '/'-separated logical path (UICartridge.RelativePath, CartridgeFileEntry.path)
+    /// into one using the platform's directory separator. No-op on Unix; on Windows it keeps
+    /// Path.Combine from producing mixed separators like "C:\dir\@cartridges\@ns/slug".
+    /// </summary>
+    static string ToNativePath(string logicalPath) {
+        if (string.IsNullOrEmpty(logicalPath)) return logicalPath;
+        return logicalPath.Replace('/', Path.DirectorySeparatorChar);
+    }
+
+    /// <summary>
     /// Get the path to a cartridge's extracted files.
     /// Uses cartridge.RelativePath which includes namespace when present.
     /// </summary>
@@ -27,7 +37,7 @@ public static class CartridgeUtils {
     public static string GetCartridgePath(string baseDir, UICartridge cartridge) {
         if (string.IsNullOrEmpty(baseDir)) return null;
         if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) return null;
-        return Path.Combine(baseDir, "@cartridges", cartridge.RelativePath);
+        return Path.Combine(baseDir, "@cartridges", ToNativePath(cartridge.RelativePath));
     }
 
     /// <summary>
@@ -65,7 +75,7 @@ public static class CartridgeUtils {
             foreach (var file in cartridge.Files) {
                 if (string.IsNullOrEmpty(file.path) || file.content == null) continue;
 
-                var filePath = Path.Combine(destPath, file.path);
+                var filePath = Path.Combine(destPath, ToNativePath(file.path));
                 var fileDir = Path.GetDirectoryName(filePath);
                 if (!string.IsNullOrEmpty(fileDir) && !Directory.Exists(fileDir)) {
                     Directory.CreateDirectory(fileDir);

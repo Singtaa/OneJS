@@ -196,6 +196,23 @@ public class CartridgeUtilsTests {
     }
 
     [Test]
+    public void GetCartridgePath_WithNamespace_UsesPlatformSeparators() {
+        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+        SetCartridgeSlug(cartridge, "myCartridge");
+        SetCartridgeNamespace(cartridge, "myCompany");
+
+        var result = CartridgeUtils.GetCartridgePath(_testBasePath, cartridge);
+
+        // RelativePath is always '/'-separated (it doubles as the __cart() key), so the
+        // filesystem path must not inherit those separators on Windows.
+        var expectedTail = Path.Combine("@cartridges", "@myCompany", "myCartridge");
+        Assert.IsTrue(result.EndsWith(expectedTail),
+            $"Path should end with '{expectedTail}' using platform separators, got '{result}'");
+
+        Object.DestroyImmediate(cartridge);
+    }
+
+    [Test]
     public void GetCartridgePath_EmptyNamespace_ReturnsNonNamespacedPath() {
         var cartridge = ScriptableObject.CreateInstance<UICartridge>();
         SetCartridgeSlug(cartridge, "myCartridge");
@@ -307,6 +324,23 @@ public class CartridgeUtilsTests {
         Assert.IsTrue(File.Exists(dtsPath), "New files should be created after overwrite");
 
         Object.DestroyImmediate(cartridge);
+    }
+
+    [Test]
+    public void ExtractCartridges_NestedFilePath_UsesPlatformSeparators() {
+        var cartridge = CreateTestCartridge("nestedCart");
+        AddCartridgeFile(cartridge, "components/Button.tsx", "export const Button = () => null");
+        var cartridges = new List<UICartridge> { cartridge };
+
+        var created = CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
+
+        // CartridgeFileEntry.path is authored with '/', same as RelativePath.
+        var expected = Path.Combine(_testBasePath, "@cartridges", "nestedCart", "components", "Button.tsx");
+        Assert.IsTrue(File.Exists(expected), "Nested cartridge file should be written");
+        Assert.IsTrue(created.Contains(expected),
+            $"Returned path should use platform separators, got: {string.Join(", ", created)}");
+
+        DestroyCartridge(cartridge);
     }
 
     [Test]
@@ -496,6 +530,26 @@ public class CartridgeUtilsTests {
         var field = typeof(UICartridge).GetField("_namespace",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         field.SetValue(cartridge, ns);
+    }
+
+    /// <summary>
+    /// Adds a file entry to a UICartridge via reflection (backed by an in-memory TextAsset).
+    /// </summary>
+    void AddCartridgeFile(UICartridge cartridge, string path, string content) {
+        var field = typeof(UICartridge).GetField("_files",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var files = (List<CartridgeFileEntry>)field.GetValue(cartridge);
+        files.Add(new CartridgeFileEntry { path = path, content = new TextAsset(content) });
+    }
+
+    /// <summary>
+    /// Destroys a cartridge along with any TextAssets created by AddCartridgeFile.
+    /// </summary>
+    void DestroyCartridge(UICartridge cartridge) {
+        foreach (var file in cartridge.Files) {
+            if (file?.content != null) Object.DestroyImmediate(file.content);
+        }
+        Object.DestroyImmediate(cartridge);
     }
 
     /// <summary>
