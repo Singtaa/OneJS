@@ -54,7 +54,8 @@ namespace OneJS {
         uint _rng;
         bool _paused;
         bool _disposed;
-        bool _wasActive; // one extra repaint after going idle to clear stale quads
+        bool _wasActive;     // one extra repaint after going idle to clear stale quads
+        bool _chromeChecked; // host-styling warning is emitted at most once per system
 
         // Texture grouping (only the arrays for the multi-texture path are lazy)
         readonly Texture2D[] _emitterTex;
@@ -317,6 +318,8 @@ namespace OneJS {
         public void Tick(float dt) {
             if (_disposed || _paused) return;
 
+            WarnIfHostIsStyled();
+
             // Emission
             for (int ei = 0; ei < _emitters.Length; ei++) {
                 var e = _emitters[ei];
@@ -399,6 +402,39 @@ namespace OneJS {
             if ((active || _wasActive) && _ve.panel != null)
                 _ve.MarkDirtyRepaint();
             _wasActive = active;
+        }
+
+        /// <summary>
+        /// A host is particle-owned: assigning style.unityMaterial replaces the standard
+        /// UI material for that element's draw, which costs it UI Toolkit's analytic
+        /// antialiasing - a bordered/rounded host renders visibly jagged corners.
+        /// (Measured: the same corner drops from a ~27-level coverage ramp to 3 levels.
+        /// Subscribing generateVisualContent alone is free; only the material matters,
+        /// hence the _premultiplied gate - the fallback path keeps the host's material.)
+        ///
+        /// Deferred to Tick because resolvedStyle is only meaningful once the element is
+        /// attached and laid out. Emitted at most once per system.
+        /// </summary>
+        void WarnIfHostIsStyled() {
+            if (_chromeChecked || !_premultiplied) return;
+            if (_ve.panel == null) return;
+            var rs = _ve.resolvedStyle;
+            if (float.IsNaN(rs.width) || rs.width <= 0f) return; // not laid out yet
+            _chromeChecked = true;
+
+            bool border = rs.borderTopWidth > 0f || rs.borderRightWidth > 0f
+                       || rs.borderBottomWidth > 0f || rs.borderLeftWidth > 0f;
+            bool radius = rs.borderTopLeftRadius > 0f || rs.borderTopRightRadius > 0f
+                       || rs.borderBottomLeftRadius > 0f || rs.borderBottomRightRadius > 0f;
+            if (!border && !radius) return;
+
+            var name = string.IsNullOrEmpty(_ve.name) ? _ve.GetType().Name : $"\"{_ve.name}\"";
+            Debug.LogWarning(
+                $"[OneJS Particles] host element {name} has a border and/or border-radius. A particle host " +
+                "is particle-owned - the system assigns style.unityMaterial to it, which replaces the " +
+                "standard UI material and costs that element UI Toolkit's antialiasing, so its corners " +
+                "render jagged. Move the system to a dedicated unstyled overlay element and put the " +
+                "border/radius on a sibling.");
         }
 
         /// <summary>Returns true when the particle should die (edge mode "kill").</summary>

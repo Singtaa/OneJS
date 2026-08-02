@@ -555,9 +555,15 @@ crossings, and steady-state emission costs zero JS work.
 - **Host ownership**: the system sets `style.unityMaterial` on its host element,
   which replaces the standard UI material for that element's draw. A host that
   also carries `borderWidth`/`borderRadius` therefore loses UIR's analytic
-  antialiasing on that chrome (measurably: a bordered rounded corner drops from a
-  ~27-level coverage ramp to a hard 2-level staircase). Docs and samples direct
-  users to a dedicated, unstyled overlay `<View>` for the host.
+  antialiasing on that chrome. Isolated by A/B on one rendered frame: a plain
+  bordered rounded box and the same box with a `generateVisualContent` handler
+  both resolve 27 distinct coverage levels across a corner; hosting a particle
+  system drops it to 3 (`bg, fill, border` - a hard staircase). So the material
+  is the cause and `generateVisualContent` is free. `WarnIfHostIsStyled` logs
+  once per system when a host has a border/radius (gated on `_premultiplied`,
+  since the fallback path leaves the host's material alone); it runs from Tick
+  because `resolvedStyle` is only meaningful once attached and laid out. Docs and
+  samples direct users to a dedicated, unstyled overlay `<View>` for the host.
 - **Blending**: assigns the `OneJS/UIEParticles` shader (in `Resources/OneJS/`,
   a thin wrapper over the engine's internal `UnityUIE.cginc` std entry points
   with `Blend One OneMinusSrcAlpha`) via `style.unityMaterial`. CPU-premultiplied

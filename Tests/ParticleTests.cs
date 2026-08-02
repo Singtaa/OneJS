@@ -391,6 +391,64 @@ public class ParticleTests {
         ph.Destroy();
     }
 
+    // MARK: Host styling guard
+
+    // The panel emits its own theme warning, so match on our message rather than
+    // asserting on the whole log stream.
+    static System.Collections.Generic.List<string> CaptureLogs(Action action) {
+        var msgs = new System.Collections.Generic.List<string>();
+        Application.LogCallback handler = (cond, trace, type) => msgs.Add(cond);
+        Application.logMessageReceived += handler;
+        try { action(); } finally { Application.logMessageReceived -= handler; }
+        return msgs;
+    }
+
+    const string kHostWarning = "[OneJS Particles] host element";
+
+    [UnityTest]
+    public IEnumerator Host_WarnsOnceWhenStyledWithBorderOrRadius() {
+        LogAssert.ignoreFailingMessages = true;
+        var ph = PanelHost.Create(200, 200);
+        var host = ph.AddRect(200, 200);
+        host.name = "StyledHost";
+        host.style.borderTopLeftRadius = new StyleLength(8);
+        host.style.borderTopWidth = new StyleFloat(1f);
+        yield return null;
+        yield return null;
+
+        var sys = ParticleBridge.Create(host, Doc(@"{""rate"":10}"), null);
+        var logs = CaptureLogs(() => {
+            for (int i = 0; i < 5; i++) sys.Tick(1f / 60f);
+        });
+
+        var hits = logs.FindAll(m => m.Contains(kHostWarning));
+        Assert.AreEqual(1, hits.Count, "styled host should warn exactly once, not once per tick");
+        StringAssert.Contains("StyledHost", hits[0], "the warning should name the offending element");
+
+        sys.Dispose();
+        ph.Destroy();
+    }
+
+    [UnityTest]
+    public IEnumerator Host_StaysQuietWhenUnstyled() {
+        LogAssert.ignoreFailingMessages = true;
+        var ph = PanelHost.Create(200, 200);
+        var host = ph.AddRect(200, 200); // no border, no radius
+        yield return null;
+        yield return null;
+
+        var sys = ParticleBridge.Create(host, Doc(@"{""rate"":10}"), null);
+        var logs = CaptureLogs(() => {
+            for (int i = 0; i < 5; i++) sys.Tick(1f / 60f);
+        });
+
+        Assert.IsEmpty(logs.FindAll(m => m.Contains(kHostWarning)),
+            "an unstyled host is the documented correct usage and must not warn");
+
+        sys.Dispose();
+        ph.Destroy();
+    }
+
     // MARK: Render smoke (end to end: shader from Resources, premultiplied additive path)
 
     [UnityTest]
