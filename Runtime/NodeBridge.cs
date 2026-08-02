@@ -1,3 +1,4 @@
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace OneJS {
@@ -15,26 +16,60 @@ namespace OneJS {
     ///
     /// Called from JS via:
     ///   CS.OneJS.NodeBridge.Add(parentHandle, childHandle)
+    ///
+    /// Unresolvable handles are reported rather than swallowed. Attach and detach
+    /// are deliberately asymmetric:
+    ///
+    /// - Add/Insert must be loud. The proxy path these replaced threw on an
+    ///   unresolvable target; a silent no-op instead leaves an element constructed,
+    ///   styled and event-wired but never parented, so a subtree just stops painting
+    ///   with nothing in the console to explain it.
+    /// - RemoveFromHierarchy tolerates a handle that is already gone: the reconciler
+    ///   relies on detach being a safe no-op when the root was cleared before React
+    ///   tore the tree down (hot reload). A handle that resolves to a non-element is
+    ///   still an error - that means handle reuse, not an already-detached element.
     /// </summary>
     public static class NodeBridge {
         public static void Add(int parentHandle, int childHandle) {
-            if (QuickJSNative.GetObjectByHandle(parentHandle) is VisualElement parent &&
-                QuickJSNative.GetObjectByHandle(childHandle) is VisualElement child) {
-                parent.Add(child);
-            }
+            var parent = Resolve(parentHandle, nameof(Add), "parent", reportMissing: true);
+            var child = Resolve(childHandle, nameof(Add), "child", reportMissing: true);
+            if (parent == null || child == null) return;
+            parent.Add(child);
         }
 
         public static void Insert(int parentHandle, int index, int childHandle) {
-            if (QuickJSNative.GetObjectByHandle(parentHandle) is VisualElement parent &&
-                QuickJSNative.GetObjectByHandle(childHandle) is VisualElement child) {
-                parent.Insert(index, child);
-            }
+            var parent = Resolve(parentHandle, nameof(Insert), "parent", reportMissing: true);
+            var child = Resolve(childHandle, nameof(Insert), "child", reportMissing: true);
+            if (parent == null || child == null) return;
+            parent.Insert(index, child);
         }
 
         public static void RemoveFromHierarchy(int childHandle) {
-            if (QuickJSNative.GetObjectByHandle(childHandle) is VisualElement child) {
-                child.RemoveFromHierarchy();
+            var child = Resolve(childHandle, nameof(RemoveFromHierarchy), "child", reportMissing: false);
+            if (child == null) return;
+            child.RemoveFromHierarchy();
+        }
+
+        /// <summary>
+        /// Resolve a handle to a VisualElement, reporting why it failed. Nothing is
+        /// allocated on the success path - the message is only built on failure.
+        /// </summary>
+        static VisualElement Resolve(int handle, string op, string role, bool reportMissing) {
+            var obj = QuickJSNative.GetObjectByHandle(handle);
+            if (obj is VisualElement el) return el;
+
+            if (obj == null) {
+                if (reportMissing) {
+                    Debug.LogError(
+                        $"[OneJS] NodeBridge.{op}: {role} handle {handle} is not in the handle table " +
+                        "(already released, or stale across a reload). The element was not attached.");
+                }
+            } else {
+                Debug.LogError(
+                    $"[OneJS] NodeBridge.{op}: {role} handle {handle} resolved to " +
+                    $"{obj.GetType().FullName}, not a VisualElement. Handle reuse or a stale handle.");
             }
+            return null;
         }
     }
 }

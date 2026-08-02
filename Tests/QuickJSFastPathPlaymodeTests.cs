@@ -243,6 +243,35 @@ public class QuickJSFastPathPlaymodeTests {
         yield return null;
     }
 
+    // An unresolvable handle must never be swallowed on attach: the element would be
+    // fully constructed and styled but never parented, so the subtree silently stops
+    // painting with nothing in the console to explain it.
+    [UnityTest]
+    public IEnumerator NodeBridge_Add_ReportsUnresolvableHandle() {
+        LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex(
+            @"NodeBridge\.Add: child handle -?\d+ is not in the handle table"));
+        var result = _ctx.Eval(@"
+            var parent = new CS.UnityEngine.UIElements.VisualElement();
+            CS.OneJS.NodeBridge.Add(parent.__csHandle, 999999);
+            parent.childCount;
+        ");
+        Assert.AreEqual("0", result);
+        yield return null;
+    }
+
+    // Detach is deliberately tolerant: the reconciler relies on it being a no-op when
+    // the root was cleared before React tore the tree down (hot reload).
+    [UnityTest]
+    public IEnumerator NodeBridge_RemoveFromHierarchy_ToleratesMissingHandle() {
+        var result = _ctx.Eval(@"
+            CS.OneJS.NodeBridge.RemoveFromHierarchy(999999);
+            'ok';
+        ");
+        Assert.AreEqual("ok", result);
+        LogAssert.NoUnexpectedReceived();
+        yield return null;
+    }
+
     // MARK: StyleBridge Tests
     // The batched style application uses direct typed setters for the common
     // properties (fast path) and reflection for the long tail (fallback).
