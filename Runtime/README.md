@@ -517,7 +517,7 @@ Constructors are intercepted in the zero-alloc fast path (before any string allo
 ## 2D Particle Engine (`Particles/` folder)
 
 C#-owned particle systems rendered inside UI Toolkit elements. JS is a control
-plane only: config crosses once as a versioned wire JSON (`ParticleWire`, v1),
+plane only: config crosses once as a versioned wire JSON (`ParticleWire`, v2),
 imperative tweaks (`SetEmitterPos`, `Burst`, `SetEmitterRate`, ...) are single
 crossings, and steady-state emission costs zero JS work.
 
@@ -527,11 +527,31 @@ crossings, and steady-state emission costs zero JS work.
   `Sim_SameSeed_IsDeterministic`). `space: 1` (panel) keeps positions in panel
   space and compensates with the element's inverse `worldTransform` so trails
   don't drag when the element moves.
+- **Attraction** (v2): `attractStrength > 0` blends the particle's velocity
+  toward the one that lands exactly on `(attractX, attractY)` at end of life.
+  The blend weight is a function of normalized life (not per-frame accumulation),
+  so convergence is framerate-independent, and `strength: 1` arrives exactly.
+  Deliberately not a physical attractor - gravity wells overshoot and orbit,
+  whereas UI collect effects have to land. Retargetable via `SetEmitterAttractor`.
+- **Edges** (v2): `edge` = kill / bounce (scaled by `bounciness`) / stick against
+  the host element's `contentRect` (`worldBound` in panel space). Stuck particles
+  set a flag bit that skips integration; they still age and fade out. Skipped
+  entirely while the element has no resolved rect.
 - **Rendering**: subscribes to the host element's `generateVisualContent` in C#
   (no native callback-table slot), writes one quad per particle through
   `mgc.Allocate` (chunked at 16k quads for the ushort index limit), textured
   with a lazily generated soft-disc sprite or a user texture (author user
-  textures premultiplied).
+  textures premultiplied). Quads are non-square when `aspect != 1` (v2), which
+  is how rain streaks and confetti strips avoid needing a bespoke sprite.
+- **Per-emitter textures** (v2): `SetEmitterTexture` (a setup-time crossing, since
+  textures can't ride the JSON document) assigns a sprite per emitter. Emitters
+  are bucketed into texture groups; when more than one group exists, the repaint
+  counting-sorts the alive set into per-group runs so each distinct texture costs
+  exactly one `Allocate`. The single-texture path is unchanged and allocates no
+  scratch arrays.
+- **Per-particle tint** (v2): `tintPalette` (<=16 colors) is sampled at spawn into
+  a 1-byte index and *multiplied* into the `colorOverLife` result, so one emitter
+  produces multicolored confetti without losing its fade ramp.
 - **Blending**: assigns the `OneJS/UIEParticles` shader (in `Resources/OneJS/`,
   a thin wrapper over the engine's internal `UnityUIE.cginc` std entry points
   with `Blend One OneMinusSrcAlpha`) via `style.unityMaterial`. CPU-premultiplied
@@ -549,9 +569,17 @@ crossings, and steady-state emission costs zero JS work.
   `QuickJSUIBridge.Dispose()` is the leak safety net. Bursts drop when at
   capacity (`max` is the budget knob).
 
-Tests: `Tests/ParticleTests.cs` (wire parse/validation, deterministic sim,
-imperative API semantics, and an RT-readback render smoke test that verifies
-the additive path end to end).
+**Wire versioning**: the parser accepts v1..v2. Every v2 field defaults to its
+v1 behavior, so an older onejs-react keeps working against a newer package; a v2
+document reaching an older package is rejected by the version check rather than
+silently losing the new fields. v2 RNG draws for `aspect`/`tintPalette` are taken
+only when those features are configured, so existing configs keep their exact v1
+particle streams.
+
+Tests: `Tests/ParticleTests.cs` (wire parse/validation incl. v1 back-compat,
+deterministic sim, attraction arrival, edge modes against a panel-backed rect,
+texture grouping, imperative API semantics, and RT-readback render smoke tests
+that verify the additive path and the non-square quad basis end to end).
 
 ## Stability & Monitoring
 

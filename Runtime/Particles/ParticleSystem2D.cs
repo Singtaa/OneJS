@@ -18,19 +18,27 @@ namespace OneJS {
     /// "additiveness" continuum (0 = normal alpha, 1 = pure additive) in a single
     /// draw call. If the shader is unavailable the system falls back to the
     /// default material: everything still renders, additiveness is ignored.
+    ///
+    /// Emitters may override the system texture; particles are then grouped by
+    /// texture at repaint so each distinct sprite costs exactly one Allocate.
     /// </summary>
     public class ParticleSystem2D {
         const int MaxQuadsPerAlloc = 16000; // 4 verts/quad under the 65535 ushort limit
+        const byte FlagStuck = 1;
 
         // MARK: Particle state (SoA, capacity fixed at creation)
-        readonly float[] _posX, _posY, _velX, _velY, _life, _lifetime, _size, _rot, _angVel;
+        readonly float[] _posX, _posY, _velX, _velY, _life, _lifetime, _size, _aspect, _rot, _angVel;
         readonly int[] _emitterIdx;
+        readonly byte[] _tintIdx; // index into the emitter's tintPalette
+        readonly byte[] _flags;
         int _alive;
         readonly int _max;
 
         class EmitterState {
             public WireEmitter cfg;
             public float x, y;
+            public float attractX, attractY; // target in emitter-local px
+            public float attrPX, attrPY;     // resolved into simulation space each tick
             public float rate;
             public bool emitting;
             public float acc;
@@ -38,13 +46,23 @@ namespace OneJS {
 
         readonly EmitterState[] _emitters;
         readonly VisualElement _ve;
-        readonly Texture2D _texture;
+        readonly Texture2D _texture; // system default; per-emitter overrides live in _emitterTex
         readonly bool _panelSpace;
         readonly bool _premultiplied; // custom shader active -> premultiplied tints
+        readonly bool _anyAttract;    // attractStrength is immutable, so this is fixed at creation
+        readonly bool _anyEdge;
         uint _rng;
         bool _paused;
         bool _disposed;
         bool _wasActive; // one extra repaint after going idle to clear stale quads
+
+        // Texture grouping (only the arrays for the multi-texture path are lazy)
+        readonly Texture2D[] _emitterTex;
+        readonly Texture2D[] _groupTex;
+        readonly int[] _emitterGroup;
+        int _groupCount;
+        bool _multiTexture;
+        int[] _order, _groupStart, _cursor;
 
         public bool IsDisposed => _disposed;
         public int AliveCount => _alive;
@@ -120,24 +138,41 @@ namespace OneJS {
             _life = new float[_max];
             _lifetime = new float[_max];
             _size = new float[_max];
+            _aspect = new float[_max];
             _rot = new float[_max];
             _angVel = new float[_max];
             _emitterIdx = new int[_max];
+            _tintIdx = new byte[_max];
+            _flags = new byte[_max];
 
             _emitters = new EmitterState[doc.emitters.Length];
+            bool anyAttract = false, anyEdge = false;
             for (int i = 0; i < doc.emitters.Length; i++) {
                 var cfg = doc.emitters[i];
                 _emitters[i] = new EmitterState {
                     cfg = cfg,
                     x = cfg.x,
                     y = cfg.y,
+                    attractX = cfg.attractX,
+                    attractY = cfg.attractY,
                     rate = cfg.rate,
                     emitting = cfg.emitting,
                 };
+                if (cfg.attractStrength > 0f) anyAttract = true;
+                if (cfg.edge != 0) anyEdge = true;
             }
+            _anyAttract = anyAttract;
+            _anyEdge = anyEdge;
 
             _premultiplied = ResolveMaterial() != null;
             _texture = texture != null ? texture : ResolveSoftDisc(_premultiplied);
+
+            _emitterTex = new Texture2D[_emitters.Length];
+            _groupTex = new Texture2D[_emitters.Length];
+            _emitterGroup = new int[_emitters.Length];
+            for (int i = 0; i < _emitterTex.Length; i++)
+                _emitterTex[i] = _texture;
+            RebuildTextureGroups();
 
             if (_premultiplied)
                 _ve.style.unityMaterial = MaterialDefinition.FromMaterial(s_Material);
@@ -166,6 +201,25 @@ namespace OneJS {
             if (e == null) return;
             e.x = x;
             e.y = y;
+        }
+
+        /// <summary>Moves the attraction target. No effect unless attractStrength &gt; 0.</summary>
+        public void SetEmitterAttractor(int index, float x, float y) {
+            var e = GetEmitter(index);
+            if (e == null) return;
+            e.attractX = x;
+            e.attractY = y;
+        }
+
+        /// <summary>
+        /// Overrides the sprite for one emitter. Setup-time call: emitters sharing
+        /// a texture still share a draw, so keep the number of distinct textures low.
+        /// Passing null restores the system texture.
+        /// </summary>
+        public void SetEmitterTexture(int index, Texture2D texture) {
+            if (GetEmitter(index) == null) return;
+            _emitterTex[index] = texture != null ? texture : _texture;
+            RebuildTextureGroups();
         }
 
         public void SetEmitterRate(int index, float rate) {
@@ -207,6 +261,9 @@ namespace OneJS {
         public float GetParticleX(int i) => i >= 0 && i < _alive ? _posX[i] : float.NaN;
         public float GetParticleY(int i) => i >= 0 && i < _alive ? _posY[i] : float.NaN;
 
+        /// <summary>Distinct texture groups, i.e. draw entries per repaint. For tests/monitoring.</summary>
+        public int TextureGroupCount => _groupCount;
+
         EmitterState GetEmitter(int index) {
             if (_disposed) return null;
             if (index < 0 || index >= _emitters.Length) {
@@ -221,6 +278,32 @@ namespace OneJS {
                 if (_emitters[i] == e)
                     return i;
             return 0;
+        }
+
+        void RebuildTextureGroups() {
+            int groups = 0;
+            for (int ei = 0; ei < _emitterTex.Length; ei++) {
+                var tex = _emitterTex[ei];
+                int g = -1;
+                for (int k = 0; k < groups; k++) {
+                    if (ReferenceEquals(_groupTex[k], tex)) {
+                        g = k;
+                        break;
+                    }
+                }
+                if (g < 0) {
+                    g = groups++;
+                    _groupTex[g] = tex;
+                }
+                _emitterGroup[ei] = g;
+            }
+            _groupCount = groups;
+            _multiTexture = groups > 1;
+            if (_multiTexture && _order == null) {
+                _order = new int[_max];
+                _groupStart = new int[_emitterTex.Length + 1];
+                _cursor = new int[_emitterTex.Length];
+            }
         }
 
         // MARK: Simulation
@@ -246,41 +329,120 @@ namespace OneJS {
                     Spawn(e, ei, e.x, e.y);
             }
 
+            // Attraction targets are authored in emitter-local px; resolve them into
+            // simulation space once per emitter rather than once per particle.
+            if (_anyAttract) {
+                for (int ei = 0; ei < _emitters.Length; ei++) {
+                    var e = _emitters[ei];
+                    if (e.cfg.attractStrength <= 0f) continue;
+                    if (_panelSpace) {
+                        var p = _ve.worldTransform.MultiplyPoint3x4(new Vector3(e.attractX, e.attractY, 0f));
+                        e.attrPX = p.x;
+                        e.attrPY = p.y;
+                    } else {
+                        e.attrPX = e.attractX;
+                        e.attrPY = e.attractY;
+                    }
+                }
+            }
+
+            // Edge collision needs a resolved rect; skip while detached/unlaid-out.
+            var bounds = _anyEdge ? (_panelSpace ? _ve.worldBound : _ve.contentRect) : default;
+            bool edgeActive = _anyEdge && bounds.width > 0f && bounds.height > 0f;
+
             // Integration + swap-back reaping
             for (int i = 0; i < _alive; i++) {
                 _life[i] += dt;
-                if (_life[i] >= _lifetime[i]) {
-                    int last = _alive - 1;
-                    if (i != last) {
-                        _posX[i] = _posX[last]; _posY[i] = _posY[last];
-                        _velX[i] = _velX[last]; _velY[i] = _velY[last];
-                        _life[i] = _life[last]; _lifetime[i] = _lifetime[last];
-                        _size[i] = _size[last]; _rot[i] = _rot[last];
-                        _angVel[i] = _angVel[last]; _emitterIdx[i] = _emitterIdx[last];
+                bool dead = _life[i] >= _lifetime[i];
+
+                if (!dead && (_flags[i] & FlagStuck) == 0) {
+                    var es = _emitters[_emitterIdx[i]];
+                    var cfg = es.cfg;
+
+                    _velX[i] += cfg.gravityX * dt;
+                    _velY[i] += cfg.gravityY * dt;
+                    if (cfg.drag > 0f) {
+                        float damp = 1f - cfg.drag * dt;
+                        if (damp < 0f) damp = 0f;
+                        _velX[i] *= damp;
+                        _velY[i] *= damp;
                     }
-                    _alive = last;
-                    i--;
-                    continue;
+
+                    float vx = _velX[i], vy = _velY[i];
+                    if (cfg.attractStrength > 0f) {
+                        float remaining = _lifetime[i] - _life[i];
+                        if (remaining > 1e-4f) {
+                            // Blend toward the velocity that lands exactly on the target
+                            // at end of life. The weight is a function of normalized life,
+                            // so convergence is framerate-independent.
+                            float w = cfg.attractStrength * Ease(cfg.attractEase, _life[i] / _lifetime[i]);
+                            vx += ((es.attrPX - _posX[i]) / remaining - vx) * w;
+                            vy += ((es.attrPY - _posY[i]) / remaining - vy) * w;
+                        }
+                    }
+
+                    _posX[i] += vx * dt;
+                    _posY[i] += vy * dt;
+                    _rot[i] += _angVel[i] * dt;
+
+                    if (cfg.edge != 0 && edgeActive)
+                        dead = ApplyEdge(i, cfg, bounds);
                 }
 
-                var cfg = _emitters[_emitterIdx[i]].cfg;
-                _velX[i] += cfg.gravityX * dt;
-                _velY[i] += cfg.gravityY * dt;
-                if (cfg.drag > 0f) {
-                    float damp = 1f - cfg.drag * dt;
-                    if (damp < 0f) damp = 0f;
-                    _velX[i] *= damp;
-                    _velY[i] *= damp;
+                if (dead) {
+                    ReapAt(i);
+                    i--;
                 }
-                _posX[i] += _velX[i] * dt;
-                _posY[i] += _velY[i] * dt;
-                _rot[i] += _angVel[i] * dt;
             }
 
             bool active = _alive > 0 || AnyEmitterActive();
             if ((active || _wasActive) && _ve.panel != null)
                 _ve.MarkDirtyRepaint();
             _wasActive = active;
+        }
+
+        /// <summary>Returns true when the particle should die (edge mode "kill").</summary>
+        bool ApplyEdge(int i, WireEmitter cfg, Rect b) {
+            float x = _posX[i], y = _posY[i];
+            if (x >= b.xMin && x <= b.xMax && y >= b.yMin && y <= b.yMax)
+                return false;
+
+            switch (cfg.edge) {
+                case 1: // kill
+                    return true;
+                case 2: { // bounce - drive the velocity inward rather than negating, so a
+                          // particle already heading back in never re-reflects.
+                    float r = cfg.bounciness;
+                    if (x < b.xMin) { _posX[i] = b.xMin; _velX[i] = Mathf.Abs(_velX[i]) * r; }
+                    else if (x > b.xMax) { _posX[i] = b.xMax; _velX[i] = -Mathf.Abs(_velX[i]) * r; }
+                    if (y < b.yMin) { _posY[i] = b.yMin; _velY[i] = Mathf.Abs(_velY[i]) * r; }
+                    else if (y > b.yMax) { _posY[i] = b.yMax; _velY[i] = -Mathf.Abs(_velY[i]) * r; }
+                    return false;
+                }
+                case 3: // stick - freeze in place; the particle still ages and fades out
+                    _posX[i] = Mathf.Clamp(x, b.xMin, b.xMax);
+                    _posY[i] = Mathf.Clamp(y, b.yMin, b.yMax);
+                    _velX[i] = 0f;
+                    _velY[i] = 0f;
+                    _angVel[i] = 0f;
+                    _flags[i] |= FlagStuck;
+                    return false;
+            }
+            return false;
+        }
+
+        void ReapAt(int i) {
+            int last = _alive - 1;
+            if (i != last) {
+                _posX[i] = _posX[last]; _posY[i] = _posY[last];
+                _velX[i] = _velX[last]; _velY[i] = _velY[last];
+                _life[i] = _life[last]; _lifetime[i] = _lifetime[last];
+                _size[i] = _size[last]; _aspect[i] = _aspect[last];
+                _rot[i] = _rot[last]; _angVel[i] = _angVel[last];
+                _emitterIdx[i] = _emitterIdx[last];
+                _tintIdx[i] = _tintIdx[last]; _flags[i] = _flags[last];
+            }
+            _alive = last;
         }
 
         bool AnyEmitterActive() {
@@ -330,6 +492,13 @@ namespace OneJS {
             _rot[i] = Range(cfg.rotMin, cfg.rotMax) * Mathf.Deg2Rad;
             _angVel[i] = Range(cfg.angVelMin, cfg.angVelMax) * Mathf.Deg2Rad;
             _emitterIdx[i] = emitterIndex;
+            _flags[i] = 0;
+            // The v2 draws below are taken only when the feature is actually in use,
+            // so configs that don't set aspect/tintPalette keep their v1 RNG stream.
+            _aspect[i] = cfg.aspectMax > cfg.aspectMin ? Range(cfg.aspectMin, cfg.aspectMax) : cfg.aspectMin;
+            _tintIdx[i] = cfg.tintPalette != null && cfg.tintPalette.Length > 0
+                ? (byte)(NextFloat() * cfg.tintPalette.Length)
+                : (byte)0;
         }
 
         float NextFloat() { // xorshift32 -> [0, 1)
@@ -341,6 +510,14 @@ namespace OneJS {
 
         float Range(float min, float max) => min + (max - min) * NextFloat();
 
+        static float Ease(int mode, float t) {
+            switch (mode) {
+                case 1: return t * t;                              // in: hold the spread, then whoosh
+                case 2: { float u = 1f - t; return 1f - u * u; }   // out: snap away, then coast
+                default: return t;                                 // linear
+            }
+        }
+
         // MARK: Rendering
 
         void OnGenerateVisualContent(MeshGenerationContext mgc) {
@@ -348,22 +525,60 @@ namespace OneJS {
 
             Matrix4x4 inv = _panelSpace ? _ve.worldTransform.inverse : Matrix4x4.identity;
 
+            if (!_multiTexture) {
+                EmitRun(mgc, null, 0, _alive, _texture, inv);
+                return;
+            }
+
+            // Counting-sort the alive set into per-texture runs so each distinct
+            // sprite costs one Allocate (one draw entry) instead of one per streak.
+            for (int g = 0; g <= _groupCount; g++)
+                _groupStart[g] = 0;
+            for (int i = 0; i < _alive; i++)
+                _groupStart[_emitterGroup[_emitterIdx[i]] + 1]++;
+            for (int g = 0; g < _groupCount; g++)
+                _groupStart[g + 1] += _groupStart[g];
+            Array.Copy(_groupStart, _cursor, _groupCount);
+            for (int i = 0; i < _alive; i++)
+                _order[_cursor[_emitterGroup[_emitterIdx[i]]]++] = i;
+
+            for (int g = 0; g < _groupCount; g++) {
+                int count = _groupStart[g + 1] - _groupStart[g];
+                if (count > 0)
+                    EmitRun(mgc, _order, _groupStart[g], count, _groupTex[g], inv);
+            }
+        }
+
+        /// <summary>
+        /// Writes count quads as one or more Allocate chunks. order maps slot -&gt;
+        /// particle index; null means the run is the alive array itself.
+        /// </summary>
+        void EmitRun(MeshGenerationContext mgc, int[] order, int start, int count, Texture2D tex, Matrix4x4 inv) {
+            // Raw 0..1 UVs: the renderer remaps into the dynamic atlas region.
+            const float u0 = 0f, v0 = 0f, u1 = 1f, v1 = 1f;
+            float z = Vertex.nearZ;
+
             int written = 0;
-            while (written < _alive) {
-                int n = Math.Min(_alive - written, MaxQuadsPerAlloc);
-                // Raw 0..1 UVs: the renderer remaps into the dynamic atlas region.
-                var mwd = mgc.Allocate(n * 4, n * 6, _texture);
-                const float u0 = 0f, v0 = 0f, u1 = 1f, v1 = 1f;
-                float z = Vertex.nearZ;
+            while (written < count) {
+                int n = Math.Min(count - written, MaxQuadsPerAlloc);
+                var mwd = mgc.Allocate(n * 4, n * 6, tex);
 
                 ushort vi = 0;
                 for (int k = 0; k < n; k++) {
-                    int i = written + k;
+                    int slot = start + written + k;
+                    int i = order == null ? slot : order[slot];
                     var cfg = _emitters[_emitterIdx[i]].cfg;
                     float t = _life[i] / _lifetime[i];
 
                     EvalColor(cfg.colorKeys, t, out float cr, out float cg, out float cb, out float ca);
-                    float half = _size[i] * EvalFloat(cfg.sizeKeys, t) * 0.5f;
+                    var palette = cfg.tintPalette;
+                    if (palette != null && palette.Length > 0) {
+                        var p = palette[_tintIdx[i]];
+                        cr *= p.r; cg *= p.g; cb *= p.b; ca *= p.a;
+                    }
+
+                    float halfH = _size[i] * EvalFloat(cfg.sizeKeys, t) * 0.5f;
+                    float halfW = halfH * _aspect[i];
 
                     Color32 tint;
                     if (_premultiplied) {
@@ -380,14 +595,17 @@ namespace OneJS {
                             (byte)(ca * 255f + 0.5f));
                     }
 
-                    float c = Mathf.Cos(_rot[i]) * half;
-                    float s = Mathf.Sin(_rot[i]) * half;
+                    // Rotated half-extent basis. Panel coords are Y-down, so screen-up
+                    // is (sin, -cos); right is (cos, sin). Non-square quads scale the
+                    // two axes independently via aspect (width:height).
+                    float cos = Mathf.Cos(_rot[i]), sin = Mathf.Sin(_rot[i]);
+                    float rx = cos * halfW, ry = sin * halfW;
+                    float ux = sin * halfH, uy = -cos * halfH;
                     float cx = _posX[i], cy = _posY[i];
-                    // rotated half-extent basis: right = (c, s), up = (-s, c)
-                    float tlx = cx - c + s, tly = cy - s - c;
-                    float trx = cx + c + s, trY = cy + s - c;
-                    float brx = cx + c - s, brY = cy + s + c;
-                    float blx = cx - c - s, blY = cy - s + c;
+                    float tlx = cx - rx + ux, tly = cy - ry + uy;
+                    float trx = cx + rx + ux, trY = cy + ry + uy;
+                    float brx = cx + rx - ux, brY = cy + ry - uy;
+                    float blx = cx - rx - ux, blY = cy - ry - uy;
 
                     if (_panelSpace) {
                         Vector3 p;

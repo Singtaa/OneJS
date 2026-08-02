@@ -9,17 +9,17 @@ using UnityEngine.UIElements;
 /// <summary>
 /// Tests for the 2D particle engine: wire-schema parsing/validation (the C#-JS
 /// contract, parity fixtures mirrored in onejs-react's particles.test.ts),
-/// deterministic simulation, imperative API semantics, and an end-to-end render
-/// smoke test that verifies the premultiplied additive path through a
-/// RenderTexture panel readback.
+/// deterministic simulation, imperative API semantics, and end-to-end render
+/// smoke tests that verify the premultiplied additive path and the non-square
+/// quad basis through a RenderTexture panel readback.
 /// </summary>
 [TestFixture]
 public class ParticleTests {
     // Minimal valid doc - shared fixture shape with particles.test.ts.
-    const string kMinimalDoc = @"{""v"":1,""max"":100,""emitters"":[{""rate"":10}]}";
+    const string kMinimalDoc = @"{""v"":2,""max"":100,""emitters"":[{""rate"":10}]}";
 
-    static string Doc(string emitters, int max = 100, int seed = 0, int space = 0) =>
-        $@"{{""v"":1,""max"":{max},""seed"":{seed},""space"":{space},""emitters"":[{emitters}]}}";
+    static string Doc(string emitters, int max = 100, int seed = 0, int space = 0, int v = 2) =>
+        $@"{{""v"":{v},""max"":{max},""seed"":{seed},""space"":{space},""emitters"":[{emitters}]}}";
 
     // MARK: Wire parsing
 
@@ -39,6 +39,19 @@ public class ParticleTests {
     }
 
     [Test]
+    public void WireParse_V2Fields_DefaultToV1Behavior() {
+        // A v1 document from an older onejs-react must still describe a v1 system.
+        var doc = ParticleWire.Parse(Doc(@"{""rate"":10}", v: 1));
+        var e = doc.emitters[0];
+        Assert.AreEqual(1f, e.aspectMin, "aspect defaults to square");
+        Assert.AreEqual(1f, e.aspectMax);
+        Assert.AreEqual(0f, e.attractStrength, "attraction is off by default");
+        Assert.AreEqual(0, e.edge, "edge defaults to none");
+        Assert.AreEqual(0.5f, e.bounciness);
+        Assert.IsNull(e.tintPalette, "no palette means no per-particle tint");
+    }
+
+    [Test]
     public void WireParse_SortsCurveKeys() {
         var doc = ParticleWire.Parse(Doc(
             @"{""rate"":1,""sizeKeys"":[{""t"":1,""v"":0},{""t"":0,""v"":1},{""t"":0.5,""v"":2}]}"));
@@ -49,14 +62,29 @@ public class ParticleTests {
     }
 
     [Test]
+    public void WireParse_ClampsAndOrdersRanges() {
+        var doc = ParticleWire.Parse(Doc(
+            @"{""aspectMin"":0.4,""aspectMax"":0.1,""attractStrength"":5,""bounciness"":-2}"));
+        var e = doc.emitters[0];
+        Assert.AreEqual(0.4f, e.aspectMax, "aspectMax is raised to aspectMin when inverted");
+        Assert.AreEqual(1f, e.attractStrength, "attractStrength clamps to 0..1");
+        Assert.AreEqual(0f, e.bounciness, "bounciness clamps to 0..1");
+    }
+
+    [Test]
     public void WireParse_RejectsBadDocs() {
         Assert.Throws<ArgumentException>(() => ParticleWire.Parse(null), "empty");
-        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(@"{""v"":2,""max"":10,""emitters"":[{}]}"), "bad version");
-        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(@"{""v"":1,""max"":0,""emitters"":[{}]}"), "max too small");
-        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(@"{""v"":1,""max"":10,""emitters"":[]}"), "no emitters");
-        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(@"{""v"":1,""max"":10,""emitters"":[{""shape"":7}]}"), "bad shape");
+        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(@"{""v"":3,""max"":10,""emitters"":[{}]}"), "future version");
+        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(@"{""v"":0,""max"":10,""emitters"":[{}]}"), "version too old");
+        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(@"{""v"":2,""max"":0,""emitters"":[{}]}"), "max too small");
+        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(@"{""v"":2,""max"":10,""emitters"":[]}"), "no emitters");
+        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(@"{""v"":2,""max"":10,""emitters"":[{""shape"":7}]}"), "bad shape");
+        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(Doc(@"{""edge"":9}")), "bad edge mode");
+        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(Doc(@"{""attractEase"":9}")), "bad attract ease");
         Assert.Throws<ArgumentException>(() => ParticleWire.Parse(Doc(
             @"{""sizeKeys"":[{},{},{},{},{},{},{},{},{}]}")), "too many curve keys");
+        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(Doc(
+            @"{""tintPalette"":[{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}]}")), "too many palette colors");
     }
 
     // MARK: Simulation
@@ -116,6 +144,85 @@ public class ParticleTests {
         }
     }
 
+    // MARK: Attraction
+
+    const string kAttractEmitter =
+        @"{""rate"":0,""lifeMin"":1,""lifeMax"":1,""attractX"":100,""attractY"":0,""attractStrength"":1}";
+
+    [Test]
+    public void Attract_ParticleArrivesAtTargetByEndOfLife() {
+        var sys = CreateSystem(kAttractEmitter);
+        try {
+            sys.Burst(0, 0f, 0f, 1);
+            for (int i = 0; i < 59; i++) // stop one step short of expiry
+                sys.Tick(1f / 60f);
+            Assert.AreEqual(1, sys.AliveCount);
+            Assert.AreEqual(100f, sys.GetParticleX(0), 2f, "should land on the target x");
+            Assert.AreEqual(0f, sys.GetParticleY(0), 2f, "should land on the target y");
+        } finally {
+            sys.Dispose();
+        }
+    }
+
+    [Test]
+    public void Attract_ZeroStrength_LeavesParticleOnFreePath() {
+        var sys = CreateSystem(
+            @"{""rate"":0,""lifeMin"":1,""lifeMax"":1,""attractX"":100,""attractY"":0,""attractStrength"":0}");
+        try {
+            sys.Burst(0, 0f, 0f, 1);
+            for (int i = 0; i < 59; i++)
+                sys.Tick(1f / 60f);
+            Assert.AreEqual(0f, sys.GetParticleX(0), 1e-4f, "no speed, no attraction: nothing moves");
+        } finally {
+            sys.Dispose();
+        }
+    }
+
+    [Test]
+    public void Attract_RetargetsAtRuntime() {
+        var sys = CreateSystem(kAttractEmitter);
+        try {
+            sys.SetEmitterAttractor(0, -50f, 25f);
+            sys.Burst(0, 0f, 0f, 1);
+            for (int i = 0; i < 59; i++)
+                sys.Tick(1f / 60f);
+            Assert.AreEqual(-50f, sys.GetParticleX(0), 2f);
+            Assert.AreEqual(25f, sys.GetParticleY(0), 2f);
+        } finally {
+            sys.Dispose();
+        }
+    }
+
+    // MARK: Texture grouping
+
+    [Test]
+    public void Textures_PerEmitterOverridesFormDrawGroups() {
+        var ve = new VisualElement();
+        var sys = ParticleBridge.Create(ve, Doc(@"{""rate"":1},{""rate"":1},{""rate"":1}"), null);
+        var texA = new Texture2D(2, 2);
+        var texB = new Texture2D(2, 2);
+        try {
+            Assert.AreEqual(1, sys.TextureGroupCount, "all emitters share the system texture");
+
+            sys.SetEmitterTexture(1, texA);
+            Assert.AreEqual(2, sys.TextureGroupCount);
+
+            sys.SetEmitterTexture(2, texA);
+            Assert.AreEqual(2, sys.TextureGroupCount, "emitters sharing a texture share a group");
+
+            sys.SetEmitterTexture(2, texB);
+            Assert.AreEqual(3, sys.TextureGroupCount);
+
+            sys.SetEmitterTexture(1, null);
+            sys.SetEmitterTexture(2, null);
+            Assert.AreEqual(1, sys.TextureGroupCount, "null restores the system texture");
+        } finally {
+            sys.Dispose();
+            UnityEngine.Object.DestroyImmediate(texA);
+            UnityEngine.Object.DestroyImmediate(texB);
+        }
+    }
+
     [Test]
     public void Api_BurstClearPauseSemantics() {
         var sys = CreateSystem(@"{""rate"":0,""lifeMin"":10,""lifeMax"":10}");
@@ -153,6 +260,137 @@ public class ParticleTests {
         Assert.AreEqual(0, sys.AliveCount);
     }
 
+    // MARK: Panel-backed fixture (edge collision and render readback need a real rect)
+
+    class PanelHost {
+        public RenderTexture rt;
+        public PanelSettings ps;
+        public GameObject go;
+        public VisualElement root;
+
+        public static PanelHost Create(int w, int h) {
+            var rt = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32);
+            rt.Create();
+            var ps = ScriptableObject.CreateInstance<PanelSettings>();
+            ps.targetTexture = rt;
+            ps.scaleMode = PanelScaleMode.ConstantPixelSize;
+            ps.scale = 1f;
+            var go = new GameObject("ParticleTestPanel");
+            var doc = go.AddComponent<UIDocument>();
+            doc.panelSettings = ps;
+            return new PanelHost { rt = rt, ps = ps, go = go, root = doc.rootVisualElement };
+        }
+
+        /// <summary>Absolutely positioned, explicitly sized child - a particle host needs a resolved rect.</summary>
+        public VisualElement AddRect(int w, int h, Color? background = null) {
+            var ve = new VisualElement();
+            ve.style.position = Position.Absolute;
+            ve.style.left = 0;
+            ve.style.top = 0;
+            ve.style.width = w;
+            ve.style.height = h;
+            if (background.HasValue)
+                ve.style.backgroundColor = background.Value;
+            root.Add(ve);
+            return ve;
+        }
+
+        public Color32 ReadPixel(int x, int y) {
+            var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
+            var prev = RenderTexture.active;
+            RenderTexture.active = rt;
+            tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+            tex.Apply();
+            RenderTexture.active = prev;
+            var c = (Color32)tex.GetPixel(x, y);
+            UnityEngine.Object.DestroyImmediate(tex);
+            return c;
+        }
+
+        public void Destroy() {
+            UnityEngine.Object.Destroy(go);
+            UnityEngine.Object.Destroy(ps);
+            rt.Release();
+            UnityEngine.Object.Destroy(rt);
+        }
+    }
+
+    // MARK: Edge behavior
+
+    // Straight down at 200 px/s from the middle of a 200x200 host: unbounded it
+    // would exit the bottom in half a second.
+    static string EdgeEmitter(string edge) =>
+        $@"{{""rate"":0,""lifeMin"":10,""lifeMax"":10,""angleMin"":90,""angleMax"":90,
+             ""speedMin"":200,""speedMax"":200,{edge}}}";
+
+    [UnityTest]
+    public IEnumerator Edge_KillReapsParticlesLeavingTheRect() {
+        LogAssert.ignoreFailingMessages = true; // PanelSettings theme warning
+        var ph = PanelHost.Create(200, 200);
+        var host = ph.AddRect(200, 200);
+        yield return null;
+        yield return null; // let layout resolve contentRect
+
+        var sys = ParticleBridge.Create(host, Doc(EdgeEmitter(@"""edge"":1")), null);
+        sys.Burst(0, 100f, 100f, 5);
+        Assert.AreEqual(5, sys.AliveCount);
+
+        for (int i = 0; i < 60; i++)
+            sys.Tick(1f / 60f);
+
+        Assert.AreEqual(0, sys.AliveCount, "particles past the bottom edge should be reaped");
+
+        sys.Dispose();
+        ph.Destroy();
+    }
+
+    [UnityTest]
+    public IEnumerator Edge_BounceKeepsParticlesInsideTheRect() {
+        LogAssert.ignoreFailingMessages = true;
+        var ph = PanelHost.Create(200, 200);
+        var host = ph.AddRect(200, 200);
+        yield return null;
+        yield return null;
+
+        var sys = ParticleBridge.Create(host, Doc(EdgeEmitter(@"""edge"":2,""bounciness"":0.5")), null);
+        sys.Burst(0, 100f, 100f, 1);
+
+        for (int i = 0; i < 120; i++) {
+            sys.Tick(1f / 60f);
+            Assert.That(sys.GetParticleY(0), Is.InRange(0f, 200f), $"escaped the rect on tick {i}");
+        }
+        Assert.AreEqual(1, sys.AliveCount, "bounce must not kill particles");
+        Assert.Less(sys.GetParticleY(0), 200f, "should have rebounded off the bottom edge");
+
+        sys.Dispose();
+        ph.Destroy();
+    }
+
+    [UnityTest]
+    public IEnumerator Edge_StickFreezesParticlesOnContact() {
+        LogAssert.ignoreFailingMessages = true;
+        var ph = PanelHost.Create(200, 200);
+        var host = ph.AddRect(200, 200);
+        yield return null;
+        yield return null;
+
+        var sys = ParticleBridge.Create(host, Doc(EdgeEmitter(@"""edge"":3,""gravityY"":500")), null);
+        sys.Burst(0, 100f, 100f, 1);
+
+        for (int i = 0; i < 60; i++)
+            sys.Tick(1f / 60f);
+        float settled = sys.GetParticleY(0);
+        Assert.AreEqual(200f, settled, 0.001f, "should be pinned to the bottom edge");
+
+        for (int i = 0; i < 60; i++)
+            sys.Tick(1f / 60f);
+        Assert.AreEqual(settled, sys.GetParticleY(0), 0.001f, "a stuck particle must not drift");
+        Assert.AreEqual(1, sys.AliveCount, "it still ages and fades rather than dying on contact");
+
+        sys.Dispose();
+        ph.Destroy();
+    }
+
     // MARK: Render smoke (end to end: shader from Resources, premultiplied additive path)
 
     [UnityTest]
@@ -160,34 +398,10 @@ public class ParticleTests {
         LogAssert.ignoreFailingMessages = true; // PanelSettings theme warning
         const int W = 256, H = 256;
 
-        var rt = new RenderTexture(W, H, 24, RenderTextureFormat.ARGB32);
-        rt.Create();
-        var ps = ScriptableObject.CreateInstance<PanelSettings>();
-        ps.targetTexture = rt;
-        ps.scaleMode = PanelScaleMode.ConstantPixelSize;
-        ps.scale = 1f;
-
-        var go = new GameObject("ParticleRenderSmoke");
-        var doc = go.AddComponent<UIDocument>();
-        doc.panelSettings = ps;
-        var root = doc.rootVisualElement;
-
-        var bg = new VisualElement();
-        bg.style.position = Position.Absolute;
-        bg.style.left = 0;
-        bg.style.top = 0;
-        bg.style.width = W;
-        bg.style.height = H;
-        bg.style.backgroundColor = new Color(0.2f, 0.2f, 0.2f, 1f);
-        root.Add(bg);
-
-        var host = new VisualElement();
-        host.style.position = Position.Absolute;
-        host.style.left = 0;
-        host.style.top = 0;
-        host.style.width = W;
-        host.style.height = H;
-        root.Add(host);
+        var ph = PanelHost.Create(W, H);
+        ph.AddRect(W, H, new Color(0.2f, 0.2f, 0.2f, 1f));
+        var host = ph.AddRect(W, H);
+        yield return null;
 
         // Slow green additive particles clustered at the center so sampling is robust.
         var sys = ParticleBridge.Create(host, Doc(
@@ -201,22 +415,12 @@ public class ParticleTests {
         }
         yield return new WaitForEndOfFrame();
 
-        var tex = new Texture2D(W, H, TextureFormat.RGBA32, false);
-        var prev = RenderTexture.active;
-        RenderTexture.active = rt;
-        tex.ReadPixels(new Rect(0, 0, W, H), 0, 0);
-        tex.Apply();
-        RenderTexture.active = prev;
-
-        var center = (Color32)tex.GetPixel(W / 2, H / 2);
-        var corner = (Color32)tex.GetPixel(4, 4);
+        var center = ph.ReadPixel(W / 2, H / 2);
+        var corner = ph.ReadPixel(4, 4);
         Debug.Log($"[ParticleRenderSmoke] center=({center.r},{center.g},{center.b}) corner=({corner.r},{corner.g},{corner.b})");
 
         sys.Dispose();
-        UnityEngine.Object.Destroy(go);
-        UnityEngine.Object.Destroy(ps);
-        rt.Release();
-        UnityEngine.Object.Destroy(rt);
+        ph.Destroy();
 
         Assert.AreEqual(51, corner.r, 3, "corner should stay background gray");
         Assert.Greater(center.g, 150, "green particles should render at center");
@@ -224,5 +428,41 @@ public class ParticleTests {
         // Normal alpha blending (the fallback path) would pull red below ~40.
         Assert.GreaterOrEqual(center.r, 45, "background red must be preserved (additive blend)");
         Assert.GreaterOrEqual(center.b, 45, "background blue must be preserved (additive blend)");
+    }
+
+    [UnityTest]
+    public IEnumerator Render_Aspect_StretchesQuadsHorizontally() {
+        LogAssert.ignoreFailingMessages = true;
+        const int W = 256, H = 256;
+        const int CX = W / 2, CY = H / 2;
+
+        var ph = PanelHost.Create(W, H);
+        ph.AddRect(W, H, new Color(0f, 0f, 0f, 1f));
+        var host = ph.AddRect(W, H);
+        yield return null;
+
+        // size 40 with aspect 4 -> a 160x40 quad: 50px right of center is well
+        // inside it, 50px below is well outside.
+        var sys = ParticleBridge.Create(host, Doc(
+            @"{""rate"":0,""speedMin"":0,""speedMax"":0,""lifeMin"":30,""lifeMax"":30,
+               ""sizeMin"":40,""sizeMax"":40,""aspectMin"":4,""aspectMax"":4,""additiveness"":1,
+               ""colorKeys"":[{""t"":0,""r"":0,""g"":1,""b"":0,""a"":1}]}", max: 64), null);
+        sys.Burst(0, CX, CY, 40);
+
+        for (int i = 0; i < 10; i++) {
+            sys.Tick(1f / 60f);
+            yield return null;
+        }
+        yield return new WaitForEndOfFrame();
+
+        var right = ph.ReadPixel(CX + 50, CY);
+        var below = ph.ReadPixel(CX, CY + 50);
+        Debug.Log($"[ParticleAspect] right.g={right.g} below.g={below.g}");
+
+        sys.Dispose();
+        ph.Destroy();
+
+        Assert.Greater(right.g, 30, "the quad should extend horizontally past 50px");
+        Assert.Less(below.g, 10, "the quad should not extend vertically past 50px");
     }
 }

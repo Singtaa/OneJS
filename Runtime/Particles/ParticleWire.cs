@@ -3,11 +3,17 @@ using UnityEngine;
 
 namespace OneJS {
     /// <summary>
-    /// Wire schema (v1) for the 2D particle engine. This is the C#-JS contract:
+    /// Wire schema (v2) for the 2D particle engine. This is the C#-JS contract:
     /// onejs-react's particles.ts normalizes its ergonomic config (number-or-range
     /// values, hex colors) into this flat, JsonUtility-compatible document. Keep
     /// the two sides in sync - parity fixtures live in particles.test.ts (JS) and
     /// ParticleTests.cs (C#).
+    ///
+    /// v2 added per-particle aspect, random tint palettes, target attraction and
+    /// edge behavior. Every v2 field defaults to its v1 behavior, so v1 documents
+    /// still parse (a newer OneJS package keeps working with older onejs-react).
+    /// The reverse - a v2 document reaching a v1 parser - is rejected by the
+    /// version check rather than silently dropping the new fields.
     /// </summary>
     [Serializable]
     public class ParticleWireDoc {
@@ -35,6 +41,8 @@ namespace OneJS {
         public float lifeMax = 1f;
         public float sizeMin = 8f;
         public float sizeMax = 8f;
+        public float aspectMin = 1f;  // quad width:height ratio; 1 = square
+        public float aspectMax = 1f;
         public float gravityX;
         public float gravityY;
         public float drag;
@@ -43,8 +51,15 @@ namespace OneJS {
         public float angVelMin;
         public float angVelMax;
         public float additiveness;   // 0 = normal alpha, 1 = pure additive
+        public float attractX;       // target point, emitter-local px
+        public float attractY;
+        public float attractStrength; // 0 = disabled, 1 = exact arrival at end of life
+        public int attractEase;      // 0 = linear, 1 = in (default), 2 = out
+        public int edge;             // 0 = none, 1 = kill, 2 = bounce, 3 = stick
+        public float bounciness = 0.5f;
         public WireColorKey[] colorKeys;
         public WireFloatKey[] sizeKeys;
+        public WireRGBA[] tintPalette; // null/empty = no per-particle tint
     }
 
     [Serializable]
@@ -62,11 +77,22 @@ namespace OneJS {
         public float v = 1f;
     }
 
+    /// <summary>A flat color with no curve time, used for random per-particle tints.</summary>
+    [Serializable]
+    public class WireRGBA {
+        public float r = 1f;
+        public float g = 1f;
+        public float b = 1f;
+        public float a = 1f;
+    }
+
     public static class ParticleWire {
-        public const int Version = 1;
+        public const int Version = 2;
+        public const int MinVersion = 1;
         public const int MaxParticlesLimit = 100000;
         public const int MaxEmitters = 32;
         public const int MaxCurveKeys = 8;
+        public const int MaxPaletteColors = 16;
 
         /// <summary>
         /// Parses and validates a wire document. Throws ArgumentException with a
@@ -84,8 +110,10 @@ namespace OneJS {
             }
             if (doc == null)
                 throw new ArgumentException("[OneJS Particles] config JSON parsed to null.");
-            if (doc.v != Version)
-                throw new ArgumentException($"[OneJS Particles] unsupported wire version {doc.v} (expected {Version}).");
+            if (doc.v < MinVersion || doc.v > Version)
+                throw new ArgumentException(
+                    $"[OneJS Particles] unsupported wire version {doc.v} (this package supports {MinVersion}..{Version}). " +
+                    "Update the OneJS package to match your onejs-react version.");
             if (doc.max < 1 || doc.max > MaxParticlesLimit)
                 throw new ArgumentException($"[OneJS Particles] max must be 1..{MaxParticlesLimit}, got {doc.max}.");
             if (doc.space != 0 && doc.space != 1)
@@ -101,10 +129,21 @@ namespace OneJS {
                     throw new ArgumentException($"[OneJS Particles] emitter {i} is null.");
                 if (e.shape < 0 || e.shape > 3)
                     throw new ArgumentException($"[OneJS Particles] emitter {i}: shape must be 0..3, got {e.shape}.");
+                if (e.edge < 0 || e.edge > 3)
+                    throw new ArgumentException($"[OneJS Particles] emitter {i}: edge must be 0..3, got {e.edge}.");
+                if (e.attractEase < 0 || e.attractEase > 2)
+                    throw new ArgumentException($"[OneJS Particles] emitter {i}: attractEase must be 0..2, got {e.attractEase}.");
+                if (e.tintPalette != null && e.tintPalette.Length > MaxPaletteColors)
+                    throw new ArgumentException(
+                        $"[OneJS Particles] emitter {i}: tintPalette allows at most {MaxPaletteColors} colors, got {e.tintPalette.Length}.");
                 e.rate = Mathf.Clamp(e.rate, 0f, 100000f);
                 e.additiveness = Mathf.Clamp01(e.additiveness);
+                e.attractStrength = Mathf.Clamp01(e.attractStrength);
+                e.bounciness = Mathf.Clamp01(e.bounciness);
                 e.lifeMin = Mathf.Max(0.001f, e.lifeMin);
                 e.lifeMax = Mathf.Max(e.lifeMin, e.lifeMax);
+                e.aspectMin = Mathf.Max(0.001f, e.aspectMin);
+                e.aspectMax = Mathf.Max(e.aspectMin, e.aspectMax);
                 e.colorKeys = NormalizeKeys(e.colorKeys, i, "colorKeys", () => new WireColorKey { t = 0f }, k => k.t);
                 e.sizeKeys = NormalizeKeys(e.sizeKeys, i, "sizeKeys", () => new WireFloatKey { t = 0f, v = 1f }, k => k.t);
             }
