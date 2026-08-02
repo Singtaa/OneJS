@@ -133,13 +133,14 @@ function AbilitySlot({ label, remaining, total, onCast }: {
     const fill = ready ? 0 : remaining / total
 
     return (
-        <View
-            ref={ref}
-            onClick={() => ready && onCast()}
-            style={{
+        <View onClick={() => ready && onCast()} style={{ width: SLOT, height: SLOT, marginRight: 10 }}>
+            {/* the button chrome */}
+            <View style={{
+                position: "absolute",
+                left: 0,
+                top: 0,
                 width: SLOT,
                 height: SLOT,
-                marginRight: 10,
                 borderRadius: 8,
                 borderWidth: 1,
                 borderColor: ready ? "#4a6fa5" : "#252a3a",
@@ -147,23 +148,34 @@ function AbilitySlot({ label, remaining, total, onCast }: {
                 alignItems: "center",
                 justifyContent: "center",
                 overflow: "hidden",
-            }}
-        >
-            <Text style={{
-                fontSize: 22,
-                unityFontStyleAndWeight: "bold",
-                color: ready ? "#dceaff" : "#4a5068",
-            }}>{label}</Text>
+            }}>
+                <Text style={{
+                    fontSize: 22,
+                    unityFontStyleAndWeight: "bold",
+                    color: ready ? "#dceaff" : "#4a5068",
+                }}>{label}</Text>
 
-            {/* cooldown wipe from the bottom */}
-            <View style={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                bottom: 0,
-                height: SLOT * fill,
-                backgroundColor: "#0a0d16cc",
-            }} />
+                {/* cooldown wipe from the bottom */}
+                <View style={{
+                    position: "absolute",
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: SLOT * fill,
+                    backgroundColor: "#0a0d16cc",
+                }} />
+            </View>
+
+            {/* Particles get their OWN element. A host is particle-owned: the system
+                assigns style.unityMaterial to it, which replaces the standard UI
+                material and costs that element UI Toolkit's antialiasing on its
+                border and corner radius. Never host on styled chrome. Living
+                outside the clipped button also lets the ready flash escape it. */}
+            <View
+                ref={ref}
+                pickingMode="Ignore"
+                style={{ position: "absolute", left: 0, top: 0, width: SLOT, height: SLOT }}
+            />
         </View>
     )
 }

@@ -552,6 +552,12 @@ crossings, and steady-state emission costs zero JS work.
 - **Per-particle tint** (v2): `tintPalette` (<=16 colors) is sampled at spawn into
   a 1-byte index and *multiplied* into the `colorOverLife` result, so one emitter
   produces multicolored confetti without losing its fade ramp.
+- **Host ownership**: the system sets `style.unityMaterial` on its host element,
+  which replaces the standard UI material for that element's draw. A host that
+  also carries `borderWidth`/`borderRadius` therefore loses UIR's analytic
+  antialiasing on that chrome (measurably: a bordered rounded corner drops from a
+  ~27-level coverage ramp to a hard 2-level staircase). Docs and samples direct
+  users to a dedicated, unstyled overlay `<View>` for the host.
 - **Blending**: assigns the `OneJS/UIEParticles` shader (in `Resources/OneJS/`,
   a thin wrapper over the engine's internal `UnityUIE.cginc` std entry points
   with `Blend One OneMinusSrcAlpha`) via `style.unityMaterial`. CPU-premultiplied
