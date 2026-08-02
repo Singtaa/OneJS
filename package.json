@@ -32,6 +32,11 @@
             "displayName": "Game HUD",
             "description": "A fake ARPG HUD built from the particle effects games actually ship: loot that attracts into a gold counter, ability cooldown flashes, XP-bar edge sparks, level-up confetti, and low-health embers. Packaged as a UI Cartridge.",
             "path": "Samples~/GameHUD"
+        },
+        {
+            "displayName": "Inventory",
+            "description": "A loot stash with rarity auras driven entirely by item data, a legendary tier that mixes two sprites in one system, and a panel-space drag trail. Packaged as a UI Cartridge.",
+            "path": "Samples~/Inventory"
         }
     ]
 }
