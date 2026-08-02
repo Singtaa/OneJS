@@ -1,0 +1,427 @@
+import { useEffect, useRef, useState } from "react"
+import { View, Text, useParticles, type ParticlesHandle, type VisualElement, type PointerEventData } from "onejs-react"
+
+/**
+ * A fake ARPG HUD built from the particle effects games actually ship. Every
+ * piece here is meant to be lifted into a real project.
+ *
+ *   Loot collect   - click the field: coins burst out, then *attract* into the
+ *                    gold counter, arriving exactly as they expire
+ *   Ability bar    - a ready-shimmer plus a ring flash the instant a cooldown ends
+ *   XP bar         - sparks tracking the leading edge of the fill
+ *   Level up       - confetti using a random tint palette, tumbling paper-strip
+ *                    quads (aspect) that settle on the bottom edge (edge: "stick")
+ *   Low health     - embers rising from the bottom edge, rate driven by HP
+ *
+ * The systems are configured once; everything dynamic goes through the
+ * imperative handle (one interop crossing per call), so the 20Hz game loop
+ * below never rebuilds a particle system.
+ */
+
+const HUD_W = 960
+const HUD_H = 540
+const XP_W = 420
+const SLOT = 58
+const ABILITIES = ["Q", "W", "E", "R"]
+const COOLDOWNS = [2.5, 4, 6, 9] // seconds, per slot
+
+const GOLD = "#ffd166"
+const CONFETTI = ["#ff4d6d", "#ffd166", "#06d6a0", "#4d96ff", "#f8f9fa"]
+
+// MARK: helpers
+
+/** Pointer events carry panel coords; particles live in element-local space. */
+function toLocal(el: VisualElement | null, e: PointerEventData) {
+    if (!el) return { x: e.x, y: e.y }
+    const wb = el.worldBound
+    return { x: e.x - wb.x, y: e.y - wb.y }
+}
+
+/** Center of `target` expressed in `host`'s local space - i.e. an attract target. */
+function centerIn(target: VisualElement | null, host: VisualElement | null) {
+    if (!target || !host) return null
+    const t = target.worldBound
+    const h = host.worldBound
+    return { x: t.x - h.x + t.width / 2, y: t.y - h.y + t.height / 2 }
+}
+
+/** QuickJS has no full Intl, so format thousands by hand. */
+function commas(n: number) {
+    const s = Math.floor(n).toString()
+    let out = ""
+    for (let i = 0; i < s.length; i++) {
+        if (i > 0 && (s.length - i) % 3 === 0) out += ","
+        out += s[i]
+    }
+    return out
+}
+
+/** A fixed-step game clock. 20Hz is plenty for a HUD - the particles run in C# at full rate. */
+function useGameLoop(step: (dt: number) => void) {
+    const stepRef = useRef(step)
+    stepRef.current = step
+    useEffect(() => {
+        let last = Date.now()
+        const id = setInterval(() => {
+            const now = Date.now()
+            const dt = Math.min((now - last) / 1000, 0.1)
+            last = now
+            stepRef.current(dt)
+        }, 50)
+        return () => clearInterval(id)
+    }, [])
+}
+
+// MARK: ability slot
+
+/**
+ * One ability button. Two emitters: a low idle shimmer while the ability is
+ * ready, and a burst-only ring that fires the instant the cooldown ends -
+ * start/stop and burst are single crossings, so the system is never rebuilt.
+ */
+function AbilitySlot({ label, remaining, total, onCast }: {
+    label: string
+    remaining: number
+    total: number
+    onCast: () => void
+}) {
+    const ref = useRef<VisualElement | null>(null)
+    const ready = remaining <= 0
+
+    const fx = useParticles(ref, {
+        max: 300,
+        emitters: [
+            // idle shimmer: drifts up out of the icon while castable
+            {
+                rate: 16,
+                pos: [SLOT / 2, SLOT / 2],
+                shape: { type: "rect", width: SLOT - 10, height: SLOT - 10 },
+                emitting: false,
+                speed: [6, 20],
+                angle: [250, 290],
+                lifetime: [0.6, 1.2],
+                size: [3, 6],
+                additiveness: 1,
+                colorOverLife: ["#9fe8ff00", "#9fe8ff", "#5090ff00"],
+            },
+            // ready flash: one outward ring
+            {
+                rate: 0,
+                shape: { type: "circle", radius: 4 },
+                speed: [140, 240],
+                angle: [0, 360],
+                lifetime: [0.25, 0.45],
+                size: [5, 11],
+                drag: 5,
+                additiveness: 1,
+                colorOverLife: ["#ffffff", "#8fd8ff", "#3060ff00"],
+                sizeOverLife: [1, 0.2],
+            },
+        ],
+    })
+
+    // Fire on the not-ready -> ready transition (and once on mount).
+    useEffect(() => {
+        if (!ready) {
+            fx.emitters[0]?.stop()
+            return
+        }
+        fx.emitters[0]?.start()
+        fx.burst({ x: SLOT / 2, y: SLOT / 2, count: 28, emitter: 1 })
+    }, [ready])
+
+    const fill = ready ? 0 : remaining / total
+
+    return (
+        <View
+            ref={ref}
+            onClick={() => ready && onCast()}
+            style={{
+                width: SLOT,
+                height: SLOT,
+                marginRight: 10,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: ready ? "#4a6fa5" : "#252a3a",
+                backgroundColor: "#141826",
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
+            }}
+        >
+            <Text style={{
+                fontSize: 22,
+                unityFontStyleAndWeight: "bold",
+                color: ready ? "#dceaff" : "#4a5068",
+            }}>{label}</Text>
+
+            {/* cooldown wipe from the bottom */}
+            <View style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: SLOT * fill,
+                backgroundColor: "#0a0d16cc",
+            }} />
+        </View>
+    )
+}
+
+// MARK: HUD
+
+export function GameHUD() {
+    // Refs are the simulation's source of truth; state exists only to render.
+    const hpRef = useRef(1)
+    const xpRef = useRef(0.2)
+    const cdRef = useRef(COOLDOWNS.map(() => 0))
+
+    const [hp, setHp] = useState(1)
+    const [xp, setXp] = useState(0.2)
+    const [cds, setCds] = useState<number[]>(COOLDOWNS.map(() => 0))
+    const [gold, setGold] = useState(1240)
+    const [level, setLevel] = useState(7)
+
+    const fieldRef = useRef<VisualElement | null>(null)
+    const counterRef = useRef<VisualElement | null>(null)
+    const xpHostRef = useRef<VisualElement | null>(null)
+    const vignetteRef = useRef<VisualElement | null>(null)
+    const lastEmberRate = useRef(-1)
+
+    // Overlay covering the whole HUD: coins that fly to the counter, and level-up
+    // confetti. Both live on one element, so it's one system and one draw call.
+    const overlay: ParticlesHandle = useParticles(fieldRef, {
+        max: 1600,
+        emitters: [
+            // 0 - coins. They burst outward, then the pull progressively wins and
+            // lands them on the counter exactly as they expire.
+            {
+                rate: 0,
+                speed: [90, 260],
+                angle: [0, 360],
+                lifetime: 0.85,
+                size: [7, 13],
+                gravity: [0, 260],
+                additiveness: 1,
+                colorOverLife: ["#fff3c4", GOLD, "#ff9d2e00"],
+                sizeOverLife: [1, 1, 0.4],
+                attract: { pos: [HUD_W - 90, 44] }, // retargeted from layout on each drop
+            },
+            // 1 - level-up confetti. One emitter, five colors (tintPalette), paper
+            // strips rather than dots (aspect), settling on the floor (edge).
+            // Note it spawns *inside* the rect: with edge modes, a particle born
+            // outside the bounds is already "past the edge".
+            {
+                rate: 0,
+                pos: [HUD_W / 2, 6],
+                shape: { type: "rect", width: HUD_W - 40, height: 8 },
+                angle: [60, 120],
+                speed: [40, 170],
+                lifetime: [2.4, 3.6],
+                size: [7, 13],
+                aspect: [0.35, 0.7],
+                angularVel: [-420, 420],
+                gravity: [0, 620],
+                drag: 1.1,
+                edge: "stick",
+                tintPalette: CONFETTI,
+                colorOverLife: [
+                    { t: 0, color: "#ffffff" },
+                    { t: 0.85, color: "#ffffff" },
+                    { t: 1, color: "#ffffff00" },
+                ],
+            },
+        ],
+    })
+
+    // XP sparks, on their own host so they have room to fall past the bar.
+    const xpFx = useParticles(xpHostRef, {
+        max: 400,
+        emitters: [{
+            rate: 90, // the bar is always filling in this demo
+            angle: [200, 340],
+            speed: [50, 150],
+            lifetime: [0.25, 0.6],
+            size: [2, 5],
+            gravity: [0, 380],
+            drag: 2,
+            additiveness: 1,
+            colorOverLife: ["#ffffff", "#b08cff", "#5b2bff00"],
+        }],
+    })
+
+    // Low-health embers rising off the bottom edge.
+    const emberFx = useParticles(vignetteRef, {
+        max: 700,
+        emitters: [{
+            rate: 0,
+            pos: [HUD_W / 2, HUD_H - 2],
+            shape: { type: "line", length: HUD_W },
+            angle: [250, 290],
+            speed: [30, 110],
+            lifetime: [0.9, 1.9],
+            size: [8, 22],
+            gravity: [0, -40],
+            additiveness: 1,
+            colorOverLife: ["#ff30301a", "#ff5a30aa", "#8f101000"],
+            sizeOverLife: [0.6, 1, 0.3],
+        }],
+    })
+
+    function levelUp() {
+        setLevel((l) => l + 1)
+        overlay.burst({ x: HUD_W / 2, y: 6, count: 160, emitter: 1 })
+    }
+
+    useGameLoop((dt) => {
+        // XP trickles up; hitting the cap levels you and throws confetti.
+        xpRef.current += dt * 0.05
+        if (xpRef.current >= 1) {
+            xpRef.current = 0
+            levelUp()
+        }
+        hpRef.current = Math.min(1, hpRef.current + dt * 0.06)
+        for (let i = 0; i < cdRef.current.length; i++)
+            cdRef.current[i] = Math.max(0, cdRef.current[i] - dt)
+
+        setXp(xpRef.current)
+        setHp(hpRef.current)
+        setCds([...cdRef.current])
+
+        // Particle updates bypass React entirely - one crossing each.
+        xpFx.emitters[0]?.pos(XP_W * xpRef.current, 22)
+
+        const emberRate = Math.round((1 - hpRef.current) * 140)
+        if (emberRate !== lastEmberRate.current && emberFx.emitters[0]) {
+            emberFx.emitters[0].rate = emberRate
+            lastEmberRate.current = emberRate
+        }
+    })
+
+    /** Drop loot: burst coins at the click, retargeted at the live counter position. */
+    function dropLoot(e: PointerEventData) {
+        const host = fieldRef.current
+        const p = toLocal(host, e)
+        const target = centerIn(counterRef.current, host)
+        if (target) overlay.emitters[0]?.attract(target.x, target.y)
+        overlay.burst({ x: p.x, y: p.y, count: 20, emitter: 0 })
+
+        // The coins land when they expire, so credit the gold on the same clock.
+        setTimeout(() => {
+            setGold((g) => g + 20)
+            xpRef.current = Math.min(0.999, xpRef.current + 0.05)
+        }, 850)
+    }
+
+    function takeDamage() {
+        hpRef.current = Math.max(0.05, hpRef.current - 0.28)
+        setHp(hpRef.current)
+    }
+
+    function cast(i: number) {
+        cdRef.current[i] = COOLDOWNS[i]
+        setCds([...cdRef.current])
+    }
+
+    return (
+        <View style={{ flexGrow: 1, backgroundColor: "#07080e", alignItems: "center", justifyContent: "center" }}>
+            <View style={{
+                width: HUD_W,
+                height: HUD_H,
+                backgroundColor: "#0b0d14",
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: "#1c2030",
+                overflow: "hidden",
+            }}>
+                {/* click field + coin/confetti overlay, behind the chrome */}
+                <View
+                    ref={fieldRef}
+                    onPointerDown={dropLoot}
+                    style={{ position: "absolute", left: 0, top: 0, width: HUD_W, height: HUD_H }}
+                />
+                {/* low-health embers, on their own element so the two systems stay independent */}
+                <View
+                    ref={vignetteRef}
+                    pickingMode="Ignore"
+                    style={{ position: "absolute", left: 0, top: 0, width: HUD_W, height: HUD_H }}
+                />
+
+                {/* top bar: health left, gold right */}
+                <View style={{
+                    position: "absolute",
+                    top: 22,
+                    left: 26,
+                    right: 26,
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                }}>
+                    <View pickingMode="Ignore">
+                        <Text style={{ color: "#8a93ad", fontSize: 12, marginBottom: 4 }}>HEALTH</Text>
+                        <View style={{ width: 260, height: 12, backgroundColor: "#1a1020", borderRadius: 6, overflow: "hidden" }}>
+                            <View style={{
+                                width: 260 * hp,
+                                height: 12,
+                                backgroundColor: hp > 0.35 ? "#e5484d" : "#ff6b3d",
+                            }} />
+                        </View>
+                    </View>
+
+                    <View ref={counterRef} pickingMode="Ignore" style={{ flexDirection: "row", alignItems: "center" }}>
+                        <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: GOLD, marginRight: 8 }} />
+                        <Text style={{ color: GOLD, fontSize: 24, unityFontStyleAndWeight: "bold" }}>{commas(gold)}</Text>
+                    </View>
+                </View>
+
+                {/* center hint */}
+                <View pickingMode="Ignore" style={{
+                    position: "absolute", left: 0, right: 0, top: HUD_H / 2 - 40, alignItems: "center",
+                }}>
+                    <Text style={{ color: "#39405a", fontSize: 26, unityFontStyleAndWeight: "bold" }}>
+                        Click anywhere to drop loot
+                    </Text>
+                    <Text style={{ color: "#2a3048", fontSize: 14, marginTop: 6 }}>
+                        coins attract into the counter and arrive exactly as they expire
+                    </Text>
+                </View>
+
+                {/* damage button */}
+                <View
+                    onClick={takeDamage}
+                    style={{
+                        position: "absolute", right: 26, bottom: 34,
+                        paddingTop: 8, paddingBottom: 8, paddingLeft: 16, paddingRight: 16,
+                        borderRadius: 6, borderWidth: 1, borderColor: "#5a2230", backgroundColor: "#1c0f16",
+                    }}
+                >
+                    <Text style={{ color: "#ff8a8a", fontSize: 13 }}>Take damage</Text>
+                </View>
+
+                {/* bottom-left: ability bar over the XP bar */}
+                <View style={{ position: "absolute", left: 26, bottom: 26 }}>
+                    <View style={{ flexDirection: "row", marginBottom: 10 }}>
+                        {ABILITIES.map((label, i) => (
+                            <AbilitySlot
+                                key={label}
+                                label={label}
+                                remaining={cds[i]}
+                                total={COOLDOWNS[i]}
+                                onCast={() => cast(i)}
+                            />
+                        ))}
+                    </View>
+
+                    <View ref={xpHostRef} pickingMode="Ignore" style={{ width: XP_W, height: 30, justifyContent: "flex-end" }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+                            <Text style={{ color: "#8a93ad", fontSize: 11 }}>{`LEVEL ${level}`}</Text>
+                        </View>
+                        <View style={{ width: XP_W, height: 8, backgroundColor: "#191d2e", borderRadius: 4, overflow: "hidden" }}>
+                            <View style={{ width: XP_W * xp, height: 8, backgroundColor: "#7c5cff" }} />
+                        </View>
+                    </View>
+                </View>
+            </View>
+        </View>
+    )
+}

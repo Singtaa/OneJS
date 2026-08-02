@@ -27,6 +27,11 @@
             "displayName": "Particles Demo",
             "description": "2D particle engine showcase (fountain, click burst, pointer trail) packaged as a UI Cartridge. Drag the cartridge onto your JSRunner to extract the TSX component into your app.",
             "path": "Samples~/ParticlesDemo"
+        },
+        {
+            "displayName": "Game HUD",
+            "description": "A fake ARPG HUD built from the particle effects games actually ship: loot that attracts into a gold counter, ability cooldown flashes, XP-bar edge sparks, level-up confetti, and low-health embers. Packaged as a UI Cartridge.",
+            "path": "Samples~/GameHUD"
         }
     ]
 }
