@@ -488,6 +488,66 @@ public class ParticleTests {
         Assert.GreaterOrEqual(center.b, 45, "background blue must be preserved (additive blend)");
     }
 
+    /// <summary>
+    /// The "BlendAdd" contract game VFX artists rely on: with Blend One OneMinusSrcAlpha,
+    /// a single premultiplied sprite mixes additive and occluding regions per *texel* -
+    /// alpha is the occlusion channel, RGB is the light contribution. A texel with
+    /// rgb &gt; 0 and a = 0 adds to the background; a texel with a = 1 replaces it.
+    /// This is independent of the per-emitter additiveness knob (held at 0 here).
+    /// </summary>
+    [UnityTest]
+    public IEnumerator Render_PremultipliedTexture_MixesAdditiveAndOccludingPerTexel() {
+        LogAssert.ignoreFailingMessages = true;
+        const int W = 256, H = 256;
+        const int CX = W / 2, CY = H / 2;
+
+        // Green everywhere; left half a=0 (additive), right half a=255 (occluding).
+        var tex = new Texture2D(64, 64, TextureFormat.RGBA32, false) {
+            filterMode = FilterMode.Point,
+            wrapMode = TextureWrapMode.Clamp,
+        };
+        var px = new Color32[64 * 64];
+        for (int y = 0; y < 64; y++)
+            for (int x = 0; x < 64; x++)
+                px[y * 64 + x] = new Color32(0, 255, 0, (byte)(x < 32 ? 0 : 255));
+        tex.SetPixels32(px);
+        tex.Apply(false, false);
+
+        var ph = PanelHost.Create(W, H);
+        ph.AddRect(W, H, new Color(0.2f, 0.2f, 0.2f, 1f));
+        var host = ph.AddRect(W, H);
+        yield return null;
+
+        // additiveness 0: the texture alone decides additive vs occluding.
+        var sys = ParticleBridge.Create(host, Doc(
+            @"{""rate"":0,""speedMin"":0,""speedMax"":0,""lifeMin"":30,""lifeMax"":30,
+               ""sizeMin"":200,""sizeMax"":200,""additiveness"":0,
+               ""colorKeys"":[{""t"":0,""r"":1,""g"":1,""b"":1,""a"":1}]}", max: 8), tex);
+        sys.Burst(0, CX, CY, 1);
+
+        for (int i = 0; i < 10; i++) {
+            sys.Tick(1f / 60f);
+            yield return null;
+        }
+        yield return new WaitForEndOfFrame();
+
+        var additive = ph.ReadPixel(CX - 60, CY);  // left half of the quad
+        var occluding = ph.ReadPixel(CX + 60, CY); // right half
+        Debug.Log($"[ParticleBlendAdd] additive=({additive.r},{additive.g},{additive.b}) " +
+                  $"occluding=({occluding.r},{occluding.g},{occluding.b})");
+
+        sys.Dispose();
+        ph.Destroy();
+        UnityEngine.Object.DestroyImmediate(tex);
+
+        Assert.Greater(additive.g, 150, "both halves should render green");
+        Assert.Greater(occluding.g, 150, "both halves should render green");
+        // The fingerprint: a=0 texels leave the destination intact underneath the glow,
+        // a=1 texels replace it. Same sprite, same particle, same draw call.
+        Assert.AreEqual(51, additive.r, 6, "a=0 texels must ADD (background red survives)");
+        Assert.Less(occluding.r, 12, "a=1 texels must OCCLUDE (background red replaced)");
+    }
+
     [UnityTest]
     public IEnumerator Render_Aspect_StretchesQuadsHorizontally() {
         LogAssert.ignoreFailingMessages = true;
