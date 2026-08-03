@@ -229,6 +229,7 @@ public class QuickJSUIBridge : IDisposable {
             // disposal already happened via effect cleanups inside the teardown
             // hooks above. Not on the finalizer path (touches VisualElements).
             ParticleBridge.DisposeAll();
+            OneJS.ShaderFX.ShaderEffectBridge.DisposeAll();
         }
 
         _tickCallbackHandle = -1;
@@ -346,6 +347,7 @@ public class QuickJSUIBridge : IDisposable {
         // bridges ticking in the same frame). Lives here so play mode, edit-mode
         // preview and JSPad all drive particles through one integration point.
         ParticleBridge.TickAll();
+        OneJS.ShaderFX.ShaderEffectBridge.TickAll();
 
         // Detect focus changes before entering the eval block (CheckFocusChange
         // dispatches, which sets _inEval itself). Runs outside _inEval so it
