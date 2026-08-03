@@ -165,7 +165,34 @@ namespace OneJS.Editor {
             return this;
         }
 
-        /// <summary>Sends a key press to the focused element. Use for Tab, arrows, Return.</summary>
+        /// <summary>
+        /// Moves focus to the next focusable element, the way a Tab press does.
+        ///
+        /// Focus movement in UI Toolkit travels on <see cref="NavigationMoveEvent"/>,
+        /// not on the Tab key, so <see cref="Key"/> with <c>KeyCode.Tab</c> leaves
+        /// focus exactly where it was. Use this instead.
+        /// </summary>
+        public InputTrack NavigateNext(double settle = DefaultSettle) =>
+            Navigate(NavigationMoveEvent.Direction.Next, settle);
+
+        /// <summary>Moves focus to the previous focusable element (Shift+Tab).</summary>
+        public InputTrack NavigatePrevious(double settle = DefaultSettle) =>
+            Navigate(NavigationMoveEvent.Direction.Previous, settle);
+
+        /// <summary>Moves focus in a direction, for arrow-key and gamepad navigation.</summary>
+        public InputTrack Navigate(NavigationMoveEvent.Direction direction, double settle = DefaultSettle) {
+            AddAction(_authorTime, (root, t) => {
+                using (var evt = NavigationMoveEvent.GetPooled(direction, EventModifiers.None))
+                    root.SendEvent(evt);
+                return t.PointerIsDown;
+            });
+            return Wait(settle);
+        }
+
+        /// <summary>
+        /// Sends a key press to the focused element, for text editing keys like
+        /// Return or Backspace. Not for moving focus: see <see cref="NavigateNext"/>.
+        /// </summary>
         public InputTrack Key(KeyCode key, double settle = DefaultSettle) {
             AddAction(_authorTime, (root, t) => {
                 SendKey(root, '\0', key);
