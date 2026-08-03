@@ -46,6 +46,7 @@ namespace OneJS.ShaderFX {
         int _rtW, _rtH;
         float _seconds;
         bool _paused;
+        bool _paintingOnLayout;
 
         public new class UxmlFactory : UxmlFactory<ShaderEffectElement> { }
 
@@ -53,6 +54,32 @@ namespace OneJS.ShaderFX {
             pickingMode = PickingMode.Ignore;
             ShaderEffectBridge.Register(this);
             RegisterCallback<DetachFromPanelEvent>(_ => ReleaseTexture());
+            RegisterCallback<GeometryChangedEvent>(_ => PaintOnLayout());
+        }
+
+        /// <summary>
+        /// Paints as soon as the element has a rect, rather than waiting for the
+        /// next bridge tick.
+        ///
+        /// A freshly attached element has no layout yet, so the first Tick cannot
+        /// size a render target and leaves the background empty. Deferring to "the
+        /// next tick" is fine in play mode, but edit-mode preview ticks from
+        /// EditorApplication.update, which the editor throttles hard while
+        /// unfocused - the gap stretches from a frame to seconds, and every hot
+        /// reload reads as a broken effect. Painting on the layout pass that
+        /// produced the rect removes the dependency on tick cadence entirely.
+        /// </summary>
+        void PaintOnLayout() {
+            // EnsureTarget assigns backgroundImage, which re-dirties layout, and an
+            // auto-sized element measures against its own background. Without this
+            // guard that feedback could re-enter here from the pass it triggers.
+            if (_paintingOnLayout) return;
+            if (!TryGetTargetSize(out int w, out int h)) return;
+            if (_rt != null && _rtW == w && _rtH == h) return; // already the right size
+            _paintingOnLayout = true;
+            // dt 0: this is a catch-up paint, not a frame, so the effect clock must
+            // not jump just because the element was resized.
+            try { Tick(0f); } finally { _paintingOnLayout = false; }
         }
 
         // MARK: JS-facing API (each call is a single interop crossing)
@@ -166,17 +193,28 @@ namespace OneJS.ShaderFX {
             return true;
         }
 
-        bool EnsureTarget() {
-            int w = _resW, h = _resH;
+        /// <summary>
+        /// Resolves the render size in px. False means layout has not run yet, so
+        /// there is no size to render at and the caller must try again later.
+        /// </summary>
+        bool TryGetTargetSize(out int w, out int h) {
+            w = _resW;
+            h = _resH;
             if (w <= 0 || h <= 0) {
                 var r = contentRect;
-                if (float.IsNaN(r.width) || r.width < 1f || r.height < 1f) return false; // not laid out yet
-                w = Mathf.Clamp(Mathf.RoundToInt(r.width), MinRes, MaxRes);
-                h = Mathf.Clamp(Mathf.RoundToInt(r.height), MinRes, MaxRes);
-            } else {
-                w = Mathf.Clamp(w, MinRes, MaxRes);
-                h = Mathf.Clamp(h, MinRes, MaxRes);
+                // NaN is the pre-layout state, and it is what an element reports for
+                // the frame after a hot reload.
+                if (float.IsNaN(r.width) || r.width < 1f || r.height < 1f) return false;
+                w = Mathf.RoundToInt(r.width);
+                h = Mathf.RoundToInt(r.height);
             }
+            w = Mathf.Clamp(w, MinRes, MaxRes);
+            h = Mathf.Clamp(h, MinRes, MaxRes);
+            return true;
+        }
+
+        bool EnsureTarget() {
+            if (!TryGetTargetSize(out int w, out int h)) return false;
             if (_rt != null && _rtW == w && _rtH == h) return true;
 
             ReleaseTexture();

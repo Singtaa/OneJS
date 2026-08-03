@@ -34,6 +34,8 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `Particles/ParticleSystem2D.cs` | 2D particle system: C#-owned SoA sim + quad mesh write inside a host element |
 | `Particles/ParticleBridge.cs` | JS entry (`Create`), live-system registry, `TickAll` (driven from QuickJSUIBridge.Tick) |
 | `Particles/ParticleWire.cs` | Versioned wire schema + validation (the C#-JS contract; parity with onejs-react particles.test.ts) |
+| `ShaderFX/ShaderEffectElement.cs` | Runs a shader into an element's `backgroundImage` via a per-frame blit to a RenderTexture |
+| `ShaderFX/ShaderEffectBridge.cs` | Live-effect registry, `TickAll` (driven from QuickJSUIBridge.Tick), built-in procedural textures and ramp cache |
 | `NodeBridge.cs` | Zero-alloc tree wiring (Add/Insert/RemoveFromHierarchy) by element handle. Add/Insert log an error on an unresolvable handle; detach stays a tolerant no-op |
 | `GPU/GPUBridge.cs` | Compute shader API for JavaScript |
 | `GPU/ComputeShaderProvider.cs` | MonoBehaviour for registering shaders via inspector |
@@ -602,6 +604,56 @@ Tests: `Tests/ParticleTests.cs` (wire parse/validation incl. v1 back-compat,
 deterministic sim, attraction arrival, edge modes against a panel-backed rect,
 texture grouping, imperative API semantics, and RT-readback render smoke tests
 that verify the additive path and the non-square quad basis end to end).
+
+## ShaderFX (`ShaderFX/` folder)
+
+Runs a fragment shader into a UI element's background, one blit per frame.
+
+The effect is blitted into a RenderTexture shown through `style.backgroundImage`,
+**not** assigned as `style.unityMaterial`. That is the whole design decision:
+
+- the shader is an ordinary unlit shader, not a UI Toolkit one, so it owns its
+  fragment completely and does not depend on the engine's private
+  `UnityUIE.cginc` entry points (which the particle engine does depend on);
+- the element stays a normal UI element, so border-radius, clipping, opacity and
+  analytic antialiasing all still work. A custom `unityMaterial` costs an element
+  its AA, which is what produced the jagged-corner bug in the particle hosts.
+
+`ShaderEffectElement` is deliberately generic (any shader, any
+float/vector/colour/texture property), so an effect is a shader file plus a thin
+JS wrapper and costs **no engine code**. `<Flame>` is a preset over `<TextureFX>`,
+which is itself a preset over `<ShaderEffect>` pointed at `OneJS/TextureFX.shader`.
+
+**The layer stack is data, not generated code.** Runtime shader compilation is
+unavailable in player builds, so `onejs-react/src/texturefx.ts` flattens the
+builder's layers into uniform arrays (`_LScale/_LScroll/_LParams/_LMode`) that one
+shader evaluates in a bounded loop. Hence the fixed `MAX_LAYERS 6` ceiling, shared
+between the shader and `MAX_TEXTUREFX_LAYERS` in TS.
+
+**`SetVectorArray` takes `object`, not `float[]`.** A JS array arrives as the
+`{__csArray, __csArrayType:"float"}` marker, which does not bind to a `float[]`
+parameter and makes the whole method invisible to reflection ("Method not found").
+It converts via `QuickJSNative.ConvertToTargetType`, the same path PainterBridge
+and StyleBridge use.
+
+**Scroll units are element-relative.** The shader samples in noise space
+(`uv * scale + scroll * t`), so the builder pre-multiplies scroll by scale before
+it crosses. Authoring scroll in raw noise cells meant raising `scale` silently
+slowed the animation; element-heights per second keeps feature size and speed
+independent.
+
+**Painting is driven by layout, not only by ticks.** A freshly attached element
+has no rect, so the first `Tick` cannot size a render target. Waiting for the next
+tick is fine in play mode but not in edit-mode preview, where
+`EditorApplication.update` is throttled hard while the editor is unfocused: the
+gap stretches from a frame to seconds and every hot reload reads as a broken
+effect. `ShaderEffectElement` therefore also paints from `GeometryChangedEvent`,
+guarded against re-entrancy (assigning `backgroundImage` re-dirties layout).
+
+Tests: `Tests/ShaderFXTests.cs` (render-target lifecycle against real layout with
+no tick at all, explicit-resolution override, bridge registration, uniform
+marshalling contract, ramp/built-in texture caching). The panel fixture is shared
+with ParticleTests in `Tests/Fixtures/PanelHost.cs`.
 
 ## VirtualClock (deterministic time)
 

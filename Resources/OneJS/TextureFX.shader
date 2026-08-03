@@ -104,7 +104,7 @@ Shader "OneJS/TextureFX"
                     float d = length(uv - 0.5) * 2.0;
                     return pow(saturate(1.0 - d), max(p.x, 1e-4));
                 }
-                else if (id == 2)   // linear: vertical gradient, p.x biases the midpoint
+                else if (id == 2)   // linear: vertical gradient, p.x is the falloff exponent
                 {
                     return pow(saturate(uv.y), max(p.x, 1e-4));
                 }

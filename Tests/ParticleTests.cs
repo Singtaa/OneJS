@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using NUnit.Framework;
 using OneJS;
+using OneJS.Tests;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UIElements;
@@ -330,68 +331,9 @@ public class ParticleTests {
         Assert.AreEqual(0, sys.AliveCount);
     }
 
-    // MARK: Panel-backed fixture (edge collision and render readback need a real rect)
-
-    class PanelHost {
-        public RenderTexture rt;
-        public PanelSettings ps;
-        public GameObject go;
-        public VisualElement root;
-
-        public static PanelHost Create(int w, int h) {
-            var rt = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32);
-            rt.Create();
-            var ps = ScriptableObject.CreateInstance<PanelSettings>();
-            ps.targetTexture = rt;
-            ps.scaleMode = PanelScaleMode.ConstantPixelSize;
-            ps.scale = 1f;
-            var go = new GameObject("ParticleTestPanel");
-            var doc = go.AddComponent<UIDocument>();
-            doc.panelSettings = ps;
-            return new PanelHost { rt = rt, ps = ps, go = go, root = doc.rootVisualElement };
-        }
-
-        /// <summary>Absolutely positioned, explicitly sized child - a particle host needs a resolved rect.</summary>
-        public VisualElement AddRect(int w, int h, Color? background = null) {
-            var ve = new VisualElement();
-            ve.style.position = Position.Absolute;
-            ve.style.left = 0;
-            ve.style.top = 0;
-            ve.style.width = w;
-            ve.style.height = h;
-            if (background.HasValue)
-                ve.style.backgroundColor = background.Value;
-            root.Add(ve);
-            return ve;
-        }
-
-        /// <summary>
-        /// Reads a pixel in UI coordinates: y counts DOWN from the top, matching
-        /// how the panel lays out. GetPixel is bottom-up, so the flip happens here
-        /// rather than at every call site (an inverted y silently turns an
-        /// "above/below" assertion into its opposite).
-        /// </summary>
-        public Color32 ReadPixel(int x, int yFromTop) {
-            var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
-            var prev = RenderTexture.active;
-            RenderTexture.active = rt;
-            tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
-            tex.Apply();
-            RenderTexture.active = prev;
-            var c = (Color32)tex.GetPixel(x, rt.height - 1 - yFromTop);
-            UnityEngine.Object.DestroyImmediate(tex);
-            return c;
-        }
-
-        public void Destroy() {
-            UnityEngine.Object.Destroy(go);
-            UnityEngine.Object.Destroy(ps);
-            rt.Release();
-            UnityEngine.Object.Destroy(rt);
-        }
-    }
-
     // MARK: Edge behavior
+    // Edge collision and render readback need a real rect, so these run against
+    // OneJS.Tests.PanelHost (Fixtures/PanelHost.cs), shared with ShaderFXTests.
 
     // Straight down at 200 px/s from the middle of a 200x200 host: unbounded it
     // would exit the bottom in half a second.
