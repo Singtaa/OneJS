@@ -51,6 +51,18 @@ namespace OneJS.Editor {
 
         /// <summary>Absolute path to ffmpeg. Leave null to auto-detect.</summary>
         public string FfmpegPath;
+
+        /// <summary>
+        /// Optional scripted pointer and keyboard input, delivered as real UI Toolkit
+        /// events. Track time 0 is the first recorded frame, after the settle pass.
+        /// </summary>
+        public InputTrack Input;
+
+        /// <summary>Draw a cursor for <see cref="Input"/>. Ignored when Input is null.</summary>
+        public bool ShowCursor = true;
+
+        /// <summary>Multiplier on the cursor size, which otherwise scales with the capture height.</summary>
+        public float CursorScale = 1f;
     }
 
     /// <summary>
@@ -112,10 +124,17 @@ namespace OneJS.Editor {
             int settleFrames = Mathf.Max(0, Mathf.CeilToInt((float)(options.SettleSeconds * options.Fps)));
             double step = 1.0 / options.Fps;
 
+            if (options.Input != null && options.Input.Duration > options.DurationSeconds + 1e-6)
+                Debug.LogWarning(
+                    $"[OneJS] Input track runs {options.Input.Duration:0.##}s but the recording is " +
+                    $"{options.DurationSeconds:0.##}s, so the end of the track will not appear. " +
+                    "Raise DurationSeconds to at least the track duration.");
+
             var stderr = new StringBuilder();
             Process encoder = null;
             OffscreenPanelRenderer renderer = null;
             Texture2D readback = null;
+            CursorOverlay cursor = null;
             var previousActive = RenderTexture.active;
             bool canceled = false;
 
@@ -124,6 +143,13 @@ namespace OneJS.Editor {
                 encoder = StartEncoder(ffmpeg, width, height, outWidth, outHeight, options, outputPath, stderr);
                 renderer = new OffscreenPanelRenderer(panelSettings, width, height);
                 readback = new Texture2D(width, height, TextureFormat.RGBA32, false);
+
+                if (options.Input != null && options.ShowCursor) {
+                    // Scale with the capture so the cursor reads the same on screen
+                    // whether the panel was rendered at 720p or 4K.
+                    cursor = new CursorOverlay(
+                        Mathf.RoundToInt(height * 0.035f * Mathf.Max(0.1f, options.CursorScale)));
+                }
 
                 var frameBuffer = new byte[width * height * 4];
                 var stdin = encoder.StandardInput.BaseStream;
@@ -134,8 +160,24 @@ namespace OneJS.Editor {
                     bridge.Tick();
                 }
 
+                // Input and layout are in the panel's logical space, which is not the
+                // capture resolution when PanelSettings applies a scale. The cursor
+                // composites into the pixel buffer, so it needs the conversion.
+                var rootWidth = bridge.Root.worldBound.width;
+                var uiToPixel = rootWidth > 1f ? width / rootWidth : 1f;
+
+                double trackTime = 0.0;
                 for (int frame = 0; frame < totalFrames; frame++) {
                     VirtualClock.Advance(step);
+
+                    // Input before the tick, so anything it triggers is processed and
+                    // rendered in this same frame rather than lagging by one.
+                    if (options.Input != null) {
+                        var previousTrackTime = trackTime;
+                        trackTime += step;
+                        options.Input.Step(bridge.Root, previousTrackTime, trackTime);
+                    }
+
                     bridge.Tick();
                     renderer.Render();
 
@@ -144,6 +186,13 @@ namespace OneJS.Editor {
                     // No Apply(): ReadPixels fills the CPU-side buffer, which is all
                     // GetRawTextureData reads. Apply would only re-upload to the GPU.
                     readback.GetRawTextureData<byte>().CopyTo(frameBuffer);
+
+                    if (cursor != null)
+                        cursor.Composite(frameBuffer, width, height,
+                            options.Input.PointerPosition * uiToPixel,
+                            options.Input.PointerIsDown,
+                            options.Input.TimeSincePress);
+
                     stdin.Write(frameBuffer, 0, frameBuffer.Length);
 
                     if (encoder.HasExited)

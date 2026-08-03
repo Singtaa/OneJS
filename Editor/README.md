@@ -257,6 +257,58 @@ outrun the MCP request timeout and return "fetch failed" even though the editor
 finished the job and wrote the file. Check for the output rather than re-running, or
 the second run will silently overwrite the first.
 
+### Scripted input (`InputTrack`)
+
+Most component demos are about interaction, so a recording can drive one:
+
+```csharp
+var track = new InputTrack()
+    .StartAt(120, 470)
+    .MoveTo(536, 103, 0.9)   // glide to the button, hover it
+    .Wait(0.6)
+    .Click()
+    .Wait(1.3)
+    .DragTo(230, 175, 0.7);
+
+PanelRecorder.Record(runner, new PanelRecordingOptions {
+    Width = 1920, Height = 1080, OutputWidth = 1280, OutputHeight = 720,
+    Fps = 60, DurationSeconds = track.Duration + 0.4,
+    Input = track,
+    OutputPath = "/abs/path/demo.mp4",
+});
+```
+
+Actions are authored sequentially: each call appends at the current time and
+advances an internal clock, so a track reads in the order it happens.
+`MoveTo`/`DragTo` glide with a smoothstep ease, `Wait` lets the UI settle,
+and `Duration` is the total so `DurationSeconds` can be derived from it (the
+recorder warns rather than silently truncating if the track is longer).
+
+Available: `StartAt`, `MoveTo`, `Wait`, `Click`, `Press`, `Release`, `DragTo`,
+`Scroll`, `Type`, `Key`.
+
+Input is delivered as genuine UI Toolkit events via `VisualElement.SendEvent`,
+so `:hover` and `:active` styling, focus rings, ScrollView scrolling and every
+React handler behave exactly as they do for a real user. Nothing simulates state
+directly. `Type` and `Key` go to the focused element, so click a field first.
+
+**Coordinates are panel-logical, not capture pixels.** With a ConstantPixelSize
+PanelSettings at `scale: 2`, a 1920x1080 capture has a 960x540 logical space and
+track coordinates are in that space. To find a position, measure with the panel
+already at capture size:
+
+```csharp
+using (var probe = new OffscreenPanelRenderer(runner.PanelSettingsAsset, 1920, 1080)) {
+    for (int i = 0; i < 3; i++) { runner.Bridge.Tick(); probe.Render(); }
+    var bound = someElement.worldBound;   // logical coords, ready for the track
+}
+```
+
+`CursorOverlay` draws a pointer into each frame (procedural, no texture asset)
+plus an expanding ripple on every click. The ripple outlives the few frames a
+press actually lasts, which is what makes a click legible at normal playback
+speed. Disable with `ShowCursor = false`, resize with `CursorScale`.
+
 ## Templates
 
 The `Templates/` directory contains TextAsset templates scaffolded by `Initialize Project`:
