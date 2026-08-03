@@ -16,9 +16,9 @@ using UnityEngine.UIElements;
 [TestFixture]
 public class ParticleTests {
     // Minimal valid doc - shared fixture shape with particles.test.ts.
-    const string kMinimalDoc = @"{""v"":3,""max"":100,""emitters"":[{""rate"":10}]}";
+    const string kMinimalDoc = @"{""v"":4,""max"":100,""emitters"":[{""rate"":10}]}";
 
-    static string Doc(string emitters, int max = 100, int seed = 0, int space = 0, int v = 3) =>
+    static string Doc(string emitters, int max = 100, int seed = 0, int space = 0, int v = 4) =>
         $@"{{""v"":{v},""max"":{max},""seed"":{seed},""space"":{space},""emitters"":[{emitters}]}}";
 
     // MARK: Wire parsing
@@ -90,7 +90,7 @@ public class ParticleTests {
     [Test]
     public void WireParse_RejectsBadDocs() {
         Assert.Throws<ArgumentException>(() => ParticleWire.Parse(null), "empty");
-        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(@"{""v"":4,""max"":10,""emitters"":[{}]}"), "future version");
+        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(@"{""v"":5,""max"":10,""emitters"":[{}]}"), "future version");
         Assert.Throws<ArgumentException>(() => ParticleWire.Parse(@"{""v"":0,""max"":10,""emitters"":[{}]}"), "version too old");
         Assert.Throws<ArgumentException>(() => ParticleWire.Parse(@"{""v"":2,""max"":0,""emitters"":[{}]}"), "max too small");
         Assert.Throws<ArgumentException>(() => ParticleWire.Parse(@"{""v"":2,""max"":10,""emitters"":[]}"), "no emitters");
@@ -365,14 +365,20 @@ public class ParticleTests {
             return ve;
         }
 
-        public Color32 ReadPixel(int x, int y) {
+        /// <summary>
+        /// Reads a pixel in UI coordinates: y counts DOWN from the top, matching
+        /// how the panel lays out. GetPixel is bottom-up, so the flip happens here
+        /// rather than at every call site (an inverted y silently turns an
+        /// "above/below" assertion into its opposite).
+        /// </summary>
+        public Color32 ReadPixel(int x, int yFromTop) {
             var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
             var prev = RenderTexture.active;
             RenderTexture.active = rt;
             tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
             tex.Apply();
             RenderTexture.active = prev;
-            var c = (Color32)tex.GetPixel(x, y);
+            var c = (Color32)tex.GetPixel(x, rt.height - 1 - yFromTop);
             UnityEngine.Object.DestroyImmediate(tex);
             return c;
         }
@@ -676,6 +682,54 @@ public class ParticleTests {
         Assert.Less(fresh.g, 60, "frame 0 is not green");
         Assert.Greater(older.g, 150, "past half life it samples frame 1 (green)");
         Assert.Less(older.r, 60, "frame 1 is not red");
+    }
+
+    /// <summary>
+    /// Pivot decides which point of the sprite sits on the particle position.
+    /// Bottom-anchoring (pivot y = 0.5) is what stops a flame or fountain hanging
+    /// below its source: the quad must sit entirely ABOVE the spawn point.
+    /// </summary>
+    [UnityTest]
+    public IEnumerator Render_Pivot_BottomAnchorsTheQuadAboveTheSpawnPoint() {
+        LogAssert.ignoreFailingMessages = true;
+        const int W = 256, H = 256;
+        const int CX = W / 2, CY = H / 2;
+
+        var ph = PanelHost.Create(W, H);
+        ph.AddRect(W, H, new Color(0f, 0f, 0f, 1f));
+        var host = ph.AddRect(W, H);
+        yield return null;
+
+        // Two particles, size 80: one centered (default pivot), one bottom-anchored.
+        // Spawned far apart horizontally so one readback covers both.
+        const int CENTERED = 70, ANCHORED = 186;
+        var sys = ParticleBridge.Create(host, Doc(
+            @"{""rate"":0,""speedMin"":0,""speedMax"":0,""lifeMin"":30,""lifeMax"":30,
+               ""sizeMin"":80,""sizeMax"":80,""additiveness"":1,
+               ""colorKeys"":[{""t"":0,""r"":0,""g"":1,""b"":0,""a"":1}]},
+              {""rate"":0,""speedMin"":0,""speedMax"":0,""lifeMin"":30,""lifeMax"":30,
+               ""sizeMin"":80,""sizeMax"":80,""additiveness"":1,""pivotY"":0.5,
+               ""colorKeys"":[{""t"":0,""r"":0,""g"":1,""b"":0,""a"":1}]}", max: 8), null);
+        sys.Burst(0, CENTERED, CY, 1);
+        sys.Burst(1, ANCHORED, CY, 1);
+
+        for (int i = 0; i < 6; i++) { sys.Tick(1f / 60f); yield return null; }
+        yield return new WaitForEndOfFrame();
+
+        // ReadPixel is top-down, so +26 is genuinely below the spawn row on screen:
+        // inside a centered quad, outside a bottom-anchored one.
+        var centeredBelow = ph.ReadPixel(CENTERED, CY + 26);
+        var anchoredBelow = ph.ReadPixel(ANCHORED, CY + 26);
+        var anchoredAbove = ph.ReadPixel(ANCHORED, CY - 26);
+        Debug.Log($"[ParticlePivot] centeredBelow.g={centeredBelow.g} " +
+                  $"anchoredBelow.g={anchoredBelow.g} anchoredAbove.g={anchoredAbove.g}");
+
+        sys.Dispose();
+        ph.Destroy();
+
+        Assert.Greater(centeredBelow.g, 25, "a centered quad extends below the spawn point");
+        Assert.Less(anchoredBelow.g, 8, "pivot y 0.5 must keep the quad off the area below the spawn point");
+        Assert.Greater(anchoredAbove.g, 25, "the anchored quad still renders above it");
     }
 
     [UnityTest]

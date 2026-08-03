@@ -675,6 +675,17 @@ namespace OneJS {
                     float rx = cos * halfW, ry = sin * halfW;
                     float ux = sin * halfH, uy = -cos * halfH;
                     float cx = _posX[i], cy = _posY[i];
+
+                    // Pivot: place the sprite so its (pivotX, pivotY) point lands on the
+                    // particle position, offsetting along the quad's OWN axes so a rotated
+                    // sprite still hangs off the same corner. Recomputing the center from
+                    // the pivot each frame also makes the quad rotate about that point.
+                    if (cfg.pivotX != 0f || cfg.pivotY != 0f) {
+                        // right = (cos, sin), down = (-sin, cos); extents are full width/height
+                        float ox = cfg.pivotX * halfW * 2f, oy = cfg.pivotY * halfH * 2f;
+                        cx -= ox * cos - oy * sin;
+                        cy -= ox * sin + oy * cos;
+                    }
                     float tlx = cx - rx + ux, tly = cy - ry + uy;
                     float trx = cx + rx + ux, trY = cy + ry + uy;
                     float brx = cx + rx - ux, brY = cy + ry - uy;

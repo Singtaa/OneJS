@@ -3,14 +3,14 @@ using UnityEngine;
 
 namespace OneJS {
     /// <summary>
-    /// Wire schema (v3) for the 2D particle engine. This is the C#-JS contract:
+    /// Wire schema (v4) for the 2D particle engine. This is the C#-JS contract:
     /// onejs-react's particles.ts normalizes its ergonomic config (number-or-range
     /// values, hex colors) into this flat, JsonUtility-compatible document. Keep
     /// the two sides in sync - parity fixtures live in particles.test.ts (JS) and
     /// ParticleTests.cs (C#).
     ///
     /// v2 added per-particle aspect, random tint palettes, target attraction and
-    /// edge behavior. v3 added flipbook (texture sheet) animation. Every added
+    /// edge behavior. v3 added flipbook animation, v4 a sprite pivot. Every added
     /// field defaults to its previous behavior, so older documents still parse
     /// (a newer OneJS package keeps working with older onejs-react). The reverse
     /// - a newer document reaching an older parser - is rejected by the version
@@ -58,6 +58,11 @@ namespace OneJS {
         public int attractEase;      // 0 = linear, 1 = in (default), 2 = out
         public int edge;             // 0 = none, 1 = kill, 2 = bounce, 3 = stick
         public float bounciness = 0.5f;
+        // Which point of the sprite sits on the particle position, in normalized quad
+        // coords: 0,0 = center (default), 0,0.5 = bottom edge (Y is down). Also the
+        // point the quad rotates around.
+        public float pivotX;
+        public float pivotY;
         public int sheetCols = 1;    // flipbook grid; 1x1 = no sheet animation
         public int sheetRows = 1;
         public int sheetMode;        // 0 = play once over life, 1 = fixed fps (loops)
@@ -94,7 +99,7 @@ namespace OneJS {
     }
 
     public static class ParticleWire {
-        public const int Version = 3;
+        public const int Version = 4;
         public const int MinVersion = 1;
         public const int MaxParticlesLimit = 100000;
         public const int MaxEmitters = 32;
