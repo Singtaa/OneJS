@@ -21,6 +21,8 @@ namespace OneJS {
     ///
     /// Emitters may override the system texture; particles are then grouped by
     /// texture at repaint so each distinct sprite costs exactly one Allocate.
+    /// An emitter may also treat its texture as a flipbook grid, in which case
+    /// the quad's UVs narrow to one cell chosen from the particle's age.
     /// </summary>
     public class ParticleSystem2D {
         const int MaxQuadsPerAlloc = 16000; // 4 verts/quad under the 65535 ushort limit
@@ -29,7 +31,8 @@ namespace OneJS {
         // MARK: Particle state (SoA, capacity fixed at creation)
         readonly float[] _posX, _posY, _velX, _velY, _life, _lifetime, _size, _aspect, _rot, _angVel;
         readonly int[] _emitterIdx;
-        readonly byte[] _tintIdx; // index into the emitter's tintPalette
+        readonly byte[] _tintIdx;    // index into the emitter's tintPalette
+        readonly byte[] _frameStart; // flipbook start frame (only drawn when sheetRandomStart)
         readonly byte[] _flags;
         int _alive;
         readonly int _max;
@@ -144,6 +147,7 @@ namespace OneJS {
             _angVel = new float[_max];
             _emitterIdx = new int[_max];
             _tintIdx = new byte[_max];
+            _frameStart = new byte[_max];
             _flags = new byte[_max];
 
             _emitters = new EmitterState[doc.emitters.Length];
@@ -477,6 +481,7 @@ namespace OneJS {
                 _rot[i] = _rot[last]; _angVel[i] = _angVel[last];
                 _emitterIdx[i] = _emitterIdx[last];
                 _tintIdx[i] = _tintIdx[last]; _flags[i] = _flags[last];
+                _frameStart[i] = _frameStart[last];
             }
             _alive = last;
         }
@@ -535,6 +540,9 @@ namespace OneJS {
             _tintIdx[i] = cfg.tintPalette != null && cfg.tintPalette.Length > 0
                 ? (byte)(NextFloat() * cfg.tintPalette.Length)
                 : (byte)0;
+            _frameStart[i] = cfg.sheetRandomStart && cfg.sheetFrames > 1
+                ? (byte)(NextFloat() * cfg.sheetFrames)
+                : (byte)0;
         }
 
         float NextFloat() { // xorshift32 -> [0, 1)
@@ -545,6 +553,22 @@ namespace OneJS {
         }
 
         float Range(float min, float max) => min + (max - min) * NextFloat();
+
+        /// <summary>
+        /// Flipbook frame for a particle, given its age. Pure so it can be tested
+        /// without a GPU: mode 0 spreads sheetFrames evenly over the lifetime
+        /// (t is normalized life), mode 1 plays at sheetFps and loops. The result
+        /// is always in 0..sheetFrames-1.
+        /// </summary>
+        public static int SheetFrame(WireEmitter cfg, float life, float t, int startFrame) {
+            int frames = cfg.sheetFrames;
+            if (frames <= 1) return 0;
+            int f = cfg.sheetMode == 1
+                ? (int)(life * cfg.sheetFps) // fixed fps, loops
+                : (int)(t * frames);         // one pass over life
+            f = (f + startFrame) % frames;
+            return f < 0 ? f + frames : f;
+        }
 
         static float Ease(int mode, float t) {
             switch (mode) {
@@ -590,8 +614,6 @@ namespace OneJS {
         /// particle index; null means the run is the alive array itself.
         /// </summary>
         void EmitRun(MeshGenerationContext mgc, int[] order, int start, int count, Texture2D tex, Matrix4x4 inv) {
-            // Raw 0..1 UVs: the renderer remaps into the dynamic atlas region.
-            const float u0 = 0f, v0 = 0f, u1 = 1f, v1 = 1f;
             float z = Vertex.nearZ;
 
             int written = 0;
@@ -615,6 +637,21 @@ namespace OneJS {
 
                     float halfH = _size[i] * EvalFloat(cfg.sizeKeys, t) * 0.5f;
                     float halfW = halfH * _aspect[i];
+
+                    // Raw 0..1 UVs (the renderer remaps them into the dynamic atlas
+                    // region), narrowed to one cell when the emitter uses a flipbook.
+                    float u0 = 0f, v0 = 0f, u1 = 1f, v1 = 1f;
+                    if (cfg.sheetFrames > 1) {
+                        int f = SheetFrame(cfg, _life[i], t, _frameStart[i]);
+                        int col = f % cfg.sheetCols;
+                        int row = f / cfg.sheetCols;
+                        float du = 1f / cfg.sheetCols, dv = 1f / cfg.sheetRows;
+                        u0 = col * du;
+                        u1 = u0 + du;
+                        // Frame 0 is the sheet's top-left; texture V runs bottom-up.
+                        v1 = 1f - row * dv;
+                        v0 = v1 - dv;
+                    }
 
                     Color32 tint;
                     if (_premultiplied) {

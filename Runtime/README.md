@@ -518,7 +518,7 @@ Constructors are intercepted in the zero-alloc fast path (before any string allo
 ## 2D Particle Engine (`Particles/` folder)
 
 C#-owned particle systems rendered inside UI Toolkit elements. JS is a control
-plane only: config crosses once as a versioned wire JSON (`ParticleWire`, v2),
+plane only: config crosses once as a versioned wire JSON (`ParticleWire`, v3),
 imperative tweaks (`SetEmitterPos`, `Burst`, `SetEmitterRate`, ...) are single
 crossings, and steady-state emission costs zero JS work.
 
@@ -553,6 +553,15 @@ crossings, and steady-state emission costs zero JS work.
 - **Per-particle tint** (v2): `tintPalette` (<=16 colors) is sampled at spawn into
   a 1-byte index and *multiplied* into the `colorOverLife` result, so one emitter
   produces multicolored confetti without losing its fade ramp.
+- **Flipbook** (v3): an emitter can treat its texture as a `cols x rows` grid.
+  `ParticleSystem2D.SheetFrame` (public and pure, so it is unit-tested without a
+  GPU) picks the frame from the particle's age - mode 0 spreads `sheetFrames`
+  over the lifetime, mode 1 plays at `sheetFps` and loops - and the renderer
+  narrows the quad's UVs to that cell. Frame 0 is the sheet's top-left; texture V
+  runs bottom-up, so row r maps to `v1 = 1 - r*dv`. `sheetRandomStart` costs one
+  byte per particle and only draws RNG when enabled. `Parse` resolves
+  `sheetFrames` from the grid so JS never duplicates `cols*rows`. A 1x1 grid
+  resolves to a single frame and takes the untouched v2 UV path.
 - **Host ownership**: the system sets `style.unityMaterial` on its host element,
   which replaces the standard UI material for that element's draw. A host that
   also carries `borderWidth`/`borderRadius` therefore loses UIR's analytic
@@ -582,12 +591,12 @@ crossings, and steady-state emission costs zero JS work.
   `QuickJSUIBridge.Dispose()` is the leak safety net. Bursts drop when at
   capacity (`max` is the budget knob).
 
-**Wire versioning**: the parser accepts v1..v2. Every v2 field defaults to its
-v1 behavior, so an older onejs-react keeps working against a newer package; a v2
-document reaching an older package is rejected by the version check rather than
-silently losing the new fields. v2 RNG draws for `aspect`/`tintPalette` are taken
-only when those features are configured, so existing configs keep their exact v1
-particle streams.
+**Wire versioning**: the parser accepts v1..v3. Every added field defaults to the
+previous behavior, so an older onejs-react keeps working against a newer package;
+a newer document reaching an older package is rejected by the version check
+rather than silently losing the new fields. RNG draws added by v2/v3
+(`aspect`, `tintPalette`, `sheetRandomStart`) are taken only when those features
+are configured, so existing configs keep their exact original particle streams.
 
 Tests: `Tests/ParticleTests.cs` (wire parse/validation incl. v1 back-compat,
 deterministic sim, attraction arrival, edge modes against a panel-backed rect,

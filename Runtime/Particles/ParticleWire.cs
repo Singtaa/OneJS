@@ -3,17 +3,18 @@ using UnityEngine;
 
 namespace OneJS {
     /// <summary>
-    /// Wire schema (v2) for the 2D particle engine. This is the C#-JS contract:
+    /// Wire schema (v3) for the 2D particle engine. This is the C#-JS contract:
     /// onejs-react's particles.ts normalizes its ergonomic config (number-or-range
     /// values, hex colors) into this flat, JsonUtility-compatible document. Keep
     /// the two sides in sync - parity fixtures live in particles.test.ts (JS) and
     /// ParticleTests.cs (C#).
     ///
     /// v2 added per-particle aspect, random tint palettes, target attraction and
-    /// edge behavior. Every v2 field defaults to its v1 behavior, so v1 documents
-    /// still parse (a newer OneJS package keeps working with older onejs-react).
-    /// The reverse - a v2 document reaching a v1 parser - is rejected by the
-    /// version check rather than silently dropping the new fields.
+    /// edge behavior. v3 added flipbook (texture sheet) animation. Every added
+    /// field defaults to its previous behavior, so older documents still parse
+    /// (a newer OneJS package keeps working with older onejs-react). The reverse
+    /// - a newer document reaching an older parser - is rejected by the version
+    /// check rather than silently dropping the new fields.
     /// </summary>
     [Serializable]
     public class ParticleWireDoc {
@@ -57,6 +58,12 @@ namespace OneJS {
         public int attractEase;      // 0 = linear, 1 = in (default), 2 = out
         public int edge;             // 0 = none, 1 = kill, 2 = bounce, 3 = stick
         public float bounciness = 0.5f;
+        public int sheetCols = 1;    // flipbook grid; 1x1 = no sheet animation
+        public int sheetRows = 1;
+        public int sheetMode;        // 0 = play once over life, 1 = fixed fps (loops)
+        public float sheetFps = 24f;
+        public int sheetFrames;      // 0 = cols*rows; Parse resolves it to a positive count
+        public bool sheetRandomStart;
         public WireColorKey[] colorKeys;
         public WireFloatKey[] sizeKeys;
         public WireRGBA[] tintPalette; // null/empty = no per-particle tint
@@ -87,12 +94,15 @@ namespace OneJS {
     }
 
     public static class ParticleWire {
-        public const int Version = 2;
+        public const int Version = 3;
         public const int MinVersion = 1;
         public const int MaxParticlesLimit = 100000;
         public const int MaxEmitters = 32;
         public const int MaxCurveKeys = 8;
         public const int MaxPaletteColors = 16;
+        public const int MaxSheetDim = 64;
+        // Random start frames are stored as one byte per particle.
+        public const int MaxSheetFrames = 256;
 
         /// <summary>
         /// Parses and validates a wire document. Throws ArgumentException with a
@@ -136,6 +146,21 @@ namespace OneJS {
                 if (e.tintPalette != null && e.tintPalette.Length > MaxPaletteColors)
                     throw new ArgumentException(
                         $"[OneJS Particles] emitter {i}: tintPalette allows at most {MaxPaletteColors} colors, got {e.tintPalette.Length}.");
+                if (e.sheetCols < 1 || e.sheetCols > MaxSheetDim || e.sheetRows < 1 || e.sheetRows > MaxSheetDim)
+                    throw new ArgumentException(
+                        $"[OneJS Particles] emitter {i}: sheet cols/rows must be 1..{MaxSheetDim}, got {e.sheetCols}x{e.sheetRows}.");
+                if (e.sheetMode < 0 || e.sheetMode > 1)
+                    throw new ArgumentException($"[OneJS Particles] emitter {i}: sheetMode must be 0..1, got {e.sheetMode}.");
+                // Resolve the frame count once so the renderer never has to.
+                int sheetTotal = e.sheetCols * e.sheetRows;
+                if (e.sheetFrames <= 0) e.sheetFrames = sheetTotal;
+                if (e.sheetFrames > sheetTotal)
+                    throw new ArgumentException(
+                        $"[OneJS Particles] emitter {i}: sheetFrames {e.sheetFrames} exceeds the {e.sheetCols}x{e.sheetRows} grid ({sheetTotal} cells).");
+                if (e.sheetFrames > MaxSheetFrames)
+                    throw new ArgumentException(
+                        $"[OneJS Particles] emitter {i}: at most {MaxSheetFrames} sheet frames, got {e.sheetFrames}.");
+                e.sheetFps = Mathf.Max(0.001f, e.sheetFps);
                 e.rate = Mathf.Clamp(e.rate, 0f, 100000f);
                 e.additiveness = Mathf.Clamp01(e.additiveness);
                 e.attractStrength = Mathf.Clamp01(e.attractStrength);

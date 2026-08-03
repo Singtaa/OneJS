@@ -16,9 +16,9 @@ using UnityEngine.UIElements;
 [TestFixture]
 public class ParticleTests {
     // Minimal valid doc - shared fixture shape with particles.test.ts.
-    const string kMinimalDoc = @"{""v"":2,""max"":100,""emitters"":[{""rate"":10}]}";
+    const string kMinimalDoc = @"{""v"":3,""max"":100,""emitters"":[{""rate"":10}]}";
 
-    static string Doc(string emitters, int max = 100, int seed = 0, int space = 0, int v = 2) =>
+    static string Doc(string emitters, int max = 100, int seed = 0, int space = 0, int v = 3) =>
         $@"{{""v"":{v},""max"":{max},""seed"":{seed},""space"":{space},""emitters"":[{emitters}]}}";
 
     // MARK: Wire parsing
@@ -72,9 +72,25 @@ public class ParticleTests {
     }
 
     [Test]
+    public void WireParse_V3Sheet_ResolvesFrameCountFromGrid() {
+        // JS sends 0 and lets C# own cols*rows, so the two sides can't disagree.
+        var e = ParticleWire.Parse(Doc(@"{""sheetCols"":4,""sheetRows"":4}")).emitters[0];
+        Assert.AreEqual(16, e.sheetFrames, "0 should resolve to the full grid");
+
+        var padded = ParticleWire.Parse(Doc(@"{""sheetCols"":4,""sheetRows"":4,""sheetFrames"":13}")).emitters[0];
+        Assert.AreEqual(13, padded.sheetFrames, "an explicit count survives");
+
+        var none = ParticleWire.Parse(Doc(@"{""rate"":1}")).emitters[0];
+        Assert.AreEqual(1, none.sheetCols, "no sheet means a 1x1 grid");
+        Assert.AreEqual(1, none.sheetFrames, "which resolves to a single frame, i.e. the v2 fast path");
+        Assert.AreEqual(24f, none.sheetFps);
+        Assert.IsFalse(none.sheetRandomStart);
+    }
+
+    [Test]
     public void WireParse_RejectsBadDocs() {
         Assert.Throws<ArgumentException>(() => ParticleWire.Parse(null), "empty");
-        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(@"{""v"":3,""max"":10,""emitters"":[{}]}"), "future version");
+        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(@"{""v"":4,""max"":10,""emitters"":[{}]}"), "future version");
         Assert.Throws<ArgumentException>(() => ParticleWire.Parse(@"{""v"":0,""max"":10,""emitters"":[{}]}"), "version too old");
         Assert.Throws<ArgumentException>(() => ParticleWire.Parse(@"{""v"":2,""max"":0,""emitters"":[{}]}"), "max too small");
         Assert.Throws<ArgumentException>(() => ParticleWire.Parse(@"{""v"":2,""max"":10,""emitters"":[]}"), "no emitters");
@@ -85,6 +101,60 @@ public class ParticleTests {
             @"{""sizeKeys"":[{},{},{},{},{},{},{},{},{}]}")), "too many curve keys");
         Assert.Throws<ArgumentException>(() => ParticleWire.Parse(Doc(
             @"{""tintPalette"":[{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}]}")), "too many palette colors");
+        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(Doc(@"{""sheetCols"":0}")), "sheet dim below 1");
+        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(Doc(@"{""sheetRows"":99}")), "sheet dim above the cap");
+        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(Doc(@"{""sheetMode"":5}")), "bad sheet mode");
+        Assert.Throws<ArgumentException>(() => ParticleWire.Parse(Doc(
+            @"{""sheetCols"":2,""sheetRows"":2,""sheetFrames"":9}")), "frame count exceeds the grid");
+    }
+
+    // MARK: Flipbook frame selection (pure, no GPU)
+
+    [Test]
+    public void Sheet_FrameSelection_LifeModeSpreadsFramesOverLifetime() {
+        var cfg = ParticleWire.Parse(Doc(@"{""sheetCols"":4,""sheetRows"":1}")).emitters[0];
+        Assert.AreEqual(4, cfg.sheetFrames);
+        // t is normalized life, so each quarter of the lifetime gets one frame.
+        Assert.AreEqual(0, ParticleSystem2D.SheetFrame(cfg, 0f, 0f, 0));
+        Assert.AreEqual(0, ParticleSystem2D.SheetFrame(cfg, 0f, 0.24f, 0));
+        Assert.AreEqual(1, ParticleSystem2D.SheetFrame(cfg, 0f, 0.25f, 0));
+        Assert.AreEqual(2, ParticleSystem2D.SheetFrame(cfg, 0f, 0.6f, 0));
+        Assert.AreEqual(3, ParticleSystem2D.SheetFrame(cfg, 0f, 0.99f, 0));
+    }
+
+    [Test]
+    public void Sheet_FrameSelection_FpsModeLoopsAndStaysInRange() {
+        var cfg = ParticleWire.Parse(Doc(
+            @"{""sheetCols"":2,""sheetRows"":2,""sheetMode"":1,""sheetFps"":10}")).emitters[0];
+        Assert.AreEqual(4, cfg.sheetFrames);
+        // Sampled mid-frame rather than on the boundary: the frame comes from a
+        // truncation, so life*fps landing exactly on an integer is at the mercy of
+        // float rounding (5.10f*10f is 50.999996, i.e. frame 50, not 51). Being one
+        // frame early for one tick is invisible in an effect, but it makes exact
+        // boundary assertions meaningless.
+        Assert.AreEqual(0, ParticleSystem2D.SheetFrame(cfg, 0.05f, 0f, 0));
+        Assert.AreEqual(2, ParticleSystem2D.SheetFrame(cfg, 0.25f, 0f, 0));
+        Assert.AreEqual(3, ParticleSystem2D.SheetFrame(cfg, 0.35f, 0f, 0));
+        Assert.AreEqual(0, ParticleSystem2D.SheetFrame(cfg, 0.45f, 0f, 0), "wraps after the last frame");
+        Assert.AreEqual(3, ParticleSystem2D.SheetFrame(cfg, 5.15f, 0f, 0), "still in range far into life");
+        for (float life = 0f; life < 3f; life += 0.017f)
+            Assert.That(ParticleSystem2D.SheetFrame(cfg, life, 0f, 0), Is.InRange(0, 3));
+    }
+
+    [Test]
+    public void Sheet_FrameSelection_RandomStartOffsetsWithoutEscapingRange() {
+        var cfg = ParticleWire.Parse(Doc(@"{""sheetCols"":4,""sheetRows"":1}")).emitters[0];
+        Assert.AreEqual(3, ParticleSystem2D.SheetFrame(cfg, 0f, 0f, 3), "offset applies at t=0");
+        Assert.AreEqual(1, ParticleSystem2D.SheetFrame(cfg, 0f, 0.5f, 3), "2 + 3 wraps to 1");
+        for (int start = 0; start < 4; start++)
+            for (float t = 0f; t < 1f; t += 0.05f)
+                Assert.That(ParticleSystem2D.SheetFrame(cfg, 0f, t, start), Is.InRange(0, 3));
+    }
+
+    [Test]
+    public void Sheet_FrameSelection_NoSheetAlwaysFrameZero() {
+        var cfg = ParticleWire.Parse(Doc(@"{""rate"":1}")).emitters[0];
+        Assert.AreEqual(0, ParticleSystem2D.SheetFrame(cfg, 9f, 0.9f, 7), "a 1x1 grid never animates");
     }
 
     // MARK: Simulation
@@ -546,6 +616,66 @@ public class ParticleTests {
         // a=1 texels replace it. Same sprite, same particle, same draw call.
         Assert.AreEqual(51, additive.r, 6, "a=0 texels must ADD (background red survives)");
         Assert.Less(occluding.r, 12, "a=1 texels must OCCLUDE (background red replaced)");
+    }
+
+    /// <summary>
+    /// Flipbook: the quad's UVs narrow to one cell of the sheet, chosen from the
+    /// particle's age. Two frames side by side (red, then green) let a readback
+    /// prove the frame actually advances rather than sampling the whole sheet.
+    /// </summary>
+    [UnityTest]
+    public IEnumerator Render_Sheet_AdvancesFrameOverLife() {
+        LogAssert.ignoreFailingMessages = true;
+        const int W = 256, H = 256;
+        const int CX = W / 2, CY = H / 2;
+
+        // 2x1 sheet: frame 0 red (left cell), frame 1 green (right cell).
+        var sheet = new Texture2D(64, 32, TextureFormat.RGBA32, false) {
+            filterMode = FilterMode.Point,
+            wrapMode = TextureWrapMode.Clamp,
+        };
+        var px = new Color32[64 * 32];
+        for (int y = 0; y < 32; y++)
+            for (int x = 0; x < 64; x++)
+                px[y * 64 + x] = x < 32 ? new Color32(255, 0, 0, 255) : new Color32(0, 255, 0, 255);
+        sheet.SetPixels32(px);
+        sheet.Apply(false, false);
+
+        var ph = PanelHost.Create(W, H);
+        ph.AddRect(W, H, new Color(0f, 0f, 0.2f, 1f));
+        var host = ph.AddRect(W, H);
+        yield return null;
+
+        // lifetime 1s, 2 frames over life: frame 0 while t < 0.5, frame 1 after.
+        var sys = ParticleBridge.Create(host, Doc(
+            @"{""rate"":0,""speedMin"":0,""speedMax"":0,""lifeMin"":1,""lifeMax"":1,
+               ""sizeMin"":90,""sizeMax"":90,""additiveness"":0,
+               ""sheetCols"":2,""sheetRows"":1,
+               ""colorKeys"":[{""t"":0,""r"":1,""g"":1,""b"":1,""a"":1}]}", max: 8), sheet);
+
+        // Two particles of different ages in ONE frame, rather than one particle
+        // read twice: batchmode never evokes WaitForEndOfFrame, so a second
+        // readback would just re-read the first render.
+        const int LEFT = 64, RIGHT = 192;
+        sys.Burst(0, LEFT, CY, 1);                                   // ages to t ~ 0.6
+        for (int i = 0; i < 36; i++) { sys.Tick(1f / 60f); yield return null; }
+        sys.Burst(0, RIGHT, CY, 1);                                  // fresh, t ~ 0
+        sys.Tick(1f / 60f);
+        yield return null;
+        yield return null;
+
+        var older = ph.ReadPixel(LEFT, CY);
+        var fresh = ph.ReadPixel(RIGHT, CY);
+        Debug.Log($"[ParticleSheet] older=({older.r},{older.g},{older.b}) fresh=({fresh.r},{fresh.g},{fresh.b})");
+
+        sys.Dispose();
+        ph.Destroy();
+        UnityEngine.Object.DestroyImmediate(sheet);
+
+        Assert.Greater(fresh.r, 150, "a fresh particle samples frame 0 (red)");
+        Assert.Less(fresh.g, 60, "frame 0 is not green");
+        Assert.Greater(older.g, 150, "past half life it samples frame 1 (green)");
+        Assert.Less(older.r, 60, "frame 1 is not red");
     }
 
     [UnityTest]

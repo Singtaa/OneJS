@@ -1,6 +1,6 @@
 {
     "name": "com.singtaa.onejs",
-    "version": "3.0.8",
+    "version": "3.0.9",
     "displayName": "OneJS",
     "description": "JavaScript runtime for Unity UI Toolkit. Write UI with React and TypeScript, render natively through Unity's GPU-accelerated UI system.",
     "unity": "6000.3",
