@@ -39,6 +39,7 @@ namespace OneJS.ShaderFX {
         // can set them before the shader/material exists.
         readonly Dictionary<string, float> _floats = new Dictionary<string, float>();
         readonly Dictionary<string, Vector4> _vectors = new Dictionary<string, Vector4>();
+        readonly Dictionary<string, Vector4[]> _vectorArrays = new Dictionary<string, Vector4[]>();
         readonly Dictionary<string, Texture> _textures = new Dictionary<string, Texture>();
 
         int _resW, _resH;      // 0 = follow the element's layout
@@ -71,6 +72,23 @@ namespace OneJS.ShaderFX {
         public void SetVector(string name, float x, float y, float z, float w) => _vectors[name] = new Vector4(x, y, z, w);
         public void SetColor(string name, float r, float g, float b, float a) => _vectors[name] = new Vector4(r, g, b, a);
         public void SetTexture(string name, Texture tex) => _textures[name] = tex;
+
+        /// <summary>
+        /// Sets a float4 array uniform from a flat array of 4*n floats. Layer stacks
+        /// cross as one flat array rather than n separate calls, so a whole effect
+        /// description is a couple of crossings regardless of how many layers it has.
+        /// </summary>
+        public void SetVectorArray(string name, float[] flat) {
+            if (flat == null || flat.Length == 0 || flat.Length % 4 != 0) {
+                Debug.LogWarning($"[OneJS ShaderFX] \"{name}\" needs a flat array of 4 floats per element, got {flat?.Length ?? 0}.");
+                return;
+            }
+            int n = flat.Length / 4;
+            var arr = new Vector4[n];
+            for (int i = 0; i < n; i++)
+                arr[i] = new Vector4(flat[i * 4], flat[i * 4 + 1], flat[i * 4 + 2], flat[i * 4 + 3]);
+            _vectorArrays[name] = arr;
+        }
 
         /// <summary>Named built-in procedural texture, so effects need ship no assets.</summary>
         public void SetBuiltinTexture(string name, string builtin) {
@@ -117,6 +135,7 @@ namespace OneJS.ShaderFX {
 
             foreach (var kv in _floats) _material.SetFloat(kv.Key, kv.Value);
             foreach (var kv in _vectors) _material.SetVector(kv.Key, kv.Value);
+            foreach (var kv in _vectorArrays) _material.SetVectorArray(kv.Key, kv.Value);
             foreach (var kv in _textures) if (kv.Value != null) _material.SetTexture(kv.Key, kv.Value);
 
             var prev = RenderTexture.active;
