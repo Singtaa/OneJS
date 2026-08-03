@@ -46,11 +46,20 @@ namespace OneJS {
 
         /// <summary>Advances all live systems. Safe to call from multiple bridges per frame.</summary>
         public static void TickAll() {
-            double now = Time.realtimeSinceStartupAsDouble;
+            double now = VirtualClock.RealtimeSeconds;
             float dt = (float)(now - s_LastTick);
+            // The clock can step backwards when an offline renderer hands control
+            // back to engine realtime after rendering faster than wall time. Resync
+            // instead of stalling until realtime catches up.
+            if (dt < 0f) {
+                s_LastTick = now;
+                return;
+            }
             if (dt <= 0.0005f) return; // second bridge ticking the same frame
             s_LastTick = now;
-            if (dt > 0.05f) dt = 0.05f; // first tick / editor hitches
+            // Under a virtual clock dt is exactly what the renderer asked for, so
+            // the hitch clamp would silently slow particles at low frame rates.
+            if (dt > 0.05f && !VirtualClock.IsActive) dt = 0.05f; // first tick / editor hitches
 
             for (int i = s_Systems.Count - 1; i >= 0; i--) {
                 var sys = s_Systems[i];

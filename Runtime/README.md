@@ -25,6 +25,7 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `FileSystem.cs` | File system access for runtime loading (readTextFile, writeTextFile, etc.) |
 | `AssetLoader.cs` | Async resource loading (loadResourceAsync) wrapping Resources.LoadAsync |
 | `SourceMapParser.cs` | Parses source maps for error stack trace translation |
+| `VirtualClock.cs` | Deterministic stand-in for engine realtime; lets an offline renderer frame-step the UI (see below) |
 | `UICartridge.cs` | Cartridge system for packaged UI modules |
 | `CartridgeTypeGenerator.cs` | Generates TypeScript declarations for cartridge types |
 | `CartridgeUtils.cs` | Shared cartridge utilities used by JSRunner and JSPad |
@@ -592,6 +593,31 @@ Tests: `Tests/ParticleTests.cs` (wire parse/validation incl. v1 back-compat,
 deterministic sim, attraction arrival, edge modes against a panel-backed rect,
 texture grouping, imperative API semantics, and RT-readback render smoke tests
 that verify the additive path and the non-square quad basis end to end).
+
+## VirtualClock (deterministic time)
+
+`VirtualClock` is a stand-in for `Time.realtimeSinceStartupAsDouble`. Inactive by
+default, so play mode and edit-mode preview are untouched. While active, time only
+moves when `Advance()` is called, which lets an offline renderer step the UI by an
+exact frame interval regardless of how long a frame took to draw.
+
+Every time-dependent subsystem reads `VirtualClock.RealtimeSeconds` rather than
+Unity's clock directly:
+
+| Reader | What it drives |
+|--------|----------------|
+| `QuickJSUIBridge.Tick()` | the timestamp handed to `__tick`, and therefore every `requestAnimationFrame` callback, JS timer and React scheduler wake-up |
+| `ParticleBridge.TickAll()` | particle `dt` |
+
+UI Toolkit's own panel clock (USS transitions, the panel scheduler) is separate and
+lives outside OneJS. `Editor/Recording/OffscreenPanelRenderer` redirects it per panel
+for the duration of a recording so transitions stay in lockstep.
+
+Callers must pair `Begin()` with `End()` in a `finally`. A leaked active clock
+freezes every animation in the editor until the next domain reload, which is hard to
+diagnose from the symptom. Two related guards live in `ParticleBridge.TickAll`: a
+backwards clock step resyncs the baseline instead of stalling, and the hitch clamp is
+skipped while the clock is virtual (dt is then exactly what the renderer asked for).
 
 ## Stability & Monitoring
 

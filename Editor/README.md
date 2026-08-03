@@ -19,6 +19,9 @@ Editor scripts for OneJS Unity integration.
 | `CartridgeFileEntryDrawer.cs` | Property drawer for cartridge file entries |
 | `CartridgeObjectEntryDrawer.cs` | Property drawer for cartridge object entries |
 | `CodeFieldTestWindow.cs` | Editor window for testing CodeField control |
+| `Recording/PanelRecorder.cs` | Renders a running JSRunner's UI to an mp4 by frame-stepping it on `VirtualClock` (see below) |
+| `Recording/OffscreenPanelRenderer.cs` | Draws a PanelSettings' panel into an offscreen RenderTexture at an exact size |
+| `Recording/FfmpegLocator.cs` | Locates ffmpeg (well-known paths, then login shell) |
 | `TypeGenerator/` | TypeScript declaration generator (see [TypeGenerator/README.md](TypeGenerator/README.md)) |
 
 ## JSRunnerEditor
@@ -210,6 +213,49 @@ Centralized design tokens for all OneJS editor UIs (`OneJSEditorDesign.cs`). Pro
 - **`Texts`** - Repeated string labels (status, actions, tabs, section headers, empty states, watcher labels)
 
 All editor scripts (JSRunnerEditor, JSPadEditor, UICartridgeEditor) reference these tokens instead of hardcoding colors or text strings. This ensures visual consistency and makes theme changes a single-file edit.
+
+## Recording (`Recording/` folder)
+
+Renders a running JSRunner's UI straight to an mp4, for docs and demos.
+
+```csharp
+var runner = Object.FindAnyObjectByType<JSRunner>();
+PanelRecorder.Record(runner, new PanelRecordingOptions {
+    Width = 1280, Height = 720, Fps = 60, DurationSeconds = 5.0,
+    OutputPath = "/abs/path/demo.mp4",
+});
+```
+
+Nothing is captured from the screen. Frames come from an offscreen RenderTexture, so
+output is exact-sized, free of editor chrome, unaffected by window occlusion or the
+cursor, needs no OS screen-recording permission, and is identical on macOS and
+Windows. Requires ffmpeg on the machine (`brew install ffmpeg`).
+
+The run steps `VirtualClock` by exactly `1/Fps` per frame, so frame N always lands on
+virtual time `N/Fps`: duration and frame count come out exact no matter how slow
+rendering is, and rendering is normally far faster than realtime (10s of footage in
+well under a second). This pins *timing*, not app state, so successive clips only
+match if the UI itself is deterministic. Anything driven by RNG (particles) or by
+carried-over React state is not.
+
+`Record` is synchronous and blocks the editor, which keeps stepping exact (nothing
+else can tick the bridge mid-run); a cancelable progress bar keeps it from looking
+hung. On cancel it throws `OperationCanceledException` and removes the partial file.
+The clock, the panel's render target and its transition clock are all restored in a
+`finally`, so a mid-run failure cannot leave the editor frozen.
+
+Encoding is H.264 / yuv420p with `+faststart`, which is what browsers need to
+autoplay inline and to begin playback before the file finishes downloading.
+
+`Width`/`Height` are the *capture* size, which with a ConstantPixelSize PanelSettings
+also decides how much of the UI is in frame, not just the resolution. `OutputWidth`/
+`OutputHeight` set the encoded size; making them smaller supersamples (render at
+1920x1080, encode at 1280x720) for cleaner text and particle edges at a smaller file.
+
+Note when driving this from the Unity MCP `unity_eval` tool: a long recording can
+outrun the MCP request timeout and return "fetch failed" even though the editor
+finished the job and wrote the file. Check for the output rather than re-running, or
+the second run will silently overwrite the first.
 
 ## Templates
 

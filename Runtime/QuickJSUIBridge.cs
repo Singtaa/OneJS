@@ -363,7 +363,10 @@ public class QuickJSUIBridge : IDisposable {
             QuickJSNative.ProcessCompletedTasks(_ctx);
             WebSocketBridge.ProcessEvents(_ctx, _wsContextId);
 
-            float timestamp = (Time.realtimeSinceStartup - _startTime) * 1000f;
+            // Reads engine realtime unless an offline renderer has taken the clock
+            // over, in which case it advances by an exact frame interval instead.
+            // This one value feeds every rAF callback, JS timer and transition.
+            float timestamp = (float)((VirtualClock.RealtimeSeconds - _startTime) * 1000.0);
 
             if (_tickCallbackHandle >= 0) {
                 // Zero-allocation path: invoke cached callback directly
