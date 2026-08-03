@@ -285,7 +285,12 @@ and `Duration` is the total so `DurationSeconds` can be derived from it (the
 recorder warns rather than silently truncating if the track is longer).
 
 Available: `StartAt`, `MoveTo`, `Wait`, `Click`, `Press`, `Release`, `DragTo`,
-`Scroll`, `Type`, `Key`.
+`Scroll`, `Type`, `Key`, `NavigateNext`, `NavigatePrevious`, `Navigate`.
+
+Focus movement rides `NavigationMoveEvent`, not the Tab key: `Key(KeyCode.Tab)`
+leaves focus exactly where it was, so use `NavigateNext` to walk a focus ring.
+Note also that a `TextField` consumes navigation events to move its caret, so
+focus entering one never leaves.
 
 Input is delivered as genuine UI Toolkit events via `VisualElement.SendEvent`,
 so `:hover` and `:active` styling, focus rings, ScrollView scrolling and every
