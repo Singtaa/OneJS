@@ -29,6 +29,7 @@ Tests/
 │   ├── OneJS.Tests.Editor.asmdef
 │   ├── JSRunnerBuildProcessorTests.cs
 │   ├── CartridgeUtilsTests.cs
+│   ├── PremadeCartridgeTests.cs # Validates the shipped Premade/ cartridge assets
 │   └── BuildValidationTests.cs
 ├── BuildValidation/             # Standalone build testing
 │   ├── BuildValidationRunner.cs
@@ -67,6 +68,8 @@ Tests/
 | `ProcTexturePlaymodeTests.cs` | PlayMode | Procedural texture generation (checkerboard, gradient) |
 | `CartridgeUtilsPlaymodeTests.cs` | PlayMode | Cartridge global injection, platform defines, `__cart()` API |
 | `CartridgeUtilsTests.cs` | EditMode | String escaping, path calculation, file extraction, stylesheets |
+| `PremadeCartridgeTests.cs` | EditMode | The shipped `Assets/Singtaa/Premade/` cartridge **assets**: metadata completeness, path-safe slugs, unique identities, resolvable payloads, extraction round-trip |
+| `ShaderFXTests.cs` | PlayMode | ShaderFX render-target lifecycle against real layout, uniform marshalling, ramp/texture caching |
 | `JSRunnerBuildProcessorTests.cs` | EditMode | Asset copying, namespace detection |
 | `BuildValidationTests.cs` | EditMode | Full build + run validation (slow) |
 
