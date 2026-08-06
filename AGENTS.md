@@ -14,10 +14,10 @@ OneJS runs React 19 + TypeScript UIs inside Unity. TSX compiles with esbuild int
 Package Manager: `+` > Add package from git URL:
 
 ```
-https://github.com/Singtaa/OneJS.git#onejs-v3
+https://github.com/Singtaa/OneJS.git
 ```
 
-Or clone into Assets: `git clone -b onejs-v3 https://github.com/Singtaa/OneJS.git`. Package id: `com.singtaa.onejs`. No other Unity packages or scoped registries required.
+Or clone into Assets: `git clone https://github.com/Singtaa/OneJS.git`. Package id: `com.singtaa.onejs`. No other Unity packages or scoped registries required.
 
 ## Project setup
 

@@ -26,12 +26,12 @@ V3 requires Unity 6.3+. For older Unity versions, use the `main` branch (V2).
 
 1. Open Window > Package Manager
 2. Click + > Add package from git URL
-3. Enter: `https://github.com/Singtaa/OneJS.git#onejs-v3`
+3. Enter: `https://github.com/Singtaa/OneJS.git`
 
 **Manual:**
 
 ```bash
-git clone -b onejs-v3 https://github.com/Singtaa/OneJS.git Assets/OneJS
+git clone https://github.com/Singtaa/OneJS.git Assets/OneJS
 ```
 
 ## Quick Start
