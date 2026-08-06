@@ -36,7 +36,11 @@ jobs:
       # straight into Plugins/Linux/x64), then activate the parked meta.
       - name: Build Linux QuickJS native library
         run: |
-          bash "Auxiliary~/quickjs-unity/build-linux.sh"
+          # Built inside ubuntu:22.04 so the .so links against a glibc no newer
+          # than the unityci test container's (the runner's 24.04 glibc is not
+          # available in there).
+          docker run --rm -v "$PWD":/repo -w /repo ubuntu:22.04 bash -c \
+            "apt-get update -qq && apt-get install -y -qq gcc make > /dev/null && bash Auxiliary~/quickjs-unity/build-linux.sh"
           mv Plugins/Linux/x64/libquickjs_unity.so.meta.txt Plugins/Linux/x64/libquickjs_unity.so.meta
           rm -f Plugins/Linux/x64/libquickjs_unity.so.meta.txt.meta
 
