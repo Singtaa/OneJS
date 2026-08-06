@@ -1,3 +1,8 @@
+# [2026-08-06] v3.1.1
+
+- Fixed legacy Input Manager compile break: FastPath's `UnityEngine.Input` registrations resolved against the new `OneJS.Input` namespace in projects with the legacy input manager enabled
+- Added GitHub CI: EditMode + PlayMode suites on every push and PR
+
 # [2026-08-06] v3.1.0 - OneJS V3 🥳🎉
 
 ## Major Changes

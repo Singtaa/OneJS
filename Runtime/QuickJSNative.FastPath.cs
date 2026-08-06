@@ -691,17 +691,17 @@ namespace OneJS {
             FastPath.Property<GameObject, Transform>("transform", g => g.transform);
 
 #if ENABLE_LEGACY_INPUT_MANAGER
-            FastPath.StaticProperty<UnityEngine.Input, Vector3>("mousePosition", () => Input.mousePosition);
-            FastPath.StaticProperty<UnityEngine.Input, bool>("anyKey", () => Input.anyKey);
-            FastPath.StaticProperty<UnityEngine.Input, bool>("anyKeyDown", () => Input.anyKeyDown);
-            FastPath.StaticMethod<UnityEngine.Input, string, bool>("GetKey", Input.GetKey);
-            FastPath.StaticMethod<UnityEngine.Input, string, bool>("GetKeyDown", Input.GetKeyDown);
-            FastPath.StaticMethod<UnityEngine.Input, string, bool>("GetKeyUp", Input.GetKeyUp);
-            FastPath.StaticMethod<UnityEngine.Input, int, bool>("GetMouseButton", Input.GetMouseButton);
-            FastPath.StaticMethod<UnityEngine.Input, int, bool>("GetMouseButtonDown", Input.GetMouseButtonDown);
-            FastPath.StaticMethod<UnityEngine.Input, int, bool>("GetMouseButtonUp", Input.GetMouseButtonUp);
-            FastPath.StaticMethod<UnityEngine.Input, string, float>("GetAxis", Input.GetAxis);
-            FastPath.StaticMethod<UnityEngine.Input, string, float>("GetAxisRaw", Input.GetAxisRaw);
+            FastPath.StaticProperty<UnityEngine.Input, Vector3>("mousePosition", () => UnityEngine.Input.mousePosition);
+            FastPath.StaticProperty<UnityEngine.Input, bool>("anyKey", () => UnityEngine.Input.anyKey);
+            FastPath.StaticProperty<UnityEngine.Input, bool>("anyKeyDown", () => UnityEngine.Input.anyKeyDown);
+            FastPath.StaticMethod<UnityEngine.Input, string, bool>("GetKey", UnityEngine.Input.GetKey);
+            FastPath.StaticMethod<UnityEngine.Input, string, bool>("GetKeyDown", UnityEngine.Input.GetKeyDown);
+            FastPath.StaticMethod<UnityEngine.Input, string, bool>("GetKeyUp", UnityEngine.Input.GetKeyUp);
+            FastPath.StaticMethod<UnityEngine.Input, int, bool>("GetMouseButton", UnityEngine.Input.GetMouseButton);
+            FastPath.StaticMethod<UnityEngine.Input, int, bool>("GetMouseButtonDown", UnityEngine.Input.GetMouseButtonDown);
+            FastPath.StaticMethod<UnityEngine.Input, int, bool>("GetMouseButtonUp", UnityEngine.Input.GetMouseButtonUp);
+            FastPath.StaticMethod<UnityEngine.Input, string, float>("GetAxis", UnityEngine.Input.GetAxis);
+            FastPath.StaticMethod<UnityEngine.Input, string, float>("GetAxisRaw", UnityEngine.Input.GetAxisRaw);
 #endif
 
             // Screen
