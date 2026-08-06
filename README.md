@@ -1,24 +1,44 @@
 # OneJS
 
-JavaScript runtime for Unity UI Toolkit. Write UI with React and TypeScript, render natively through Unity's GPU-accelerated UI system.
+[![CI](https://github.com/Singtaa/OneJS/actions/workflows/ci.yml/badge.svg)](https://github.com/Singtaa/OneJS/actions/workflows/ci.yml)
 
-## V3 vs V2
+Build Unity UIs with React 19 and TypeScript, rendered natively through UI Toolkit. No browser, no webview, no DOM.
 
-This is the V3 branch. Key changes from V2:
+```tsx
+import { useState } from "react"
+import { render, View, Text, Button } from "onejs-react"
+import "onejs:tailwind"
 
-| | V2 | V3 |
-|---|---|---|
-| UI Framework | Preact | React 19 |
-| JS Engine | PuerTS | QuickJS |
-| Setup | Manual UIDocument/PanelSettings | One-click (Initialize Project) |
-| Styling | USS only | USS + CSS Modules + Tailwind |
+function App() {
+    const [count, setCount] = useState(0)
+    return (
+        <View className="p-4">
+            <Text text={`Count: ${count}`} className="text-lg" />
+            <Button text="+1" onClick={() => setCount(c => c + 1)} />
+        </View>
+    )
+}
 
-V3 requires Unity 6.3+. For older Unity versions, use the `main` branch (V2).
+render(<App />, __root)
+```
+
+Save the file and the UI hot-reloads in the editor, in both Edit mode and Play mode.
+
+## Highlights
+
+- **React 19 + TypeScript** with esbuild bundling and npm packages
+- **Hot reload** that works without entering Play mode (edit-mode preview)
+- **One-click setup**: add `JSRunner`, click Initialize Project, start coding
+- **Styling three ways**: USS, CSS Modules, and a built-in Tailwind-style JIT generator (no npm dependency)
+- **Full C# interop**: reach any C# type from JS, with zero-alloc fast paths for per-frame data
+- **Batteries included**: 2D particles, GPU compute bridge, vector drawing, `fetch`, `WebSocket`, `localStorage`
+- **Runs everywhere**: QuickJS on desktop, mobile, and consoles; the browser's own JIT engine on WebGL
+- **Moddable games**: players can extend your UI with TypeScript and JSX
 
 ## Requirements
 
 - Unity 6.3+
-- Node.js 18+
+- Node.js 18+ (development machine only)
 
 ## Installation
 
@@ -34,126 +54,69 @@ V3 requires Unity 6.3+. For older Unity versions, use the `main` branch (V2).
 git clone https://github.com/Singtaa/OneJS.git Assets/OneJS
 ```
 
+The Asset Store package (linked from [onejs.com](https://onejs.com)) bundles this runtime with premade themes (Pixel, Kawaii, Sketch) and effect packs.
+
 ## Quick Start
 
 1. Add the `JSRunner` component to a GameObject in a saved scene
 2. Click **Initialize Project** in the inspector (or just enter Play mode - first-run setup happens automatically)
 
-That's it. JSRunner creates PanelSettings, a UIDocument template, and a working directory next to your scene, scaffolds a starter React app, then runs `npm install` and `npm run build` for you. The starter UI renders in the Game view immediately, no Play mode needed (edit-mode preview).
-
-The editor manages the esbuild watcher for you: during Play mode and edit-mode preview, saving a source file rebuilds the bundle and OneJS hot-reloads the UI. You can also run `npm run watch` in the working directory manually for terminal workflows.
-
-## Project Layout
-
-Created by Initialize Project, next to your scene:
+JSRunner creates PanelSettings, scaffolds a starter React app next to your scene, runs `npm install` and `npm run build`, and starts rendering in the Game view immediately. The editor manages the esbuild watcher from there: save a file, see the change.
 
 ```
 Assets/Scenes/Level1.unity            # Your scene
 Assets/Scenes/Level1/App/             # App = the GameObject's name
-├── ~/                                # Working directory (~ = ignored by Unity)
+├── ~/                                # TS/TSX source (~ = ignored by Unity)
 │   ├── index.tsx                     # Entry point
-│   ├── package.json, tsconfig.json, esbuild.config.mjs
-│   └── styles/, types/
+│   └── package.json, tsconfig.json, esbuild.config.mjs
 ├── PanelSettings.asset               # Project marker, assigned to JSRunner
-├── UIDocument.uxml
-└── app.js.txt                        # Built bundle (esbuild output)
+└── app.js.txt                        # Built bundle
 ```
 
-The folder containing the assigned PanelSettings asset is the project's identity: the bundle is always loaded from `{that folder}/app.js.txt`. Move the folder and everything moves with it.
+## C# Interop
 
-## JSRunner Inspector
+```tsx
+// ES6 imports of C# namespaces (rewritten at build time)
+import { GameObject, Vector3, Debug } from "UnityEngine"
 
-| Field | Purpose |
-|-------|---------|
-| Panel Settings | The project marker (required; created and assigned by Initialize Project) |
-| Live Reload | Watch the built bundle and hot-reload on change (default on) |
-| Default Files | Templates used for scaffolding |
-| Stylesheets | USS applied on init/reload |
-| Preloads | Scripts eval'd before the entry bundle |
-| Globals | Objects exposed as `globalThis[key]` |
-| Typing Assemblies | C# assemblies to generate TypeScript declarations for |
+Debug.Log("Hello from JS")
+const go = new GameObject("MyObject")
+go.transform.position = new Vector3(0, 1, 0)
 
-## Features
+// Or reach anything directly through the CS proxy
+CS.MyGame.Bridge.Instance.StartWave(3)
 
-**Runtime**
-- QuickJS engine (interpreter, works on iOS/consoles where JIT is prohibited)
-- WebGL uses browser's native JS engine (V8/SpiderMonkey with JIT)
-- Full C# interop via `CS` global proxy
-- Async/await support (C# Tasks become JS Promises)
-
-**Development**
-- Live reload (watches the built bundle, hot-reloads the context)
-- One-click setup (Initialize Project scaffolds everything)
-- Edit-mode preview (UI renders without Play mode)
-- TypeScript, JSX, CSS Modules, Tailwind CSS
-
-**Web APIs**
-- `fetch()` using UnityWebRequest
-- `localStorage` / `sessionStorage` using PlayerPrefs
-- `URL` / `URLSearchParams`
-- `atob()` / `btoa()`
-- `setTimeout`, `setInterval`, `requestAnimationFrame`
-
-**Build Support**
-- JS bundle embedded as a TextAsset automatically during builds (no StreamingAssets step)
-- Optional source map TextAsset for error translation
-- Works on Desktop, Mobile, WebGL
-
-## Project Structure
-
+// C# Tasks become JS Promises
+const data = await CS.MyGame.Api.GetDataAsync()
 ```
-OneJS/
-├── Runtime/
-│   ├── JSRunner.cs              # Main entry point
-│   ├── JSPad.cs                 # Inline TSX runner (no external files)
-│   ├── QuickJSContext.cs        # Managed QuickJS wrapper
-│   ├── QuickJSUIBridge.cs       # UI Toolkit integration
-│   ├── QuickJSNative*.cs        # P/Invoke layer (partials)
-│   ├── Network.cs               # Fetch API implementation
-│   ├── GPU/                     # Compute shader bridge
-│   └── Particles/               # 2D particle engine
-├── Editor/
-│   ├── JSRunnerEditor.cs        # Custom inspector
-│   ├── JSPadEditor.cs           # JSPad inspector
-│   ├── JSRunnerBuildProcessor.cs # Build automation
-│   └── Templates/               # Scaffolding templates
-├── Plugins/                     # Native QuickJS libs (Windows/macOS/Linux/Android/iOS) + WebGL jslib
-├── Resources/
-│   └── OneJS/QuickJSBootstrap.js.txt  # JS runtime (CS proxy, events, scheduling)
-└── Tests/                       # Unity PlayMode tests
-```
+
+For per-frame data, zero-alloc fast paths avoid reflection entirely: see the [state sync](https://onejs.com/docs/guides/state-sync) and [zero-alloc](https://onejs.com/docs/guides/zero-alloc) guides.
 
 ## Platform Support
 
 | Platform | JS Engine | Notes |
 |----------|-----------|-------|
-| Editor | QuickJS | Live reload + edit-mode preview |
-| Windows/Mac/Linux | QuickJS | Bundle embedded as TextAsset |
-| iOS | QuickJS | Static linking |
+| Editor | QuickJS | Hot reload + edit-mode preview |
+| Windows / macOS / Linux | QuickJS | Bundle embedded as TextAsset |
+| iOS | QuickJS | Static linking (JIT-free) |
 | Android | QuickJS | Bundle embedded as TextAsset |
 | WebGL | Browser JS | Full JIT, native performance |
 
-## C# Interop
+## Coming from V2?
 
-```javascript
-// Access any C# type
-CS.UnityEngine.Debug.Log("Hello from JS")
+V2 lives on the [`onejs-v2`](https://github.com/Singtaa/OneJS/tree/onejs-v2) branch and still works on Unity 2021.3+. What changed in V3:
 
-// Create instances
-var go = new CS.UnityEngine.GameObject("MyObject")
-
-// Generics
-var List = CS.System.Collections.Generic.List(CS.System.Int32)
-var list = new List()
-list.Add(42)
-
-// Async
-var result = await CS.MyClass.GetDataAsync()
-```
+| | V2 | V3 |
+|---|---|---|
+| UI framework | Preact | React 19 |
+| JS engine | PuerTS (QuickJS / V8 / NodeJS) | Purpose-built QuickJS core |
+| Setup | Manual UIDocument / PanelSettings | One-click Initialize Project |
+| Tailwind | Via PostCSS toolchain | Built in, no npm dependency |
+| Preview | Play mode | Edit-mode preview + Play mode |
 
 ## Documentation
 
-Full documentation: https://onejs.com/docs
+Full documentation and tutorials: https://onejs.com
 
 **AI agents:** read [AGENTS.md](AGENTS.md) for a condensed, agent-oriented guide to working with OneJS.
 
