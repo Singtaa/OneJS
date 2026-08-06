@@ -27,6 +27,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The QuickJS engine sources are submodules under Auxiliary~.
+          submodules: recursive
 
       # The repo ships no Linux native library, only a parked .meta reserving
       # the GUID. Build it from the vendored QuickJS source (the script installs
