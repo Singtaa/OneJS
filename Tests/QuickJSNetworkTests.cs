@@ -1,4 +1,10 @@
+using System;
 using System.Collections;
+using System.IO;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using System.Threading;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -8,14 +14,44 @@ using UnityEngine.UIElements;
 namespace OneJS.Tests {
     /// <summary>
     /// Tests for the fetch API implementation.
-    /// Uses httpbin.org for real network requests.
+    /// Hermetic: a loopback HttpListener serves canned httpbin-style responses, so the
+    /// suite needs no internet and cannot flake on third-party outages. Requests still
+    /// go through the full UnityWebRequest fetch path.
+    /// Plain HTTP to the loopback server requires the insecure-HTTP player setting;
+    /// IPrebuildSetup flips it before the run and IPostBuildCleanup restores it.
     /// </summary>
     [TestFixture]
-    public class QuickJSNetworkTests {
+    public class QuickJSNetworkTests : IPrebuildSetup, IPostBuildCleanup {
+        const string SavedHttpOptionKey = "OneJS.NetworkTests.SavedInsecureHttpOption";
+
         GameObject _go;
         UIDocument _uiDocument;
         PanelSettings _panelSettings;
         QuickJSUIBridge _bridge;
+        static LocalHttpServer _server;
+
+        public void Setup() {
+            // Editor-side, before entering Play mode for the test run.
+            SessionState.SetInt(SavedHttpOptionKey, (int)PlayerSettings.insecureHttpOption);
+            PlayerSettings.insecureHttpOption = InsecureHttpOption.AlwaysAllowed;
+        }
+
+        public void Cleanup() {
+            PlayerSettings.insecureHttpOption =
+                (InsecureHttpOption)SessionState.GetInt(SavedHttpOptionKey, (int)InsecureHttpOption.NotAllowed);
+            SessionState.EraseInt(SavedHttpOptionKey);
+        }
+
+        [OneTimeSetUp]
+        public void FixtureSetUp() {
+            _server = new LocalHttpServer();
+        }
+
+        [OneTimeTearDown]
+        public void FixtureTearDown() {
+            _server?.Dispose();
+            _server = null;
+        }
 
         [UnitySetUp]
         public IEnumerator SetUp() {
@@ -35,6 +71,7 @@ namespace OneJS.Tests {
 
             var root = _uiDocument.rootVisualElement;
             _bridge = new QuickJSUIBridge(root);
+            _bridge.Eval($"globalThis.__testBase = \"{_server.BaseUrl}\";");
 
             yield return null;
         }
@@ -44,8 +81,8 @@ namespace OneJS.Tests {
             _bridge?.Dispose();
             _bridge = null;
 
-            if (_go != null) Object.Destroy(_go);
-            if (_panelSettings != null) Object.Destroy(_panelSettings);
+            if (_go != null) UnityEngine.Object.Destroy(_go);
+            if (_panelSettings != null) UnityEngine.Object.Destroy(_panelSettings);
 
             QuickJSNative.ClearAllHandles();
             yield return null;
@@ -132,11 +169,10 @@ namespace OneJS.Tests {
 
         [UnityTest]
         public IEnumerator Fetch_SimpleGet_ReturnsResponse() {
-            // Use httpbin.org for testing
             _bridge.Eval(@"
                 globalThis.__fetchTestDone = false;
                 globalThis.__fetchTestResult = null;
-                fetch('https://httpbin.org/get')
+                fetch(__testBase + 'get')
                     .then(function(response) {
                         globalThis.__fetchTestResult = {
                             ok: response.ok,
@@ -172,7 +208,7 @@ namespace OneJS.Tests {
             _bridge.Eval(@"
                 globalThis.__fetchTestDone = false;
                 globalThis.__fetchTestResult = null;
-                fetch('https://httpbin.org/json')
+                fetch(__testBase + 'json')
                     .then(function(response) {
                         return response.json();
                     })
@@ -208,7 +244,7 @@ namespace OneJS.Tests {
             _bridge.Eval(@"
                 globalThis.__fetchTestDone = false;
                 globalThis.__fetchTestResult = null;
-                fetch('https://httpbin.org/post', {
+                fetch(__testBase + 'post', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ test: 'hello' })
@@ -217,7 +253,7 @@ namespace OneJS.Tests {
                     return response.json();
                 })
                 .then(function(data) {
-                    // httpbin echoes back the posted data in 'json' field
+                    // the test server echoes the posted data back in the 'json' field
                     globalThis.__fetchTestResult = {
                         receivedTest: data.json ? data.json.test : null
                     };
@@ -251,7 +287,7 @@ namespace OneJS.Tests {
             _bridge.Eval(@"
                 globalThis.__fetchTestDone = false;
                 globalThis.__fetchTestResult = null;
-                fetch('https://httpbin.org/robots.txt')
+                fetch(__testBase + 'robots.txt')
                     .then(function(response) {
                         return response.text();
                     })
@@ -285,7 +321,7 @@ namespace OneJS.Tests {
             _bridge.Eval(@"
                 globalThis.__fetchTestDone = false;
                 globalThis.__fetchTestResult = null;
-                fetch('https://httpbin.org/get')
+                fetch(__testBase + 'get')
                     .then(function(response) {
                         var contentType = response.headers.get('content-type');
                         globalThis.__fetchTestResult = { hasContentType: contentType !== null };
@@ -316,11 +352,10 @@ namespace OneJS.Tests {
 
         [UnityTest]
         public IEnumerator Fetch_404_SetsOkFalse() {
-            // Use jsonplaceholder - a reliable fake REST API that returns 404 for non-existent resources
             _bridge.Eval(@"
                 globalThis.__fetchTestDone = false;
                 globalThis.__fetchTestResult = null;
-                fetch('https://jsonplaceholder.typicode.com/posts/99999999')
+                fetch(__testBase + 'status/404')
                     .then(function(response) {
                         globalThis.__fetchTestResult = {
                             ok: response.ok,
@@ -348,6 +383,90 @@ namespace OneJS.Tests {
             var resultJson = _bridge.Eval("JSON.stringify(globalThis.__fetchTestResult)");
             Assert.IsTrue(resultJson.Contains("\"ok\":false"), $"Expected ok:false, got: {resultJson}");
             Assert.IsTrue(resultJson.Contains("\"status\":404"), $"Expected status:404, got: {resultJson}");
+        }
+
+        // MARK: Local Test Server
+
+        /// <summary>
+        /// Minimal loopback HTTP server with httpbin-style canned responses.
+        /// Listens on a free port on localhost; requests are handled on a background
+        /// thread, and Dispose unblocks it by stopping the listener.
+        /// </summary>
+        sealed class LocalHttpServer : IDisposable {
+            readonly HttpListener _listener;
+            public string BaseUrl { get; }
+
+            public LocalHttpServer() {
+                var port = GetFreePort();
+                // "localhost" (not 127.0.0.1): exempt from URL ACL registration on Windows.
+                BaseUrl = $"http://localhost:{port}/";
+                _listener = new HttpListener();
+                _listener.Prefixes.Add(BaseUrl);
+                _listener.Start();
+                new Thread(Loop) { IsBackground = true, Name = "OneJS.NetworkTestServer" }.Start();
+            }
+
+            static int GetFreePort() {
+                var probe = new TcpListener(IPAddress.Loopback, 0);
+                probe.Start();
+                var port = ((IPEndPoint)probe.LocalEndpoint).Port;
+                probe.Stop();
+                return port;
+            }
+
+            void Loop() {
+                while (_listener.IsListening) {
+                    HttpListenerContext ctx;
+                    try { ctx = _listener.GetContext(); } catch { return; }
+                    try { Handle(ctx); } catch { try { ctx.Response.Abort(); } catch { } }
+                }
+            }
+
+            void Handle(HttpListenerContext ctx) {
+                switch (ctx.Request.Url.AbsolutePath) {
+                    case "/get":
+                        WriteJson(ctx, 200, "{\"url\": \"" + BaseUrl + "get\", \"args\": {}}");
+                        break;
+                    case "/json":
+                        WriteJson(ctx, 200, "{\"slideshow\": {\"title\": \"Sample Slide Show\"}}");
+                        break;
+                    case "/post": {
+                        string body;
+                        using (var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding)) {
+                            body = reader.ReadToEnd();
+                        }
+                        WriteJson(ctx, 200, "{\"json\": " + (string.IsNullOrEmpty(body) ? "null" : body) + "}");
+                        break;
+                    }
+                    case "/robots.txt":
+                        Write(ctx, 200, "text/plain", "User-agent: *\nDisallow: /deny\n");
+                        break;
+                    case "/status/404":
+                    default:
+                        WriteJson(ctx, 404, "{\"error\": \"not found\"}");
+                        break;
+                }
+            }
+
+            static void WriteJson(HttpListenerContext ctx, int status, string json) {
+                Write(ctx, status, "application/json", json);
+            }
+
+            static void Write(HttpListenerContext ctx, int status, string contentType, string content) {
+                var bytes = Encoding.UTF8.GetBytes(content);
+                ctx.Response.StatusCode = status;
+                ctx.Response.ContentType = contentType;
+                ctx.Response.ContentLength64 = bytes.Length;
+                ctx.Response.OutputStream.Write(bytes, 0, bytes.Length);
+                ctx.Response.Close();
+            }
+
+            public void Dispose() {
+                try {
+                    _listener.Stop();
+                    _listener.Close();
+                } catch { }
+            }
         }
     }
 }
