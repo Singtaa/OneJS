@@ -636,6 +636,14 @@ namespace OneJS.Tests {
             var sv = QuickJSNative.GetObjectByHandle(svHandle) as ScrollView;
             Assert.IsNotNull(sv, "ScrollView should resolve back to C#.");
 
+            // A wheel can only scroll once layout has resolved and the scroller has
+            // range. Two frames suffice locally, but the headless CI panel can lag,
+            // so wait for scrollability instead of assuming it.
+            for (int i = 0; i < 120 && sv.verticalScroller.highValue <= 0f; i++)
+                yield return null;
+            Assert.Greater(sv.verticalScroller.highValue, 0f,
+                "ScrollView never became scrollable (layout did not resolve).");
+
             // Backward-compat: without preventDefault, the wheel scrolls the ScrollView.
             sv.scrollOffset = Vector2.zero;
             _bridge.Eval("globalThis.__doPreventDefault = false;");
