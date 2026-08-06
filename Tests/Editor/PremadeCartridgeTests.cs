@@ -43,9 +43,19 @@ namespace OneJS.Tests.Editor {
             return paths.Length > 0 ? paths : new[] { "<none found>" };
         }
 
+        // These tests validate the premade content that lives in the dev container.
+        // A project hosting only the OneJS package (CI, a consumer project) has no
+        // premade folder at all: skip rather than fail. A folder that exists but
+        // yields nothing is still a real failure.
+        static void RequirePremadeEnvironment(string path) {
+            if (path != "<none found>") return;
+            if (!AssetDatabase.IsValidFolder(kPremadeRoot.TrimEnd('/')))
+                Assert.Ignore($"{kPremadeRoot} does not exist in this project; premade content tests only run in the dev container.");
+            Assert.Fail($"No UICartridge assets under {kPremadeRoot}. Either the premades moved or FindAssets(\"t:UICartridge\") stopped matching.");
+        }
+
         static UICartridge Load(string path) {
-            Assert.AreNotEqual("<none found>", path,
-                $"No UICartridge assets under {kPremadeRoot}. Either the premades moved or FindAssets(\"t:UICartridge\") stopped matching.");
+            RequirePremadeEnvironment(path);
             var c = AssetDatabase.LoadAssetAtPath<UICartridge>(path);
             Assert.IsNotNull(c, $"{path} did not load as a UICartridge");
             return c;
@@ -56,7 +66,7 @@ namespace OneJS.Tests.Editor {
         [Test]
         public void AtLeastOnePremadeCartridgeExists() {
             var paths = CartridgePaths();
-            Assert.AreNotEqual("<none found>", paths[0], $"expected cartridges under {kPremadeRoot}");
+            RequirePremadeEnvironment(paths[0]);
         }
 
         [Test]
