@@ -1,6 +1,6 @@
 {
     "name": "OneJS.Runtime",
-    "rootNamespace": "",
+    "rootNamespace": "OneJS",
     "references": [
         "Unity.InputSystem",
         "UnityEngine.UI"

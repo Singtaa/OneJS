@@ -24,7 +24,7 @@ interface TestCustomProgressBarProps extends BaseProps {
 }
 
 // Register the custom C# element
-registerElement("test-progress", CS.TestCustomProgressBar)
+registerElement("test-progress", CS.OneJS.Tests.TestCustomProgressBar)
 
 // Create a typed React component
 const TestProgress = createComponent<TestCustomProgressBarProps>("test-progress")

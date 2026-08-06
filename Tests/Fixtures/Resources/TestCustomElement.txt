@@ -3410,7 +3410,7 @@ var __exports = (() => {
             for (updateQueue.callbacks = null, updateQueue = 0; updateQueue < callbacks.length; updateQueue++)
               callCallback(callbacks[updateQueue], context);
         }
-        function shallowEqual(objA, objB) {
+        function shallowEqual2(objA, objB) {
           if (objectIs(objA, objB)) return true;
           if ("object" !== typeof objA || null === objA || "object" !== typeof objB || null === objB)
             return false;
@@ -5543,7 +5543,7 @@ var __exports = (() => {
             );
             return oldProps;
           }
-          return ctor.prototype && ctor.prototype.isPureReactComponent ? !shallowEqual(oldProps, newProps) || !shallowEqual(oldState, newState) : true;
+          return ctor.prototype && ctor.prototype.isPureReactComponent ? !shallowEqual2(oldProps, newProps) || !shallowEqual2(oldState, newState) : true;
         }
         function callComponentWillReceiveProps(workInProgress2, instance, newProps, nextContext) {
           var oldState = instance.state;
@@ -5803,7 +5803,7 @@ var __exports = (() => {
           if (!checkScheduledUpdateOrContext(current2, renderLanes2)) {
             var prevProps = type.memoizedProps;
             Component2 = Component2.compare;
-            Component2 = null !== Component2 ? Component2 : shallowEqual;
+            Component2 = null !== Component2 ? Component2 : shallowEqual2;
             if (Component2(prevProps, nextProps) && current2.ref === workInProgress2.ref)
               return bailoutOnAlreadyFinishedWork(
                 current2,
@@ -5820,7 +5820,7 @@ var __exports = (() => {
         function updateSimpleMemoComponent(current2, workInProgress2, Component2, nextProps, renderLanes2) {
           if (null !== current2) {
             var prevProps = current2.memoizedProps;
-            if (shallowEqual(prevProps, nextProps) && current2.ref === workInProgress2.ref && workInProgress2.type === current2.type)
+            if (shallowEqual2(prevProps, nextProps) && current2.ref === workInProgress2.ref && workInProgress2.type === current2.type)
               if (didReceiveUpdate = false, workInProgress2.pendingProps = nextProps = prevProps, checkScheduledUpdateOrContext(current2, renderLanes2))
                 0 !== (current2.flags & 131072) && (didReceiveUpdate = true);
               else
@@ -13263,21 +13263,160 @@ var __exports = (() => {
 
   // ../../../../../../JSModules/onejs-react/src/components.tsx
   var import_react = __toESM(require_react());
+
+  // ../../../../../../JSModules/onejs-react/src/texturefx.ts
+  var SRC = { noise: 0, shape: 1, constant: 2 };
+  var BLEND = { set: 0, multiply: 1, add: 2, subtract: 3, min: 4, max: 5, screen: 6 };
+  var SHAPE = { flame: 0, radial: 1, linear: 2, box: 3 };
+  var MAX_TEXTUREFX_LAYERS = 6;
+  var pair = (v, d) => v === void 0 ? [d, d] : typeof v === "number" ? [v, v] : v;
+  var TextureFXBuilder = class {
+    layers = [];
+    threshold = 0;
+    softness = 1;
+    speed = 1;
+    colors = ["#00000000", "#ffffffff"];
+    push(layer) {
+      if (this.layers.length >= MAX_TEXTUREFX_LAYERS) {
+        throw new Error(
+          `[onejs texturefx] at most ${MAX_TEXTUREFX_LAYERS} layers; combine sources or raise MAX_LAYERS in OneJS/TextureFX.shader.`
+        );
+      }
+      const index = this.layers.push(layer) - 1;
+      const setBlend = (b) => {
+        layer.blend = b;
+        return handle;
+      };
+      const handle = {
+        index,
+        set: () => setBlend(BLEND.set),
+        multiply: () => setBlend(BLEND.multiply),
+        add: () => setBlend(BLEND.add),
+        subtract: () => setBlend(BLEND.subtract),
+        min: () => setBlend(BLEND.min),
+        max: () => setBlend(BLEND.max),
+        screen: () => setBlend(BLEND.screen)
+      };
+      return handle;
+    }
+    /** Scrolling fBm value noise. The workhorse: two of these multiplied is fire, smoke or water. */
+    noise(o = {}) {
+      return this.push({
+        src: SRC.noise,
+        blend: BLEND.set,
+        scale: pair(o.scale, 4),
+        octaves: Math.max(1, Math.min(4, o.octaves ?? 3)),
+        seed: o.seed ?? 1,
+        scroll: o.scroll ?? [0, 0],
+        amount: o.amount ?? 1,
+        shape: 0,
+        params: [0, 0, 0, 0]
+      });
+    }
+    /** A positional falloff that carves the silhouette. Not scaled or scrolled. */
+    shape(kind, o = {}) {
+      const params = kind === "box" ? [o.width ?? 0.3, o.height ?? 0.4, o.softness ?? 0.1, 0] : kind === "flame" ? [o.width ?? 0.44, o.taper ?? 0.7, o.softness ?? 0.05, o.falloff ?? 0.55] : [o.falloff ?? 1, 0, 0, 0];
+      return this.push({
+        src: SRC.shape,
+        blend: BLEND.set,
+        scale: [1, 1],
+        octaves: 1,
+        seed: 0,
+        scroll: [0, 0],
+        amount: o.amount ?? 1,
+        shape: SHAPE[kind],
+        params
+      });
+    }
+    /** A flat value, for biasing or flooring the stack. */
+    constant(value) {
+      return this.push({
+        src: SRC.constant,
+        blend: BLEND.set,
+        scale: [1, 1],
+        octaves: 1,
+        seed: 0,
+        scroll: [0, 0],
+        amount: 1,
+        shape: 0,
+        params: [value, 0, 0, 0]
+      });
+    }
+    /**
+     * Erodes the accumulated field to a defined edge before colouring. This is what
+     * turns a soft blob into licks and wisps; without it everything looks like fog.
+     */
+    erode(threshold, softness = 0.3) {
+      this.threshold = threshold;
+      this.softness = softness;
+      return this;
+    }
+    /** Gradient the eroded value indexes. Alpha is carried, so cutoff lives here too. */
+    ramp(colors) {
+      this.colors = colors;
+      return this;
+    }
+    /** Multiplies every layer's scroll rate. */
+    setSpeed(speed) {
+      this.speed = speed;
+      return this;
+    }
+    /** Flattens to the uniforms OneJS/TextureFX expects. */
+    compile() {
+      if (this.layers.length === 0) throw new Error("[onejs texturefx] no layers");
+      const scale = [], scroll = [], params = [], mode = [];
+      for (const l of this.layers) {
+        scale.push(l.scale[0], l.scale[1], l.octaves, l.seed);
+        scroll.push(l.scroll[0] * l.scale[0], l.scroll[1] * l.scale[1], l.amount, l.shape);
+        params.push(...l.params);
+        mode.push(l.src, l.blend, 0, 0);
+      }
+      return {
+        floats: {
+          _LayerCount: this.layers.length,
+          _Threshold: this.threshold,
+          _Softness: this.softness,
+          _Speed: this.speed
+        },
+        vectorArrays: { _LScale: scale, _LScroll: scroll, _LParams: params, _LMode: mode },
+        ramp: this.colors
+      };
+    }
+  };
+  function buildTextureFX(build) {
+    const fx = new TextureFXBuilder();
+    build(fx);
+    return fx.compile();
+  }
+
+  // ../../../../../../JSModules/onejs-react/src/components.tsx
   var import_jsx_runtime = __toESM(require_jsx_runtime());
   useExtensions(CS.UnityEngine.ImageConversion);
   var _imageCache = /* @__PURE__ */ new Map();
+  var _imagePending = /* @__PURE__ */ new Map();
+  function _isUrlPath(path) {
+    return path.includes("://");
+  }
   function _resolveAssetPath(src) {
     const Path = CS.System.IO.Path;
+    if (Path.IsPathRooted(src)) {
+      return src;
+    }
     if (CS.UnityEngine.Application.isEditor) {
       const workingDir = typeof globalThis.__workingDir === "string" ? globalThis.__workingDir : Path.Combine(Path.GetDirectoryName(CS.UnityEngine.Application.dataPath), "App");
       return Path.Combine(workingDir, "assets", src);
     }
-    return Path.Combine(CS.UnityEngine.Application.streamingAssetsPath, "onejs", "assets", src);
+    const streamingAssets = CS.UnityEngine.Application.streamingAssetsPath;
+    if (_isUrlPath(streamingAssets)) {
+      return `${streamingAssets}/onejs/assets/${src}`;
+    }
+    return Path.Combine(streamingAssets, "onejs", "assets", src);
   }
   function _loadImageAsset(src) {
     const cached = _imageCache.get(src);
     if (cached) return cached;
     const fullPath = _resolveAssetPath(src);
+    if (_isUrlPath(fullPath)) return null;
     if (!CS.System.IO.File.Exists(fullPath)) {
       console.error(`Image src not found: ${src} (resolved to ${fullPath})`);
       return null;
@@ -13295,6 +13434,42 @@ var __exports = (() => {
     }
     _imageCache.set(src, result);
     return result;
+  }
+  function _loadImageAssetAsync(src, url) {
+    const existing = _imagePending.get(src);
+    if (existing) return existing;
+    const promise = (async () => {
+      try {
+        let result;
+        if (src.toLowerCase().endsWith(".svg")) {
+          const res = await fetch(url);
+          if (!res.ok) {
+            console.error(`Image src not found: ${src} (resolved to ${url})`);
+            return null;
+          }
+          const svgText = await res.text();
+          result = CS.OneJS.SVGUtils.LoadFromString(svgText);
+        } else {
+          const tex = await CS.OneJS.Network.LoadTextureFromUrl(url);
+          if (!tex) {
+            console.error(`Image src not found: ${src} (resolved to ${url})`);
+            return null;
+          }
+          tex.filterMode = CS.UnityEngine.FilterMode.Bilinear;
+          result = tex;
+        }
+        _imageCache.set(src, result);
+        return result;
+      } catch (e) {
+        console.error(`Image src failed to load: ${src} (resolved to ${url}): ${e}`);
+        return null;
+      }
+    })();
+    _imagePending.set(src, promise);
+    promise.then(() => {
+      if (_imagePending.get(src) === promise) _imagePending.delete(src);
+    });
+    return promise;
   }
   var View = (0, import_react.forwardRef)((props, ref) => {
     return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-view", { ref, ...props });
@@ -13329,17 +13504,41 @@ var __exports = (() => {
   });
   ScrollView.displayName = "ScrollView";
   var Image = (0, import_react.forwardRef)(({ src, image, ...rest }, ref) => {
+    const [loaded, setLoaded] = (0, import_react.useState)(null);
     const resolved = (0, import_react.useMemo)(() => {
       if (src) return _loadImageAsset(src);
       return image;
     }, [src, image]);
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-image", { ref, image: resolved, ...rest });
+    (0, import_react.useEffect)(() => {
+      if (!src || resolved) return;
+      const fullPath = _resolveAssetPath(src);
+      if (!_isUrlPath(fullPath)) return;
+      let cancelled = false;
+      _loadImageAssetAsync(src, fullPath).then((result) => {
+        if (!cancelled && result) setLoaded({ src, image: result });
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [src, resolved]);
+    const asyncImage = loaded && loaded.src === src ? loaded.image : null;
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-image", { ref, image: resolved ?? asyncImage, ...rest });
   });
   Image.displayName = "Image";
   var ListView = (0, import_react.forwardRef)((props, ref) => {
     return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-listview", { ref, ...props });
   });
   ListView.displayName = "ListView";
+  var FrostedGlass = (0, import_react.forwardRef)(({ blur, tint, ...rest }, ref) => {
+    const parsedTint = (0, import_react.useMemo)(() => {
+      if (!tint) return new CS.UnityEngine.Color(1, 1, 1, 0.15);
+      const m = tint.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+))?\s*\)/);
+      if (m) return new CS.UnityEngine.Color(+m[1] / 255, +m[2] / 255, +m[3] / 255, m[4] != null ? +m[4] : 1);
+      return new CS.UnityEngine.Color(1, 1, 1, 0.15);
+    }, [tint]);
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-frostedglass", { ref, blurRadius: blur ?? 10, tintColor: parsedTint, ...rest });
+  });
+  FrostedGlass.displayName = "FrostedGlass";
   function createComponent(name, displayName) {
     const type = name.startsWith("ojs-") ? name : `ojs-${name}`;
     const Component2 = (0, import_react.forwardRef)((props, ref) => {
@@ -13348,6 +13547,46 @@ var __exports = (() => {
     Component2.displayName = displayName || name;
     return Component2;
   }
+  var ShaderEffect = (0, import_react.forwardRef)((props, ref) => {
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-shaderfx", { ...props, ref });
+  });
+  ShaderEffect.displayName = "ShaderEffect";
+  var FIRE_RAMP = ["#00000000", "#4a060088", "#c22200dd", "#ff6a10ff", "#ffc23cff", "#fff4d2ff"];
+  var TextureFX = (0, import_react.forwardRef)(({ build, ...rest }, ref) => {
+    const compiled = (0, import_react.useMemo)(() => buildTextureFX(build), [build]);
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      ShaderEffect,
+      {
+        ...rest,
+        ref,
+        shader: "OneJS/TextureFX",
+        floats: compiled.floats,
+        vectorArrays: compiled.vectorArrays,
+        ramp: compiled.ramp
+      }
+    );
+  });
+  TextureFX.displayName = "TextureFX";
+  var Flame = (0, import_react.forwardRef)(
+    ({ colors, speed, threshold, softness, width, taper, topFalloff, gain, ...rest }, ref) => {
+      const build = (0, import_react.useMemo)(() => (fx) => {
+        const g = gain ?? 7.5;
+        fx.noise({ scale: [3, 4], seed: 1, scroll: [0.02, -1.1], amount: Math.sqrt(g) });
+        fx.noise({ scale: [6, 8], seed: 2, scroll: [-0.03, -1.9], amount: Math.sqrt(g) }).multiply();
+        fx.shape("flame", {
+          width: width ?? 0.44,
+          taper: taper ?? 0.7,
+          softness: 0.05,
+          falloff: topFalloff ?? 0.55
+        }).multiply();
+        fx.erode(threshold ?? 0.3, softness ?? 1);
+        fx.ramp(colors ?? FIRE_RAMP);
+        fx.setSpeed(speed ?? 1);
+      }, [colors, speed, threshold, softness, width, taper, topFalloff, gain]);
+      return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TextureFX, { ...rest, ref, build });
+    }
+  );
+  Flame.displayName = "Flame";
 
   // ../../../../../../JSModules/onejs-react/src/style-parser.ts
   var NAMED_COLORS = {
@@ -13750,6 +13989,14 @@ var __exports = (() => {
     return value;
   }
   function parseStyleValue(key, value) {
+    if (key === "unityMaterial") {
+      if (value === void 0) return void 0;
+      const SMD = CS.UnityEngine.UIElements.StyleMaterialDefinition;
+      if (value === null) {
+        return new SMD(CS.UnityEngine.UIElements.StyleKeyword.Null);
+      }
+      return new SMD(value);
+    }
     if (value === void 0 || value === null) return value;
     if (LENGTH_PROPERTIES.has(key)) {
       if (typeof value === "number") {
@@ -13794,7 +14041,9 @@ var __exports = (() => {
     "ojs-slider": () => new CS.UnityEngine.UIElements.Slider(),
     "ojs-scrollview": () => new CS.UnityEngine.UIElements.ScrollView(),
     "ojs-image": () => new CS.UnityEngine.UIElements.Image(),
-    "ojs-listview": () => new CS.UnityEngine.UIElements.ListView()
+    "ojs-listview": () => new CS.UnityEngine.UIElements.ListView(),
+    "ojs-frostedglass": () => new CS.OneJS.GPU.FrostedGlassElement(),
+    "ojs-shaderfx": () => new CS.OneJS.ShaderFX.ShaderEffectElement()
   };
   var BUILT_IN_TYPES = new Set(Object.keys(TYPE_MAP));
   function registerElement(name, constructor) {
@@ -13816,7 +14065,6 @@ var __exports = (() => {
     onPointerCancel: "pointercancel",
     onPointerCapture: "pointercapture",
     onPointerCaptureOut: "pointercaptureout",
-    onPointerStationary: "pointerstationary",
     // Mouse events
     onMouseDown: "mousedown",
     onMouseUp: "mouseup",
@@ -13890,14 +14138,30 @@ var __exports = (() => {
     ["*", "_ast_"],
     ["'", "_sq_"]
   ];
+  var _escapeCache = /* @__PURE__ */ new Map();
   function escapeClassName(name) {
+    const cached = _escapeCache.get(name);
+    if (cached !== void 0) return cached;
     let escaped = name;
     for (const [char, replacement] of CLASS_ESCAPE_MAP) {
       if (escaped.includes(char)) {
         escaped = escaped.split(char).join(replacement);
       }
     }
+    _escapeCache.set(name, escaped);
     return escaped;
+  }
+  function shallowEqual(a, b) {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    const keysA = Object.keys(a);
+    const keysB = Object.keys(b);
+    if (keysA.length !== keysB.length) return false;
+    for (let i = 0; i < keysA.length; i++) {
+      const k = keysA[i];
+      if (a[k] !== b[k]) return false;
+    }
+    return true;
   }
   function getExpandedStyleKeys(style) {
     const keys = /* @__PURE__ */ new Set();
@@ -13925,14 +14189,14 @@ var __exports = (() => {
   function applyStyle(element, style) {
     const appliedKeys = /* @__PURE__ */ new Set();
     if (!style) return appliedKeys;
-    const s = element.style;
+    const batched = {};
     for (const [key, value] of Object.entries(style)) {
       if (value === void 0) continue;
       const expanded = STYLE_SHORTHANDS[key];
       if (expanded) {
-        const parsed = parseStyleValue(expanded[0], value);
+        const parsed = resolveForBatch(parseStyleValue(expanded[0], value));
         for (const prop of expanded) {
-          s[prop] = parsed;
+          batched[prop] = parsed;
           appliedKeys.add(prop);
         }
       } else if (key === "backgroundImage") {
@@ -13948,11 +14212,20 @@ var __exports = (() => {
         }
         appliedKeys.add(key);
       } else {
-        s[key] = parseStyleValue(key, value);
+        batched[key] = resolveForBatch(parseStyleValue(key, value));
         appliedKeys.add(key);
       }
     }
+    if (Object.keys(batched).length > 0) {
+      CS.OneJS.StyleBridge.ApplyStyles(element, batched);
+    }
     return appliedKeys;
+  }
+  function resolveForBatch(value) {
+    if (value && value.__csPathProxy) {
+      return Number(value);
+    }
+    return value;
   }
   function clearRemovedStyles(element, oldKeys, newKeys) {
     const s = element.style;
@@ -13966,17 +14239,25 @@ var __exports = (() => {
       }
     }
   }
+  var _parseCache = /* @__PURE__ */ new Map();
   function parseClassNames(className) {
     if (!className) return /* @__PURE__ */ new Set();
-    return new Set(
+    const cached = _parseCache.get(className);
+    if (cached !== void 0) return cached;
+    const result = new Set(
       className.split(/\s+/).filter(Boolean).map(escapeClassName)
     );
+    _parseCache.set(className, result);
+    return result;
   }
   function applyClassName(element, className) {
     if (!className) return;
-    const classes = className.split(/\s+/).filter(Boolean);
-    for (const cls of classes) {
-      element.AddToClassList(escapeClassName(cls));
+    const classes = [];
+    for (const cls of className.split(/\s+/)) {
+      if (cls) classes.push(escapeClassName(cls));
+    }
+    if (classes.length > 0) {
+      CS.OneJS.StyleBridge.AddClassesBatch(element, classes);
     }
   }
   function updateClassNames(element, oldClassName, newClassName) {
@@ -14005,6 +14286,26 @@ var __exports = (() => {
     if (childHandle > 0) {
       __eventAPI.removeParent(childHandle);
     }
+  }
+  function elementHandle(el) {
+    return el.__csHandle ?? -1;
+  }
+  function nodeAdd(parentEl, childEl) {
+    const ph = elementHandle(parentEl);
+    const ch = elementHandle(childEl);
+    if (ph > 0 && ch > 0) CS.OneJS.NodeBridge.Add(ph, ch);
+    else parentEl.Add(childEl);
+  }
+  function nodeInsert(parentEl, index, childEl) {
+    const ph = elementHandle(parentEl);
+    const ch = elementHandle(childEl);
+    if (ph > 0 && ch > 0) CS.OneJS.NodeBridge.Insert(ph, index, ch);
+    else parentEl.Insert(index, childEl);
+  }
+  function nodeRemoveFromHierarchy(childEl) {
+    const ch = elementHandle(childEl);
+    if (ch > 0) CS.OneJS.NodeBridge.RemoveFromHierarchy(ch);
+    else childEl.RemoveFromHierarchy();
   }
   function applyEvents(instance, props) {
     for (const [propName, eventType] of Object.entries(EVENT_PROPS)) {
@@ -14056,7 +14357,7 @@ var __exports = (() => {
     parentInstance.element.text = "";
     for (const child of children) {
       child.mergedInto = void 0;
-      parentInstance.element.Add(child.element);
+      nodeAdd(parentInstance.element, child.element);
     }
     parentInstance.mergedTextChildren = void 0;
     parentInstance.hasMixedContent = true;
@@ -14098,55 +14399,65 @@ var __exports = (() => {
     child.mergedInto = void 0;
     rebuildMergedText(parentInstance);
   }
-  function applyCommonProps(element, props) {
-    const el = element;
-    if (props.text !== void 0) el.text = props.text;
-    if (props.value !== void 0) el.value = props.value;
-    if (props.label !== void 0) el.label = props.label;
+  function insertElementBefore(parentEl, childEl, beforeChildEl) {
+    const beforeIndex = parentEl.IndexOf(beforeChildEl);
+    if (beforeIndex < 0) {
+      nodeAdd(parentEl, childEl);
+      return;
+    }
+    const childIndex = parentEl.IndexOf(childEl);
+    const target = childIndex >= 0 && childIndex < beforeIndex ? beforeIndex - 1 : beforeIndex;
+    nodeInsert(parentEl, target, childEl);
   }
-  function setEnumProp(target, key, props, propKey, enumType) {
-    if (props[propKey] !== void 0) {
+  function applyCommonProps(element, props, oldProps) {
+    const el = element;
+    if (props.text !== void 0 && props.text !== oldProps?.text) el.text = props.text;
+    if (props.value !== void 0 && props.value !== oldProps?.value) el.value = props.value;
+    if (props.label !== void 0 && props.label !== oldProps?.label) el.label = props.label;
+  }
+  function setEnumProp(target, key, props, propKey, enumType, oldProps) {
+    if (props[propKey] !== void 0 && props[propKey] !== oldProps?.[propKey]) {
       target[key] = enumType[props[propKey]];
     }
   }
-  function setValueProp(target, key, props, propKey) {
-    if (props[propKey] !== void 0) {
+  function setValueProp(target, key, props, propKey, oldProps) {
+    if (props[propKey] !== void 0 && props[propKey] !== oldProps?.[propKey]) {
       target[key] = props[propKey];
     }
   }
-  function applyTextFieldProps(element, props) {
+  function applyTextFieldProps(element, props, oldProps) {
     const el = element;
-    if (props.readOnly !== void 0) el.isReadOnly = props.readOnly;
-    if (props.multiline !== void 0) el.multiline = props.multiline;
-    if (props.maxLength !== void 0) el.maxLength = props.maxLength;
-    if (props.isPasswordField !== void 0) el.isPasswordField = props.isPasswordField;
-    if (props.maskChar !== void 0) el.maskChar = props.maskChar.charAt(0);
-    if (props.isDelayed !== void 0) el.isDelayed = props.isDelayed;
-    if (props.selectAllOnFocus !== void 0) el.selectAllOnFocus = props.selectAllOnFocus;
-    if (props.selectAllOnMouseUp !== void 0) el.selectAllOnMouseUp = props.selectAllOnMouseUp;
-    if (props.hideMobileInput !== void 0) el.hideMobileInput = props.hideMobileInput;
-    if (props.autoCorrection !== void 0) el.autoCorrection = props.autoCorrection;
+    if (props.readOnly !== void 0 && props.readOnly !== oldProps?.readOnly) el.isReadOnly = props.readOnly;
+    if (props.multiline !== void 0 && props.multiline !== oldProps?.multiline) el.multiline = props.multiline;
+    if (props.maxLength !== void 0 && props.maxLength !== oldProps?.maxLength) el.maxLength = props.maxLength;
+    if (props.isPasswordField !== void 0 && props.isPasswordField !== oldProps?.isPasswordField) el.isPasswordField = props.isPasswordField;
+    if (props.maskChar !== void 0 && props.maskChar !== oldProps?.maskChar) el.maskChar = props.maskChar.charAt(0);
+    if (props.isDelayed !== void 0 && props.isDelayed !== oldProps?.isDelayed) el.isDelayed = props.isDelayed;
+    if (props.selectAllOnFocus !== void 0 && props.selectAllOnFocus !== oldProps?.selectAllOnFocus) el.selectAllOnFocus = props.selectAllOnFocus;
+    if (props.selectAllOnMouseUp !== void 0 && props.selectAllOnMouseUp !== oldProps?.selectAllOnMouseUp) el.selectAllOnMouseUp = props.selectAllOnMouseUp;
+    if (props.hideMobileInput !== void 0 && props.hideMobileInput !== oldProps?.hideMobileInput) el.hideMobileInput = props.hideMobileInput;
+    if (props.autoCorrection !== void 0 && props.autoCorrection !== oldProps?.autoCorrection) el.autoCorrection = props.autoCorrection;
   }
-  function applySliderProps(element, props) {
+  function applySliderProps(element, props, oldProps) {
     const el = element;
-    if (props.lowValue !== void 0) el.lowValue = props.lowValue;
-    if (props.highValue !== void 0) el.highValue = props.highValue;
-    if (props.showInputField !== void 0) el.showInputField = props.showInputField;
-    if (props.inverted !== void 0) el.inverted = props.inverted;
-    if (props.pageSize !== void 0) el.pageSize = props.pageSize;
-    if (props.fill !== void 0) el.fill = props.fill;
-    if (props.direction !== void 0) {
+    if (props.lowValue !== void 0 && props.lowValue !== oldProps?.lowValue) el.lowValue = props.lowValue;
+    if (props.highValue !== void 0 && props.highValue !== oldProps?.highValue) el.highValue = props.highValue;
+    if (props.showInputField !== void 0 && props.showInputField !== oldProps?.showInputField) el.showInputField = props.showInputField;
+    if (props.inverted !== void 0 && props.inverted !== oldProps?.inverted) el.inverted = props.inverted;
+    if (props.pageSize !== void 0 && props.pageSize !== oldProps?.pageSize) el.pageSize = props.pageSize;
+    if (props.fill !== void 0 && props.fill !== oldProps?.fill) el.fill = props.fill;
+    if (props.direction !== void 0 && props.direction !== oldProps?.direction) {
       el.direction = CS.UnityEngine.UIElements.SliderDirection[props.direction];
     }
   }
-  function applyToggleProps(element, props) {
+  function applyToggleProps(element, props, oldProps) {
     const el = element;
-    if (props.text !== void 0) el.text = props.text;
-    if (props.toggleOnLabelClick !== void 0) el.toggleOnLabelClick = props.toggleOnLabelClick;
+    if (props.text !== void 0 && props.text !== oldProps?.text) el.text = props.text;
+    if (props.toggleOnLabelClick !== void 0 && props.toggleOnLabelClick !== oldProps?.toggleOnLabelClick) el.toggleOnLabelClick = props.toggleOnLabelClick;
   }
-  function applyImageProps(element, props) {
+  function applyImageProps(element, props, oldProps) {
     const el = element;
-    if (props.image !== void 0) {
+    if (props.image !== void 0 && props.image !== oldProps?.image) {
       const img = props.image;
       if (img != null && img.GetType?.().Name === "VectorImage") {
         el.image = null;
@@ -14156,57 +14467,57 @@ var __exports = (() => {
         el.image = img;
       }
     }
-    if (props.sprite !== void 0) el.sprite = props.sprite;
-    if (props.vectorImage !== void 0) el.vectorImage = props.vectorImage;
-    if (props.scaleMode !== void 0) {
+    if (props.sprite !== void 0 && props.sprite !== oldProps?.sprite) el.sprite = props.sprite;
+    if (props.vectorImage !== void 0 && props.vectorImage !== oldProps?.vectorImage) el.vectorImage = props.vectorImage;
+    if (props.scaleMode !== void 0 && props.scaleMode !== oldProps?.scaleMode) {
       el.scaleMode = CS.UnityEngine.ScaleMode[props.scaleMode];
     }
-    if (props.tintColor !== void 0) {
+    if (props.tintColor !== void 0 && props.tintColor !== oldProps?.tintColor) {
       const color = parseColor(props.tintColor);
       if (color) el.tintColor = color;
     }
-    if (props.sourceRect !== void 0) {
+    if (props.sourceRect !== void 0 && props.sourceRect !== oldProps?.sourceRect) {
       const rect = props.sourceRect;
       el.sourceRect = new CS.UnityEngine.Rect(rect.x, rect.y, rect.width, rect.height);
     }
-    if (props.uv !== void 0) {
+    if (props.uv !== void 0 && props.uv !== oldProps?.uv) {
       const rect = props.uv;
       el.uv = new CS.UnityEngine.Rect(rect.x, rect.y, rect.width, rect.height);
     }
   }
-  function applyScrollViewProps(element, props) {
+  function applyScrollViewProps(element, props, oldProps) {
     const UIE = CS.UnityEngine.UIElements;
-    setEnumProp(element, "mode", props, "mode", UIE.ScrollViewMode);
-    setEnumProp(element, "horizontalScrollerVisibility", props, "horizontalScrollerVisibility", UIE.ScrollerVisibility);
-    setEnumProp(element, "verticalScrollerVisibility", props, "verticalScrollerVisibility", UIE.ScrollerVisibility);
-    setEnumProp(element, "touchScrollBehavior", props, "touchScrollBehavior", UIE.TouchScrollBehavior);
-    setEnumProp(element, "nestedInteractionKind", props, "nestedInteractionKind", UIE.NestedInteractionKind);
-    setValueProp(element, "elasticity", props, "elasticity");
-    setValueProp(element, "elasticAnimationIntervalMs", props, "elasticAnimationIntervalMs");
-    setValueProp(element, "scrollDecelerationRate", props, "scrollDecelerationRate");
-    setValueProp(element, "mouseWheelScrollSize", props, "mouseWheelScrollSize");
-    setValueProp(element, "horizontalPageSize", props, "horizontalPageSize");
-    setValueProp(element, "verticalPageSize", props, "verticalPageSize");
+    setEnumProp(element, "mode", props, "mode", UIE.ScrollViewMode, oldProps);
+    setEnumProp(element, "horizontalScrollerVisibility", props, "horizontalScrollerVisibility", UIE.ScrollerVisibility, oldProps);
+    setEnumProp(element, "verticalScrollerVisibility", props, "verticalScrollerVisibility", UIE.ScrollerVisibility, oldProps);
+    setEnumProp(element, "touchScrollBehavior", props, "touchScrollBehavior", UIE.TouchScrollBehavior, oldProps);
+    setEnumProp(element, "nestedInteractionKind", props, "nestedInteractionKind", UIE.NestedInteractionKind, oldProps);
+    setValueProp(element, "elasticity", props, "elasticity", oldProps);
+    setValueProp(element, "elasticAnimationIntervalMs", props, "elasticAnimationIntervalMs", oldProps);
+    setValueProp(element, "scrollDecelerationRate", props, "scrollDecelerationRate", oldProps);
+    setValueProp(element, "mouseWheelScrollSize", props, "mouseWheelScrollSize", oldProps);
+    setValueProp(element, "horizontalPageSize", props, "horizontalPageSize", oldProps);
+    setValueProp(element, "verticalPageSize", props, "verticalPageSize", oldProps);
   }
-  function applyListViewProps(element, props) {
+  function applyListViewProps(element, props, oldProps) {
     const UIE = CS.UnityEngine.UIElements;
-    setValueProp(element, "itemsSource", props, "itemsSource");
-    setValueProp(element, "makeItem", props, "makeItem");
-    setValueProp(element, "bindItem", props, "bindItem");
-    setValueProp(element, "unbindItem", props, "unbindItem");
-    setValueProp(element, "destroyItem", props, "destroyItem");
-    setValueProp(element, "fixedItemHeight", props, "fixedItemHeight");
-    setEnumProp(element, "virtualizationMethod", props, "virtualizationMethod", UIE.CollectionVirtualizationMethod);
-    setEnumProp(element, "selectionType", props, "selectionType", UIE.SelectionType);
-    setValueProp(element, "selectedIndex", props, "selectedIndex");
-    setValueProp(element, "selectedIndices", props, "selectedIndices");
-    setValueProp(element, "reorderable", props, "reorderable");
-    setEnumProp(element, "reorderMode", props, "reorderMode", UIE.ListViewReorderMode);
-    setValueProp(element, "showFoldoutHeader", props, "showFoldoutHeader");
-    setValueProp(element, "headerTitle", props, "headerTitle");
-    setValueProp(element, "showAddRemoveFooter", props, "showAddRemoveFooter");
-    setValueProp(element, "showBorder", props, "showBorder");
-    setEnumProp(element, "showAlternatingRowBackgrounds", props, "showAlternatingRowBackgrounds", UIE.AlternatingRowBackground);
+    setValueProp(element, "itemsSource", props, "itemsSource", oldProps);
+    setValueProp(element, "makeItem", props, "makeItem", oldProps);
+    setValueProp(element, "bindItem", props, "bindItem", oldProps);
+    setValueProp(element, "unbindItem", props, "unbindItem", oldProps);
+    setValueProp(element, "destroyItem", props, "destroyItem", oldProps);
+    setValueProp(element, "fixedItemHeight", props, "fixedItemHeight", oldProps);
+    setEnumProp(element, "virtualizationMethod", props, "virtualizationMethod", UIE.CollectionVirtualizationMethod, oldProps);
+    setEnumProp(element, "selectionType", props, "selectionType", UIE.SelectionType, oldProps);
+    setValueProp(element, "selectedIndex", props, "selectedIndex", oldProps);
+    setValueProp(element, "selectedIndices", props, "selectedIndices", oldProps);
+    setValueProp(element, "reorderable", props, "reorderable", oldProps);
+    setEnumProp(element, "reorderMode", props, "reorderMode", UIE.ListViewReorderMode, oldProps);
+    setValueProp(element, "showFoldoutHeader", props, "showFoldoutHeader", oldProps);
+    setValueProp(element, "headerTitle", props, "headerTitle", oldProps);
+    setValueProp(element, "showAddRemoveFooter", props, "showAddRemoveFooter", oldProps);
+    setValueProp(element, "showBorder", props, "showBorder", oldProps);
+    setEnumProp(element, "showAlternatingRowBackgrounds", props, "showAlternatingRowBackgrounds", UIE.AlternatingRowBackground, oldProps);
   }
   var RESERVED_PROPS = /* @__PURE__ */ new Set([
     "children",
@@ -14214,37 +14525,47 @@ var __exports = (() => {
     "ref",
     "style",
     "className",
+    "name",
     "pickingMode",
+    "focusable",
+    "disabled",
     "onGenerateVisualContent",
     ...Object.keys(EVENT_PROPS)
   ]);
-  function applyCustomProps(element, props) {
+  function applyCustomProps(element, props, oldProps) {
     for (const [key, value] of Object.entries(props)) {
       if (value === void 0 || RESERVED_PROPS.has(key)) continue;
+      if (value === oldProps?.[key]) continue;
       element[key] = value;
     }
   }
-  function applyComponentProps(element, type, props) {
+  function applyComponentProps(element, type, props, oldProps) {
     if (!BUILT_IN_TYPES.has(type)) {
-      applyCustomProps(element, props);
+      applyCustomProps(element, props, oldProps);
       return;
     }
     if (type === "ojs-slider") {
-      applySliderProps(element, props);
-      applyCommonProps(element, props);
+      applySliderProps(element, props, oldProps);
+      applyCommonProps(element, props, oldProps);
       return;
     }
-    applyCommonProps(element, props);
+    applyCommonProps(element, props, oldProps);
     if (type === "ojs-textfield") {
-      applyTextFieldProps(element, props);
+      applyTextFieldProps(element, props, oldProps);
     } else if (type === "ojs-toggle") {
-      applyToggleProps(element, props);
+      applyToggleProps(element, props, oldProps);
     } else if (type === "ojs-image") {
-      applyImageProps(element, props);
+      applyImageProps(element, props, oldProps);
     } else if (type === "ojs-scrollview") {
-      applyScrollViewProps(element, props);
+      applyScrollViewProps(element, props, oldProps);
     } else if (type === "ojs-listview") {
-      applyListViewProps(element, props);
+      applyListViewProps(element, props, oldProps);
+    } else if (type === "ojs-frostedglass") {
+      const el = element;
+      if (props.blurRadius !== void 0 && props.blurRadius !== oldProps?.blurRadius) el.BlurRadius = props.blurRadius;
+      if (props.tintColor !== void 0 && props.tintColor !== oldProps?.tintColor) el.TintColor = props.tintColor;
+    } else if (type === "ojs-shaderfx") {
+      applyShaderFxProps(element, props, oldProps);
     }
   }
   function createInstance(type, props) {
@@ -14265,14 +14586,23 @@ var __exports = (() => {
     applyEvents(instance, props);
     applyVisualContentCallback(instance, props);
     applyComponentProps(element, type, props);
+    if (props.name !== void 0) {
+      element.name = props.name;
+    }
     if (props.pickingMode !== void 0) {
       element.pickingMode = CS.UnityEngine.UIElements.PickingMode[props.pickingMode];
+    }
+    if (props.focusable !== void 0) {
+      element.focusable = props.focusable;
+    }
+    if (props.disabled !== void 0) {
+      element.SetEnabled(!props.disabled);
     }
     return instance;
   }
   function updateInstance(instance, oldProps, newProps) {
     const element = instance.element;
-    if (oldProps.style !== newProps.style) {
+    if (oldProps.style !== newProps.style && !shallowEqual(oldProps.style, newProps.style)) {
       const newStyleKeys = getExpandedStyleKeys(newProps.style);
       clearRemovedStyles(element, instance.appliedStyleKeys, newStyleKeys);
       instance.appliedStyleKeys = applyStyle(element, newProps.style);
@@ -14282,12 +14612,25 @@ var __exports = (() => {
     }
     applyEvents(instance, newProps);
     applyVisualContentCallback(instance, newProps);
-    applyComponentProps(element, instance.type, newProps);
+    applyComponentProps(element, instance.type, newProps, oldProps);
+    if (oldProps.name !== newProps.name) {
+      element.name = newProps.name ?? "";
+    }
     if (oldProps.pickingMode !== newProps.pickingMode) {
       if (newProps.pickingMode !== void 0) {
         element.pickingMode = CS.UnityEngine.UIElements.PickingMode[newProps.pickingMode];
       } else {
         element.pickingMode = CS.UnityEngine.UIElements.PickingMode.Position;
+      }
+    }
+    if (oldProps.focusable !== newProps.focusable && newProps.focusable !== void 0) {
+      element.focusable = newProps.focusable;
+    }
+    if (oldProps.disabled !== newProps.disabled) {
+      if (newProps.disabled !== void 0) {
+        element.SetEnabled(!newProps.disabled);
+      } else {
+        element.SetEnabled(true);
       }
     }
     instance.props = newProps;
@@ -14317,7 +14660,7 @@ var __exports = (() => {
         appendMergedTextChild(parentInstance, child);
       } else {
         handleNonTextChild(parentInstance);
-        parentInstance.element.Add(child.element);
+        nodeAdd(parentInstance.element, child.element);
       }
       trackParent(child.element, parentInstance.element);
     },
@@ -14326,47 +14669,37 @@ var __exports = (() => {
         appendMergedTextChild(parentInstance, child);
       } else {
         handleNonTextChild(parentInstance);
-        parentInstance.element.Add(child.element);
+        nodeAdd(parentInstance.element, child.element);
       }
       trackParent(child.element, parentInstance.element);
     },
     appendChildToContainer(container, child) {
-      container.Add(child.element);
+      nodeAdd(container, child.element);
     },
     insertBefore(parentInstance, child, beforeChild) {
       if (shouldMergeText(parentInstance, child)) {
         insertMergedTextChild(parentInstance, child, beforeChild);
       } else {
         handleNonTextChild(parentInstance);
-        const index = parentInstance.element.IndexOf(beforeChild.element);
-        if (index >= 0) {
-          parentInstance.element.Insert(index, child.element);
-        } else {
-          parentInstance.element.Add(child.element);
-        }
+        insertElementBefore(parentInstance.element, child.element, beforeChild.element);
       }
       trackParent(child.element, parentInstance.element);
     },
     insertInContainerBefore(container, child, beforeChild) {
-      const index = container.IndexOf(beforeChild.element);
-      if (index >= 0) {
-        container.Insert(index, child.element);
-      } else {
-        container.Add(child.element);
-      }
+      insertElementBefore(container, child.element, beforeChild.element);
     },
     removeChild(parentInstance, child) {
       if (child.mergedInto === parentInstance) {
         removeMergedTextChild(parentInstance, child);
       } else {
         __eventAPI.removeAllEventListeners(child.element);
-        parentInstance.element.Remove(child.element);
+        nodeRemoveFromHierarchy(child.element);
       }
       untrackParent(child.element);
     },
     removeChildFromContainer(container, child) {
       __eventAPI.removeAllEventListeners(child.element);
-      container.Remove(child.element);
+      nodeRemoveFromHierarchy(child.element);
       untrackParent(child.element);
     },
     prepareUpdate(_instance, _type, oldProps, newProps) {
@@ -14499,6 +14832,73 @@ var __exports = (() => {
       return console[methodName]?.bind(console, ...args);
     }
   };
+  function shaderHexToRgba(c) {
+    let h = c.startsWith("#") ? c.slice(1) : c;
+    if (h.length === 3 || h.length === 4) h = h.split("").map((d) => d + d).join("");
+    if (h.length !== 6 && h.length !== 8) throw new Error(`[onejs shaderfx] invalid color "${c}"`);
+    const n = (i) => parseInt(h.slice(i, i + 2), 16) / 255;
+    return [n(0), n(2), n(4), h.length === 8 ? n(6) : 1];
+  }
+  var shaderShallowEq = (a, b) => {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    const ka = Object.keys(a), kb = Object.keys(b);
+    if (ka.length !== kb.length) return false;
+    return ka.every((k) => a[k] === b[k]);
+  };
+  function applyShaderFxProps(el, props, oldProps) {
+    if (props.shader !== void 0 && props.shader !== oldProps?.shader) el.SetShader(props.shader);
+    if (props.resolution !== void 0 || oldProps?.resolution !== void 0) {
+      const r = props.resolution;
+      const o = oldProps?.resolution;
+      if (!r || !o || r[0] !== o[0] || r[1] !== o[1]) {
+        el.SetResolution(r ? r[0] : 0, r ? r[1] : 0);
+      }
+    }
+    if (props.floats && !shaderShallowEq(props.floats, oldProps?.floats)) {
+      for (const k in props.floats) el.SetFloat(k, props.floats[k]);
+    }
+    if (props.vectors && !shaderShallowEq(props.vectors, oldProps?.vectors)) {
+      for (const k in props.vectors) {
+        const v = props.vectors[k];
+        el.SetVector(k, v[0] ?? 0, v[1] ?? 0, v[2] ?? 0, v[3] ?? 0);
+      }
+    }
+    if (props.vectorArrays) {
+      for (const k in props.vectorArrays) {
+        const a = props.vectorArrays[k];
+        const o = oldProps?.vectorArrays?.[k];
+        if (!o || o.length !== a.length || a.some((v, i) => v !== o[i])) {
+          el.SetVectorArray(k, Float32Array.from(a));
+        }
+      }
+    }
+    if (props.colors && !shaderShallowEq(props.colors, oldProps?.colors)) {
+      for (const k in props.colors) {
+        const [r, g, b, a] = shaderHexToRgba(props.colors[k]);
+        el.SetColor(k, r, g, b, a);
+      }
+    }
+    if (props.textures && !shaderShallowEq(props.textures, oldProps?.textures)) {
+      for (const k in props.textures) {
+        const t = props.textures[k];
+        if (typeof t === "string") el.SetBuiltinTexture(k, t);
+        else if (t) el.SetTexture(k, t);
+      }
+    }
+    if (props.ramp !== void 0) {
+      const same = oldProps?.ramp && oldProps.ramp.length === props.ramp.length && props.ramp.every((c, i) => c === oldProps.ramp[i]);
+      if (!same) {
+        const flat = [];
+        for (const c of props.ramp) flat.push(...shaderHexToRgba(c));
+        el.SetRamp(props.rampProperty ?? "_Ramp", flat);
+      }
+    }
+    if (props.paused !== void 0 && props.paused !== oldProps?.paused) {
+      if (props.paused) el.Pause();
+      else el.Resume();
+    }
+  }
 
   // ../../../../../../JSModules/onejs-react/src/renderer.ts
   var import_react_reconciler = __toESM(require_react_reconciler());
@@ -14510,10 +14910,21 @@ var __exports = (() => {
     rendererPackageName: "onejs-react"
   });
   var roots = /* @__PURE__ */ new Map();
+  var createContainer = reconciler.createContainer;
+  var teardownHookRegistered = false;
+  function ensureTeardownHook() {
+    if (teardownHookRegistered) return;
+    const g = globalThis;
+    if (typeof g !== "undefined" && typeof g.__onTeardown === "function") {
+      g.__onTeardown(unmountAll);
+      teardownHookRegistered = true;
+    }
+  }
   function render(element, container) {
+    ensureTeardownHook();
     let root = roots.get(container);
     if (!root) {
-      root = reconciler.createContainer(
+      root = createContainer(
         container,
         0,
         // LegacyRoot (0) vs ConcurrentRoot (1)
@@ -14525,6 +14936,8 @@ var __exports = (() => {
         // concurrentUpdatesByDefaultOverride
         "",
         // identifierPrefix
+        (error) => console.error("[OneJS React] Uncaught error:", error),
+        (error) => console.error("[OneJS React] Error caught by boundary:", error),
         (error) => console.error("[OneJS React] Recoverable error:", error),
         null
         // transitionCallbacks
@@ -14543,26 +14956,54 @@ var __exports = (() => {
     } catch (e) {
     }
   }
+  function unmount(container) {
+    const root = roots.get(container);
+    if (!root) return;
+    roots.delete(container);
+    const r = reconciler;
+    if (typeof r.updateContainerSync === "function") {
+      r.updateContainerSync(null, root, null, null);
+      if (typeof r.flushSyncWork === "function") r.flushSyncWork();
+    } else {
+      reconciler.updateContainer(null, root, null, () => {
+      });
+    }
+    if (typeof r.flushPassiveEffects === "function") r.flushPassiveEffects();
+  }
+  function unmountAll() {
+    for (const container of Array.from(roots.keys())) {
+      unmount(container);
+    }
+  }
+
+  // ../../../../../../JSModules/onejs-react/src/portal.tsx
+  var import_react2 = __toESM(require_react());
 
   // ../../../../../../JSModules/onejs-react/src/error-boundary.tsx
-  var import_react2 = __toESM(require_react());
+  var import_react3 = __toESM(require_react());
   var import_jsx_runtime2 = __toESM(require_jsx_runtime());
 
   // ../../../../../../JSModules/onejs-react/src/screen.tsx
-  var import_react3 = __toESM(require_react());
+  var import_react4 = __toESM(require_react());
   var import_jsx_runtime3 = __toESM(require_jsx_runtime());
-  var ScreenContext = (0, import_react3.createContext)(null);
+  var ScreenContext = (0, import_react4.createContext)(null);
 
   // ../../../../../../JSModules/onejs-react/src/vector.ts
-  var import_react4 = __toESM(require_react());
-
-  // ../../../../../../JSModules/onejs-react/src/hooks.ts
   var import_react5 = __toESM(require_react());
 
+  // ../../../../../../JSModules/onejs-react/src/painter.ts
+  var import_react6 = __toESM(require_react());
+
+  // ../../../../../../JSModules/onejs-react/src/particles.ts
+  var import_react7 = __toESM(require_react());
+
+  // ../../../../../../JSModules/onejs-react/src/hooks.ts
+  var import_react8 = __toESM(require_react());
+
   // index.tsx
-  var import_react6 = __toESM(require_react(), 1);
+  var import_react9 = __toESM(require_react(), 1);
   var import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
-  registerElement("test-progress", CS.TestCustomProgressBar);
+  registerElement("test-progress", CS.OneJS.Tests.TestCustomProgressBar);
   var TestProgress = createComponent("test-progress");
   globalThis.__test_basicRendering = () => {
     function App() {
@@ -14581,7 +15022,7 @@ var __exports = (() => {
   globalThis.__test_propUpdates = () => {
     let setProgressFn = null;
     function App() {
-      const [progress, setProgress] = (0, import_react6.useState)(0.25);
+      const [progress, setProgress] = (0, import_react9.useState)(0.25);
       setProgressFn = setProgress;
       return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(View, { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(TestProgress, { progress, trackColor: "#00ff00" }) });
     }
@@ -14611,8 +15052,8 @@ var __exports = (() => {
     globalThis.__refTypeName = null;
     globalThis.__refHandle = -1;
     function App() {
-      const ref = (0, import_react6.useRef)(null);
-      (0, import_react6.useEffect)(() => {
+      const ref = (0, import_react9.useRef)(null);
+      (0, import_react9.useEffect)(() => {
         if (ref.current) {
           ;
           globalThis.__refTypeName = ref.current.GetType().Name;

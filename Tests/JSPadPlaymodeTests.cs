@@ -8,456 +8,458 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UIElements;
 
-/// <summary>
-/// PlayMode tests for JSPad MonoBehaviour.
-/// Tests temp directory lifecycle, source code handling, build state, and execution.
-/// </summary>
-[TestFixture]
-public class JSPadPlaymodeTests {
-    // Simple test source (no external dependencies, just validates basic structure)
-    const string SimpleSource = @"console.log('JSPad test');";
-
-    GameObject _go;
-    JSPad _pad;
-    PanelSettings _panelSettings;
-
-    [UnitySetUp]
-    public IEnumerator SetUp() {
-        // Create PanelSettings at runtime (required for UIDocument)
-        _panelSettings = ScriptableObject.CreateInstance<PanelSettings>();
-        _panelSettings.themeStyleSheet =
-            AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(
-                "Assets/UI Toolkit/UnityThemes/UnityDefaultRuntimeTheme.tss");
-
-        yield return null;
-    }
-
-    [UnityTearDown]
-    public IEnumerator TearDown() {
-        // Stop pad if running
-        if (_pad != null) {
-            _pad.Stop();
-        }
-
-        if (_go != null) UnityEngine.Object.Destroy(_go);
-        if (_panelSettings != null) UnityEngine.Object.Destroy(_panelSettings);
-
-        QuickJSNative.ClearAllHandles();
-
-        yield return null;
-    }
-
+namespace OneJS.Tests {
     /// <summary>
-    /// Create a JSPad with preconfigured settings.
+    /// PlayMode tests for JSPad MonoBehaviour.
+    /// Tests temp directory lifecycle, source code handling, build state, and execution.
     /// </summary>
-    JSPad CreateJSPad(string sourceCode = null) {
-        _go = new GameObject("TestJSPad");
+    [TestFixture]
+    public class JSPadPlaymodeTests {
+        // Simple test source (no external dependencies, just validates basic structure)
+        const string SimpleSource = @"console.log('JSPad test');";
 
-        // Add UIDocument with panel settings
-        var uiDoc = _go.AddComponent<UIDocument>();
-        uiDoc.panelSettings = _panelSettings;
+        GameObject _go;
+        JSPad _pad;
+        PanelSettings _panelSettings;
 
-        // Add JSPad
-        _pad = _go.AddComponent<JSPad>();
+        [UnitySetUp]
+        public IEnumerator SetUp() {
+            // Create PanelSettings at runtime (required for UIDocument)
+            _panelSettings = ScriptableObject.CreateInstance<PanelSettings>();
+            _panelSettings.themeStyleSheet =
+                AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(
+                    "Assets/UI Toolkit/UnityThemes/UnityDefaultRuntimeTheme.tss");
 
-        if (sourceCode != null) {
-            _pad.SourceCode = sourceCode;
+            yield return null;
         }
 
-        return _pad;
-    }
+        [UnityTearDown]
+        public IEnumerator TearDown() {
+            // Stop pad if running
+            if (_pad != null) {
+                _pad.Stop();
+            }
 
-    // MARK: Temp Directory Tests
+            if (_go != null) UnityEngine.Object.Destroy(_go);
+            if (_panelSettings != null) UnityEngine.Object.Destroy(_panelSettings);
 
-    [UnityTest]
-    public IEnumerator TempDir_CreatesUniqueInstanceId() {
-        CreateJSPad();
+            QuickJSNative.ClearAllHandles();
 
-        // Wait for Start()
-        yield return null;
+            yield return null;
+        }
 
-        // Access TempDir to trigger instance ID creation
-        var tempDir1 = _pad.TempDir;
-        Assert.IsNotNull(tempDir1, "TempDir should not be null");
-        Assert.IsTrue(tempDir1.Contains("OneJSPad"), "TempDir should contain OneJSPad");
+        /// <summary>
+        /// Create a JSPad with preconfigured settings.
+        /// </summary>
+        JSPad CreateJSPad(string sourceCode = null) {
+            _go = new GameObject("TestJSPad");
 
-        // Create second pad
-        var go2 = new GameObject("TestJSPad2");
-        var uiDoc2 = go2.AddComponent<UIDocument>();
-        uiDoc2.panelSettings = _panelSettings;
-        var pad2 = go2.AddComponent<JSPad>();
+            // Add UIDocument with panel settings
+            var uiDoc = _go.AddComponent<UIDocument>();
+            uiDoc.panelSettings = _panelSettings;
 
-        yield return null;
+            // Add JSPad
+            _pad = _go.AddComponent<JSPad>();
 
-        var tempDir2 = pad2.TempDir;
+            if (sourceCode != null) {
+                _pad.SourceCode = sourceCode;
+            }
 
-        // Instance IDs should be different
-        Assert.AreNotEqual(tempDir1, tempDir2, "Each JSPad should have unique temp directory");
+            return _pad;
+        }
 
-        // Cleanup
-        UnityEngine.Object.Destroy(go2);
-    }
+        // MARK: Temp Directory Tests
 
-    [UnityTest]
-    public IEnumerator TempDir_GeneratesPackageJson() {
-        CreateJSPad(SimpleSource);
+        [UnityTest]
+        public IEnumerator TempDir_CreatesUniqueInstanceId() {
+            CreateJSPad();
 
-        yield return null;
+            // Wait for Start()
+            yield return null;
 
-        // Initialize temp directory
-        _pad.EnsureTempDirectory();
+            // Access TempDir to trigger instance ID creation
+            var tempDir1 = _pad.TempDir;
+            Assert.IsNotNull(tempDir1, "TempDir should not be null");
+            Assert.IsTrue(tempDir1.Contains("OneJSPad"), "TempDir should contain OneJSPad");
 
-        var packageJsonPath = Path.Combine(_pad.TempDir, "package.json");
-        Assert.IsTrue(File.Exists(packageJsonPath), "package.json should be created");
+            // Create second pad
+            var go2 = new GameObject("TestJSPad2");
+            var uiDoc2 = go2.AddComponent<UIDocument>();
+            uiDoc2.panelSettings = _panelSettings;
+            var pad2 = go2.AddComponent<JSPad>();
 
-        var content = File.ReadAllText(packageJsonPath);
-        Assert.IsTrue(content.Contains("\"name\""), "package.json should have name field");
-        Assert.IsTrue(content.Contains("onejs-react"), "package.json should reference onejs-react");
-        Assert.IsTrue(content.Contains("react"), "package.json should reference react");
-    }
+            yield return null;
 
-    [UnityTest]
-    public IEnumerator TempDir_GeneratesTsConfig() {
-        CreateJSPad(SimpleSource);
+            var tempDir2 = pad2.TempDir;
 
-        yield return null;
+            // Instance IDs should be different
+            Assert.AreNotEqual(tempDir1, tempDir2, "Each JSPad should have unique temp directory");
 
-        _pad.EnsureTempDirectory();
+            // Cleanup
+            UnityEngine.Object.Destroy(go2);
+        }
 
-        var tsconfigPath = Path.Combine(_pad.TempDir, "tsconfig.json");
-        Assert.IsTrue(File.Exists(tsconfigPath), "tsconfig.json should be created");
+        [UnityTest]
+        public IEnumerator TempDir_GeneratesPackageJson() {
+            CreateJSPad(SimpleSource);
 
-        var content = File.ReadAllText(tsconfigPath);
-        Assert.IsTrue(content.Contains("\"jsx\""), "tsconfig.json should have jsx config");
-        Assert.IsTrue(content.Contains("react-jsx"), "tsconfig.json should use react-jsx");
-    }
+            yield return null;
 
-    [UnityTest]
-    public IEnumerator TempDir_GeneratesEsbuildConfig() {
-        CreateJSPad(SimpleSource);
+            // Initialize temp directory
+            _pad.EnsureTempDirectory();
 
-        yield return null;
+            var packageJsonPath = Path.Combine(_pad.TempDir, "package.json");
+            Assert.IsTrue(File.Exists(packageJsonPath), "package.json should be created");
 
-        _pad.EnsureTempDirectory();
+            var content = File.ReadAllText(packageJsonPath);
+            Assert.IsTrue(content.Contains("\"name\""), "package.json should have name field");
+            Assert.IsTrue(content.Contains("onejs-react"), "package.json should reference onejs-react");
+            Assert.IsTrue(content.Contains("react"), "package.json should reference react");
+        }
 
-        var esbuildConfigPath = Path.Combine(_pad.TempDir, "esbuild.config.mjs");
-        Assert.IsTrue(File.Exists(esbuildConfigPath), "esbuild.config.mjs should be created");
+        [UnityTest]
+        public IEnumerator TempDir_GeneratesTsConfig() {
+            CreateJSPad(SimpleSource);
 
-        var content = File.ReadAllText(esbuildConfigPath);
-        Assert.IsTrue(content.Contains("esbuild"), "esbuild config should import esbuild");
-        Assert.IsTrue(content.Contains("@outputs/app.js"), "esbuild config should output to @outputs/app.js");
-    }
+            yield return null;
 
-    // MARK: Source Code Tests
+            _pad.EnsureTempDirectory();
 
-    [UnityTest]
-    public IEnumerator WriteSource_CreatesIndexTsx() {
-        CreateJSPad(SimpleSource);
+            var tsconfigPath = Path.Combine(_pad.TempDir, "tsconfig.json");
+            Assert.IsTrue(File.Exists(tsconfigPath), "tsconfig.json should be created");
 
-        yield return null;
+            var content = File.ReadAllText(tsconfigPath);
+            Assert.IsTrue(content.Contains("\"jsx\""), "tsconfig.json should have jsx config");
+            Assert.IsTrue(content.Contains("react-jsx"), "tsconfig.json should use react-jsx");
+        }
 
-        _pad.WriteSourceFile();
+        [UnityTest]
+        public IEnumerator TempDir_GeneratesEsbuildConfig() {
+            CreateJSPad(SimpleSource);
 
-        var indexPath = Path.Combine(_pad.TempDir, "index.tsx");
-        Assert.IsTrue(File.Exists(indexPath), "index.tsx should be created");
-    }
+            yield return null;
 
-    [UnityTest]
-    public IEnumerator WriteSource_PreservesContent() {
-        const string TestContent = "// Test content\nconsole.log('preserved');";
+            _pad.EnsureTempDirectory();
 
-        CreateJSPad(TestContent);
+            var esbuildConfigPath = Path.Combine(_pad.TempDir, "esbuild.config.mjs");
+            Assert.IsTrue(File.Exists(esbuildConfigPath), "esbuild.config.mjs should be created");
 
-        yield return null;
+            var content = File.ReadAllText(esbuildConfigPath);
+            Assert.IsTrue(content.Contains("esbuild"), "esbuild config should import esbuild");
+            Assert.IsTrue(content.Contains("@outputs/app.js"), "esbuild config should output to @outputs/app.js");
+        }
 
-        _pad.WriteSourceFile();
+        // MARK: Source Code Tests
 
-        var indexPath = Path.Combine(_pad.TempDir, "index.tsx");
-        var content = File.ReadAllText(indexPath);
-        Assert.AreEqual(TestContent, content, "Source content should be preserved exactly");
-    }
+        [UnityTest]
+        public IEnumerator WriteSource_CreatesIndexTsx() {
+            CreateJSPad(SimpleSource);
 
-    [UnityTest]
-    public IEnumerator SourceCode_CanBeModified() {
-        CreateJSPad("original");
+            yield return null;
 
-        yield return null;
+            _pad.WriteSourceFile();
 
-        _pad.SourceCode = "modified";
+            var indexPath = Path.Combine(_pad.TempDir, "index.tsx");
+            Assert.IsTrue(File.Exists(indexPath), "index.tsx should be created");
+        }
 
-        Assert.AreEqual("modified", _pad.SourceCode, "SourceCode property should be modifiable");
-    }
+        [UnityTest]
+        public IEnumerator WriteSource_PreservesContent() {
+            const string TestContent = "// Test content\nconsole.log('preserved');";
 
-    // MARK: Build State Tests
+            CreateJSPad(TestContent);
 
-    [UnityTest]
-    public IEnumerator BuildState_StartsIdle() {
-        CreateJSPad();
+            yield return null;
 
-        yield return null;
+            _pad.WriteSourceFile();
 
-        Assert.AreEqual(JSPad.BuildState.Idle, _pad.CurrentBuildState, "Initial build state should be Idle");
-    }
+            var indexPath = Path.Combine(_pad.TempDir, "index.tsx");
+            var content = File.ReadAllText(indexPath);
+            Assert.AreEqual(TestContent, content, "Source content should be preserved exactly");
+        }
 
-    [UnityTest]
-    public IEnumerator BuildState_TransitionsCorrectly() {
-        CreateJSPad();
+        [UnityTest]
+        public IEnumerator SourceCode_CanBeModified() {
+            CreateJSPad("original");
 
-        yield return null;
+            yield return null;
 
-        // Test all state transitions
-        _pad.SetBuildState(JSPad.BuildState.InstallingDeps);
-        Assert.AreEqual(JSPad.BuildState.InstallingDeps, _pad.CurrentBuildState);
+            _pad.SourceCode = "modified";
 
-        _pad.SetBuildState(JSPad.BuildState.Building);
-        Assert.AreEqual(JSPad.BuildState.Building, _pad.CurrentBuildState);
+            Assert.AreEqual("modified", _pad.SourceCode, "SourceCode property should be modifiable");
+        }
 
-        _pad.SetBuildState(JSPad.BuildState.Ready);
-        Assert.AreEqual(JSPad.BuildState.Ready, _pad.CurrentBuildState);
+        // MARK: Build State Tests
 
-        _pad.SetBuildState(JSPad.BuildState.Error, error: "Test error");
-        Assert.AreEqual(JSPad.BuildState.Error, _pad.CurrentBuildState);
-        Assert.AreEqual("Test error", _pad.LastBuildError);
-    }
+        [UnityTest]
+        public IEnumerator BuildState_StartsIdle() {
+            CreateJSPad();
 
-    [UnityTest]
-    public IEnumerator HasBuiltBundle_ReturnsFalse_WhenNoBundle() {
-        CreateJSPad();
+            yield return null;
 
-        yield return null;
+            Assert.AreEqual(JSPad.BuildState.Idle, _pad.CurrentBuildState, "Initial build state should be Idle");
+        }
 
-        Assert.IsFalse(_pad.HasBuiltBundle, "HasBuiltBundle should be false when no bundle exists");
-    }
+        [UnityTest]
+        public IEnumerator BuildState_TransitionsCorrectly() {
+            CreateJSPad();
 
-    [UnityTest]
-    public IEnumerator HasBuiltBundle_ReturnsTrue_AfterSaveBundleToSerializedFields() {
-        CreateJSPad();
+            yield return null;
 
-        yield return null;
+            // Test all state transitions
+            _pad.SetBuildState(JSPad.BuildState.InstallingDeps);
+            Assert.AreEqual(JSPad.BuildState.InstallingDeps, _pad.CurrentBuildState);
 
-        _pad.EnsureTempDirectory();
+            _pad.SetBuildState(JSPad.BuildState.Building);
+            Assert.AreEqual(JSPad.BuildState.Building, _pad.CurrentBuildState);
 
-        // Manually create output file to simulate build
-        var outputDir = Path.GetDirectoryName(_pad.OutputFile);
-        if (!Directory.Exists(outputDir)) {
+            _pad.SetBuildState(JSPad.BuildState.Ready);
+            Assert.AreEqual(JSPad.BuildState.Ready, _pad.CurrentBuildState);
+
+            _pad.SetBuildState(JSPad.BuildState.Error, error: "Test error");
+            Assert.AreEqual(JSPad.BuildState.Error, _pad.CurrentBuildState);
+            Assert.AreEqual("Test error", _pad.LastBuildError);
+        }
+
+        [UnityTest]
+        public IEnumerator HasBuiltBundle_ReturnsFalse_WhenNoBundle() {
+            CreateJSPad();
+
+            yield return null;
+
+            Assert.IsFalse(_pad.HasBuiltBundle, "HasBuiltBundle should be false when no bundle exists");
+        }
+
+        [UnityTest]
+        public IEnumerator HasBuiltBundle_ReturnsTrue_AfterSaveBundleToSerializedFields() {
+            CreateJSPad();
+
+            yield return null;
+
+            _pad.EnsureTempDirectory();
+
+            // Manually create output file to simulate build
+            var outputDir = Path.GetDirectoryName(_pad.OutputFile);
+            if (!Directory.Exists(outputDir)) {
+                Directory.CreateDirectory(outputDir);
+            }
+            File.WriteAllText(_pad.OutputFile, "console.log('test');");
+
+            // Save to serialized field (this is what the editor does after building)
+            _pad.SaveBundleToSerializedFields();
+
+            Assert.IsTrue(_pad.HasBuiltBundle, "HasBuiltBundle should be true after saving bundle");
+        }
+
+        // MARK: Execution Tests
+
+        [UnityTest]
+        public IEnumerator Reload_ExecutesBuiltBundle() {
+            CreateJSPad();
+
+            yield return null;
+
+            _pad.EnsureTempDirectory();
+
+            // Create mock built output
+            var outputDir = Path.GetDirectoryName(_pad.OutputFile);
             Directory.CreateDirectory(outputDir);
+            File.WriteAllText(_pad.OutputFile, "globalThis.__jsPadRan = true;");
+
+            // Save to serialized field (simulating editor Build button)
+            _pad.SaveBundleToSerializedFields();
+
+            // Reload the bundle
+            _pad.Reload();
+
+            // Wait a frame for execution
+            yield return null;
+
+            Assert.IsTrue(_pad.IsRunning, "JSPad should be running after Reload");
+
+            var result = _pad.Bridge.Eval("globalThis.__jsPadRan");
+            Assert.AreEqual("true", result, "Built bundle should execute");
         }
-        File.WriteAllText(_pad.OutputFile, "console.log('test');");
 
-        // Save to serialized field (this is what the editor does after building)
-        _pad.SaveBundleToSerializedFields();
+        [UnityTest]
+        public IEnumerator Reload_ExposesRootAndBridge() {
+            CreateJSPad();
 
-        Assert.IsTrue(_pad.HasBuiltBundle, "HasBuiltBundle should be true after saving bundle");
-    }
+            yield return null;
 
-    // MARK: Execution Tests
+            _pad.EnsureTempDirectory();
 
-    [UnityTest]
-    public IEnumerator Reload_ExecutesBuiltBundle() {
-        CreateJSPad();
+            // Create mock built output that checks for globals
+            var outputDir = Path.GetDirectoryName(_pad.OutputFile);
+            Directory.CreateDirectory(outputDir);
+            File.WriteAllText(_pad.OutputFile, @"
+    globalThis.__hasRoot = typeof __root !== 'undefined' && __root.__csHandle > 0;
+    globalThis.__hasBridge = typeof __bridge !== 'undefined' && __bridge.__csHandle > 0;
+    ");
 
-        yield return null;
+            _pad.SaveBundleToSerializedFields();
+            _pad.Reload();
+            yield return null;
 
-        _pad.EnsureTempDirectory();
+            var hasRoot = _pad.Bridge.Eval("globalThis.__hasRoot");
+            var hasBridge = _pad.Bridge.Eval("globalThis.__hasBridge");
 
-        // Create mock built output
-        var outputDir = Path.GetDirectoryName(_pad.OutputFile);
-        Directory.CreateDirectory(outputDir);
-        File.WriteAllText(_pad.OutputFile, "globalThis.__jsPadRan = true;");
+            Assert.AreEqual("true", hasRoot, "__root should be exposed");
+            Assert.AreEqual("true", hasBridge, "__bridge should be exposed");
+        }
 
-        // Save to serialized field (simulating editor Build button)
-        _pad.SaveBundleToSerializedFields();
+        [UnityTest]
+        public IEnumerator Stop_ClearsUI() {
+            CreateJSPad();
 
-        // Reload the bundle
-        _pad.Reload();
+            yield return null;
 
-        // Wait a frame for execution
-        yield return null;
+            _pad.EnsureTempDirectory();
 
-        Assert.IsTrue(_pad.IsRunning, "JSPad should be running after Reload");
+            // Create mock built output that adds UI element
+            var outputDir = Path.GetDirectoryName(_pad.OutputFile);
+            Directory.CreateDirectory(outputDir);
+            File.WriteAllText(_pad.OutputFile, @"
+    var el = new CS.UnityEngine.UIElements.VisualElement();
+    el.name = 'TestElement';
+    __root.Add(el);
+    ");
 
-        var result = _pad.Bridge.Eval("globalThis.__jsPadRan");
-        Assert.AreEqual("true", result, "Built bundle should execute");
-    }
+            _pad.SaveBundleToSerializedFields();
+            _pad.Reload();
+            yield return null;
 
-    [UnityTest]
-    public IEnumerator Reload_ExposesRootAndBridge() {
-        CreateJSPad();
+            // Verify element was added
+            var uiDoc = _go.GetComponent<UIDocument>();
+            var element = uiDoc.rootVisualElement.Q("TestElement");
+            Assert.IsNotNull(element, "Element should be added");
 
-        yield return null;
+            // Stop
+            _pad.Stop();
+            yield return null;
 
-        _pad.EnsureTempDirectory();
+            // Element should be gone
+            var elementAfterStop = uiDoc.rootVisualElement.Q("TestElement");
+            Assert.IsNull(elementAfterStop, "UI should be cleared after Stop");
+        }
 
-        // Create mock built output that checks for globals
-        var outputDir = Path.GetDirectoryName(_pad.OutputFile);
-        Directory.CreateDirectory(outputDir);
-        File.WriteAllText(_pad.OutputFile, @"
-globalThis.__hasRoot = typeof __root !== 'undefined' && __root.__csHandle > 0;
-globalThis.__hasBridge = typeof __bridge !== 'undefined' && __bridge.__csHandle > 0;
-");
+        [UnityTest]
+        public IEnumerator Stop_DisposesBridge() {
+            CreateJSPad();
 
-        _pad.SaveBundleToSerializedFields();
-        _pad.Reload();
-        yield return null;
+            yield return null;
 
-        var hasRoot = _pad.Bridge.Eval("globalThis.__hasRoot");
-        var hasBridge = _pad.Bridge.Eval("globalThis.__hasBridge");
+            _pad.EnsureTempDirectory();
 
-        Assert.AreEqual("true", hasRoot, "__root should be exposed");
-        Assert.AreEqual("true", hasBridge, "__bridge should be exposed");
-    }
+            // Create mock built output
+            var outputDir = Path.GetDirectoryName(_pad.OutputFile);
+            Directory.CreateDirectory(outputDir);
+            File.WriteAllText(_pad.OutputFile, "console.log('test');");
 
-    [UnityTest]
-    public IEnumerator Stop_ClearsUI() {
-        CreateJSPad();
+            _pad.SaveBundleToSerializedFields();
+            _pad.Reload();
+            yield return null;
 
-        yield return null;
+            Assert.IsTrue(_pad.IsRunning, "Should be running");
+            Assert.IsNotNull(_pad.Bridge, "Bridge should exist");
 
-        _pad.EnsureTempDirectory();
+            _pad.Stop();
+            yield return null;
 
-        // Create mock built output that adds UI element
-        var outputDir = Path.GetDirectoryName(_pad.OutputFile);
-        Directory.CreateDirectory(outputDir);
-        File.WriteAllText(_pad.OutputFile, @"
-var el = new CS.UnityEngine.UIElements.VisualElement();
-el.name = 'TestElement';
-__root.Add(el);
-");
+            Assert.IsFalse(_pad.IsRunning, "Should not be running after Stop");
+            Assert.IsNull(_pad.Bridge, "Bridge should be null after Stop");
+        }
 
-        _pad.SaveBundleToSerializedFields();
-        _pad.Reload();
-        yield return null;
+        // MARK: Initialization Tests
 
-        // Verify element was added
-        var uiDoc = _go.GetComponent<UIDocument>();
-        var element = uiDoc.rootVisualElement.Q("TestElement");
-        Assert.IsNotNull(element, "Element should be added");
+        [UnityTest]
+        public IEnumerator Init_RequireComponent_EnsuresUIDocument() {
+            // RequireComponent ensures UIDocument is automatically added when JSPad is added
+            _go = new GameObject("TestJSPadRequireComponent");
+            _pad = _go.AddComponent<JSPad>();
 
-        // Stop
-        _pad.Stop();
-        yield return null;
+            // UIDocument should be added immediately by RequireComponent
+            var uiDoc = _go.GetComponent<UIDocument>();
+            Assert.IsNotNull(uiDoc, "UIDocument should be added automatically by RequireComponent");
 
-        // Element should be gone
-        var elementAfterStop = uiDoc.rootVisualElement.Q("TestElement");
-        Assert.IsNull(elementAfterStop, "UI should be cleared after Stop");
-    }
+            yield return null;
+        }
 
-    [UnityTest]
-    public IEnumerator Stop_DisposesBridge() {
-        CreateJSPad();
+        [UnityTest]
+        public IEnumerator Init_EmbeddedPanelSettings_IsCreatedAndAssigned() {
+            // Create JSPad - it will create UIDocument via RequireComponent
+            _go = new GameObject("TestJSPadEmbeddedPanelSettings");
+            _pad = _go.AddComponent<JSPad>();
 
-        yield return null;
+            // Wait for OnEnable
+            yield return null;
 
-        _pad.EnsureTempDirectory();
+            // Should have embedded PanelSettings
+            Assert.IsNotNull(_pad.EmbeddedPanelSettings, "EmbeddedPanelSettings should be created");
 
-        // Create mock built output
-        var outputDir = Path.GetDirectoryName(_pad.OutputFile);
-        Directory.CreateDirectory(outputDir);
-        File.WriteAllText(_pad.OutputFile, "console.log('test');");
+            // UIDocument should have PanelSettings assigned
+            var uiDoc = _go.GetComponent<UIDocument>();
+            Assert.IsNotNull(uiDoc.panelSettings, "UIDocument.panelSettings should be assigned");
+            Assert.AreEqual(_pad.EmbeddedPanelSettings, uiDoc.panelSettings, "UIDocument should use the embedded PanelSettings");
+        }
 
-        _pad.SaveBundleToSerializedFields();
-        _pad.Reload();
-        yield return null;
+        // MARK: Node Modules Tests
 
-        Assert.IsTrue(_pad.IsRunning, "Should be running");
-        Assert.IsNotNull(_pad.Bridge, "Bridge should exist");
+        [UnityTest]
+        public IEnumerator HasNodeModules_ReturnsFalse_WhenNotInstalled() {
+            CreateJSPad();
 
-        _pad.Stop();
-        yield return null;
+            yield return null;
 
-        Assert.IsFalse(_pad.IsRunning, "Should not be running after Stop");
-        Assert.IsNull(_pad.Bridge, "Bridge should be null after Stop");
-    }
+            _pad.EnsureTempDirectory();
 
-    // MARK: Initialization Tests
+            Assert.IsFalse(_pad.HasNodeModules(), "HasNodeModules should be false before npm install");
+        }
 
-    [UnityTest]
-    public IEnumerator Init_RequireComponent_EnsuresUIDocument() {
-        // RequireComponent ensures UIDocument is automatically added when JSPad is added
-        _go = new GameObject("TestJSPadRequireComponent");
-        _pad = _go.AddComponent<JSPad>();
+        [UnityTest]
+        public IEnumerator HasNodeModules_ReturnsTrue_WhenDirectoryExists() {
+            CreateJSPad();
 
-        // UIDocument should be added immediately by RequireComponent
-        var uiDoc = _go.GetComponent<UIDocument>();
-        Assert.IsNotNull(uiDoc, "UIDocument should be added automatically by RequireComponent");
+            yield return null;
 
-        yield return null;
-    }
+            _pad.EnsureTempDirectory();
 
-    [UnityTest]
-    public IEnumerator Init_EmbeddedPanelSettings_IsCreatedAndAssigned() {
-        // Create JSPad - it will create UIDocument via RequireComponent
-        _go = new GameObject("TestJSPadEmbeddedPanelSettings");
-        _pad = _go.AddComponent<JSPad>();
+            // Manually create node_modules directory
+            var nodeModulesPath = Path.Combine(_pad.TempDir, "node_modules");
+            Directory.CreateDirectory(nodeModulesPath);
 
-        // Wait for OnEnable
-        yield return null;
+            Assert.IsTrue(_pad.HasNodeModules(), "HasNodeModules should be true when directory exists");
+        }
 
-        // Should have embedded PanelSettings
-        Assert.IsNotNull(_pad.EmbeddedPanelSettings, "EmbeddedPanelSettings should be created");
+        // MARK: Platform Defines Tests
 
-        // UIDocument should have PanelSettings assigned
-        var uiDoc = _go.GetComponent<UIDocument>();
-        Assert.IsNotNull(uiDoc.panelSettings, "UIDocument.panelSettings should be assigned");
-        Assert.AreEqual(_pad.EmbeddedPanelSettings, uiDoc.panelSettings, "UIDocument should use the embedded PanelSettings");
-    }
+        [UnityTest]
+        public IEnumerator Reload_InjectsPlatformDefines() {
+            CreateJSPad();
 
-    // MARK: Node Modules Tests
+            yield return null;
 
-    [UnityTest]
-    public IEnumerator HasNodeModules_ReturnsFalse_WhenNotInstalled() {
-        CreateJSPad();
+            _pad.EnsureTempDirectory();
 
-        yield return null;
+            // Create mock built output
+            var outputDir = Path.GetDirectoryName(_pad.OutputFile);
+            Directory.CreateDirectory(outputDir);
+            File.WriteAllText(_pad.OutputFile, @"
+    globalThis.__platformTest = {
+        hasEditor: typeof UNITY_EDITOR !== 'undefined',
+        editorValue: UNITY_EDITOR
+    };
+    ");
 
-        _pad.EnsureTempDirectory();
+            _pad.SaveBundleToSerializedFields();
+            _pad.Reload();
+            yield return null;
 
-        Assert.IsFalse(_pad.HasNodeModules(), "HasNodeModules should be false before npm install");
-    }
+            var hasEditor = _pad.Bridge.Eval("globalThis.__platformTest.hasEditor");
+            Assert.AreEqual("true", hasEditor, "UNITY_EDITOR should be defined");
 
-    [UnityTest]
-    public IEnumerator HasNodeModules_ReturnsTrue_WhenDirectoryExists() {
-        CreateJSPad();
-
-        yield return null;
-
-        _pad.EnsureTempDirectory();
-
-        // Manually create node_modules directory
-        var nodeModulesPath = Path.Combine(_pad.TempDir, "node_modules");
-        Directory.CreateDirectory(nodeModulesPath);
-
-        Assert.IsTrue(_pad.HasNodeModules(), "HasNodeModules should be true when directory exists");
-    }
-
-    // MARK: Platform Defines Tests
-
-    [UnityTest]
-    public IEnumerator Reload_InjectsPlatformDefines() {
-        CreateJSPad();
-
-        yield return null;
-
-        _pad.EnsureTempDirectory();
-
-        // Create mock built output
-        var outputDir = Path.GetDirectoryName(_pad.OutputFile);
-        Directory.CreateDirectory(outputDir);
-        File.WriteAllText(_pad.OutputFile, @"
-globalThis.__platformTest = {
-    hasEditor: typeof UNITY_EDITOR !== 'undefined',
-    editorValue: UNITY_EDITOR
-};
-");
-
-        _pad.SaveBundleToSerializedFields();
-        _pad.Reload();
-        yield return null;
-
-        var hasEditor = _pad.Bridge.Eval("globalThis.__platformTest.hasEditor");
-        Assert.AreEqual("true", hasEditor, "UNITY_EDITOR should be defined");
-
-        var editorValue = _pad.Bridge.Eval("globalThis.__platformTest.editorValue");
-        Assert.AreEqual("true", editorValue, "UNITY_EDITOR should be true in Editor");
+            var editorValue = _pad.Bridge.Eval("globalThis.__platformTest.editorValue");
+            Assert.AreEqual("true", editorValue, "UNITY_EDITOR should be true in Editor");
+        }
     }
 }

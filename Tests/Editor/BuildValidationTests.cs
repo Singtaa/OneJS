@@ -5,357 +5,360 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
+using OneJS.Editor;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
-/// <summary>
-/// EditMode tests that build a standalone player, run it, and validate the output.
-/// These tests are slow (30-60+ seconds) but provide end-to-end validation.
-///
-/// Prerequisites:
-/// - A test scene with BuildValidationRunner component
-/// - The scene must be added to Build Settings
-/// </summary>
-[TestFixture]
-public class BuildValidationTests {
-    const string TEST_SCENE_PATH = "Assets/Singtaa/OneJS/Tests/BuildValidation/BuildValidationScene.unity";
-    const string BUILD_OUTPUT_DIR = "Temp/OneJSBuildTest";
-    const int BUILD_TIMEOUT_MS = 120000; // 2 minutes for build
-    const int RUN_TIMEOUT_MS = 60000;    // 1 minute for execution
+namespace OneJS.Tests.Editor {
+    /// <summary>
+    /// EditMode tests that build a standalone player, run it, and validate the output.
+    /// These tests are slow (30-60+ seconds) but provide end-to-end validation.
+    ///
+    /// Prerequisites:
+    /// - A test scene with BuildValidationRunner component
+    /// - The scene must be added to Build Settings
+    /// </summary>
+    [TestFixture]
+    public class BuildValidationTests {
+        const string TEST_SCENE_PATH = "Assets/Singtaa/OneJS/Tests/BuildValidation/BuildValidationScene.unity";
+        const string BUILD_OUTPUT_DIR = "Temp/OneJSBuildTest";
+        const int BUILD_TIMEOUT_MS = 120000; // 2 minutes for build
+        const int RUN_TIMEOUT_MS = 60000;    // 1 minute for execution
 
-    string _buildPath;
-    string _originalScenes;
+        string _buildPath;
+        string _originalScenes;
 
-    [SetUp]
-    public void SetUp() {
-        _buildPath = Path.Combine(
-            Path.GetDirectoryName(Application.dataPath),
-            BUILD_OUTPUT_DIR,
-            GetBuildName());
+        [SetUp]
+        public void SetUp() {
+            _buildPath = Path.Combine(
+                Path.GetDirectoryName(Application.dataPath),
+                BUILD_OUTPUT_DIR,
+                GetBuildName());
 
-        // Store original build scenes
-        _originalScenes = string.Join(",",
-            EditorBuildSettings.scenes.Select(s => s.path));
-    }
+            // Store original build scenes
+            _originalScenes = string.Join(",",
+                EditorBuildSettings.scenes.Select(s => s.path));
+        }
 
-    [TearDown]
-    public void TearDown() {
-        // Cleanup build output
-        var buildDir = Path.GetDirectoryName(_buildPath);
-        if (Directory.Exists(buildDir)) {
+        [TearDown]
+        public void TearDown() {
+            // Cleanup build output
+            var buildDir = Path.GetDirectoryName(_buildPath);
+            if (Directory.Exists(buildDir)) {
+                try {
+                    Directory.Delete(buildDir, true);
+                } catch (IOException) {
+                    Debug.LogWarning($"[BuildValidation] Could not clean up: {buildDir}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Full end-to-end test: build player, run it, validate results.
+        /// Requires a properly configured test scene.
+        /// </summary>
+        [Test, Explicit("Slow test - builds and runs standalone player")]
+        [Timeout(180000)] // 3 minute total timeout
+        public void StandaloneBuild_ExecutesJS_AndPassesValidation() {
+            // Skip if test scene doesn't exist
+            if (!File.Exists(TEST_SCENE_PATH)) {
+                Assert.Ignore($"Test scene not found: {TEST_SCENE_PATH}. Create it with BuildValidationRunner component.");
+                return;
+            }
+
+            // 1. Configure build settings
+            var originalScenes = EditorBuildSettings.scenes;
             try {
+                AddTestSceneToBuildSettings();
+
+                // 2. Build player
+                var buildReport = BuildTestPlayer();
+                Assert.AreEqual(BuildResult.Succeeded, buildReport.summary.result,
+                    $"Build failed: {GetBuildErrors(buildReport)}");
+
+                // 3. Run executable and capture output
+                var (exitCode, output) = RunAndCapture(_buildPath, RUN_TIMEOUT_MS);
+
+                // 4. Parse [BUILD_TEST] lines
+                var results = ParseTestResults(output);
+
+                // 5. Log all results for debugging
+                Debug.Log($"[BuildValidation] Captured {results.Count} test results:");
+                foreach (var result in results) {
+                    Debug.Log($"  {result}");
+                }
+
+                // 6. Assert results
+                Assert.IsTrue(results.Count > 0, "No test results captured. Check build output.");
+
+                var failures = results.Where(r => r.StartsWith("FAIL")).ToList();
+                if (failures.Count > 0) {
+                    Assert.Fail($"Build validation failed:\n{string.Join("\n", failures)}");
+                }
+
+                var passes = results.Count(r => r.StartsWith("PASS"));
+                Debug.Log($"[BuildValidation] All {passes} tests passed!");
+            } finally {
+                // Restore original build settings
+                EditorBuildSettings.scenes = originalScenes;
+            }
+        }
+
+        /// <summary>
+        /// Quick validation that build processor copies assets correctly.
+        /// Doesn't run the build, just simulates the preprocessing.
+        /// </summary>
+        [Test]
+        public void BuildProcessor_CopiesAssetsToStreamingAssets() {
+            // This is covered by JSRunnerBuildProcessorTests
+            // Just verify the processor exists and can be instantiated
+            var processor = new JSRunnerBuildProcessor();
+            Assert.IsNotNull(processor);
+            Assert.AreEqual(0, processor.callbackOrder);
+        }
+
+        // MARK: Helper Methods
+
+        void AddTestSceneToBuildSettings() {
+            var scenes = EditorBuildSettings.scenes.ToList();
+
+            // Check if test scene is already included
+            var existingScene = scenes.FirstOrDefault(s => s.path == TEST_SCENE_PATH);
+            if (existingScene != null) {
+                existingScene.enabled = true;
+            } else {
+                scenes.Insert(0, new EditorBuildSettingsScene(TEST_SCENE_PATH, true));
+            }
+
+            // Disable other scenes for test
+            foreach (var scene in scenes) {
+                if (scene.path != TEST_SCENE_PATH) {
+                    scene.enabled = false;
+                }
+            }
+
+            EditorBuildSettings.scenes = scenes.ToArray();
+        }
+
+        BuildReport BuildTestPlayer() {
+            // Ensure output directory exists
+            var buildDir = Path.GetDirectoryName(_buildPath);
+            if (Directory.Exists(buildDir)) {
                 Directory.Delete(buildDir, true);
-            } catch (IOException) {
-                Debug.LogWarning($"[BuildValidation] Could not clean up: {buildDir}");
             }
-        }
-    }
+            Directory.CreateDirectory(buildDir);
 
-    /// <summary>
-    /// Full end-to-end test: build player, run it, validate results.
-    /// Requires a properly configured test scene.
-    /// </summary>
-    [Test, Explicit("Slow test - builds and runs standalone player")]
-    [Timeout(180000)] // 3 minute total timeout
-    public void StandaloneBuild_ExecutesJS_AndPassesValidation() {
-        // Skip if test scene doesn't exist
-        if (!File.Exists(TEST_SCENE_PATH)) {
-            Assert.Ignore($"Test scene not found: {TEST_SCENE_PATH}. Create it with BuildValidationRunner component.");
-            return;
-        }
+            // Use current editor platform, not active build target (which might be WebGL, etc.)
+            var buildTarget = GetEditorBuildTarget();
 
-        // 1. Configure build settings
-        var originalScenes = EditorBuildSettings.scenes;
-        try {
-            AddTestSceneToBuildSettings();
+            // Use extraScriptingDefines to add ONEJS_BUILD_VALIDATION just for this build
+            // This doesn't require editor recompilation and takes effect immediately
+            var options = new BuildPlayerOptions {
+                scenes = new[] { TEST_SCENE_PATH },
+                locationPathName = _buildPath,
+                target = buildTarget,
+                options = BuildOptions.None,
+                extraScriptingDefines = new[] { "ONEJS_BUILD_VALIDATION" }
+            };
 
-            // 2. Build player
-            var buildReport = BuildTestPlayer();
-            Assert.AreEqual(BuildResult.Succeeded, buildReport.summary.result,
-                $"Build failed: {GetBuildErrors(buildReport)}");
+            Debug.Log($"[BuildValidation] Building for {buildTarget} to: {_buildPath}");
+            Debug.Log($"[BuildValidation] Extra defines: ONEJS_BUILD_VALIDATION");
+            var stopwatch = Stopwatch.StartNew();
 
-            // 3. Run executable and capture output
-            var (exitCode, output) = RunAndCapture(_buildPath, RUN_TIMEOUT_MS);
+            var report = BuildPipeline.BuildPlayer(options);
 
-            // 4. Parse [BUILD_TEST] lines
-            var results = ParseTestResults(output);
+            stopwatch.Stop();
+            Debug.Log($"[BuildValidation] Build completed in {stopwatch.ElapsedMilliseconds}ms");
 
-            // 5. Log all results for debugging
-            Debug.Log($"[BuildValidation] Captured {results.Count} test results:");
-            foreach (var result in results) {
-                Debug.Log($"  {result}");
-            }
-
-            // 6. Assert results
-            Assert.IsTrue(results.Count > 0, "No test results captured. Check build output.");
-
-            var failures = results.Where(r => r.StartsWith("FAIL")).ToList();
-            if (failures.Count > 0) {
-                Assert.Fail($"Build validation failed:\n{string.Join("\n", failures)}");
-            }
-
-            var passes = results.Count(r => r.StartsWith("PASS"));
-            Debug.Log($"[BuildValidation] All {passes} tests passed!");
-        } finally {
-            // Restore original build settings
-            EditorBuildSettings.scenes = originalScenes;
-        }
-    }
-
-    /// <summary>
-    /// Quick validation that build processor copies assets correctly.
-    /// Doesn't run the build, just simulates the preprocessing.
-    /// </summary>
-    [Test]
-    public void BuildProcessor_CopiesAssetsToStreamingAssets() {
-        // This is covered by JSRunnerBuildProcessorTests
-        // Just verify the processor exists and can be instantiated
-        var processor = new JSRunnerBuildProcessor();
-        Assert.IsNotNull(processor);
-        Assert.AreEqual(0, processor.callbackOrder);
-    }
-
-    // MARK: Helper Methods
-
-    void AddTestSceneToBuildSettings() {
-        var scenes = EditorBuildSettings.scenes.ToList();
-
-        // Check if test scene is already included
-        var existingScene = scenes.FirstOrDefault(s => s.path == TEST_SCENE_PATH);
-        if (existingScene != null) {
-            existingScene.enabled = true;
-        } else {
-            scenes.Insert(0, new EditorBuildSettingsScene(TEST_SCENE_PATH, true));
+            return report;
         }
 
-        // Disable other scenes for test
-        foreach (var scene in scenes) {
-            if (scene.path != TEST_SCENE_PATH) {
-                scene.enabled = false;
-            }
-        }
-
-        EditorBuildSettings.scenes = scenes.ToArray();
-    }
-
-    BuildReport BuildTestPlayer() {
-        // Ensure output directory exists
-        var buildDir = Path.GetDirectoryName(_buildPath);
-        if (Directory.Exists(buildDir)) {
-            Directory.Delete(buildDir, true);
-        }
-        Directory.CreateDirectory(buildDir);
-
-        // Use current editor platform, not active build target (which might be WebGL, etc.)
-        var buildTarget = GetEditorBuildTarget();
-
-        // Use extraScriptingDefines to add ONEJS_BUILD_VALIDATION just for this build
-        // This doesn't require editor recompilation and takes effect immediately
-        var options = new BuildPlayerOptions {
-            scenes = new[] { TEST_SCENE_PATH },
-            locationPathName = _buildPath,
-            target = buildTarget,
-            options = BuildOptions.None,
-            extraScriptingDefines = new[] { "ONEJS_BUILD_VALIDATION" }
-        };
-
-        Debug.Log($"[BuildValidation] Building for {buildTarget} to: {_buildPath}");
-        Debug.Log($"[BuildValidation] Extra defines: ONEJS_BUILD_VALIDATION");
-        var stopwatch = Stopwatch.StartNew();
-
-        var report = BuildPipeline.BuildPlayer(options);
-
-        stopwatch.Stop();
-        Debug.Log($"[BuildValidation] Build completed in {stopwatch.ElapsedMilliseconds}ms");
-
-        return report;
-    }
-
-    /// <summary>
-    /// Gets the build target matching the current editor platform.
-    /// </summary>
-    static BuildTarget GetEditorBuildTarget() {
+        /// <summary>
+        /// Gets the build target matching the current editor platform.
+        /// </summary>
+        static BuildTarget GetEditorBuildTarget() {
 #if UNITY_EDITOR_WIN
-        return BuildTarget.StandaloneWindows64;
+            return BuildTarget.StandaloneWindows64;
 #elif UNITY_EDITOR_OSX
-        return BuildTarget.StandaloneOSX;
+            return BuildTarget.StandaloneOSX;
 #elif UNITY_EDITOR_LINUX
-        return BuildTarget.StandaloneLinux64;
+            return BuildTarget.StandaloneLinux64;
 #else
-        return EditorUserBuildSettings.activeBuildTarget;
+            return EditorUserBuildSettings.activeBuildTarget;
 #endif
-    }
-
-    (int exitCode, string output) RunAndCapture(string executablePath, int timeoutMs) {
-        // Handle platform-specific executable paths
-        var actualPath = executablePath;
-
-        // Debug: List what's in the build output directory
-        var buildDir = Path.GetDirectoryName(executablePath);
-        if (Directory.Exists(buildDir)) {
-            Debug.Log($"[BuildValidation] Build output directory contents:");
-            foreach (var entry in Directory.GetFileSystemEntries(buildDir)) {
-                Debug.Log($"  - {Path.GetFileName(entry)}");
-            }
-        } else {
-            Debug.LogError($"[BuildValidation] Build output directory doesn't exist: {buildDir}");
         }
 
-#if UNITY_EDITOR_OSX
-        // On macOS, the executable is inside the .app bundle
-        // The executable name comes from Product Name in Player Settings, not the .app name
-        if (executablePath.EndsWith(".app")) {
-            // First check if the .app bundle itself exists
-            if (!Directory.Exists(executablePath)) {
-                // Maybe it was built with a different name - look for any .app in the directory
-                var apps = Directory.GetDirectories(buildDir, "*.app");
-                if (apps.Length > 0) {
-                    executablePath = apps[0];
-                    Debug.Log($"[BuildValidation] Found .app bundle: {Path.GetFileName(executablePath)}");
-                } else {
-                    Debug.LogError($"[BuildValidation] No .app bundle found in: {buildDir}");
-                    return (-1, $"No .app bundle found in: {buildDir}");
-                }
-            }
+        (int exitCode, string output) RunAndCapture(string executablePath, int timeoutMs) {
+            // Handle platform-specific executable paths
+            var actualPath = executablePath;
 
-            // Debug: List contents of .app bundle
-            Debug.Log($"[BuildValidation] Contents of {Path.GetFileName(executablePath)}:");
-            try {
-                foreach (var entry in Directory.GetFileSystemEntries(executablePath)) {
-                    Debug.Log($"  - {Path.GetFileName(entry)}/");
-                    // If it's Contents, list its contents too
-                    if (Path.GetFileName(entry) == "Contents" && Directory.Exists(entry)) {
-                        foreach (var subEntry in Directory.GetFileSystemEntries(entry)) {
-                            Debug.Log($"    - {Path.GetFileName(subEntry)}/");
-                        }
-                    }
-                }
-            } catch (Exception ex) {
-                Debug.LogError($"[BuildValidation] Error listing .app contents: {ex.Message}");
-            }
-
-            var macOSDir = Path.Combine(executablePath, "Contents", "MacOS");
-            if (Directory.Exists(macOSDir)) {
-                // Find the executable (there should be exactly one)
-                var executables = Directory.GetFiles(macOSDir);
-                if (executables.Length > 0) {
-                    actualPath = executables[0];
-                    Debug.Log($"[BuildValidation] Found macOS executable: {Path.GetFileName(actualPath)}");
-                } else {
-                    Debug.LogError($"[BuildValidation] No executable found in: {macOSDir}");
-                    return (-1, $"No executable found in: {macOSDir}");
+            // Debug: List what's in the build output directory
+            var buildDir = Path.GetDirectoryName(executablePath);
+            if (Directory.Exists(buildDir)) {
+                Debug.Log($"[BuildValidation] Build output directory contents:");
+                foreach (var entry in Directory.GetFileSystemEntries(buildDir)) {
+                    Debug.Log($"  - {Path.GetFileName(entry)}");
                 }
             } else {
-                Debug.LogError($"[BuildValidation] MacOS directory not found: {macOSDir}");
-                return (-1, $"MacOS directory not found: {macOSDir}");
+                Debug.LogError($"[BuildValidation] Build output directory doesn't exist: {buildDir}");
             }
-        }
-#endif
 
-        if (!File.Exists(actualPath)) {
-            Debug.LogError($"[BuildValidation] Executable not found: {actualPath}");
-            return (-1, $"Executable not found: {actualPath}");
-        }
-
-        Debug.Log($"[BuildValidation] Running: {actualPath}");
-
-        var logFile = Path.Combine(Path.GetTempPath(), "onejs_build_test.log");
-
-        // Note: -nographics is omitted because UI Toolkit requires a graphics context
-        // -batchmode still runs without user interaction
-        var startInfo = new ProcessStartInfo {
-            FileName = actualPath,
-            Arguments = $"-logFile \"{logFile}\" -batchmode",
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
-        };
-
-        var output = "";
-        var exitCode = -1;
-
-        using (var process = new Process { StartInfo = startInfo }) {
-            try {
-                process.Start();
-
-                // Wait for exit with timeout
-                if (process.WaitForExit(timeoutMs)) {
-                    exitCode = process.ExitCode;
-                } else {
-                    Debug.LogWarning("[BuildValidation] Process timed out, killing...");
-                    process.Kill();
-                    exitCode = -1;
+#if UNITY_EDITOR_OSX
+            // On macOS, the executable is inside the .app bundle
+            // The executable name comes from Product Name in Player Settings, not the .app name
+            if (executablePath.EndsWith(".app")) {
+                // First check if the .app bundle itself exists
+                if (!Directory.Exists(executablePath)) {
+                    // Maybe it was built with a different name - look for any .app in the directory
+                    var apps = Directory.GetDirectories(buildDir, "*.app");
+                    if (apps.Length > 0) {
+                        executablePath = apps[0];
+                        Debug.Log($"[BuildValidation] Found .app bundle: {Path.GetFileName(executablePath)}");
+                    } else {
+                        Debug.LogError($"[BuildValidation] No .app bundle found in: {buildDir}");
+                        return (-1, $"No .app bundle found in: {buildDir}");
+                    }
                 }
 
-                // Read log file
-                if (File.Exists(logFile)) {
-                    output = File.ReadAllText(logFile);
-                    Debug.Log($"[BuildValidation] Log file size: {output.Length} bytes");
+                // Debug: List contents of .app bundle
+                Debug.Log($"[BuildValidation] Contents of {Path.GetFileName(executablePath)}:");
+                try {
+                    foreach (var entry in Directory.GetFileSystemEntries(executablePath)) {
+                        Debug.Log($"  - {Path.GetFileName(entry)}/");
+                        // If it's Contents, list its contents too
+                        if (Path.GetFileName(entry) == "Contents" && Directory.Exists(entry)) {
+                            foreach (var subEntry in Directory.GetFileSystemEntries(entry)) {
+                                Debug.Log($"    - {Path.GetFileName(subEntry)}/");
+                            }
+                        }
+                    }
+                } catch (Exception ex) {
+                    Debug.LogError($"[BuildValidation] Error listing .app contents: {ex.Message}");
+                }
 
-                    // Log last 2000 chars for debugging
-                    if (output.Length > 0) {
-                        var preview = output.Length > 2000 ? output.Substring(output.Length - 2000) : output;
-                        Debug.Log($"[BuildValidation] Log tail:\n{preview}");
+                var macOSDir = Path.Combine(executablePath, "Contents", "MacOS");
+                if (Directory.Exists(macOSDir)) {
+                    // Find the executable (there should be exactly one)
+                    var executables = Directory.GetFiles(macOSDir);
+                    if (executables.Length > 0) {
+                        actualPath = executables[0];
+                        Debug.Log($"[BuildValidation] Found macOS executable: {Path.GetFileName(actualPath)}");
                     } else {
-                        Debug.LogWarning("[BuildValidation] Log file is empty");
+                        Debug.LogError($"[BuildValidation] No executable found in: {macOSDir}");
+                        return (-1, $"No executable found in: {macOSDir}");
+                    }
+                } else {
+                    Debug.LogError($"[BuildValidation] MacOS directory not found: {macOSDir}");
+                    return (-1, $"MacOS directory not found: {macOSDir}");
+                }
+            }
+#endif
+
+            if (!File.Exists(actualPath)) {
+                Debug.LogError($"[BuildValidation] Executable not found: {actualPath}");
+                return (-1, $"Executable not found: {actualPath}");
+            }
+
+            Debug.Log($"[BuildValidation] Running: {actualPath}");
+
+            var logFile = Path.Combine(Path.GetTempPath(), "onejs_build_test.log");
+
+            // Note: -nographics is omitted because UI Toolkit requires a graphics context
+            // -batchmode still runs without user interaction
+            var startInfo = new ProcessStartInfo {
+                FileName = actualPath,
+                Arguments = $"-logFile \"{logFile}\" -batchmode",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            var output = "";
+            var exitCode = -1;
+
+            using (var process = new Process { StartInfo = startInfo }) {
+                try {
+                    process.Start();
+
+                    // Wait for exit with timeout
+                    if (process.WaitForExit(timeoutMs)) {
+                        exitCode = process.ExitCode;
+                    } else {
+                        Debug.LogWarning("[BuildValidation] Process timed out, killing...");
+                        process.Kill();
+                        exitCode = -1;
                     }
 
-                    File.Delete(logFile);
-                } else {
-                    Debug.LogWarning($"[BuildValidation] Log file not found: {logFile}");
-                }
-            } catch (Exception ex) {
-                Debug.LogError($"[BuildValidation] Process error: {ex.Message}");
-                return (-1, ex.Message);
-            }
-        }
+                    // Read log file
+                    if (File.Exists(logFile)) {
+                        output = File.ReadAllText(logFile);
+                        Debug.Log($"[BuildValidation] Log file size: {output.Length} bytes");
 
-        Debug.Log($"[BuildValidation] Process exited with code: {exitCode}");
-        return (exitCode, output);
-    }
+                        // Log last 2000 chars for debugging
+                        if (output.Length > 0) {
+                            var preview = output.Length > 2000 ? output.Substring(output.Length - 2000) : output;
+                            Debug.Log($"[BuildValidation] Log tail:\n{preview}");
+                        } else {
+                            Debug.LogWarning("[BuildValidation] Log file is empty");
+                        }
 
-    List<string> ParseTestResults(string output) {
-        var results = new List<string>();
-        var regex = new Regex(@"\[BUILD_TEST\]\s*(.+)$", RegexOptions.Multiline);
-
-        foreach (Match match in regex.Matches(output)) {
-            var result = match.Groups[1].Value.Trim();
-
-            // Only include actual test results (PASS/FAIL/SKIP)
-            if (result.StartsWith("PASS") ||
-                result.StartsWith("FAIL") ||
-                result.StartsWith("SKIP")) {
-                results.Add(result);
-            }
-        }
-
-        return results;
-    }
-
-    string GetBuildErrors(BuildReport report) {
-        var errors = new List<string>();
-        foreach (var step in report.steps) {
-            foreach (var message in step.messages) {
-                if (message.type == LogType.Error) {
-                    errors.Add(message.content);
+                        File.Delete(logFile);
+                    } else {
+                        Debug.LogWarning($"[BuildValidation] Log file not found: {logFile}");
+                    }
+                } catch (Exception ex) {
+                    Debug.LogError($"[BuildValidation] Process error: {ex.Message}");
+                    return (-1, ex.Message);
                 }
             }
-        }
-        return string.Join("\n", errors);
-    }
 
-    string GetBuildName() {
+            Debug.Log($"[BuildValidation] Process exited with code: {exitCode}");
+            return (exitCode, output);
+        }
+
+        List<string> ParseTestResults(string output) {
+            var results = new List<string>();
+            var regex = new Regex(@"\[BUILD_TEST\]\s*(.+)$", RegexOptions.Multiline);
+
+            foreach (Match match in regex.Matches(output)) {
+                var result = match.Groups[1].Value.Trim();
+
+                // Only include actual test results (PASS/FAIL/SKIP)
+                if (result.StartsWith("PASS") ||
+                    result.StartsWith("FAIL") ||
+                    result.StartsWith("SKIP")) {
+                    results.Add(result);
+                }
+            }
+
+            return results;
+        }
+
+        string GetBuildErrors(BuildReport report) {
+            var errors = new List<string>();
+            foreach (var step in report.steps) {
+                foreach (var message in step.messages) {
+                    if (message.type == LogType.Error) {
+                        errors.Add(message.content);
+                    }
+                }
+            }
+            return string.Join("\n", errors);
+        }
+
+        string GetBuildName() {
 #if UNITY_EDITOR_WIN
-        return "BuildTest.exe";
+            return "BuildTest.exe";
 #elif UNITY_EDITOR_OSX
-        return "BuildTest.app";
+            return "BuildTest.app";
 #elif UNITY_EDITOR_LINUX
-        return "BuildTest";
+            return "BuildTest";
 #else
-        return "BuildTest";
+            return "BuildTest";
 #endif
+        }
     }
 }

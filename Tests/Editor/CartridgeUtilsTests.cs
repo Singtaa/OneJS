@@ -4,570 +4,572 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-/// <summary>
-/// EditMode tests for CartridgeUtils static methods.
-/// Tests string escaping, path calculation, file extraction, and stylesheet application.
-/// </summary>
-[TestFixture]
-public class CartridgeUtilsTests {
-    const string TEST_BASE_DIR = "Temp/CartridgeUtilsTest";
+namespace OneJS.Tests.Editor {
+    /// <summary>
+    /// EditMode tests for CartridgeUtils static methods.
+    /// Tests string escaping, path calculation, file extraction, and stylesheet application.
+    /// </summary>
+    [TestFixture]
+    public class CartridgeUtilsTests {
+        const string TEST_BASE_DIR = "Temp/CartridgeUtilsTest";
 
-    string _testBasePath;
+        string _testBasePath;
 
-    [SetUp]
-    public void SetUp() {
-        _testBasePath = Path.Combine(Path.GetDirectoryName(Application.dataPath), TEST_BASE_DIR);
+        [SetUp]
+        public void SetUp() {
+            _testBasePath = Path.Combine(Path.GetDirectoryName(Application.dataPath), TEST_BASE_DIR);
 
-        // Clean test directory
-        if (Directory.Exists(_testBasePath)) {
-            Directory.Delete(_testBasePath, true);
-        }
-        Directory.CreateDirectory(_testBasePath);
-    }
-
-    [TearDown]
-    public void TearDown() {
-        // Cleanup test directory
-        if (Directory.Exists(_testBasePath)) {
-            try {
+            // Clean test directory
+            if (Directory.Exists(_testBasePath)) {
                 Directory.Delete(_testBasePath, true);
-            } catch (IOException) {
-                // File might be locked, ignore in teardown
+            }
+            Directory.CreateDirectory(_testBasePath);
+        }
+
+        [TearDown]
+        public void TearDown() {
+            // Cleanup test directory
+            if (Directory.Exists(_testBasePath)) {
+                try {
+                    Directory.Delete(_testBasePath, true);
+                } catch (IOException) {
+                    // File might be locked, ignore in teardown
+                }
             }
         }
-    }
 
-    // MARK: EscapeJsString Tests
+        // MARK: EscapeJsString Tests
 
-    [Test]
-    public void EscapeJsString_NullInput_ReturnsNull() {
-        var result = CartridgeUtils.EscapeJsString(null);
-        Assert.IsNull(result);
-    }
-
-    [Test]
-    public void EscapeJsString_EmptyString_ReturnsEmpty() {
-        var result = CartridgeUtils.EscapeJsString("");
-        Assert.AreEqual("", result);
-    }
-
-    [Test]
-    public void EscapeJsString_SimpleString_ReturnsUnchanged() {
-        var result = CartridgeUtils.EscapeJsString("hello world");
-        Assert.AreEqual("hello world", result);
-    }
-
-    [Test]
-    public void EscapeJsString_SingleQuotes_AreEscaped() {
-        var result = CartridgeUtils.EscapeJsString("it's a test");
-        Assert.AreEqual("it\\'s a test", result);
-    }
-
-    [Test]
-    public void EscapeJsString_Backslashes_AreEscaped() {
-        var result = CartridgeUtils.EscapeJsString("path\\to\\file");
-        Assert.AreEqual("path\\\\to\\\\file", result);
-    }
-
-    [Test]
-    public void EscapeJsString_Newlines_AreEscaped() {
-        var result = CartridgeUtils.EscapeJsString("line1\nline2");
-        Assert.AreEqual("line1\\nline2", result);
-    }
-
-    [Test]
-    public void EscapeJsString_CarriageReturns_AreEscaped() {
-        var result = CartridgeUtils.EscapeJsString("line1\rline2");
-        Assert.AreEqual("line1\\rline2", result);
-    }
-
-    [Test]
-    public void EscapeJsString_MixedSpecialChars_AllEscaped() {
-        var result = CartridgeUtils.EscapeJsString("it's a\\path\nwith\rmixed");
-        Assert.AreEqual("it\\'s a\\\\path\\nwith\\rmixed", result);
-    }
-
-    // MARK: UICartridge.RelativePath Tests
-
-    [Test]
-    public void RelativePath_WithoutNamespace_ReturnsSlug() {
-        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
-        SetCartridgeSlug(cartridge, "myCartridge");
-
-        Assert.AreEqual("myCartridge", cartridge.RelativePath);
-        Object.DestroyImmediate(cartridge);
-    }
-
-    [Test]
-    public void RelativePath_WithNamespace_ReturnsNamespacedPath() {
-        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
-        SetCartridgeSlug(cartridge, "myCartridge");
-        SetCartridgeNamespace(cartridge, "myCompany");
-
-        Assert.AreEqual("@myCompany/myCartridge", cartridge.RelativePath);
-        Object.DestroyImmediate(cartridge);
-    }
-
-    [Test]
-    public void RelativePath_EmptyNamespace_ReturnsSlug() {
-        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
-        SetCartridgeSlug(cartridge, "myCartridge");
-        SetCartridgeNamespace(cartridge, "");
-
-        Assert.AreEqual("myCartridge", cartridge.RelativePath);
-        Object.DestroyImmediate(cartridge);
-    }
-
-    // MARK: GetCartridgePath Tests
-
-    [Test]
-    public void GetCartridgePath_NullBaseDir_ReturnsNull() {
-        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
-        SetCartridgeSlug(cartridge, "test");
-
-        var result = CartridgeUtils.GetCartridgePath(null, cartridge);
-
-        Assert.IsNull(result);
-        Object.DestroyImmediate(cartridge);
-    }
-
-    [Test]
-    public void GetCartridgePath_EmptyBaseDir_ReturnsNull() {
-        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
-        SetCartridgeSlug(cartridge, "test");
-
-        var result = CartridgeUtils.GetCartridgePath("", cartridge);
-
-        Assert.IsNull(result);
-        Object.DestroyImmediate(cartridge);
-    }
-
-    [Test]
-    public void GetCartridgePath_NullCartridge_ReturnsNull() {
-        var result = CartridgeUtils.GetCartridgePath(_testBasePath, null);
-        Assert.IsNull(result);
-    }
-
-    [Test]
-    public void GetCartridgePath_CartridgeWithNullSlug_ReturnsNull() {
-        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
-        // Slug is null by default
-
-        var result = CartridgeUtils.GetCartridgePath(_testBasePath, cartridge);
-
-        Assert.IsNull(result);
-        Object.DestroyImmediate(cartridge);
-    }
-
-    [Test]
-    public void GetCartridgePath_CartridgeWithEmptySlug_ReturnsNull() {
-        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
-        SetCartridgeSlug(cartridge, "");
-
-        var result = CartridgeUtils.GetCartridgePath(_testBasePath, cartridge);
-
-        Assert.IsNull(result);
-        Object.DestroyImmediate(cartridge);
-    }
-
-    [Test]
-    public void GetCartridgePath_ValidInputs_ReturnsCorrectPath() {
-        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
-        SetCartridgeSlug(cartridge, "myCartridge");
-
-        var result = CartridgeUtils.GetCartridgePath(_testBasePath, cartridge);
-
-        var expected = Path.Combine(_testBasePath, "@cartridges", "myCartridge");
-        Assert.AreEqual(expected, result);
-        Object.DestroyImmediate(cartridge);
-    }
-
-    [Test]
-    public void GetCartridgePath_WithNamespace_ReturnsNamespacedPath() {
-        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
-        SetCartridgeSlug(cartridge, "myCartridge");
-        SetCartridgeNamespace(cartridge, "myCompany");
-
-        var result = CartridgeUtils.GetCartridgePath(_testBasePath, cartridge);
-
-        var expected = Path.Combine(_testBasePath, "@cartridges", "@myCompany", "myCartridge");
-        Assert.AreEqual(expected, result);
-        Object.DestroyImmediate(cartridge);
-    }
-
-    [Test]
-    public void GetCartridgePath_WithNamespace_UsesPlatformSeparators() {
-        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
-        SetCartridgeSlug(cartridge, "myCartridge");
-        SetCartridgeNamespace(cartridge, "myCompany");
-
-        var result = CartridgeUtils.GetCartridgePath(_testBasePath, cartridge);
-
-        // RelativePath is always '/'-separated (it doubles as the __cart() key), so the
-        // filesystem path must not inherit those separators on Windows.
-        var expectedTail = Path.Combine("@cartridges", "@myCompany", "myCartridge");
-        Assert.IsTrue(result.EndsWith(expectedTail),
-            $"Path should end with '{expectedTail}' using platform separators, got '{result}'");
-
-        Object.DestroyImmediate(cartridge);
-    }
-
-    [Test]
-    public void GetCartridgePath_EmptyNamespace_ReturnsNonNamespacedPath() {
-        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
-        SetCartridgeSlug(cartridge, "myCartridge");
-        SetCartridgeNamespace(cartridge, "");
-
-        var result = CartridgeUtils.GetCartridgePath(_testBasePath, cartridge);
-
-        var expected = Path.Combine(_testBasePath, "@cartridges", "myCartridge");
-        Assert.AreEqual(expected, result);
-        Object.DestroyImmediate(cartridge);
-    }
-
-    // MARK: ExtractCartridges Tests
-
-    [Test]
-    public void ExtractCartridges_NullCartridges_DoesNotThrow() {
-        Assert.DoesNotThrow(() => {
-            CartridgeUtils.ExtractCartridges(_testBasePath, null, false);
-        });
-    }
-
-    [Test]
-    public void ExtractCartridges_EmptyCartridges_DoesNotThrow() {
-        var cartridges = new List<UICartridge>();
-        Assert.DoesNotThrow(() => {
-            CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
-        });
-    }
-
-    [Test]
-    public void ExtractCartridges_NullBaseDir_DoesNotThrow() {
-        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
-        SetCartridgeSlug(cartridge, "test");
-        var cartridges = new List<UICartridge> { cartridge };
-
-        Assert.DoesNotThrow(() => {
-            CartridgeUtils.ExtractCartridges(null, cartridges, false);
-        });
-
-        Object.DestroyImmediate(cartridge);
-    }
-
-    [Test]
-    public void ExtractCartridges_CreatesCartridgeFolder() {
-        var cartridge = CreateTestCartridge("testSlug");
-        var cartridges = new List<UICartridge> { cartridge };
-
-        CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
-
-        var expectedPath = Path.Combine(_testBasePath, "@cartridges", "testSlug");
-        Assert.IsTrue(Directory.Exists(expectedPath), "Cartridge folder should be created");
-
-        Object.DestroyImmediate(cartridge);
-    }
-
-    [Test]
-    public void ExtractCartridges_GeneratesTypeDefinitions() {
-        var cartridge = CreateTestCartridge("myCart");
-        var cartridges = new List<UICartridge> { cartridge };
-
-        CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
-
-        var dtsPath = Path.Combine(_testBasePath, "@cartridges", "myCart", "myCart.d.ts");
-        Assert.IsTrue(File.Exists(dtsPath), "TypeScript definition file should be created");
-
-        Object.DestroyImmediate(cartridge);
-    }
-
-    [Test]
-    public void ExtractCartridges_OverwriteFalse_SkipsExisting() {
-        var cartridge = CreateTestCartridge("existingCart");
-        var cartridges = new List<UICartridge> { cartridge };
-
-        // Create folder with a marker file
-        var cartPath = Path.Combine(_testBasePath, "@cartridges", "existingCart");
-        Directory.CreateDirectory(cartPath);
-        var markerFile = Path.Combine(cartPath, "marker.txt");
-        File.WriteAllText(markerFile, "original");
-
-        // Extract with overwrite=false
-        CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, overwriteExisting: false);
-
-        // Marker file should still exist (folder wasn't deleted)
-        Assert.IsTrue(File.Exists(markerFile), "Existing folder should not be deleted when overwrite=false");
-        Assert.AreEqual("original", File.ReadAllText(markerFile));
-
-        Object.DestroyImmediate(cartridge);
-    }
-
-    [Test]
-    public void ExtractCartridges_OverwriteTrue_ReplacesExisting() {
-        var cartridge = CreateTestCartridge("replaceCart");
-        var cartridges = new List<UICartridge> { cartridge };
-
-        // Create folder with a marker file
-        var cartPath = Path.Combine(_testBasePath, "@cartridges", "replaceCart");
-        Directory.CreateDirectory(cartPath);
-        var markerFile = Path.Combine(cartPath, "marker.txt");
-        File.WriteAllText(markerFile, "original");
-
-        // Extract with overwrite=true
-        CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, overwriteExisting: true);
-
-        // Marker file should be gone (folder was deleted and recreated)
-        Assert.IsFalse(File.Exists(markerFile), "Marker file should be deleted when overwrite=true");
-
-        // But the .d.ts file should exist
-        var dtsPath = Path.Combine(cartPath, "replaceCart.d.ts");
-        Assert.IsTrue(File.Exists(dtsPath), "New files should be created after overwrite");
-
-        Object.DestroyImmediate(cartridge);
-    }
-
-    [Test]
-    public void ExtractCartridges_NestedFilePath_UsesPlatformSeparators() {
-        var cartridge = CreateTestCartridge("nestedCart");
-        AddCartridgeFile(cartridge, "components/Button.tsx", "export const Button = () => null");
-        var cartridges = new List<UICartridge> { cartridge };
-
-        var created = CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
-
-        // CartridgeFileEntry.path is authored with '/', same as RelativePath.
-        var expected = Path.Combine(_testBasePath, "@cartridges", "nestedCart", "components", "Button.tsx");
-        Assert.IsTrue(File.Exists(expected), "Nested cartridge file should be written");
-        Assert.IsTrue(created.Contains(expected),
-            $"Returned path should use platform separators, got: {string.Join(", ", created)}");
-
-        DestroyCartridge(cartridge);
-    }
-
-    [Test]
-    public void ExtractCartridges_SkipsNullCartridgesInList() {
-        var validCartridge = CreateTestCartridge("validCart");
-        var cartridges = new List<UICartridge> { null, validCartridge, null };
-
-        Assert.DoesNotThrow(() => {
-            CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
-        });
-
-        // Valid cartridge should still be extracted
-        var expectedPath = Path.Combine(_testBasePath, "@cartridges", "validCart");
-        Assert.IsTrue(Directory.Exists(expectedPath));
-
-        Object.DestroyImmediate(validCartridge);
-    }
-
-    // MARK: ApplyStylesheets Tests
-
-    [Test]
-    public void ApplyStylesheets_NullStylesheets_DoesNotThrow() {
-        var root = new VisualElement();
-        Assert.DoesNotThrow(() => {
-            CartridgeUtils.ApplyStylesheets(root, null);
-        });
-    }
-
-    [Test]
-    public void ApplyStylesheets_EmptyStylesheets_DoesNotThrow() {
-        var root = new VisualElement();
-        var stylesheets = new List<StyleSheet>();
-
-        Assert.DoesNotThrow(() => {
-            CartridgeUtils.ApplyStylesheets(root, stylesheets);
-        });
-    }
-
-    [Test]
-    public void ApplyStylesheets_NullRoot_DoesNotThrow() {
-        var stylesheet = ScriptableObject.CreateInstance<StyleSheet>();
-        var stylesheets = new List<StyleSheet> { stylesheet };
-
-        Assert.DoesNotThrow(() => {
-            CartridgeUtils.ApplyStylesheets(null, stylesheets);
-        });
-
-        Object.DestroyImmediate(stylesheet);
-    }
-
-    [Test]
-    public void ApplyStylesheets_ValidStylesheet_IsApplied() {
-        var root = new VisualElement();
-        var stylesheet = ScriptableObject.CreateInstance<StyleSheet>();
-        var stylesheets = new List<StyleSheet> { stylesheet };
-
-        CartridgeUtils.ApplyStylesheets(root, stylesheets);
-
-        Assert.IsTrue(root.styleSheets.Contains(stylesheet), "Stylesheet should be applied to root");
-
-        Object.DestroyImmediate(stylesheet);
-    }
-
-    [Test]
-    public void ApplyStylesheets_SkipsNullStylesheetsInList() {
-        var root = new VisualElement();
-        var validStylesheet = ScriptableObject.CreateInstance<StyleSheet>();
-        var stylesheets = new List<StyleSheet> { null, validStylesheet, null };
-
-        Assert.DoesNotThrow(() => {
-            CartridgeUtils.ApplyStylesheets(root, stylesheets);
-        });
-
-        Assert.IsTrue(root.styleSheets.Contains(validStylesheet));
-
-        Object.DestroyImmediate(validStylesheet);
-    }
-
-    [Test]
-    public void ApplyStylesheets_MultipleStylesheets_AllApplied() {
-        var root = new VisualElement();
-        var ss1 = ScriptableObject.CreateInstance<StyleSheet>();
-        var ss2 = ScriptableObject.CreateInstance<StyleSheet>();
-        var stylesheets = new List<StyleSheet> { ss1, ss2 };
-
-        CartridgeUtils.ApplyStylesheets(root, stylesheets);
-
-        Assert.AreEqual(2, root.styleSheets.count);
-        Assert.IsTrue(root.styleSheets.Contains(ss1));
-        Assert.IsTrue(root.styleSheets.Contains(ss2));
-
-        Object.DestroyImmediate(ss1);
-        Object.DestroyImmediate(ss2);
-    }
-
-    [Test]
-    public void ExtractCartridges_WithNamespace_CreatesNamespacedFolder() {
-        var cartridge = CreateTestCartridgeWithNamespace("myCompany", "testSlug");
-        var cartridges = new List<UICartridge> { cartridge };
-
-        CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
-
-        var expectedPath = Path.Combine(_testBasePath, "@cartridges", "@myCompany", "testSlug");
-        Assert.IsTrue(Directory.Exists(expectedPath), "Namespaced cartridge folder should be created");
-
-        Object.DestroyImmediate(cartridge);
-    }
-
-    [Test]
-    public void ExtractCartridges_MixedNamespaces_CreatesBothFolderStructures() {
-        var cartWithNs = CreateTestCartridgeWithNamespace("myCompany", "cart1");
-        var cartWithoutNs = CreateTestCartridge("cart2");
-        var cartridges = new List<UICartridge> { cartWithNs, cartWithoutNs };
-
-        CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
-
-        var namespacedPath = Path.Combine(_testBasePath, "@cartridges", "@myCompany", "cart1");
-        var regularPath = Path.Combine(_testBasePath, "@cartridges", "cart2");
-
-        Assert.IsTrue(Directory.Exists(namespacedPath), "Namespaced folder should exist");
-        Assert.IsTrue(Directory.Exists(regularPath), "Non-namespaced folder should exist");
-
-        Object.DestroyImmediate(cartWithNs);
-        Object.DestroyImmediate(cartWithoutNs);
-    }
-
-    // MARK: ExtractCartridges Return Value Tests
-
-    [Test]
-    public void ExtractCartridges_ReturnsCreatedFilePaths() {
-        var cartridge = CreateTestCartridge("returnTest");
-        var cartridges = new List<UICartridge> { cartridge };
-
-        var created = CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
-
-        Assert.IsNotNull(created);
-        // Should contain at least the .d.ts file
-        Assert.IsTrue(created.Count > 0, "Should return at least the .d.ts path");
-        Assert.IsTrue(created.Exists(p => p.EndsWith(".d.ts")), "Should include .d.ts file");
-
-        Object.DestroyImmediate(cartridge);
-    }
-
-    [Test]
-    public void ExtractCartridges_SkipsExisting_ReturnsEmptyList() {
-        var cartridge = CreateTestCartridge("skipReturn");
-        var cartridges = new List<UICartridge> { cartridge };
-
-        // First extraction
-        CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
-
-        // Second extraction with overwrite=false should skip
-        var created = CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
-
-        Assert.IsNotNull(created);
-        Assert.AreEqual(0, created.Count, "Should return empty list when skipping existing");
-
-        Object.DestroyImmediate(cartridge);
-    }
-
-    [Test]
-    public void ExtractCartridges_NullInputs_ReturnsEmptyList() {
-        var result1 = CartridgeUtils.ExtractCartridges(_testBasePath, null, false);
-        Assert.IsNotNull(result1);
-        Assert.AreEqual(0, result1.Count);
-
-        var result2 = CartridgeUtils.ExtractCartridges(null, new List<UICartridge>(), false);
-        Assert.IsNotNull(result2);
-        Assert.AreEqual(0, result2.Count);
-    }
-
-    // MARK: Helper Methods
-
-    /// <summary>
-    /// Sets the slug field on a UICartridge via reflection (since it's private).
-    /// </summary>
-    void SetCartridgeSlug(UICartridge cartridge, string slug) {
-        var field = typeof(UICartridge).GetField("_slug",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        field.SetValue(cartridge, slug);
-    }
-
-    /// <summary>
-    /// Sets the namespace field on a UICartridge via reflection.
-    /// </summary>
-    void SetCartridgeNamespace(UICartridge cartridge, string ns) {
-        var field = typeof(UICartridge).GetField("_namespace",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        field.SetValue(cartridge, ns);
-    }
-
-    /// <summary>
-    /// Adds a file entry to a UICartridge via reflection (backed by an in-memory TextAsset).
-    /// </summary>
-    void AddCartridgeFile(UICartridge cartridge, string path, string content) {
-        var field = typeof(UICartridge).GetField("_files",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        var files = (List<CartridgeFileEntry>)field.GetValue(cartridge);
-        files.Add(new CartridgeFileEntry { path = path, content = new TextAsset(content) });
-    }
-
-    /// <summary>
-    /// Destroys a cartridge along with any TextAssets created by AddCartridgeFile.
-    /// </summary>
-    void DestroyCartridge(UICartridge cartridge) {
-        foreach (var file in cartridge.Files) {
-            if (file?.content != null) Object.DestroyImmediate(file.content);
+        [Test]
+        public void EscapeJsString_NullInput_ReturnsNull() {
+            var result = CartridgeUtils.EscapeJsString(null);
+            Assert.IsNull(result);
         }
-        Object.DestroyImmediate(cartridge);
-    }
 
-    /// <summary>
-    /// Creates a test UICartridge with the given slug.
-    /// </summary>
-    UICartridge CreateTestCartridge(string slug) {
-        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
-        SetCartridgeSlug(cartridge, slug);
-        return cartridge;
-    }
+        [Test]
+        public void EscapeJsString_EmptyString_ReturnsEmpty() {
+            var result = CartridgeUtils.EscapeJsString("");
+            Assert.AreEqual("", result);
+        }
 
-    /// <summary>
-    /// Creates a test UICartridge with the given namespace and slug.
-    /// </summary>
-    UICartridge CreateTestCartridgeWithNamespace(string ns, string slug) {
-        var cartridge = ScriptableObject.CreateInstance<UICartridge>();
-        SetCartridgeNamespace(cartridge, ns);
-        SetCartridgeSlug(cartridge, slug);
-        return cartridge;
+        [Test]
+        public void EscapeJsString_SimpleString_ReturnsUnchanged() {
+            var result = CartridgeUtils.EscapeJsString("hello world");
+            Assert.AreEqual("hello world", result);
+        }
+
+        [Test]
+        public void EscapeJsString_SingleQuotes_AreEscaped() {
+            var result = CartridgeUtils.EscapeJsString("it's a test");
+            Assert.AreEqual("it\\'s a test", result);
+        }
+
+        [Test]
+        public void EscapeJsString_Backslashes_AreEscaped() {
+            var result = CartridgeUtils.EscapeJsString("path\\to\\file");
+            Assert.AreEqual("path\\\\to\\\\file", result);
+        }
+
+        [Test]
+        public void EscapeJsString_Newlines_AreEscaped() {
+            var result = CartridgeUtils.EscapeJsString("line1\nline2");
+            Assert.AreEqual("line1\\nline2", result);
+        }
+
+        [Test]
+        public void EscapeJsString_CarriageReturns_AreEscaped() {
+            var result = CartridgeUtils.EscapeJsString("line1\rline2");
+            Assert.AreEqual("line1\\rline2", result);
+        }
+
+        [Test]
+        public void EscapeJsString_MixedSpecialChars_AllEscaped() {
+            var result = CartridgeUtils.EscapeJsString("it's a\\path\nwith\rmixed");
+            Assert.AreEqual("it\\'s a\\\\path\\nwith\\rmixed", result);
+        }
+
+        // MARK: UICartridge.RelativePath Tests
+
+        [Test]
+        public void RelativePath_WithoutNamespace_ReturnsSlug() {
+            var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+            SetCartridgeSlug(cartridge, "myCartridge");
+
+            Assert.AreEqual("myCartridge", cartridge.RelativePath);
+            Object.DestroyImmediate(cartridge);
+        }
+
+        [Test]
+        public void RelativePath_WithNamespace_ReturnsNamespacedPath() {
+            var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+            SetCartridgeSlug(cartridge, "myCartridge");
+            SetCartridgeNamespace(cartridge, "myCompany");
+
+            Assert.AreEqual("@myCompany/myCartridge", cartridge.RelativePath);
+            Object.DestroyImmediate(cartridge);
+        }
+
+        [Test]
+        public void RelativePath_EmptyNamespace_ReturnsSlug() {
+            var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+            SetCartridgeSlug(cartridge, "myCartridge");
+            SetCartridgeNamespace(cartridge, "");
+
+            Assert.AreEqual("myCartridge", cartridge.RelativePath);
+            Object.DestroyImmediate(cartridge);
+        }
+
+        // MARK: GetCartridgePath Tests
+
+        [Test]
+        public void GetCartridgePath_NullBaseDir_ReturnsNull() {
+            var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+            SetCartridgeSlug(cartridge, "test");
+
+            var result = CartridgeUtils.GetCartridgePath(null, cartridge);
+
+            Assert.IsNull(result);
+            Object.DestroyImmediate(cartridge);
+        }
+
+        [Test]
+        public void GetCartridgePath_EmptyBaseDir_ReturnsNull() {
+            var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+            SetCartridgeSlug(cartridge, "test");
+
+            var result = CartridgeUtils.GetCartridgePath("", cartridge);
+
+            Assert.IsNull(result);
+            Object.DestroyImmediate(cartridge);
+        }
+
+        [Test]
+        public void GetCartridgePath_NullCartridge_ReturnsNull() {
+            var result = CartridgeUtils.GetCartridgePath(_testBasePath, null);
+            Assert.IsNull(result);
+        }
+
+        [Test]
+        public void GetCartridgePath_CartridgeWithNullSlug_ReturnsNull() {
+            var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+            // Slug is null by default
+
+            var result = CartridgeUtils.GetCartridgePath(_testBasePath, cartridge);
+
+            Assert.IsNull(result);
+            Object.DestroyImmediate(cartridge);
+        }
+
+        [Test]
+        public void GetCartridgePath_CartridgeWithEmptySlug_ReturnsNull() {
+            var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+            SetCartridgeSlug(cartridge, "");
+
+            var result = CartridgeUtils.GetCartridgePath(_testBasePath, cartridge);
+
+            Assert.IsNull(result);
+            Object.DestroyImmediate(cartridge);
+        }
+
+        [Test]
+        public void GetCartridgePath_ValidInputs_ReturnsCorrectPath() {
+            var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+            SetCartridgeSlug(cartridge, "myCartridge");
+
+            var result = CartridgeUtils.GetCartridgePath(_testBasePath, cartridge);
+
+            var expected = Path.Combine(_testBasePath, "@cartridges", "myCartridge");
+            Assert.AreEqual(expected, result);
+            Object.DestroyImmediate(cartridge);
+        }
+
+        [Test]
+        public void GetCartridgePath_WithNamespace_ReturnsNamespacedPath() {
+            var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+            SetCartridgeSlug(cartridge, "myCartridge");
+            SetCartridgeNamespace(cartridge, "myCompany");
+
+            var result = CartridgeUtils.GetCartridgePath(_testBasePath, cartridge);
+
+            var expected = Path.Combine(_testBasePath, "@cartridges", "@myCompany", "myCartridge");
+            Assert.AreEqual(expected, result);
+            Object.DestroyImmediate(cartridge);
+        }
+
+        [Test]
+        public void GetCartridgePath_WithNamespace_UsesPlatformSeparators() {
+            var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+            SetCartridgeSlug(cartridge, "myCartridge");
+            SetCartridgeNamespace(cartridge, "myCompany");
+
+            var result = CartridgeUtils.GetCartridgePath(_testBasePath, cartridge);
+
+            // RelativePath is always '/'-separated (it doubles as the __cart() key), so the
+            // filesystem path must not inherit those separators on Windows.
+            var expectedTail = Path.Combine("@cartridges", "@myCompany", "myCartridge");
+            Assert.IsTrue(result.EndsWith(expectedTail),
+                $"Path should end with '{expectedTail}' using platform separators, got '{result}'");
+
+            Object.DestroyImmediate(cartridge);
+        }
+
+        [Test]
+        public void GetCartridgePath_EmptyNamespace_ReturnsNonNamespacedPath() {
+            var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+            SetCartridgeSlug(cartridge, "myCartridge");
+            SetCartridgeNamespace(cartridge, "");
+
+            var result = CartridgeUtils.GetCartridgePath(_testBasePath, cartridge);
+
+            var expected = Path.Combine(_testBasePath, "@cartridges", "myCartridge");
+            Assert.AreEqual(expected, result);
+            Object.DestroyImmediate(cartridge);
+        }
+
+        // MARK: ExtractCartridges Tests
+
+        [Test]
+        public void ExtractCartridges_NullCartridges_DoesNotThrow() {
+            Assert.DoesNotThrow(() => {
+                CartridgeUtils.ExtractCartridges(_testBasePath, null, false);
+            });
+        }
+
+        [Test]
+        public void ExtractCartridges_EmptyCartridges_DoesNotThrow() {
+            var cartridges = new List<UICartridge>();
+            Assert.DoesNotThrow(() => {
+                CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
+            });
+        }
+
+        [Test]
+        public void ExtractCartridges_NullBaseDir_DoesNotThrow() {
+            var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+            SetCartridgeSlug(cartridge, "test");
+            var cartridges = new List<UICartridge> { cartridge };
+
+            Assert.DoesNotThrow(() => {
+                CartridgeUtils.ExtractCartridges(null, cartridges, false);
+            });
+
+            Object.DestroyImmediate(cartridge);
+        }
+
+        [Test]
+        public void ExtractCartridges_CreatesCartridgeFolder() {
+            var cartridge = CreateTestCartridge("testSlug");
+            var cartridges = new List<UICartridge> { cartridge };
+
+            CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
+
+            var expectedPath = Path.Combine(_testBasePath, "@cartridges", "testSlug");
+            Assert.IsTrue(Directory.Exists(expectedPath), "Cartridge folder should be created");
+
+            Object.DestroyImmediate(cartridge);
+        }
+
+        [Test]
+        public void ExtractCartridges_GeneratesTypeDefinitions() {
+            var cartridge = CreateTestCartridge("myCart");
+            var cartridges = new List<UICartridge> { cartridge };
+
+            CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
+
+            var dtsPath = Path.Combine(_testBasePath, "@cartridges", "myCart", "myCart.d.ts");
+            Assert.IsTrue(File.Exists(dtsPath), "TypeScript definition file should be created");
+
+            Object.DestroyImmediate(cartridge);
+        }
+
+        [Test]
+        public void ExtractCartridges_OverwriteFalse_SkipsExisting() {
+            var cartridge = CreateTestCartridge("existingCart");
+            var cartridges = new List<UICartridge> { cartridge };
+
+            // Create folder with a marker file
+            var cartPath = Path.Combine(_testBasePath, "@cartridges", "existingCart");
+            Directory.CreateDirectory(cartPath);
+            var markerFile = Path.Combine(cartPath, "marker.txt");
+            File.WriteAllText(markerFile, "original");
+
+            // Extract with overwrite=false
+            CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, overwriteExisting: false);
+
+            // Marker file should still exist (folder wasn't deleted)
+            Assert.IsTrue(File.Exists(markerFile), "Existing folder should not be deleted when overwrite=false");
+            Assert.AreEqual("original", File.ReadAllText(markerFile));
+
+            Object.DestroyImmediate(cartridge);
+        }
+
+        [Test]
+        public void ExtractCartridges_OverwriteTrue_ReplacesExisting() {
+            var cartridge = CreateTestCartridge("replaceCart");
+            var cartridges = new List<UICartridge> { cartridge };
+
+            // Create folder with a marker file
+            var cartPath = Path.Combine(_testBasePath, "@cartridges", "replaceCart");
+            Directory.CreateDirectory(cartPath);
+            var markerFile = Path.Combine(cartPath, "marker.txt");
+            File.WriteAllText(markerFile, "original");
+
+            // Extract with overwrite=true
+            CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, overwriteExisting: true);
+
+            // Marker file should be gone (folder was deleted and recreated)
+            Assert.IsFalse(File.Exists(markerFile), "Marker file should be deleted when overwrite=true");
+
+            // But the .d.ts file should exist
+            var dtsPath = Path.Combine(cartPath, "replaceCart.d.ts");
+            Assert.IsTrue(File.Exists(dtsPath), "New files should be created after overwrite");
+
+            Object.DestroyImmediate(cartridge);
+        }
+
+        [Test]
+        public void ExtractCartridges_NestedFilePath_UsesPlatformSeparators() {
+            var cartridge = CreateTestCartridge("nestedCart");
+            AddCartridgeFile(cartridge, "components/Button.tsx", "export const Button = () => null");
+            var cartridges = new List<UICartridge> { cartridge };
+
+            var created = CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
+
+            // CartridgeFileEntry.path is authored with '/', same as RelativePath.
+            var expected = Path.Combine(_testBasePath, "@cartridges", "nestedCart", "components", "Button.tsx");
+            Assert.IsTrue(File.Exists(expected), "Nested cartridge file should be written");
+            Assert.IsTrue(created.Contains(expected),
+                $"Returned path should use platform separators, got: {string.Join(", ", created)}");
+
+            DestroyCartridge(cartridge);
+        }
+
+        [Test]
+        public void ExtractCartridges_SkipsNullCartridgesInList() {
+            var validCartridge = CreateTestCartridge("validCart");
+            var cartridges = new List<UICartridge> { null, validCartridge, null };
+
+            Assert.DoesNotThrow(() => {
+                CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
+            });
+
+            // Valid cartridge should still be extracted
+            var expectedPath = Path.Combine(_testBasePath, "@cartridges", "validCart");
+            Assert.IsTrue(Directory.Exists(expectedPath));
+
+            Object.DestroyImmediate(validCartridge);
+        }
+
+        // MARK: ApplyStylesheets Tests
+
+        [Test]
+        public void ApplyStylesheets_NullStylesheets_DoesNotThrow() {
+            var root = new VisualElement();
+            Assert.DoesNotThrow(() => {
+                CartridgeUtils.ApplyStylesheets(root, null);
+            });
+        }
+
+        [Test]
+        public void ApplyStylesheets_EmptyStylesheets_DoesNotThrow() {
+            var root = new VisualElement();
+            var stylesheets = new List<StyleSheet>();
+
+            Assert.DoesNotThrow(() => {
+                CartridgeUtils.ApplyStylesheets(root, stylesheets);
+            });
+        }
+
+        [Test]
+        public void ApplyStylesheets_NullRoot_DoesNotThrow() {
+            var stylesheet = ScriptableObject.CreateInstance<StyleSheet>();
+            var stylesheets = new List<StyleSheet> { stylesheet };
+
+            Assert.DoesNotThrow(() => {
+                CartridgeUtils.ApplyStylesheets(null, stylesheets);
+            });
+
+            Object.DestroyImmediate(stylesheet);
+        }
+
+        [Test]
+        public void ApplyStylesheets_ValidStylesheet_IsApplied() {
+            var root = new VisualElement();
+            var stylesheet = ScriptableObject.CreateInstance<StyleSheet>();
+            var stylesheets = new List<StyleSheet> { stylesheet };
+
+            CartridgeUtils.ApplyStylesheets(root, stylesheets);
+
+            Assert.IsTrue(root.styleSheets.Contains(stylesheet), "Stylesheet should be applied to root");
+
+            Object.DestroyImmediate(stylesheet);
+        }
+
+        [Test]
+        public void ApplyStylesheets_SkipsNullStylesheetsInList() {
+            var root = new VisualElement();
+            var validStylesheet = ScriptableObject.CreateInstance<StyleSheet>();
+            var stylesheets = new List<StyleSheet> { null, validStylesheet, null };
+
+            Assert.DoesNotThrow(() => {
+                CartridgeUtils.ApplyStylesheets(root, stylesheets);
+            });
+
+            Assert.IsTrue(root.styleSheets.Contains(validStylesheet));
+
+            Object.DestroyImmediate(validStylesheet);
+        }
+
+        [Test]
+        public void ApplyStylesheets_MultipleStylesheets_AllApplied() {
+            var root = new VisualElement();
+            var ss1 = ScriptableObject.CreateInstance<StyleSheet>();
+            var ss2 = ScriptableObject.CreateInstance<StyleSheet>();
+            var stylesheets = new List<StyleSheet> { ss1, ss2 };
+
+            CartridgeUtils.ApplyStylesheets(root, stylesheets);
+
+            Assert.AreEqual(2, root.styleSheets.count);
+            Assert.IsTrue(root.styleSheets.Contains(ss1));
+            Assert.IsTrue(root.styleSheets.Contains(ss2));
+
+            Object.DestroyImmediate(ss1);
+            Object.DestroyImmediate(ss2);
+        }
+
+        [Test]
+        public void ExtractCartridges_WithNamespace_CreatesNamespacedFolder() {
+            var cartridge = CreateTestCartridgeWithNamespace("myCompany", "testSlug");
+            var cartridges = new List<UICartridge> { cartridge };
+
+            CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
+
+            var expectedPath = Path.Combine(_testBasePath, "@cartridges", "@myCompany", "testSlug");
+            Assert.IsTrue(Directory.Exists(expectedPath), "Namespaced cartridge folder should be created");
+
+            Object.DestroyImmediate(cartridge);
+        }
+
+        [Test]
+        public void ExtractCartridges_MixedNamespaces_CreatesBothFolderStructures() {
+            var cartWithNs = CreateTestCartridgeWithNamespace("myCompany", "cart1");
+            var cartWithoutNs = CreateTestCartridge("cart2");
+            var cartridges = new List<UICartridge> { cartWithNs, cartWithoutNs };
+
+            CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
+
+            var namespacedPath = Path.Combine(_testBasePath, "@cartridges", "@myCompany", "cart1");
+            var regularPath = Path.Combine(_testBasePath, "@cartridges", "cart2");
+
+            Assert.IsTrue(Directory.Exists(namespacedPath), "Namespaced folder should exist");
+            Assert.IsTrue(Directory.Exists(regularPath), "Non-namespaced folder should exist");
+
+            Object.DestroyImmediate(cartWithNs);
+            Object.DestroyImmediate(cartWithoutNs);
+        }
+
+        // MARK: ExtractCartridges Return Value Tests
+
+        [Test]
+        public void ExtractCartridges_ReturnsCreatedFilePaths() {
+            var cartridge = CreateTestCartridge("returnTest");
+            var cartridges = new List<UICartridge> { cartridge };
+
+            var created = CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
+
+            Assert.IsNotNull(created);
+            // Should contain at least the .d.ts file
+            Assert.IsTrue(created.Count > 0, "Should return at least the .d.ts path");
+            Assert.IsTrue(created.Exists(p => p.EndsWith(".d.ts")), "Should include .d.ts file");
+
+            Object.DestroyImmediate(cartridge);
+        }
+
+        [Test]
+        public void ExtractCartridges_SkipsExisting_ReturnsEmptyList() {
+            var cartridge = CreateTestCartridge("skipReturn");
+            var cartridges = new List<UICartridge> { cartridge };
+
+            // First extraction
+            CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
+
+            // Second extraction with overwrite=false should skip
+            var created = CartridgeUtils.ExtractCartridges(_testBasePath, cartridges, false);
+
+            Assert.IsNotNull(created);
+            Assert.AreEqual(0, created.Count, "Should return empty list when skipping existing");
+
+            Object.DestroyImmediate(cartridge);
+        }
+
+        [Test]
+        public void ExtractCartridges_NullInputs_ReturnsEmptyList() {
+            var result1 = CartridgeUtils.ExtractCartridges(_testBasePath, null, false);
+            Assert.IsNotNull(result1);
+            Assert.AreEqual(0, result1.Count);
+
+            var result2 = CartridgeUtils.ExtractCartridges(null, new List<UICartridge>(), false);
+            Assert.IsNotNull(result2);
+            Assert.AreEqual(0, result2.Count);
+        }
+
+        // MARK: Helper Methods
+
+        /// <summary>
+        /// Sets the slug field on a UICartridge via reflection (since it's private).
+        /// </summary>
+        void SetCartridgeSlug(UICartridge cartridge, string slug) {
+            var field = typeof(UICartridge).GetField("_slug",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            field.SetValue(cartridge, slug);
+        }
+
+        /// <summary>
+        /// Sets the namespace field on a UICartridge via reflection.
+        /// </summary>
+        void SetCartridgeNamespace(UICartridge cartridge, string ns) {
+            var field = typeof(UICartridge).GetField("_namespace",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            field.SetValue(cartridge, ns);
+        }
+
+        /// <summary>
+        /// Adds a file entry to a UICartridge via reflection (backed by an in-memory TextAsset).
+        /// </summary>
+        void AddCartridgeFile(UICartridge cartridge, string path, string content) {
+            var field = typeof(UICartridge).GetField("_files",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var files = (List<CartridgeFileEntry>)field.GetValue(cartridge);
+            files.Add(new CartridgeFileEntry { path = path, content = new TextAsset(content) });
+        }
+
+        /// <summary>
+        /// Destroys a cartridge along with any TextAssets created by AddCartridgeFile.
+        /// </summary>
+        void DestroyCartridge(UICartridge cartridge) {
+            foreach (var file in cartridge.Files) {
+                if (file?.content != null) Object.DestroyImmediate(file.content);
+            }
+            Object.DestroyImmediate(cartridge);
+        }
+
+        /// <summary>
+        /// Creates a test UICartridge with the given slug.
+        /// </summary>
+        UICartridge CreateTestCartridge(string slug) {
+            var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+            SetCartridgeSlug(cartridge, slug);
+            return cartridge;
+        }
+
+        /// <summary>
+        /// Creates a test UICartridge with the given namespace and slug.
+        /// </summary>
+        UICartridge CreateTestCartridgeWithNamespace(string ns, string slug) {
+            var cartridge = ScriptableObject.CreateInstance<UICartridge>();
+            SetCartridgeNamespace(cartridge, ns);
+            SetCartridgeSlug(cartridge, slug);
+            return cartridge;
+        }
     }
 }

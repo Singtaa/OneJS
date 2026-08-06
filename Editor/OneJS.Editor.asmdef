@@ -1,6 +1,6 @@
 {
     "name": "OneJS.Editor",
-    "rootNamespace": "",
+    "rootNamespace": "OneJS.Editor",
     "references": [
         "OneJS.Runtime",
         "OneJS.Editor.TypeGenerator"

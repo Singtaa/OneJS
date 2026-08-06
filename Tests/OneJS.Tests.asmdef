@@ -1,6 +1,6 @@
 {
     "name": "OneJS.Tests",
-    "rootNamespace": "",
+    "rootNamespace": "OneJS.Tests",
     "references": [
         "OneJS.Runtime",
         "UnityEngine.TestRunner",

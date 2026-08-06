@@ -1,6 +1,6 @@
 {
     "name": "OneJS.BuildValidation",
-    "rootNamespace": "",
+    "rootNamespace": "OneJS.Tests.BuildValidation",
     "references": [
         "OneJS.Runtime"
     ],

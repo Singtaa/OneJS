@@ -1,6 +1,6 @@
 {
     "name": "OneJS.Tests.Editor",
-    "rootNamespace": "",
+    "rootNamespace": "OneJS.Tests.Editor",
     "references": [
         "OneJS.Runtime",
         "OneJS.Editor",
