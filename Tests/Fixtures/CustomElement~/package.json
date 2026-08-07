@@ -10,6 +10,6 @@
     "onejs-react": "file:../../../../../../JSModules/onejs-react"
   },
   "devDependencies": {
-    "esbuild": "^0.24.0"
+    "esbuild": "^0.28.1"
   }
 }
