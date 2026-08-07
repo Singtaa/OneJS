@@ -160,6 +160,12 @@ namespace OneJS.Editor {
                     bridge.Tick();
                 }
 
+                // A scripted demo may key an absolute timeline off the moment
+                // capture begins; the settle pass above would otherwise silently
+                // consume its opening beat. Optional by design: demos without
+                // the hook (or with phase-agnostic motion) are unaffected.
+                bridge.Eval("globalThis.__captureStart && globalThis.__captureStart()");
+
                 // Input and layout are in the panel's logical space, which is not the
                 // capture resolution when PanelSettings applies a scale. The cursor
                 // composites into the pixel buffer, so it needs the conversion.
