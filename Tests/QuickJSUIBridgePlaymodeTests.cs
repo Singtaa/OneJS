@@ -576,27 +576,41 @@ namespace OneJS.Tests {
                 "Child should have pointer capture.");
 
             // Backward-compat: without preventDefault, the native PointerMove probe fires.
+            // Pump-and-reset per send, same as the fast-path variant: on a slow headless
+            // runner a send can go out before per-element dispatch is live, and pointer
+            // capture has been seen to drop across a frame boundary (CI run 31218393886),
+            // so re-assert capture and reset the probe each iteration. The probe and the
+            // JS handler fire on the same send, so after the loop both reflect the send
+            // that actually reached JS.
             _bridge.Eval("globalThis.__pmFired = 0; globalThis.__doPreventDefault = false;");
-            nativeGotMove = false;
-            using (var evt = PointerMoveEvent.GetPooled()) {
-                SetPointerEventPointerId(evt, PointerId.mousePointerId);
-                root.SendEvent(evt);
+            for (int i = 0; i < 5 && _bridge.Eval("globalThis.__pmFired") == "0"; i++) {
+                if (!childCs.HasPointerCapture(PointerId.mousePointerId))
+                    childCs.CapturePointer(PointerId.mousePointerId);
+                nativeGotMove = false;
+                using (var evt = PointerMoveEvent.GetPooled()) {
+                    SetPointerEventPointerId(evt, PointerId.mousePointerId);
+                    root.SendEvent(evt);
+                }
+                yield return null;
             }
-            yield return null;
-            Assert.AreEqual("1", _bridge.Eval("globalThis.__pmFired"),
+            Assert.AreNotEqual("0", _bridge.Eval("globalThis.__pmFired"),
                 "JS onPointerMove should fire via the per-element handler during capture.");
             Assert.IsTrue(nativeGotMove,
                 "Without preventDefault, the native PointerMove probe should fire during capture.");
 
             // Suppression: with preventDefault, the per-element handler must suppress the native probe.
             _bridge.Eval("globalThis.__pmFired = 0; globalThis.__doPreventDefault = true;");
-            nativeGotMove = false;
-            using (var evt = PointerMoveEvent.GetPooled()) {
-                SetPointerEventPointerId(evt, PointerId.mousePointerId);
-                root.SendEvent(evt);
+            for (int i = 0; i < 5 && _bridge.Eval("globalThis.__pmFired") == "0"; i++) {
+                if (!childCs.HasPointerCapture(PointerId.mousePointerId))
+                    childCs.CapturePointer(PointerId.mousePointerId);
+                nativeGotMove = false;
+                using (var evt = PointerMoveEvent.GetPooled()) {
+                    SetPointerEventPointerId(evt, PointerId.mousePointerId);
+                    root.SendEvent(evt);
+                }
+                yield return null;
             }
-            yield return null;
-            Assert.AreEqual("1", _bridge.Eval("globalThis.__pmFired"),
+            Assert.AreNotEqual("0", _bridge.Eval("globalThis.__pmFired"),
                 "JS onPointerMove should still fire via the per-element handler during capture.");
             Assert.IsFalse(nativeGotMove,
                 "preventDefault() in onPointerMove must suppress the native event during pointer capture (per-element path).");
@@ -813,11 +827,14 @@ namespace OneJS.Tests {
 
             // Backward-compat: without preventDefault, the native PointerMove probe fires.
             // Per-element dispatch is occasionally not live on the very first frame in a
-            // slow headless runner, so pump sends until the first fire instead of
-            // assuming one frame is enough.
+            // slow headless runner, and pointer capture can drop across a frame boundary
+            // there too, so pump sends until the first fire, re-asserting capture and
+            // resetting the probe each iteration (see the slow-path variant).
             _bridge.Eval("globalThis.__pmFired = 0; globalThis.__doPreventDefault = false;");
-            nativeGotMove = false;
             for (int i = 0; i < 5 && _bridge.Eval("globalThis.__pmFired") == "0"; i++) {
+                if (!childCs.HasPointerCapture(PointerId.mousePointerId))
+                    childCs.CapturePointer(PointerId.mousePointerId);
+                nativeGotMove = false;
                 using (var evt = PointerMoveEvent.GetPooled()) {
                     SetPointerEventPointerId(evt, PointerId.mousePointerId);
                     root.SendEvent(evt);
@@ -830,12 +847,12 @@ namespace OneJS.Tests {
                 "Without preventDefault, the native PointerMove probe should fire during capture.");
 
             // Suppression: with preventDefault, the per-element fast path must suppress the native probe.
+            // Same pump as above: only the send that actually reached JS can prove
+            // suppression, so the probe must reflect that send alone.
             _bridge.Eval("globalThis.__pmFired = 0; globalThis.__doPreventDefault = true;");
             for (int i = 0; i < 5 && _bridge.Eval("globalThis.__pmFired") == "0"; i++) {
-                // Reset per send: an early send where per-element dispatch is not yet
-                // live hits the probe without any JS handler running (same lag the
-                // pump above exists for). Only the send that reached JS can prove
-                // suppression, so the flag must reflect that send alone.
+                if (!childCs.HasPointerCapture(PointerId.mousePointerId))
+                    childCs.CapturePointer(PointerId.mousePointerId);
                 nativeGotMove = false;
                 using (var evt = PointerMoveEvent.GetPooled()) {
                     SetPointerEventPointerId(evt, PointerId.mousePointerId);
