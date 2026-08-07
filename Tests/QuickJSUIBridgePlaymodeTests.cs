@@ -831,8 +831,12 @@ namespace OneJS.Tests {
 
             // Suppression: with preventDefault, the per-element fast path must suppress the native probe.
             _bridge.Eval("globalThis.__pmFired = 0; globalThis.__doPreventDefault = true;");
-            nativeGotMove = false;
             for (int i = 0; i < 5 && _bridge.Eval("globalThis.__pmFired") == "0"; i++) {
+                // Reset per send: an early send where per-element dispatch is not yet
+                // live hits the probe without any JS handler running (same lag the
+                // pump above exists for). Only the send that reached JS can prove
+                // suppression, so the flag must reflect that send alone.
+                nativeGotMove = false;
                 using (var evt = PointerMoveEvent.GetPooled()) {
                     SetPointerEventPointerId(evt, PointerId.mousePointerId);
                     root.SendEvent(evt);
