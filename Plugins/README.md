@@ -51,7 +51,7 @@ Build scripts are located in `Auxiliary~/quickjs-unity/`. Each script compiles a
 # Windows (native MSVC)
 build-windows-msvc.bat
 
-# Linux
+# Linux (the shipped .so must come out of the pinned container, see below)
 ./build-linux.sh
 
 # iOS
@@ -62,3 +62,22 @@ build-windows-msvc.bat
 ```
 
 See `Auxiliary~/quickjs-unity/README.md` for full details.
+
+## Linux glibc Baseline
+
+The committed `Linux/x64/libquickjs_unity.so` is built inside an `ubuntu:22.04`
+container so it links against glibc 2.35 at most (Unity 6's own Ubuntu 22.04
+floor). glibc is backward compatible, so the binary runs on any newer distro;
+building on a bare dev machine instead would silently raise that floor. Refresh
+it whenever `src/quickjs_unity.c` or the vendored QuickJS submodule changes,
+with the same command CI uses (add `--platform linux/amd64` on Apple Silicon):
+
+```bash
+cd <package root>
+docker run --rm -v "$PWD":/repo -w /repo ubuntu:22.04 bash -c \
+  "apt-get update -qq && apt-get install -y -qq gcc make > /dev/null && bash Auxiliary~/quickjs-unity/build-linux.sh"
+```
+
+CI rebuilds the .so from source every run (overwriting the committed one for
+the test run), so the build script and source stay verified even if the
+committed binary lags a source change.

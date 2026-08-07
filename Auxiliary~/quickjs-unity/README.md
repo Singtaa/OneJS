@@ -36,6 +36,10 @@ quickjs-unity/
 # Output: Plugins/Linux/x64/libquickjs_unity.so
 ```
 
+The shipped .so is built inside an `ubuntu:22.04` container to pin the glibc
+baseline; see `Plugins/README.md` for the exact command before refreshing the
+committed binary.
+
 ### Windows (cross-compile from macOS/Linux)
 ```bash
 ./build-windows.sh     # Requires: mingw-w64
