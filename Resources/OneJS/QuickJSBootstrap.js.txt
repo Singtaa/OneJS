@@ -1737,7 +1737,7 @@ globalThis.loadResourceAsync = async function(path, type) {
  * @param {string} url - The URL to fetch
  * @param {Object} [options] - Request options
  * @param {string} [options.method="GET"] - HTTP method
- * @param {Object} [options.headers] - Request headers
+ * @param {Object|Headers|Array} [options.headers] - Request headers (plain object, Headers instance, Map, or [name, value] pairs)
  * @param {string|Object} [options.body] - Request body (auto-stringified if object)
  * @returns {Promise<Response>} Promise resolving to a Response object
  *
@@ -1759,18 +1759,54 @@ if (__nativeFetch) {
     globalThis.fetch = __nativeFetch;
 } else {
     // Native platforms: Use C# UnityWebRequest
+
+    // C# parses request headers as a flat JSON object, so any Headers-like
+    // init (Headers instance, Map, [key, value] pairs) must be flattened
+    // before JSON.stringify - stringifying a Headers instance directly would
+    // serialize its internal fields and silently drop every real header.
+    // Libraries do pass Headers instances (e.g. supabase-js on its REST path).
+    function __flattenHeaders(init) {
+        if (!init) return null;
+        var flat = {};
+        if (Array.isArray(init)) {
+            for (var i = 0; i < init.length; i++) {
+                flat[String(init[i][0])] = String(init[i][1]);
+            }
+        } else if (typeof init.forEach === "function") {
+            // Headers (ours or a library's own polyfill) and Map both
+            // iterate as callback(value, key)
+            init.forEach(function(value, key) {
+                flat[String(key)] = String(value);
+            });
+        } else {
+            for (var key in init) {
+                if (Object.prototype.hasOwnProperty.call(init, key)) {
+                    flat[key] = init[key];
+                }
+            }
+        }
+        return flat;
+    }
+
     globalThis.fetch = function(url, options) {
         options = options || {};
         var method = options.method || "GET";
-        var headers = options.headers || null;
+        var headers = __flattenHeaders(options.headers);
         var body = options.body || null;
 
         // Auto-stringify body if it's an object
         if (body && typeof body === "object") {
             body = JSON.stringify(body);
-            // Set Content-Type if not already set
+            // Set Content-Type if not already set (case-insensitive)
             if (!headers) headers = {};
-            if (!headers["Content-Type"]) {
+            var hasContentType = false;
+            for (var key in headers) {
+                if (key.toLowerCase() === "content-type") {
+                    hasContentType = true;
+                    break;
+                }
+            }
+            if (!hasContentType) {
                 headers["Content-Type"] = "application/json";
             }
         }
@@ -1861,11 +1897,24 @@ class Headers {
     constructor(init) {
         this._headers = {};
         if (init) {
-            // Handle both plain objects and Headers instances
-            var source = init._headers || init;
-            for (var key in source) {
-                if (source.hasOwnProperty(key)) {
-                    this._headers[key.toLowerCase()] = source[key];
+            if (Array.isArray(init)) {
+                // Spec: sequence of [name, value] pairs, duplicates combine
+                for (var i = 0; i < init.length; i++) {
+                    this.append(String(init[i][0]), String(init[i][1]));
+                }
+            } else if (typeof init.forEach === "function") {
+                // Headers instance (ours or a library's polyfill) or Map;
+                // both iterate as callback(value, key)
+                var self = this;
+                init.forEach(function(value, key) {
+                    self.set(String(key), String(value));
+                });
+            } else {
+                // Plain object record
+                for (var key in init) {
+                    if (Object.prototype.hasOwnProperty.call(init, key)) {
+                        this._headers[key.toLowerCase()] = init[key];
+                    }
                 }
             }
         }

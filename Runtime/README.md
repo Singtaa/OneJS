@@ -1029,14 +1029,16 @@ if (response.ok) {
 **Supported features**:
 - `fetch(url, options)` - Returns Promise<Response>
 - Options: `method`, `headers`, `body`
+- Request headers: plain object, `Headers` instance, `Map`, or `[name, value]` pairs
 - Response properties: `ok`, `status`, `statusText`, `url`, `headers`
 - Response methods: `text()`, `json()`, `clone()`
-- Headers class: `get()`, `set()`, `has()`, `append()`, `delete()`, `keys()`, `values()`, `entries()`, `forEach()`
+- Headers class: `get()`, `set()`, `has()`, `append()`, `delete()`, `keys()`, `values()`, `entries()`, `forEach()`; constructor accepts a record, pair array, or another Headers/Map
 
 **Implementation details**:
 - Uses `UnityWebRequest` under the hood (works on all platforms)
 - Supports GET, POST, PUT, DELETE, HEAD methods
-- Auto-stringifies object bodies and sets Content-Type header
+- Auto-stringifies object bodies and sets Content-Type header (unless the caller already set one, any casing)
+- Header inits are flattened to a plain object before the C# crossing (`Network.ParseHeadersJson` only reads flat `{"key":"value"}` JSON); libraries like supabase-js pass `Headers` instances, which would otherwise serialize as internal fields and drop every header
 - Response body is fetched as text; use `json()` to parse
 
 ### Storage API (localStorage/sessionStorage)
