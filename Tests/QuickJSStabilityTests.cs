@@ -230,7 +230,7 @@ namespace OneJS.Tests {
             // With fix: refcount = 1 (each cache hit counteracts the RegisterObject increment)
             // Without fix: refcount = 50
             Assert.AreEqual(1, QuickJSNative.GetRefCountForTest(handle),
-                "Refcount should be 1 after repeated access — proxy cache fix must counteract RegisterObject increments");
+                "Refcount should be 1 after repeated access - proxy cache fix must counteract RegisterObject increments");
 
             InteropTestHelper.Reset();
             yield return null;
@@ -283,7 +283,7 @@ namespace OneJS.Tests {
             // Without fix: refcount=50, handle would survive 49 more unregisters
             QuickJSNative.UnregisterObjectForTest(handle);
             Assert.IsNull(QuickJSNative.GetObjectByHandle(handle),
-                "Handle should be fully freed after single unregister — confirms refcount was 1");
+                "Handle should be fully freed after single unregister - confirms refcount was 1");
             Assert.AreEqual(0, QuickJSNative.GetRefCountForTest(handle),
                 "Refcount should be 0 after unregister");
 
@@ -304,7 +304,7 @@ namespace OneJS.Tests {
                 refs.every(function(r) { return r === refs[0]; });
             ");
             Assert.AreEqual("true", result,
-                "All references should be the same proxy — cache must still work after refcount fix");
+                "All references should be the same proxy - cache must still work after refcount fix");
 
             InteropTestHelper.Reset();
             yield return null;

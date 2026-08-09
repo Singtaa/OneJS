@@ -57,7 +57,7 @@ build-windows-msvc.bat
 # Output: Plugins/iOS/libquickjs_unity.a (static, arm64)
 # Requires: Xcode with command line tools
 ```
-iOS uses static linking (`__Internal` DllImport) — the library is linked into the IL2CPP binary.
+iOS uses static linking (`__Internal` DllImport) - the library is linked into the IL2CPP binary.
 
 ### Android
 ```bash

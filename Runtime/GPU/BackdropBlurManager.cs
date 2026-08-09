@@ -123,7 +123,7 @@ namespace OneJS.GPU {
 
             ReleaseRTs();
 
-            // Capture at reduced resolution — it's going to be blurred anyway
+            // Capture at reduced resolution - it's going to be blurred anyway
             _captureRT = new RenderTexture(w, h, 16, RenderTextureFormat.ARGB32) {
                 filterMode = FilterMode.Bilinear,
                 wrapMode = TextureWrapMode.Clamp
@@ -163,18 +163,18 @@ namespace OneJS.GPU {
             }
 
             // Clone main camera settings and render 3D scene only into our RT.
-            // UITK panels are NOT rendered per-camera — they composite on the
+            // UITK panels are NOT rendered per-camera - they composite on the
             // display surface. So the clone captures pure 3D scene content.
             _captureCam.CopyFrom(mainCam);
             _captureCam.targetTexture = _captureRT;
             _captureCam.enabled = false;
-            // Force alpha=1 on clear color — URP defaults to alpha=0 which causes
+            // Force alpha=1 on clear color - URP defaults to alpha=0 which causes
             // sharp edges in the blur where geometry meets empty space
             var bg = _captureCam.backgroundColor;
             _captureCam.backgroundColor = new Color(bg.r, bg.g, bg.b, 1f);
             _captureCam.Render();
 
-            // Apply two-pass Gaussian blur (skip if blur is zero — use raw capture)
+            // Apply two-pass Gaussian blur (skip if blur is zero - use raw capture)
             RenderTexture result;
             if (maxSigma > 0f) {
                 float downsampledSigma = maxSigma / DownsampleFactor;

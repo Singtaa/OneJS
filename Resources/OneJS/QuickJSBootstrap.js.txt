@@ -471,7 +471,7 @@ function __wrapObject(typeName, handle) {
 
             if (typeof prop === "symbol") return undefined;
 
-            // C# objects are not JS thenables — return undefined for Promise protocol.
+            // C# objects are not JS thenables - return undefined for Promise protocol.
             // Prevents errors during Promise resolution's thenable check (Promises/A+ 2.3.3).
             if (prop === "then") return undefined;
 
@@ -689,7 +689,7 @@ const __instancePropertyNames = new Set([
 // Type-existence + enum-type lookups are cached because they're stable for the
 // lifetime of the bridge: a type either exists or doesn't, it doesn't change
 // kind mid-session. Without the cache, every CS proxy traversal fires multiple
-// JSI crossings per path segment — a single modal render was making ~700+
+// JSI crossings per path segment - a single modal render was making ~700+
 // existence checks (CS.UnityEngine, CS.UnityEngine.UIElements, ...) and
 // dominating mount latency on WebGL.
 const __typeExistsCache = new Map();

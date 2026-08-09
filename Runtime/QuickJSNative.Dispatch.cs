@@ -414,7 +414,7 @@ namespace OneJS {
                     }
 
                     case InteropInvokeCallKind.TryGetProp: {
-                        // Silent variant of GetProp — returns null instead of logging on failure.
+                        // Silent variant of GetProp - returns null instead of logging on failure.
                         // Used by the CS path proxy for speculative static property resolution.
                         PropertyInfo prop = FindPropertyCached(type, memberName, isStatic);
                         if (prop != null) {
@@ -436,7 +436,7 @@ namespace OneJS {
                             SetReturnValue(resPtr, "__oneJS_methodRef__");
                             return;
                         }
-                        // Not found — return null silently (no error log)
+                        // Not found - return null silently (no error log)
                         resPtr->returnValue.type = InteropType.Null;
                         return;
                     }
@@ -493,7 +493,7 @@ namespace OneJS {
             // Primitives
             if (TrySetReturnValueForPrimitive(resPtr, value, t)) return;
 
-            // Serializable structs — only JSON-serialize data-only structs.
+            // Serializable structs - only JSON-serialize data-only structs.
             // Structs with instance methods (e.g. Scene.GetRootGameObjects()) fall through
             // to RegisterObject so JS gets a proxy that can dispatch method calls.
             if (IsSerializableStruct(t)) {

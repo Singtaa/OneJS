@@ -536,7 +536,7 @@ namespace OneJS.Tests {
         [UnityTest]
         public IEnumerator Suppression_PerElement_PreventDefaultDuringCapture_Suppresses() {
             // Phase 3a: once a pointer is captured, Unity 6 delivers pointer events directly to the
-            // capturing element, bypassing the _root TrickleDown handler — only the per-element
+            // capturing element, bypassing the _root TrickleDown handler - only the per-element
             // handler (OnPerElementPointerMove) fires (see PerElementEventSupport). A JS
             // onPointerMove calling preventDefault() must still suppress the native event mid-drag
             // (e.g. a ScrollView pan); without it the native callback fires (backward-compat).
@@ -544,7 +544,7 @@ namespace OneJS.Tests {
             var root = _uiDocument.rootVisualElement;
             int rootHandle = QuickJSNative.RegisterObject(root);
 
-            // String dispatch path (no CacheEventDispatchCallback) — the path per-element handlers use.
+            // String dispatch path (no CacheEventDispatchCallback) - the path per-element handlers use.
             _bridge.Eval($@"
                 var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
                 useExtensions(CS.UnityEngine.UIElements.PointerCaptureHelper);

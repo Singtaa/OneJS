@@ -537,11 +537,11 @@ var OneJSWebGLLib = {
     // On native, the QuickJS runtime exposes __zaInvoke0..N JS functions that
     // route through this callback. We replicate the same surface on WebGL so
     // code that uses the fast path (onejs-unity GPU compute, input reader)
-    // works without changes — and so the reconciler can opt-in later.
+    // works without changes - and so the reconciler can opt-in later.
     //
     // The shims marshal args directly into the WASM heap, call the C# zero-
     // alloc dispatcher via dynCall, and unmarshal the result. Allocation is
-    // per-call (via _malloc/_free) — slower than native's stack-allocated
+    // per-call (via _malloc/_free) - slower than native's stack-allocated
     // path but still far cheaper than __cs.invoke since there's no JSON
     // marshalling or method-resolution on the C# side.
     qjs_set_cs_zeroalloc_callback__deps: ["$OneJS"],
@@ -591,7 +591,7 @@ var OneJSWebGLLib = {
         };
 
         var g = typeof window !== "undefined" ? window : globalThis;
-        // One implementation services all arities — JS doesn't enforce param
+        // One implementation services all arities - JS doesn't enforce param
         // counts, and the variadic form keeps the shim small.
         g.__zaInvoke0 = function(bindingId) { return invoke(bindingId, []); };
         g.__zaInvoke1 = function(bindingId, a0) { return invoke(bindingId, [a0]); };

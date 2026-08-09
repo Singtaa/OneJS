@@ -61,14 +61,14 @@ The `JSRunner` MonoBehaviour is the primary way to run JavaScript apps in Unity.
 
 ### Panel Settings as Project Marker
 
-JSRunner uses the **assigned PanelSettings asset** as the source of truth for project identity and location. The folder containing the PanelSettings asset is the **instance folder** — all project files (working directory, bundle, source map) live alongside it.
+JSRunner uses the **assigned PanelSettings asset** as the source of truth for project identity and location. The folder containing the PanelSettings asset is the **instance folder** - all project files (working directory, bundle, source map) live alongside it.
 
 **Setup flow:**
 1. Add JSRunner to a GameObject
 2. Click **Initialize Project** in the inspector
 3. This creates the instance folder, PanelSettings, working directory, and runs `npm install` + `npm run build`
 
-**Or** assign an existing PanelSettings asset — its folder becomes the active project folder.
+**Or** assign an existing PanelSettings asset - its folder becomes the active project folder.
 
 ### Directory Structure
 
@@ -107,7 +107,7 @@ JSRunner supports rendering UI in the Game view **without entering Play mode**. 
 
 **How it works:**
 1. When JSRunner is enabled in edit mode and has a valid PanelSettings + built entry file, it automatically starts the preview
-2. The existing `InitializeBridge()` → `RunScript()` path is reused — no separate code path
+2. The existing `InitializeBridge()` → `RunScript()` path is reused - no separate code path
 3. A 30Hz tick via `EditorApplication.update` drives `bridge.Tick()` and `CheckForFileChanges()`
 4. Live reload works in edit mode (file changes trigger `Reload()`)
 
@@ -115,7 +115,7 @@ JSRunner supports rendering UI in the Game view **without entering Play mode**. 
 | Event | Action |
 |-------|--------|
 | `OnEnable()` (edit mode) | `SchedulePreviewAutoStart()` → retried `TryStartEditModePreview()` |
-| `OnDisable()` (edit mode) | `StopEditModePreview()` — unregisters tick, disposes bridge, clears UI |
+| `OnDisable()` (edit mode) | `StopEditModePreview()` - unregisters tick, disposes bridge, clears UI |
 | Domain reload | `OnDisable` → reload → `OnEnable` → reinit from scratch |
 | Enter Play mode | `EditModeTick()` detects `isPlaying` → stops preview; `Start()` takes over |
 | Exit Play mode | `OnEnable()` → `SchedulePreviewAutoStart()` → restarts preview |
@@ -133,7 +133,7 @@ bool IsEditModePreviewActive { get; }  // Whether edit-mode preview is currently
 
 ### UIDocument vs PanelRenderer (Unity 6.5+)
 
-Unity 6.5 introduced `UnityEngine.UIElements.PanelRenderer` as the successor to `UIDocument` (which moves to *UI Toolkit/Legacy* in the Add Component menu). **OneJS deliberately stays on `UIDocument`** — a considered decision, not an oversight:
+Unity 6.5 introduced `UnityEngine.UIElements.PanelRenderer` as the successor to `UIDocument` (which moves to *UI Toolkit/Legacy* in the Add Component menu). **OneJS deliberately stays on `UIDocument`** - a considered decision, not an oversight:
 
 - `UIDocument` is **not** marked `[Obsolete]` in 6.5. It compiles clean with no warnings, and Unity has announced no removal.
 - `PanelRenderer` **cannot drive edit-mode preview.** Verified on 6000.5.2f1: with a valid PanelSettings assigned, `root.panel` stays null in edit mode and the registered `UIReloadCallback` never fires. The same GameObject in Play mode fires immediately with a live panel; `UIDocument` under identical conditions is live in edit mode.
@@ -142,16 +142,16 @@ The cause is structural, not a toggle:
 
 | Component | Attach path |
 |-----------|-------------|
-| `UIDocument` | `OnEnable()` → `_Enable()` → `RecreateUI()` / `AddRootVisualElementToTree()` — eager, and the component is `[ExecuteAlways]` |
+| `UIDocument` | `OnEnable()` → `_Enable()` → `RecreateUI()` / `AddRootVisualElementToTree()` - eager, and the component is `[ExecuteAlways]` |
 | `PanelRenderer` | only `IPanelComponent.PerformUpdate()`, reached solely via `UIElementsRuntimeUtility.UpdatePanels()`, which the player loop drives |
 
-`UpdatePanels()` additionally early-returns before `UpdatePanelRenderers()` when there are no player panels. Unity's own authoring-time preview goes through a separate subsystem (`UIElementsRuntimeUtility.FindOrCreateAuthoringPanel`, `UIToolkitAuthoringModule`) that is entirely internal — so there is no supported way to make a `PanelRenderer` live at authoring time.
+`UpdatePanels()` additionally early-returns before `UpdatePanelRenderers()` when there are no player panels. Unity's own authoring-time preview goes through a separate subsystem (`UIElementsRuntimeUtility.FindOrCreateAuthoringPanel`, `UIToolkitAuthoringModule`) that is entirely internal - so there is no supported way to make a `PanelRenderer` live at authoring time.
 
 **Revisit when either** Unity marks `UIDocument` `[Obsolete]` / announces removal, **or** ships a public authoring-panel API. Until then, a `PanelRenderer` path would cost an abstraction plus a second implementation that is strictly less capable.
 
 **Landmines for whoever does the migration:**
 
-- `PanelRenderer` exposes **no public `rootVisualElement`** (it is `internal`). Unity states this is intentional — the register-callback pattern exists so live reload can hand out a fresh root. JSRunner's model is pull-based (`EnsureUIDocument()` → `rootVisualElement` on demand), so porting is a pull → push inversion. That is the bulk of the work.
+- `PanelRenderer` exposes **no public `rootVisualElement`** (it is `internal`). Unity states this is intentional - the register-callback pattern exists so live reload can hand out a fresh root. JSRunner's model is pull-based (`EnsureUIDocument()` → `rootVisualElement` on demand), so porting is a pull → push inversion. That is the bulk of the work.
 - `panelSettings` / `visualTreeAsset` are **native properties**: assigning them from script at edit time does *not* serialize. Go through `SerializedObject` on `m_PanelSettings` / `sourceAsset` (the field is `sourceAsset`, not `m_VisualTreeAsset`) plus `SetDirty`.
 - `sortingOrder` differs: `float` read/write on `UIDocument`, `int` on `PanelRenderer` (inherited from `Renderer`), read-only `float` on the shared interface.
 - `IPanelComponent` (public, implemented by both) covers `panelSettings` / `visualTreeAsset` but has **no root element member**, so it cannot serve as the whole abstraction.
@@ -189,10 +189,10 @@ export function onStop() {
 | Context | onPlay | onStop |
 |---------|--------|--------|
 | Edit-mode preview | Never | Never |
-| Enter Play mode | After `RunScript()` | — |
+| Enter Play mode | After `RunScript()` | - |
 | Live reload (play mode) | After rebuild | Before teardown |
-| Exit Play mode | — | On `ExitingPlayMode` |
-| `OnDestroy()` (play mode) | — | Before bridge disposal |
+| Exit Play mode | - | On `ExitingPlayMode` |
+| `OnDestroy()` (play mode) | - | Before bridge disposal |
 
 **Implementation fields:**
 ```csharp
@@ -201,18 +201,18 @@ int _onStopHandle = -1;    // Native callback handle for onStop
 bool _onStopInvoked;       // Guard against double-invocation
 ```
 
-**`__isPlaying` global:** Injected in `InitializeBridge()` — `true` in play mode, `false` in edit-mode preview. Useful for conditional rendering without lifecycle hooks.
+**`__isPlaying` global:** Injected in `InitializeBridge()` - `true` in play mode, `false` in edit-mode preview. Useful for conditional rendering without lifecycle hooks.
 
 ### Teardown Hooks (framework cleanup before context destruction)
 
 Distinct from the user-facing `onStop`, teardown hooks are a framework-level mechanism that runs **on every teardown path** (hot reload, play/edit stop, destroy) in **both edit and play mode**. They let JS code release resources while the context is still alive.
 
-The React reconciler registers `unmountAll` as a teardown hook (via `globalThis.__onTeardown`) the first time `render()` is called. Without this, hot reload would destroy the context without unmounting the React tree, so `useEffect`/`useLayoutEffect` cleanup functions would never run — leaving stale C# subscriptions (e.g. from `useEventSync`) that fail with `[QuickJS] Callback invocation failed with code -3` after reload.
+The React reconciler registers `unmountAll` as a teardown hook (via `globalThis.__onTeardown`) the first time `render()` is called. Without this, hot reload would destroy the context without unmounting the React tree, so `useEffect`/`useLayoutEffect` cleanup functions would never run - leaving stale C# subscriptions (e.g. from `useEventSync`) that fail with `[QuickJS] Callback invocation failed with code -3` after reload.
 
 **How it works:**
 1. The bootstrap exposes `globalThis.__onTeardown(fn)` and `globalThis.__runTeardown()` (idempotent: it drains its callback list, so repeat calls are no-ops).
-2. `QuickJSUIBridge.Dispose(disposing: true)` calls `RunTeardownHooks()` **first** — evaluating `__runTeardown()` and flushing pending jobs while the context is still alive. This is the single chokepoint covering all teardown paths.
-3. The finalizer path (`Dispose(false)`, GC thread) skips this — calling back into QuickJS off the main thread would be unsafe.
+2. `QuickJSUIBridge.Dispose(disposing: true)` calls `RunTeardownHooks()` **first** - evaluating `__runTeardown()` and flushing pending jobs while the context is still alive. This is the single chokepoint covering all teardown paths.
+3. The finalizer path (`Dispose(false)`, GC thread) skips this - calling back into QuickJS off the main thread would be unsafe.
 4. React's `unmount` tears the tree down synchronously (`updateContainerSync` + `flushSyncWork` + `flushPassiveEffects`) so cleanups run immediately rather than waiting for a scheduler tick that never comes before the context is destroyed.
 
 ### Platform Behavior
@@ -229,15 +229,15 @@ The React reconciler registers `unmountAll` as a teardown hook (via `globalThis.
 Unlike previous versions where project setup happened automatically on first Play mode, initialization is now **explicit**:
 
 1. **Initialize Project** button creates the instance folder, PanelSettings asset, VisualTreeAsset, working directory, scaffolds default files, and runs `npm install` + `npm run build`
-2. **Play mode** runs the project if PanelSettings is assigned and valid — no auto-creation of assets
+2. **Play mode** runs the project if PanelSettings is assigned and valid - no auto-creation of assets
 3. **Assigning PanelSettings** manually (drag & drop) syncs the VisualTreeAsset from the same folder and adds a UIDocument component in the editor
 
 The "Use Scene Name as Root Folder" option (right-click the status block) controls whether the instance folder is created under `{SceneDir}/{SceneName}/` (default) or directly under `{SceneDir}/`.
 
-Prefabs in the Project window (not placed in a scene) are also supported — the instance folder is created next to the prefab asset.
+Prefabs in the Project window (not placed in a scene) are also supported - the instance folder is created next to the prefab asset.
 
 ### Auto-Scaffolding (Editor Only)
-On Initialize (or first Play mode if not already set up), JSRunner creates missing files from its **Default Files** list. This is non-destructive — existing files are never overwritten.
+On Initialize (or first Play mode if not already set up), JSRunner creates missing files from its **Default Files** list. This is non-destructive - existing files are never overwritten.
 
 Configure scaffolding in the inspector:
 - **Default Files**: List of `path → TextAsset` pairs. Each path is relative to Working Dir.
@@ -270,13 +270,13 @@ The inspector adapts to the project state:
 - Four tabs: **Project**, **UI**, **Cartridges**, **Build**
 - Action buttons: Reload, Rebuild, Open Folder, Open Terminal, Open Code Editor
 
-**Dev Mode** (right-click script header > Toggle Dev Mode): shows tabs and actions even without valid PanelSettings — useful for debugging.
+**Dev Mode** (right-click script header > Toggle Dev Mode): shows tabs and actions even without valid PanelSettings - useful for debugging.
 
 ### Inspector Fields
 
 | Field | Purpose |
 |-------|---------|
-| **Panel Settings** (top-level) | PanelSettings asset — its folder is the project folder |
+| **Panel Settings** (top-level) | PanelSettings asset - its folder is the project folder |
 | **Project tab** | |
 | Live Reload | Toggle live reload on/off |
 | Poll Interval | How often to check for file changes (default 0.5s) |
@@ -297,8 +297,8 @@ The inspector adapts to the project state:
 ### Context Menu Options
 
 **Right-click on status block:**
-- **Run in Background** — toggle Unity's `PlayerSettings.runInBackground`
-- **Use Scene Name as Root Folder** — toggle whether instance folder is nested under scene name
+- **Run in Background** - toggle Unity's `PlayerSettings.runInBackground`
+- **Use Scene Name as Root Folder** - toggle whether instance folder is nested under scene name
 
 ### Live Reload (Editor Only)
 - Polls the entry file for changes (Mono-compatible, no FileSystemWatcher)

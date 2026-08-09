@@ -192,7 +192,7 @@ namespace OneJS.Tests {
                 Object.is(state1, state2);
             ");
             Assert.AreEqual("true", result,
-                "Object.is should return true for same proxy even after property changes — " +
+                "Object.is should return true for same proxy even after property changes - " +
                 "this is the core limitation that useFrameSync's selector mode addresses");
             yield return null;
         }
@@ -216,7 +216,7 @@ namespace OneJS.Tests {
                 nameChanged + '|' + verChanged;
             ");
             Assert.AreEqual("true|true", result,
-                "Extracted primitive values should detect changes via Object.is — " +
+                "Extracted primitive values should detect changes via Object.is - " +
                 "this is the pattern useFrameSync's selector mode relies on");
             yield return null;
         }
@@ -284,7 +284,7 @@ namespace OneJS.Tests {
         [UnityTest]
         public IEnumerator Enum_Constant_PassesToCSharpMethod() {
             // Passing the (now numeric) enum constant to a C# method that takes the
-            // enum must still bind correctly — guards the C#-arg pass-through path.
+            // enum must still bind correctly - guards the C#-arg pass-through path.
             var result = _ctx.Eval(@"
                 CS.OneJS.Tests.InteropTestHelper.SetMode(CS.OneJS.Tests.InteropTestEnum.Baz);
                 CS.OneJS.Tests.InteropTestHelper.GetModeAsInt();
@@ -591,7 +591,7 @@ namespace OneJS.Tests {
         }
 
         // =========================================================================
-        // MARK: Collection Sync — Typed Item Tests
+        // MARK: Collection Sync - Typed Item Tests
         //
         // These tests validate the exact interop contract that useFrameSync's
         // selector mode + toArray rely on for the parent/child collection pattern:
@@ -688,7 +688,7 @@ namespace OneJS.Tests {
                 swordChanged + '|' + shieldChanged;
             ");
             Assert.AreEqual("true|false", result,
-                "Only the mutated item's deps should change — " +
+                "Only the mutated item's deps should change - " +
                 "this is what makes per-child re-rendering work");
             yield return null;
         }
@@ -737,7 +737,7 @@ namespace OneJS.Tests {
                 countChanged + '|' + countBefore + '|' + countAfter;
             ");
             Assert.AreEqual("true|2|3", result,
-                "Adding an item should change Count — detected by parent selector");
+                "Adding an item should change Count - detected by parent selector");
             yield return null;
         }
 
@@ -759,7 +759,7 @@ namespace OneJS.Tests {
                 '' + countChanged;
             ");
             Assert.AreEqual("false", result,
-                "Item property mutations should NOT change Count — parent stays stable");
+                "Item property mutations should NOT change Count - parent stays stable");
             yield return null;
         }
 

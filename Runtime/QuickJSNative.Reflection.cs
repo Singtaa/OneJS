@@ -121,7 +121,7 @@ namespace OneJS {
         static MethodInfo FindMethod(Type type, string name, BindingFlags flags, object[] args) {
             // Prefer an exact arity/type match. Fall back to a method that declares
             // additional trailing parameters where every extra has a C# default
-            // value — this lets JS callers omit optional trailing arguments, e.g.
+            // value - this lets JS callers omit optional trailing arguments, e.g.
             //   audioManager.PlaySfx("UI/Submit")
             // binds to `PlaySfx(string key, float volumeScale = 1, float pitch = 1)`.
             // The invoke site (QuickJSNative.Dispatch) fills the missing slots with
@@ -202,7 +202,7 @@ namespace OneJS {
         /// Register all extension methods from a static class.
         /// Scans public static methods with [Extension] attribute and indexes them
         /// by the type of their first parameter (the 'this' target).
-        /// Idempotent — skips if already registered.
+        /// Idempotent - skips if already registered.
         /// </summary>
         static void RegisterExtensionType(Type extensionClass) {
             if (!_registeredExtensionTypes.Add(extensionClass)) return;

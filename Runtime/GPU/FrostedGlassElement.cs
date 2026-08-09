@@ -11,7 +11,7 @@ namespace OneJS.GPU {
     ///       <Label>Content</Label>
     ///   </FrostedGlass>
     ///
-    /// The blur pipeline is fully automatic — no camera or RT setup needed.
+    /// The blur pipeline is fully automatic - no camera or RT setup needed.
     /// </summary>
     [UxmlElement]
     public partial class FrostedGlassElement : VisualElement {

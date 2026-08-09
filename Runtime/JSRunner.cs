@@ -835,7 +835,7 @@ namespace OneJS {
             _initialFocusDone = false; // re-grab keyboard focus after the live reload
 
             // rootVisualElement may be transiently null (panel rebuilding).
-            // If so, bail out — the deferred init retry in TickIfReady will pick it up.
+            // If so, bail out - the deferred init retry in TickIfReady will pick it up.
             if (_uiDocument == null || _uiDocument.rootVisualElement == null) {
                 ResetPlayModeState();
                 return;
@@ -1681,7 +1681,7 @@ namespace OneJS {
             if (!Application.isPlaying) return; // [ExecuteAlways] guard - edit-mode uses EditorApplication.update
 
             // Deferred init retry: if initialization failed (rootVisualElement wasn't ready),
-            // keep trying each frame until it succeeds (silent — no log spam).
+            // keep trying each frame until it succeeds (silent - no log spam).
             if (!_initialized) {
                 try { TryInitializePlayMode(silent: true); }
                 catch (Exception ex) { Debug.LogError($"[JSRunner] Deferred init error: {ex.Message}"); }

@@ -24,7 +24,7 @@ namespace OneJS {
                 _peakHandleCount = 0;
             }
 
-            // Delegate cache (wraps JS callbacks — stale after context destruction)
+            // Delegate cache (wraps JS callbacks - stale after context destruction)
             ClearDelegateCache();
 
             // Pending async tasks (stale after context destruction)
@@ -44,7 +44,7 @@ namespace OneJS {
             // Context pointer (set per-dispatch, but clear for safety)
             _currentContextPtr = IntPtr.Zero;
 
-            // Reflection caches are safe to keep — types don't change across play mode.
+            // Reflection caches are safe to keep - types don't change across play mode.
         }
 
         // MARK: Handle Table
