@@ -28,7 +28,7 @@ build_arch() {
 
     # Copy QuickJS source to isolated build dir (Makefile builds in-tree)
     # Note: "quickjs/." (not "quickjs/") ensures contents are copied on both BSD (macOS)
-    # and GNU (Linux) cp - without "/.", GNU cp nests the directory when dest exists.
+    # and GNU (Linux) cp: without "/.", GNU cp nests the directory when dest exists.
     cp -R quickjs/. "$QJS_BUILD/"
 
     local SDK_PATH

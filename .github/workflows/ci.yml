@@ -32,7 +32,7 @@ jobs:
           submodules: recursive
 
       # The repo ships a prebuilt Linux .so (produced in this same ubuntu:22.04
-      # container - see Plugins/README.md). CI still rebuilds it from the
+      # container: see Plugins/README.md). CI still rebuilds it from the
       # vendored QuickJS source each run, overwriting the committed binary for
       # the test run, so the build script and source stay continuously verified.
       - name: Build Linux QuickJS native library
