@@ -67,7 +67,7 @@ namespace OneJS {
             members.Add(memberName);
         }
 
-        // Static type hash cache - maps hash of type name to Type
+        // Static type hash cache: maps hash of type name to Type
         static readonly Dictionary<int, Type> _staticTypeHashCache = new();
 
         static bool _fastPathInitialized;
@@ -649,7 +649,7 @@ namespace OneJS {
             if (_fastPathInitialized) return;
             _fastPathInitialized = true;
 
-            // Time - accessed every frame
+            // Time: accessed every frame
             FastPath.StaticProperty<Time, float>("deltaTime", () => Time.deltaTime);
             FastPath.StaticProperty<Time, float>("unscaledDeltaTime", () => Time.unscaledDeltaTime);
             FastPath.StaticProperty<Time, float>("time", () => Time.time);
@@ -658,7 +658,7 @@ namespace OneJS {
             FastPath.StaticProperty<Time, float>("timeScale", () => Time.timeScale, v => Time.timeScale = v);
             FastPath.StaticProperty<Time, int>("frameCount", () => Time.frameCount);
 
-            // Transform - most common component
+            // Transform: most common component
             FastPath.Property<Transform, Vector3>("position", t => t.position, (t, v) => t.position = v);
             FastPath.Property<Transform, Vector3>("localPosition", t => t.localPosition,
                 (t, v) => t.localPosition = v);
@@ -718,7 +718,7 @@ namespace OneJS {
             FastPath.StaticMethod<Mathf, float, float>("Ceil", Mathf.Ceil);
             FastPath.StaticMethod<Mathf, float, float>("Round", Mathf.Round);
 
-            // GPU - zero-alloc compute shader dispatch
+            // GPU: zero-alloc compute shader dispatch
             // Uses StaticMethodByTypeName since GPUBridge is a static class (can't be type argument)
             const string gpuBridgeTypeName = "OneJS.GPU.GPUBridge";
             FastPath.StaticMethodByTypeName<int, string, int>(gpuBridgeTypeName, "FindKernel", GPUBridge.FindKernel);
@@ -747,7 +747,7 @@ namespace OneJS {
                 return true;
             });
 
-            // Tree wiring - zero-alloc and type-agnostic (keyed by type name, not the
+            // Tree wiring: zero-alloc and type-agnostic (keyed by type name, not the
             // concrete element type, which is what blocks seeding VisualElement.Add
             // directly). See NodeBridge.
             const string nodeBridgeTypeName = "OneJS.NodeBridge";
@@ -785,7 +785,7 @@ namespace OneJS {
         public static bool DebugFastPath = false;
 
         /// <summary>
-        /// Try fast path lookup using raw pointers - ZERO ALLOCATION.
+        /// Try fast path lookup using raw pointers: ZERO ALLOCATION.
         /// </summary>
         static unsafe bool TryFastPathZeroAlloc(
             Type typeFromHandle, // Already resolved from handle (for instance calls)
@@ -864,7 +864,7 @@ namespace OneJS {
         // path (GetConstructors + GetParameters + ConvertToTargetType + ctor.Invoke,
         // plus an object[] and per-arg boxing). For the hot blittable structs we read
         // the numeric args straight out of the InteropValue buffer, build the struct
-        // on the stack, and pack it with WriteToInterop - no reflection, no boxing,
+        // on the stack, and pack it with WriteToInterop: no reflection, no boxing,
         // no allocation. The packing matches the slow ctor path's return exactly.
 
         unsafe delegate bool FastCtorHandler(InteropValue* args, int argCount, InteropValue* result);
@@ -879,7 +879,7 @@ namespace OneJS {
 
             // Parameterless ctors of the element types the reconciler creates on every
             // mount. These resolve by type name (a ctor has no target handle), so unlike
-            // instance methods they are NOT subject to concrete-type keying - one
+            // instance methods they are NOT subject to concrete-type keying: one
             // registration per element type covers it. Any parameterized element ctor
             // (e.g. `new Slider(0, 100)`) falls through to the reflection ctor path.
             RegisterFastRefCtor(typeof(UnityEngine.UIElements.VisualElement), () => new UnityEngine.UIElements.VisualElement());
@@ -953,7 +953,7 @@ namespace OneJS {
         }
 
         // Reference-type (parameterless) ctor: builds the object with a typed factory
-        // instead of reflection, then returns it as a handle - the same packing the
+        // instead of reflection, then returns it as a handle: the same packing the
         // slow ctor path produces for a class instance.
         static unsafe void RegisterFastRefCtor(Type type, Func<object> factory) {
             CacheStaticTypeHash(type);

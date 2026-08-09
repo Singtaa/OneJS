@@ -6,14 +6,14 @@ namespace OneJS {
     /// Wire schema (v4) for the 2D particle engine. This is the C#-JS contract:
     /// onejs-react's particles.ts normalizes its ergonomic config (number-or-range
     /// values, hex colors) into this flat, JsonUtility-compatible document. Keep
-    /// the two sides in sync - parity fixtures live in particles.test.ts (JS) and
+    /// the two sides in sync: parity fixtures live in particles.test.ts (JS) and
     /// ParticleTests.cs (C#).
     ///
     /// v2 added per-particle aspect, random tint palettes, target attraction and
     /// edge behavior. v3 added flipbook animation, v4 a sprite pivot. Every added
     /// field defaults to its previous behavior, so older documents still parse
     /// (a newer OneJS package keeps working with older onejs-react). The reverse
-    /// - a newer document reaching an older parser - is rejected by the version
+    /// - a newer document reaching an older parser: is rejected by the version
     /// check rather than silently dropping the new fields.
     /// </summary>
     [Serializable]

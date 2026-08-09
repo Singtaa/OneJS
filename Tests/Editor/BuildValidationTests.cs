@@ -211,7 +211,7 @@ namespace OneJS.Tests.Editor {
             if (executablePath.EndsWith(".app")) {
                 // First check if the .app bundle itself exists
                 if (!Directory.Exists(executablePath)) {
-                    // Maybe it was built with a different name - look for any .app in the directory
+                    // Maybe it was built with a different name: look for any .app in the directory
                     var apps = Directory.GetDirectories(buildDir, "*.app");
                     if (apps.Length > 0) {
                         executablePath = apps[0];

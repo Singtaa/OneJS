@@ -25,7 +25,7 @@ namespace OneJS.Profiling {
                 cube.name = "Cube";
             }
 
-            // Register tick callback - exercises full fast path:
+            // Register tick callback: exercises full fast path:
             // - CS.UnityEngine.Time.deltaTime (static property, returns float)
             // - transform.position (instance property, returns Vector3)
             // - transform.position = {...} (instance property set, accepts Vector3 from plain object)

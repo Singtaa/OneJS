@@ -9,15 +9,15 @@ A `TextField` with built-in syntax highlighting support. Uses UI Toolkit's `Post
 ### Features
 
 - **Per-glyph coloring** via vertex tint modification
-- **Correct cursor positioning** - colors are applied at render time, not via rich text tags
-- **Pluggable highlighters** - implement `ISyntaxHighlighter` for custom languages
-- **Built-in JavaScript highlighter** - keywords, strings, numbers, comments
-- **Monospace font** - automatically loads system monospace font (Menlo/Consolas/DejaVu Sans Mono)
-- **Horizontal scrolling** - trackpad/mouse wheel support for long lines
-- **Auto-height** - optionally resize based on content line count
-- **Tab-to-spaces indentation** - Tab inserts spaces, Shift+Tab dedents
-- **Multi-line indent/dedent** - Select multiple lines and Tab/Shift+Tab to indent/dedent all
-- **No select-all-on-focus** - disabled by default for code editing convenience
+- **Correct cursor positioning**: colors are applied at render time, not via rich text tags
+- **Pluggable highlighters**: implement `ISyntaxHighlighter` for custom languages
+- **Built-in JavaScript highlighter**: keywords, strings, numbers, comments
+- **Monospace font**: automatically loads system monospace font (Menlo/Consolas/DejaVu Sans Mono)
+- **Horizontal scrolling**: trackpad/mouse wheel support for long lines
+- **Auto-height**: optionally resize based on content line count
+- **Tab-to-spaces indentation**: Tab inserts spaces, Shift+Tab dedents
+- **Multi-line indent/dedent**: Select multiple lines and Tab/Shift+Tab to indent/dedent all
+- **No select-all-on-focus**: disabled by default for code editing convenience
 
 ### Usage
 

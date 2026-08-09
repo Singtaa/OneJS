@@ -1,4 +1,4 @@
-// Simple test script - validates basic JS execution
+// Simple test script: validates basic JS execution
 console.log("SimpleScript executing");
 
 globalThis.__simpleScriptResult = {

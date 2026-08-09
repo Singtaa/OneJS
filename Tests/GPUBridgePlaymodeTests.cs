@@ -491,7 +491,7 @@ namespace OneJS.Tests {
             var status = _ctx.Eval("globalThis.testResult");
             Assert.AreEqual("dispatched", status);
 
-            // Wait for readback - poll each frame like the C# test does
+            // Wait for readback: poll each frame like the C# test does
             int maxWaitFrames = 60;
             int waitedFrames = 0;
             bool complete = false;

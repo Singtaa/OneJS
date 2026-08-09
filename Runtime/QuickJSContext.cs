@@ -227,7 +227,7 @@ namespace OneJS {
         }
 
         // MARK: Zero-Alloc Callbacks
-        // Common validation - inlined for performance
+        // Common validation: inlined for performance
         void ThrowIfInvalid() {
             if (_disposed) throw new ObjectDisposedException(nameof(QuickJSContext));
             if (_ptr == IntPtr.Zero) throw new InvalidOperationException("Context is null");

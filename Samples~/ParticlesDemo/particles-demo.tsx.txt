@@ -5,7 +5,7 @@ import { View, Text, useParticles, type VisualElement, type PointerEventData } f
  * 2D particle engine demo. Three effects, all simulated and rendered in C# -
  * JS only configures them and forwards pointer input as single crossings.
  *
- *   Fountain  - continuous additive sparks with gravity (animates in edit-mode
+ *   Fountain: continuous additive sparks with gravity (animates in edit-mode
  *               preview too, since particles tick at 30Hz there)
  *   Burst     - click/tap anywhere in the card
  *   Trail     - move the pointer around the card

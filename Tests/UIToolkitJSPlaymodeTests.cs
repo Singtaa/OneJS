@@ -10,7 +10,7 @@ namespace OneJS.Tests {
     /// <summary>
     /// Playmode tests for UI Toolkit JS interop.
     /// Tests element creation, properties, styles, and hierarchy manipulation.
-    /// Creates UIDocument and PanelSettings programmatically - no external assets required.
+    /// Creates UIDocument and PanelSettings programmatically: no external assets required.
     /// </summary>
     [TestFixture]
     public class UIToolkitJSPlaymodeTests {

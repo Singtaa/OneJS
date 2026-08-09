@@ -17,13 +17,13 @@ namespace OneJS.Tests {
     ///
     /// The zero-alloc system provides truly zero-allocation C#/JavaScript interop using:
     ///
-    /// - **Generic Bind&lt;T&gt;()** - Uses UnsafeUtility.As for boxing-free type conversion (0B per call)
+    /// - **Generic Bind&lt;T&gt;()**: Uses UnsafeUtility.As for boxing-free type conversion (0B per call)
     ///
     /// ## How Zero-Allocation is Achieved
     ///
     /// C# generics normally cause boxing, but we avoid it using UnsafeUtility.As:
-    /// - GetArg&lt;T&gt;(): `return UnsafeUtility.As&lt;int, T&gt;(ref i)` - no boxing!
-    /// - SetResult&lt;T&gt;(): `result-&gt;i32 = UnsafeUtility.As&lt;T, int&gt;(ref value)` - no boxing!
+    /// - GetArg&lt;T&gt;(): `return UnsafeUtility.As&lt;int, T&gt;(ref i)`, no boxing!
+    /// - SetResult&lt;T&gt;(): `result-&gt;i32 = UnsafeUtility.As&lt;T, int&gt;(ref value)`, no boxing!
     ///
     /// ## Property ID Caching
     ///
@@ -33,12 +33,12 @@ namespace OneJS.Tests {
     /// ## Usage Pattern
     ///
     /// ```csharp
-    /// // At init time - register binding (all Bind&lt;T&gt; methods are zero-alloc)
+    /// // At init time: register binding (all Bind&lt;T&gt; methods are zero-alloc)
     /// int bindingId = QuickJSNative.Bind&lt;int, int, float&gt;((h, id, v) =&gt; {
     ///     GPUBridge.SetFloatById(h, id, v);
     /// });
     ///
-    /// // From JavaScript - call via __zaInvoke3
+    /// // From JavaScript: call via __zaInvoke3
     /// __zaInvoke3(bindingId, shaderHandle, propertyId, floatValue);
     /// ```
     /// </summary>
@@ -127,7 +127,7 @@ namespace OneJS.Tests {
         // ========================================================================
 
         /// <summary>
-        /// Tests 3-arg float setter binding - zero-alloc.
+        /// Tests 3-arg float setter binding: zero-alloc.
         ///
         /// This is the recommended pattern for per-frame shader uniform updates.
         /// </summary>
@@ -137,7 +137,7 @@ namespace OneJS.Tests {
             int capturedNameId = 0;
             float capturedValue = 0;
 
-            // Register binding - zero-alloc via UnsafeUtility.As
+            // Register binding: zero-alloc via UnsafeUtility.As
             int bindingId = QuickJSNative.Bind<int, int, float>((handle, nameId, value) => {
                 capturedHandle = handle;
                 capturedNameId = nameId;
@@ -151,7 +151,7 @@ namespace OneJS.Tests {
         }
 
         /// <summary>
-        /// Tests 6-arg vector setter binding - zero-alloc.
+        /// Tests 6-arg vector setter binding: zero-alloc.
         ///
         /// Passes 6 args: shaderHandle, nameId, x, y, z, w
         /// </summary>
@@ -173,7 +173,7 @@ namespace OneJS.Tests {
         }
 
         /// <summary>
-        /// Tests 5-arg dispatch binding - zero-alloc.
+        /// Tests 5-arg dispatch binding: zero-alloc.
         ///
         /// Passes 5 args: shaderHandle, kernelIndex, groupsX, groupsY, groupsZ
         /// </summary>
@@ -194,7 +194,7 @@ namespace OneJS.Tests {
         }
 
         /// <summary>
-        /// Tests zero-arg int return binding - zero-alloc.
+        /// Tests zero-arg int return binding: zero-alloc.
         /// </summary>
         [UnityTest]
         public IEnumerator Bind_GetScreenWidth_ReturnsInt() {
@@ -489,7 +489,7 @@ namespace OneJS.Tests {
         public IEnumerator SimulatedPerFrameGpuUpdate_Pattern() {
             // This demonstrates the recommended pattern for zero-alloc GPU updates
 
-            // 1. At init time - cache property IDs
+            // 1. At init time: cache property IDs
             int timeId = Shader.PropertyToID("_Time");
             int resolutionId = Shader.PropertyToID("_Resolution");
             int resultId = Shader.PropertyToID("_Result");

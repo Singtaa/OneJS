@@ -78,7 +78,7 @@ namespace OneJS.Editor.TypeGenerator {
         }
 
         private static TsTypeRef MapTypeCore(Type type) {
-            // Handle by-ref types first (ref, out, in) - they wrap another type.
+            // Handle by-ref types first (ref, out, in): they wrap another type.
             // We unwrap before checking ShouldEmitAsAny so that `ref SomeType` is
             // classified by the underlying type, not the by-ref wrapper.
             if (type.IsByRef) {
@@ -321,7 +321,7 @@ namespace OneJS.Editor.TypeGenerator {
             // Skip pointer types (can't be represented in TS)
             if (type.IsPointer) return true;
 
-            // Skip by-ref-like types (Span<T>, etc.) - they can't be used in JS
+            // Skip by-ref-like types (Span<T>, etc.): they can't be used in JS
             // Note: This check requires reflection on newer framework features
             try {
                 var isByRefLike = type.GetCustomAttributes(false)

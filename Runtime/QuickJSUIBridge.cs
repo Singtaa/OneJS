@@ -356,7 +356,7 @@ namespace OneJS {
 
             _inEval = true;
 
-            // No per-frame dedup reset needed - dedup uses EventBase.timestamp,
+            // No per-frame dedup reset needed: dedup uses EventBase.timestamp,
             // which is unique per dispatch (refreshed in EventBase.Init() each time
             // the pool reuses an instance).
 
@@ -378,7 +378,7 @@ namespace OneJS {
                     _ctx.Eval($"globalThis.__tick && __tick({timestamp.ToString("F2", CultureInfo.InvariantCulture)})");
                 }
 
-                // Execute pending Promise jobs (microtasks) - critical for React scheduler
+                // Execute pending Promise jobs (microtasks): critical for React scheduler
                 _ctx.ExecutePendingJobs();
 
                 // Drain FinalizationRegistry callbacks (which free C# handles). The
@@ -656,14 +656,14 @@ namespace OneJS {
             }
         }
 
-        // MARK: Event Dispatch - Core
+        // MARK: Core Event Dispatch
         int FindElementHandle(IEventHandler target) {
             // Single-lock parent-chain walk (was one lock + dict lookup per hop).
             return QuickJSNative.GetHandleForElementOrAncestor(target as VisualElement);
         }
 
         /// <summary>
-        /// Core dispatch method - all event dispatching goes through here.
+        /// Core dispatch method: all event dispatching goes through here.
         /// </summary>
         // Returns the suppression-flags bitmask from __dispatchEvent (bit0=propagationStopped,
         // bit1=defaultPrevented), or 0 if nothing was dispatched.
@@ -765,7 +765,7 @@ namespace OneJS {
         /// <summary>
         /// Emits a "focuschange" event to JS (targeted at the panel root) whenever the
         /// panel's focused element changes. Called once per Tick, outside _inEval, so it
-        /// observes the settled focus - including programmatic focus that the FocusIn/Out
+        /// observes the settled focus, including programmatic focus that the FocusIn/Out
         /// event path drops. The JS focus-visible manager subscribes to this to keep the
         /// focus ring in sync with navigation. Diffs by element reference (cheap); only
         /// resolves handles + dispatches on an actual change.
@@ -882,7 +882,7 @@ namespace OneJS {
             var key = (handle, eventType);
             if (_perElementHandlers.TryGetValue(key, out var existing)) {
                 if (ReferenceEquals(existing, element)) return; // Same element, already registered
-                // Stale entry from recycled handle - unregister old before re-registering
+                // Stale entry from recycled handle: unregister old before re-registering
                 UnregisterCallbackForEventType(existing, eventType);
                 _perElementHandlers.Remove(key);
             }

@@ -6,7 +6,7 @@ namespace OneJS {
     /// Static helper for per-element C# event handler registration.
     ///
     /// QuickJSUIBridge registers most UI Toolkit callbacks on <c>_root</c> with
-    /// TrickleDown and delegates events from there - fine for events that pass
+    /// TrickleDown and delegates events from there: fine for events that pass
     /// through the root during propagation, but not for:
     ///   • captured pointer events (Unity 6 delivers these directly to the
     ///     capturing element, bypassing TrickleDown), and

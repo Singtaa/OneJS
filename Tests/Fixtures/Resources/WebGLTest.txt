@@ -23,7 +23,7 @@ console.log("6. setTimeout exists: " + (typeof setTimeout !== "undefined" ? "OK"
 console.log("=== Test Complete ===");
 
 // ============================================
-// UI Test - Create actual visible elements
+// UI Test: Create actual visible elements
 // ============================================
 console.log("=== Creating UI Elements ===");
 

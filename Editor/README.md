@@ -42,10 +42,10 @@ The inspector shows different UI depending on the PanelSettings configuration:
 
 When fully initialized, the inspector shows four tabs:
 
-- **Project** - Status section, actions, watcher status, project folder path
-- **UI** - Panel Settings reference, scale mode, stylesheets, preloads, globals
-- **Cartridges** - UI Cartridge management
-- **Build** - Build output, type generation, scaffolding
+- **Project**: Status section, actions, watcher status, project folder path
+- **UI**: Panel Settings reference, scale mode, stylesheets, preloads, globals
+- **Cartridges**: UI Cartridge management
+- **Build**: Build output, type generation, scaffolding
 
 ### Status Section
 
@@ -56,19 +56,19 @@ When fully initialized, the inspector shows four tabs:
 
 ### Actions
 
-- **Reload** - Force reload the JavaScript runtime (works in both Play mode and edit-mode preview)
-- **Rebuild** - Delete node_modules, reinstall dependencies, and rebuild
-- **Open Folder** - Open working directory in file explorer
-- **Open Terminal** - Open terminal at working directory
-- **Open in Code Editor** - Open working directory in configured code editor (VSCode, Cursor, etc.)
+- **Reload**: Force reload the JavaScript runtime (works in both Play mode and edit-mode preview)
+- **Rebuild**: Delete node_modules, reinstall dependencies, and rebuild
+- **Open Folder**: Open working directory in file explorer
+- **Open Terminal**: Open terminal at working directory
+- **Open in Code Editor**: Open working directory in configured code editor (VSCode, Cursor, etc.)
 
 ### Context Menu Options
 
 Right-click the JSRunner component header for additional options:
 
-- **Run in Background** - Toggle whether this JSRunner starts watchers and runs on Play mode
-- **Use Scene Name as Root Folder** - Toggle whether the project folder name derives from the scene name (stored in `EditorPrefs`)
-- **Dev Mode** - Show the full tabbed UI even without a valid PanelSettings (for debugging)
+- **Run in Background**: Toggle whether this JSRunner starts watchers and runs on Play mode
+- **Use Scene Name as Root Folder**: Toggle whether the project folder name derives from the scene name (stored in `EditorPrefs`)
+- **Dev Mode**: Show the full tabbed UI even without a valid PanelSettings (for debugging)
 
 ### Initialize Project Button
 
@@ -102,14 +102,14 @@ Automatically manages file watchers and project readiness for JSRunner instances
 
 1. Uses `[InitializeOnLoad]` to register `playModeStateChanged` callback
 2. On `ExitingEditMode` (before Play starts):
-   - `EnsurePanelSettingsAssets()` - Creates/assigns PanelSettings for runners missing one
-   - `EnsureProjectsReady()` - Calls `EnsureProjectSetup()` on each valid runner to scaffold files
-   - `PrepareWatchers()` - Clears the session tracking set
+   - `EnsurePanelSettingsAssets()`: Creates/assigns PanelSettings for runners missing one
+   - `EnsureProjectsReady()`: Calls `EnsureProjectSetup()` on each valid runner to scaffold files
+   - `PrepareWatchers()`: Clears the session tracking set
 3. On `EnteredPlayMode`:
    - Finds all active JSRunner components with valid working directories
    - For each: installs dependencies if needed, builds if needed, then starts watcher
 4. On `ExitingPlayMode`:
-   - `NodeWatcherManager.StopAll()` - Stops ALL running watchers (not just session-started ones), so folders are unlocked for move/rename in Edit mode
+   - `NodeWatcherManager.StopAll()`: Stops ALL running watchers (not just session-started ones), so folders are unlocked for move/rename in Edit mode
 
 ### Null Guards
 
@@ -130,12 +130,12 @@ The inspector's watcher status label shows:
 Custom inspector for the inline TSX runner:
 - **Status section**: Current state (building, running, ready)
 - **Actions**:
-  - **Build & Run** - Build TSX and run immediately (Play mode)
-  - **Build Only** - Build without running
-  - **Run** - Execute previously built output
-  - **Stop** - Stop execution and clear UI
-  - **Open Temp Folder** - Reveal `Temp/OneJSPad/{id}/`
-  - **Clean** - Delete temp directory and node_modules
+  - **Build & Run**: Build TSX and run immediately (Play mode)
+  - **Build Only**: Build without running
+  - **Run**: Execute previously built output
+  - **Stop**: Stop execution and clear UI
+  - **Open Temp Folder**: Reveal `Temp/OneJSPad/{id}/`
+  - **Clean**: Delete temp directory and node_modules
 
 ### Build Process
 1. On first build, creates temp directory with package.json, tsconfig.json, esbuild.config.mjs
@@ -209,8 +209,8 @@ To skip auto-assignment for a specific JSRunner:
 
 Centralized design tokens for all OneJS editor UIs (`OneJSEditorDesign.cs`). Provides two static inner classes:
 
-- **`Colors`** - Color palette (surfaces, borders, text, status indicators, buttons, per-editor overrides)
-- **`Texts`** - Repeated string labels (status, actions, tabs, section headers, empty states, watcher labels)
+- **`Colors`**: Color palette (surfaces, borders, text, status indicators, buttons, per-editor overrides)
+- **`Texts`**: Repeated string labels (status, actions, tabs, section headers, empty states, watcher labels)
 
 All editor scripts (JSRunnerEditor, JSPadEditor, UICartridgeEditor) reference these tokens instead of hardcoding colors or text strings. This ensures visual consistency and makes theme changes a single-file edit.
 
@@ -318,7 +318,7 @@ speed. Disable with `ShowCursor = false`, resize with `CursorScale`.
 
 The `Templates/` directory contains TextAsset templates scaffolded by `Initialize Project`:
 
-- `esbuild.config.mjs.txt` uses `format: "iife"` with `globalName: "__exports"` (not ESM). This is required for `onPlay()`/`onStop()` lifecycle hook support - QuickJS evaluates in global scope where ESM `export {}` would be a syntax error.
+- `esbuild.config.mjs.txt` uses `format: "iife"` with `globalName: "__exports"` (not ESM). This is required for `onPlay()`/`onStop()` lifecycle hook support. QuickJS evaluates in global scope where ESM `export {}` would be a syntax error.
 - `global.d.ts.txt` declares runtime globals (`__root`, `__isPlaying`, `__eventAPI`, etc.)
 - `AGENTS.md.txt` is scaffolded into the working dir as `AGENTS.md`: a condensed guide (commands, rules, interop quick reference) for AI coding agents working on the user's app. Keep it in sync with the repo-root `AGENTS.md`.
 

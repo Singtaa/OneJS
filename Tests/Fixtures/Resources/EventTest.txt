@@ -1,4 +1,4 @@
-// Event Test - validates event registration and dispatch
+// Event Test: validates event registration and dispatch
 (function() {
     globalThis.__eventTestResults = {
         clickHandlerCalled: false,

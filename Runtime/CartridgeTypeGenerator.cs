@@ -21,7 +21,7 @@ namespace OneJS {
             { typeof(bool), "boolean" },
             { typeof(string), "string" },
 
-            // Common Unity types - map to CS namespace
+            // Common Unity types: map to CS namespace
             { typeof(Texture2D), "CS.UnityEngine.Texture2D" },
             { typeof(Texture), "CS.UnityEngine.Texture" },
             { typeof(Sprite), "CS.UnityEngine.Sprite" },

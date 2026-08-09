@@ -58,7 +58,7 @@ argument, or delegate property assignment):
 
 Contract notes:
 - Argument memory is owned by the C# caller (`InvokeCallback`/`NoAlloc` allocate
-  and free) - the jslib must not free it
+  and free): the jslib must not free it
 - `outResultPtr` is null for the zero-alloc invoke family
 - Handler exceptions and stale handles log `console.error` but return success,
   so one broken JS handler can't abort remaining C# listeners on the same event
@@ -97,24 +97,24 @@ For WebGL, the app bundle is loaded from StreamingAssets using browser's native 
 
 ## Implementation Status
 
-### Phase 1 - Basic Bridge ✅
+### Phase 1: Basic Bridge ✅
 - [x] `qjs_create` / `qjs_destroy`
-- [x] `qjs_eval` - Execute JS in browser
-- [x] `qjs_run_gc` - No-op (browser GC)
-- [x] `qjs_execute_pending_jobs` - No-op (browser event loop)
+- [x] `qjs_eval`: Execute JS in browser
+- [x] `qjs_run_gc`: No-op (browser GC)
+- [x] `qjs_execute_pending_jobs`: No-op (browser event loop)
 - [x] Callback registration functions
 - [x] `[MonoPInvokeCallback]` attributes for IL2CPP
 
-### Phase 2 - Full Interop ✅
-- [x] `__cs_invoke` - Full argument marshaling (JS→C#)
-- [x] `marshalValue` - JS values to WASM heap structs
-- [x] `unmarshalValue` - WASM heap structs to JS values
+### Phase 2: Full Interop ✅
+- [x] `__cs_invoke`: Full argument marshaling (JS→C#)
+- [x] `marshalValue`: JS values to WASM heap structs
+- [x] `unmarshalValue`: WASM heap structs to JS values
 - [x] Support for all InteropType values (primitives, strings, handles, vectors)
 - [x] Memory management (alloc/free for strings, args, results)
-- [x] Delegate/callback marshaling (`__registerCallback` registry + `qjs_invoke_callback`) - JS functions as C# event handlers, delegate args, and delegate props; also powers `onPlay`/`onStop`
+- [x] Delegate/callback marshaling (`__registerCallback` registry + `qjs_invoke_callback`): JS functions as C# event handlers, delegate args, and delegate props; also powers `onPlay`/`onStop`
 
-### Phase 3 - Production Ready ✅
-- [x] `qjs_dispatch_event` - Fast event dispatch (avoids eval)
+### Phase 3: Production Ready ✅
+- [x] `qjs_dispatch_event`: Fast event dispatch (avoids eval)
 - [x] Native RAF tick loop (avoids PlayerLoop recursion)
 - [x] Platform defines injection (UNITY_WEBGL, etc.)
 - [x] StreamingAssets loading via native fetch
@@ -138,12 +138,12 @@ For WebGL, the app bundle is loaded from StreamingAssets using browser's native 
 
 3. **Large scripts**: Don't return large scripts through C# eval buffer. Execute directly in JS via `eval()`.
 
-4. **performance.now()**: Don't override browser's `performance` object - Unity WebGL uses it.
+4. **performance.now()**: Don't override browser's `performance` object. Unity WebGL uses it.
 
-5. **Shared global scope**: `qjs_eval` uses indirect eval, so the bootstrap and app code run in the **embedding page's** global scope - there is no isolation from the host website. Two rules follow:
-   - All bootstrap polyfills (`URL`, `URLSearchParams`, `localStorage`, `sessionStorage`, `btoa`, `atob`, `queueMicrotask`, `performance`, `fetch`, `WebSocket`) are install-if-missing: on WebGL the browser natives win, the polyfills only exist for QuickJS. Never assign a polyfill to `globalThis` unconditionally - it would clobber the native for every script on the host page (e.g. a non-iterable `URLSearchParams` breaks Next.js routing).
+5. **Shared global scope**: `qjs_eval` uses indirect eval, so the bootstrap and app code run in the **embedding page's** global scope, there is no isolation from the host website. Two rules follow:
+   - All bootstrap polyfills (`URL`, `URLSearchParams`, `localStorage`, `sessionStorage`, `btoa`, `atob`, `queueMicrotask`, `performance`, `fetch`, `WebSocket`) are install-if-missing: on WebGL the browser natives win, the polyfills only exist for QuickJS. Never assign a polyfill to `globalThis` unconditionally, it would clobber the native for every script on the host page (e.g. a non-iterable `URLSearchParams` breaks Next.js routing).
    - The whole bootstrap body lives inside an IIFE, because in sloppy-mode indirect eval **top-level `function`/`var` declarations also become own properties of the host page's `window`** (a top-level `function addEventListener(element, ...)` shadows `EventTarget.prototype.addEventListener` for the entire page). Keep every new declaration inside the IIFE; anything needed by the user bundle, C#, or the jslib must be exported explicitly via `globalThis.*`.
 
-6. **Timer overrides capture the host page** (known limitation): `setTimeout`/`setInterval`/`requestAnimationFrame` are intentionally replaced with tick-queue versions (React must run on OneJS's tick), but because the global scope is shared, host-page timers registered after Unity boots are also rerouted - they stop firing if the OneJS tick loop stops, and their IDs are incompatible with native `clearTimeout`. A real fix requires isolating OneJS execution in its own realm (iframe/ShadowRealm) or scoping the overrides to OneJS code only.
+6. **Timer overrides capture the host page** (known limitation): `setTimeout`/`setInterval`/`requestAnimationFrame` are intentionally replaced with tick-queue versions (React must run on OneJS's tick), but because the global scope is shared, host-page timers registered after Unity boots are also rerouted, they stop firing if the OneJS tick loop stops, and their IDs are incompatible with native `clearTimeout`. A real fix requires isolating OneJS execution in its own realm (iframe/ShadowRealm) or scoping the overrides to OneJS code only.
 
-7. **`marshalValue` ordering and duck-typing**: `marshalValue` re-implements the native C marshaler's JS→C# conversion, so any classification difference is a platform-specific bug. Two hard rules: (a) objects carrying `__type` (JSON-round-tripped C# structs, e.g. `Translate` returned by a data-only-struct ctor) must cross as `TYPE_JSON_OBJECT` **before** any vector duck-typing - their `x`/`y`/`z` members can be nested structs, and `HEAPF32` writes would mangle them into NaN; (b) the Vector3/Vector4/Color duck-checks require `typeof === "number"` members, never just `!== undefined`. C# rebuilds `__type` payloads via `DeserializeFromDict`.
+7. **`marshalValue` ordering and duck-typing**: `marshalValue` re-implements the native C marshaler's JS→C# conversion, so any classification difference is a platform-specific bug. Two hard rules: (a) objects carrying `__type` (JSON-round-tripped C# structs, e.g. `Translate` returned by a data-only-struct ctor) must cross as `TYPE_JSON_OBJECT` **before** any vector duck-typing, their `x`/`y`/`z` members can be nested structs, and `HEAPF32` writes would mangle them into NaN; (b) the Vector3/Vector4/Color duck-checks require `typeof === "number"` members, never just `!== undefined`. C# rebuilds `__type` payloads via `DeserializeFromDict`.

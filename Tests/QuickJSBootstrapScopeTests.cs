@@ -6,9 +6,9 @@ namespace OneJS.Tests {
     /// Guards the bootstrap's global-scope contract. On WebGL the bootstrap is
     /// evaluated by indirect eval in the embedding page's global scope, so two
     /// rules must hold (see Plugins/WebGL/README.md, gotcha 5):
-    /// 1. Polyfills are install-if-missing - a pre-existing global (a browser
+    /// 1. Polyfills are install-if-missing: a pre-existing global (a browser
     ///    native on WebGL) must never be replaced.
-    /// 2. Top-level declarations stay inside the bootstrap IIFE - only explicit
+    /// 2. Top-level declarations stay inside the bootstrap IIFE: only explicit
     ///    globalThis.* exports may appear on the global object (a leaked
     ///    top-level addEventListener would shadow the host page's EventTarget
     ///    method).

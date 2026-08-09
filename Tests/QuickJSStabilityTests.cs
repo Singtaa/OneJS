@@ -442,7 +442,7 @@ namespace OneJS.Tests {
 
         [UnityTest]
         public IEnumerator ExceptionContext_MethodNotFound_ThrowsWithContext() {
-            // Try to call a non-existent method - should throw with error info
+            // Try to call a non-existent method: should throw with error info
             Debug.Log("[Test] The following red error is EXPECTED - testing error handling for non-existent methods");
             LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex(@"\[QuickJS\] Method not found"));
 
@@ -461,7 +461,7 @@ namespace OneJS.Tests {
 
         [UnityTest]
         public IEnumerator ExceptionContext_TypeNotFound_ThrowsWithContext() {
-            // Try to access a non-existent type - should throw with error info
+            // Try to access a non-existent type: should throw with error info
             Debug.Log("[Test] The following red error is EXPECTED - testing error handling for non-existent types");
             LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex(@"\[QuickJS\] Type not found"));
 
@@ -480,7 +480,7 @@ namespace OneJS.Tests {
 
         [UnityTest]
         public IEnumerator ExceptionContext_SyntaxError_ThrowsWithContext() {
-            // Try to evaluate malformed JavaScript - should throw with syntax error info
+            // Try to evaluate malformed JavaScript: should throw with syntax error info
             // Note: QuickJS throws exceptions but doesn't log syntax errors to Unity console
             bool exceptionThrown = false;
             try {
@@ -499,7 +499,7 @@ namespace OneJS.Tests {
 
         [UnityTest]
         public IEnumerator ExceptionContext_RuntimeError_ThrowsWithContext() {
-            // Try to throw an error from JS - should propagate properly
+            // Try to throw an error from JS: should propagate properly
             // Note: QuickJS throws exceptions but doesn't log JS runtime errors to Unity console
             bool exceptionThrown = false;
             try {

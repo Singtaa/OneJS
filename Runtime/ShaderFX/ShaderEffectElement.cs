@@ -16,7 +16,7 @@ namespace OneJS.ShaderFX {
     ///    private UnityUIE.cginc entry points;
     ///  - the element stays a normal UI element, so border-radius, clipping,
     ///    opacity and antialiasing all still work on it. (Assigning a custom
-    ///    unityMaterial costs an element its analytic AA - see the particle
+    ///    unityMaterial costs an element its analytic AA: see the particle
     ///    engine's host-styling warning.)
     ///
     /// It is deliberately generic: any shader, any float/vector/colour/texture
@@ -65,7 +65,7 @@ namespace OneJS.ShaderFX {
         /// size a render target and leaves the background empty. Deferring to "the
         /// next tick" is fine in play mode, but edit-mode preview ticks from
         /// EditorApplication.update, which the editor throttles hard while
-        /// unfocused - the gap stretches from a frame to seconds, and every hot
+        /// unfocused: the gap stretches from a frame to seconds, and every hot
         /// reload reads as a broken effect. Painting on the layout pass that
         /// produced the rect removes the dependency on tick cadence entirely.
         /// </summary>
@@ -175,7 +175,7 @@ namespace OneJS.ShaderFX {
             RenderTexture.active = prev;
 
             // The draw command already references this texture, so the new contents
-            // appear without re-tessellating - but edit-mode preview only repaints
+            // appear without re-tessellating, but edit-mode preview only repaints
             // dirty elements, so ask for one.
             MarkDirtyRepaint();
         }

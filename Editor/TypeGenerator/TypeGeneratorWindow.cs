@@ -19,7 +19,7 @@ namespace OneJS.Editor.TypeGenerator {
         private List<AssemblyEntry> _assemblies = new();
         private HashSet<string> _selectedAssemblies = new();
 
-        // Type panel - TreeView based
+        // Type panel: TreeView based
         private TypeTreeView _typeTreeView;
         private TreeViewState<int> _typeTreeViewState;
         private SearchField _typeSearchField;
@@ -100,24 +100,24 @@ namespace OneJS.Editor.TypeGenerator {
 
             EditorGUILayout.BeginHorizontal();
 
-            // Left panel - Assemblies
+            // Left panel: Assemblies
             EditorGUILayout.BeginVertical(GUILayout.Width(250));
             DrawAssemblyPanel();
             EditorGUILayout.EndVertical();
 
-            // Middle panel - Types (TreeView)
+            // Middle panel: Types (TreeView)
             EditorGUILayout.BeginVertical(GUILayout.Width(350));
             DrawTypePanel();
             EditorGUILayout.EndVertical();
 
-            // Right panel - Preview
+            // Right panel: Preview
             EditorGUILayout.BeginVertical();
             DrawPreviewPanel();
             EditorGUILayout.EndVertical();
 
             EditorGUILayout.EndHorizontal();
 
-            // Bottom panel - Settings and actions
+            // Bottom panel: Settings and actions
             DrawBottomPanel();
 
             // Handle deferred updates with debouncing
@@ -191,7 +191,7 @@ namespace OneJS.Editor.TypeGenerator {
             EditorGUI.BeginChangeCheck();
             _assemblyFilter = EditorGUILayout.TextField(_assemblyFilter, EditorStyles.toolbarSearchField);
             if (EditorGUI.EndChangeCheck()) {
-                // Filter changed - will be applied inline
+                // Filter changed: will be applied inline
             }
 
             // Quick select buttons

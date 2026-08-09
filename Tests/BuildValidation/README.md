@@ -15,9 +15,9 @@ This system validates that OneJS works correctly in standalone builds by:
 
 `BuildValidationRunner` always compiles but its functionality is wrapped in `#if ONEJS_BUILD_VALIDATION`. This ensures:
 
-1. **The class always exists** - can be added to scenes and referenced
-2. **Functionality only runs in test builds** - the test uses `BuildPlayerOptions.extraScriptingDefines` to enable it
-3. **User builds are unaffected** - the component exists but does nothing
+1. **The class always exists**: can be added to scenes and referenced
+2. **Functionality only runs in test builds**: the test uses `BuildPlayerOptions.extraScriptingDefines` to enable it
+3. **User builds are unaffected**: the component exists but does nothing
 
 ## Setup
 

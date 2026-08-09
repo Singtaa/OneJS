@@ -387,7 +387,7 @@ namespace OneJS.Tests {
 
         [UnityTest]
         public IEnumerator Init_EmbeddedPanelSettings_IsCreatedAndAssigned() {
-            // Create JSPad - it will create UIDocument via RequireComponent
+            // Create JSPad: it will create UIDocument via RequireComponent
             _go = new GameObject("TestJSPadEmbeddedPanelSettings");
             _pad = _go.AddComponent<JSPad>();
 

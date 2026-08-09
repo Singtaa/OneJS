@@ -136,7 +136,7 @@ function update(time: number) {
 
 1. **Property ID Caching**: First call to `.float("_Time", ...)` converts the string to an integer ID via `Shader.PropertyToID()`. Subsequent calls use the cached ID.
 
-2. **Specialized Bindings**: The `KernelDispatcher` uses `BindGpu*` methods that bypass C# generics entirely - no boxing, no allocations.
+2. **Specialized Bindings**: The `KernelDispatcher` uses `BindGpu*` methods that bypass C# generics entirely, no boxing, no allocations.
 
 3. **Native Dispatch**: Arguments are passed as primitives through native `__zaInvokeN` functions with stack-allocated arrays.
 

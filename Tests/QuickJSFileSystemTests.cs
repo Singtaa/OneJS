@@ -399,7 +399,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Integration Test - USS Loading from File
+        // MARK: Integration Test, USS Loading from File
 
         [UnityTest]
         public IEnumerator Integration_LoadUssFromFile_Works() {

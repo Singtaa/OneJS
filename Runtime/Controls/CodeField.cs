@@ -174,7 +174,7 @@ namespace OneJS {
                                             for (int i = strStart; i < pos && i < colors.Length; i++)
                                                 colors[i] = StringColor;
                                         } else if (text[pos] == '{') {
-                                            // JSX expression - parse balanced braces
+                                            // JSX expression: parse balanced braces
                                             pos = HighlightJsxExpression(text, pos, colors);
                                         }
                                     }
@@ -327,7 +327,7 @@ namespace OneJS {
             /// Checks if a substring matches a keyword without allocating a new string.
             /// </summary>
             private static bool IsKeyword(string text, int start, int length) {
-                // Quick length check - keywords are 2-11 chars
+                // Quick length check: keywords are 2-11 chars
                 if (length < 2 || length > 11)
                     return false;
 
@@ -835,7 +835,7 @@ namespace OneJS {
                 selectIndex = selStart + indentLength;
                 cursorIndex = selEnd + addedChars;
             } else {
-                // No selection - just insert indent at cursor
+                // No selection: just insert indent at cursor
                 value = value.Insert(cursorPos, indentString);
                 cursorIndex = cursorPos + indentLength;
                 selectIndex = cursorIndex;

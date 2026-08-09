@@ -23,7 +23,7 @@ namespace OneJS {
     /// Write TSX directly in the inspector, build, and reload to execute.
     ///
     /// Uses a temp directory (Temp/OneJSPad/) for build artifacts.
-    /// No live-reload - manual Build and Reload workflow.
+    /// No live-reload: manual Build and Reload workflow.
     ///
     /// Workflow:
     /// 1. Build: npm install (if needed) + esbuild → stores bundle in serialized field
@@ -334,7 +334,7 @@ namespace OneJS {
             Directory.CreateDirectory(TempDir);
             Directory.CreateDirectory(Path.Combine(TempDir, "@outputs"));
 
-            // Write package.json (always dynamic - needs _modules list)
+            // Write package.json (always dynamic: needs _modules list)
             var packageJson = GetPackageJsonContent();
             File.WriteAllText(Path.Combine(TempDir, "package.json"), packageJson);
 
@@ -653,13 +653,13 @@ namespace OneJS {
     declare function removeStyleSheet(name: string): boolean;
     declare function clearStyleSheets(): number;
 
-    // FileSystem API - Path globals
+    // FileSystem API: Path globals
     declare const __persistentDataPath: string;
     declare const __streamingAssetsPath: string;
     declare const __dataPath: string;
     declare const __temporaryCachePath: string;
 
-    // FileSystem API - Functions
+    // FileSystem API: Functions
     declare function readTextFile(path: string): Promise<string>;
     declare function writeTextFile(path: string, content: string): Promise<void>;
     declare function fileExists(path: string): boolean;
@@ -687,7 +687,7 @@ namespace OneJS {
         }
 
         public void OnAfterDeserialize() {
-            // Nothing needed here - PanelSettings will be deserialized automatically
+            // Nothing needed here: PanelSettings will be deserialized automatically
         }
 
         // MARK: Editor callbacks

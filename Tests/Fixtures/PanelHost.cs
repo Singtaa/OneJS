@@ -33,7 +33,7 @@ namespace OneJS.Tests {
             return new PanelHost { rt = rt, ps = ps, go = go, root = doc.rootVisualElement };
         }
 
-        /// <summary>Absolutely positioned, explicitly sized child - the shape most hosts need.</summary>
+        /// <summary>Absolutely positioned, explicitly sized child: the shape most hosts need.</summary>
         public VisualElement AddRect(int w, int h, Color? background = null) {
             var ve = new VisualElement();
             Place(ve, w, h);

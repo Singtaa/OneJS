@@ -17,7 +17,7 @@ namespace OneJS.Tests {
     /// </summary>
     [TestFixture]
     public class ParticleTests {
-        // Minimal valid doc - shared fixture shape with particles.test.ts.
+        // Minimal valid doc: shared fixture shape with particles.test.ts.
         const string kMinimalDoc = @"{""v"":4,""max"":100,""emitters"":[{""rate"":10}]}";
 
         static string Doc(string emitters, int max = 100, int seed = 0, int space = 0, int v = 4) =>

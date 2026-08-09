@@ -57,7 +57,7 @@ build-windows-msvc.bat
 # Output: Plugins/iOS/libquickjs_unity.a (static, arm64)
 # Requires: Xcode with command line tools
 ```
-iOS uses static linking (`__Internal` DllImport) - the library is linked into the IL2CPP binary.
+iOS uses static linking (`__Internal` DllImport): the library is linked into the IL2CPP binary.
 
 ### Android
 ```bash
@@ -80,6 +80,6 @@ iOS uses static linking (`__Internal` DllImport) - the library is linked into th
 ## Handle System
 
 C# objects are tracked via integer handles:
-- `qjs_register_object()` - Store C# object, get handle
-- `qjs_get_object()` - Retrieve C# object by handle
-- `qjs_release_handle()` - Release handle when JS object is GC'd
+- `qjs_register_object()`: Store C# object, get handle
+- `qjs_get_object()`: Retrieve C# object by handle
+- `qjs_release_handle()`: Release handle when JS object is GC'd

@@ -233,7 +233,7 @@ namespace OneJS.Editor {
 
             _root.Add(statusBox);
 
-            // Settings foldout (contains tabs) - restore state from SessionState
+            // Settings foldout (contains tabs): restore state from SessionState
             var settingsFoldout = new Foldout { text = "Settings", value = EditorPrefs.GetBool(SettingsFoldoutKey, false) };
             settingsFoldout.style.marginBottom = 6;
             // Remove default left margin on foldout content
@@ -702,7 +702,7 @@ namespace OneJS.Editor {
                 }
             }
 
-            // Check if PanelSettings render mode changed - force UIDocument inspector rebuild
+            // Check if PanelSettings render mode changed: force UIDocument inspector rebuild
             var uiDoc = _target.GetComponent<UIDocument>();
             if (uiDoc != null && uiDoc.panelSettings != null) {
                 var psSO = new SerializedObject(uiDoc.panelSettings);

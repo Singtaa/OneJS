@@ -14747,7 +14747,7 @@ var __exports = (() => {
     },
     scheduleTimeout: setTimeout,
     cancelTimeout: clearTimeout,
-    // Priority management - required by React 19's reconciler
+    // Priority management: required by React 19's reconciler
     setCurrentUpdatePriority(priority) {
       currentUpdatePriority = priority;
     },

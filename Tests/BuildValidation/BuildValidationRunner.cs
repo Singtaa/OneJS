@@ -59,7 +59,7 @@ namespace OneJS.Tests.BuildValidation {
         }
 
         void Update() {
-            // Global timeout - force quit if running too long (30 seconds)
+            // Global timeout: force quit if running too long (30 seconds)
             if (!_completed && Time.realtimeSinceStartup - _startTime > 30f) {
                 Debug.LogError("[BUILD_TEST] GLOBAL TIMEOUT - forcing exit");
                 _results.Add("FAIL: Global timeout exceeded");

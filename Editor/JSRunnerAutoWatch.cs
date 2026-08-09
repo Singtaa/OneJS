@@ -152,7 +152,7 @@ namespace OneJS.Editor {
                     Debug.Log($"[JSRunner] Installing dependencies for {runner.name}...");
                     RunNpmInstallBuildAndWatch(workingDir, runner, needsBuild);
                 } else if (needsBuild) {
-                    // Have node_modules but no bundle - just build then start watcher
+                    // Have node_modules but no bundle: just build then start watcher
                     Debug.Log($"[JSRunner] Building {runner.name}...");
                     RunNpmBuildAndWatch(workingDir, runner);
                 } else {

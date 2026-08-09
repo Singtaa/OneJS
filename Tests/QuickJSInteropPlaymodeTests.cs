@@ -284,7 +284,7 @@ namespace OneJS.Tests {
         [UnityTest]
         public IEnumerator Enum_Constant_PassesToCSharpMethod() {
             // Passing the (now numeric) enum constant to a C# method that takes the
-            // enum must still bind correctly - guards the C#-arg pass-through path.
+            // enum must still bind correctly: guards the C#-arg pass-through path.
             var result = _ctx.Eval(@"
                 CS.OneJS.Tests.InteropTestHelper.SetMode(CS.OneJS.Tests.InteropTestEnum.Baz);
                 CS.OneJS.Tests.InteropTestHelper.GetModeAsInt();
@@ -591,7 +591,7 @@ namespace OneJS.Tests {
         }
 
         // =========================================================================
-        // MARK: Collection Sync - Typed Item Tests
+        // MARK: Collection Sync, Typed Item Tests
         //
         // These tests validate the exact interop contract that useFrameSync's
         // selector mode + toArray rely on for the parent/child collection pattern:

@@ -203,7 +203,7 @@ namespace OneJS {
         }
 
         static void RegisterStyleTypes() {
-            // StyleLength - has keyword that changes semantics
+            // StyleLength: has keyword that changes semantics
             RegisterStructType<UnityEngine.UIElements.StyleLength>(
                 sl => {
                     if (sl.keyword != UnityEngine.UIElements.StyleKeyword.Undefined)
@@ -274,7 +274,7 @@ namespace OneJS {
             );
         }
 
-        // Float formatting helper - invariant culture, no trailing zeros
+        // Float formatting helper: invariant culture, no trailing zeros
         static string F(float v) => v.ToString("G", CultureInfo.InvariantCulture);
         static string F(double v) => v.ToString("G", CultureInfo.InvariantCulture);
 
@@ -389,7 +389,7 @@ namespace OneJS {
 
         static string EscapeJsonString(string s) {
             if (string.IsNullOrEmpty(s)) return s;
-            // Simple escape - extend if needed
+            // Simple escape: extend if needed
             return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r");
         }
 
@@ -543,7 +543,7 @@ namespace OneJS {
         }
 
         // MARK: JSON Parsing
-        // Simple JSON parser for struct data - handles numbers, strings, bools, nested objects
+        // Simple JSON parser for struct data: handles numbers, strings, bools, nested objects
         static Dictionary<string, object> ParseSimpleJson(string json) {
             if (string.IsNullOrEmpty(json) || json[0] != '{') return null;
 

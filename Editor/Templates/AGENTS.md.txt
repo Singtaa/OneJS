@@ -1,4 +1,4 @@
-# OneJS App - Agent Guide
+# OneJS App: Agent Guide
 
 This folder is a OneJS v3 app: React 19 + TypeScript, bundled by esbuild into `../app.js.txt`, executed inside Unity by the JSRunner component (QuickJS engine; the browser's JS engine on WebGL), rendered through UI Toolkit. There is no DOM and no webview. Full docs: https://onejs.com/docs
 

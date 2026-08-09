@@ -381,7 +381,7 @@ namespace OneJS.Tests {
         [UnityTest]
         public IEnumerator FastCtor_Construction_LowAllocation() {
             // The reflection ctor path allocates an object[], boxes each arg, builds
-            // ConstructorInfo[]/ParameterInfo[], and boxes the result - per call. The
+            // ConstructorInfo[]/ParameterInfo[], and boxes the result: per call. The
             // fast ctor path does none of that, so allocation stays at eval overhead.
             for (int i = 0; i < 100; i++) {
                 _ctx.Eval("new CS.UnityEngine.Vector2(3, 4)");
@@ -534,7 +534,7 @@ namespace OneJS.Tests {
                 Debug.Log("Difference within noise margin (both paths are fast when cached)");
             }
 
-            // This is informational - always pass
+            // This is informational: always pass
             Assert.Pass("Performance comparison logged");
             yield return null;
         }

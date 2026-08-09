@@ -70,7 +70,7 @@ namespace OneJS {
         }
 
         /// <summary>
-        /// Native callback handler - dispatches to registered bindings.
+        /// Native callback handler: dispatches to registered bindings.
         /// </summary>
         [AOT.MonoPInvokeCallback(typeof(CsZeroAllocCallback))]
         static unsafe void OnZeroAllocDispatch(int bindingId, InteropValue* args, int argCount, InteropValue* outResult) {
@@ -436,7 +436,7 @@ namespace OneJS {
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static unsafe T GetArg<T>(InteropValue* v) {
-            // Primitives - zero alloc via UnsafeUtility.As
+            // Primitives: zero alloc via UnsafeUtility.As
             if (typeof(T) == typeof(int)) {
                 int i = v->type switch {
                     InteropType.Int32 => v->i32,
@@ -475,7 +475,7 @@ namespace OneJS {
                 return UnsafeUtility.As<string, T>(ref s);
             }
 
-            // Vectors - zero alloc via UnsafeUtility.As
+            // Vectors: zero alloc via UnsafeUtility.As
             if (typeof(T) == typeof(Vector3)) {
                 var vec = new Vector3(v->vecX, v->vecY, v->vecZ);
                 return UnsafeUtility.As<Vector3, T>(ref vec);
@@ -493,7 +493,7 @@ namespace OneJS {
                 return UnsafeUtility.As<Vector2, T>(ref vec);
             }
 
-            // Object handles - reference types don't box
+            // Object handles: reference types don't box
             if (v->type == InteropType.ObjectHandle) {
                 var obj = GetObjectByHandle(v->handle);
                 if (obj is T typed) return typed;
@@ -511,7 +511,7 @@ namespace OneJS {
         static unsafe void SetResult<T>(InteropValue* result, T value) {
             result->type = InteropType.Null;
 
-            // Primitives - zero alloc via UnsafeUtility.As
+            // Primitives: zero alloc via UnsafeUtility.As
             if (typeof(T) == typeof(int)) {
                 result->type = InteropType.Int32;
                 result->i32 = UnsafeUtility.As<T, int>(ref value);
@@ -533,7 +533,7 @@ namespace OneJS {
                 return;
             }
 
-            // Vectors - zero alloc via UnsafeUtility.As
+            // Vectors: zero alloc via UnsafeUtility.As
             if (typeof(T) == typeof(Vector3)) {
                 var vec = UnsafeUtility.As<T, Vector3>(ref value);
                 result->type = InteropType.Vector3;

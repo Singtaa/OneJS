@@ -9,7 +9,7 @@ namespace OneJS {
     ///
     /// Those instance methods can't be FastPath-seeded directly because the fast
     /// path keys by the concrete element type (Button, Label, ScrollView, ...) while
-    /// the methods live on the VisualElement base - one registration per concrete
+    /// the methods live on the VisualElement base: one registration per concrete
     /// type would be needed. These static wrappers take element handles (ints) and
     /// are registered in the zero-alloc fast path by type name (like GPUBridge), so
     /// they are reflection-free and type-agnostic across every element type.
@@ -27,7 +27,7 @@ namespace OneJS {
     /// - RemoveFromHierarchy tolerates a handle that is already gone: the reconciler
     ///   relies on detach being a safe no-op when the root was cleared before React
     ///   tore the tree down (hot reload). A handle that resolves to a non-element is
-    ///   still an error - that means handle reuse, not an already-detached element.
+    ///   still an error: that means handle reuse, not an already-detached element.
     /// </summary>
     public static class NodeBridge {
         public static void Add(int parentHandle, int childHandle) {
@@ -52,7 +52,7 @@ namespace OneJS {
 
         /// <summary>
         /// Resolve a handle to a VisualElement, reporting why it failed. Nothing is
-        /// allocated on the success path - the message is only built on failure.
+        /// allocated on the success path: the message is only built on failure.
         /// </summary>
         static VisualElement Resolve(int handle, string op, string role, bool reportMissing) {
             var obj = QuickJSNative.GetObjectByHandle(handle);

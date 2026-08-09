@@ -80,7 +80,7 @@ namespace OneJS.Editor {
             if (Application.isPlaying || EditorApplication.isPlayingOrWillChangePlaymode) return;
 
             // Get current set of JSRunner IDs
-            // IMPORTANT: Include inactive objects - disabled GameObjects still have valid JSRunners
+            // IMPORTANT: Include inactive objects, disabled GameObjects still have valid JSRunners
             var runners = FindCompat.FindObjectsByTypeIncludingInactive<JSRunner>();
             var currentIds = new HashSet<string>();
             foreach (var runner in runners) {

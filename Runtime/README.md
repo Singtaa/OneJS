@@ -8,7 +8,7 @@ Core C# runtime for QuickJS integration with Unity.
 |----------|-----------|-------|
 | Editor/Standalone | Native QuickJS | `quickjs_unity.dylib/.dll/.so` |
 | iOS | Native QuickJS | Statically linked (`__Internal`) |
-| WebGL | Browser JS | Via `OneJSWebGL.jslib` - runs with JIT! |
+| WebGL | Browser JS | Via `OneJSWebGL.jslib`: runs with JIT! |
 
 For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 
@@ -30,7 +30,7 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `CartridgeTypeGenerator.cs` | Generates TypeScript declarations for cartridge types |
 | `CartridgeUtils.cs` | Shared cartridge utilities used by JSRunner and JSPad |
 | `StyleBridge.cs` | Batched style + class-list application; typed IStyle setters for common props (no reflection), reflection fallback for the long tail |
-| `PainterBridge.cs` | Batched vector drawing - replays a Painter2D command buffer in one crossing |
+| `PainterBridge.cs` | Batched vector drawing: replays a Painter2D command buffer in one crossing |
 | `Particles/ParticleSystem2D.cs` | 2D particle system: C#-owned SoA sim + quad mesh write inside a host element |
 | `Particles/ParticleBridge.cs` | JS entry (`Create`), live-system registry, `TickAll` (driven from QuickJSUIBridge.Tick) |
 | `Particles/ParticleWire.cs` | Versioned wire schema + validation (the C#-JS contract; parity with onejs-react particles.test.ts) |
@@ -61,14 +61,14 @@ The `JSRunner` MonoBehaviour is the primary way to run JavaScript apps in Unity.
 
 ### Panel Settings as Project Marker
 
-JSRunner uses the **assigned PanelSettings asset** as the source of truth for project identity and location. The folder containing the PanelSettings asset is the **instance folder** - all project files (working directory, bundle, source map) live alongside it.
+JSRunner uses the **assigned PanelSettings asset** as the source of truth for project identity and location. The folder containing the PanelSettings asset is the **instance folder**: all project files (working directory, bundle, source map) live alongside it.
 
 **Setup flow:**
 1. Add JSRunner to a GameObject
 2. Click **Initialize Project** in the inspector
 3. This creates the instance folder, PanelSettings, working directory, and runs `npm install` + `npm run build`
 
-**Or** assign an existing PanelSettings asset - its folder becomes the active project folder.
+**Or** assign an existing PanelSettings asset: its folder becomes the active project folder.
 
 ### Directory Structure
 
@@ -107,7 +107,7 @@ JSRunner supports rendering UI in the Game view **without entering Play mode**. 
 
 **How it works:**
 1. When JSRunner is enabled in edit mode and has a valid PanelSettings + built entry file, it automatically starts the preview
-2. The existing `InitializeBridge()` → `RunScript()` path is reused - no separate code path
+2. The existing `InitializeBridge()` → `RunScript()` path is reused: no separate code path
 3. A 30Hz tick via `EditorApplication.update` drives `bridge.Tick()` and `CheckForFileChanges()`
 4. Live reload works in edit mode (file changes trigger `Reload()`)
 
@@ -115,7 +115,7 @@ JSRunner supports rendering UI in the Game view **without entering Play mode**. 
 | Event | Action |
 |-------|--------|
 | `OnEnable()` (edit mode) | `SchedulePreviewAutoStart()` → retried `TryStartEditModePreview()` |
-| `OnDisable()` (edit mode) | `StopEditModePreview()` - unregisters tick, disposes bridge, clears UI |
+| `OnDisable()` (edit mode) | `StopEditModePreview()`: unregisters tick, disposes bridge, clears UI |
 | Domain reload | `OnDisable` → reload → `OnEnable` → reinit from scratch |
 | Enter Play mode | `EditModeTick()` detects `isPlaying` → stops preview; `Start()` takes over |
 | Exit Play mode | `OnEnable()` → `SchedulePreviewAutoStart()` → restarts preview |
@@ -133,7 +133,7 @@ bool IsEditModePreviewActive { get; }  // Whether edit-mode preview is currently
 
 ### UIDocument vs PanelRenderer (Unity 6.5+)
 
-Unity 6.5 introduced `UnityEngine.UIElements.PanelRenderer` as the successor to `UIDocument` (which moves to *UI Toolkit/Legacy* in the Add Component menu). **OneJS deliberately stays on `UIDocument`** - a considered decision, not an oversight:
+Unity 6.5 introduced `UnityEngine.UIElements.PanelRenderer` as the successor to `UIDocument` (which moves to *UI Toolkit/Legacy* in the Add Component menu). **OneJS deliberately stays on `UIDocument`**: a considered decision, not an oversight:
 
 - `UIDocument` is **not** marked `[Obsolete]` in 6.5. It compiles clean with no warnings, and Unity has announced no removal.
 - `PanelRenderer` **cannot drive edit-mode preview.** Verified on 6000.5.2f1: with a valid PanelSettings assigned, `root.panel` stays null in edit mode and the registered `UIReloadCallback` never fires. The same GameObject in Play mode fires immediately with a live panel; `UIDocument` under identical conditions is live in edit mode.
@@ -142,16 +142,16 @@ The cause is structural, not a toggle:
 
 | Component | Attach path |
 |-----------|-------------|
-| `UIDocument` | `OnEnable()` → `_Enable()` → `RecreateUI()` / `AddRootVisualElementToTree()` - eager, and the component is `[ExecuteAlways]` |
+| `UIDocument` | `OnEnable()` → `_Enable()` → `RecreateUI()` / `AddRootVisualElementToTree()`: eager, and the component is `[ExecuteAlways]` |
 | `PanelRenderer` | only `IPanelComponent.PerformUpdate()`, reached solely via `UIElementsRuntimeUtility.UpdatePanels()`, which the player loop drives |
 
-`UpdatePanels()` additionally early-returns before `UpdatePanelRenderers()` when there are no player panels. Unity's own authoring-time preview goes through a separate subsystem (`UIElementsRuntimeUtility.FindOrCreateAuthoringPanel`, `UIToolkitAuthoringModule`) that is entirely internal - so there is no supported way to make a `PanelRenderer` live at authoring time.
+`UpdatePanels()` additionally early-returns before `UpdatePanelRenderers()` when there are no player panels. Unity's own authoring-time preview goes through a separate subsystem (`UIElementsRuntimeUtility.FindOrCreateAuthoringPanel`, `UIToolkitAuthoringModule`) that is entirely internal, so there is no supported way to make a `PanelRenderer` live at authoring time.
 
 **Revisit when either** Unity marks `UIDocument` `[Obsolete]` / announces removal, **or** ships a public authoring-panel API. Until then, a `PanelRenderer` path would cost an abstraction plus a second implementation that is strictly less capable.
 
 **Landmines for whoever does the migration:**
 
-- `PanelRenderer` exposes **no public `rootVisualElement`** (it is `internal`). Unity states this is intentional - the register-callback pattern exists so live reload can hand out a fresh root. JSRunner's model is pull-based (`EnsureUIDocument()` → `rootVisualElement` on demand), so porting is a pull → push inversion. That is the bulk of the work.
+- `PanelRenderer` exposes **no public `rootVisualElement`** (it is `internal`). Unity states this is intentional: the register-callback pattern exists so live reload can hand out a fresh root. JSRunner's model is pull-based (`EnsureUIDocument()` → `rootVisualElement` on demand), so porting is a pull → push inversion. That is the bulk of the work.
 - `panelSettings` / `visualTreeAsset` are **native properties**: assigning them from script at edit time does *not* serialize. Go through `SerializedObject` on `m_PanelSettings` / `sourceAsset` (the field is `sourceAsset`, not `m_VisualTreeAsset`) plus `SetDirty`.
 - `sortingOrder` differs: `float` read/write on `UIDocument`, `int` on `PanelRenderer` (inherited from `Renderer`), read-only `float` on the shared interface.
 - `IPanelComponent` (public, implemented by both) covers `panelSettings` / `visualTreeAsset` but has **no root element member**, so it cannot serve as the whole abstraction.
@@ -201,18 +201,18 @@ int _onStopHandle = -1;    // Native callback handle for onStop
 bool _onStopInvoked;       // Guard against double-invocation
 ```
 
-**`__isPlaying` global:** Injected in `InitializeBridge()` - `true` in play mode, `false` in edit-mode preview. Useful for conditional rendering without lifecycle hooks.
+**`__isPlaying` global:** Injected in `InitializeBridge()`, `true` in play mode, `false` in edit-mode preview. Useful for conditional rendering without lifecycle hooks.
 
 ### Teardown Hooks (framework cleanup before context destruction)
 
 Distinct from the user-facing `onStop`, teardown hooks are a framework-level mechanism that runs **on every teardown path** (hot reload, play/edit stop, destroy) in **both edit and play mode**. They let JS code release resources while the context is still alive.
 
-The React reconciler registers `unmountAll` as a teardown hook (via `globalThis.__onTeardown`) the first time `render()` is called. Without this, hot reload would destroy the context without unmounting the React tree, so `useEffect`/`useLayoutEffect` cleanup functions would never run - leaving stale C# subscriptions (e.g. from `useEventSync`) that fail with `[QuickJS] Callback invocation failed with code -3` after reload.
+The React reconciler registers `unmountAll` as a teardown hook (via `globalThis.__onTeardown`) the first time `render()` is called. Without this, hot reload would destroy the context without unmounting the React tree, so `useEffect`/`useLayoutEffect` cleanup functions would never run, leaving stale C# subscriptions (e.g. from `useEventSync`) that fail with `[QuickJS] Callback invocation failed with code -3` after reload.
 
 **How it works:**
 1. The bootstrap exposes `globalThis.__onTeardown(fn)` and `globalThis.__runTeardown()` (idempotent: it drains its callback list, so repeat calls are no-ops).
-2. `QuickJSUIBridge.Dispose(disposing: true)` calls `RunTeardownHooks()` **first** - evaluating `__runTeardown()` and flushing pending jobs while the context is still alive. This is the single chokepoint covering all teardown paths.
-3. The finalizer path (`Dispose(false)`, GC thread) skips this - calling back into QuickJS off the main thread would be unsafe.
+2. `QuickJSUIBridge.Dispose(disposing: true)` calls `RunTeardownHooks()` **first**, evaluating `__runTeardown()` and flushing pending jobs while the context is still alive. This is the single chokepoint covering all teardown paths.
+3. The finalizer path (`Dispose(false)`, GC thread) skips this: calling back into QuickJS off the main thread would be unsafe.
 4. React's `unmount` tears the tree down synchronously (`updateContainerSync` + `flushSyncWork` + `flushPassiveEffects`) so cleanups run immediately rather than waiting for a scheduler tick that never comes before the context is destroyed.
 
 ### Platform Behavior
@@ -229,28 +229,28 @@ The React reconciler registers `unmountAll` as a teardown hook (via `globalThis.
 Unlike previous versions where project setup happened automatically on first Play mode, initialization is now **explicit**:
 
 1. **Initialize Project** button creates the instance folder, PanelSettings asset, VisualTreeAsset, working directory, scaffolds default files, and runs `npm install` + `npm run build`
-2. **Play mode** runs the project if PanelSettings is assigned and valid - no auto-creation of assets
+2. **Play mode** runs the project if PanelSettings is assigned and valid: no auto-creation of assets
 3. **Assigning PanelSettings** manually (drag & drop) syncs the VisualTreeAsset from the same folder and adds a UIDocument component in the editor
 
 The "Use Scene Name as Root Folder" option (right-click the status block) controls whether the instance folder is created under `{SceneDir}/{SceneName}/` (default) or directly under `{SceneDir}/`.
 
-Prefabs in the Project window (not placed in a scene) are also supported - the instance folder is created next to the prefab asset.
+Prefabs in the Project window (not placed in a scene) are also supported: the instance folder is created next to the prefab asset.
 
 ### Auto-Scaffolding (Editor Only)
-On Initialize (or first Play mode if not already set up), JSRunner creates missing files from its **Default Files** list. This is non-destructive - existing files are never overwritten.
+On Initialize (or first Play mode if not already set up), JSRunner creates missing files from its **Default Files** list. This is non-destructive: existing files are never overwritten.
 
 Configure scaffolding in the inspector:
 - **Default Files**: List of `path → TextAsset` pairs. Each path is relative to Working Dir.
 - Files are created only if missing, preserving user modifications.
 
 Default template files (in `Assets/Singtaa/OneJS/Editor/Templates/`):
-- `package.json.txt` - npm configuration with React and onejs-react dependencies
-- `esbuild.config.mjs.txt` - Build configuration with CSS Modules and Tailwind support
-- `tsconfig.json.txt` - TypeScript configuration
-- `global.d.ts.txt` - TypeScript declarations for OneJS globals
-- `index.tsx.txt` - Sample React application
-- `main.uss.txt` - Sample USS stylesheet
-- `gitignore.txt` - Git ignore for node_modules
+- `package.json.txt`: npm configuration with React and onejs-react dependencies
+- `esbuild.config.mjs.txt`: Build configuration with CSS Modules and Tailwind support
+- `tsconfig.json.txt`: TypeScript configuration
+- `global.d.ts.txt`: TypeScript declarations for OneJS globals
+- `index.tsx.txt`: Sample React application
+- `main.uss.txt`: Sample USS stylesheet
+- `gitignore.txt`: Git ignore for node_modules
 
 ### Inspector Layout
 
@@ -270,13 +270,13 @@ The inspector adapts to the project state:
 - Four tabs: **Project**, **UI**, **Cartridges**, **Build**
 - Action buttons: Reload, Rebuild, Open Folder, Open Terminal, Open Code Editor
 
-**Dev Mode** (right-click script header > Toggle Dev Mode): shows tabs and actions even without valid PanelSettings - useful for debugging.
+**Dev Mode** (right-click script header > Toggle Dev Mode): shows tabs and actions even without valid PanelSettings, useful for debugging.
 
 ### Inspector Fields
 
 | Field | Purpose |
 |-------|---------|
-| **Panel Settings** (top-level) | PanelSettings asset - its folder is the project folder |
+| **Panel Settings** (top-level) | PanelSettings asset: its folder is the project folder |
 | **Project tab** | |
 | Live Reload | Toggle live reload on/off |
 | Poll Interval | How often to check for file changes (default 0.5s) |
@@ -297,8 +297,8 @@ The inspector adapts to the project state:
 ### Context Menu Options
 
 **Right-click on status block:**
-- **Run in Background** - toggle Unity's `PlayerSettings.runInBackground`
-- **Use Scene Name as Root Folder** - toggle whether instance folder is nested under scene name
+- **Run in Background**: toggle Unity's `PlayerSettings.runInBackground`
+- **Use Scene Name as Root Folder**: toggle whether instance folder is nested under scene name
 
 ### Live Reload (Editor Only)
 - Polls the entry file for changes (Mono-compatible, no FileSystemWatcher)
@@ -423,12 +423,12 @@ OneJS provides two MonoBehaviours for running JavaScript: **JSRunner** (producti
 First build installs dependencies (~10s), subsequent builds are fast.
 
 ### Custom Inspector
-- **Build & Run** - Build and execute immediately
-- **Build Only** - Build without running
-- **Run** - Execute previously built output
-- **Stop** - Stop execution and clear UI
-- **Open Temp Folder** - Reveal build directory
-- **Clean** - Delete temp directory and node_modules
+- **Build & Run**: Build and execute immediately
+- **Build Only**: Build without running
+- **Run**: Execute previously built output
+- **Stop**: Stop execution and clear UI
+- **Open Temp Folder**: Reveal build directory
+- **Clean**: Delete temp directory and node_modules
 
 ### Standalone Build Support
 
@@ -512,11 +512,11 @@ Structs are automatically serialized between JS and C# without manual registrati
 
 ### Zero-Alloc Constructors (QuickJSNative.FastPath.cs)
 
-Constructors are intercepted in the zero-alloc fast path (before any string allocation) and resolved by **type-name hash** - a ctor has no target handle, so this sidesteps the concrete-type keying that limits instance-method fast paths. Registered in `RegisterFastConstructors()`; covered by `FastCtor_*` tests in `QuickJSFastPathPlaymodeTests`.
+Constructors are intercepted in the zero-alloc fast path (before any string allocation) and resolved by **type-name hash**: a ctor has no target handle, so this sidesteps the concrete-type keying that limits instance-method fast paths. Registered in `RegisterFastConstructors()`; covered by `FastCtor_*` tests in `QuickJSFastPathPlaymodeTests`.
 
-**Blittable structs** - `new CS.UnityEngine.Vector2/Vector3/Vector4/Color/Quaternion(...)` build through the fast path instead of reflection (`GetConstructors` + `ConvertToTargetType` + `ctor.Invoke`, plus an `object[]` and per-arg boxing). The numeric args are read straight from the `InteropValue` buffer, the struct is built on the stack, and the result is packed with the same field layout the reflection path produces - identical value, no allocation or reflection. Only purely-numeric args qualify; anything else falls through.
+**Blittable structs**: `new CS.UnityEngine.Vector2/Vector3/Vector4/Color/Quaternion(...)` build through the fast path instead of reflection (`GetConstructors` + `ConvertToTargetType` + `ctor.Invoke`, plus an `object[]` and per-arg boxing). The numeric args are read straight from the `InteropValue` buffer, the struct is built on the stack, and the result is packed with the same field layout the reflection path produces, identical value, no allocation or reflection. Only purely-numeric args qualify; anything else falls through.
 
-**Element types** - the parameterless ctors the reconciler runs on every mount (`VisualElement`, `TextElement`, `Label`, `Button`, `TextField`, `Toggle`, `Slider`, `ScrollView`, `Image`, `ListView`) build via a typed factory instead of the reflection ctor, then return as a handle (same packing as the slow path). Only parameterless construction is fast-pathed; a parameterized element ctor (e.g. `new Slider(0, 100)`) falls through to reflection.
+**Element types**: the parameterless ctors the reconciler runs on every mount (`VisualElement`, `TextElement`, `Label`, `Button`, `TextField`, `Toggle`, `Slider`, `ScrollView`, `Image`, `ListView`) build via a typed factory instead of the reflection ctor, then return as a handle (same packing as the slow path). Only parameterless construction is fast-pathed; a parameterized element ctor (e.g. `new Slider(0, 100)`) falls through to reflection.
 
 ## 2D Particle Engine (`Particles/` folder)
 
@@ -527,7 +527,7 @@ crossings, and steady-state emission costs zero JS work.
 
 - **Simulation** (`ParticleSystem2D`): SoA arrays sized at creation, swap-back
   reaping, autonomous emitters (rate/shape/ranges/gravity/drag), <=8-key linear
-  curves for color/size over life, seeded xorshift RNG (deterministic - see
+  curves for color/size over life, seeded xorshift RNG (deterministic: see
   `Sim_SameSeed_IsDeterministic`). `space: 1` (panel) keeps positions in panel
   space and compensates with the element's inverse `worldTransform` so trails
   don't drag when the element moves.
@@ -535,7 +535,7 @@ crossings, and steady-state emission costs zero JS work.
   toward the one that lands exactly on `(attractX, attractY)` at end of life.
   The blend weight is a function of normalized life (not per-frame accumulation),
   so convergence is framerate-independent, and `strength: 1` arrives exactly.
-  Deliberately not a physical attractor - gravity wells overshoot and orbit,
+  Deliberately not a physical attractor: gravity wells overshoot and orbit,
   whereas UI collect effects have to land. Retargetable via `SetEmitterAttractor`.
 - **Edges** (v2): `edge` = kill / bounce (scaled by `bounciness`) / stick against
   the host element's `contentRect` (`worldBound` in panel space). Stuck particles
@@ -558,8 +558,8 @@ crossings, and steady-state emission costs zero JS work.
   produces multicolored confetti without losing its fade ramp.
 - **Flipbook** (v3): an emitter can treat its texture as a `cols x rows` grid.
   `ParticleSystem2D.SheetFrame` (public and pure, so it is unit-tested without a
-  GPU) picks the frame from the particle's age - mode 0 spreads `sheetFrames`
-  over the lifetime, mode 1 plays at `sheetFps` and loops - and the renderer
+  GPU) picks the frame from the particle's age: mode 0 spreads `sheetFrames`
+  over the lifetime, mode 1 plays at `sheetFps` and loops, and the renderer
   narrows the quad's UVs to that cell. Frame 0 is the sheet's top-left; texture V
   runs bottom-up, so row r maps to `v1 = 1 - r*dv`. `sheetRandomStart` costs one
   byte per particle and only draws RNG when enabled. `Parse` resolves
@@ -571,7 +571,7 @@ crossings, and steady-state emission costs zero JS work.
   antialiasing on that chrome. Isolated by A/B on one rendered frame: a plain
   bordered rounded box and the same box with a `generateVisualContent` handler
   both resolve 27 distinct coverage levels across a corner; hosting a particle
-  system drops it to 3 (`bg, fill, border` - a hard staircase). So the material
+  system drops it to 3 (`bg, fill, border`: a hard staircase). So the material
   is the cause and `generateVisualContent` is free. `WarnIfHostIsStyled` logs
   once per system when a host has a border/radius (gated on `_premultiplied`,
   since the fallback path leaves the host's material alone); it runs from Tick
@@ -583,7 +583,7 @@ crossings, and steady-state emission costs zero JS work.
   tints (`rgb = color*alpha`, `a = alpha*(1-additiveness)`) give each emitter a
   per-particle continuum from normal alpha (0) to pure additive (1) in one draw
   call. If the shader is unavailable (e.g. a Unity upgrade renames the cginc
-  entry points - fails loudly at import), the system falls back to the default
+  entry points: fails loudly at import), the system falls back to the default
   material: straight tints, additiveness ignored, everything still renders.
 - **Ticking**: `ParticleBridge.TickAll()` is called from `QuickJSUIBridge.Tick()`
   (one integration point: play mode, edit-mode preview, JSPad), dt clamped to
@@ -837,7 +837,7 @@ switch (value) {  // ← Pattern matching boxes value type to object
 }
 ```
 
-The specialized `BindGpu*` methods use direct primitive types - no generics, no boxing:
+The specialized `BindGpu*` methods use direct primitive types: no generics, no boxing:
 
 ```csharp
 // Truly zero-alloc:
@@ -1028,7 +1028,7 @@ if (response.ok) {
 ```
 
 **Supported features**:
-- `fetch(url, options)` - Returns Promise<Response>
+- `fetch(url, options)`: Returns Promise<Response>
 - Options: `method`, `headers`, `body`
 - Request headers: plain object, `Headers` instance, `Map`, or `[name, value]` pairs
 - Response properties: `ok`, `status`, `statusText`, `url`, `headers`
@@ -1059,14 +1059,14 @@ localStorage.clear(); // WARNING: Clears ALL PlayerPrefs
 ```
 
 **Supported methods**:
-- `getItem(key)` - Returns value or null
-- `setItem(key, value)` - Stores value (converted to string)
-- `removeItem(key)` - Removes item
-- `clear()` - Clears all PlayerPrefs (use with caution)
+- `getItem(key)`: Returns value or null
+- `setItem(key, value)`: Stores value (converted to string)
+- `removeItem(key)`: Removes item
+- `clear()`: Clears all PlayerPrefs (use with caution)
 
 **Limitations** (due to PlayerPrefs):
-- `key(index)` - Always returns null (enumeration not supported)
-- `length` - Always returns 0 (counting not supported)
+- `key(index)`: Always returns null (enumeration not supported)
+- `length`: Always returns 0 (counting not supported)
 
 **sessionStorage**: Alias to localStorage. Unlike web browsers, data persists across app restarts since Unity has no session concept.
 
@@ -1075,7 +1075,7 @@ localStorage.clear(); // WARNING: Clears ALL PlayerPrefs
 - Synchronous API (matches web localStorage)
 - Values are automatically converted to strings
 - `Save()` is called after each write for reliability
-- **WebGL**: the PlayerPrefs shim is not installed - the browser's native `localStorage`/`sessionStorage` are used (the bootstrap shares the embedding page's global scope and must not redirect its storage)
+- **WebGL**: the PlayerPrefs shim is not installed, the browser's native `localStorage`/`sessionStorage` are used (the bootstrap shares the embedding page's global scope and must not redirect its storage)
 
 ### URL API (URL/URLSearchParams)
 Web-compatible URL parsing and query string manipulation:
@@ -1112,7 +1112,7 @@ params.toString();  // "foo=1&bar=2"
 - WHATWG URL Standard compliant (common cases)
 - Supports relative URL resolution with base URL
 - Automatic encoding/decoding of special characters
-- **WebGL**: the polyfills are not installed - the browser's spec-complete natives are used (the polyfill `URLSearchParams` is not iterable, so it must never shadow the native on a shared page)
+- **WebGL**: the polyfills are not installed, the browser's spec-complete natives are used (the polyfill `URLSearchParams` is not iterable, so it must never shadow the native on a shared page)
 
 ### Base64 Encoding (atob/btoa)
 Web-compatible Base64 encoding and decoding:
@@ -1135,7 +1135,7 @@ const payload = atob(token.split('.')[1]);
 - Only supports Latin1 characters (0-255). For Unicode, encode to UTF-8 first.
 - `btoa()` throws if string contains characters outside Latin1 range.
 
-**WebGL**: the polyfills are not installed - the browser's native `btoa`/`atob` are used.
+**WebGL**: the polyfills are not installed, the browser's native `btoa`/`atob` are used.
 
 **Implementation details**:
 - Pure JavaScript implementation
@@ -1145,7 +1145,7 @@ const payload = atob(token.split('.')[1]);
 ### FileSystem API
 The runtime provides file system access for loading configuration, themes, and other runtime data. This is particularly useful for modding support, theming, and user preferences.
 
-**Path globals** - Convenience access to Unity application paths:
+**Path globals**: Convenience access to Unity application paths:
 ```javascript
 __persistentDataPath    // Application.persistentDataPath (user-writable, persists)
 __streamingAssetsPath   // Application.streamingAssetsPath (read-only, bundled with app)

@@ -75,7 +75,7 @@ namespace OneJS {
             var resultType = typeArgs[0];
 
             // VoidTaskResult is an internal struct used by Task (not Task<T>)
-            // It indicates a void async method - return null
+            // It indicates a void async method: return null
             if (resultType.Name == "VoidTaskResult") return null;
 
             // Task<T> has a Result property
@@ -185,7 +185,7 @@ namespace OneJS {
                     return $"\"{EscapeJsString(s)}\"";
             }
 
-            // Reference types - register as handle and return handle info
+            // Reference types: register as handle and return handle info
             int handle = RegisterObject(result);
             string typeName = EscapeJsString(result.GetType().FullName ?? "System.Object");
             return $"{{ \"__csHandle\": {handle}, \"__csType\": \"{typeName}\" }}";

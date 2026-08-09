@@ -56,8 +56,8 @@ element.styleSheets.Add(styleSheet);
 - Numbers: `0`, `1.5`
 - Keywords: `auto`, `none`, `initial`
 - Enums: `flex-start`, `row`, `hidden`
-- URLs: `url("path/to/image.png")` - loads from working directory
-- Resources: `resource("path")` - Unity resource paths
+- URLs: `url("path/to/image.png")`, loads from working directory
+- Resources: `resource("path")`. Unity resource paths
 
 ### Not Yet Supported
 - CSS variables (`var(--custom-prop)`)
@@ -124,10 +124,10 @@ What it doesn't transform (you must pre-process):
 ### Tailwind Compatibility
 
 For Tailwind CSS usage, see the postcss plugins in `onejs-unity/postcss/`:
-- `uss-transform-plugin.cjs` - Handles color and media query transforms
-- `cleanup-plugin.cjs` - Removes unsupported properties
-- `unwrap-is-plugin.cjs` - Flattens `:is()` selectors
-- `onejs-tw-config.cjs` - USS-compatible Tailwind config
+- `uss-transform-plugin.cjs`: Handles color and media query transforms
+- `cleanup-plugin.cjs`: Removes unsupported properties
+- `unwrap-is-plugin.cjs`: Flattens `:is()` selectors
+- `onejs-tw-config.cjs`: USS-compatible Tailwind config
 
 ## Dependencies
 

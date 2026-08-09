@@ -1,4 +1,4 @@
-// UI Creation test - validates CS proxy and UI Toolkit integration
+// UI Creation test: validates CS proxy and UI Toolkit integration
 (function() {
     // Create a container
     var container = new CS.UnityEngine.UIElements.VisualElement();

@@ -659,7 +659,7 @@ namespace OneJS.GPU {
             public int setVector;
             public int setTexture;
 
-            // ID-based hot-path bindings (truly zero-alloc - no generics, no boxing)
+            // ID-based hot-path bindings (truly zero-alloc: no generics, no boxing)
             // Use these for per-frame calls. PropertyToID caches string->int mapping.
             public int dispatch;
             public int getScreenWidth;

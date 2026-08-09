@@ -1270,7 +1270,7 @@ namespace OneJS.Editor {
             _reloadCountLabel.style.display = DisplayStyle.None;
             container.Add(_reloadCountLabel);
 
-            // Watcher status ("Watcher: " in gray + state in color) - hidden when Panel Settings not set/invalid
+            // Watcher status ("Watcher: " in gray + state in color), hidden when Panel Settings not set/invalid
             _watcherRow = CreateRow();
             _watcherRow.style.marginTop = 4;
             _watcherStatusLabel = new Label(OneJSEditorDesign.Texts.Watcher);
@@ -1282,7 +1282,7 @@ namespace OneJS.Editor {
             _watcherRow.Add(_watcherStateLabel);
             container.Add(_watcherRow);
 
-            // Working directory path - hidden when Panel Settings not set/invalid
+            // Working directory path: hidden when Panel Settings not set/invalid
             _workingDirLabel = new Label();
             _workingDirLabel.style.marginTop = 4;
             _workingDirLabel.style.fontSize = 11;
@@ -1689,7 +1689,7 @@ namespace OneJS.Editor {
             UpdateBuildOutputPath();
             UpdateTypeGenStatus();
 
-            // Check if PanelSettings render mode changed - refresh inspector if so
+            // Check if PanelSettings render mode changed: refresh inspector if so
             var panelSettings = serializedObject.FindProperty("_panelSettings").objectReferenceValue as PanelSettings;
             if (panelSettings != null) {
                 var psSO = new SerializedObject(panelSettings);

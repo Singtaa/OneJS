@@ -15,7 +15,7 @@ namespace OneJS {
     ///
     /// This mirrors what StyleBridge.ApplyStyles did for styles: the JS-side
     /// Painter recorder packs all ops into one Float32Array, sends it once, and
-    /// C# replays them here with direct typed calls - zero reflection, with the
+    /// C# replays them here with direct typed calls: zero reflection, with the
     /// Vector2/Color structs constructed C#-side.
     ///
     /// Buffer format: a self-describing opcode stream
@@ -27,7 +27,7 @@ namespace OneJS {
     ///   CS.OneJS.PainterBridge.Execute(mgc, floatBuffer)
     /// </summary>
     public static class PainterBridge {
-        // Opcode contract - must match JSModules/onejs-react/src/painter.ts.
+        // Opcode contract: must match JSModules/onejs-react/src/painter.ts.
         const int OpBeginPath = 1;
         const int OpClosePath = 2;
         const int OpMoveTo = 3;

@@ -20,7 +20,7 @@ namespace OneJS.Profiling {
             // Enable debug logging to see fast path hits/misses
             QuickJSNative.DebugFastPath = true;
 
-            // Test 1: Just read Time.deltaTime - should be zero-alloc
+            // Test 1: Just read Time.deltaTime, should be zero-alloc
             _tickHandle = int.Parse(_ctx.Eval(@"
                 var t = 0;
                 __registerCallback(function() {

@@ -280,11 +280,11 @@ Assets/Singtaa/OneJS/Editor/TypeGenerator/
 
 ## Best Practices
 
-1. **Use presets for common types** - They're optimized and tested
-2. **Exclude obsolete types** - Keeps output clean and future-proof
-3. **Include documentation** - Enables JSDoc tooltips in your IDE
-4. **Combine presets** - Build custom type sets from existing presets
-5. **Use the builder for complex cases** - More control over what's included
+1. **Use presets for common types**: They're optimized and tested
+2. **Exclude obsolete types**: Keeps output clean and future-proof
+3. **Include documentation**: Enables JSDoc tooltips in your IDE
+4. **Combine presets**: Build custom type sets from existing presets
+5. **Use the builder for complex cases**: More control over what's included
 
 ## Troubleshooting
 

@@ -1,4 +1,4 @@
-# OneJS v3 - Agent Guide
+# OneJS v3: Agent Guide
 
 Condensed facts for AI agents working with OneJS. Full documentation: https://onejs.com/docs
 
@@ -47,19 +47,19 @@ Key model:
 - **Edit-mode preview**: JSRunner renders the UI in the Game view without Play mode whenever Panel Settings is valid, `app.js.txt` exists on disk, and the UIDocument root is ready. Ticks at 30 Hz.
 - Scaffolding never overwrites existing files.
 
-Headless (no inspector click): the three methods the button calls are public on `JSRunner` - `PopulateDefaultFiles()`, `EnsureProjectFolderAndAssets(true)`, `EnsureProjectSetup()` - callable from a small editor script (which `-executeMethod` can invoke); then run `npm install && npm run build` in `~/`.
+Headless (no inspector click): the three methods the button calls are public on `JSRunner`, `PopulateDefaultFiles()`, `EnsureProjectFolderAndAssets(true)`, `EnsureProjectSetup()`, callable from a small editor script (which `-executeMethod` can invoke); then run `npm install && npm run build` in `~/`.
 
 ## Build and live reload
 
 All commands run inside `~/`:
 
-- `npm run build` - one-shot bundle
-- `npm run watch` - rebuild on save
-- `npm run typecheck` - `tsc --noEmit`
+- `npm run build`: one-shot bundle
+- `npm run watch`: rebuild on save
+- `npm run typecheck`: `tsc --noEmit`
 
 Inside the editor, the esbuild watcher is **managed automatically** (`JSRunnerAutoWatch` / `NodeWatcherManager`): it starts when edit-mode preview begins (if `node_modules` exists) and on entering Play mode (running `npm install`/`build` first if needed), and stops on Play mode exit. Running `npm run watch` manually also works and is the path for working outside the editor.
 
-JSRunner itself watches the **built bundle** (`app.js.txt`), not source files: an MD5 content poll every 0.5 s plus a FileSystemWatcher. So the loop is simply: save a source file, the watcher rebuilds the bundle, Unity hot-reloads - in both edit-mode preview and Play mode.
+JSRunner itself watches the **built bundle** (`app.js.txt`), not source files: an MD5 content poll every 0.5 s plus a FileSystemWatcher. So the loop is simply: save a source file, the watcher rebuilds the bundle, Unity hot-reloads, in both edit-mode preview and Play mode.
 
 Reload is a **hard reload** (fresh JS context, all JS state lost): `onStop()` (if playing) → Janitor destroys JS-created GameObjects → React teardown (`useEffect` cleanups DO run) → new context, globals re-injected → bundle re-runs → `onPlay()` (if playing).
 
@@ -108,7 +108,7 @@ JS → C#:
 - ES6 imports in app code: `import { Vector3 } from "UnityEngine"` (esbuild rewrites module paths starting with an uppercase letter to `CS.*`).
 - The `CS` global proxy reaches any type in any loaded assembly, including game code: `CS.MyGame.Bridge.Instance`. Prefer namespaced C# types.
 - Structs read by field access (`pos.x`); C# lists/arrays support `.Count`/`.Length` + indexing; `toArray<T>(list)` (from `onejs-react`) makes a real JS array.
-- Generic types work: `CS.System.Collections.Generic.List(CS.System.Int32)`. Generic **methods** are unsupported - wrap them in plain C# methods. Extension methods need `useExtensions(CS.The.StaticClass)` first.
+- Generic types work: `CS.System.Collections.Generic.List(CS.System.Int32)`. Generic **methods** are unsupported, wrap them in plain C# methods. Extension methods need `useExtensions(CS.The.StaticClass)` first.
 
 C# → JS:
 
@@ -124,15 +124,15 @@ Performance on QuickJS (an interpreter): every proxy access is a reflection cros
 - IIFE bundle format is mandatory; never emit ESM.
 - Keep the react aliases in the esbuild config.
 - `e.value`, not `e.target.value`.
-- `console.log(csObject)` prints a handle, not fields - log fields directly. JS logs land in the Unity Console.
+- `console.log(csObject)` prints a handle, not fields: log fields directly. JS logs land in the Unity Console.
 - Native callback table = 4096 slots (one per JS function bound to a C# delegate/event; freed on reassign/`remove_`).
 - IL2CPP/AOT builds strip dynamically-accessed code: ship a `link.xml` preserving your game assemblies or you get `[QuickJS] Type/Method not found` in builds only. See https://onejs.com/docs/guides/building
-- Scene transitions destroy JSRunner before React cleanup runs - also clear static delegate subscriptions in `onStop`.
+- Scene transitions destroy JSRunner before React cleanup runs: also clear static delegate subscriptions in `onStop`.
 - On Android/WebGL, `StreamingAssets` is a URL, not a directory: use the async asset loaders (`loadImageAsync` etc.) from `onejs-unity/assets`.
 
 ## Verifying without the editor GUI
 
-- `npm run build` and `npm run typecheck` validate the whole JS side from the CLI - no editor needed.
+- `npm run build` and `npm run typecheck` validate the whole JS side from the CLI: no editor needed.
 - Unity batchmode runs tests: `-batchmode -runTests` (EditMode/PlayMode).
 - Edit-mode preview renders the UI without Play mode; JS errors surface in the Unity Console.
 

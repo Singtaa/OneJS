@@ -12,7 +12,7 @@
  * - jslib implements these functions, delegating to browser JS
  * - JS->C# callbacks use makeDynCall to invoke C# delegates
  *
- * Struct Layouts (WASM32 - all pointers are 4 bytes):
+ * Struct Layouts (WASM32: all pointers are 4 bytes):
  *
  * InteropType enum (int32):
  *   0=Null, 1=Bool, 2=Int32, 3=Double, 4=String, 5=ObjectHandle,
@@ -47,7 +47,7 @@
 var OneJSWebGLLib = {
 
     // =========================================================================
-    // Dependencies - Shared State
+    // Dependencies: Shared State
     // =========================================================================
 
     $OneJS: {
@@ -206,7 +206,7 @@ var OneJSWebGLLib = {
                     stringToUTF8("color", hintPtr, 6);
                     HEAPU32[(valuePtr + 24) >> 2] = hintPtr;
                 }
-                // Generic object - serialize as JSON
+                // Generic object: serialize as JSON
                 else {
                     try {
                         var json = JSON.stringify(value);
@@ -216,7 +216,7 @@ var OneJSWebGLLib = {
                         stringToUTF8(json, jsonPtr, jsonLen);
                         HEAPU32[(valuePtr + 8) >> 2] = jsonPtr;
                     } catch (e) {
-                        // Can't serialize - treat as null
+                        // Can't serialize: treat as null
                         HEAP32[valuePtr >> 2] = OneJS.TYPE_NULL;
                     }
                 }
@@ -224,7 +224,7 @@ var OneJSWebGLLib = {
             else {
                 if (type === "function") {
                     // Functions must be converted to { __csCallbackHandle: N } by the
-                    // bootstrap's __resolveValue before crossing the bridge - a bare
+                    // bootstrap's __resolveValue before crossing the bridge: a bare
                     // function here means a path bypassed it
                     console.error("[OneJS] marshalValue: cannot marshal a JS function directly; " +
                         "it should have been registered via __registerCallback. Marshaling as null.");
@@ -269,7 +269,7 @@ var OneJSWebGLLib = {
                     var handle = HEAP32[(valuePtr + 8) >> 2];
                     var typeHintPtr = HEAPU32[(valuePtr + 24) >> 2];
                     var typeHint = typeHintPtr ? UTF8ToString(typeHintPtr) : "";
-                    // Return object with handle - will be wrapped by bootstrap
+                    // Return object with handle: will be wrapped by bootstrap
                     return { __csHandle: handle, __csType: typeHint };
 
                 case OneJS.TYPE_VECTOR3:
@@ -327,7 +327,7 @@ var OneJSWebGLLib = {
         },
 
         // =====================================================================
-        // Main invoke function - called from JS to invoke C# methods
+        // Main invoke function: called from JS to invoke C# methods
         // =====================================================================
         invokeCs: function(typeName, memberName, callKind, isStatic, targetHandle, args) {
             if (!OneJS.callbacks.invoke) {
@@ -537,11 +537,11 @@ var OneJSWebGLLib = {
     // On native, the QuickJS runtime exposes __zaInvoke0..N JS functions that
     // route through this callback. We replicate the same surface on WebGL so
     // code that uses the fast path (onejs-unity GPU compute, input reader)
-    // works without changes - and so the reconciler can opt-in later.
+    // works without changes, and so the reconciler can opt-in later.
     //
     // The shims marshal args directly into the WASM heap, call the C# zero-
     // alloc dispatcher via dynCall, and unmarshal the result. Allocation is
-    // per-call (via _malloc/_free) - slower than native's stack-allocated
+    // per-call (via _malloc/_free): slower than native's stack-allocated
     // path but still far cheaper than __cs.invoke since there's no JSON
     // marshalling or method-resolution on the C# side.
     qjs_set_cs_zeroalloc_callback__deps: ["$OneJS"],
@@ -591,7 +591,7 @@ var OneJSWebGLLib = {
         };
 
         var g = typeof window !== "undefined" ? window : globalThis;
-        // One implementation services all arities - JS doesn't enforce param
+        // One implementation services all arities: JS doesn't enforce param
         // counts, and the variadic form keeps the shim small.
         g.__zaInvoke0 = function(bindingId) { return invoke(bindingId, []); };
         g.__zaInvoke1 = function(bindingId, a0) { return invoke(bindingId, [a0]); };
@@ -622,7 +622,7 @@ var OneJSWebGLLib = {
         }
 
         // Argument memory is owned by the C# caller (InvokeCallback/NoAlloc allocate
-        // and free it) - must not be freed here.
+        // and free it): must not be freed here.
         var args = new Array(argCount);
         for (var i = 0; i < argCount; i++) {
             args[i] = OneJS.unmarshalValue(argsPtr + i * OneJS.SIZEOF_INTEROP_VALUE);
@@ -647,7 +647,7 @@ var OneJSWebGLLib = {
 
     qjs_dispatch_event__deps: ["$OneJS"],
     qjs_dispatch_event: function(elementHandle, eventTypePtr, eventDataPtr) {
-        // Fast path for event dispatch - avoids eval overhead. Returns the suppression-flags
+        // Fast path for event dispatch: avoids eval overhead. Returns the suppression-flags
         // bitmask from __dispatchEvent (bit0=propagationStopped, bit1=defaultPrevented), or 0.
         var eventType = UTF8ToString(eventTypePtr);
         var eventDataJson = UTF8ToString(eventDataPtr);

@@ -28,7 +28,7 @@ namespace OneJS {
             if (stylesObj is not Dictionary<string, object> styles) return;
 
             // IStyle is implemented by an internal class (InlineStyleAccess)
-            // via explicit interface implementation - width/height/etc. are not
+            // via explicit interface implementation: width/height/etc. are not
             // exposed as public properties on the runtime type, only through
             // the interface. Reflect on IStyle so PropertyInfo.SetValue routes
             // through the interface dispatch.
@@ -104,7 +104,7 @@ namespace OneJS {
         }
 
         // Batched class-list add. The reconciler used to call AddToClassList
-        // once per class - Tailwind classNames like "justify-center items-center
+        // once per class: Tailwind classNames like "justify-center items-center
         // absolute h-full" cost 4 __cs.invoke crossings. WebGL builds spend
         // ~3ms per crossing, so heavy className usage was a measurable share of
         // mount latency. One crossing per element here regardless of class
@@ -135,7 +135,7 @@ namespace OneJS {
         // Direct typed setters for the common style properties. Reuses the same
         // ConvertToTargetType the reflection path uses (so values convert
         // identically), but assigns through the typed IStyle setter instead of
-        // PropertyInfo.SetValue - no reflection invoke, no per-call object[].
+        // PropertyInfo.SetValue: no reflection invoke, no per-call object[].
         // Returns false for properties not covered here (long-tail props like
         // transforms, transitions, fonts, slices), which take the reflection path.
         static bool TryApplyFast(IStyle style, string key, object value) {

@@ -18,7 +18,7 @@ namespace OneJS.Tests {
     /// </summary>
     [TestFixture]
     public class JSRunnerPlaymodeTests {
-        // Tests temporarily disabled - JSRunner now uses scene-based auto paths
+        // Tests temporarily disabled: JSRunner now uses scene-based auto paths
         // which require tests to be run in the context of a saved scene.
         //
         // TODO: Update tests to work with new scene-based path system:

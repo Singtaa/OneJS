@@ -81,7 +81,7 @@ namespace OneJS {
                 }
 
                 // ============================================================
-                // ZERO-ALLOC FAST PATH - checked BEFORE any string allocation
+                // ZERO-ALLOC FAST PATH: checked BEFORE any string allocation
                 // ============================================================
                 if (TryFastPathZeroAlloc(
                         type,
@@ -97,7 +97,7 @@ namespace OneJS {
                 }
 
                 // ============================================================
-                // SLOW PATH - now we allocate strings for reflection
+                // SLOW PATH: now we allocate strings for reflection
                 // ============================================================
                 string typeName = PtrToStringUtf8(reqPtr->typeName);
                 string memberName = PtrToStringUtf8(reqPtr->memberName);
@@ -414,7 +414,7 @@ namespace OneJS {
                     }
 
                     case InteropInvokeCallKind.TryGetProp: {
-                        // Silent variant of GetProp - returns null instead of logging on failure.
+                        // Silent variant of GetProp: returns null instead of logging on failure.
                         // Used by the CS path proxy for speculative static property resolution.
                         PropertyInfo prop = FindPropertyCached(type, memberName, isStatic);
                         if (prop != null) {
@@ -436,7 +436,7 @@ namespace OneJS {
                             SetReturnValue(resPtr, "__oneJS_methodRef__");
                             return;
                         }
-                        // Not found - return null silently (no error log)
+                        // Not found: return null silently (no error log)
                         resPtr->returnValue.type = InteropType.Null;
                         return;
                     }
@@ -493,7 +493,7 @@ namespace OneJS {
             // Primitives
             if (TrySetReturnValueForPrimitive(resPtr, value, t)) return;
 
-            // Serializable structs - only JSON-serialize data-only structs.
+            // Serializable structs: only JSON-serialize data-only structs.
             // Structs with instance methods (e.g. Scene.GetRootGameObjects()) fall through
             // to RegisterObject so JS gets a proxy that can dispatch method calls.
             if (IsSerializableStruct(t)) {
@@ -513,7 +513,7 @@ namespace OneJS {
                 return;
             }
 
-            // Reference type - register as handle
+            // Reference type: register as handle
             int handle = RegisterObject(value);
             resPtr->returnValue.type = InteropType.ObjectHandle;
             resPtr->returnValue.handle = handle;
@@ -644,7 +644,7 @@ namespace OneJS {
                     return;
                 }
 
-                // Task succeeded - return the result
+                // Task succeeded: return the result
                 object result = GetTaskResultDirect(task);
                 if (result == null) {
                     resPtr->returnValue.type = InteropType.Null;
@@ -656,7 +656,7 @@ namespace OneJS {
                 return;
             }
 
-            // Task is still pending - register for async completion
+            // Task is still pending: register for async completion
             int taskId = RegisterTask(task);
             resPtr->returnValue.type = InteropType.String;
             resPtr->returnValue.str = StringToUtf8($"{{\"__csTaskId\":{taskId}}}");

@@ -111,7 +111,7 @@ namespace OneJS {
         internal static extern void qjs_set_cs_zeroalloc_callback(CsZeroAllocCallback cb);
 
 #if UNITY_WEBGL && !UNITY_EDITOR
-        // Fast event dispatch for WebGL - avoids eval overhead. Returns the suppression-flags
+        // Fast event dispatch for WebGL: avoids eval overhead. Returns the suppression-flags
         // bitmask from __dispatchEvent (bit0=propagationStopped, bit1=defaultPrevented), or 0.
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern int qjs_dispatch_event(
@@ -164,7 +164,7 @@ namespace OneJS {
             [FieldOffset(4)]
             public int pad;
 
-            // Union members - all start at offset 8
+            // Union members: all start at offset 8
             [FieldOffset(8)]
             public int i32;
 
@@ -186,7 +186,7 @@ namespace OneJS {
             [FieldOffset(8)]
             public IntPtr str;
 
-            // Vector components - for Vector3/Vector4/Color/Quaternion
+            // Vector components: for Vector3/Vector4/Color/Quaternion
             [FieldOffset(8)]
             public float vecX;
 

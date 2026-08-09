@@ -170,7 +170,7 @@ namespace OneJS.Editor {
                             Debug.Log($"[Watch] {e.Data}");
                         }
                     } else {
-                        // null means end of stream - check if all streams are done
+                        // null means end of stream: check if all streams are done
                         HandleStreamEnd(key, workingDir);
                     }
                 };
@@ -184,13 +184,13 @@ namespace OneJS.Editor {
                             Debug.Log($"[Watch] {e.Data}");
                         }
                     } else {
-                        // null means end of stream - check if all streams are done
+                        // null means end of stream: check if all streams are done
                         HandleStreamEnd(key, workingDir);
                     }
                 };
 
                 process.Exited += (s, e) => {
-                    // Don't remove watcher here - wait for streams to finish via HandleStreamEnd
+                    // Don't remove watcher here: wait for streams to finish via HandleStreamEnd
                 };
 
                 process.Start();
@@ -280,7 +280,7 @@ namespace OneJS.Editor {
             _outputPendingCount[key] = count;
 
             if (count <= 0) {
-                // All streams have finished - now safe to clean up
+                // All streams have finished: now safe to clean up
                 _watchers.Remove(key);
                 ClearSavedState(key);
                 OnWatcherStopped?.Invoke(workingDir);
@@ -309,7 +309,7 @@ namespace OneJS.Editor {
         }
 
         static void OnBeforeReload() {
-            // Don't stop watchers on domain reload - they keep running
+            // Don't stop watchers on domain reload: they keep running
             // We'll reattach via TryReattach after reload
         }
 

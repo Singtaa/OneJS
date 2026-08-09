@@ -19,7 +19,7 @@ namespace OneJS.Editor {
             // Get separator from PairDrawerAttribute on parent field
             var separator = GetSeparatorFromParent(property);
 
-            // Content field (TextAsset) - shown first since separator is "←"
+            // Content field (TextAsset): shown first since separator is "←"
             var contentField = new ObjectField();
             contentField.objectType = typeof(TextAsset);
             contentField.allowSceneObjects = false;

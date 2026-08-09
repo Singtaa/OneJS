@@ -610,7 +610,7 @@ namespace OneJS.Input {
             gp.SetMotorSpeeds(lowFreq, highFreq);
 
             if (duration > 0) {
-                // Schedule stop - requires coroutine helper
+                // Schedule stop: requires coroutine helper
                 // For now, caller should manage duration
             }
         }
@@ -980,12 +980,12 @@ namespace OneJS.Input {
             if (_bindingsRegistered) return;
             _bindingsRegistered = true;
 
-            // Keyboard - string-based (for compatibility)
+            // Keyboard: string-based (for compatibility)
             _bindingIds.getKeyDown = QuickJSNative.Bind<string, bool>(GetKeyDown);
             _bindingIds.getKeyPressed = QuickJSNative.Bind<string, bool>(GetKeyPressed);
             _bindingIds.getKeyReleased = QuickJSNative.Bind<string, bool>(GetKeyReleased);
 
-            // Keyboard - ID-based (zero-alloc hot path)
+            // Keyboard: ID-based (zero-alloc hot path)
             _bindingIds.getKeyId = QuickJSNative.Bind<string, int>(GetKeyId);
             _bindingIds.getKeyDownById = QuickJSNative.Bind<int, bool>(GetKeyDownById);
             _bindingIds.getKeyPressedById = QuickJSNative.Bind<int, bool>(GetKeyPressedById);
@@ -1000,14 +1000,14 @@ namespace OneJS.Input {
             _bindingIds.getScrollX = QuickJSNative.Bind(GetScrollX);
             _bindingIds.getScrollY = QuickJSNative.Bind(GetScrollY);
 
-            // Gamepad - string-based (for compatibility)
+            // Gamepad: string-based (for compatibility)
             _bindingIds.getGamepadButtonDown = QuickJSNative.Bind<int, string, bool>(GetGamepadButtonDown);
 
-            // Gamepad - ID-based (zero-alloc hot path)
+            // Gamepad: ID-based (zero-alloc hot path)
             _bindingIds.getGamepadButtonId = QuickJSNative.Bind<string, int>(GetGamepadButtonId);
             _bindingIds.getGamepadButtonDownById = QuickJSNative.Bind<int, int, bool>(GetGamepadButtonDownById);
 
-            // Gamepad sticks/triggers (already zero-alloc - no strings)
+            // Gamepad sticks/triggers (already zero-alloc: no strings)
             _bindingIds.getLeftStickX = QuickJSNative.Bind<int, float>(GetLeftStickX);
             _bindingIds.getLeftStickY = QuickJSNative.Bind<int, float>(GetLeftStickY);
             _bindingIds.getRightStickX = QuickJSNative.Bind<int, float>(GetRightStickX);
@@ -1029,12 +1029,12 @@ namespace OneJS.Input {
         }
 
         public struct ZeroAllocInputBindings {
-            // Keyboard - string-based (for compatibility)
+            // Keyboard: string-based (for compatibility)
             public int getKeyDown;
             public int getKeyPressed;
             public int getKeyReleased;
 
-            // Keyboard - ID-based (zero-alloc hot path)
+            // Keyboard: ID-based (zero-alloc hot path)
             public int getKeyId;
             public int getKeyDownById;
             public int getKeyPressedById;
@@ -1049,10 +1049,10 @@ namespace OneJS.Input {
             public int getScrollX;
             public int getScrollY;
 
-            // Gamepad - string-based (for compatibility)
+            // Gamepad: string-based (for compatibility)
             public int getGamepadButtonDown;
 
-            // Gamepad - ID-based (zero-alloc hot path)
+            // Gamepad: ID-based (zero-alloc hot path)
             public int getGamepadButtonId;
             public int getGamepadButtonDownById;
 

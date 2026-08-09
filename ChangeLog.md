@@ -3,7 +3,7 @@
 - Fixed legacy Input Manager compile break: FastPath's `UnityEngine.Input` registrations resolved against the new `OneJS.Input` namespace in projects with the legacy input manager enabled
 - Added GitHub CI: EditMode + PlayMode suites on every push and PR
 
-# [2026-08-06] v3.1.0 - OneJS V3 🥳🎉
+# [2026-08-06] v3.1.0: OneJS V3 🥳🎉
 
 ## Major Changes
 
@@ -52,12 +52,12 @@
 - CoroutineUtil Instance fix
 - WebGL PuerTS tweak for Unity 6.3 (robust WASM table lookup, `updateMemoryViews` hook)
 
-# [2025-11-30] v2.3.3 - Bug Fixes
+# [2025-11-30] v2.3.3: Bug Fixes
 
 - Make Sample code to use "PhysicMaterial" for pre Unity 6 versions
 - Guard Coroutine Eval in Runner
 
-# [2025-11-28] v2.3.2 - Minor Fixes
+# [2025-11-28] v2.3.2: Minor Fixes
 
 - Fixed ExCSS.Unity issue on Unity 2022.3
 - Fixed WebGL Playmode issue with `document` not being set
@@ -66,7 +66,7 @@
 
 - Fixed regressions in Unity 6.3 Runtime USS where UnityEditor namespaces were still referenced in runtime code.
 
-# [2025-10-20] v2.3.0 - Updated for Unity 6.3
+# [2025-10-20] v2.3.0: Updated for Unity 6.3
 
 SVG support and uss filters are now built-in!
 
@@ -97,12 +97,12 @@ SVG support and uss filters are now built-in!
 
 - Added tick Error handling event to ScriptEngine and EngineHost
 
-# [2025-05-28] v2.2.2 - Misc Improvements
+# [2025-05-28] v2.2.2: Misc Improvements
 
 - Delayed EvalFile(). This ensures the inital <App /> mounting happens after the initial UIDocument load (so that the initial layouts are already calculated).
 - Added an extra ".root" css specificity to generated TW classes. 
 
-# [2025-05-21] v2.2.1 - Game UIs
+# [2025-05-21] v2.2.1: Game UIs
 
 Improved some workflows to support the rollout of our game UIs.
 
@@ -128,9 +128,9 @@ This will work as long as you have a `premade-uis.tgz(.bytes)` file anywhere in 
 - WebApi to support headers
 - `2xl -> xxl` so we don't run into char escaping issues
 
-# [2025-03-12] v2.1.14 - Minor Tweaks
+# [2025-03-12] v2.1.14: Minor Tweaks
 
-# [2025-03-10] v2.1.13 - Bugfixes and Improvements
+# [2025-03-10] v2.1.13: Bugfixes and Improvements
 
 `onejs/math` is now available! See `onejs-core` repo for more info.
 
@@ -140,7 +140,7 @@ This will work as long as you have a `premade-uis.tgz(.bytes)` file anywhere in 
 - Better uss class name escaping
 - Many Editor UI improvements
 
-# [2025-01-23] v2.1.9 - Improvements to Bundler and DTSGen
+# [2025-01-23] v2.1.9: Improvements to Bundler and DTSGen
 
 - Many updates on the npm modules (onejs-core, onejs-preact, onejs-comps, etc)
 - Backends MenuItems
@@ -155,11 +155,11 @@ This will work as long as you have a `premade-uis.tgz(.bytes)` file anywhere in 
 - Codegen: accomodate for Nullable types
 - EngineHost Refactor
 
-# [2024-12-08] v2.1.7 - Minor Tweak
+# [2024-12-08] v2.1.7: Minor Tweak
 
 - Added a global.d.ts by default
 
-# [2024-12-02] v2.1.6 - Preparation for Editor UI
+# [2024-12-02] v2.1.6: Preparation for Editor UI
 
 We’re releasing this now, ahead of the Editor UI update (expected in a couple of weeks), as it includes significant improvements and bug fixes that are worth rolling out early. 
 
@@ -175,7 +175,7 @@ If you are updating an existing project, make sure to also bump the `onejs-core`
 
 (Most of the Editor UI code are actually in. However, we'll use the next release to get into the details.)
 
-# [2024-10-01] v2.0.26 - OneJS V2 🥳🎉
+# [2024-10-01] v2.0.26: OneJS V2 🥳🎉
 
 ## Major Changes
 
@@ -210,13 +210,13 @@ If you are updating an existing project, make sure to also bump the `onejs-core`
 
 # OneJS V1 ChangeLogs below
 
-## [2024-07-08] v1.6.13 - Preact 10.21
+## [2024-07-08] v1.6.13: Preact 10.21
 
 * Updated Preact to 10.21
 * CultureInfo.InvariantCulture fix for HexMatchToRgba()
 * Add AddRuntime* APIs for ScriptEngine
 
-## [2024-02-08] v1.6.10 - Bugfixes and Improvements
+## [2024-02-08] v1.6.10: Bugfixes and Improvements
 
 OneJS V2 is coming! Get in our Discord server and private repo to follow the progress.
 
@@ -245,7 +245,7 @@ OneJS V2 is coming! Get in our Discord server and private repo to follow the pro
 * Auto-reimport uss after generation (Tailwind)
 * useEventfulState() forceUpdate() regression fix
 
-## [2023-08-31] v1.6.6 - Stability and Misc Additions
+## [2023-08-31] v1.6.6: Stability and Misc Additions
 
 * Updated Jint to [beta-2050]
 * jsx-runtime support
@@ -263,18 +263,18 @@ OneJS V2 is coming! Get in our Discord server and private repo to follow the pro
 * Added EventfulPropertyAttribute and corresponding source generator
 * Added ValueTuple check in TSDefConverter
 
-## [2023-07-03] v1.6.4 - Comp Library and More
+## [2023-07-03] v1.6.4: Comp Library and More
 
 * Added a new Component Library under ScriptLib/onejs/comps. These are inspired by HeadlessUI.
     * Please see the v1.6 Docs for more information.
 * ScriptLib folder now will contain the .ts files. This is to make it easier to refer to the TS implementation instead of the compiled JS.
 
-## [2023-05-30] v1.6.1 - Major Tailwind Rework
+## [2023-05-30] v1.6.1: Major Tailwind Rework
 
 * Support for Tailwind compiler has landed!
 * Documentation here: https://onejs.com/docs/v1.6/tailwind
 
-## [2023-04-23] v1.5.9 - Quite a bit of QoL stuff, Tweaks, and Bugfixes
+## [2023-04-23] v1.5.9: Quite a bit of QoL stuff, Tweaks, and Bugfixes
 
 * Added more CLR exception handling logging
 * VisualElementExts ForceUpdate()
@@ -294,13 +294,13 @@ OneJS V2 is coming! Get in our Discord server and private repo to follow the pro
 * Added ref support for styled comp
 * Added memo to preact/compat
 
-## [2023-03-04] v1.5.7 - Minor Tweaks and Bugfixes
+## [2023-03-04] v1.5.7: Minor Tweaks and Bugfixes
 
 * Better VectorAPI version check
 * .boxedValue alternative (for Unity 2021.3)
 * Auto-create directory for player workingDir
 
-## [2023-02-18] v1.5.5 - Internal Code Improvements
+## [2023-02-18] v1.5.5: Internal Code Improvements
 
 Online documentation was revamped! Check it out at https://onejs.com/ There is now a new comprehensive Tutorial101.
 
@@ -309,7 +309,7 @@ Online documentation was revamped! Check it out at https://onejs.com/ There is n
 * Offline Doumentation.pdf revamped
 * Many minior tweaks and bugfixes
 
-## [2023-01-26] v1.5.1 - Getting ready for VanillaBox
+## [2023-01-26] v1.5.1: Getting ready for VanillaBox
 
 * New custom Editors for ScriptEngine, Bundler, and LiveReload. Removed dependency on NaughtyAttributes.
 * Some internal changes done to support the launch of VanillaBox
@@ -337,7 +337,7 @@ Online documentation was revamped! Check it out at https://onejs.com/ There is n
 * Reverted default Trickledown.
 * ScriptEngine.Objects list will now accept any UnityEngine.Object, not just MonoBehaviours.
 
-## [2022-11-08] v1.3.5 - useEventfulState()
+## [2022-11-08] v1.3.5: useEventfulState()
 
 * Implemented useEventfulState()
 * Fixed inconsistent timing between performance.now() and requestAnimationFrame()
@@ -346,11 +346,11 @@ Online documentation was revamped! Check it out at https://onejs.com/ There is n
 * Updated Preact Signals to latest version
 * Path Resolver tweak
 
-## [2022-10-13] v1.3.3a - Bundler Changes
+## [2022-10-13] v1.3.3a: Bundler Changes
 
 * Added user-defined sub-directories for the bundler to ignore during runtime updates
 
-## [2022-10-08] v1.3.3 - Async/await support
+## [2022-10-08] v1.3.3: Async/await support
 
 * Async/await are now supported in OneJS scripts
 * Preact Signals are also now fully supported
@@ -362,11 +362,11 @@ Online documentation was revamped! Check it out at https://onejs.com/ There is n
 * NetSync: Have Server also Broadcast
 * Tailwind ParseColor bugfix @LordXyroz
 
-## [2022-09-15] v1.3.1a - ExCSS.Unity fix
+## [2022-09-15] v1.3.1a: ExCSS.Unity fix
 
 * Patched ExCSS.Unity.dll so it doesn't cause conflicts with other Unity packages
 
-## [2022-09-13] v1.3.1 - Minor Bug Fixes
+## [2022-09-13] v1.3.1: Minor Bug Fixes
 
 * Fixed turning Live Reload off for Standalone builds
 * Add Navigation Events to the TS definitions
@@ -374,7 +374,7 @@ Online documentation was revamped! Check it out at https://onejs.com/ There is n
 * Adds support for chaining pseudo selectors @Walrusking16
 * Tag lookup fix, Dom compliance and ListView example @Sciumo
 
-## [2022-09-01] v1.3.0 - Runtime CSS
+## [2022-09-01] v1.3.0: Runtime CSS
 
 You are now able to load CSS strings at runtime via `document.addRuntimeCSS()`. See https://onejs.com/runtimecss for
 more information.
@@ -387,14 +387,14 @@ more information.
 * Action queues without coroutines
 * setInterval
 
-## [2022-07-10] v1.2.1 - Minor features and bugfixes
+## [2022-07-10] v1.2.1: Minor features and bugfixes
 
 * Implemented onValueChanged for UI Toolkit controls
 * Fixed __listeners Linux slowdown
 * GameObject Extensions AddComp(), GetComp(), and FindType() fixes
 * UIElementsNativeModule handling for 2022.2 and later
 
-## [2022-06-24] v1.2.0 - WorkingDir Rework
+## [2022-06-24] v1.2.0: WorkingDir Rework
 
 You are now able to keep all your scripts under `{ProjectDir}/OneJS`. And the scripts will be automatically bundled
 into`{persistentDataPath}/OneJS` for Standalone builds.
@@ -407,13 +407,13 @@ into`{persistentDataPath}/OneJS` for Standalone builds.
 * Added an extra option (`Poll Standalone Screen`) on the Tailwind component to allow you to also watch for screen
   changes for standalone builds.
 
-## [2022-06-19] v1.1.2 - Bugfixes
+## [2022-06-19] v1.1.2: Bugfixes
 
 * Fixed various preact cyclic reference errors
 * Fixed preact diff bug (missing parentNode)
 * Fixed Tailwind StyleScale regression in 2021.3
 
-## [2022-06-08] v1.1.1 - Flipbook and more Tailwind support
+## [2022-06-08] v1.1.1: Flipbook and more Tailwind support
 
 ### Newly Added:
 
@@ -426,7 +426,7 @@ into`{persistentDataPath}/OneJS` for Standalone builds.
 * Preact useContext bugfix
 * Preact nested children bugfix
 
-## [2022-05-26] v1.1.0 - Tailwind and Multi-Device Live Reload
+## [2022-05-26] v1.1.0: Tailwind and Multi-Device Live Reload
 
 ### New Features:
 
@@ -448,7 +448,7 @@ into`{persistentDataPath}/OneJS` for Standalone builds.
 * Fixed overflow style Enum bug
 * Fixed a bunch of setStyleList bugs
 
-## [2022-05-16] v1.0.0 - Initial Release
+## [2022-05-16] v1.0.0: Initial Release
 
 * Full Preact Integration with 1-to-1 interop with UI Toolkit
 * Live Reload

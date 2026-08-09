@@ -2,11 +2,11 @@
 // The whole bootstrap runs inside this IIFE. On WebGL the file is evaluated by
 // indirect eval in the EMBEDDING PAGE's global scope (sloppy mode), where
 // top-level function/var declarations become own properties of the host page's
-// window - e.g. a top-level `function addEventListener(element, ...)` shadows
+// window: e.g. a top-level `function addEventListener(element, ...)` shadows
 // EventTarget.prototype.addEventListener for every script on the page. Keeping
 // all declarations closure-scoped limits the page-visible surface to the
 // explicit `globalThis.*` assignments. Anything the user bundle, C#, or the
-// jslib needs by name MUST be exported via `globalThis.*` - top-level
+// jslib needs by name MUST be exported via `globalThis.*`: top-level
 // declarations are no longer reachable from other evals on any platform.
 // (Body indentation intentionally left at column 0.)
 (function () {
@@ -27,10 +27,10 @@ const __releasedHandles = new Set();
 // Ensures the same C# object handle always returns the same JS proxy.
 // This prevents premature handle release when multiple code paths access the same object:
 // without caching, each access creates a new proxy registered with FinalizationRegistry,
-// and when ANY proxy is GC'd, the handle is released - invalidating all other proxies.
+// and when ANY proxy is GC'd, the handle is released, invalidating all other proxies.
 const __proxyCache = new Map();
 
-// Forward declaration - actual Map created in Events section
+// Forward declaration: actual Map created in Events section
 // This allows __cleanupHandle to reference it before initialization
 let __eventHandlers = new Map();
 
@@ -74,7 +74,7 @@ const __handleRegistry = new FinalizationRegistry((handle) => {
  * Called before releasing the handle to C#.
  */
 function __cleanupHandle(handle) {
-    // Clean up proxy cache - prevents stale proxy from being reused
+    // Clean up proxy cache: prevents stale proxy from being reused
     __proxyCache.delete(handle);
     // Clean up event handlers for this element
     __eventHandlers.delete(handle);
@@ -129,7 +129,7 @@ function __resolveValue(value) {
         return value;
     }
 
-    // Function detection - register as callback for C# delegate conversion
+    // Function detection: register as callback for C# delegate conversion
     // Native builds have __registerCallback; WebGL does not (handled differently)
     if (typeof value === "function" && typeof __registerCallback === "function") {
         // Wrap the callback to process incoming arguments from C#
@@ -147,7 +147,7 @@ function __resolveValue(value) {
         return { __csCallbackHandle: handle };
     }
 
-    // TypedArray detection - convert to array marker for C# marshaling
+    // TypedArray detection: convert to array marker for C# marshaling
     if (ArrayBuffer.isView(value) && !(value instanceof DataView)) {
         return {
             __csArray: Array.from(value),
@@ -269,7 +269,7 @@ function __isTypeRef(value) {
 function __getTypeName(typeRef) {
     if (typeRef == null) return null;
     if (typeof typeRef === "string") return typeRef;
-    // Check path proxy FIRST - accessing other props on path proxy creates nested proxies
+    // Check path proxy FIRST: accessing other props on path proxy creates nested proxies
     if (typeRef.__csPathProxy && typeRef.__csPath) return typeRef.__csPath.join(".");
     if (typeRef.__csBoundGeneric) return typeRef.__csBoundTypeName;
     // Only check __csTypeRef for plain objects with explicit type refs
@@ -379,7 +379,7 @@ function __wrapResultFromCs(typeHint, raw) {
         return __wrapObject(resolvedType, raw.__csHandle);
     }
 
-    // Check for Task marker - C# returns JSON string with __csTaskId
+    // Check for Task marker: C# returns JSON string with __csTaskId
     if (typeof raw === "string" && raw.startsWith("{\"__csTaskId\":")) {
         try {
             const obj = JSON.parse(raw);
@@ -408,7 +408,7 @@ function __wrapResultFromCs(typeHint, raw) {
 function __wrapObject(typeName, handle) {
     if (handle == null || handle === 0) return null;
 
-    // Check proxy cache first - return existing proxy if still alive
+    // Check proxy cache first: return existing proxy if still alive
     // This ensures the same C# object handle always returns the same JS proxy,
     // preventing premature handle release when the GC collects one of multiple proxies
     const cachedRef = __proxyCache.get(handle);
@@ -471,7 +471,7 @@ function __wrapObject(typeName, handle) {
 
             if (typeof prop === "symbol") return undefined;
 
-            // C# objects are not JS thenables - return undefined for Promise protocol.
+            // C# objects are not JS thenables: return undefined for Promise protocol.
             // Prevents errors during Promise resolution's thenable check (Promises/A+ 2.3.3).
             if (prop === "then") return undefined;
 
@@ -689,7 +689,7 @@ const __instancePropertyNames = new Set([
 // Type-existence + enum-type lookups are cached because they're stable for the
 // lifetime of the bridge: a type either exists or doesn't, it doesn't change
 // kind mid-session. Without the cache, every CS proxy traversal fires multiple
-// JSI crossings per path segment - a single modal render was making ~700+
+// JSI crossings per path segment: a single modal render was making ~700+
 // existence checks (CS.UnityEngine, CS.UnityEngine.UIElements, ...) and
 // dominating mount latency on WebGL.
 const __typeExistsCache = new Map();
@@ -928,7 +928,7 @@ if (typeof globalThis.CS === "undefined") {
 }
 
 // MARK: Events
-// Event handler registry - maps elementHandle -> { eventType -> Set<callback> }
+// Event handler registry: maps elementHandle -> { eventType -> Set<callback> }
 // Note: __eventHandlers is declared at top of file for use by __cleanupHandle
 
 // Event types that need per-element C# registration.
@@ -976,9 +976,9 @@ function __unregisterPerElementHandler(element, eventType) {
 /**
  * Register an event handler for an element.
  * Called by user code or React reconciler.
- * @param {object} element - CS object proxy with __csHandle
- * @param {string} eventType - Event name: click, pointerdown, change, etc.
- * @param {function} callback - Handler function receiving event data
+ * @param {object} element: CS object proxy with __csHandle
+ * @param {string} eventType: Event name: click, pointerdown, change, etc.
+ * @param {function} callback: Handler function receiving event data
  */
 function addEventListener(element, eventType, callback) {
     if (!element || !element.__csHandle) {
@@ -1105,7 +1105,7 @@ globalThis.__dispatchEvent = function(elementHandle, eventType, eventData) {
         }
     }
 
-    // Bubble phase - walk up the parent chain
+    // Bubble phase: walk up the parent chain
     if (!event.propagationStopped && !__nonBubblingEvents.has(eventType)) {
         let currentHandle = __parentMap.get(elementHandle);
         while (currentHandle != null && currentHandle > 0) {
@@ -1236,7 +1236,7 @@ let __timerId = 0;
 const __timeouts = new Map();
 const __intervals = new Map();
 
-// Timestamp from last tick - used as unified time base
+// Timestamp from last tick: used as unified time base
 let __currentTime = 0;
 
 // Only polyfill performance.now if it doesn't exist (QuickJS)
@@ -1416,7 +1416,7 @@ function __createTaskPromise(taskId) {
 globalThis.__resolveTask = function(taskId, result) {
     const pending = __pendingTaskPromises.get(taskId);
     if (!pending) {
-        // No pending promise - task was registered from C# without JS involvement.
+        // No pending promise: task was registered from C# without JS involvement.
         // This is valid for C#-only async operations and monitoring tests.
         return;
     }
@@ -1434,7 +1434,7 @@ globalThis.__resolveTask = function(taskId, result) {
 globalThis.__rejectTask = function(taskId, errorMessage) {
     const pending = __pendingTaskPromises.get(taskId);
     if (!pending) {
-        // No pending promise - task was registered from C# without JS involvement.
+        // No pending promise: task was registered from C# without JS involvement.
         return;
     }
     __pendingTaskPromises.delete(taskId);
@@ -1476,7 +1476,7 @@ function __flushMicrotasks() {
 // MARK: Teardown
 // Teardown hooks run right before the JS context is destroyed (hot reload, stop,
 // or shutdown). They let framework code release resources and fire component
-// cleanup while the context is still alive - e.g. the React reconciler unmounts
+// cleanup while the context is still alive: e.g. the React reconciler unmounts
 // its roots here so useEffect/useLayoutEffect cleanup functions run on hot reload.
 // C# (QuickJSUIBridge.Dispose) invokes __runTeardown() before tearing the context
 // down; without it, cleanups never fire and stale C# subscriptions (e.g. from
@@ -1504,7 +1504,7 @@ globalThis.__runTeardown = function() {
 };
 
 // MARK: setImmediate
-// setImmediate - executes callback via microtask queue (synchronously in same tick)
+// setImmediate: executes callback via microtask queue (synchronously in same tick)
 // This is needed by React's scheduler as a priority over setTimeout
 const __immediateCallbacks = new Map();
 let __immediateId = 0;
@@ -1536,7 +1536,7 @@ globalThis.clearImmediate = function(id) {
 // MARK: StyleSheet API
 /**
  * Load a USS file from the working directory and apply it to the root element.
- * @param {string} path - Path relative to working directory (e.g., "styles/main.uss")
+ * @param {string} path: Path relative to working directory (e.g., "styles/main.uss")
  * @returns {boolean} True if successful
  */
 globalThis.loadStyleSheet = function(path) {
@@ -1550,8 +1550,8 @@ globalThis.loadStyleSheet = function(path) {
 /**
  * Compile a USS string and apply it to the root element.
  * If a stylesheet with the same name already exists, it will be replaced (deduplication).
- * @param {string} ussContent - USS content string
- * @param {string} [name] - Name for the stylesheet (used for deduplication and debugging)
+ * @param {string} ussContent: USS content string
+ * @param {string} [name]: Name for the stylesheet (used for deduplication and debugging)
  * @returns {boolean} True if successful
  */
 globalThis.compileStyleSheet = function(ussContent, name) {
@@ -1564,7 +1564,7 @@ globalThis.compileStyleSheet = function(ussContent, name) {
 
 /**
  * Remove a stylesheet by name.
- * @param {string} name - Name of the stylesheet to remove
+ * @param {string} name: Name of the stylesheet to remove
  * @returns {boolean} True if the stylesheet was found and removed
  */
 globalThis.removeStyleSheet = function(name) {
@@ -1624,7 +1624,7 @@ Object.defineProperty(globalThis, "__temporaryCachePath", {
 /**
  * Read a text file from an absolute path.
  * Works in Editor and standalone builds.
- * @param {string} path - Absolute path to the file
+ * @param {string} path: Absolute path to the file
  * @returns {Promise<string>} File contents
  * @throws {Error} If file doesn't exist or cannot be read
  *
@@ -1645,8 +1645,8 @@ globalThis.readTextFile = async function(path) {
  * Write text to a file at an absolute path.
  * Creates the file if it doesn't exist, overwrites if it does.
  * Automatically creates parent directories.
- * @param {string} path - Absolute path to the file
- * @param {string} content - Content to write
+ * @param {string} path: Absolute path to the file
+ * @param {string} content: Content to write
  * @returns {Promise<void>}
  *
  * @example
@@ -1659,7 +1659,7 @@ globalThis.writeTextFile = async function(path, content) {
 
 /**
  * Check if a file exists at the given path.
- * @param {string} path - Absolute path to check
+ * @param {string} path: Absolute path to check
  * @returns {boolean} True if file exists
  */
 globalThis.fileExists = function(path) {
@@ -1668,7 +1668,7 @@ globalThis.fileExists = function(path) {
 
 /**
  * Check if a directory exists at the given path.
- * @param {string} path - Absolute path to check
+ * @param {string} path: Absolute path to check
  * @returns {boolean} True if directory exists
  */
 globalThis.directoryExists = function(path) {
@@ -1677,7 +1677,7 @@ globalThis.directoryExists = function(path) {
 
 /**
  * Delete a file at the given path.
- * @param {string} path - Absolute path to the file
+ * @param {string} path: Absolute path to the file
  * @returns {boolean} True if file was deleted, false if it didn't exist
  */
 globalThis.deleteFile = function(path) {
@@ -1686,9 +1686,9 @@ globalThis.deleteFile = function(path) {
 
 /**
  * List files in a directory matching an optional pattern.
- * @param {string} path - Directory path
- * @param {string} [pattern="*"] - Search pattern (e.g., "*.uss", "*.json")
- * @param {boolean} [recursive=false] - Search subdirectories
+ * @param {string} path: Directory path
+ * @param {string} [pattern="*"]: Search pattern (e.g., "*.uss", "*.json")
+ * @param {boolean} [recursive=false]: Search subdirectories
  * @returns {string[]} Array of file paths
  */
 globalThis.listFiles = function(path, pattern, recursive) {
@@ -1708,8 +1708,8 @@ globalThis.listFiles = function(path, pattern, recursive) {
  * Load a Unity resource asynchronously from the Resources folder.
  * Returns null if the resource is not found.
  *
- * @param {string} path - Resource path (relative to Resources folder, no extension)
- * @param {Type} [type] - Optional C# Type to load as (e.g., CS.UnityEngine.TextAsset)
+ * @param {string} path: Resource path (relative to Resources folder, no extension)
+ * @param {Type} [type]: Optional C# Type to load as (e.g., CS.UnityEngine.TextAsset)
  * @returns {Promise<Object>} Promise resolving to the loaded asset or null
  *
  * @example
@@ -1734,11 +1734,11 @@ globalThis.loadResourceAsync = async function(path, type) {
  * - WebGL: Uses browser's native fetch (JIT-optimized, full CORS support)
  * - Native: Uses Unity's UnityWebRequest via C#
  *
- * @param {string} url - The URL to fetch
- * @param {Object} [options] - Request options
- * @param {string} [options.method="GET"] - HTTP method
- * @param {Object|Headers|Array} [options.headers] - Request headers (plain object, Headers instance, Map, or [name, value] pairs)
- * @param {string|Object} [options.body] - Request body (auto-stringified if object)
+ * @param {string} url: The URL to fetch
+ * @param {Object} [options]: Request options
+ * @param {string} [options.method="GET"]: HTTP method
+ * @param {Object|Headers|Array} [options.headers]: Request headers (plain object, Headers instance, Map, or [name, value] pairs)
+ * @param {string|Object} [options.body]: Request body (auto-stringified if object)
  * @returns {Promise<Response>} Promise resolving to a Response object
  *
  * @example
@@ -1762,7 +1762,7 @@ if (__nativeFetch) {
 
     // C# parses request headers as a flat JSON object, so any Headers-like
     // init (Headers instance, Map, [key, value] pairs) must be flattened
-    // before JSON.stringify - stringifying a Headers instance directly would
+    // before JSON.stringify: stringifying a Headers instance directly would
     // serialize its internal fields and silently drop every real header.
     // Libraries do pass Headers instances (e.g. supabase-js on its REST path).
     function __flattenHeaders(init) {
@@ -1966,7 +1966,7 @@ class Headers {
     }
 }
 
-// Expose fetch API classes - only if no native implementation exists (QuickJS)
+// Expose fetch API classes: only if no native implementation exists (QuickJS)
 // In WebGL the browser provides spec-complete Headers/Response and the
 // bootstrap shares the embedding page's global scope, so the natives must win
 if (typeof globalThis.Headers === "undefined") {
@@ -2158,7 +2158,7 @@ if (__nativeWebSocket) {
     globalThis.WebSocket = WebSocket;
 
     // Exported system helpers (used by the WS binary path and by tests via
-    // eval). Only exist on QuickJS - on WebGL the native WebSocket branch runs
+    // eval). Only exist on QuickJS: on WebGL the native WebSocket branch runs
     // instead and nothing is added to the page's global scope.
     globalThis.__arrayBufferToBase64 = __arrayBufferToBase64;
     globalThis.__base64ToArrayBuffer = __base64ToArrayBuffer;
@@ -2168,7 +2168,7 @@ if (__nativeWebSocket) {
 /**
  * localStorage implementation using Unity's PlayerPrefs.
  * Matches the web Storage API for compatibility with React and other libraries.
- * Only installed when no native Storage exists (QuickJS) - in WebGL the
+ * Only installed when no native Storage exists (QuickJS): in WebGL the
  * browser's own localStorage/sessionStorage are used, and the embedding page's
  * storage must never be redirected into PlayerPrefs.
  *
@@ -2185,7 +2185,7 @@ if (__nativeWebSocket) {
 const __playerPrefsStorage = {
     /**
      * Returns the value associated with the given key, or null if not found.
-     * @param {string} key - The key to look up
+     * @param {string} key: The key to look up
      * @returns {string|null} The stored value or null
      */
     getItem: function(key) {
@@ -2197,8 +2197,8 @@ const __playerPrefsStorage = {
 
     /**
      * Stores a value with the given key. Overwrites existing values.
-     * @param {string} key - The key to store under
-     * @param {string} value - The value to store (will be converted to string)
+     * @param {string} key: The key to store under
+     * @param {string} value: The value to store (will be converted to string)
      */
     setItem: function(key, value) {
         CS.UnityEngine.PlayerPrefs.SetString(key, String(value));
@@ -2207,7 +2207,7 @@ const __playerPrefsStorage = {
 
     /**
      * Removes the item with the given key.
-     * @param {string} key - The key to remove
+     * @param {string} key: The key to remove
      */
     removeItem: function(key) {
         CS.UnityEngine.PlayerPrefs.DeleteKey(key);
@@ -2226,7 +2226,7 @@ const __playerPrefsStorage = {
     /**
      * Returns the key at the given index.
      * Note: PlayerPrefs doesn't support enumeration, so this always returns null.
-     * @param {number} index - The index of the key
+     * @param {number} index: The index of the key
      * @returns {string|null} Always returns null (not supported)
      */
     key: function(index) {
@@ -2651,7 +2651,7 @@ class URL {
     }
 }
 
-// Expose globally - only if no native implementation exists (QuickJS)
+// Expose globally: only if no native implementation exists (QuickJS)
 // In WebGL the bootstrap shares the embedding page's global scope, and these
 // polyfills are not fully spec-complete (e.g. URLSearchParams is not iterable),
 // so the browser natives must win

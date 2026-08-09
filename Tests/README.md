@@ -141,9 +141,9 @@ var code = fixture.text;
 ```
 
 Available fixtures:
-- `SimpleScript.txt` - Basic execution validation
-- `UICreation.txt` - CS proxy and UI element creation
-- `EventTest.txt` - Event registration and dispatch
+- `SimpleScript.txt`: Basic execution validation
+- `UICreation.txt`: CS proxy and UI element creation
+- `EventTest.txt`: Event registration and dispatch
 
 ## Writing New Tests
 

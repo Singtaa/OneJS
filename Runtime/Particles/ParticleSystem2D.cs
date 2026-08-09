@@ -411,10 +411,10 @@ namespace OneJS {
         /// <summary>
         /// A host is particle-owned: assigning style.unityMaterial replaces the standard
         /// UI material for that element's draw, which costs it UI Toolkit's analytic
-        /// antialiasing - a bordered/rounded host renders visibly jagged corners.
+        /// antialiasing: a bordered/rounded host renders visibly jagged corners.
         /// (Measured: the same corner drops from a ~27-level coverage ramp to 3 levels.
         /// Subscribing generateVisualContent alone is free; only the material matters,
-        /// hence the _premultiplied gate - the fallback path keeps the host's material.)
+        /// hence the _premultiplied gate: the fallback path keeps the host's material.)
         ///
         /// Deferred to Tick because resolvedStyle is only meaningful once the element is
         /// attached and laid out. Emitted at most once per system.
