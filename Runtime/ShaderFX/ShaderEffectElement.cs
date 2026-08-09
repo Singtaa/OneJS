@@ -215,7 +215,12 @@ namespace OneJS.ShaderFX {
 
         bool EnsureTarget() {
             if (!TryGetTargetSize(out int w, out int h)) return false;
-            if (_rt != null && _rtW == w && _rtH == h) return true;
+            if (_rt != null && _rtW == w && _rtH == h) {
+                // The device can drop the texture without its size changing, and
+                // UI Toolkit samples this one as a backgroundImage.
+                RenderTextureUtils.EnsureCreated(_rt);
+                return true;
+            }
 
             ReleaseTexture();
             _rt = new RenderTexture(w, h, 0, RenderTextureFormat.ARGB32) {

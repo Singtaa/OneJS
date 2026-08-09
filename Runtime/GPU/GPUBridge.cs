@@ -423,6 +423,7 @@ namespace OneJS.GPU {
                 if (!_renderTextureHandles.TryGetValue(handle, out var rt)) {
                     return null;
                 }
+                RenderTextureUtils.EnsureCreated(rt);
                 return new UnityEngine.UIElements.StyleBackground(UnityEngine.UIElements.Background.FromRenderTexture(rt));
             }
         }
@@ -437,6 +438,7 @@ namespace OneJS.GPU {
                 if (!_renderTextureHandles.TryGetValue(rtHandle, out var rt)) {
                     return;
                 }
+                RenderTextureUtils.EnsureCreated(rt);
                 element.style.backgroundImage = new UnityEngine.UIElements.StyleBackground(
                     UnityEngine.UIElements.Background.FromRenderTexture(rt)
                 );
@@ -507,6 +509,9 @@ namespace OneJS.GPU {
                     return;
                 }
 
+                // A UAV bind is never an active render target, so a dropped
+                // texture would stay dropped and the kernel would write nowhere.
+                RenderTextureUtils.EnsureCreated(rt);
                 shader.SetTexture(kernelIndex, name, rt);
             }
         }
@@ -523,6 +528,7 @@ namespace OneJS.GPU {
                     return;
                 }
 
+                RenderTextureUtils.EnsureCreated(rt);
                 shader.SetTexture(kernelIndex, nameId, rt);
             }
         }

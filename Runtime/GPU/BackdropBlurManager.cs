@@ -112,8 +112,14 @@ namespace OneJS.GPU {
             int h = screenH / DownsampleFactor;
             if (w <= 0 || h <= 0) return;
 
-            if (_captureRT != null && _captureRT.width == w && _captureRT.height == h)
+            if (_captureRT != null && _captureRT.width == w && _captureRT.height == h) {
+                // Same size, but the device may have dropped them since last frame.
+                // _blurResult goes to UI Toolkit as a backgroundImage.
+                RenderTextureUtils.EnsureCreated(_captureRT);
+                RenderTextureUtils.EnsureCreated(_blurTemp);
+                RenderTextureUtils.EnsureCreated(_blurResult);
                 return;
+            }
 
             ReleaseRTs();
 

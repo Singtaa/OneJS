@@ -45,6 +45,7 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `Controls/CodeField.cs` | TextField with syntax highlighting via per-glyph vertex coloring |
 | `Utils/UIDebugger.cs` | Runtime UI debugger for dumping visual tree and inspecting USS classes |
 | `Utils/FindCompat.cs` | Version-portable FindObjectsByType wrappers (FindObjectsSortMode overloads are obsolete on Unity 6.4+) |
+| `Utils/RenderTextureUtils.cs` | `EnsureCreated` re-creates a RenderTexture the device dropped (standby, backgrounding, fullscreen toggle) |
 
 ## Controls (`Controls/` folder)
 
