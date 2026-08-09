@@ -4,7 +4,7 @@
 
 [![Watch the OneJS intro video](https://onejs.com/assets/videos/hero-poster.jpg?v=2)](https://onejs.com)
 
-Build Unity UIs with React 19 and TypeScript, rendered natively through UI Toolkit. No browser, no webview, no DOM.
+Build Unity UIs with React 19 and TypeScript, rendered natively through UI Toolkit. No browser, no webview.
 
 ```tsx
 import { useState } from "react"
