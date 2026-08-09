@@ -61,7 +61,7 @@ The Asset Store package (linked from [onejs.com](https://onejs.com)) bundles thi
 ## Quick Start
 
 1. Add the `JSRunner` component to a GameObject in a saved scene
-2. Click **Initialize Project** in the inspector (or just enter Play mode - first-run setup happens automatically)
+2. Click **Initialize Project** in the inspector (or just enter Play mode, since first-run setup happens automatically)
 
 JSRunner creates PanelSettings, scaffolds a starter React app next to your scene, runs `npm install` and `npm run build`, and starts rendering in the Game view immediately. The editor manages the esbuild watcher from there: save a file, see the change.
 

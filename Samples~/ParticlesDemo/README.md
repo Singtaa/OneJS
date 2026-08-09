@@ -1,7 +1,7 @@
 # Particles Demo
 
 A 2D particle engine showcase packaged as a UI Cartridge: a continuous additive
-fountain, a click burst, and a pointer-following trail - all simulated and
+fountain, a click burst, and a pointer-following trail, all simulated and
 rendered in C#, configured from a single TSX component via `useParticles` from
 `onejs-react` (0.1.32+).
 
