@@ -34,7 +34,7 @@ Save the file and the UI hot-reloads in the editor, in both Edit mode and Play m
 - **Styling three ways**: USS, CSS Modules, and a built-in Tailwind-style JIT generator (no npm dependency)
 - **Full C# interop**: reach any C# type from JS, with zero-alloc fast paths for per-frame data
 - **Batteries included**: 2D particles, GPU compute bridge, vector drawing, `fetch`, `WebSocket`, `localStorage`
-- **Runs everywhere**: QuickJS on desktop, mobile, and consoles; the browser's own JIT engine on WebGL
+- **Runs everywhere**: QuickJS on desktop and mobile; the browser's own JIT engine on WebGL
 - **Moddable games**: players can extend your UI with TypeScript and JSX
 
 ## Requirements
@@ -56,7 +56,7 @@ Save the file and the UI hot-reloads in the editor, in both Edit mode and Play m
 git clone https://github.com/Singtaa/OneJS.git Assets/OneJS
 ```
 
-The Asset Store package (linked from [onejs.com](https://onejs.com)) bundles this runtime with premade themes (Pixel, Kawaii, Sketch) and effect packs.
+The Asset Store package (linked from [onejs.com](https://onejs.com)) bundles this runtime with premade `onejs-ui` themes (Pixel, Kawaii, Sketch) and sample cartridges (Game HUD, Inventory, Shader Effects).
 
 ## Quick Start
 
@@ -106,7 +106,7 @@ For per-frame data, zero-alloc fast paths avoid reflection entirely: see the [st
 
 ## Coming from V2?
 
-V2 lives on the [`onejs-v2`](https://github.com/Singtaa/OneJS/tree/onejs-v2) branch and still works on Unity 2021.3+. What changed in V3:
+V2 lives on the [`onejs-v2`](https://github.com/Singtaa/OneJS/tree/onejs-v2) branch and still works on Unity 2022.3+. What changed in V3:
 
 | | V2 | V3 |
 |---|---|---|

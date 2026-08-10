@@ -7,7 +7,7 @@
 
 ## Major Changes
 
-- Replaced Puerts with a purpose-built QuickJS integration: no third-party engine layer, smaller footprint, works everywhere JIT is prohibited (iOS, consoles)
+- Replaced Puerts with a purpose-built QuickJS integration: no third-party engine layer, smaller footprint, works everywhere JIT is prohibited, including iOS
 - WebGL builds now run on the browser's own JS engine (V8/SpiderMonkey) for full JIT performance
 - React 19 is the core UI model: a custom reconciler renders JSX directly to UI Toolkit elements, no DOM, no webview
 - New `JSRunner` component replaces ScriptEngine: PanelSettings as the project marker, one-click Initialize Project scaffolding
