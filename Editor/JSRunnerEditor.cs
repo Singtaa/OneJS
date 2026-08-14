@@ -991,8 +991,18 @@ namespace OneJS.Editor {
                 bool isExtracted = !string.IsNullOrEmpty(cartridgePath) && Directory.Exists(cartridgePath);
 
                 if (isExtracted) {
-                    statusLabel.text = OneJSEditorDesign.Texts.Extracted;
-                    statusLabel.style.color = OneJSEditorDesign.Colors.StatusSuccess;
+                    var assetVersion = cartridge.Version;
+                    var extractedVersion = CartridgeUtils.GetExtractedVersion(_target.WorkingDirFullPath, cartridge);
+                    bool outdated = !string.IsNullOrEmpty(assetVersion) && extractedVersion != assetVersion;
+
+                    if (outdated) {
+                        statusLabel.text = OneJSEditorDesign.Texts.Outdated;
+                        statusLabel.style.color = OneJSEditorDesign.Colors.StatusWarning;
+                        statusLabel.tooltip = $"Extracted version: {extractedVersion ?? "unknown"}. Asset version: {assetVersion}. Press E to re-extract.";
+                    } else {
+                        statusLabel.text = OneJSEditorDesign.Texts.Extracted;
+                        statusLabel.style.color = OneJSEditorDesign.Colors.StatusSuccess;
+                    }
                 } else {
                     statusLabel.text = OneJSEditorDesign.Texts.NotExtracted;
                     statusLabel.style.color = OneJSEditorDesign.Colors.TextMuted;

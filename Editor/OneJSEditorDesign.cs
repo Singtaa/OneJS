@@ -146,6 +146,7 @@ public static class OneJSEditorDesign {
         public const string Output = "Output: ";
         public const string Extracted = "Extracted";
         public const string NotExtracted = "Not extracted";
+        public const string Outdated = "Outdated";
         public const string NoSlug = "No slug";
         public const string NotGenerated = "Not generated";
 

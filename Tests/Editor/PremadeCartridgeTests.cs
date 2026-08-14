@@ -76,6 +76,7 @@ namespace OneJS.Tests.Editor {
             Assert.IsNotEmpty(c.Namespace ?? "", $"{path}: namespace is required for anything published");
             Assert.IsNotEmpty(c.Description ?? "", $"{path}: description is what the store listing shows");
             Assert.IsNotEmpty(c.DisplayName ?? "", $"{path}: display name falls back to slug, so this cannot be empty");
+            Assert.IsNotEmpty(c.Version ?? "", $"{path}: version is required for published cartridges, it drives the Outdated status after package updates");
         }
 
         [Test]

@@ -134,6 +134,17 @@ namespace OneJS.Editor {
             });
             container.Add(displayNameField);
 
+            // Version field
+            var versionProp = serializedObject.FindProperty("_version");
+            var versionField = new TextField("Version");
+            versionField.value = versionProp.stringValue;
+            versionField.tooltip = "Optional content version (e.g., '1.0.0'). Recorded on extraction; the JSRunner inspector flags extracted files as Outdated when it no longer matches. Bump it whenever the cartridge's files change.";
+            versionField.RegisterValueChangedCallback(evt => {
+                versionProp.stringValue = evt.newValue;
+                serializedObject.ApplyModifiedProperties();
+            });
+            container.Add(versionField);
+
             // Description field
             var descProp = serializedObject.FindProperty("_description");
             var descField = new TextField("Description");

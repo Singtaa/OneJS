@@ -65,6 +65,7 @@ namespace OneJS {
                     if (overwriteExisting) {
                         Directory.Delete(destPath, true);
                     } else {
+                        WarnIfOutdated(baseDir, cartridge, logPrefix);
                         continue; // Skip if exists and not overwriting
                     }
                 }
@@ -96,6 +97,32 @@ namespace OneJS {
             }
 
             return createdFiles;
+        }
+
+        /// <summary>
+        /// Read the version recorded in an extracted cartridge's generated .d.ts header,
+        /// or null if the folder, the .d.ts, or the version line is missing.
+        /// </summary>
+        public static string GetExtractedVersion(string baseDir, UICartridge cartridge) {
+            var destPath = GetCartridgePath(baseDir, cartridge);
+            if (string.IsNullOrEmpty(destPath)) return null;
+            var dtsPath = Path.Combine(destPath, $"{cartridge.Slug}.d.ts");
+            if (!File.Exists(dtsPath)) return null;
+            try {
+                return CartridgeTypeGenerator.ParseVersion(File.ReadAllText(dtsPath));
+            } catch (IOException) {
+                return null;
+            }
+        }
+
+        static void WarnIfOutdated(string baseDir, UICartridge cartridge, string logPrefix) {
+            if (string.IsNullOrEmpty(cartridge.Version)) return;
+            var extracted = GetExtractedVersion(baseDir, cartridge);
+            if (extracted == cartridge.Version) return;
+            Debug.LogWarning(
+                $"{logPrefix ?? "[OneJS]"} Cartridge '{cartridge.RelativePath}' is extracted as version " +
+                $"{extracted ?? "unknown"} but the asset is {cartridge.Version}. " +
+                "Use D then E on the Cartridges tab (delete extracted files, extract again) to update.");
         }
 
         /// <summary>

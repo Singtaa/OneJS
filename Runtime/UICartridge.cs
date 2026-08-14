@@ -50,6 +50,9 @@ namespace OneJS {
         [TextArea(2, 4)]
         [SerializeField] string _description;
 
+        [Tooltip("Optional content version (e.g., '1.0.0'). Recorded on extraction so the editor can flag extracted files as outdated after the cartridge changes. Bump it whenever the cartridge's files change.")]
+        [SerializeField] string _version;
+
         [Tooltip("Files to extract to @cartridges/{slug}/ or @cartridges/@{namespace}/{slug}/")]
         [PairDrawer("←")]
         [SerializeField] List<CartridgeFileEntry> _files = new List<CartridgeFileEntry>();
@@ -63,6 +66,7 @@ namespace OneJS {
         public string Slug => _slug;
         public string DisplayName => string.IsNullOrEmpty(_displayName) ? _slug : _displayName;
         public string Description => _description;
+        public string Version => _version;
         public IReadOnlyList<CartridgeFileEntry> Files => _files;
         public IReadOnlyList<CartridgeObjectEntry> Objects => _objects;
 

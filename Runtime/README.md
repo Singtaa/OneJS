@@ -26,7 +26,7 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `AssetLoader.cs` | Async resource loading (loadResourceAsync) wrapping Resources.LoadAsync |
 | `SourceMapParser.cs` | Parses source maps for error stack trace translation |
 | `VirtualClock.cs` | Deterministic stand-in for engine realtime; lets an offline renderer frame-step the UI (see below) |
-| `UICartridge.cs` | Cartridge system for packaged UI modules |
+| `UICartridge.cs` | Cartridge system for packaged UI modules (namespace/slug identity, optional content version) |
 | `CartridgeTypeGenerator.cs` | Generates TypeScript declarations for cartridge types |
 | `CartridgeUtils.cs` | Shared cartridge utilities used by JSRunner and JSPad |
 | `StyleBridge.cs` | Batched style + class-list application; typed IStyle setters for common props (no reflection), reflection fallback for the long tail |
@@ -293,7 +293,7 @@ The inspector adapts to the project state:
 | Type Generation | Generate `.d.ts` files from C# assemblies |
 | Scaffolding | Default Files list and Reset to Defaults |
 | **Cartridges tab** | |
-| UI Cartridges | Packaged UI module assets with extract/delete controls |
+| UI Cartridges | Packaged UI module assets with extract/delete controls; flags stale extractions as Outdated via the version stamped in the generated `.d.ts` |
 
 ### Context Menu Options
 
