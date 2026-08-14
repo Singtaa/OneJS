@@ -84,7 +84,7 @@ export function onStop() {}   // Play mode exit + before hot reload while playin
 
 - `__root` (root VisualElement) and `__isPlaying` are ambient globals (declared in `types/global.d.ts`).
 - Module-level code also runs in **edit-mode preview**. Guard play-only logic with `__isPlaying` (play-mode C# singletons are null in preview).
-- Components: `View, Text, Label, Button, TextField, Toggle, Slider, ScrollView, Image, ListView, FrostedGlass`, plus `ScreenProvider`, `Portal`, `ErrorBoundary`.
+- Components: `View, Text, Label, Button, TextField, Toggle, Slider, ScrollView, Image, ListView, TreeView, FrostedGlass`, plus `ScreenProvider`, `Portal`, `ErrorBoundary`.
 - Change handlers receive `e.value` (NOT `e.target.value`).
 - Raw text children (`<View>Hi</View>`) create TextElements; prefer `<Text text="..." />`.
 

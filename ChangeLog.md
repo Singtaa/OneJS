@@ -1,3 +1,8 @@
+# [2026-08-14] v3.1.2
+
+- Added `TreeViewBridge`: non-generic wrapper over `BaseTreeView.SetRootItems<T>` (generic methods are unreachable from the CS proxy) taking the tree as parallel pre-order int arrays, with item data staying JS-side; also int[] selection getters for TreeView ids and shared collection-view indices, since `IEnumerable<int>` cannot cross the proxy
+- Pairs with onejs-react 0.1.43's new `<TreeView>` component (nested `rootItems`, data-resolving `bindItem`, `onSelectionChange`) and its ListView fix wiring the previously dead `onSelectionChange`/`onItemsChosen` props
+
 # [2026-08-06] v3.1.1
 
 - Fixed legacy Input Manager compile break: FastPath's `UnityEngine.Input` registrations resolved against the new `OneJS.Input` namespace in projects with the legacy input manager enabled

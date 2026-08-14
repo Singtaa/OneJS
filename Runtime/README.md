@@ -31,6 +31,7 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `CartridgeUtils.cs` | Shared cartridge utilities used by JSRunner and JSPad |
 | `StyleBridge.cs` | Batched style + class-list application; typed IStyle setters for common props (no reflection), reflection fallback for the long tail |
 | `PainterBridge.cs` | Batched vector drawing: replays a Painter2D command buffer in one crossing |
+| `TreeViewBridge.cs` | TreeView data plumbing: wraps the generic `SetRootItems<T>` (generic methods are unreachable from JS) taking the tree as parallel pre-order int arrays with data kept JS-side, plus int[] selection getters (`IEnumerable<int>` cannot cross) |
 | `Particles/ParticleSystem2D.cs` | 2D particle system: C#-owned SoA sim + quad mesh write inside a host element |
 | `Particles/ParticleBridge.cs` | JS entry (`Create`), live-system registry, `TickAll` (driven from QuickJSUIBridge.Tick) |
 | `Particles/ParticleWire.cs` | Versioned wire schema + validation (the C#-JS contract; parity with onejs-react particles.test.ts) |
