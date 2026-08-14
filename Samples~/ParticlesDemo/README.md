@@ -14,7 +14,7 @@ rendered in C#, configured from a single TSX component via `useParticles` from
 
 ```tsx
 import { render } from "onejs-react"
-import { ParticlesDemo } from "@cartridges/@singtaa/particlesDemo/particles-demo"
+import { ParticlesDemo } from "./@cartridges/@singtaa/particlesDemo/particles-demo"
 
 render(<ParticlesDemo />, __root)
 ```

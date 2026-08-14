@@ -12,6 +12,7 @@
   "dependencies": {
     "react": "^19.0.0",
     "onejs-react": "^0.1.0",
+    "onejs-ui": "^0.0.3",
     "onejs-unity": "^0.2.0"
   },
   "devDependencies": {

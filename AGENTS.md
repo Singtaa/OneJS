@@ -101,6 +101,20 @@ All four options embed in the bundle and work in player builds:
 
 Limits: no CSS grid, no `gap`, no `z-index` (paint order = sibling order), no shadows/filters.
 
+## Cartridges
+
+A `UICartridge` (ScriptableObject, **Create > OneJS > UI Cartridge**) packages source files and Unity object references as a drop-in content pack. This is how the Asset Store package ships its premade onejs-ui themes and samples (namespace `singtaa`).
+
+Consuming one:
+
+1. Add the asset to the JSRunner inspector's **Cartridges** tab.
+2. It extracts to `~/@cartridges/{slug}/` (namespaced: `~/@cartridges/@{namespace}/{slug}/`) on the next preview/play, or via the tab's **E** button.
+3. Import by **relative path** from app code (no alias/package exists): a theme is a side-effect import (`import "./@cartridges/@singtaa/kawaii/kawaiiTheme"` registers `"kawaii"` for `<ThemeProvider theme="kawaii">`); a component cartridge uses named imports. Premade themes need `onejs-ui` in the app's `package.json` (newly scaffolded projects include it; older ones need a one-time `npm install onejs-ui`).
+
+Semantics worth knowing: editor extraction never overwrites (refresh via the tab's **D** then **E**), player builds always re-extract with overwrite (extracted files are generated output; edits belong in the consumer's own files). Object entries (key → UnityEngine.Object) are reachable as `__cart("@ns/slug").key` with a generated `.d.ts`; the premade themes use only the file channel, so their `__cart()` entry is empty.
+
+Docs: https://onejs.com/docs/guides/cartridges and https://onejs.com/docs/onejs-ui/premade-themes. In the Asset Store package, `Assets/Singtaa/Premade/AGENTS.md` covers the premade content in depth.
+
 ## C# interop
 
 JS → C#:
@@ -155,3 +169,5 @@ Performance on QuickJS (an interpreter): every proxy access is a reflection cros
 - Styling: https://onejs.com/docs/core-concepts/styling (CSS Modules and Tailwind under `/docs/guides`)
 - Building and deployment (link.xml, WebGL): https://onejs.com/docs/guides/building
 - Component reference: https://onejs.com/docs/components/view (and siblings)
+- onejs-ui theming: https://onejs.com/docs/onejs-ui/theming
+- Cartridges and premade themes: https://onejs.com/docs/guides/cartridges, https://onejs.com/docs/onejs-ui/premade-themes
