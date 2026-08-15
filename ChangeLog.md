@@ -1,19 +1,18 @@
 # [2026-08-14] v3.1.4
 
-- Cartridges extract the moment they are assigned in the JSRunner Cartridges tab (never overwriting existing files), so their imports resolve without pressing E or entering Play first; the tab also warns when an assigned cartridge imports `onejs-ui` and the working directory's package.json lacks it
-- `import "onejs:themes"` registers every extracted cartridge theme in one stable line: scaffolded esbuild configs now wire `themesPlugin()` from onejs-unity 0.2.19 (template dependency floor raised to `^0.2.19`), which scans `@cartridges/**/*Theme.ts` at build time, picks up new extractions in watch mode, and keeps explicit per-theme imports working for registering a subset
+- Cartridges extract as soon as they are assigned; the Cartridges tab warns when `onejs-ui` is missing from package.json
+- `import "onejs:themes"` registers every extracted cartridge theme (onejs-unity 0.2.19, wired in scaffolded configs)
 
 # [2026-08-14] v3.1.3
 
-- The bootstrap now ships install-if-missing `AbortController`/`AbortSignal` (aborted/reason, abort events, `throwIfAborted`, and the `AbortSignal.abort()`/`timeout()` statics), so libraries that construct cancellation signals (TanStack Query news one up per fetch) work out of the box; `fetch` does not yet observe signals, and WebGL keeps the browser natives
-- Extension-method dispatch now accepts omitted trailing optional arguments and skips open generic definitions, matching plain-method behavior: `element.Q(name)` works after `useExtensions(CS.UnityEngine.UIElements.UQueryExtensions)`
+- Added `AbortController`/`AbortSignal` polyfills (`fetch` does not observe signals yet)
+- Extension methods now accept omitted trailing optional arguments (`element.Q(name)` works)
 
 # [2026-08-14] v3.1.2
 
-- Added `TreeViewBridge`: non-generic wrapper over `BaseTreeView.SetRootItems<T>` (generic methods are unreachable from the CS proxy) taking the tree as parallel pre-order int arrays, with item data staying JS-side; also int[] selection getters for TreeView ids and shared collection-view indices, since `IEnumerable<int>` cannot cross the proxy
-- Pairs with onejs-react 0.1.43's new `<TreeView>` component (nested `rootItems`, data-resolving `bindItem`, `onSelectionChange`) and its ListView fix wiring the previously dead `onSelectionChange`/`onItemsChosen` props
-- UICartridge content versioning: cartridges can declare a version, the generated `.d.ts` carries it, and the JSRunner Cartridges tab reports Outdated (with a re-extract available) when an extracted copy no longer matches the asset
-- New projects scaffold with `onejs-ui` in package.json so premade themes build without a manual install; AGENTS.md now covers consuming cartridges
+- Added `TreeViewBridge`, pairing with onejs-react 0.1.43's `<TreeView>` component and ListView selection fixes
+- Cartridges can declare a version; the Cartridges tab flags outdated extractions
+- New projects scaffold with `onejs-ui` in package.json
 
 # [2026-08-06] v3.1.1
 
