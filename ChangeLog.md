@@ -1,3 +1,8 @@
+# [2026-08-14] v3.1.4
+
+- Cartridges extract the moment they are assigned in the JSRunner Cartridges tab (never overwriting existing files), so their imports resolve without pressing E or entering Play first; the tab also warns when an assigned cartridge imports `onejs-ui` and the working directory's package.json lacks it
+- `import "onejs:themes"` registers every extracted cartridge theme in one stable line: scaffolded esbuild configs now wire `themesPlugin()` from onejs-unity 0.2.19 (template dependency floor raised to `^0.2.19`), which scans `@cartridges/**/*Theme.ts` at build time, picks up new extractions in watch mode, and keeps explicit per-theme imports working for registering a subset
+
 # [2026-08-14] v3.1.3
 
 - The bootstrap now ships install-if-missing `AbortController`/`AbortSignal` (aborted/reason, abort events, `throwIfAborted`, and the `AbortSignal.abort()`/`timeout()` statics), so libraries that construct cancellation signals (TanStack Query news one up per fetch) work out of the box; `fetch` does not yet observe signals, and WebGL keeps the browser natives
