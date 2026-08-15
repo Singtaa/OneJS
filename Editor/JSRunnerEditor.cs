@@ -552,8 +552,8 @@ namespace OneJS.Editor {
 
             // Help box (gray info style)
             var helpBox = CreateInfoBox(
-                "Files are extracted to @cartridges/{path}/. Access via __cart('slug') or __cart('@namespace/slug') at runtime.\n" +
-                "E = Extract (overwrites existing), D = Delete extracted folder, X = Remove from list");
+                "Cartridges extract to @cartridges/{path}/ when assigned (existing files are never overwritten). Objects are accessible via __cart('slug') or __cart('@namespace/slug') at runtime.\n" +
+                "E = Extract again (overwrites existing), D = Delete extracted folder, X = Remove from list");
             helpBox.style.marginTop = 4;
             container.Add(helpBox);
 
@@ -941,6 +941,8 @@ namespace OneJS.Editor {
                 var itemRow = CreateCartridgeItemRow(cartridgesProp, i);
                 _cartridgeListContainer.Add(itemRow);
             }
+
+            AppendOnejsUiWarningIfNeeded();
         }
 
         VisualElement CreateCartridgeItemRow(SerializedProperty arrayProp, int index) {
@@ -975,6 +977,7 @@ namespace OneJS.Editor {
             objectField.RegisterValueChangedCallback(evt => {
                 elementProp.objectReferenceValue = evt.newValue;
                 serializedObject.ApplyModifiedProperties();
+                AutoExtractOnAssign(evt.newValue as UICartridge);
                 RebuildCartridgeList();
             });
             row.Add(objectField);
@@ -1046,6 +1049,80 @@ namespace OneJS.Editor {
             row.Add(removeBtn);
 
             return row;
+        }
+
+        /// <summary>
+        /// Extract a cartridge the moment it is assigned to the list, so the
+        /// extracted files exist by the time the user writes the import (no
+        /// hidden wait for the E button or the next Play). Never overwrites:
+        /// an already-extracted folder is left alone.
+        /// </summary>
+        void AutoExtractOnAssign(UICartridge cartridge) {
+            if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug) || !_target.IsSceneSaved) return;
+
+            var destPath = _target.GetCartridgePath(cartridge);
+            if (string.IsNullOrEmpty(destPath) || Directory.Exists(destPath)) return;
+
+            try {
+                var created = CartridgeUtils.ExtractCartridges(
+                    _target.WorkingDirFullPath,
+                    new List<UICartridge> { cartridge },
+                    overwriteExisting: false);
+
+                if (created.Count > 0) {
+                    Debug.Log($"[JSRunner] Extracted cartridge '{cartridge.DisplayName}' ({created.Count} files) to: {destPath}");
+                    AssetDatabase.Refresh();
+                }
+            } catch (Exception ex) {
+                Debug.LogWarning($"[JSRunner] Could not auto-extract cartridge '{cartridge.DisplayName}': {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Warn right in the tab when an assigned cartridge's source imports
+        /// onejs-ui but the working directory's package.json does not list it
+        /// (projects scaffolded before the template included onejs-ui). The
+        /// alternative is a build error whose cause is three steps removed.
+        /// </summary>
+        void AppendOnejsUiWarningIfNeeded() {
+            if (!_target.IsSceneSaved) return;
+            var workingDir = _target.WorkingDirFullPath;
+            if (string.IsNullOrEmpty(workingDir)) return;
+
+            var packageJsonPath = Path.Combine(workingDir, "package.json");
+            if (!File.Exists(packageJsonPath)) return; // not scaffolded yet; current templates include onejs-ui
+
+            var cartridges = _target.Cartridges;
+            if (cartridges == null) return;
+
+            bool needsUi = false;
+            foreach (var cartridge in cartridges) {
+                if (cartridge?.Files == null) continue;
+                foreach (var file in cartridge.Files) {
+                    if (file?.content != null && file.content.text.Contains("onejs-ui")) {
+                        needsUi = true;
+                        break;
+                    }
+                }
+                if (needsUi) break;
+            }
+            if (!needsUi) return;
+
+            try {
+                if (File.ReadAllText(packageJsonPath).Contains("\"onejs-ui\"")) return;
+            } catch (IOException) {
+                return;
+            }
+
+            var warning = new Label(
+                "A cartridge here imports onejs-ui, which is missing from this project's package.json. " +
+                "Run: npm install onejs-ui (in the ~ working directory)");
+            warning.style.whiteSpace = WhiteSpace.Normal;
+            warning.style.color = OneJSEditorDesign.Colors.StatusWarning;
+            warning.style.fontSize = 11;
+            warning.style.marginTop = 4;
+            warning.style.paddingLeft = 4;
+            _cartridgeListContainer.Add(warning);
         }
 
         void ExtractCartridge(UICartridge cartridge, int index) {

@@ -4,7 +4,7 @@ import path from "path"
 import { fileURLToPath } from "url"
 
 // Import plugins from onejs-unity
-import { importTransformPlugin, tailwindPlugin, ussModulesPlugin } from "onejs-unity/esbuild"
+import { importTransformPlugin, tailwindPlugin, themesPlugin, ussModulesPlugin } from "onejs-unity/esbuild"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -45,6 +45,8 @@ const config = {
         importTransformPlugin(),
         // Tailwind support: use `import "onejs:tailwind"` to activate
         tailwindPlugin({ content: ["./**/*.{tsx,ts,jsx,js}"] }),
+        // Cartridge theme registration: use `import "onejs:themes"` to activate
+        themesPlugin(),
         // USS Modules support (scoped class names, auto-generates .d.ts files)
         ussModulesPlugin({ generateTypes: true }),
     ],

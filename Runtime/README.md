@@ -293,7 +293,7 @@ The inspector adapts to the project state:
 | Type Generation | Generate `.d.ts` files from C# assemblies |
 | Scaffolding | Default Files list and Reset to Defaults |
 | **Cartridges tab** | |
-| UI Cartridges | Packaged UI module assets with extract/delete controls; flags stale extractions as Outdated via the version stamped in the generated `.d.ts` |
+| UI Cartridges | Packaged UI module assets; extracts on assignment (never overwriting), E/D re-extract and delete controls, flags stale extractions as Outdated via the version stamped in the generated `.d.ts` |
 
 ### Context Menu Options
 
