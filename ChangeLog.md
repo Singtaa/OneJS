@@ -2,6 +2,8 @@
 
 - Added `TreeViewBridge`: non-generic wrapper over `BaseTreeView.SetRootItems<T>` (generic methods are unreachable from the CS proxy) taking the tree as parallel pre-order int arrays, with item data staying JS-side; also int[] selection getters for TreeView ids and shared collection-view indices, since `IEnumerable<int>` cannot cross the proxy
 - Pairs with onejs-react 0.1.43's new `<TreeView>` component (nested `rootItems`, data-resolving `bindItem`, `onSelectionChange`) and its ListView fix wiring the previously dead `onSelectionChange`/`onItemsChosen` props
+- UICartridge content versioning: cartridges can declare a version, the generated `.d.ts` carries it, and the JSRunner Cartridges tab reports Outdated (with a re-extract available) when an extracted copy no longer matches the asset
+- New projects scaffold with `onejs-ui` in package.json so premade themes build without a manual install; AGENTS.md now covers consuming cartridges
 
 # [2026-08-06] v3.1.1
 
