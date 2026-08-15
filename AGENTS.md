@@ -122,7 +122,7 @@ JS → C#:
 - ES6 imports in app code: `import { Vector3 } from "UnityEngine"` (esbuild rewrites module paths starting with an uppercase letter to `CS.*`).
 - The `CS` global proxy reaches any type in any loaded assembly, including game code: `CS.MyGame.Bridge.Instance`. Prefer namespaced C# types.
 - Structs read by field access (`pos.x`); C# lists/arrays support `.Count`/`.Length` + indexing; `toArray<T>(list)` (from `onejs-react`) makes a real JS array.
-- Generic types work: `CS.System.Collections.Generic.List(CS.System.Int32)`. Generic **methods** are unsupported, wrap them in plain C# methods. Extension methods need `useExtensions(CS.The.StaticClass)` first; UQuery's `Q()` stays undispatchable even then (generic overloads), so reach an element's children positionally with `ElementAt(i)` (the ListView/TreeView `bindItem` pattern).
+- Generic types work: `CS.System.Collections.Generic.List(CS.System.Int32)`. Generic **methods** are unsupported, wrap them in plain C# methods. Extension methods need `useExtensions(CS.The.StaticClass)` first: `useExtensions(CS.UnityEngine.UIElements.UQueryExtensions)` enables `element.Q(name)` (3.1.3+). `ElementAt(i)` walks children with no registration at all (the ListView/TreeView `bindItem` pattern).
 
 C# → JS:
 

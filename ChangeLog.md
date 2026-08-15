@@ -1,3 +1,8 @@
+# [2026-08-14] v3.1.3
+
+- The bootstrap now ships install-if-missing `AbortController`/`AbortSignal` (aborted/reason, abort events, `throwIfAborted`, and the `AbortSignal.abort()`/`timeout()` statics), so libraries that construct cancellation signals (TanStack Query news one up per fetch) work out of the box; `fetch` does not yet observe signals, and WebGL keeps the browser natives
+- Extension-method dispatch now accepts omitted trailing optional arguments and skips open generic definitions, matching plain-method behavior: `element.Q(name)` works after `useExtensions(CS.UnityEngine.UIElements.UQueryExtensions)`
+
 # [2026-08-14] v3.1.2
 
 - Added `TreeViewBridge`: non-generic wrapper over `BaseTreeView.SetRootItems<T>` (generic methods are unreachable from the CS proxy) taking the tree as parallel pre-order int arrays, with item data staying JS-side; also int[] selection getters for TreeView ids and shared collection-view indices, since `IEnumerable<int>` cannot cross the proxy

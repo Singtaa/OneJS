@@ -255,20 +255,41 @@ namespace OneJS {
             if (!_extensionMethodRegistry.TryGetValue(targetType, out var byName)) return null;
             if (!byName.TryGetValue(name, out var overloads)) return null;
 
-            foreach (var method in overloads) {
-                var parms = method.GetParameters();
-                // First param is 'this', rest must match args
-                if (parms.Length - 1 != args.Length) continue;
+            // Exact arity first, then fall back to an overload with additional
+            // trailing parameters that all carry C# defaults (mirrors FindMethod).
+            // This is what lets UQuery's `element.Q(name)` bind to
+            // Q(this, string name = null, string className = null). Open generic
+            // definitions cannot be invoked without type arguments, so they never
+            // match; UQuery pairs each Q/Query with a generic twin.
+            MethodInfo optionalParamFallback = null;
 
-                bool match = true;
-                for (int i = 0; i < args.Length && match; i++) {
-                    match = IsArgCompatible(parms[i + 1].ParameterType, args[i]);
+            foreach (var method in overloads) {
+                if (method.IsGenericMethodDefinition) continue;
+                var parms = method.GetParameters();
+
+                // First param is 'this', rest must match args
+                if (parms.Length - 1 == args.Length) {
+                    bool match = true;
+                    for (int i = 0; i < args.Length && match; i++) {
+                        match = IsArgCompatible(parms[i + 1].ParameterType, args[i]);
+                    }
+                    if (match) return method;
+                    continue;
                 }
 
-                if (match) return method;
+                if (parms.Length - 1 > args.Length && optionalParamFallback == null) {
+                    bool match = true;
+                    for (int i = 0; i < args.Length && match; i++) {
+                        match = IsArgCompatible(parms[i + 1].ParameterType, args[i]);
+                    }
+                    for (int i = args.Length + 1; i < parms.Length && match; i++) {
+                        match = parms[i].HasDefaultValue;
+                    }
+                    if (match) optionalParamFallback = method;
+                }
             }
 
-            return null;
+            return optionalParamFallback;
         }
 
         /// <summary>

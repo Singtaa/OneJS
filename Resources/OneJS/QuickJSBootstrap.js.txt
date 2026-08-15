@@ -1976,6 +1976,102 @@ if (typeof globalThis.Response === "undefined") {
     globalThis.Response = Response;
 }
 
+// MARK: Abort API
+/**
+ * AbortController/AbortSignal implementation for native platforms (QuickJS).
+ * Libraries construct these around async work (TanStack Query news one up per
+ * fetch); without the primitive the work dies mid-flight with nothing
+ * surfaced. WebGL keeps the browser's spec-complete natives.
+ *
+ * Covers the commonly consumed surface: aborted/reason, abort events
+ * (addEventListener/removeEventListener/onabort), throwIfAborted, and the
+ * AbortSignal.abort()/timeout() statics. OneJS's fetch does not yet observe
+ * signals, so aborting does not cancel an in-flight UnityWebRequest.
+ */
+function __makeAbortError(name, message) {
+    const err = new Error(message);
+    err.name = name;
+    return err;
+}
+
+class __AbortSignal {
+    constructor() {
+        this.aborted = false;
+        this.reason = undefined;
+        this.onabort = null;
+        this._listeners = [];
+    }
+
+    addEventListener(type, listener) {
+        if (type === "abort" && typeof listener === "function") {
+            this._listeners.push(listener);
+        }
+    }
+
+    removeEventListener(type, listener) {
+        if (type !== "abort") return;
+        const i = this._listeners.indexOf(listener);
+        if (i !== -1) this._listeners.splice(i, 1);
+    }
+
+    throwIfAborted() {
+        if (this.aborted) throw this.reason;
+    }
+
+    static abort(reason) {
+        const signal = new __AbortSignal();
+        signal.aborted = true;
+        signal.reason = reason !== undefined
+            ? reason
+            : __makeAbortError("AbortError", "The operation was aborted");
+        return signal;
+    }
+
+    static timeout(ms) {
+        const controller = new __AbortController();
+        setTimeout(() => {
+            controller.abort(__makeAbortError("TimeoutError", "The operation timed out"));
+        }, ms);
+        return controller.signal;
+    }
+
+    _dispatchAbort(reason) {
+        if (this.aborted) return;
+        this.aborted = true;
+        this.reason = reason !== undefined
+            ? reason
+            : __makeAbortError("AbortError", "The operation was aborted");
+        const event = { type: "abort", target: this };
+        // Snapshot so a listener mutating the list cannot skip its peers
+        const listeners = this._listeners.slice();
+        for (let i = 0; i < listeners.length; i++) {
+            try { listeners[i].call(this, event); } catch (e) {
+                console.error("[OneJS] abort listener error: " + (e && e.message ? e.message : e));
+            }
+        }
+        if (typeof this.onabort === "function") {
+            try { this.onabort.call(this, event); } catch (e) {
+                console.error("[OneJS] onabort error: " + (e && e.message ? e.message : e));
+            }
+        }
+    }
+}
+
+class __AbortController {
+    constructor() {
+        this.signal = new __AbortSignal();
+    }
+
+    abort(reason) {
+        this.signal._dispatchAbort(reason);
+    }
+}
+
+if (typeof globalThis.AbortController === "undefined") {
+    globalThis.AbortController = __AbortController;
+    globalThis.AbortSignal = __AbortSignal;
+}
+
 // MARK: WebSocket API
 /**
  * WebSocket API implementation.

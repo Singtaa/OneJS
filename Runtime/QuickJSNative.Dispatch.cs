@@ -256,10 +256,17 @@ namespace OneJS {
                             var extMethod = FindExtensionMethod(type, memberName, args);
                             if (extMethod != null) {
                                 var extParms = extMethod.GetParameters();
-                                var extArgs = new object[args.Length + 1];
+                                // Sized to the signature, not the call: the matcher may
+                                // pick an overload with omitted trailing optionals, whose
+                                // slots get the declared defaults (same as FindMethod's path)
+                                var extArgs = new object[extParms.Length];
                                 extArgs[0] = ConvertToTargetType(target, extParms[0].ParameterType);
                                 for (int i = 0; i < args.Length; i++)
                                     extArgs[i + 1] = ConvertToTargetType(args[i], extParms[i + 1].ParameterType);
+                                for (int i = args.Length + 1; i < extParms.Length; i++)
+                                    extArgs[i] = extParms[i].HasDefaultValue
+                                        ? extParms[i].DefaultValue
+                                        : Type.Missing;
                                 object extResult = extMethod.Invoke(null, extArgs);
                                 SetReturnValue(resPtr, extResult);
                                 return;
