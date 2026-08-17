@@ -1,3 +1,9 @@
+# [2026-08-17] v3.1.5
+
+- WebGL: `unityInstance.Quit()` no longer hangs the page; teardown returns captured timers to the browser
+- WebGL: JS to C# calls after context destruction are ignored
+- Zero-delay timeout chains and interval backlogs no longer stall a frame
+
 # [2026-08-14] v3.1.4
 
 - Cartridges extract as soon as they are assigned; the Cartridges tab warns when `onejs-ui` is missing from package.json
