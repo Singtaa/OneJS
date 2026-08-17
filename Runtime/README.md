@@ -810,6 +810,10 @@ requestAnimationFrame(cb)  // Called each Tick()
 setTimeout(cb, ms)         // Timer queue
 setImmediate(cb)           // Via queueMicrotask
 ```
+Every drain pass is bounded: callbacks scheduled during a pass run on the next
+pass (a `setTimeout(fn, 0)` chain cannot spin one tick forever), and an
+interval fires at most once per pass, re-basing after a stall instead of
+burst-firing its backlog. Guarded by `Tests/QuickJSSchedulerTests.cs`.
 
 ### Fast Path
 Pre-registered handlers for hot paths (Time.deltaTime, transform.position):

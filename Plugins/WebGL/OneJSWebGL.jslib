@@ -55,6 +55,17 @@ var OneJSWebGLLib = {
         initialized: false,
         contextPtr: 0,
 
+        // One-time warning for JS->C# calls arriving after qjs_destroy. Page-
+        // scope JS (module-level timers, event handlers) outlives the C#
+        // context, and after Application.Quit the IL2CPP runtime is gone, so
+        // dynCalls into it must be refused rather than dispatched.
+        deadContextWarned: false,
+        warnDeadContext: function(what) {
+            if (OneJS.deadContextWarned) return;
+            OneJS.deadContextWarned = true;
+            console.warn("[OneJS] Ignoring " + what + " after context destruction. JS code that outlives the context should clean up via __onTeardown.");
+        },
+
         // JS->C# delegate callbacks, registered via the global __registerCallback
         // (WebGL counterpart of the native callback table in quickjs_unity.c)
         callbackRegistry: null,   // Map<int, function>
@@ -330,6 +341,10 @@ var OneJSWebGLLib = {
         // Main invoke function: called from JS to invoke C# methods
         // =====================================================================
         invokeCs: function(typeName, memberName, callKind, isStatic, targetHandle, args) {
+            if (!OneJS.contextPtr) {
+                OneJS.warnDeadContext("C# invoke " + typeName + "." + memberName);
+                return null;
+            }
             if (!OneJS.callbacks.invoke) {
                 console.error("[OneJS] Invoke callback not set");
                 return null;
@@ -421,7 +436,7 @@ var OneJSWebGLLib = {
 
         // Called from JS to release a C# handle
         releaseHandle: function(handle) {
-            if (!OneJS.callbacks.releaseHandle || !handle) return;
+            if (!OneJS.contextPtr || !OneJS.callbacks.releaseHandle || !handle) return;
             {{{ makeDynCall("vi", "OneJS.callbacks.releaseHandle") }}}(handle);
         }
     },
@@ -434,6 +449,7 @@ var OneJSWebGLLib = {
     qjs_create: function() {
         OneJS.init();
         OneJS.contextPtr = 1; // Dummy context pointer
+        OneJS.deadContextWarned = false;
         return 1;
     },
 
@@ -444,6 +460,19 @@ var OneJSWebGLLib = {
         // nextCallbackId monotonic so stale C#-side delegate caches can never
         // alias a handle from a new context.
         if (OneJS.callbackRegistry) OneJS.callbackRegistry.clear();
+        // Stop the RAF tick loop and hand the page's timers back to the
+        // browser. The bootstrap's overrides captured them, Unity's own main
+        // loop included; without this, Application.Quit / unityInstance.Quit()
+        // leaves a hijacked half-dead runtime behind. See __teardownTimers in
+        // QuickJSBootstrap.js.txt.
+        var g = typeof window !== "undefined" ? window : globalThis;
+        if (typeof g.__teardownTimers === "function") {
+            try {
+                g.__teardownTimers();
+            } catch (e) {
+                console.error("[OneJS] Timer teardown failed:", e);
+            }
+        }
     },
 
     // =========================================================================
@@ -549,6 +578,10 @@ var OneJSWebGLLib = {
         OneJS.callbacks.zeroalloc = callbackPtr;
 
         var invoke = function(bindingId, args) {
+            if (!OneJS.contextPtr) {
+                OneJS.warnDeadContext("zero-alloc C# invoke");
+                return null;
+            }
             if (!OneJS.callbacks.zeroalloc) return null;
 
             var argCount = args.length;
