@@ -55,6 +55,13 @@ var OneJSWebGLLib = {
         initialized: false,
         contextPtr: 0,
 
+        // Live context refcount. contextPtr, callbackRegistry and the
+        // bootstrap's timer overrides are page-level singletons, so global
+        // teardown must only run when the LAST context is destroyed; C#
+        // supports multiple bridges even though WebGL is effectively
+        // single-context today.
+        liveContexts: 0,
+
         // One-time warning for JS->C# calls arriving after qjs_destroy. Page-
         // scope JS (module-level timers, event handlers) outlives the C#
         // context, and after Application.Quit the IL2CPP runtime is gone, so
@@ -448,6 +455,7 @@ var OneJSWebGLLib = {
     qjs_create__deps: ["$OneJS"],
     qjs_create: function() {
         OneJS.init();
+        OneJS.liveContexts++;
         OneJS.contextPtr = 1; // Dummy context pointer
         OneJS.deadContextWarned = false;
         return 1;
@@ -455,6 +463,10 @@ var OneJSWebGLLib = {
 
     qjs_destroy__deps: ["$OneJS"],
     qjs_destroy: function(ctx) {
+        if (OneJS.liveContexts > 0) OneJS.liveContexts--;
+        // Page-level teardown only when the last context goes: another live
+        // context still depends on the registry, the guards and the tick.
+        if (OneJS.liveContexts > 0) return;
         OneJS.contextPtr = 0;
         // Drop all registered callbacks (mirrors C#'s ClearDelegateCache). Keep
         // nextCallbackId monotonic so stale C#-side delegate caches can never

@@ -112,6 +112,9 @@ namespace OneJS.Tests {
             globalThis.requestAnimationFrame = function(fn) { var id = ++__fakeId; __fakeLog.push('raf:' + id); __fakeTimers[id] = fn; return id; };
             globalThis.cancelAnimationFrame = function(id) { __fakeLog.push('cancelRaf:' + id); };
             globalThis.performance = { now: function() { return 1000; } };
+            globalThis.__sentinelSetTimeout = globalThis.setTimeout;
+            globalThis.__sentinelClearTimeout = globalThis.clearTimeout;
+            globalThis.__sentinelRaf = globalThis.requestAnimationFrame;
         ";
 
         void ReEvalWithSentinels() {
@@ -167,6 +170,128 @@ namespace OneJS.Tests {
             // Idempotent: a second call must not touch the natives again
             _ctx.Eval("__fakeLog.length = 0; __teardownTimers();");
             Assert.AreEqual("", _ctx.Eval("__fakeLog.join(',')"), "__teardownTimers is not idempotent");
+        }
+
+        [Test]
+        public void WebGLClock_SeedsFromPerformanceNow() {
+            // On WebGL, tick timestamps are performance.now()-based page
+            // uptime. Module-level timers are created before the first tick;
+            // without seeding, every delay shorter than the boot time would
+            // fire immediately on tick 1.
+            ReEvalWithSentinels(); // sentinel performance.now() = 1000
+            _ctx.Eval("globalThis.__early = 0; setTimeout(function() { __early++; }, 500);");
+            _ctx.Eval("__tick(1050)");
+            Assert.AreEqual("0", _ctx.Eval("String(__early)"),
+                "module-level timer misfired on the first tick: clock not seeded from performance.now()");
+            _ctx.Eval("__tick(1600)");
+            Assert.AreEqual("1", _ctx.Eval("String(__early)"), "seeded timer did not fire at its real due time");
+        }
+
+        [Test]
+        public void Teardown_AfterRestart_StillStopsTick() {
+            ReEvalWithSentinels();
+            _ctx.Eval("__teardownTimers(); __fakeLog.length = 0; __startWebGLTick();");
+            Assert.AreEqual("true", _ctx.Eval("String(__fakeLog.length === 1 && __fakeLog[0].indexOf('raf:') === 0)"),
+                "restart after teardown did not schedule via the native RAF");
+            _ctx.Eval(@"
+                globalThis.__restartRafId = parseInt(__fakeLog[0].split(':')[1], 10);
+                __teardownTimers();
+                __fakeLog.length = 0;
+                __fakeTimers[__restartRafId](12345);
+            ");
+            Assert.AreEqual("false", _ctx.Eval("String(__fakeLog.some(function(e) { return e.indexOf('raf:') === 0; }))"),
+                "a second teardown after a restart left the tick loop rescheduling forever");
+        }
+
+        [Test]
+        public void WebGLTick_MidPassTeardown_StopsAndMigrates() {
+            // The actual quit path: Application.Quit runs inside a __webglTick
+            // pass (Unity's frame rides the OneJS tick), so qjs_destroy's
+            // teardown happens mid-drain. The pass must finish without running
+            // torn-down timers, migrate them instead, and not reschedule.
+            ReEvalWithSentinels();
+            _ctx.Eval(@"
+                __startWebGLTick();
+                globalThis.__order = [];
+                setTimeout(function() { __order.push('a'); __teardownTimers(); }, 1);
+                setTimeout(function() { __order.push('b'); }, 1);
+                globalThis.__tickRafId = parseInt(__fakeLog[0].split(':')[1], 10);
+                __fakeLog.length = 0;
+                __fakeTimers[__tickRafId](2000);
+            ");
+            Assert.AreEqual("a", _ctx.Eval("__order.join(',')"),
+                "a timeout due in the torn-down pass still ran inside that pass");
+            Assert.AreEqual("false", _ctx.Eval("String(__fakeLog.some(function(e) { return e.indexOf('raf:') === 0; }))"),
+                "the tick rescheduled itself after a mid-pass teardown");
+            _ctx.Eval(@"
+                var mig = __fakeLog.filter(function(e) { return e.indexOf('setTimeout:') === 0; })[0];
+                __fakeTimers[parseInt(mig.split(':')[1], 10)]();
+            ");
+            Assert.AreEqual("a,b", _ctx.Eval("__order.join(',')"), "the mid-pass-migrated timeout did not fire");
+        }
+
+        [Test]
+        public void BootstrapReEval_RetiresPreviousGeneration() {
+            // Context recreate without a page reload evaluates a new bootstrap
+            // generation. It must retire the previous one (stop its tick,
+            // migrate its pending timers) and capture the TRUE natives via the
+            // page stash, never a predecessor's overrides or wrappers.
+            ReEvalWithSentinels(); // generation A with sentinel natives
+            _ctx.Eval(@"
+                __startWebGLTick();
+                globalThis.__genATickRafId = parseInt(__fakeLog[0].split(':')[1], 10);
+                globalThis.__genAPending = setTimeout(function() {}, 50000);
+                __fakeLog.length = 0;
+            ");
+            _ctx.Eval(LoadBootstrapText(), "bootstrap_reeval2.js"); // generation B boots
+            Assert.AreEqual("true", _ctx.Eval("String(__fakeLog.some(function(e) { return e.indexOf('setTimeout:') === 0; }))"),
+                "generation B's boot did not migrate generation A's pending timer");
+            _ctx.Eval("__fakeLog.length = 0; __fakeTimers[__genATickRafId](9999);");
+            Assert.AreEqual("false", _ctx.Eval("String(__fakeLog.some(function(e) { return e.indexOf('raf:') === 0; }))"),
+                "generation A's tick loop kept rescheduling after generation B booted");
+            // The page stash holds the true (sentinel) natives
+            Assert.AreEqual("true", _ctx.Eval("String(__onejsNativeTimers.setTimeout === __sentinelSetTimeout)"),
+                "the native stash does not hold the true natives");
+            // Generation B's overrides are installed; its teardown restores the
+            // true natives directly (no wrapper chaining across generations)
+            _ctx.Eval("globalThis.__probeB = setTimeout(function(){}, 5); clearTimeout(__probeB);");
+            Assert.AreEqual("true", _ctx.Eval("String(__probeB >= (1 << 30))"),
+                "generation B's overrides are not installed");
+            _ctx.Eval("__teardownTimers();");
+            Assert.AreEqual("true", _ctx.Eval("String(globalThis.setTimeout === __sentinelSetTimeout)"),
+                "generation B's teardown did not restore the true native setTimeout");
+            Assert.AreEqual("true", _ctx.Eval("String(globalThis.requestAnimationFrame === __sentinelRaf)"),
+                "generation B's teardown did not restore the true native requestAnimationFrame");
+        }
+
+        [Test]
+        public void CleanTeardown_RestoresRawNatives() {
+            // With nothing pending to migrate, teardown must leave the page
+            // exactly as it was: raw natives, no wrappers at all.
+            ReEvalWithSentinels();
+            _ctx.Eval("__teardownTimers();");
+            Assert.AreEqual("true,true", _ctx.Eval(
+                "[globalThis.setTimeout === __sentinelSetTimeout, globalThis.clearTimeout === __sentinelClearTimeout].join(',')"),
+                "a teardown with nothing migrated installed wrappers instead of the raw natives");
+        }
+
+        [Test]
+        public void OverrideClears_FallThrough_ForForeignIds() {
+            // A host page that captured a native timer id before OneJS booted
+            // must still be able to cancel it through the overrides.
+            ReEvalWithSentinels();
+            _ctx.Eval("globalThis.__preBootId = __sentinelSetTimeout(function(){}, 60000);");
+            _ctx.Eval("__fakeLog.length = 0; clearTimeout(__preBootId);");
+            Assert.AreEqual("true", _ctx.Eval("String(__fakeLog.length === 1 && __fakeLog[0] === 'clearTimeout:' + __preBootId)"),
+                "the clearTimeout override did not fall through to the native for a pre-boot id");
+            // And clearTimeout(intervalId) clears the interval (browser parity)
+            _ctx.Eval(@"
+                globalThis.__intFired = 0;
+                var iid = setInterval(function() { __intFired++; }, 100);
+                clearTimeout(iid);
+                __tick(99999);
+            ");
+            Assert.AreEqual("0", _ctx.Eval("String(__intFired)"), "clearTimeout did not clear an interval id");
         }
     }
 }

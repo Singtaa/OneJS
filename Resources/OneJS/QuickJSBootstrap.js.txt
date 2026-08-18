@@ -1239,8 +1239,26 @@ let __timerId = 1 << 30;
 const __timeouts = new Map();
 const __intervals = new Map();
 
-// Timestamp from last tick: used as unified time base
-let __currentTime = 0;
+// If an older bootstrap generation still owns the page's timers (context
+// recreate without a page reload), retire it before capturing anything:
+// its teardown stops its tick loop, migrates its pending timers onto native
+// timers, and restores the native functions, so this generation captures and
+// overrides the real natives, never a predecessor's overrides.
+if (typeof globalThis.__teardownTimers === "function") {
+    try {
+        globalThis.__teardownTimers();
+    } catch (e) {
+        console.error("Previous OneJS timer teardown failed:", e);
+    }
+}
+
+// Timestamp from last tick: used as unified time base. On WebGL the tick
+// timestamps come from the browser RAF (performance.now() origin, i.e. page
+// uptime), so seed from the same clock: module-level timers are created
+// before the first tick, and a 0 base would make every delay shorter than
+// Unity's boot time fire immediately on the first tick.
+let __currentTime = (typeof globalThis.performance !== "undefined" &&
+    typeof globalThis.performance.now === "function") ? globalThis.performance.now() : 0;
 
 // Only polyfill performance.now if it doesn't exist (QuickJS)
 // In WebGL, the browser already has performance.now() and we shouldn't override it
@@ -1250,17 +1268,36 @@ if (typeof globalThis.performance === "undefined") {
     };
 }
 
-// Store original browser APIs before overriding (for WebGL compatibility)
-const __nativeSetTimeout = globalThis.setTimeout;
-const __nativeClearTimeout = globalThis.clearTimeout;
-const __nativeSetInterval = globalThis.setInterval;
-const __nativeClearInterval = globalThis.clearInterval;
-const __nativeRequestAnimationFrame = globalThis.requestAnimationFrame;
-const __nativeCancelAnimationFrame = globalThis.cancelAnimationFrame;
+// True browser natives, stashed once on the page and shared across bootstrap
+// generations: a re-eval must never capture a previous generation's override
+// or thin clear wrapper as "native" (that chains wrappers and misroutes ids
+// across generations). Created only when a native RAF exists (a browser
+// page); on QuickJS there is nothing to stash.
+if (typeof globalThis.__onejsNativeTimers === "undefined" && globalThis.requestAnimationFrame) {
+    globalThis.__onejsNativeTimers = {
+        setTimeout: globalThis.setTimeout,
+        clearTimeout: globalThis.clearTimeout,
+        setInterval: globalThis.setInterval,
+        clearInterval: globalThis.clearInterval,
+        requestAnimationFrame: globalThis.requestAnimationFrame,
+        cancelAnimationFrame: globalThis.cancelAnimationFrame
+    };
+}
+const __nativeStash = globalThis.__onejsNativeTimers;
+const __nativeSetTimeout = __nativeStash ? __nativeStash.setTimeout : globalThis.setTimeout;
+const __nativeClearTimeout = __nativeStash ? __nativeStash.clearTimeout : globalThis.clearTimeout;
+const __nativeSetInterval = __nativeStash ? __nativeStash.setInterval : globalThis.setInterval;
+const __nativeClearInterval = __nativeStash ? __nativeStash.clearInterval : globalThis.clearInterval;
+const __nativeRequestAnimationFrame = __nativeStash ? __nativeStash.requestAnimationFrame : globalThis.requestAnimationFrame;
+const __nativeCancelAnimationFrame = __nativeStash ? __nativeStash.cancelAnimationFrame : globalThis.cancelAnimationFrame;
 const __nativeFetch = globalThis.fetch;
 
 // Custom scheduling driven by Unity's Update loop via __tick
-// These replace browser APIs so React uses Unity's frame timing
+// These replace browser APIs so React uses Unity's frame timing.
+// The clear*/cancel* overrides fall through to the natives for ids they do
+// not own (a host page that captured a native id before OneJS booted can
+// still cancel it), which is safe because override ids never collide with
+// the browser's.
 globalThis.requestAnimationFrame = function(callback) {
     const id = ++__rafId;
     __rafCallbacks.set(id, callback);
@@ -1268,7 +1305,7 @@ globalThis.requestAnimationFrame = function(callback) {
 };
 
 globalThis.cancelAnimationFrame = function(id) {
-    __rafCallbacks.delete(id);
+    if (!__rafCallbacks.delete(id) && __nativeCancelAnimationFrame) __nativeCancelAnimationFrame(id);
 };
 
 globalThis.setTimeout = function(callback, delay, ...args) {
@@ -1279,7 +1316,8 @@ globalThis.setTimeout = function(callback, delay, ...args) {
 };
 
 globalThis.clearTimeout = function(id) {
-    __timeouts.delete(id);
+    // clearTimeout/clearInterval are interchangeable in browsers
+    if (!__timeouts.delete(id) && !__intervals.delete(id) && __nativeClearTimeout) __nativeClearTimeout(id);
 };
 
 globalThis.setInterval = function(callback, interval, ...args) {
@@ -1290,14 +1328,18 @@ globalThis.setInterval = function(callback, interval, ...args) {
 };
 
 globalThis.clearInterval = function(id) {
-    __intervals.delete(id);
+    if (!__intervals.delete(id) && !__timeouts.delete(id) && __nativeClearInterval) __nativeClearInterval(id);
 };
 
 // Shared drain for __tick (native, driven by Unity's Update) and __webglTick
 // (WebGL, driven by browser RAF). Snapshots keep every pass bounded:
-// - RAF and timeout callbacks registered during the pass run next pass, so a
+// - RAF callbacks registered during the pass run next pass.
+// - A timeout registered from inside a timeout callback runs next pass, so a
 //   zero-delay self-rescheduler (setTimeout(fn, 0) from inside a callback)
-//   cannot spin one pass forever.
+//   cannot spin one pass forever. One asymmetry: a setTimeout issued from a
+//   RAF callback lands in this pass's timeout snapshot (taken after the RAF
+//   drain) and runs this pass; still bounded, since the timeout drain itself
+//   cannot grow.
 // - Intervals fire at most once per pass, keeping phase while keeping up and
 //   re-basing when behind, so a long stall (background tab) cannot burst-fire
 //   the whole backlog in one pass.
@@ -1387,9 +1429,12 @@ if (__nativeRequestAnimationFrame) {
     // native counterparts.
     let __timersToreDown = false;
     globalThis.__teardownTimers = function() {
+        // Stop the tick BEFORE the idempotence check: a teardown after a
+        // restart (__startWebGLTick) must still stop the loop even though the
+        // migration/restore below already happened.
+        __webglTickRunning = false;
         if (__timersToreDown) return;
         __timersToreDown = true;
-        __webglTickRunning = false;
 
         const now = typeof performance !== "undefined" ? performance.now() : __currentTime;
         // Timer ids and RAF ids are separate namespaces (as in the browser),
@@ -1397,10 +1442,17 @@ if (__nativeRequestAnimationFrame) {
         const migratedTimers = new Map(); // override timer id -> { kind, nativeId }
         const migratedRafs = new Map();   // override raf id -> native raf id
 
+        // Migrated callbacks keep the drain's catch: they are still OneJS-era
+        // callbacks, and an exception on a native timer would otherwise go
+        // uncaught on the host page.
         for (const [id, cb] of __rafCallbacks) {
             migratedRafs.set(id, __nativeRequestAnimationFrame(function(ts) {
                 migratedRafs.delete(id);
-                cb(ts);
+                try {
+                    cb(ts);
+                } catch (e) {
+                    console.error("RAF callback error:", e);
+                }
             }));
         }
         __rafCallbacks.clear();
@@ -1409,7 +1461,11 @@ if (__nativeRequestAnimationFrame) {
             const rec = { kind: "timeout", nativeId: 0 };
             rec.nativeId = __nativeSetTimeout(function() {
                 migratedTimers.delete(id);
-                t.callback(...t.args);
+                try {
+                    t.callback(...t.args);
+                } catch (e) {
+                    console.error("Timeout callback error:", e);
+                }
             }, Math.max(0, t.due - now));
             migratedTimers.set(id, rec);
         }
@@ -1420,10 +1476,17 @@ if (__nativeRequestAnimationFrame) {
             // then a native interval takes over. The record mutates so the
             // clear wrappers always see the live native id.
             const rec = { kind: "timeout", nativeId: 0 };
+            const runGuarded = function() {
+                try {
+                    t.callback(...t.args);
+                } catch (e) {
+                    console.error("Interval callback error:", e);
+                }
+            };
             rec.nativeId = __nativeSetTimeout(function() {
                 rec.kind = "interval";
-                rec.nativeId = __nativeSetInterval(t.callback, t.interval, ...t.args);
-                t.callback(...t.args);
+                rec.nativeId = __nativeSetInterval(runGuarded, t.interval);
+                runGuarded();
             }, Math.max(0, t.next - now));
             migratedTimers.set(id, rec);
         }
@@ -1441,6 +1504,14 @@ if (__nativeRequestAnimationFrame) {
         globalThis.setTimeout = __nativeSetTimeout;
         globalThis.setInterval = __nativeSetInterval;
         globalThis.requestAnimationFrame = __nativeRequestAnimationFrame;
+        if (migratedTimers.size === 0 && migratedRafs.size === 0) {
+            // Nothing to route: hand back the raw natives and leave the page
+            // exactly as it was before OneJS booted.
+            globalThis.clearTimeout = __nativeClearTimeout;
+            globalThis.clearInterval = __nativeClearInterval;
+            globalThis.cancelAnimationFrame = __nativeCancelAnimationFrame;
+            return;
+        }
         globalThis.clearTimeout = function(id) { if (!clearMigratedTimer(id)) __nativeClearTimeout(id); };
         globalThis.clearInterval = function(id) { if (!clearMigratedTimer(id)) __nativeClearInterval(id); };
         globalThis.cancelAnimationFrame = function(id) {
