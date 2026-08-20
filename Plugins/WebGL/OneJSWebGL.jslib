@@ -178,8 +178,25 @@ var OneJSWebGLLib = {
                 HEAPU32[(valuePtr + 8) >> 2] = strPtr;
             }
             else if (type === "object") {
+                // Arrays cross as {"__csArray": [...]} marker JSON, the same shape
+                // the bootstrap pre-wraps and the native try_convert_array emits,
+                // so C#'s JsonObject -> ConvertJsArrayToCs path handles all three
+                // identically (a bare JSON array would fail C#'s object parser).
+                if (Array.isArray(value)) {
+                    try {
+                        var arrJson = JSON.stringify({ __csArray: value });
+                        HEAP32[valuePtr >> 2] = OneJS.TYPE_JSON_OBJECT;
+                        var arrLen = lengthBytesUTF8(arrJson) + 1;
+                        var arrPtr = _malloc(arrLen);
+                        stringToUTF8(arrJson, arrPtr, arrLen);
+                        HEAPU32[(valuePtr + 8) >> 2] = arrPtr;
+                    } catch (e) {
+                        // Cyclic array etc.: treat as null
+                        HEAP32[valuePtr >> 2] = OneJS.TYPE_NULL;
+                    }
+                }
                 // Check for C# object handle
-                if (value.__csHandle !== undefined && value.__csHandle !== 0) {
+                else if (value.__csHandle !== undefined && value.__csHandle !== 0) {
                     HEAP32[valuePtr >> 2] = OneJS.TYPE_OBJECT_HANDLE;
                     HEAP32[(valuePtr + 8) >> 2] = value.__csHandle;
                 }
@@ -452,6 +469,26 @@ var OneJSWebGLLib = {
     // Context Management
     // =========================================================================
 
+    // ABI handshake with the C# runtime (mirrors QJS_ABI_VERSION in
+    // quickjs_unity.c). The jslib ships inside the build so it always matches,
+    // but the entry point must exist for the C# probe.
+    qjs_abi_version: function() {
+        return 2;
+    },
+
+    // Frees "native"-allocated buffers (on WebGL: _malloc'd wasm-heap memory
+    // from marshalValue results). Mirrors the native qjs_free export.
+    qjs_free: function(ptr) {
+        if (ptr) _free(ptr);
+    },
+
+    // The C# side registers its allocator's free function here. On WebGL both
+    // sides share the emscripten heap, so this jslib frees C#-allocated buffers
+    // with _free directly and never needs to call it; the entry point exists so
+    // the C# registration links.
+    qjs_set_cs_free_callback: function(callbackPtr) {
+    },
+
     qjs_create__deps: ["$OneJS"],
     qjs_create: function() {
         OneJS.init();
@@ -659,11 +696,18 @@ var OneJSWebGLLib = {
         // C#-side delegate wrapper (CreateDelegateWrapper) and the lifecycle path
         // (onPlay/onStop) call back into JS. RAF/timer callbacks never come through
         // here on WebGL (those use native browser APIs).
+        //
+        // Error codes mirror QjsError in quickjs_unity.c: -1 dead context,
+        // -5 handler exception, -6 stale handle. The C# wrappers treat -1/-6 as
+        // a warn-once no-op, so returning them here doesn't abort event chains.
+        if (!OneJS.contextPtr) {
+            return -1; // QJS_ERR_INVALID_CTX: page-level teardown already ran
+        }
         var fn = OneJS.callbackRegistry ? OneJS.callbackRegistry.get(callbackHandle) : undefined;
         if (!fn) {
-            // Stale handle: log rather than fail, so a C# event raise chain isn't aborted
-            console.error("[OneJS] qjs_invoke_callback: no callback registered for handle " + callbackHandle);
-            return 0;
+            // Handle ids are monotonic across contexts (never reused), so a miss
+            // means a handle from a destroyed context
+            return -6; // QJS_ERR_STALE_HANDLE
         }
 
         // Argument memory is owned by the C# caller (InvokeCallback/NoAlloc allocate
@@ -679,10 +723,12 @@ var OneJSWebGLLib = {
             if (outResultPtr) OneJS.marshalValue(result, outResultPtr);
             return 0;
         } catch (e) {
-            // Contain handler errors: a non-zero return throws inside the C# raise,
-            // which would abort remaining C# listeners on the same event
             console.error("[OneJS] Callback error:", e && e.stack ? e.stack : e);
-            return 0;
+            // When the caller wants a result, correctness wins: report the failure
+            // (native does the same). For void invokes keep returning 0 so one bad
+            // handler doesn't throw inside a C# event raise and abort the
+            // remaining listeners on the same event.
+            return outResultPtr ? -5 : 0; // QJS_ERR_EXCEPTION
         }
     },
 

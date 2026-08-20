@@ -23,20 +23,48 @@ namespace OneJS {
         static readonly CsLogCallback _logCallback = HandleLogFromJs;
         static readonly unsafe CsInvokeCallback _invokeCallback = DispatchFromJs;
         static readonly CsReleaseHandleCallback _releaseHandleCallback = HandleReleaseFromJs;
+        static readonly CsFreeCallback _freeCallback = HandleFreeFromNative;
 
         // MARK: Callback GC Roots
         static GCHandle _logCallbackHandle;
         static GCHandle _invokeCallbackHandle;
         static GCHandle _releaseCallbackHandle;
+        static GCHandle _freeCallbackHandle;
+
+        /// <summary>
+        /// The loaded native library's ABI version, or 1 for a pre-handshake
+        /// binary that lacks qjs_abi_version. QuickJSContext refuses to start on
+        /// a mismatch with ExpectedAbiVersion (typically: the editor still has an
+        /// older dylib loaded after a package update; restart the editor).
+        /// </summary>
+        internal static int NativeAbiVersion { get; private set; }
 
         static QuickJSNative() {
             _logCallbackHandle = GCHandle.Alloc(_logCallback);
             _invokeCallbackHandle = GCHandle.Alloc(_invokeCallback);
             _releaseCallbackHandle = GCHandle.Alloc(_releaseHandleCallback);
+            _freeCallbackHandle = GCHandle.Alloc(_freeCallback);
 
             qjs_set_cs_log_callback(_logCallback);
             qjs_set_cs_invoke_callback(_invokeCallback);
             qjs_set_cs_release_handle_callback(_releaseHandleCallback);
+
+            // Probe before touching entry points that only newer binaries export,
+            // so an out-of-date library degrades to a clear error at context
+            // creation instead of a TypeInitializationException here.
+            try {
+                NativeAbiVersion = qjs_abi_version();
+            } catch (EntryPointNotFoundException) {
+                NativeAbiVersion = 1;
+            }
+            if (NativeAbiVersion >= 2) {
+                qjs_set_cs_free_callback(_freeCallback);
+            }
+        }
+
+        [MonoPInvokeCallback(typeof(CsFreeCallback))]
+        static void HandleFreeFromNative(IntPtr ptr) {
+            if (ptr != IntPtr.Zero) Marshal.FreeCoTaskMem(ptr);
         }
 
         [MonoPInvokeCallback(typeof(CsReleaseHandleCallback))]
@@ -754,7 +782,10 @@ namespace OneJS {
                     }
                     return null;
                 case InteropType.Array:
-                    Debug.LogWarning("[QuickJS] Array deserialization not yet implemented");
+                    // Arrays normally cross as {"__csArray": [...]} marker JSON
+                    // (see try_convert_array); this legacy length-only form only
+                    // appears when serialization failed (e.g. a cyclic array).
+                    Debug.LogWarning("[QuickJS] JS array could not be serialized; marshaling as null");
                     return null;
                 default:
                     return null;

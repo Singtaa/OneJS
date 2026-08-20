@@ -19,8 +19,12 @@ namespace OneJS {
         int _evalCount;
         int _lastGCHandleCount;     // Live handle count right after the last GC (for delta-triggered GC)
         bool _bufferOverflowWarned; // Only warn once per context to avoid log spam
+        System.Collections.Generic.Dictionary<(string, Type), Delegate> _jsFunctionCache;
 
         public IntPtr NativePtr => _ptr;
+
+        /// <summary>True while the context can execute JS (created and not yet disposed).</summary>
+        public bool IsAlive => !_disposed && _ptr != IntPtr.Zero;
 
         static string LoadBootstrapFromResources() {
             // if (_cachedBootstrap != null) return _cachedBootstrap;
@@ -36,6 +40,14 @@ namespace OneJS {
         }
 
         public QuickJSContext(int bufferSize = 16 * 1024) {
+            if (QuickJSNative.NativeAbiVersion != QuickJSNative.ExpectedAbiVersion) {
+                throw new InvalidOperationException(
+                    $"[OneJS] Native QuickJS library ABI version {QuickJSNative.NativeAbiVersion} does not match " +
+                    $"this OneJS runtime (expected {QuickJSNative.ExpectedAbiVersion}). The editor is likely still " +
+                    "running an older native binary after a package update: restart the Unity editor. In a player " +
+                    "build, rebuild the player so the native plugin matches the OneJS package.");
+            }
+
             _ptr = QuickJSNative.qjs_create();
             if (_ptr == IntPtr.Zero) {
                 throw new Exception("qjs_create failed");
@@ -199,17 +211,14 @@ namespace OneJS {
                     int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, nativeArgs, argCount, &result);
 
                     if (code != 0) {
-                        throw new Exception($"qjs_invoke_callback failed with code {code}");
+                        throw new Exception($"JS callback invocation failed: {QuickJSNative.DescribeError(code)}");
                     }
 
-                    object ret = QuickJSNative.InteropValueToObject(result);
-
-                    // Free string result if allocated by native
-                    if (result.type == QuickJSNative.InteropType.String && result.str != IntPtr.Zero) {
-                        Marshal.FreeCoTaskMem(result.str);
+                    try {
+                        return QuickJSNative.InteropValueToObject(result);
+                    } finally {
+                        QuickJSNative.FreeNativeResultBuffers(ref result);
                     }
-
-                    return ret;
                 } finally {
                     if (nativeArgs != null) {
                         Marshal.FreeHGlobal((IntPtr)nativeArgs);
@@ -235,7 +244,7 @@ namespace OneJS {
 
         unsafe void InvokeAndCheck(int handle, QuickJSNative.InteropValue* args, int count) {
             int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, args, count, null);
-            if (code != 0) throw new Exception($"qjs_invoke_callback failed with code {code}");
+            if (code != 0) throw new Exception($"JS callback invocation failed: {QuickJSNative.DescribeError(code)}");
         }
 
         // InteropValue helpers for common types
@@ -374,7 +383,7 @@ namespace OneJS {
         unsafe int InvokeAndGetInt(int handle, QuickJSNative.InteropValue* args, int count) {
             QuickJSNative.InteropValue result = default;
             int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, args, count, &result);
-            if (code != 0) throw new Exception($"qjs_invoke_callback failed with code {code}");
+            if (code != 0) throw new Exception($"JS callback invocation failed: {QuickJSNative.DescribeError(code)}");
 
             int value;
             switch (result.type) {
@@ -384,13 +393,10 @@ namespace OneJS {
                 default: value = 0; break;
             }
 
-            // Defensive: this path only ever returns a small int bitmask, but if a handler
-            // returns a string/object the native side allocates a CoTaskMem buffer in `str`;
-            // free it instead of leaking (mirrors the InvokeAndCheck result handling).
-            if ((result.type == QuickJSNative.InteropType.String ||
-                 result.type == QuickJSNative.InteropType.JsonObject) && result.str != IntPtr.Zero) {
-                Marshal.FreeCoTaskMem(result.str);
-            }
+            // Defensive: this path only ever returns a small int bitmask, but if a
+            // handler returns a string/object the native side malloc'd a buffer;
+            // free it (through the native allocator) instead of leaking.
+            QuickJSNative.FreeNativeResultBuffers(ref result);
 
             return value;
         }
@@ -404,6 +410,31 @@ namespace OneJS {
             ThrowIfInvalid();
             var args = stackalloc QuickJSNative.InteropValue[6] { MakeInt(arg0), MakeInt(arg1), MakeFloat(arg2), MakeFloat(arg3), MakeInt(arg4), MakeInt(arg5) };
             return InvokeAndGetInt(handle, args, 6);
+        }
+
+        // MARK: Typed JS Functions
+        /// <summary>
+        /// Returns a typed delegate that calls a JS function by name ("showToast",
+        /// or a dotted path from globalThis like "game.ui.showToast"). Resolution
+        /// is lazy (the global only has to exist by the time the delegate is first
+        /// invoked) and the delegate is cached per (name, delegate type), so
+        /// repeated calls return the same instance. Action delegates support up to
+        /// 4 parameters; Func delegates additionally marshal the JS return value.
+        /// The delegate is bound to this context; for one that survives hot
+        /// reload, use JSRunner.GetJSFunction instead. Invoking it throws if the
+        /// context is disposed or the global is missing or not a function.
+        /// </summary>
+        public TDelegate GetJSFunction<TDelegate>(string globalName) where TDelegate : Delegate {
+            if (string.IsNullOrEmpty(globalName))
+                throw new ArgumentException("globalName must be a non-empty JS global name", nameof(globalName));
+
+            _jsFunctionCache ??= new System.Collections.Generic.Dictionary<(string, Type), Delegate>();
+            var key = (globalName, typeof(TDelegate));
+            if (_jsFunctionCache.TryGetValue(key, out var cached)) return (TDelegate)cached;
+
+            var del = JsFunctionBinding.CreateDelegate<TDelegate>(() => this, globalName);
+            _jsFunctionCache[key] = del;
+            return del;
         }
     }
 }

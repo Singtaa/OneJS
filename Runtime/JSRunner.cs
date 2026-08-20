@@ -225,6 +225,40 @@ namespace OneJS {
 #endif
 
         /// <summary>
+        /// Fired after a hot reload completes (fresh JS context, bundle re-run,
+        /// onPlay re-invoked in play mode). C# code that caches anything JS-side,
+        /// like raw callback handles from __registerCallback, should re-acquire it
+        /// here; delegates from GetJSFunction re-resolve themselves and don't need
+        /// this. Live reload is editor-only, so this never fires in player builds.
+        /// </summary>
+        public event Action<JSRunner> Reloaded;
+
+        Dictionary<(string, Type), Delegate> _jsFunctionCache;
+
+        /// <summary>
+        /// Returns a typed delegate that calls a JS function by name ("showToast",
+        /// or a dotted path from globalThis like "game.ui.showToast"). The
+        /// delegate always targets this runner's current JS context, resolving
+        /// lazily and re-resolving after hot reload, so it stays valid for the
+        /// lifetime of the runner. Cached per (name, delegate type). Action
+        /// delegates support up to 4 parameters; Func delegates additionally
+        /// marshal the JS return value. Invoking the delegate throws if the
+        /// runner isn't running or the JS global is missing or not a function.
+        /// </summary>
+        public TDelegate GetJSFunction<TDelegate>(string globalName) where TDelegate : Delegate {
+            if (string.IsNullOrEmpty(globalName))
+                throw new ArgumentException("globalName must be a non-empty JS global name", nameof(globalName));
+
+            _jsFunctionCache ??= new Dictionary<(string, Type), Delegate>();
+            var key = (globalName, typeof(TDelegate));
+            if (_jsFunctionCache.TryGetValue(key, out var cached)) return (TDelegate)cached;
+
+            var del = JsFunctionBinding.CreateDelegate<TDelegate>(() => _bridge?.Context, globalName);
+            _jsFunctionCache[key] = del;
+            return del;
+        }
+
+        /// <summary>
         /// Set PanelSettings at runtime and sync to the runtime UIDocument. Use this instead of assigning the field when changing from script.
         /// </summary>
         public void SetPanelSettings(PanelSettings panelSettings) {
@@ -1352,6 +1386,12 @@ namespace OneJS {
                 _reloadCount++;
                 Debug.Log($"[JSRunner] Reloaded ({_reloadCount})");
 
+                try {
+                    Reloaded?.Invoke(this);
+                } catch (Exception ex) {
+                    Debug.LogError($"[JSRunner] Reloaded event handler threw: {ex}");
+                }
+
                 // Force UI Toolkit to process layout so the Game view reflects
                 // the new content when the editor regains focus.
                 if (_editModePreviewActive)
@@ -1521,6 +1561,13 @@ namespace OneJS {
                 _bridge?.Dispose();
                 _bridge = null;
                 _scriptLoaded = false;
+                // A native ABI mismatch cannot heal until the editor restarts:
+                // cancel the auto-start retry window instead of repeating the
+                // same error every quarter second. (Other failures keep retrying:
+                // e.g. a bundle mid-rebuild becomes readable a moment later.)
+                if (ex is InvalidOperationException && ex.Message.Contains("ABI")) {
+                    _previewStartDeadline = 0;
+                }
             }
         }
 

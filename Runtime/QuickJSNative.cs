@@ -51,6 +51,16 @@ namespace OneJS {
         public delegate void CsReleaseHandleCallback(int handle);
 
         /// <summary>
+        /// Frees a buffer the C# side allocated (StringToCoTaskMemUTF8) once the
+        /// native side has consumed it. Each side frees foreign memory through the
+        /// owner's allocator: on Windows the CRT heap and the CoTaskMem heap are
+        /// distinct, so native free() on a C# buffer (or FreeCoTaskMem on a native
+        /// malloc) is undefined behavior. The reverse direction is qjs_free.
+        /// </summary>
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate void CsFreeCallback(IntPtr ptr);
+
+        /// <summary>
         /// Zero-allocation dispatch callback.
         /// Called from fixed-arity __zaInvoke functions with stack-allocated args.
         /// </summary>
@@ -109,6 +119,63 @@ namespace OneJS {
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern void qjs_set_cs_zeroalloc_callback(CsZeroAllocCallback cb);
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        static extern void qjs_set_cs_free_callback(CsFreeCallback cb);
+
+        // Frees native-allocated buffers returned in InteropValue (str/typeHint
+        // from qjs_invoke_callback results) through the native allocator.
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void qjs_free(IntPtr ptr);
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int qjs_abi_version();
+
+        /// <summary>
+        /// The native ABI version this C# runtime was built against. Checked once
+        /// at context creation; a mismatch (e.g. the editor still has an older
+        /// dylib loaded after a package update) fails loudly instead of
+        /// misbehaving at the first interop call.
+        /// </summary>
+        internal const int ExpectedAbiVersion = 2;
+
+        // MARK: Error Codes (mirror QjsError in quickjs_unity.c)
+        internal const int ErrOk = 0;
+        internal const int ErrInvalidCtx = -1;
+        internal const int ErrInvalidHandle = -2;
+        internal const int ErrNotFunction = -3;
+        internal const int ErrOutOfMemory = -4;
+        internal const int ErrException = -5;
+        internal const int ErrStaleHandle = -6;
+
+        /// <summary>
+        /// Frees the native-allocated buffers of a callback result (string/JSON
+        /// payload and typeHint) through the native allocator. Safe to call for
+        /// any result value; clears the pointers so a double free is impossible.
+        /// </summary>
+        internal static void FreeNativeResultBuffers(ref InteropValue result) {
+            if ((result.type == InteropType.String || result.type == InteropType.JsonObject) &&
+                result.str != IntPtr.Zero) {
+                qjs_free(result.str);
+                result.str = IntPtr.Zero;
+            }
+            if (result.typeHint != IntPtr.Zero) {
+                qjs_free(result.typeHint);
+                result.typeHint = IntPtr.Zero;
+            }
+        }
+
+        internal static string DescribeError(int code) {
+            switch (code) {
+                case ErrInvalidCtx: return "invalid or destroyed JS context";
+                case ErrInvalidHandle: return "invalid callback handle";
+                case ErrNotFunction: return "callback handle does not refer to a function";
+                case ErrOutOfMemory: return "native out of memory";
+                case ErrException: return "the JS callback threw an exception (see log)";
+                case ErrStaleHandle: return "stale callback handle from a previous JS context (re-register after reload)";
+                default: return $"native error {code}";
+            }
+        }
 
 #if UNITY_WEBGL && !UNITY_EDITOR
         // Fast event dispatch for WebGL: avoids eval overhead. Returns the suppression-flags

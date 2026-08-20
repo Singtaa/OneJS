@@ -1,3 +1,13 @@
+# [2026-08-20] v3.2.0
+
+- `GetJSFunction<TDelegate>()` on JSRunner, QuickJSUIBridge, and QuickJSContext binds a named JS function to a typed C# delegate
+- JS functions assigned to C# `Func` delegates now marshal their return values (all arities up to 4)
+- `JSRunner.Reloaded` event fires after each hot reload
+- Callback handles are generation-tagged; a handle from a destroyed context fails loudly instead of invoking the wrong function
+- JS arrays returned to C# marshal as arrays instead of null
+- Native library and C# runtime verify a shared ABI version at startup
+- Fixed native buffer leaks and a Windows allocator mismatch in callback result marshaling
+
 # [2026-08-17] v3.1.6
 
 - WebGL: scheduler clock seeds from `performance.now()`, so timers created during boot fire at their real due times

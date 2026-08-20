@@ -1143,9 +1143,12 @@ namespace OneJS {
 
         // MARK: Delegate Wrapper Creation
 
-        // Cache: callbackHandle → delegate, so add_/remove_ event pairs get the same delegate instance.
-        // Without this, Delegate.Remove can't match the delegate for unsubscription.
-        static readonly Dictionary<int, Delegate> _callbackDelegateCache = new();
+        // Cache: (callbackHandle, delegateType) → delegate, so add_/remove_ event pairs
+        // get the same delegate instance (without this, Delegate.Remove can't match the
+        // delegate for unsubscription). The type is part of the key because a callback
+        // slot number can be reused within a context after __unregisterCallback: a cache
+        // hit on the bare handle could then hand back a wrapper of the wrong delegate type.
+        static readonly Dictionary<(int, Type), Delegate> _callbackDelegateCache = new();
 
         /// <summary>Clear the delegate cache (call on context dispose or reset).</summary>
         internal static void ClearDelegateCache() => _callbackDelegateCache.Clear();
@@ -1153,8 +1156,8 @@ namespace OneJS {
         /// <summary>
         /// Creates a C# delegate that wraps a JS callback function.
         /// When the delegate is invoked, it calls the JS callback via qjs_invoke_callback.
-        /// Delegates are cached by callback handle so that add_/remove_ event pairs
-        /// receive the same delegate instance, enabling proper Delegate.Remove matching.
+        /// Delegates are cached by (callback handle, delegate type) so that add_/remove_
+        /// event pairs receive the same delegate instance, enabling proper Delegate.Remove matching.
         /// </summary>
         /// <param name="delegateType">The target delegate type (e.g., Action&lt;T&gt;, Func&lt;T&gt;)</param>
         /// <param name="callbackHandle">The JS callback handle from __registerCallback</param>
@@ -1163,7 +1166,7 @@ namespace OneJS {
             if (delegateType == null || callbackHandle < 0) return null;
 
             // Return cached delegate if available (ensures add_/remove_ get same instance)
-            if (_callbackDelegateCache.TryGetValue(callbackHandle, out var cached)) return cached;
+            if (_callbackDelegateCache.TryGetValue((callbackHandle, delegateType), out var cached)) return cached;
 
             // Capture the current context pointer for later invocation
             IntPtr ctxPtr = CurrentContextPtr;
@@ -1189,8 +1192,23 @@ namespace OneJS {
                 result = CreateFuncWrapper(delegateType, ctxPtr, callbackHandle, parameters, returnType);
             }
 
-            if (result != null) _callbackDelegateCache[callbackHandle] = result;
+            if (result != null) _callbackDelegateCache[(callbackHandle, delegateType)] = result;
             return result;
+        }
+
+        // Closure-based wrappers share this: a stale handle / dead context (a C#
+        // object kept a JS-backed delegate across a hot reload) warns once via the
+        // captured flag box and becomes a no-op; other failures are real errors.
+        static void LogWrapperInvokeError(string label, int code, bool[] deadWarned) {
+            if (code == ErrStaleHandle || code == ErrInvalidCtx) {
+                if (deadWarned[0]) return;
+                deadWarned[0] = true;
+                Debug.LogWarning(
+                    $"[QuickJS] Ignoring {label} invocation whose JS context no longer exists " +
+                    "(stale after hot reload). Reassign the delegate from the new JS context.");
+                return;
+            }
+            Debug.LogError($"[QuickJS] {label} failed: {DescribeError(code)}");
         }
 
         static Delegate CreateActionWrapper(Type delegateType, IntPtr ctxPtr, int callbackHandle, ParameterInfo[] parameters) {
@@ -1215,11 +1233,12 @@ namespace OneJS {
 
             // Special case: Action (no parameters)
             if (parameters.Length == 0) {
+                var deadWarned = new bool[1];
                 Action action = () => {
                     unsafe {
                         int code = qjs_invoke_callback(ctxPtr, callbackHandle, null, 0, null);
                         if (code != 0) {
-                            Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
+                            LogWrapperInvokeError("callback", code, deadWarned);
                         }
                     }
                 };
@@ -1234,6 +1253,11 @@ namespace OneJS {
         static Delegate CreateMeshGenerationContextActionWrapper(Type delegateType, IntPtr ctxPtr, int callbackHandle) {
             // Create Action<MeshGenerationContext> wrapper
             // The MeshGenerationContext is passed as an object handle to JS
+            var deadWarned = new bool[1];
+            // Allocated once per wrapper, reused every invocation (the native side
+            // copies it into a JS string during the call): allocating inside the
+            // lambda would leak one buffer per repaint
+            var typeHintPtr = StringToUtf8("UnityEngine.UIElements.MeshGenerationContext");
             Action<UnityEngine.UIElements.MeshGenerationContext> action = (mgc) => {
                 unsafe {
                     // Register the MeshGenerationContext as a handle so JS can access it
@@ -1244,14 +1268,14 @@ namespace OneJS {
                     var arg = new InteropValue {
                         type = InteropType.ObjectHandle,
                         handle = mgcHandle,
-                        typeHint = StringToUtf8("UnityEngine.UIElements.MeshGenerationContext")
+                        typeHint = typeHintPtr
                     };
 
                     InteropValue* args = &arg;
                     int code = qjs_invoke_callback(ctxPtr, callbackHandle, args, 1, null);
 
                     if (code != 0) {
-                        Debug.LogError($"[QuickJS] generateVisualContent callback failed with code {code}");
+                        LogWrapperInvokeError("generateVisualContent callback", code, deadWarned);
                     }
 
                     // Note: We don't unregister the handle immediately as JS might still reference it
@@ -1263,6 +1287,10 @@ namespace OneJS {
 
         static Delegate CreateBindItemActionWrapper(IntPtr ctxPtr, int callbackHandle) {
             // Create Action<VisualElement, int> wrapper for ListView bindItem/unbindItem
+            var deadWarned = new bool[1];
+            // Allocated once per wrapper, reused every invocation (see the
+            // MeshGenerationContext wrapper above)
+            var typeHintPtr = StringToUtf8("UnityEngine.UIElements.VisualElement");
             Action<UnityEngine.UIElements.VisualElement, int> action = (element, index) => {
                 unsafe {
                     // Register the VisualElement as a handle
@@ -1273,7 +1301,7 @@ namespace OneJS {
                     args[0] = new InteropValue {
                         type = InteropType.ObjectHandle,
                         handle = elementHandle,
-                        typeHint = StringToUtf8("UnityEngine.UIElements.VisualElement")
+                        typeHint = typeHintPtr
                     };
                     args[1] = new InteropValue {
                         type = InteropType.Int32,
@@ -1283,7 +1311,7 @@ namespace OneJS {
                     int code = qjs_invoke_callback(ctxPtr, callbackHandle, args, 2, null);
 
                     if (code != 0) {
-                        Debug.LogError($"[QuickJS] bindItem callback failed with code {code}");
+                        LogWrapperInvokeError("bindItem callback", code, deadWarned);
                     }
                 }
             };
@@ -1292,6 +1320,10 @@ namespace OneJS {
 
         static Delegate CreateDestroyItemActionWrapper(IntPtr ctxPtr, int callbackHandle) {
             // Create Action<VisualElement> wrapper for ListView destroyItem
+            var deadWarned = new bool[1];
+            // Allocated once per wrapper, reused every invocation (see the
+            // MeshGenerationContext wrapper above)
+            var typeHintPtr = StringToUtf8("UnityEngine.UIElements.VisualElement");
             Action<UnityEngine.UIElements.VisualElement> action = (element) => {
                 unsafe {
                     // Register the VisualElement as a handle
@@ -1300,14 +1332,14 @@ namespace OneJS {
                     var arg = new InteropValue {
                         type = InteropType.ObjectHandle,
                         handle = elementHandle,
-                        typeHint = StringToUtf8("UnityEngine.UIElements.VisualElement")
+                        typeHint = typeHintPtr
                     };
 
                     InteropValue* args = &arg;
                     int code = qjs_invoke_callback(ctxPtr, callbackHandle, args, 1, null);
 
                     if (code != 0) {
-                        Debug.LogError($"[QuickJS] destroyItem callback failed with code {code}");
+                        LogWrapperInvokeError("destroyItem callback", code, deadWarned);
                     }
                 }
             };
@@ -1340,7 +1372,7 @@ namespace OneJS {
                         return Delegate.CreateDelegate(delegateType, invoker, mi);
                     }
                     default:
-                        Debug.LogWarning($"[QuickJS] Unsupported delegate arity for callback wrapper: {delegateType.FullName} ({parameters.Length} params)");
+                        Debug.LogError($"[QuickJS] Cannot bind a JS function to {delegateType.FullName}: delegates support up to 4 parameters ({parameters.Length} given)");
                         return null;
                 }
             } catch (Exception e) {
@@ -1352,16 +1384,39 @@ namespace OneJS {
         sealed class JsCallbackInvoker {
             readonly IntPtr _ctxPtr;
             readonly int _callbackHandle;
+            bool _deadWarned; // warn once, not per invocation, when the context is gone
 
             public JsCallbackInvoker(IntPtr ctxPtr, int callbackHandle) {
                 _ctxPtr = ctxPtr;
                 _callbackHandle = callbackHandle;
             }
 
+            // A stale handle / dead context is an expected condition (a C# object
+            // kept a JS-backed delegate across a hot reload), so it warns once and
+            // the invocation becomes a no-op; every other failure is a real error.
+            void LogInvokeError(int code) {
+                if (code == ErrStaleHandle || code == ErrInvalidCtx) {
+                    if (_deadWarned) return;
+                    _deadWarned = true;
+                    Debug.LogWarning(
+                        "[QuickJS] Ignoring a JS callback invocation whose JS context no longer exists " +
+                        "(stale after hot reload). Reassign the delegate from the new JS context, or " +
+                        "clear it in onStop.");
+                    return;
+                }
+                Debug.LogError($"[QuickJS] Callback invocation failed: {DescribeError(code)}");
+            }
+
             static readonly ConcurrentDictionary<Type, MethodInfo> _invoke1Cache = new();
             static readonly ConcurrentDictionary<(Type, Type), MethodInfo> _invoke2Cache = new();
             static readonly ConcurrentDictionary<(Type, Type, Type), MethodInfo> _invoke3Cache = new();
             static readonly ConcurrentDictionary<(Type, Type, Type, Type), MethodInfo> _invoke4Cache = new();
+
+            static readonly ConcurrentDictionary<Type, MethodInfo> _invokeRet0Cache = new();
+            static readonly ConcurrentDictionary<(Type, Type), MethodInfo> _invokeRet1Cache = new();
+            static readonly ConcurrentDictionary<(Type, Type, Type), MethodInfo> _invokeRet2Cache = new();
+            static readonly ConcurrentDictionary<(Type, Type, Type, Type), MethodInfo> _invokeRet3Cache = new();
+            static readonly ConcurrentDictionary<(Type, Type, Type, Type, Type), MethodInfo> _invokeRet4Cache = new();
 
             static readonly MethodInfo _invoke0 =
                 typeof(JsCallbackInvoker).GetMethod(nameof(Invoke0), BindingFlags.Instance | BindingFlags.Public);
@@ -1378,6 +1433,21 @@ namespace OneJS {
             static readonly MethodInfo _invoke4Open =
                 typeof(JsCallbackInvoker).GetMethod(nameof(Invoke4), BindingFlags.Instance | BindingFlags.Public);
 
+            static readonly MethodInfo _invokeRet0Open =
+                typeof(JsCallbackInvoker).GetMethod(nameof(InvokeRet0), BindingFlags.Instance | BindingFlags.Public);
+
+            static readonly MethodInfo _invokeRet1Open =
+                typeof(JsCallbackInvoker).GetMethod(nameof(InvokeRet1), BindingFlags.Instance | BindingFlags.Public);
+
+            static readonly MethodInfo _invokeRet2Open =
+                typeof(JsCallbackInvoker).GetMethod(nameof(InvokeRet2), BindingFlags.Instance | BindingFlags.Public);
+
+            static readonly MethodInfo _invokeRet3Open =
+                typeof(JsCallbackInvoker).GetMethod(nameof(InvokeRet3), BindingFlags.Instance | BindingFlags.Public);
+
+            static readonly MethodInfo _invokeRet4Open =
+                typeof(JsCallbackInvoker).GetMethod(nameof(InvokeRet4), BindingFlags.Instance | BindingFlags.Public);
+
             public static MethodInfo Invoke0Method => _invoke0;
 
             public static MethodInfo GetInvoke1(Type t1) =>
@@ -1392,10 +1462,25 @@ namespace OneJS {
             public static MethodInfo GetInvoke4(Type t1, Type t2, Type t3, Type t4) =>
                 _invoke4Cache.GetOrAdd((t1, t2, t3, t4), static k => _invoke4Open.MakeGenericMethod(k.Item1, k.Item2, k.Item3, k.Item4));
 
+            public static MethodInfo GetInvokeRet0(Type ret) =>
+                _invokeRet0Cache.GetOrAdd(ret, static t => _invokeRet0Open.MakeGenericMethod(t));
+
+            public static MethodInfo GetInvokeRet1(Type t1, Type ret) =>
+                _invokeRet1Cache.GetOrAdd((t1, ret), static k => _invokeRet1Open.MakeGenericMethod(k.Item1, k.Item2));
+
+            public static MethodInfo GetInvokeRet2(Type t1, Type t2, Type ret) =>
+                _invokeRet2Cache.GetOrAdd((t1, t2, ret), static k => _invokeRet2Open.MakeGenericMethod(k.Item1, k.Item2, k.Item3));
+
+            public static MethodInfo GetInvokeRet3(Type t1, Type t2, Type t3, Type ret) =>
+                _invokeRet3Cache.GetOrAdd((t1, t2, t3, ret), static k => _invokeRet3Open.MakeGenericMethod(k.Item1, k.Item2, k.Item3, k.Item4));
+
+            public static MethodInfo GetInvokeRet4(Type t1, Type t2, Type t3, Type t4, Type ret) =>
+                _invokeRet4Cache.GetOrAdd((t1, t2, t3, t4, ret), static k => _invokeRet4Open.MakeGenericMethod(k.Item1, k.Item2, k.Item3, k.Item4, k.Item5));
+
             public void Invoke0() {
                 unsafe {
                     int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, null, 0, null);
-                    if (code != 0) Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
+                    if (code != 0) LogInvokeError(code);
                 }
             }
 
@@ -1409,7 +1494,7 @@ namespace OneJS {
                         args[0] = ObjectToInteropValue(a1, ref str[0]);
 
                         int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 1, null);
-                        if (code != 0) Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
+                        if (code != 0) LogInvokeError(code);
                     } finally {
                         FreeIfAllocated(str[0]);
                     }
@@ -1428,7 +1513,7 @@ namespace OneJS {
                         args[1] = ObjectToInteropValue(a2, ref str[1]);
 
                         int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 2, null);
-                        if (code != 0) Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
+                        if (code != 0) LogInvokeError(code);
                     } finally {
                         FreeIfAllocated(str[0]);
                         FreeIfAllocated(str[1]);
@@ -1450,7 +1535,7 @@ namespace OneJS {
                         args[2] = ObjectToInteropValue(a3, ref str[2]);
 
                         int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 3, null);
-                        if (code != 0) Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
+                        if (code != 0) LogInvokeError(code);
                     } finally {
                         FreeIfAllocated(str[0]);
                         FreeIfAllocated(str[1]);
@@ -1475,13 +1560,155 @@ namespace OneJS {
                         args[3] = ObjectToInteropValue(a4, ref str[3]);
 
                         int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 4, null);
-                        if (code != 0) Debug.LogError($"[QuickJS] Callback invocation failed with code {code}");
+                        if (code != 0) LogInvokeError(code);
                     } finally {
                         FreeIfAllocated(str[0]);
                         FreeIfAllocated(str[1]);
                         FreeIfAllocated(str[2]);
                         FreeIfAllocated(str[3]);
                     }
+                }
+            }
+
+            // MARK: Func invokes (marshal the JS return value)
+            // On failure these log (stale contexts warn once, see LogInvokeError)
+            // and return default: JS-backed Func delegates get invoked by engine
+            // code like ListView's makeItem, where throwing across the delegate
+            // boundary would break the caller.
+            public TResult InvokeRet0<TResult>() {
+                unsafe {
+                    var result = default(InteropValue);
+                    int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, null, 0, &result);
+                    if (code != 0) {
+                        LogInvokeError(code);
+                        return default;
+                    }
+                    return ConvertCallbackResult<TResult>(ref result);
+                }
+            }
+
+            public TResult InvokeRet1<T1, TResult>(T1 a1) {
+                unsafe {
+                    var args = stackalloc InteropValue[1];
+                    var str = stackalloc IntPtr[1];
+                    str[0] = IntPtr.Zero;
+                    var result = default(InteropValue);
+
+                    try {
+                        args[0] = ObjectToInteropValue(a1, ref str[0]);
+                        int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 1, &result);
+                        if (code != 0) {
+                            LogInvokeError(code);
+                            return default;
+                        }
+                        return ConvertCallbackResult<TResult>(ref result);
+                    } finally {
+                        FreeIfAllocated(str[0]);
+                    }
+                }
+            }
+
+            public TResult InvokeRet2<T1, T2, TResult>(T1 a1, T2 a2) {
+                unsafe {
+                    var args = stackalloc InteropValue[2];
+                    var str = stackalloc IntPtr[2];
+                    str[0] = IntPtr.Zero;
+                    str[1] = IntPtr.Zero;
+                    var result = default(InteropValue);
+
+                    try {
+                        args[0] = ObjectToInteropValue(a1, ref str[0]);
+                        args[1] = ObjectToInteropValue(a2, ref str[1]);
+                        int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 2, &result);
+                        if (code != 0) {
+                            LogInvokeError(code);
+                            return default;
+                        }
+                        return ConvertCallbackResult<TResult>(ref result);
+                    } finally {
+                        FreeIfAllocated(str[0]);
+                        FreeIfAllocated(str[1]);
+                    }
+                }
+            }
+
+            public TResult InvokeRet3<T1, T2, T3, TResult>(T1 a1, T2 a2, T3 a3) {
+                unsafe {
+                    var args = stackalloc InteropValue[3];
+                    var str = stackalloc IntPtr[3];
+                    str[0] = IntPtr.Zero;
+                    str[1] = IntPtr.Zero;
+                    str[2] = IntPtr.Zero;
+                    var result = default(InteropValue);
+
+                    try {
+                        args[0] = ObjectToInteropValue(a1, ref str[0]);
+                        args[1] = ObjectToInteropValue(a2, ref str[1]);
+                        args[2] = ObjectToInteropValue(a3, ref str[2]);
+                        int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 3, &result);
+                        if (code != 0) {
+                            LogInvokeError(code);
+                            return default;
+                        }
+                        return ConvertCallbackResult<TResult>(ref result);
+                    } finally {
+                        FreeIfAllocated(str[0]);
+                        FreeIfAllocated(str[1]);
+                        FreeIfAllocated(str[2]);
+                    }
+                }
+            }
+
+            public TResult InvokeRet4<T1, T2, T3, T4, TResult>(T1 a1, T2 a2, T3 a3, T4 a4) {
+                unsafe {
+                    var args = stackalloc InteropValue[4];
+                    var str = stackalloc IntPtr[4];
+                    str[0] = IntPtr.Zero;
+                    str[1] = IntPtr.Zero;
+                    str[2] = IntPtr.Zero;
+                    str[3] = IntPtr.Zero;
+                    var result = default(InteropValue);
+
+                    try {
+                        args[0] = ObjectToInteropValue(a1, ref str[0]);
+                        args[1] = ObjectToInteropValue(a2, ref str[1]);
+                        args[2] = ObjectToInteropValue(a3, ref str[2]);
+                        args[3] = ObjectToInteropValue(a4, ref str[3]);
+                        int code = qjs_invoke_callback(_ctxPtr, _callbackHandle, args, 4, &result);
+                        if (code != 0) {
+                            LogInvokeError(code);
+                            return default;
+                        }
+                        return ConvertCallbackResult<TResult>(ref result);
+                    } finally {
+                        FreeIfAllocated(str[0]);
+                        FreeIfAllocated(str[1]);
+                        FreeIfAllocated(str[2]);
+                        FreeIfAllocated(str[3]);
+                    }
+                }
+            }
+
+            static TResult ConvertCallbackResult<TResult>(ref InteropValue result) {
+                object obj;
+                try {
+                    obj = InteropValueToObject(result);
+                } finally {
+                    FreeNativeResultBuffers(ref result);
+                }
+
+                if (obj == null) return default;
+                if (obj is TResult direct) return direct;
+
+                var converted = ConvertToTargetType(obj, typeof(TResult));
+                if (converted is TResult t) return t;
+
+                try {
+                    return (TResult)Convert.ChangeType(obj, typeof(TResult));
+                } catch (Exception) {
+                    Debug.LogError(
+                        $"[QuickJS] JS callback returned a {obj.GetType().Name}; cannot convert to {typeof(TResult).Name}. Returning default.");
+                    return default;
                 }
             }
 
@@ -1493,9 +1720,21 @@ namespace OneJS {
                 dummy.Invoke1<double>(default);
                 dummy.Invoke1<bool>(default);
                 dummy.Invoke1<long>(default);
+                dummy.Invoke1<Vector2>(default);
+                dummy.Invoke1<Vector3>(default);
+                dummy.Invoke1<Quaternion>(default);
+                dummy.Invoke1<Color>(default);
                 dummy.Invoke2<int, int>(default, default);
                 dummy.Invoke2<object, int>(default, default);
                 dummy.Invoke2<int, float>(default, default);
+                dummy.Invoke2<float, float>(default, default);
+                dummy.InvokeRet0<int>();
+                dummy.InvokeRet0<float>();
+                dummy.InvokeRet0<double>();
+                dummy.InvokeRet0<bool>();
+                dummy.InvokeRet1<int, int>(default);
+                dummy.InvokeRet1<float, float>(default);
+                dummy.InvokeRet1<int, bool>(default);
             }
 
             static void FreeIfAllocated(IntPtr p) {
@@ -1503,31 +1742,41 @@ namespace OneJS {
             }
         }
 
+        // Generic Func<..., TResult> wrapper: invokes the JS callback and marshals
+        // its return value back to C# (numbers, strings, bools, Unity structs via
+        // the vector fast paths, C# objects via handles, plain objects as
+        // Dictionary<string, object>, arrays as object[]). Covers e.g. ListView's
+        // Func<VisualElement> makeItem and user delegate fields like Func<int, bool>.
         static Delegate CreateFuncWrapper(Type delegateType, IntPtr ctxPtr, int callbackHandle, ParameterInfo[] parameters, Type returnType) {
-            // Special case: Func<VisualElement> for makeItem
-            if (parameters.Length == 0 &&
-                returnType.FullName == "UnityEngine.UIElements.VisualElement") {
-                Func<UnityEngine.UIElements.VisualElement> func = () => {
-                    unsafe {
-                        var result = new InteropValue();
-                        int code = qjs_invoke_callback(ctxPtr, callbackHandle, null, 0, &result);
+            var invoker = new JsCallbackInvoker(ctxPtr, callbackHandle);
 
-                        if (code != 0) {
-                            Debug.LogError($"[QuickJS] makeItem callback failed with code {code}");
-                            return null;
-                        }
-
-                        // Convert result to VisualElement
-                        object resultObj = InteropValueToObject(result);
-                        return resultObj as UnityEngine.UIElements.VisualElement;
-                    }
-                };
-                return func;
+            try {
+                MethodInfo mi;
+                switch (parameters.Length) {
+                    case 0:
+                        mi = JsCallbackInvoker.GetInvokeRet0(returnType);
+                        break;
+                    case 1:
+                        mi = JsCallbackInvoker.GetInvokeRet1(parameters[0].ParameterType, returnType);
+                        break;
+                    case 2:
+                        mi = JsCallbackInvoker.GetInvokeRet2(parameters[0].ParameterType, parameters[1].ParameterType, returnType);
+                        break;
+                    case 3:
+                        mi = JsCallbackInvoker.GetInvokeRet3(parameters[0].ParameterType, parameters[1].ParameterType, parameters[2].ParameterType, returnType);
+                        break;
+                    case 4:
+                        mi = JsCallbackInvoker.GetInvokeRet4(parameters[0].ParameterType, parameters[1].ParameterType, parameters[2].ParameterType, parameters[3].ParameterType, returnType);
+                        break;
+                    default:
+                        Debug.LogError($"[QuickJS] Cannot bind a JS function to {delegateType.FullName}: Func delegates support up to 4 parameters ({parameters.Length} given)");
+                        return null;
+                }
+                return Delegate.CreateDelegate(delegateType, invoker, mi);
+            } catch (Exception e) {
+                Debug.LogError($"[QuickJS] Failed to create Func wrapper for {delegateType.FullName}: {e.Message}");
+                return null;
             }
-
-            // For now, return null for unsupported delegate types
-            Debug.LogWarning($"[QuickJS] Unsupported Func delegate type for callback wrapper: {delegateType.Name}");
-            return null;
         }
     }
 }

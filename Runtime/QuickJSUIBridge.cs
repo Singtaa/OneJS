@@ -279,6 +279,16 @@ namespace OneJS {
         }
 
         /// <summary>
+        /// Returns a typed delegate that calls a JS function by name ("showToast",
+        /// or a dotted path from globalThis like "game.ui.showToast"). Bound to
+        /// this bridge's context; for a delegate that survives hot reload, use
+        /// JSRunner.GetJSFunction. See QuickJSContext.GetJSFunction for details.
+        /// </summary>
+        public TDelegate GetJSFunction<TDelegate>(string globalName) where TDelegate : Delegate {
+            return _ctx.GetJSFunction<TDelegate>(globalName);
+        }
+
+        /// <summary>
         /// Cache the __tick callback handle for zero-allocation per-frame invocation.
         /// Call this once after the bootstrap and user code have been evaluated.
         /// </summary>

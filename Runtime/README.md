@@ -365,7 +365,31 @@ void SetPanelSettings(PanelSettings ps);                   // Assign PanelSettin
 void SetVisualTreeAsset(VisualTreeAsset vta);              // Assign VisualTreeAsset at runtime
 void EnsureProjectFolderAndAssets(bool useSceneName);      // Create folder + PanelSettings + UXML
 void EnsureProjectSetup();                                 // Scaffold files into working dir
+TDelegate GetJSFunction<TDelegate>(string globalName);     // Typed delegate for a JS function (survives hot reload)
+
+// Events
+event Action<JSRunner> Reloaded;                           // After each hot reload (Editor only in practice)
 ```
+
+### Calling JS from C# (`GetJSFunction`)
+
+`GetJSFunction<TDelegate>(name)` returns a typed delegate that calls a JS
+function by global name (dotted paths like `"game.ui.showToast"` resolve from
+`globalThis`). Exists on `JSRunner`, `QuickJSUIBridge`, and `QuickJSContext`;
+only the JSRunner variant re-resolves after hot reload (the others bind to one
+context). Resolution is lazy and cached per `(name, delegate type)`; `Func`
+delegates marshal the JS return value. Backed by `JsFunctionBinding.cs`, which
+reuses the `__registerCallback` + `InvokeCallback` machinery.
+
+Callback handles are generation-tagged (18-bit context generation + 12-bit
+slot, mirrored in `quickjs_unity.c`): a handle minted by a destroyed context
+fails with a stale-handle error instead of silently indexing into a newer
+context's table. The C# runtime and native library also verify a shared ABI
+version at startup (`qjs_abi_version`); on mismatch (editor still has an older
+dylib loaded after a package update) context creation fails with a
+restart-the-editor message. JS functions assigned to C# `Func<...>` delegate
+fields marshal return values through the same `InvokeRet` path (arities 0-4);
+JS arrays returned to C# arrive as `object[]` via `__csArray` marker JSON.
 
 ## JSRunner vs JSPad: Choosing the Right Tool
 

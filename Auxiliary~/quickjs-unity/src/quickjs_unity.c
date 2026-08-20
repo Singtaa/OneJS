@@ -17,6 +17,25 @@
 #define QJS_MAX_CALLBACKS 4096
 #define QJS_EXCEPTION_BUF_SIZE 2048
 
+// C# checks this at init (qjs_abi_version) so a stale native binary fails
+// loudly instead of misbehaving. Bump on any change to exported signatures,
+// struct layouts, or handle/ownership semantics.
+#define QJS_ABI_VERSION 2
+
+// Callback handles encode the owning context's generation so a handle from a
+// destroyed context can never silently index into a newer context's table
+// (malloc can hand the new QjsContext the old one's address, and slot numbers
+// restart at 0 per context - without the generation tag that combination
+// invokes the wrong JS function with no error).
+// Layout: bits [0..11] slot (4096 slots), bits [12..29] generation, bit 30
+// unused so handles stay positive. Generation 0 is never issued, so every
+// valid handle is >= 4096 and sentinel values like -1/0 can't alias one.
+#define QJS_CALLBACK_SLOT_BITS 12
+#define QJS_CALLBACK_SLOT_MASK ((1 << QJS_CALLBACK_SLOT_BITS) - 1)
+#define QJS_CALLBACK_GEN_MASK 0x3FFFF
+
+#define QJS_MAX_LIVE_CONTEXTS 64
+
 // MARK: Error Codes
 
 typedef enum QjsError {
@@ -25,13 +44,15 @@ typedef enum QjsError {
     QJS_ERR_INVALID_HANDLE = -2,
     QJS_ERR_NOT_FUNCTION = -3,
     QJS_ERR_OUT_OF_MEMORY = -4,
-    QJS_ERR_EXCEPTION = -5
+    QJS_ERR_EXCEPTION = -5,
+    QJS_ERR_STALE_HANDLE = -6
 } QjsError;
 
 // MARK: Types
 
 typedef struct {
     unsigned int magic;
+    unsigned int generation;
     JSRuntime* rt;
     JSContext* ctx;
     JSValue callbacks[QJS_MAX_CALLBACKS];
@@ -115,11 +136,22 @@ typedef void (*CsReleaseHandleCallback)(int handle);
  */
 typedef void (*CsZeroAllocCallback)(int32_t bindingId, const InteropValue* args, int32_t argCount, InteropValue* outResult);
 
+/**
+ * Frees memory that the C# side allocated (e.g. result strings from
+ * InteropInvokeResult, allocated with Marshal.StringToCoTaskMemUTF8). Each
+ * side must free foreign buffers through the owner's allocator: on Windows
+ * the CRT heap behind malloc/free and the CoTaskMem heap are distinct, so
+ * a plain free() here is undefined behavior. The reverse direction is
+ * qjs_free below.
+ */
+typedef void (*CsFreeCallback)(void* ptr);
+
 static struct {
     CsInvokeCallback invoke;
     CsLogCallback log;
     CsReleaseHandleCallback release_handle;
     CsZeroAllocCallback zeroalloc;
+    CsFreeCallback free_cs;
 } g_callbacks = {0};
 
 QJS_API void qjs_set_cs_invoke_callback(CsInvokeCallback cb) { g_callbacks.invoke = cb; }
@@ -128,11 +160,77 @@ QJS_API void qjs_set_cs_release_handle_callback(CsReleaseHandleCallback cb) {
     g_callbacks.release_handle = cb;
 }
 QJS_API void qjs_set_cs_zeroalloc_callback(CsZeroAllocCallback cb) { g_callbacks.zeroalloc = cb; }
+QJS_API void qjs_set_cs_free_callback(CsFreeCallback cb) { g_callbacks.free_cs = cb; }
+
+// Frees C#-allocated memory through the C# allocator; falls back to free()
+// (correct everywhere except Windows) if C# never registered the callback.
+static void free_cs_memory(const void* p) {
+    if (!p) return;
+    if (g_callbacks.free_cs) g_callbacks.free_cs((void*)p);
+    else free((void*)p);
+}
+
+// C# frees native-allocated buffers (InteropValue.str / typeHint returned from
+// qjs_invoke_callback) through this export so both sides of the boundary
+// always free with the allocator that malloc'd.
+QJS_API void qjs_free(void* p) {
+    free(p);
+}
+
+QJS_API int qjs_abi_version(void) {
+    return QJS_ABI_VERSION;
+}
 
 // MARK: Utils
 
+// Registry of live QjsContext pointers. Membership is checked BEFORE any
+// dereference of an incoming context pointer: C#-side delegate wrappers
+// capture raw pointers at creation and can outlive the context (hot reload),
+// so reading instance->magic on a stale pointer would be a use-after-free.
+// All context lifecycle and invocation runs on Unity's main thread, matching
+// the rest of this file's (lock-free) globals.
+static QjsContext* g_live_contexts[QJS_MAX_LIVE_CONTEXTS];
+static unsigned int g_next_generation = 1;
+
+static int live_context_add(QjsContext* p) {
+    for (int i = 0; i < QJS_MAX_LIVE_CONTEXTS; i++) {
+        if (!g_live_contexts[i]) {
+            g_live_contexts[i] = p;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void live_context_remove(QjsContext* p) {
+    for (int i = 0; i < QJS_MAX_LIVE_CONTEXTS; i++) {
+        if (g_live_contexts[i] == p) {
+            g_live_contexts[i] = NULL;
+            return;
+        }
+    }
+}
+
+static int live_context_contains(QjsContext* p) {
+    for (int i = 0; i < QJS_MAX_LIVE_CONTEXTS; i++) {
+        if (g_live_contexts[i] == p) return 1;
+    }
+    return 0;
+}
+
+// Context generations tag callback handles (see QJS_CALLBACK_* constants).
+// Never issues 0, so no handle can decode to generation 0.
+static unsigned int next_generation(void) {
+    unsigned int g;
+    do {
+        g = g_next_generation++ & QJS_CALLBACK_GEN_MASK;
+    } while (g == 0);
+    return g;
+}
+
 static int is_valid(QjsContext* instance) {
-    return instance && instance->magic == QJS_MAGIC && instance->rt && instance->ctx;
+    return instance && live_context_contains(instance) &&
+           instance->magic == QJS_MAGIC && instance->rt && instance->ctx;
 }
 
 static void copy_cstring(char* dst, int dstSize, const char* src) {
@@ -300,9 +398,23 @@ static int try_convert_color(JSContext* ctx, JSValueConst v, InteropValue* out) 
 static int try_convert_array(JSContext* ctx, JSValueConst v, InteropValue* out) {
     if (!JS_IsArray(ctx, v)) return 0;
 
+    // Serialize as {"__csArray": [...]} marker JSON, the same shape the
+    // bootstrap uses when it pre-wraps arrays, so the C# side's existing
+    // JsonObject -> ConvertJsArrayToCs path handles both identically.
+    JSValue wrapper = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, wrapper, "__csArray", JS_DupValue(ctx, v));
+    char* json = js_value_to_json(ctx, wrapper);
+    JS_FreeValue(ctx, wrapper);
+    if (json) {
+        out->type = INTEROP_TYPE_JSON_OBJECT;
+        out->v.str = json;
+        return 1;
+    }
+
+    // Serialization failed (cyclic array, etc.): legacy length-only marker,
+    // which C# reports as unsupported rather than silently dropping.
     uint32_t len = 0;
     get_array_length(ctx, v, &len);
-
     out->type = INTEROP_TYPE_ARRAY;
     out->v.i32 = (int32_t)len;
     return 1;
@@ -534,6 +646,22 @@ static JSValue js_release_handle(JSContext* ctx, JSValueConst this_val, int argc
     return JS_UNDEFINED;
 }
 
+static int make_callback_handle(QjsContext* qctx, int slot) {
+    return (int)((qctx->generation << QJS_CALLBACK_SLOT_BITS) | (unsigned int)slot);
+}
+
+// Decodes a callback handle against a context. Returns the slot index, or
+// QJS_ERR_STALE_HANDLE when the handle's generation doesn't match (a handle
+// minted by a context that has since been destroyed), or
+// QJS_ERR_INVALID_HANDLE for values that were never valid handles.
+static int decode_callback_handle(QjsContext* qctx, int handle) {
+    if (handle < 0) return QJS_ERR_INVALID_HANDLE;
+    unsigned int gen = ((unsigned int)handle >> QJS_CALLBACK_SLOT_BITS) & QJS_CALLBACK_GEN_MASK;
+    if (gen == 0) return QJS_ERR_INVALID_HANDLE;
+    if (gen != qctx->generation) return QJS_ERR_STALE_HANDLE;
+    return handle & QJS_CALLBACK_SLOT_MASK;
+}
+
 static JSValue js_register_callback(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
     if (argc < 1 || !JS_IsFunction(ctx, argv[0])) {
         return JS_ThrowTypeError(ctx, "registerCallback: arg must be a function");
@@ -571,7 +699,7 @@ static JSValue js_register_callback(JSContext* ctx, JSValueConst this_val, int a
     qctx->callbacks[slot] = JS_DupValue(ctx, argv[0]);
     qctx->callback_count++;
 
-    return JS_NewInt32(ctx, slot);
+    return JS_NewInt32(ctx, make_callback_handle(qctx, slot));
 }
 
 static JSValue js_unregister_callback(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
@@ -583,11 +711,12 @@ static JSValue js_unregister_callback(JSContext* ctx, JSValueConst this_val, int
     QjsContext* qctx = (QjsContext*)JS_GetContextOpaque(ctx);
     if (!qctx) return JS_FALSE;
 
-    if (handle < 0 || handle >= QJS_MAX_CALLBACKS) return JS_FALSE;
-    if (JS_IsUndefined(qctx->callbacks[handle])) return JS_FALSE;
+    int slot = decode_callback_handle(qctx, handle);
+    if (slot < 0) return JS_FALSE;
+    if (JS_IsUndefined(qctx->callbacks[slot])) return JS_FALSE;
 
-    JS_FreeValue(ctx, qctx->callbacks[handle]);
-    qctx->callbacks[handle] = JS_UNDEFINED;
+    JS_FreeValue(ctx, qctx->callbacks[slot]);
+    qctx->callbacks[slot] = JS_UNDEFINED;
     qctx->callback_count--;
 
     return JS_TRUE;
@@ -675,11 +804,13 @@ static JSValue js_cs_invoke(JSContext* ctx, JSValueConst this_val, int argc, JSV
 
     result = interop_value_to_js(ctx, &res.return_value);
 
+    // These buffers were allocated by C# (StringToCoTaskMemUTF8): free them
+    // through the C# allocator, not this CRT's free().
     if (res.return_value.type == INTEROP_TYPE_STRING && res.return_value.v.str) {
-        free((void*)res.return_value.v.str);
+        free_cs_memory(res.return_value.v.str);
     }
     if (res.return_value.typeHint) {
-        free((void*)res.return_value.typeHint);
+        free_cs_memory(res.return_value.typeHint);
     }
 
 cleanup:
@@ -1110,8 +1241,19 @@ QJS_API QjsContext* qjs_create() {
     }
 
     wrapper->magic = QJS_MAGIC;
+    wrapper->generation = next_generation();
     wrapper->rt = rt;
     wrapper->ctx = ctx;
+
+    if (!live_context_add(wrapper)) {
+        // Registry full: something is leaking contexts. Fail loudly rather
+        // than hand out a context that every validity check would reject.
+        if (g_callbacks.log) g_callbacks.log("[QuickJS] qjs_create: live context registry full");
+        free(wrapper);
+        JS_FreeContext(ctx);
+        JS_FreeRuntime(rt);
+        return NULL;
+    }
 
     JS_SetContextOpaque(ctx, wrapper);
 
@@ -1129,6 +1271,11 @@ QJS_API void qjs_destroy(QjsContext* instance) {
 
     JSContext* ctx = instance->ctx;
     JSRuntime* rt = instance->rt;
+
+    // Remove from the live registry first: from this point every entry point
+    // holding a stale pointer to this instance fails is_valid without ever
+    // dereferencing freed memory.
+    live_context_remove(instance);
 
     instance->magic = 0;
     qjs_cleanup_callbacks(instance);
@@ -1173,10 +1320,12 @@ QJS_API int qjs_eval(QjsContext* instance, const char* code, const char* filenam
 QJS_API int qjs_invoke_callback(QjsContext* instance, int callbackHandle, InteropValue* args, int argCount,
                                 InteropValue* outResult) {
     if (!is_valid(instance)) return QJS_ERR_INVALID_CTX;
-    if (callbackHandle < 0 || callbackHandle >= QJS_MAX_CALLBACKS) return QJS_ERR_INVALID_HANDLE;
+
+    int slot = decode_callback_handle(instance, callbackHandle);
+    if (slot < 0) return slot; // QJS_ERR_STALE_HANDLE or QJS_ERR_INVALID_HANDLE
 
     JSContext* ctx = instance->ctx;
-    JSValue func = instance->callbacks[callbackHandle];
+    JSValue func = instance->callbacks[slot];
 
     if (JS_IsUndefined(func) || !JS_IsFunction(ctx, func)) return QJS_ERR_NOT_FUNCTION;
 
