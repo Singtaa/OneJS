@@ -1,5 +1,10 @@
 # OneJS v3: Agent Guide
 
+> Before adding anything that crosses between C# and JavaScript, read
+> [DESIGN.md](DESIGN.md). It states what belongs on each side, the four rules a
+> wrapper has to satisfy, and why an interpreter on native makes it a portability
+> question rather than a performance one.
+
 Condensed facts for AI agents working with OneJS. Full documentation: https://onejs.com/docs
 
 OneJS runs React 19 + TypeScript UIs inside Unity. TSX compiles with esbuild into a single bundle that the `JSRunner` component executes through QuickJS (or the browser's own JS engine on WebGL), rendering through UI Toolkit. No webview, no DOM.
