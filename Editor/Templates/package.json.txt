@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "//note": "For local dev: npm link onejs-react onejs-unity unity-types",
+  "//types-note": "@types/react-reconciler tracks react-reconciler 0.31, which onejs-react is built against. 0.32 changed HostConfig's arity and does not typecheck against it.",
   "scripts": {
     "build": "node esbuild.config.mjs",
     "watch": "node esbuild.config.mjs --watch",
@@ -17,6 +18,7 @@
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
+    "@types/react-reconciler": "~0.31.0",
     "esbuild": "^0.28.1",
     "typescript": "^7.0.0",
     "unity-types": "^6000.3.0"
