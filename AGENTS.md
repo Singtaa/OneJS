@@ -143,6 +143,7 @@ Performance on QuickJS (an interpreter): every proxy access is a reflection cros
 - Keep the react aliases in the esbuild config.
 - `e.value`, not `e.target.value`.
 - `console.log(csObject)` prints a handle, not fields: log fields directly. JS logs land in the Unity Console.
+- Naming a type from a new engine module means declaring `com.unity.modules.<name>` in `package.json`. CI builds its host project from that list, so an undeclared module fails there even though the dev project, which has every module, compiles fine.
 - Native callback table = 4096 slots (one per JS function bound to a C# delegate/event; freed on reassign/`remove_`).
 - IL2CPP/AOT builds strip dynamically-accessed code: ship a `link.xml` preserving your game assemblies or you get `[QuickJS] Type/Method not found` in builds only. See https://onejs.com/docs/guides/building
 - Scene transitions destroy JSRunner before React cleanup runs: also clear static delegate subscriptions in `onStop`.

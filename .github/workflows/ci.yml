@@ -44,29 +44,24 @@ jobs:
           docker run --rm -v "$PWD":/repo -w /repo ubuntu:22.04 bash -c \
             "apt-get update -qq && apt-get install -y -qq gcc make > /dev/null && bash Auxiliary~/quickjs-unity/build-linux.sh"
 
-      # OneJS is a package, so CI hosts it inside a throwaway project. The
-      # package has no Unity package dependencies; the manifest below is just
-      # the test framework plus the built-in modules the runtime touches.
-      # (Vector Graphics is a built-in module as of Unity 6.3.)
+      # OneJS is a package, so CI hosts it inside a throwaway project. The host's
+      # dependencies are read out of the package manifest rather than listed again
+      # here. UPM does not resolve them itself in this layout (the package is copied
+      # into Assets/, not Packages/), and a second hand-maintained list would drift
+      # from the first until something the runtime uses is missing from one of them.
+      # Reading package.json makes this job the check on that declaration: a module
+      # the code needs and the package does not declare fails the build here.
       - name: Bootstrap host project
         run: |
           mkdir -p "$PROJECT_PATH/Assets" "$PROJECT_PATH/Packages" "$PROJECT_PATH/ProjectSettings"
-          cat > "$PROJECT_PATH/Packages/manifest.json" <<'JSON'
-          {
-            "dependencies": {
-              "com.unity.test-framework": "1.7.0",
-              "com.unity.inputsystem": "1.19.0",
-              "com.unity.ugui": "2.5.0",
-              "com.unity.modules.uielements": "1.0.0",
-              "com.unity.modules.ui": "1.0.0",
-              "com.unity.modules.imageconversion": "1.0.0",
-              "com.unity.modules.unitywebrequest": "1.0.0",
-              "com.unity.modules.unitywebrequesttexture": "1.0.0",
-              "com.unity.modules.physics": "1.0.0",
-              "com.unity.modules.vectorgraphics": "1.0.0"
-            }
-          }
-          JSON
+          # Extras exist only for the tests: the test framework itself, and the
+          # Input System, without which OneJS.Runtime.InputSystem is constrained
+          # out and its 64-method surface is never compiled here at all.
+          jq '{dependencies: (.dependencies + {
+                 "com.unity.test-framework": "1.7.0",
+                 "com.unity.inputsystem": "1.19.0"
+               })}' package.json > "$PROJECT_PATH/Packages/manifest.json"
+          cat "$PROJECT_PATH/Packages/manifest.json"
           echo "m_EditorVersion: $UNITY_VERSION" > "$PROJECT_PATH/ProjectSettings/ProjectVersion.txt"
           rsync -a --exclude=.git --exclude=.github --exclude="$PROJECT_PATH" ./ "$PROJECT_PATH/Assets/OneJS"
 

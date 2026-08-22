@@ -348,10 +348,6 @@ namespace OneJS {
         }
 
         /// <summary>
-        /// Call every frame from Update() to drive RAF, timers, and Promise microtasks.
-        /// Uses zero-allocation path when tick callback is cached.
-        /// </summary>
-        /// <summary>
         /// Advances the C#-owned per-frame systems: particles, physics and
         /// shader effects. Each is self-guarded against being ticked twice in a
         /// frame by more than one bridge.
@@ -371,6 +367,10 @@ namespace OneJS {
             OneJS.ShaderFX.ShaderEffectBridge.TickAll();
         }
 
+        /// <summary>
+        /// Call every frame from Update() to drive RAF, timers, and Promise microtasks.
+        /// Uses zero-allocation path when tick callback is cached.
+        /// </summary>
         public void Tick() {
             if (_disposed || _inEval) return;
 
