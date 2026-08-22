@@ -1766,6 +1766,16 @@ namespace OneJS {
                 _bridge?.Tick();
                 TryInitialFocus();
             }
+#else
+            // WebGL drives the JS half from the browser's requestAnimationFrame,
+            // so Tick() is deliberately not called here. The C#-owned systems
+            // still need a frame and RAF never reaches them, which left
+            // particles frozen and physics unsimulated in every web build.
+            // Update does run here, so they are driven from it.
+            if (_scriptLoaded) {
+                _bridge?.TickSystems();
+                TryInitialFocus();
+            }
 #endif
         }
 

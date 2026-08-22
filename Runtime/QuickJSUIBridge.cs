@@ -229,6 +229,7 @@ namespace OneJS {
                 // disposal already happened via effect cleanups inside the teardown
                 // hooks above. Not on the finalizer path (touches VisualElements).
                 ParticleBridge.DisposeAll();
+                Physics2DBridge.DisposeAll();
                 OneJS.ShaderFX.ShaderEffectBridge.DisposeAll();
             }
 
@@ -350,14 +351,30 @@ namespace OneJS {
         /// Call every frame from Update() to drive RAF, timers, and Promise microtasks.
         /// Uses zero-allocation path when tick callback is cached.
         /// </summary>
+        /// <summary>
+        /// Advances the C#-owned per-frame systems: particles, physics and
+        /// shader effects. Each is self-guarded against being ticked twice in a
+        /// frame by more than one bridge.
+        ///
+        /// Separate from Tick() because WebGL needs it on its own. There, the JS
+        /// side is driven by the browser's requestAnimationFrame and Tick() is
+        /// never called from Update, so anything living only inside Tick()
+        /// simply stopped on the web: particles did not move and physics did not
+        /// simulate, on the one platform with no way to notice from the editor.
+        /// Update still runs in a WebGL build, so that is where this is driven
+        /// from instead.
+        /// </summary>
+        public void TickSystems() {
+            if (_disposed) return;
+            ParticleBridge.TickAll();
+            Physics2DBridge.TickAll();
+            OneJS.ShaderFX.ShaderEffectBridge.TickAll();
+        }
+
         public void Tick() {
             if (_disposed || _inEval) return;
 
-            // Advance C#-side particle simulations (self-guarded against multiple
-            // bridges ticking in the same frame). Lives here so play mode, edit-mode
-            // preview and JSPad all drive particles through one integration point.
-            ParticleBridge.TickAll();
-            OneJS.ShaderFX.ShaderEffectBridge.TickAll();
+            TickSystems();
 
             // Detect focus changes before entering the eval block (CheckFocusChange
             // dispatches, which sets _inEval itself). Runs outside _inEval so it
