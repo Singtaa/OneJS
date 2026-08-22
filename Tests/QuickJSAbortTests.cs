@@ -123,7 +123,13 @@ namespace OneJS.Tests {
             _bridge.Eval("globalThis.__abortTimeoutSig = AbortSignal.timeout(50)");
             Assert.AreEqual("false", _bridge.Eval("String(__abortTimeoutSig.aborted)"));
 
-            for (int i = 0; i < 200 && _bridge.Eval("String(__abortTimeoutSig.aborted)") != "true"; i++) {
+            // Bounded by the clock rather than by a frame count. The timeout is 50ms
+            // of real time, and a batch-mode player renders nothing, so a fast machine
+            // runs hundreds of frames inside it and a frame budget fails for being
+            // quick. It passed on CI only because that runner was slower.
+            var deadline = Time.realtimeSinceStartup + 5f;
+            while (Time.realtimeSinceStartup < deadline &&
+                   _bridge.Eval("String(__abortTimeoutSig.aborted)") != "true") {
                 _bridge.Tick();
                 yield return null;
             }
