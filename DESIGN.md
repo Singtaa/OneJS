@@ -8,9 +8,12 @@ a specific, measured failure, and each one names it.
 
 ## The thesis
 
-**JavaScript is glue and game logic. C# is everything that runs per frame or per
-object.** Unity's engine does the heavy lifting: physics, rendering, audio,
-animation. JavaScript configures it, reacts to it, and decides what happens next.
+**JavaScript orchestrates. C# computes.** Unity's engine does the heavy lifting:
+physics, rendering, audio, animation. JavaScript configures it, drives it, reacts
+to it, and decides what happens next.
+
+The line is not "never call into C# per frame" -- calling into C# is exactly what
+JavaScript is for. The line is **never write the simulation in JavaScript**.
 
 This is not a performance preference. It is what makes a OneJS app *portable*.
 
@@ -35,6 +38,40 @@ never in JavaScript. JS does the same small amount of work on both engines.
 convenient. WebAudio is the clearest example. It exists only on WebGL, so a game
 built on it cannot leave the browser at all.
 
+**The subtler corollary**, and the one that decides most designs: what degrades
+on an interpreter is *JavaScript computation*, not the crossings. A crossing is
+mostly bridge work -- reflection, marshalling, a C# call -- and that cost is
+similar on both engines. A `for` loop doing vector maths is pure JavaScript, and
+that is what runs one to two orders of magnitude slower.
+
+So the thing to move into C# is the **loop**, not the **call**.
+
+## What a crossing actually costs
+
+Measured in the Play container on V8, 20,000 iterations each:
+
+| Operation | Per call |
+|---|---:|
+| `transform.position = new Vector3(...)` | 4.44 us |
+| `Mathf.Sin(x)`, static, primitives | 4.76 us |
+| Property read (`Time.realtimeSinceStartup`) | 2.03 us |
+| The same work in pure JavaScript | 0.01 us |
+
+A frame at 60fps is 16.67 ms. Spending 10% of it on crossings buys roughly **350
+per frame**. So:
+
+- Driving 20 GameObjects from JavaScript every frame costs about **0.09 ms**, or
+  half a percent of the frame. That is fine, and it is the kind of thing
+  JavaScript is *for*.
+- A few hundred per frame is a real but affordable budget, worth knowing you are
+  spending.
+- Thousands per frame is not affordable on any engine.
+- Simulating a thousand bodies **in JavaScript** is a different failure: the
+  arithmetic itself is the cost, and that is what an interpreter multiplies.
+
+Re-measure rather than trusting these numbers after a bridge change; the
+benchmark is a few lines of `performance.now()` around a loop.
+
 ## The four rules
 
 ### 1. Config crosses once
@@ -47,14 +84,19 @@ emitter configuration goes over as one versioned JSON document, parsed by
 *Breaking it looks like:* a hundred property sets on startup, each a separate
 reflection call, and a visible hitch when the system is created.
 
-### 2. Steady state costs zero JS per frame
+### 2. Steady state scales with what the game does, not with what it contains
 
-Once configured, a system runs in C# without calling into JavaScript. Emission,
-integration, collision and rendering all happen C#-side. JavaScript hears about
-it only when something interesting happens.
+A system that is running but uninteresting should not cost JavaScript anything.
+Emission, integration and collision happen C#-side; JavaScript hears about it
+when something happens that it asked to hear about.
 
-*Breaking it looks like:* 60 crossings per second per object. With 200 objects
-that is 12,000 reflection calls a second, which QuickJS cannot afford.
+The distinction is between per-*entity* and per-*event* cost. Driving twenty
+things the player is watching is orchestration and belongs in JS. Ticking a
+thousand particles is simulation and does not.
+
+*Breaking it looks like:* cost that grows with the size of the world rather than
+with the amount of gameplay. A thousand bodies at 60Hz is 60,000 crossings a
+second, which no engine affords.
 
 ### 3. Bulk data moves as one buffer, never per object
 
@@ -93,8 +135,13 @@ C#  ->  raise events JS asked for    (collisions, triggers, sleep)
 JS  ->  react, and change config     (one crossing, only when something changes)
 ```
 
-The test for a proposed API: **if the game is idle but the simulation is running,
-how many times does JavaScript get called per second?** The answer must be zero.
+The test for a proposed API: **does the per-frame JavaScript cost grow with the
+size of the world, or with the amount of gameplay?** Growing with gameplay is
+correct. Growing with the world means the simulation leaked into JavaScript.
+
+A hundred bodies the player never looks at should cost JS nothing. Twenty the
+player is dragging around can cost twenty crossings, and that is a rounding
+error.
 
 ## What JavaScript is genuinely for
 
@@ -141,10 +188,13 @@ A new capability that differs across hosts gets a seam, not an `if`.
 
 ## Budgets worth knowing
 
-- **Container download**: every module a game *uses* adds to what every visitor
-  downloads, whether or not their game needs it. Adding a module to the manifest
-  is free until something references it, because engine code stripping removes
-  what nothing reaches. The cost arrives with the wrapper, not the dependency.
+- **Container download**: listing a module in the manifest is nearly free, because
+  engine code stripping removes what nothing references (measured: adding
+  Physics2D, PhysX, Audio, Animation and AssetBundle cost 0.03 MB). Preserving
+  those modules in `link.xml` is what makes them reachable from JavaScript by
+  name, and that is what costs: the same four modules came to **0.71 MB**. That
+  is the right way to expose a built-in assembly to JS, and the price is per
+  module, once, for everyone.
 - **Native callback table**: 4096 slots. Every JS function assigned to a C#
   delegate takes one.
 - **Handles**: warned at 10,000 live; a leak here is usually a system that
