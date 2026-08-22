@@ -13,7 +13,7 @@ namespace OneJS.Input {
     public static class InputBridge {
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStaticState() {
-            PointerMoveEventsEnabled = true;
+            PointerEvents.SetMoveEventsEnabled(true);
             _lastKeyboardFrame = -1;
             _lastMouseFrame = -1;
             _lastGamepadFrame = -1;
@@ -44,7 +44,7 @@ namespace OneJS.Input {
         /// Set this from JS via: input.setPointerMoveEventsEnabled(false)
         /// This eliminates ~0.6KB/frame GC allocation when using InputReader for mouse input.
         /// </summary>
-        public static bool PointerMoveEventsEnabled { get; private set; } = true;
+        public static bool PointerMoveEventsEnabled => PointerEvents.MoveEventsEnabled;
 
         /// <summary>
         /// Enable or disable PointerMoveEvent dispatching to JavaScript.
@@ -52,7 +52,7 @@ namespace OneJS.Input {
         /// Use this when polling mouse input via InputReader instead of React events.
         /// </summary>
         public static void SetPointerMoveEventsEnabled(bool enabled) {
-            PointerMoveEventsEnabled = enabled;
+            PointerEvents.SetMoveEventsEnabled(enabled);
         }
 
         // Frame tracking for wasPressed/wasReleased

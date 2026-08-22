@@ -492,7 +492,7 @@ namespace OneJS {
         }
 
         void OnPointerMove(PointerMoveEvent e) {
-            if (!InputBridge.PointerMoveEventsEnabled) return;
+            if (!PointerEvents.MoveEventsEnabled) return;
             if (e.timestamp == _lastDispatchedPointerMoveTs) return;
             _lastDispatchedPointerMoveTs = e.timestamp;
             int flags = _eventDispatchHandle >= 0
@@ -992,7 +992,7 @@ namespace OneJS {
         }
 
         void OnPerElementPointerMove(PointerMoveEvent e) {
-            if (!InputBridge.PointerMoveEventsEnabled) return;
+            if (!PointerEvents.MoveEventsEnabled) return;
             if (e.timestamp == _lastDispatchedPointerMoveTs) return;
             _lastDispatchedPointerMoveTs = e.timestamp;
             int flags = _eventDispatchHandle >= 0

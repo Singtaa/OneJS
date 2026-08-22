@@ -1,0 +1,19 @@
+{
+    "name": "OneJS.Runtime.InputSystem",
+    "rootNamespace": "OneJS.Input",
+    "references": [
+        "OneJS.Runtime",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "ENABLE_INPUT_SYSTEM"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
