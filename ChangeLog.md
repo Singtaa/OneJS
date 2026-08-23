@@ -1,3 +1,7 @@
+# [2026-08-23] v3.2.1
+
+- WebGL: completed C# Tasks settle their JS promises, so `audio.load` and remote `<Image src>` resolve
+
 # [2026-08-20] v3.2.0
 
 - `GetJSFunction<TDelegate>()` on JSRunner, QuickJSUIBridge, and QuickJSContext binds a named JS function to a typed C# delegate

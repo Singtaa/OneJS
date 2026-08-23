@@ -365,6 +365,36 @@ namespace OneJS {
             ParticleBridge.TickAll();
             Physics2DBridge.TickAll();
             OneJS.ShaderFX.ShaderEffectBridge.TickAll();
+#if UNITY_WEBGL && !UNITY_EDITOR
+            // WebGL is the only platform where this is not reached through
+            // Tick(), and the only one where Update never calls Tick() at all:
+            // the JS scheduler is driven by the browser's requestAnimationFrame
+            // instead. Settling completed C# Tasks was left behind in Tick(),
+            // so on WebGL every one of them stayed pending forever.
+            //
+            // What that meant in practice: Network.LoadTextureFromUrl and
+            // AudioBridge.LoadClip both return a Task, so <Image src="...">
+            // never showed an image and audio.load() never resolved, in every
+            // web build, with no error anywhere. The promise simply never
+            // settled. This is the same oversight that once left particles and
+            // physics frozen here, one layer further in.
+            //
+            // Safe to do from Update on this platform specifically. Settling a
+            // promise only schedules its continuations, and qjs_execute_pending
+            // _jobs is a no-op on WebGL because the browser owns the microtask
+            // queue: the .then handlers therefore run after this stack unwinds,
+            // outside the player loop, which is exactly the recursion the WebGL
+            // tick arrangement exists to avoid.
+            if (!_inEval) {
+                _inEval = true;
+                try {
+                    QuickJSNative.ProcessCompletedTasks(_ctx);
+                    WebSocketBridge.ProcessEvents(_ctx, _wsContextId);
+                } finally {
+                    _inEval = false;
+                }
+            }
+#endif
         }
 
         /// <summary>
