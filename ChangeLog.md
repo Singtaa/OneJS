@@ -1,7 +1,13 @@
 # [2026-08-23] v3.2.1
 
+- 2D physics: `PhysicsWorld2D` runs a C#-owned rigidbody world for UI elements
+- Audio: `AudioBridge` plays clips through Unity instead of WebAudio
+- The Input System package is now optional; `InputBridge` compiles only when it is installed
+- The package declares the engine modules it needs
+- WebGL: particles, physics and shader effects tick in builds
 - WebGL: completed C# Tasks settle their JS promises, so `audio.load` and remote `<Image src>` resolve
 - `PhysicsWorld2D.SetPosition` moves a body that is not simulating
+- `Proc/MeshGenerator` compiles into the runtime assembly
 
 # [2026-08-20] v3.2.0
 
