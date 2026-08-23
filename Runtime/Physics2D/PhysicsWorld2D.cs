@@ -294,6 +294,13 @@ namespace OneJS {
         /// because the symptoms were rounds ending early and players who were
         /// never visible.
         ///
+        /// What makes it genuinely hard to find is that the property reads
+        /// back the value that was never applied: write (99, 99) to a parked
+        /// body and it reports (99, 99) until the moment it starts simulating,
+        /// at which point it snaps to its transform and the write is gone. So
+        /// the obvious check agrees with you, and the position is a lie rather
+        /// than an error, which leaves everything downstream correct about it.
+        ///
         /// So a parked body is moved through its transform, which always takes
         /// and which the body adopts when it starts simulating. The transform
         /// write is the slower of the two, which is why it is used only for the
