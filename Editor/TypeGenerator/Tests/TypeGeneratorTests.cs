@@ -295,6 +295,40 @@ namespace OneJS.Editor.TypeGenerator.Tests {
         }
 
         [Test]
+        public void NamespaceModules_AreOffByDefault() {
+            // On by default they would redeclare the engine namespaces that
+            // unity-types already ships, and two `export =` for one module do
+            // not merge.
+            var result = TypeGenerator.GenerateToResult(typeof(Vector3));
+
+            StringAssert.DoesNotContain("declare module \"UnityEngine\"", result.Content);
+        }
+
+        [Test]
+        public void NamespaceModules_LetProjectCodeBeImported() {
+            var result = TypeGenerator.Create()
+                .AddType<Vector3>()
+                .EmitNamespaceModules()
+                .Build();
+
+            StringAssert.Contains("declare module \"UnityEngine\"", result.Content);
+            StringAssert.Contains("export = CS.UnityEngine;", result.Content);
+        }
+
+        [Test]
+        public void NamespaceModules_SeparateNestedNamespacesWithSlashes() {
+            // "UnityEngine/UIElements", the shape unity-types uses and the one
+            // the esbuild import transform resolves.
+            var result = TypeGenerator.Create()
+                .AddType<UnityEngine.UIElements.VisualElement>()
+                .EmitNamespaceModules()
+                .Build();
+
+            StringAssert.Contains("declare module \"UnityEngine/UIElements\"", result.Content);
+            StringAssert.Contains("export = CS.UnityEngine.UIElements;", result.Content);
+        }
+
+        [Test]
         public void GeneratedContent_HasIncompatibilityMarker() {
             var result = TypeGenerator.Create()
                 .AddType<Vector3>()

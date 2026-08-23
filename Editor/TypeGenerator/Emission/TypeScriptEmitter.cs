@@ -52,6 +52,10 @@ namespace OneJS.Editor.TypeGenerator {
             _indent--;
             AppendLine("}");
 
+            if (_options.EmitNamespaceModules) {
+                EmitNamespaceModuleDeclarations(namespaces.Select(g => g.Key));
+            }
+
             // Export module declaration if needed
             if (_options.EmitModuleDeclaration) {
                 AppendLine();
@@ -63,6 +67,26 @@ namespace OneJS.Editor.TypeGenerator {
             }
 
             return _sb.ToString();
+        }
+
+        /// <summary>
+        /// One `declare module` per namespace, nested paths separated by "/" to
+        /// match how unity-types declares the engine ones.
+        /// </summary>
+        private void EmitNamespaceModuleDeclarations(IEnumerable<string> namespaces) {
+            var names = namespaces
+                .Where(ns => !string.IsNullOrEmpty(ns))
+                .Distinct()
+                .OrderBy(ns => ns);
+
+            foreach (var ns in names) {
+                AppendLine();
+                AppendLine($"declare module \"{ns.Replace('.', '/')}\" {{");
+                _indent++;
+                AppendLine($"export = CS.{ns};");
+                _indent--;
+                AppendLine("}");
+            }
         }
 
         private void EmitHeader() {
@@ -513,6 +537,22 @@ namespace OneJS.Editor.TypeGenerator {
         public bool IncludeDocumentation { get; set; } = true;
         public bool IncludeObsoleteWarnings { get; set; } = true;
         public bool EmitModuleDeclaration { get; set; } = false;
+
+        /// <summary>
+        /// Emits an ES6 module declaration per namespace, so
+        /// <c>import { Foo } from "MyGame"</c> typechecks.
+        ///
+        /// This is what makes a project's own C# usable the documented way. The
+        /// esbuild import transform already rewrites such an import to
+        /// <c>CS.MyGame</c>, so without these declarations the bundle is correct
+        /// and only TypeScript disagrees, which surfaces as a failing
+        /// <c>npm run typecheck</c> and nothing else.
+        ///
+        /// Off by default because unity-types already declares the engine
+        /// namespaces; emitting them a second time would collide on
+        /// <c>export =</c>. Turn it on for project assemblies only.
+        /// </summary>
+        public bool EmitNamespaceModules { get; set; } = false;
         public bool EmitIncompatibilityMarker { get; set; } = true;
         public bool UseAccessorSyntax { get; set; } = true;
 

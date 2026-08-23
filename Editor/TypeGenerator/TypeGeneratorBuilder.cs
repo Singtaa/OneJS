@@ -260,6 +260,17 @@ namespace OneJS.Editor.TypeGenerator {
         }
 
         /// <summary>
+        /// Emits an ES6 module declaration per namespace, so a project's own C#
+        /// can be imported the documented way and still typecheck.
+        /// </summary>
+        /// <param name="emit">Whether to emit them</param>
+        /// <returns>This builder for chaining</returns>
+        public TypeGeneratorBuilder EmitNamespaceModules(bool emit = true) {
+            _emitterOptions.EmitNamespaceModules = emit;
+            return this;
+        }
+
+        /// <summary>
         /// Emits the type incompatibility marker (prevents accidental type assignment).
         /// </summary>
         /// <param name="emit">Whether to emit the marker</param>

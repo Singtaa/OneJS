@@ -62,7 +62,11 @@ namespace OneJS.Editor.TypeGenerator {
             try {
                 var builder = new TypeGeneratorBuilder()
                     .IncludeDocumentation()
-                    .ExcludeObsolete();
+                    .ExcludeObsolete()
+                    // These are the project's own assemblies, so the namespaces
+                    // are the project's own and cannot collide with the engine
+                    // declarations unity-types already ships.
+                    .EmitNamespaceModules();
 
                 // Add all configured assemblies
                 foreach (var assemblyName in runner.TypingAssemblies) {

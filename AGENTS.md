@@ -160,7 +160,7 @@ Performance on QuickJS (an interpreter): every proxy access is a reflection cros
 
 | Path | Contents |
 |------|----------|
-| `Runtime/` | JSRunner, JSPad, QuickJSContext/UIBridge, P/Invoke layer, fetch, GPU compute, particles |
+| `Runtime/` | JSRunner, JSPad, QuickJSContext/UIBridge, P/Invoke layer, fetch, GPU compute, particles, physics, audio, procedural meshes |
 | `Editor/` | Inspectors, build processor, scaffolding templates (`Editor/Templates/`), type generator |
 | `Resources/OneJS/QuickJSBootstrap.js.txt` | JS runtime core: CS proxy, events, timers, teardown hooks |
 | `Plugins/` | Native QuickJS libraries (Windows/macOS/Linux/Android/iOS) + WebGL jslib |
