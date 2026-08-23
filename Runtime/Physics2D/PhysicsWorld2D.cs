@@ -284,11 +284,31 @@ namespace OneJS {
             rb.linearVelocity = new Vector2(x / ppu, -y / ppu);
         }
 
+        /// <summary>
+        /// Moves a body, whether or not it is currently simulating.
+        ///
+        /// Unity discards a write to <c>rb.position</c> on a body with
+        /// <c>simulated = false</c>: the assignment is accepted, nothing
+        /// happens, and the body later wakes wherever it was parked. That cost
+        /// a game a whole afternoon and never looked like a position bug,
+        /// because the symptoms were rounds ending early and players who were
+        /// never visible.
+        ///
+        /// So a parked body is moved through its transform, which always takes
+        /// and which the body adopts when it starts simulating. The transform
+        /// write is the slower of the two, which is why it is used only for the
+        /// case where the fast one silently does nothing.
+        /// </summary>
         public void SetPosition(int index, float x, float y) {
             var rb = RigidbodyAt(index);
             if (rb == null) return;
             var ppu = _doc.pixelsPerUnit;
-            rb.position = new Vector2(x / ppu, -y / ppu);
+            var target = new Vector2(x / ppu, -y / ppu);
+            if (rb.simulated) {
+                rb.position = target;
+            } else {
+                rb.transform.position = new Vector3(target.x, target.y, rb.transform.position.z);
+            }
         }
 
         public void SetGravity(float x, float y) {

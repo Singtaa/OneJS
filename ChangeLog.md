@@ -1,6 +1,7 @@
 # [2026-08-23] v3.2.1
 
 - WebGL: completed C# Tasks settle their JS promises, so `audio.load` and remote `<Image src>` resolve
+- `PhysicsWorld2D.SetPosition` moves a body that is not simulating
 
 # [2026-08-20] v3.2.0
 
