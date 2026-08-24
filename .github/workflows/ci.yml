@@ -48,19 +48,29 @@ jobs:
       # One platform being broken must not hide the state of the others.
       fail-fast: false
       matrix:
-        # Both macOS runners are listed on purpose: macos-latest is arm64 and
-        # macos-13 is x86_64, Unity 6 ships an editor for each, and a dylib built
-        # for one does not load on the other.
-        os: [ubuntu-latest, windows-latest, macos-latest, macos-13]
+        os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v4
       # Pinned rather than trusting each image's preinstalled interpreter and the
-      # name it goes by, which is not uniform across these four.
+      # name it goes by, which is not uniform across these three.
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
       - run: python "Auxiliary~/quickjs-unity/load-plugin-smoke.py"
+
+      # macos-latest is arm64, so the step above covers that slice only. The way
+      # the dylib regressed before was a rebuild that silently took the host's
+      # architecture and dropped the other slice, which is invisible until an
+      # Intel editor tries to load it. Rosetta gives a genuine x86_64 process
+      # doing a genuine dlopen, so the second slice is checked without an Intel
+      # runner: macos-13 was retired by GitHub, and a job requesting a label
+      # nobody serves does not fail, it queues until the 24 hour timeout and
+      # leaves the whole run pending. The interpreter has to be the system one,
+      # since the Python installed above is arm64 only.
+      - name: Load the x86_64 slice under Rosetta
+        if: runner.os == 'macOS'
+        run: arch -x86_64 /usr/bin/python3 "Auxiliary~/quickjs-unity/load-plugin-smoke.py"
 
   unity-tests:
     name: Unity tests (EditMode + PlayMode)
