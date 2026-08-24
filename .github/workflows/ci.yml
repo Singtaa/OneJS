@@ -68,6 +68,12 @@ jobs:
       # nobody serves does not fail, it queues until the 24 hour timeout and
       # leaves the whole run pending. The interpreter has to be the system one,
       # since the Python installed above is arm64 only.
+      #
+      # This step has an expiry date. Apple removes Rosetta for general use in
+      # macOS 28, so once macos-latest rolls to it, arch -x86_64 stops working
+      # and this goes red on a morning when nobody touched OneJS. That means the
+      # era ended, not that the dylib broke. Unity drops Intel support in 6.8,
+      # so by then delete this step and the x86_64 slice together.
       - name: Load the x86_64 slice under Rosetta
         if: runner.os == 'macOS'
         run: arch -x86_64 /usr/bin/python3 "Auxiliary~/quickjs-unity/load-plugin-smoke.py"
