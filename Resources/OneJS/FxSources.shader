@@ -164,7 +164,8 @@ Shader "OneJS/FxSources"
                     float2 uv = i.uv;
                     float2 p = float2(uv.x * c - uv.y * s, uv.x * s + uv.y * c);
                     p = p * _NoiseScale.xy + _NoiseOffset.xy;
-                    float n = onejsFbm(p, _NoiseScale.w, (int)_NoiseScale.z, _NoiseFbm.x, _NoiseFbm.y);
+                    float n = onejsFbmKind((int)_NoiseFbm.z, p, _NoiseScale.w, (int)_NoiseScale.z,
+                                           _NoiseFbm.x, _NoiseFbm.y);
                     return float4(n, n, n, 1);
                 }
 

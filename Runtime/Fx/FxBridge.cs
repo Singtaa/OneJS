@@ -441,14 +441,15 @@ namespace OneJS.Fx {
 
                 if (op == OpSourceNoise) {
                     // w, h, scaleX, scaleY, octaves, seed, offsetX, offsetY, rotation,
-                    // then optionally lacunarity, gain
+                    // then optionally lacunarity, gain, kind
                     Need(argCount, 9, "noise");
                     mat.SetFloat(s_SourceTypeId, 0f);
                     // Optional so a buffer written before these existed still
                     // decodes; the defaults are the classic fBm pair.
                     mat.SetVector(s_NoiseFbmId, new Vector4(
                         argCount > 9 ? Mathf.Max(buffer[cursor + 9], 1e-3f) : 2f,
-                        argCount > 10 ? Mathf.Clamp01(buffer[cursor + 10]) : 0.5f, 0f, 0f));
+                        argCount > 10 ? Mathf.Clamp01(buffer[cursor + 10]) : 0.5f,
+                        argCount > 11 ? buffer[cursor + 11] : 0f, 0f));
                     mat.SetVector(s_NoiseScaleId, new Vector4(
                         buffer[cursor + 2], buffer[cursor + 3],
                         Mathf.Clamp(buffer[cursor + 4], 1f, 4f), buffer[cursor + 5]));

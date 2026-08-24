@@ -55,4 +55,70 @@ float onejsFbm(float2 p, float seed, int octaves)
     return onejsFbm(p, seed, octaves, 2.0, 0.5);
 }
 
+// MARK: simplex
+//
+// Ashima/McEwan 2D simplex. Worth carrying next to the value noise because the
+// two fail differently: value noise interpolates a square grid, so at high
+// octave gain its cells show through as blocks, which is exactly what spoiled
+// the first pass at the fire sample. Simplex is built on triangles and has no
+// axis-aligned structure to leak.
+
+float2 onejsMod289(float2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+float3 onejsMod289(float3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+float3 onejsPermute(float3 x) { return onejsMod289(((x * 34.0) + 1.0) * x); }
+
+/// Raw simplex, roughly -1..1.
+float onejsSimplexRaw(float2 v)
+{
+    const float4 C = float4(0.211324865405187, 0.366025403784439,
+                            -0.577350269189626, 0.024390243902439);
+    float2 i = floor(v + dot(v, C.yy));
+    float2 x0 = v - i + dot(i, C.xx);
+    float2 i1 = (x0.x > x0.y) ? float2(1.0, 0.0) : float2(0.0, 1.0);
+    float4 x12 = x0.xyxy + C.xxzz;
+    x12.xy -= i1;
+    i = onejsMod289(i);
+    float3 p = onejsPermute(onejsPermute(i.y + float3(0.0, i1.y, 1.0))
+                            + i.x + float3(0.0, i1.x, 1.0));
+    float3 m = max(0.5 - float3(dot(x0, x0), dot(x12.xy, x12.xy), dot(x12.zw, x12.zw)), 0.0);
+    m = m * m; m = m * m;
+    float3 x = 2.0 * frac(p * C.www) - 1.0;
+    float3 h = abs(x) - 0.5;
+    float3 ox = floor(x + 0.5);
+    float3 a0 = x - ox;
+    m *= 1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h);
+    float3 g;
+    g.x = a0.x * x0.x + h.x * x0.y;
+    g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+    return 130.0 * dot(m, g);
+}
+
+/// 0..1, and seeded by displacing the input: simplex has no seed of its own.
+float onejsSimplex(float2 p, float seed)
+{
+    return onejsSimplexRaw(p + seed * 137.13) * 0.5 + 0.5;
+}
+
+float onejsFbmSimplex(float2 p, float seed, int octaves, float lacunarity, float gain)
+{
+    float sum = 0, amp = 0.5, norm = 0;
+    [unroll(4)]
+    for (int o = 0; o < 4; o++)
+    {
+        if (o >= octaves) break;
+        sum += onejsSimplex(p, seed + o * 19.0) * amp;
+        norm += amp;
+        p *= lacunarity;
+        amp *= gain;
+    }
+    return sum / max(norm, 1e-4);
+}
+
+/// Dispatches on the noise kind: 0 value, 1 simplex.
+float onejsFbmKind(int kind, float2 p, float seed, int octaves, float lacunarity, float gain)
+{
+    return kind == 1 ? onejsFbmSimplex(p, seed, octaves, lacunarity, gain)
+                     : onejsFbm(p, seed, octaves, lacunarity, gain);
+}
+
 #endif
