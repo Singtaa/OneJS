@@ -34,6 +34,34 @@ jobs:
       - uses: actions/checkout@v4
       - run: python3 Auxiliary~/quickjs-unity/check-plugin-deps.py
 
+  # The check above never opens a binary, which is what lets one Linux runner
+  # cover all six at once. The cost is that it cannot see a library that parses
+  # but will not run: a stale binary whose ABI no longer matches the C# side
+  # surfaces only at context creation, as a "restart the editor" message that
+  # points away from the real cause. So open the shipped file on a runner of its
+  # own platform and call into it. Android and iOS stay covered by the static
+  # check alone, since no runner can load either one.
+  native-plugin-load:
+    name: Native plugin loads (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One platform being broken must not hide the state of the others.
+      fail-fast: false
+      matrix:
+        # Both macOS runners are listed on purpose: macos-latest is arm64 and
+        # macos-13 is x86_64, Unity 6 ships an editor for each, and a dylib built
+        # for one does not load on the other.
+        os: [ubuntu-latest, windows-latest, macos-latest, macos-13]
+
+    steps:
+      - uses: actions/checkout@v4
+      # Pinned rather than trusting each image's preinstalled interpreter and the
+      # name it goes by, which is not uniform across these four.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: python "Auxiliary~/quickjs-unity/load-plugin-smoke.py"
+
   unity-tests:
     name: Unity tests (EditMode + PlayMode)
     runs-on: ubuntu-latest
