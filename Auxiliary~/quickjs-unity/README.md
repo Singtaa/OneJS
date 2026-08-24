@@ -19,6 +19,7 @@ quickjs-unity/
 ├── build-windows-msvc.bat  # Windows native (MSVC)
 ├── build-ios.sh            # iOS build (static .a)
 ├── build-android.sh        # Android build (shared .so)
+├── check-plugin-deps.py    # Verifies the shipped binaries' dynamic dependencies
 └── CMakeLists.txt          # CMake build (Windows MSVC)
 ```
 
@@ -46,6 +47,14 @@ committed binary.
 # Output: Plugins/Windows/x64/quickjs_unity.dll
 ```
 
+This is the shipped Windows binary. It links with `-static` rather than
+`-static-libgcc`, because `quickjs.c` uses pthread mutexes and condition
+variables and MinGW's posix thread model satisfies those from libwinpthread. A
+dynamic link leaves `libwinpthread-1.dll` in the DLL's import table, which no
+Windows machine has and the package does not ship, so Unity reports the load
+failure as `DllNotFoundException: quickjs_unity`. That shipped in v3.2.0 and
+v3.2.1; `check-plugin-deps.py` now catches it.
+
 ### Windows (native MSVC)
 ```batch
 build-windows-msvc.bat
@@ -65,6 +74,19 @@ iOS uses static linking (`__Internal` DllImport): the library is linked into the
 # Output: Plugins/Android/{arm64-v8a,armeabi-v7a,x86_64}/libquickjs_unity.so
 # Requires: Android NDK (set NDK_ROOT, ANDROID_NDK_HOME, or ANDROID_NDK_ROOT)
 ```
+
+## Verifying a rebuilt binary
+
+```bash
+python3 check-plugin-deps.py
+```
+
+Reads the dependency list straight out of each committed binary (PE imports,
+ELF DT_NEEDED, Mach-O LC_LOAD_DYLIB) and fails on anything a clean end-user
+machine would not already have. No toolchain and no third-party module, so it
+checks every platform's binary from any host. CI runs it on each push; run it
+yourself after refreshing any binary here, since a dependency picked up from
+the build machine only surfaces at load time on someone else's machine.
 
 ## Key Native Functions
 

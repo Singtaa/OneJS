@@ -63,6 +63,21 @@ build-windows-msvc.bat
 
 See `Auxiliary~/quickjs-unity/README.md` for full details.
 
+## Dependency Check
+
+Every file here is a committed build artifact, and only the Linux .so is rebuilt
+by CI, so a dependency picked up from whichever machine produced a binary ships
+unnoticed and fails at load time on a clean one. Verify after refreshing any of
+them:
+
+```bash
+python3 Auxiliary~/quickjs-unity/check-plugin-deps.py
+```
+
+It reads each binary's dependency list out of the container format itself and
+rejects anything an end user's machine would not already have. CI runs it on
+every push.
+
 ## Linux glibc Baseline
 
 The committed `Linux/x64/libquickjs_unity.so` is built inside an `ubuntu:22.04`

@@ -1,3 +1,8 @@
+# [2026-08-23] v3.2.2
+
+- Windows: the native library no longer imports libwinpthread-1.dll, which broke every 3.2.0/3.2.1 Windows project with `DllNotFoundException: quickjs_unity`
+- CI verifies every shipped native plugin depends only on OS-provided libraries
+
 # [2026-08-23] v3.2.1
 
 - 2D physics: `PhysicsWorld2D` runs a C#-owned rigidbody world for UI elements

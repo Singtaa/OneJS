@@ -20,6 +20,20 @@ env:
   PROJECT_PATH: CIProject
 
 jobs:
+  # Only the Linux .so is rebuilt below; every other platform ships the committed
+  # binary as-is, and nothing else in CI ever opens one. So read the dependency
+  # list out of each container format directly and reject anything an end user's
+  # machine would not already have. v3.2.0 shipped a Windows DLL importing MinGW's
+  # libwinpthread-1.dll this way, and every Windows user got a bare
+  # "DllNotFoundException: quickjs_unity" out of it.
+  native-plugin-deps:
+    name: Native plugin dependencies
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 Auxiliary~/quickjs-unity/check-plugin-deps.py
+
   unity-tests:
     name: Unity tests (EditMode + PlayMode)
     runs-on: ubuntu-latest
