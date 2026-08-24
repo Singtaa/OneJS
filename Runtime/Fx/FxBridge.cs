@@ -28,7 +28,13 @@ namespace OneJS.Fx {
         // per pixel and therefore fusable.
         const int OpSourceTexture = 0;
         const int OpSourceColor = 1;
+        const int OpSourceNoise = 2;
+        const int OpSourceGradient = 3;
+        const int OpSourceSdf = 4;
         const int FirstPixelOp = 16;
+
+        /// <summary>Must match MAX_STOPS in OneJS/FxSources.shader and ops.ts.</summary>
+        public const int MaxGradientStops = 8;
 
         const int ModeScalar = 0;
         const int ModeVector = 1;
@@ -114,6 +120,34 @@ namespace OneJS.Fx {
         static readonly Vector4[] s_Ops = new Vector4[MaxFusedOps];
         static readonly Vector4[] s_Args = new Vector4[MaxFusedOps];
         static int s_OpsId, s_ArgsId, s_OpCountId, s_MainTexId, s_TexBId, s_FlipYId;
+
+        static Material s_SourceMaterial;
+        static readonly Vector4[] s_GradColors = new Vector4[MaxGradientStops];
+        static readonly Vector4[] s_GradPositions = new Vector4[MaxGradientStops];
+        static int s_SourceTypeId, s_AspectId, s_NoiseScaleId, s_NoiseOffsetId;
+        static int s_GradAngleId, s_GradStopCountId, s_GradColorsId, s_GradPositionsId;
+        static int s_SdfParamsId, s_SdfParams2Id, s_SdfTransformId, s_SdfShapeId;
+
+        static Material EnsureSourceMaterial() {
+            if (s_SourceMaterial != null) return s_SourceMaterial;
+            var shader = Shader.Find("OneJS/FxSources");
+            if (shader == null) throw new InvalidOperationException(
+                "[onejs fx] OneJS/FxSources is missing. It ships under Resources/OneJS.");
+            s_SourceMaterial = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
+            s_SourceTypeId = Shader.PropertyToID("_SourceType");
+            s_AspectId = Shader.PropertyToID("_Aspect");
+            s_NoiseScaleId = Shader.PropertyToID("_NoiseScale");
+            s_NoiseOffsetId = Shader.PropertyToID("_NoiseOffset");
+            s_GradAngleId = Shader.PropertyToID("_GradAngle");
+            s_GradStopCountId = Shader.PropertyToID("_GradStopCount");
+            s_GradColorsId = Shader.PropertyToID("_GradColors");
+            s_GradPositionsId = Shader.PropertyToID("_GradPositions");
+            s_SdfParamsId = Shader.PropertyToID("_SdfParams");
+            s_SdfParams2Id = Shader.PropertyToID("_SdfParams2");
+            s_SdfTransformId = Shader.PropertyToID("_SdfTransform");
+            s_SdfShapeId = Shader.PropertyToID("_SdfShape");
+            return s_SourceMaterial;
+        }
 
         static Material EnsureMaterial() {
             if (s_Material != null) return s_Material;
@@ -244,7 +278,71 @@ namespace OneJS.Fx {
                 return target;
             }
 
+            if (op == OpSourceNoise || op == OpSourceGradient || op == OpSourceSdf) {
+                if (argCount < 2) throw new ArgumentException("[onejs fx] a generated source needs a size");
+                width = Mathf.Max(1, (int)buffer[cursor]);
+                height = Mathf.Max(1, (int)buffer[cursor + 1]);
+                var target = Borrow(width, height);
+                var mat = EnsureSourceMaterial();
+                mat.SetFloat(s_AspectId, height > 0 ? width / (float)height : 1f);
+
+                if (op == OpSourceNoise) {
+                    // w, h, scaleX, scaleY, octaves, seed, offsetX, offsetY, rotation
+                    Need(argCount, 9, "noise");
+                    mat.SetFloat(s_SourceTypeId, 0f);
+                    mat.SetVector(s_NoiseScaleId, new Vector4(
+                        buffer[cursor + 2], buffer[cursor + 3],
+                        Mathf.Clamp(buffer[cursor + 4], 1f, 4f), buffer[cursor + 5]));
+                    mat.SetVector(s_NoiseOffsetId, new Vector4(
+                        buffer[cursor + 6], buffer[cursor + 7], buffer[cursor + 8], 0f));
+                } else if (op == OpSourceGradient) {
+                    // w, h, angle, stopCount, then (r, g, b, a, pos) per stop
+                    Need(argCount, 4, "gradient");
+                    int stops = (int)buffer[cursor + 3];
+                    if (stops < 1 || stops > MaxGradientStops)
+                        throw new ArgumentException(
+                            "[onejs fx] a gradient takes 1.." + MaxGradientStops + " stops, got " + stops);
+                    Need(argCount, 4 + stops * 5, "gradient stops");
+                    mat.SetFloat(s_SourceTypeId, 1f);
+                    mat.SetFloat(s_GradAngleId, buffer[cursor + 2]);
+                    mat.SetFloat(s_GradStopCountId, stops);
+                    for (int i = 0; i < MaxGradientStops; i++) {
+                        int b = cursor + 4 + i * 5;
+                        bool live = i < stops;
+                        s_GradColors[i] = live
+                            ? new Vector4(buffer[b], buffer[b + 1], buffer[b + 2], buffer[b + 3])
+                            : Vector4.zero;
+                        // Park unused stops past the end so the shader's lerp never
+                        // reaches them even if it reads past the live count.
+                        s_GradPositions[i] = new Vector4(live ? buffer[b + 4] : 2f, 0, 0, 0);
+                    }
+                    mat.SetVectorArray(s_GradColorsId, s_GradColors);
+                    mat.SetVectorArray(s_GradPositionsId, s_GradPositions);
+                } else {
+                    // w, h, shapeId, f1..f6, posX, posY, rot, scale, rounded, onion, softness, field
+                    Need(argCount, 17, "sdf");
+                    mat.SetFloat(s_SourceTypeId, 2f);
+                    mat.SetVector(s_SdfParamsId, new Vector4(
+                        buffer[cursor + 3], buffer[cursor + 4], buffer[cursor + 5], buffer[cursor + 6]));
+                    mat.SetVector(s_SdfParams2Id, new Vector4(
+                        buffer[cursor + 7], buffer[cursor + 8], buffer[cursor + 15], buffer[cursor + 16]));
+                    mat.SetVector(s_SdfTransformId, new Vector4(
+                        buffer[cursor + 9], buffer[cursor + 10], buffer[cursor + 11], buffer[cursor + 12]));
+                    mat.SetVector(s_SdfShapeId, new Vector4(
+                        buffer[cursor + 2], buffer[cursor + 13], buffer[cursor + 14], 0f));
+                }
+
+                Graphics.Blit(null, target, mat, 0);
+                return target;
+            }
+
             throw new ArgumentException("[onejs fx] unknown source opcode " + op);
+        }
+
+        static void Need(int argCount, int required, string what) {
+            if (argCount < required)
+                throw new ArgumentException(
+                    "[onejs fx] " + what + " source needs " + required + " arguments, got " + argCount);
         }
 
         static RenderTexture Flush(Material mat, RenderTexture src, Texture operand,
@@ -287,6 +385,10 @@ namespace OneJS.Fx {
             if (s_Material != null) {
                 UnityEngine.Object.DestroyImmediate(s_Material);
                 s_Material = null;
+            }
+            if (s_SourceMaterial != null) {
+                UnityEngine.Object.DestroyImmediate(s_SourceMaterial);
+                s_SourceMaterial = null;
             }
         }
 

@@ -38,6 +38,7 @@ Shader "OneJS/TextureFX"
             #pragma target 3.0
             #include "UnityCG.cginc"
             #include "SDF2D.cginc"
+            #include "Noise2D.cginc"
 
             #define MAX_LAYERS 6
 
@@ -71,38 +72,6 @@ Shader "OneJS/TextureFX"
                 return o;
             }
 
-            float hash21(float2 p, float seed)
-            {
-                p = frac(p * float2(123.34, 456.21) + seed * 0.1731);
-                p += dot(p, p + 45.32);
-                return frac(p.x * p.y);
-            }
-
-            float vnoise(float2 p, float seed)
-            {
-                float2 i = floor(p), f = frac(p);
-                f = f * f * (3.0 - 2.0 * f);
-                float a = hash21(i, seed);
-                float b = hash21(i + float2(1, 0), seed);
-                float c = hash21(i + float2(0, 1), seed);
-                float d = hash21(i + float2(1, 1), seed);
-                return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
-            }
-
-            float fbm(float2 p, float seed, int octaves)
-            {
-                float sum = 0, amp = 0.5, norm = 0;
-                [unroll(4)]
-                for (int o = 0; o < 4; o++)
-                {
-                    if (o >= octaves) break;
-                    sum += vnoise(p, seed + o * 19.0) * amp;
-                    norm += amp;
-                    p *= 2.0;
-                    amp *= 0.5;
-                }
-                return sum / max(norm, 1e-4);
-            }
 
             float shapeValue(int id, float2 uv, float4 p)
             {
@@ -238,7 +207,7 @@ Shader "OneJS/TextureFX"
                         // Noise is the only source that scales and scrolls: shapes are
                         // positional, so distorting their UV would deform the silhouette.
                         float2 uv = i.uv * _LScale[L].xy + _LScroll[L].xy * t;
-                        v = fbm(uv, _LScale[L].w, (int)_LScale[L].z);
+                        v = onejsFbm(uv, _LScale[L].w, (int)_LScale[L].z);
                     }
                     else if (src == 1)
                     {
