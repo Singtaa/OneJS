@@ -231,6 +231,7 @@ namespace OneJS {
                 ParticleBridge.DisposeAll();
                 Physics2DBridge.DisposeAll();
                 OneJS.ShaderFX.ShaderEffectBridge.DisposeAll();
+                OneJS.Fx.FxBridge.DisposeAll();
             }
 
             _tickCallbackHandle = -1;
