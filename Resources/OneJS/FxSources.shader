@@ -129,8 +129,8 @@ Shader "OneJS/FxSources"
                 sincos(_GradAngle, s, c);
                 float2 d = float2(c, s);
                 float2 p = uv - 0.5;
-                float half = 0.5 * (abs(c) + abs(s));
-                float t = saturate((dot(p, d) + half) / max(2.0 * half, 1e-6));
+                float halfSpan = 0.5 * (abs(c) + abs(s));
+                float t = saturate((dot(p, d) + halfSpan) / max(2.0 * halfSpan, 1e-6));
 
                 int count = (int)_GradStopCount;
                 if (count <= 0) return float4(0, 0, 0, 0);
