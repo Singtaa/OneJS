@@ -1,6 +1,9 @@
-# [2026-08-23] v3.2.2
+# [2026-08-24] v3.2.3
 
 - New projects scaffold with `oj` available: the `onejs-play` dependency, the esbuild alias and the tsconfig path
+
+# [2026-08-23] v3.2.2
+
 - Windows: the native library no longer imports libwinpthread-1.dll, which broke every 3.2.0/3.2.1 Windows project with `DllNotFoundException: quickjs_unity`
 - CI verifies every shipped native plugin depends only on OS-provided libraries
 
