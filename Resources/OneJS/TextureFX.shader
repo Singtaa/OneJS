@@ -24,6 +24,7 @@ Shader "OneJS/TextureFX"
         _Threshold ("Threshold", Float) = 0
         _Softness ("Softness", Float) = 1
         _FlipY ("Flip Y", Float) = 0
+        _Aspect ("Aspect (w/h)", Float) = 1
     }
 
     SubShader
@@ -36,19 +37,25 @@ Shader "OneJS/TextureFX"
             #pragma fragment frag
             #pragma target 3.0
             #include "UnityCG.cginc"
+            #include "SDF2D.cginc"
 
             #define MAX_LAYERS 6
 
             sampler2D _Ramp;
-            float _Secs, _Speed, _LayerCount, _Threshold, _Softness, _FlipY;
+            float _Secs, _Speed, _LayerCount, _Threshold, _Softness, _FlipY, _Aspect;
 
-            // xy = scale, z = octaves, w = seed
+            // noise: xy = scale, z = octaves, w = seed
+            // sdf:   xy = position, z = rotation (radians), w = uniform scale
             float4 _LScale[MAX_LAYERS];
             // xy = scroll velocity, z = amount, w = shape id
             float4 _LScroll[MAX_LAYERS];
-            // per-source params: flame/box use xyzw, radial uses x = falloff
+            // per-source params: flame/box use xyzw, radial uses x = falloff,
+            // sdf uses xyzw as its params 1..4
             float4 _LParams[MAX_LAYERS];
-            // x = source (0 noise, 1 shape, 2 constant), y = blend op
+            // sdf only: xy = params 5..6, z = edge softness, w = 1 for raw field
+            float4 _LParams2[MAX_LAYERS];
+            // x = source (0 noise, 1 shape, 2 constant, 3 sdf), y = blend op,
+            // z = rounded, w = onion
             float4 _LMode[MAX_LAYERS];
 
             struct appdata { float4 vertex : POSITION; float2 uv : TEXCOORD0; };
@@ -124,6 +131,84 @@ Shader "OneJS/TextureFX"
                 return side * base * pow(up, p.w);
             }
 
+            // Distance for shape `id` at `p`, already in shape space.
+            // a = params 1..4, b = params 5..6. Ids match SDF in texturefx.ts.
+            float sdfDistance(int id, float2 p, float4 a, float2 b)
+            {
+                switch (id)
+                {
+                case 0:  return sdCircle(p, a.x);
+                case 1:  return sdRoundedBox(p, a.xy, float4(a.z, a.w, b.x, b.y));
+                case 2:  return sdBox(p, a.xy);
+                case 3:  return sdOrientedBox(p, a.xy, a.zw, b.x);
+                case 4:  return sdSegment(p, a.xy, a.zw);
+                case 5:  return sdRhombus(p, a.xy);
+                case 6:  return sdTrapezoid(p, a.x, a.y, a.z);
+                case 7:  return sdParallelogram(p, a.x, a.y, a.z);
+                case 8:  return sdEquilateralTriangle(p, a.x);
+                case 9:  return sdTriangleIsosceles(p, a.xy);
+                case 10: return sdTriangle(p, a.xy, a.zw, b.xy);
+                case 11: return sdUnevenCapsule(p, a.x, a.y, a.z);
+                case 12: return sdPentagon(p, a.x);
+                case 13: return sdHexagon(p, a.x);
+                case 14: return sdOctogon(p, a.x);
+                case 15: return sdHexagram(p, a.x);
+                case 16: return sdStar5(p, a.x, a.y);
+                case 17: return sdStar(p, a.x, (int)a.y, a.z);
+                case 18: return sdPie(p, a.xy, a.z);
+                case 19: return sdCutDisk(p, a.x, a.y);
+                case 20: return sdArc(p, a.xy, a.z, a.w);
+                case 21: return sdRing(p, a.xy, a.z, a.w);
+                case 22: return sdHorseshoe(p, a.xy, a.z, float2(a.w, b.x));
+                case 23: return sdVesica(p, a.x, a.y);
+                case 24: return sdOrientedVesica(p, a.xy, a.zw, b.x);
+                case 25: return sdMoon(p, a.x, a.y, a.z);
+                case 26: return sdRoundedCross(p, a.x);
+                case 27: return sdEgg(p, a.x, a.y);
+                case 28: return sdHeart(p);
+                case 29: return sdCross(p, a.xy, a.z);
+                case 30: return sdRoundedX(p, a.x, a.y);
+                case 31: return sdEllipse(p, a.xy);
+                case 32: return sdParabola(p, a.x);
+                case 33: return sdParabolaSegment(p, a.x, a.y);
+                case 34: return sdBezier(p, a.xy, a.zw, b.xy);
+                case 35: return sdBlobbyCross(p, a.x);
+                case 36: return sdTunnel(p, a.xy);
+                case 37: return sdStairs(p, a.xy, a.z);
+                case 38: return sdQuadraticCircle(p);
+                case 39: return sdHyberbola(p, a.x, a.y);
+                case 40: return sdCoolS(p);
+                case 41: return sdCircleWave(p, a.x, a.y);
+                default: return 1e6;
+                }
+            }
+
+            // uv -> shape space -> distance -> mask or raw field.
+            float sdfValue(int id, float2 uv, float4 xf, float4 a, float4 b, float rounded, float onion)
+            {
+                // Aspect correct, or a circle is an ellipse on a non square element.
+                float2 p = float2((uv.x - 0.5) * _Aspect, uv.y - 0.5);
+                p -= xf.xy;
+                float s, c;
+                sincos(xf.z, s, c);
+                p = float2(p.x * c - p.y * s, p.x * s + p.y * c);
+                float us = max(xf.w, 1e-4);
+                p /= us;
+
+                float d = sdfDistance(id, p, a, b.xy);
+                // onion is a half width, so 0 has to mean "off" rather than
+                // "an outline of zero width", which would erase the shape.
+                d = lerp(d, abs(d) - onion, step(1e-6, onion));
+                d -= rounded;
+                d *= us; // back out of the scale so the field stays metric
+
+                // Raw field is -d (positive inside) so erode() reads it directly.
+                // The mask is the default: it blends with noise like the other
+                // shape sources, which is what most stacks want.
+                float mask = saturate(0.5 - d / max(b.z, 1e-4));
+                return lerp(mask, -d, b.w);
+            }
+
             float blendValue(int op, float acc, float v)
             {
                 if (op == 1) return acc * v;
@@ -158,6 +243,12 @@ Shader "OneJS/TextureFX"
                     else if (src == 1)
                     {
                         v = shapeValue((int)_LScroll[L].w, i.uv, _LParams[L]);
+                    }
+                    else if (src == 3)
+                    {
+                        v = sdfValue((int)_LScroll[L].w, i.uv, _LScale[L],
+                                     _LParams[L], _LParams2[L],
+                                     _LMode[L].z, _LMode[L].w);
                     }
                     else
                     {

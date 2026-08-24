@@ -164,6 +164,10 @@ namespace OneJS.ShaderFX {
             // never care which API it is running on. Verified visually on D3D11,
             // where graphicsUVStartsAtTop is true and no flip is what reads upright.
             _material.SetFloat("_FlipY", SystemInfo.graphicsUVStartsAtTop ? 0f : 1f);
+            // SDF shapes are drawn in a centred, aspect corrected space so a circle
+            // stays round on a non square element. Without this every shape stretches
+            // with the element, which is fine for a noise field and wrong for an outline.
+            _material.SetFloat("_Aspect", _rtH > 0 ? _rtW / (float)_rtH : 1f);
 
             foreach (var kv in _floats) _material.SetFloat(kv.Key, kv.Value);
             foreach (var kv in _vectors) _material.SetVector(kv.Key, kv.Value);
