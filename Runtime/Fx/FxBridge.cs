@@ -41,6 +41,18 @@ namespace OneJS.Fx {
         const int OpTile = 113;
         const int OpFlip = 114;
         const int OpCrop = 115;
+        // Neighbourhood filters read many pixels, so like the spatial ops they
+        // cannot fuse. Unlike them, one of these can be several passes.
+        const int FirstFilterOp = 128;
+        const int OpBlur = 128;
+        const int OpSharpen = 129;
+        const int OpEdge = 130;
+        const int OpDilate = 131;
+        const int OpErode = 132;
+        const int OpOutline = 133;
+
+        /// <summary>Must match MAX_TAPS in OneJS/FxFilter.shader.</summary>
+        public const int MaxFilterTaps = 32;
 
         /// <summary>Must match MAX_STOPS in OneJS/FxSources.shader and ops.ts.</summary>
         public const int MaxGradientStops = 8;
@@ -177,6 +189,28 @@ namespace OneJS.Fx {
             return s_SpatialMaterial;
         }
 
+        static Material s_FilterMaterial;
+        static int s_FilterId, s_TexelSizeId, s_DirId, s_RadiusId, s_SigmaId, s_AmountId;
+        static int s_AltTexId, s_OutlineColorId, s_OutlineOnId;
+
+        static Material EnsureFilterMaterial() {
+            if (s_FilterMaterial != null) return s_FilterMaterial;
+            var shader = Shader.Find("OneJS/FxFilter");
+            if (shader == null) throw new InvalidOperationException(
+                "[onejs fx] OneJS/FxFilter is missing. It ships under Resources/OneJS.");
+            s_FilterMaterial = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
+            s_FilterId = Shader.PropertyToID("_Filter");
+            s_TexelSizeId = Shader.PropertyToID("_TexelSize");
+            s_DirId = Shader.PropertyToID("_Dir");
+            s_RadiusId = Shader.PropertyToID("_Radius");
+            s_SigmaId = Shader.PropertyToID("_Sigma");
+            s_AmountId = Shader.PropertyToID("_Amount");
+            s_AltTexId = Shader.PropertyToID("_AltTex");
+            s_OutlineColorId = Shader.PropertyToID("_OutlineColor");
+            s_OutlineOnId = Shader.PropertyToID("_OutlineOn");
+            return s_FilterMaterial;
+        }
+
         static readonly Vector4[] s_RampColors = new Vector4[MaxGradientStops];
         static readonly Vector4[] s_RampPositions = new Vector4[MaxGradientStops];
         static int s_RampCountId, s_RampColorsId, s_RampPositionsId;
@@ -251,6 +285,18 @@ namespace OneJS.Fx {
 
                 if (current == null)
                     throw new ArgumentException("[onejs fx] chain does not start with a source");
+
+                if (op >= FirstFilterOp) {
+                    if (fused > 0) {
+                        current = Flush(mat, current, pendingOperand, pendingRamp, fused, width, height);
+                        fused = 0;
+                        pendingOperand = null;
+                        pendingRamp = false;
+                    }
+                    current = ApplyFilter(op, current, buffer, cursor, argCount, width, height);
+                    cursor += argCount;
+                    continue;
+                }
 
                 if (op >= FirstSpatialOp) {
                     // A spatial op needs the pixels as they stand, so anything
@@ -487,6 +533,104 @@ namespace OneJS.Fx {
             return dst;
         }
 
+        /// <summary>
+        /// Runs one neighbourhood filter, which may take several passes. The
+        /// separable ones go horizontal then vertical; a blur wider than the
+        /// shader's tap budget goes round again rather than sampling sparsely.
+        /// </summary>
+        static RenderTexture ApplyFilter(int op, RenderTexture src, float[] buffer, int cursor,
+                                         int argCount, int width, int height) {
+            var mat = EnsureFilterMaterial();
+            mat.SetVector(s_TexelSizeId, new Vector4(1f / width, 1f / height, width, height));
+
+            if (op == OpSharpen || op == OpEdge) {
+                Need(argCount, 1, op == OpSharpen ? "sharpen" : "edge");
+                mat.SetFloat(s_FilterId, op == OpSharpen ? 1f : 2f);
+                mat.SetFloat(s_AmountId, buffer[cursor]);
+                var dst = Borrow(width, height);
+                Graphics.Blit(src, dst, mat, 0);
+                ReturnToPool(src);
+                return dst;
+            }
+
+            if (op == OpBlur) {
+                Need(argCount, 1, "blur");
+                return Blur(mat, src, buffer[cursor], width, height);
+            }
+
+            if (op == OpDilate || op == OpErode) {
+                Need(argCount, 1, op == OpDilate ? "dilate" : "erode");
+                mat.SetFloat(s_FilterId, op == OpDilate ? 3f : 4f);
+                return Separable(mat, src, Mathf.Min(buffer[cursor], MaxFilterTaps), width, height);
+            }
+
+            if (op == OpOutline) {
+                // width, rgba, then 1 to key on luminance instead of alpha
+                Need(argCount, 6, "outline");
+                float w = Mathf.Min(buffer[cursor], MaxFilterTaps);
+                // Dilating a copy leaves the original intact for the compose,
+                // which is the whole point: the ring is the difference.
+                var grown = Borrow(width, height);
+                Graphics.Blit(src, grown);
+                mat.SetFloat(s_FilterId, 3f); // dilate
+                grown = Separable(mat, grown, w, width, height);
+
+                mat.SetFloat(s_FilterId, 5f);
+                mat.SetTexture(s_AltTexId, src);
+                mat.SetVector(s_OutlineColorId, new Vector4(
+                    buffer[cursor + 1], buffer[cursor + 2], buffer[cursor + 3], buffer[cursor + 4]));
+                mat.SetFloat(s_OutlineOnId, buffer[cursor + 5]);
+                var dst = Borrow(width, height);
+                Graphics.Blit(grown, dst, mat, 0);
+                ReturnToPool(grown);
+                ReturnToPool(src);
+                return dst;
+            }
+
+            throw new ArgumentException("[onejs fx] unknown filter opcode " + op);
+        }
+
+        /// <summary>
+        /// Gaussian blur of the given pixel radius.
+        ///
+        /// Beyond the shader's tap budget the pass repeats instead of widening.
+        /// Blurring twice with sigma s is a blur with sigma s*sqrt(2), because
+        /// variances add, so N passes at sigma/sqrt(N) reproduce the sigma asked
+        /// for. Stretching the taps further apart instead would alias.
+        /// </summary>
+        static RenderTexture Blur(Material mat, RenderTexture src, float radius, int width, int height) {
+            if (radius <= 0f) return src;
+            mat.SetFloat(s_FilterId, 0f);
+            // A Gaussian is visually done by three sigma, which is the usual
+            // radius-to-sigma relation and what makes the taps worth their cost.
+            float sigma = radius / 3f;
+            int passes = Mathf.Max(1, Mathf.CeilToInt(radius / MaxFilterTaps));
+            float passRadius = radius / passes;
+            float passSigma = sigma / Mathf.Sqrt(passes);
+            var current = src;
+            for (int i = 0; i < passes; i++) {
+                mat.SetFloat(s_SigmaId, passSigma);
+                current = Separable(mat, current, passRadius, width, height);
+            }
+            return current;
+        }
+
+        /// <summary>Horizontal then vertical, borrowing one target per direction.</summary>
+        static RenderTexture Separable(Material mat, RenderTexture src, float radius,
+                                       int width, int height) {
+            mat.SetFloat(s_RadiusId, radius);
+            mat.SetVector(s_DirId, new Vector4(1, 0, 0, 0));
+            var mid = Borrow(width, height);
+            Graphics.Blit(src, mid, mat, 0);
+            ReturnToPool(src);
+
+            mat.SetVector(s_DirId, new Vector4(0, 1, 0, 0));
+            var dst = Borrow(width, height);
+            Graphics.Blit(mid, dst, mat, 0);
+            ReturnToPool(mid);
+            return dst;
+        }
+
         static void Need(int argCount, int required, string what) {
             if (argCount < required)
                 throw new ArgumentException(
@@ -544,6 +688,10 @@ namespace OneJS.Fx {
             if (s_SpatialMaterial != null) {
                 UnityEngine.Object.DestroyImmediate(s_SpatialMaterial);
                 s_SpatialMaterial = null;
+            }
+            if (s_FilterMaterial != null) {
+                UnityEngine.Object.DestroyImmediate(s_FilterMaterial);
+                s_FilterMaterial = null;
             }
         }
 
