@@ -32,6 +32,15 @@ namespace OneJS.Fx {
         const int OpSourceGradient = 3;
         const int OpSourceSdf = 4;
         const int FirstPixelOp = 16;
+        const int OpBlend = 96;
+        const int OpRamp = 87;
+        // Spatial ops change uv before the sample, so they can never fold into a
+        // fused run and always take a pass of their own.
+        const int FirstSpatialOp = 112;
+        const int OpTransform = 112;
+        const int OpTile = 113;
+        const int OpFlip = 114;
+        const int OpCrop = 115;
 
         /// <summary>Must match MAX_STOPS in OneJS/FxSources.shader and ops.ts.</summary>
         public const int MaxGradientStops = 8;
@@ -149,6 +158,29 @@ namespace OneJS.Fx {
             return s_SourceMaterial;
         }
 
+        static Material s_SpatialMaterial;
+        static int s_SpOpId, s_XformId, s_Xform2Id, s_TileId, s_FlipId, s_CropId, s_BgColorId;
+
+        static Material EnsureSpatialMaterial() {
+            if (s_SpatialMaterial != null) return s_SpatialMaterial;
+            var shader = Shader.Find("OneJS/FxSpatial");
+            if (shader == null) throw new InvalidOperationException(
+                "[onejs fx] OneJS/FxSpatial is missing. It ships under Resources/OneJS.");
+            s_SpatialMaterial = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
+            s_SpOpId = Shader.PropertyToID("_Op");
+            s_XformId = Shader.PropertyToID("_Xform");
+            s_Xform2Id = Shader.PropertyToID("_Xform2");
+            s_TileId = Shader.PropertyToID("_Tile");
+            s_FlipId = Shader.PropertyToID("_Flip");
+            s_CropId = Shader.PropertyToID("_Crop");
+            s_BgColorId = Shader.PropertyToID("_BgColor");
+            return s_SpatialMaterial;
+        }
+
+        static readonly Vector4[] s_RampColors = new Vector4[MaxGradientStops];
+        static readonly Vector4[] s_RampPositions = new Vector4[MaxGradientStops];
+        static int s_RampCountId, s_RampColorsId, s_RampPositionsId;
+
         static Material EnsureMaterial() {
             if (s_Material != null) return s_Material;
             var shader = Shader.Find("OneJS/FxOps");
@@ -161,6 +193,9 @@ namespace OneJS.Fx {
             s_MainTexId = Shader.PropertyToID("_MainTex");
             s_TexBId = Shader.PropertyToID("_TexB");
             s_FlipYId = Shader.PropertyToID("_FlipY");
+            s_RampCountId = Shader.PropertyToID("_RampCount");
+            s_RampColorsId = Shader.PropertyToID("_RampColors");
+            s_RampPositionsId = Shader.PropertyToID("_RampPositions");
             return s_Material;
         }
 
@@ -192,6 +227,7 @@ namespace OneJS.Fx {
             int width = 0, height = 0;
             int fused = 0;
             Texture pendingOperand = null;
+            bool pendingRamp = false;
 
             var mat = EnsureMaterial();
 
@@ -216,13 +252,37 @@ namespace OneJS.Fx {
                 if (current == null)
                     throw new ArgumentException("[onejs fx] chain does not start with a source");
 
-                // Two things force a flush: the window is full, or this op wants a
-                // second texture operand and the shader has only one spare sampler.
+                if (op >= FirstSpatialOp) {
+                    // A spatial op needs the pixels as they stand, so anything
+                    // fused so far has to land first.
+                    if (fused > 0) {
+                        current = Flush(mat, current, pendingOperand, pendingRamp, fused, width, height);
+                        fused = 0;
+                        pendingOperand = null;
+                        pendingRamp = false;
+                    }
+                    current = ApplySpatial(op, current, buffer, cursor, argCount, ref width, ref height);
+                    cursor += argCount;
+                    continue;
+                }
+
+                // Three things force a flush: the window is full, a second texture
+                // operand (the shader has one spare sampler), or a second ramp
+                // (one set of ramp uniforms).
                 bool wantsTexture = mode == ModeTexture;
-                if (fused == MaxFusedOps || (wantsTexture && pendingOperand != null)) {
-                    current = Flush(mat, current, pendingOperand, fused, width, height);
+                bool wantsRamp = op == OpRamp;
+                if (fused == MaxFusedOps
+                    || (wantsTexture && pendingOperand != null)
+                    || (wantsRamp && pendingRamp)) {
+                    current = Flush(mat, current, pendingOperand, pendingRamp, fused, width, height);
                     fused = 0;
                     pendingOperand = null;
+                    pendingRamp = false;
+                }
+
+                if (wantsRamp) {
+                    LoadRamp(mat, buffer, cursor, argCount);
+                    pendingRamp = true;
                 }
 
                 if (wantsTexture) {
@@ -232,20 +292,33 @@ namespace OneJS.Fx {
                     pendingOperand = operand;
                 }
 
-                s_Ops[fused] = new Vector4(op, mode, 0, 0);
+                // A blend spends its last two arguments on the mode and the
+                // opacity, so they ride in _Ops.zw and leave all four arg slots
+                // free for a colour operand.
+                float blendMode = 0f, blendOpacity = 0f;
+                int operandArgs = argCount;
+                if (op == OpBlend) {
+                    if (argCount < 2)
+                        throw new ArgumentException("[onejs fx] blend needs a mode and an opacity");
+                    blendMode = buffer[cursor + argCount - 2];
+                    blendOpacity = buffer[cursor + argCount - 1];
+                    operandArgs = argCount - 2;
+                }
+
+                s_Ops[fused] = new Vector4(op, mode, blendMode, blendOpacity);
                 s_Args[fused] = wantsTexture
                     ? Vector4.zero
                     : new Vector4(
-                        argCount > 0 ? buffer[cursor] : 0f,
-                        argCount > 1 ? buffer[cursor + 1] : 0f,
-                        argCount > 2 ? buffer[cursor + 2] : 0f,
-                        argCount > 3 ? buffer[cursor + 3] : 0f);
+                        operandArgs > 0 ? buffer[cursor] : 0f,
+                        operandArgs > 1 ? buffer[cursor + 1] : 0f,
+                        operandArgs > 2 ? buffer[cursor + 2] : 0f,
+                        operandArgs > 3 ? buffer[cursor + 3] : 0f);
                 fused++;
                 cursor += argCount;
             }
 
             if (fused > 0)
-                current = Flush(mat, current, pendingOperand, fused, width, height);
+                current = Flush(mat, current, pendingOperand, pendingRamp, fused, width, height);
 
             return Track(current, true);
         }
@@ -339,13 +412,88 @@ namespace OneJS.Fx {
             throw new ArgumentException("[onejs fx] unknown source opcode " + op);
         }
 
+        /// <summary>Uploads a ramp's stops. Only one ramp fits per fused pass.</summary>
+        static void LoadRamp(Material mat, float[] buffer, int cursor, int argCount) {
+            if (argCount < 1) throw new ArgumentException("[onejs fx] ramp needs a stop count");
+            int stops = (int)buffer[cursor];
+            if (stops < 1 || stops > MaxGradientStops)
+                throw new ArgumentException(
+                    "[onejs fx] a ramp takes 1.." + MaxGradientStops + " stops, got " + stops);
+            Need(argCount, 1 + stops * 5, "ramp stops");
+            for (int i = 0; i < MaxGradientStops; i++) {
+                int b = cursor + 1 + i * 5;
+                bool live = i < stops;
+                s_RampColors[i] = live
+                    ? new Vector4(buffer[b], buffer[b + 1], buffer[b + 2], buffer[b + 3])
+                    : Vector4.zero;
+                // Park dead stops past the end so the shader's lerp never reaches
+                // them even if it reads beyond the live count.
+                s_RampPositions[i] = new Vector4(live ? buffer[b + 4] : 2f, 0, 0, 0);
+            }
+            mat.SetFloat(s_RampCountId, stops);
+            mat.SetVectorArray(s_RampColorsId, s_RampColors);
+            mat.SetVectorArray(s_RampPositionsId, s_RampPositions);
+        }
+
+        /// <summary>
+        /// Runs one spatial op as its own pass. Crop is the only one that changes
+        /// the target size, so it reports the new one back.
+        /// </summary>
+        static RenderTexture ApplySpatial(int op, RenderTexture src, float[] buffer, int cursor,
+                                          int argCount, ref int width, ref int height) {
+            var mat = EnsureSpatialMaterial();
+            int dstW = width, dstH = height;
+
+            if (op == OpTransform) {
+                // offsetX, offsetY, rotation, scale, pivotX, pivotY, wrap, bg rgba
+                Need(argCount, 11, "transform");
+                mat.SetFloat(s_SpOpId, 0f);
+                mat.SetVector(s_XformId, new Vector4(
+                    buffer[cursor], buffer[cursor + 1], buffer[cursor + 2], buffer[cursor + 3]));
+                mat.SetVector(s_Xform2Id, new Vector4(
+                    buffer[cursor + 4], buffer[cursor + 5], buffer[cursor + 6], 0f));
+                mat.SetVector(s_BgColorId, new Vector4(
+                    buffer[cursor + 7], buffer[cursor + 8], buffer[cursor + 9], buffer[cursor + 10]));
+            } else if (op == OpTile) {
+                Need(argCount, 4, "tile");
+                mat.SetFloat(s_SpOpId, 1f);
+                mat.SetVector(s_TileId, new Vector4(
+                    buffer[cursor], buffer[cursor + 1], buffer[cursor + 2], buffer[cursor + 3]));
+            } else if (op == OpFlip) {
+                Need(argCount, 2, "flip");
+                mat.SetFloat(s_SpOpId, 2f);
+                mat.SetVector(s_FlipId, new Vector4(buffer[cursor], buffer[cursor + 1], 0, 0));
+            } else if (op == OpCrop) {
+                // x, y, w, h, all in uv
+                Need(argCount, 4, "crop");
+                mat.SetFloat(s_SpOpId, 3f);
+                float cw = Mathf.Clamp01(buffer[cursor + 2]);
+                float ch = Mathf.Clamp01(buffer[cursor + 3]);
+                mat.SetVector(s_CropId, new Vector4(
+                    buffer[cursor], buffer[cursor + 1], cw, ch));
+                // A crop that rounded to zero would make an unusable target, so
+                // it keeps at least one pixel.
+                dstW = Mathf.Max(1, Mathf.RoundToInt(width * cw));
+                dstH = Mathf.Max(1, Mathf.RoundToInt(height * ch));
+            } else {
+                throw new ArgumentException("[onejs fx] unknown spatial opcode " + op);
+            }
+
+            var dst = Borrow(dstW, dstH);
+            Graphics.Blit(src, dst, mat, 0);
+            ReturnToPool(src);
+            width = dstW;
+            height = dstH;
+            return dst;
+        }
+
         static void Need(int argCount, int required, string what) {
             if (argCount < required)
                 throw new ArgumentException(
                     "[onejs fx] " + what + " source needs " + required + " arguments, got " + argCount);
         }
 
-        static RenderTexture Flush(Material mat, RenderTexture src, Texture operand,
+        static RenderTexture Flush(Material mat, RenderTexture src, Texture operand, bool hasRamp,
                                    int opCount, int width, int height) {
             // Zero the tail so a short run does not read whatever the last chain
             // left in the uniform arrays.
@@ -356,6 +504,9 @@ namespace OneJS.Fx {
             mat.SetVectorArray(s_OpsId, s_Ops);
             mat.SetVectorArray(s_ArgsId, s_Args);
             mat.SetFloat(s_OpCountId, opCount);
+            // Materials keep their uniforms between passes, so a pass with no
+            // ramp has to say so or it inherits the last one's stops.
+            if (!hasRamp) mat.SetFloat(s_RampCountId, 0f);
             mat.SetTexture(s_MainTexId, src);
             mat.SetTexture(s_TexBId, operand != null ? operand : Texture2D.whiteTexture);
             // Blitting into a render target, not to the screen, so the source uv
@@ -389,6 +540,10 @@ namespace OneJS.Fx {
             if (s_SourceMaterial != null) {
                 UnityEngine.Object.DestroyImmediate(s_SourceMaterial);
                 s_SourceMaterial = null;
+            }
+            if (s_SpatialMaterial != null) {
+                UnityEngine.Object.DestroyImmediate(s_SpatialMaterial);
+                s_SpatialMaterial = null;
             }
         }
 

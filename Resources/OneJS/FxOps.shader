@@ -29,8 +29,10 @@ Shader "OneJS/FxOps"
             #pragma fragment frag
             #pragma target 3.0
             #include "UnityCG.cginc"
+            #include "FxColor.cginc"
 
             #define MAX_OPS 16
+            #define MAX_RAMP_STOPS 8
 
             sampler2D _MainTex;
             sampler2D _TexB;
@@ -67,9 +69,47 @@ Shader "OneJS/FxOps"
             #define OP_SMOOTHSTEP 65
             #define OP_INVERSE_LERP 66
 
+            // Colour
+            #define OP_GRAYSCALE 80
+            #define OP_BRIGHTNESS 81
+            #define OP_CONTRAST 82
+            #define OP_SATURATION 83
+            #define OP_HUE_SHIFT 84
+            #define OP_LEVELS 85
+            #define OP_SWIZZLE 86
+            #define OP_RAMP 87
+            // Composite
+            #define OP_BLEND 96
+
             #define MODE_SCALAR 0
             #define MODE_VECTOR 1
             #define MODE_TEXTURE 2
+
+            // One ramp per pass, for the same reason as one texture operand:
+            // there is a single set of these uniforms. FxBridge flushes when a
+            // chain asks for a second.
+            float _RampCount;
+            float4 _RampColors[MAX_RAMP_STOPS];
+            float4 _RampPositions[MAX_RAMP_STOPS];
+
+            float4 rampAt(float t)
+            {
+                int count = (int)_RampCount;
+                if (count <= 0) return float4(t, t, t, 1);
+                if (count == 1) return _RampColors[0];
+                t = saturate(t);
+                float4 col = _RampColors[0];
+                [loop]
+                for (int i = 1; i < MAX_RAMP_STOPS; i++)
+                {
+                    if (i >= count) break;
+                    float p0 = _RampPositions[i - 1].x;
+                    float p1 = _RampPositions[i].x;
+                    float k = saturate((t - p0) / max(p1 - p0, 1e-6));
+                    col = t >= p0 ? lerp(_RampColors[i - 1], _RampColors[i], k) : col;
+                }
+                return col;
+            }
 
             struct appdata { float4 vertex : POSITION; float2 uv : TEXCOORD0; };
             struct v2f { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
@@ -141,6 +181,47 @@ Shader "OneJS/FxOps"
                     {
                         float4 denom = b - a;
                         a = abs(denom.x) < 1e-6 ? 0.0.xxxx : (a - b) / denom;
+                    }
+                    // Colour ops leave alpha alone: an adjustment that silently
+                    // changed opacity would be a surprise everywhere it is used.
+                    else if (op == OP_GRAYSCALE) a.rgb = onejsLuma(a.rgb).xxx;
+                    else if (op == OP_BRIGHTNESS) a.rgb = a.rgb + arg.x;
+                    else if (op == OP_CONTRAST) a.rgb = onejsContrast(a.rgb, arg.x);
+                    else if (op == OP_SATURATION) a.rgb = onejsSaturation(a.rgb, arg.x);
+                    else if (op == OP_HUE_SHIFT) a.rgb = onejsHueShift(a.rgb, arg.x);
+                    // Output stays 0..1. Chain remap() for a different output
+                    // range rather than spending two more arg slots here.
+                    else if (op == OP_LEVELS)
+                        a.rgb = onejsLevels(a.rgb, arg.x, arg.y, arg.z, 0.0, 1.0);
+                    else if (op == OP_SWIZZLE)
+                    {
+                        // Each component names its source channel, 0..3, or 4 to
+                        // hold what is already there.
+                        float src[5] = { a.r, a.g, a.b, a.a, 0.0 };
+                        float4 outv = a;
+                        int ri = (int)arg.x, gi = (int)arg.y, bi = (int)arg.z, ai = (int)arg.w;
+                        outv.r = ri == 4 ? a.r : src[ri];
+                        outv.g = gi == 4 ? a.g : src[gi];
+                        outv.b = bi == 4 ? a.b : src[bi];
+                        outv.a = ai == 4 ? a.a : src[ai];
+                        a = outv;
+                    }
+                    else if (op == OP_RAMP)
+                    {
+                        // Indexed by luminance, so a greyscale field colours the
+                        // way Spark2D's dye did.
+                        a = rampAt(onejsLuma(a.rgb));
+                    }
+                    else if (op == OP_BLEND)
+                    {
+                        // The operand is whatever mode selected, so blending
+                        // against a flat colour costs no extra texture.
+                        float3 blended = onejsBlend((int)_Ops[k].z, a.rgb, b.rgb, i.uv);
+                        // Opacity rides in _Ops.w rather than an arg slot, so a
+                        // vector operand can still spend all four args on colour.
+                        // Weighted by the operand's alpha too, so blending a
+                        // partly transparent layer behaves.
+                        a.rgb = lerp(a.rgb, blended, saturate(_Ops[k].w * b.a));
                     }
                 }
 
