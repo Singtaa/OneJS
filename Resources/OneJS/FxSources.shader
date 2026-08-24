@@ -38,6 +38,8 @@ Shader "OneJS/FxSources"
             float4 _NoiseScale;
             // noise: xy = offset, z = rotation (radians)
             float4 _NoiseOffset;
+            // noise: x = lacunarity, y = gain
+            float4 _NoiseFbm;
 
             // gradient: angle in radians, and how many stops are live
             float _GradAngle;
@@ -162,7 +164,7 @@ Shader "OneJS/FxSources"
                     float2 uv = i.uv;
                     float2 p = float2(uv.x * c - uv.y * s, uv.x * s + uv.y * c);
                     p = p * _NoiseScale.xy + _NoiseOffset.xy;
-                    float n = onejsFbm(p, _NoiseScale.w, (int)_NoiseScale.z);
+                    float n = onejsFbm(p, _NoiseScale.w, (int)_NoiseScale.z, _NoiseFbm.x, _NoiseFbm.y);
                     return float4(n, n, n, 1);
                 }
 
@@ -178,14 +180,19 @@ Shader "OneJS/FxSources"
                 float ss, sc;
                 sincos(_SdfTransform.z, ss, sc);
                 sp = float2(sp.x * sc - sp.y * ss, sp.x * ss + sp.y * sc);
-                float us = max(_SdfTransform.w, 1e-4);
+                // Non-uniform: an egg stretched on Y is a flame silhouette, and
+                // forcing one factor loses that. Y rides in _SdfShape.w, spare.
+                float2 us = float2(max(_SdfTransform.w, 1e-4), max(_SdfShape.w, 1e-4));
                 sp /= us;
 
                 float d = sdfDistance((int)_SdfShape.x, sp, _SdfParams, _SdfParams2.xy);
                 float onion = _SdfShape.z;
                 d = lerp(d, abs(d) - onion, step(1e-6, onion));
                 d -= _SdfShape.y;
-                d *= us;
+                // Back out of the scale so the field stays roughly metric. With
+                // an anisotropic scale there is no single right factor; the
+                // smaller axis keeps rounded and onion widths from overshooting.
+                d *= min(us.x, us.y);
 
                 float mask = saturate(0.5 - d / max(_SdfParams2.z, 1e-4));
                 float v = lerp(mask, -d, _SdfParams2.w);

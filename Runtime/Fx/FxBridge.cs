@@ -147,6 +147,7 @@ namespace OneJS.Fx {
         static readonly Vector4[] s_GradPositions = new Vector4[MaxGradientStops];
         static int s_SourceTypeId, s_AspectId, s_NoiseScaleId, s_NoiseOffsetId;
         static int s_GradAngleId, s_GradStopCountId, s_GradColorsId, s_GradPositionsId;
+        static int s_NoiseFbmId;
         static int s_SdfParamsId, s_SdfParams2Id, s_SdfTransformId, s_SdfShapeId;
 
         static Material EnsureSourceMaterial() {
@@ -159,6 +160,7 @@ namespace OneJS.Fx {
             s_AspectId = Shader.PropertyToID("_Aspect");
             s_NoiseScaleId = Shader.PropertyToID("_NoiseScale");
             s_NoiseOffsetId = Shader.PropertyToID("_NoiseOffset");
+            s_NoiseFbmId = Shader.PropertyToID("_NoiseFbm");
             s_GradAngleId = Shader.PropertyToID("_GradAngle");
             s_GradStopCountId = Shader.PropertyToID("_GradStopCount");
             s_GradColorsId = Shader.PropertyToID("_GradColors");
@@ -240,7 +242,38 @@ namespace OneJS.Fx {
         /// object, so it goes through the same conversion StyleBridge and
         /// PainterBridge use to get a plain float[].
         /// </summary>
+        /// <summary>
+        /// A target the caller keeps, rather than one handed out per render.
+        ///
+        /// An animated chain runs every frame, and if each run produced a new
+        /// texture the element showing it would have to be re-pointed every
+        /// frame, which means a React render per frame. Rendering into a stable
+        /// target instead lets the element be assigned once.
+        /// </summary>
+        public static int CreateTarget(int width, int height) {
+            return Track(Borrow(Mathf.Max(1, width), Mathf.Max(1, height)), true);
+        }
+
+        /// <summary>
+        /// Runs a chain and blits the result into an existing target, leaving
+        /// every intermediate back in the pool. Nothing new is tracked, so an
+        /// animation loop does not grow the handle table.
+        /// </summary>
+        public static void ExecuteInto(int dstHandle, object bufferObj) {
+            if (!(GetTexture(dstHandle) is RenderTexture dst))
+                throw new ArgumentException("[onejs fx] destination handle is not a live target");
+            var result = Run(bufferObj, out _, out _);
+            Graphics.Blit(result, dst);
+            ReturnToPool(result);
+        }
+
         public static int Execute(object bufferObj) {
+            var result = Run(bufferObj, out _, out _);
+            return Track(result, true);
+        }
+
+        /// <summary>Walks the chain and returns the target holding the result.</summary>
+        static RenderTexture Run(object bufferObj, out int width, out int height) {
             var buffer = QuickJSNative.ConvertToTargetType(bufferObj, typeof(float[])) as float[];
             if (buffer == null || buffer.Length < 2)
                 throw new ArgumentException("[onejs fx] chain buffer is empty");
@@ -258,7 +291,8 @@ namespace OneJS.Fx {
             int cursor = 2;
 
             RenderTexture current = null;
-            int width = 0, height = 0;
+            width = 0;
+            height = 0;
             int fused = 0;
             Texture pendingOperand = null;
             bool pendingRamp = false;
@@ -366,7 +400,7 @@ namespace OneJS.Fx {
             if (fused > 0)
                 current = Flush(mat, current, pendingOperand, pendingRamp, fused, width, height);
 
-            return Track(current, true);
+            return current;
         }
 
         static RenderTexture BeginChain(int op, float[] buffer, int cursor, int argCount,
@@ -406,9 +440,15 @@ namespace OneJS.Fx {
                 mat.SetFloat(s_AspectId, height > 0 ? width / (float)height : 1f);
 
                 if (op == OpSourceNoise) {
-                    // w, h, scaleX, scaleY, octaves, seed, offsetX, offsetY, rotation
+                    // w, h, scaleX, scaleY, octaves, seed, offsetX, offsetY, rotation,
+                    // then optionally lacunarity, gain
                     Need(argCount, 9, "noise");
                     mat.SetFloat(s_SourceTypeId, 0f);
+                    // Optional so a buffer written before these existed still
+                    // decodes; the defaults are the classic fBm pair.
+                    mat.SetVector(s_NoiseFbmId, new Vector4(
+                        argCount > 9 ? Mathf.Max(buffer[cursor + 9], 1e-3f) : 2f,
+                        argCount > 10 ? Mathf.Clamp01(buffer[cursor + 10]) : 0.5f, 0f, 0f));
                     mat.SetVector(s_NoiseScaleId, new Vector4(
                         buffer[cursor + 2], buffer[cursor + 3],
                         Mathf.Clamp(buffer[cursor + 4], 1f, 4f), buffer[cursor + 5]));
@@ -447,8 +487,11 @@ namespace OneJS.Fx {
                         buffer[cursor + 7], buffer[cursor + 8], buffer[cursor + 15], buffer[cursor + 16]));
                     mat.SetVector(s_SdfTransformId, new Vector4(
                         buffer[cursor + 9], buffer[cursor + 10], buffer[cursor + 11], buffer[cursor + 12]));
+                    // w defaults to the X scale, so an sdf written before the
+                    // second axis existed stays uniform.
                     mat.SetVector(s_SdfShapeId, new Vector4(
-                        buffer[cursor + 2], buffer[cursor + 13], buffer[cursor + 14], 0f));
+                        buffer[cursor + 2], buffer[cursor + 13], buffer[cursor + 14],
+                        argCount > 17 ? buffer[cursor + 17] : buffer[cursor + 12]));
                 }
 
                 Graphics.Blit(null, target, mat, 0);

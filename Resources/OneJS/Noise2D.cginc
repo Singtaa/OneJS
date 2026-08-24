@@ -31,7 +31,10 @@ float onejsVNoise(float2 p, float seed)
 
 // Octaves are capped at 4 and the loop is unrolled to that, because a dynamic
 // trip count here costs more than the octaves it saves.
-float onejsFbm(float2 p, float seed, int octaves)
+/// lacunarity is how much finer each octave gets, gain how much quieter.
+/// The classic pair is 2 and 0.5; pushing lacunarity up and gain toward 1 gives
+/// the stringy, turbulent look that reads as fire or smoke rather than cloud.
+float onejsFbm(float2 p, float seed, int octaves, float lacunarity, float gain)
 {
     float sum = 0, amp = 0.5, norm = 0;
     [unroll(4)]
@@ -40,10 +43,16 @@ float onejsFbm(float2 p, float seed, int octaves)
         if (o >= octaves) break;
         sum += onejsVNoise(p, seed + o * 19.0) * amp;
         norm += amp;
-        p *= 2.0;
-        amp *= 0.5;
+        p *= lacunarity;
+        amp *= gain;
     }
     return sum / max(norm, 1e-4);
+}
+
+/// The classic parameters, for callers that do not care.
+float onejsFbm(float2 p, float seed, int octaves)
+{
+    return onejsFbm(p, seed, octaves, 2.0, 0.5);
 }
 
 #endif
