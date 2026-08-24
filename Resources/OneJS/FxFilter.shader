@@ -69,7 +69,7 @@ Shader "OneJS/FxFilter"
 
             float4 gaussian(float2 uv)
             {
-                float2 step = _Dir * _TexelSize.xy;
+                float2 texelStep = _Dir * _TexelSize.xy;
                 float sigma = max(_Sigma, 1e-4);
                 float4 acc = tex2D(_MainTex, uv);
                 float sum = 1.0;
@@ -78,8 +78,8 @@ Shader "OneJS/FxFilter"
                 {
                     if (i > _Radius) break;
                     float w = exp(-0.5 * (i * i) / (sigma * sigma));
-                    acc += tex2D(_MainTex, uv + step * i) * w;
-                    acc += tex2D(_MainTex, uv - step * i) * w;
+                    acc += tex2D(_MainTex, uv + texelStep * i) * w;
+                    acc += tex2D(_MainTex, uv - texelStep * i) * w;
                     sum += 2.0 * w;
                 }
                 return acc / sum;
@@ -87,14 +87,14 @@ Shader "OneJS/FxFilter"
 
             float4 morph(float2 uv, bool dilate)
             {
-                float2 step = _Dir * _TexelSize.xy;
+                float2 texelStep = _Dir * _TexelSize.xy;
                 float4 best = tex2D(_MainTex, uv);
                 [loop]
                 for (int i = 1; i <= MAX_TAPS; i++)
                 {
                     if (i > _Radius) break;
-                    float4 a = tex2D(_MainTex, uv + step * i);
-                    float4 b = tex2D(_MainTex, uv - step * i);
+                    float4 a = tex2D(_MainTex, uv + texelStep * i);
+                    float4 b = tex2D(_MainTex, uv - texelStep * i);
                     best = dilate ? max(best, max(a, b)) : min(best, min(a, b));
                 }
                 return best;
