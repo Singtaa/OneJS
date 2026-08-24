@@ -37,6 +37,11 @@ const config = {
         "react": reactPath,
         "react/jsx-runtime": reactJsxPath,
         "react/jsx-dev-runtime": reactJsxDevPath,
+        // oj is the app-facing surface of onejs-play. Aliased rather than
+        // imported by package name so the source is bundled and deduped the
+        // same way React is, and so it reads the same here as it does on
+        // play.onejs.com.
+        "oj": path.resolve(process.cwd(), "node_modules/onejs-play/src/index.ts"),
     },
     // Ensure packages from node_modules are bundled, not externalized
     packages: "bundle",
