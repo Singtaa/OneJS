@@ -44,6 +44,9 @@ namespace OneJS {
             // Context pointer (set per-dispatch, but clear for safety)
             _currentContextPtr = IntPtr.Zero;
 
+            // JS error tally (belongs to the destroyed context, not the next one)
+            JsLog.ResetErrorCount();
+
             // Reflection caches are safe to keep: types don't change across play mode.
         }
 

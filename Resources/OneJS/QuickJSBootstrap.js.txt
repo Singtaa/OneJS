@@ -19,6 +19,48 @@ if (typeof globalThis.__cs === "undefined") {
     };
 }
 
+// MARK: Console severity
+// The native console maps log, warn, error and info onto a single C# callback
+// that takes nothing but a string, so the level is gone before C# sees it: a
+// React handler that threw and a debug print arrive identically as Debug.Log,
+// and anything keyed on Debug.LogError (a CI gate, LogAssert, a test asserting
+// no errors) stays green through both. Encode the level into the message here
+// and let the C# side split it back off.
+//
+// Native only. On WebGL this file is evaluated in the embedding page's scope,
+// where console belongs to the host page and must not be replaced, its output
+// already reaches devtools carrying its real level, and the C# log callback is
+// never invoked at all. requestAnimationFrame is the platform tell, checked
+// here before this bootstrap installs its own override further down.
+if (!globalThis.requestAnimationFrame && globalThis.console && !globalThis.console.__ojsLeveled) {
+    const __rawConsole = globalThis.console;
+    const __fmtLogArg = (v) => {
+        // Only Errors are formatted differently than before. Everything else
+        // goes through String() to keep output identical to what the native
+        // console produced, including the bare handle a CS proxy prints as.
+        if (v instanceof Error) return v.stack || (v.name + ": " + v.message);
+        try { return String(v); } catch (e) { return "[unprintable]"; }
+    };
+    // One call per line rather than per argument: the native console invoked the
+    // C# callback once for every argument, so console.error("failed:", err) was
+    // two separate entries and only the first could have carried a level.
+    const __emitLog = (mark, args) => {
+        let out = "";
+        for (let i = 0; i < args.length; i++) out += (i ? " " : "") + __fmtLogArg(args[i]);
+        __rawConsole.log(mark + out);
+    };
+    globalThis.console = {
+        log: function () { __emitLog("", arguments); },
+        info: function () { __emitLog("", arguments); },
+        debug: function () { __emitLog("", arguments); },
+        warn: function () { __emitLog("W", arguments); },
+        error: function () { __emitLog("E", arguments); },
+        // Guards against chaining a wrapper onto a wrapper if this file is
+        // evaluated twice against one global.
+        __ojsLeveled: true
+    };
+}
+
 // MARK: Handle Cleanup
 // Track released handles to prevent double-free from FinalizationRegistry
 const __releasedHandles = new Set();

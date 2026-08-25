@@ -78,7 +78,7 @@ namespace OneJS {
             if (msgPtr == IntPtr.Zero) return;
             string msg = Marshal.PtrToStringUTF8(msgPtr);
             if (msg == null) return;
-            Debug.Log("[QuickJS] " + msg);
+            JsLog.Route(msg);
         }
 
         // MARK: Dispatch
