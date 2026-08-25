@@ -1,3 +1,12 @@
+# [2026-08-24] v3.2.4
+
+- macOS: the native library is a universal binary, so Intel slices of Universal player builds no longer fail to load
+- macOS: the library targets macOS 11.0 instead of whichever SDK built it
+
+# [2026-08-24] v3.2.3
+
+- New projects scaffold with `oj` available: the `onejs-play` dependency, the esbuild alias and the tsconfig path
+
 # [2026-08-23] v3.2.2
 
 - Windows: the native library no longer imports libwinpthread-1.dll, which broke every 3.2.0/3.2.1 Windows project with `DllNotFoundException: quickjs_unity`

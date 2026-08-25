@@ -34,6 +34,50 @@ jobs:
       - uses: actions/checkout@v4
       - run: python3 Auxiliary~/quickjs-unity/check-plugin-deps.py
 
+  # The check above never opens a binary, which is what lets one Linux runner
+  # cover all six at once. The cost is that it cannot see a library that parses
+  # but will not run: a stale binary whose ABI no longer matches the C# side
+  # surfaces only at context creation, as a "restart the editor" message that
+  # points away from the real cause. So open the shipped file on a runner of its
+  # own platform and call into it. Android and iOS stay covered by the static
+  # check alone, since no runner can load either one.
+  native-plugin-load:
+    name: Native plugin loads (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One platform being broken must not hide the state of the others.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+      # Pinned rather than trusting each image's preinstalled interpreter and the
+      # name it goes by, which is not uniform across these three.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: python "Auxiliary~/quickjs-unity/load-plugin-smoke.py"
+
+      # macos-latest is arm64, so the step above covers that slice only. The way
+      # the dylib regressed before was a rebuild that silently took the host's
+      # architecture and dropped the other slice, which is invisible until an
+      # Intel editor tries to load it. Rosetta gives a genuine x86_64 process
+      # doing a genuine dlopen, so the second slice is checked without an Intel
+      # runner: macos-13 was retired by GitHub, and a job requesting a label
+      # nobody serves does not fail, it queues until the 24 hour timeout and
+      # leaves the whole run pending. The interpreter has to be the system one,
+      # since the Python installed above is arm64 only.
+      #
+      # This step has an expiry date. Apple removes Rosetta for general use in
+      # macOS 28, so once macos-latest rolls to it, arch -x86_64 stops working
+      # and this goes red on a morning when nobody touched OneJS. That means the
+      # era ended, not that the dylib broke. Unity drops Intel support in 6.8,
+      # so by then delete this step and the x86_64 slice together.
+      - name: Load the x86_64 slice under Rosetta
+        if: runner.os == 'macOS'
+        run: arch -x86_64 /usr/bin/python3 "Auxiliary~/quickjs-unity/load-plugin-smoke.py"
+
   unity-tests:
     name: Unity tests (EditMode + PlayMode)
     runs-on: ubuntu-latest

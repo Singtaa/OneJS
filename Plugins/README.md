@@ -63,6 +63,34 @@ build-windows-msvc.bat
 
 See `Auxiliary~/quickjs-unity/README.md` for full details.
 
+## macOS Universal Binary
+
+The committed `macOS/libquickjs_unity.dylib` is a universal binary carrying both
+`x86_64` and `arm64` slices, built with a deployment target of macOS 11.0.
+
+Both facts are load-bearing and neither is the default. `build.sh` with no
+`-arch` flags produces a host-only library, and the plugin's `.meta` offers this
+file to `OSXUniversal` builds with `CPU: AnyCPU`, so a host-only build makes that
+offer false: the x86_64 slice of a Universal player has nothing to load and dies
+with `DllNotFoundException: quickjs_unity`, having built cleanly and run fine on
+the Apple Silicon machine that produced it. Unity's own guidance for shipping a
+Mac game is to ship a Universal binary, so this is the configuration users are
+told to use. Without an explicit `-mmacosx-version-min` the SDK's default applies
+and tracks whichever Xcode is installed, which would exclude most of the Intel
+machines the x86_64 slice exists for.
+
+Verify both slices actually load, not just that they are present:
+
+```bash
+arch -arm64  /usr/bin/python3 -c "import ctypes;print(ctypes.CDLL('Plugins/macOS/libquickjs_unity.dylib').qjs_abi_version())"
+arch -x86_64 /usr/bin/python3 -c "import ctypes;print(ctypes.CDLL('Plugins/macOS/libquickjs_unity.dylib').qjs_abi_version())"
+```
+
+The second runs under Rosetta 2 and is a real x86_64 process doing a real dyld
+load, so it tests the slice rather than inspecting it. Rosetta is removed for
+general use in macOS 28, and Unity drops Intel entirely in 6.8, so both this
+check and the x86_64 slice have a finite life.
+
 ## Dependency Check
 
 Every file here is a committed build artifact, and only the Linux .so is rebuilt
