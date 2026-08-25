@@ -27,7 +27,11 @@ namespace OneJS {
     ///   CS.OneJS.PainterBridge.Execute(mgc, floatBuffer)
     /// </summary>
     public static class PainterBridge {
-        // Opcode contract: must match JSModules/onejs-react/src/painter.ts.
+        // Opcode contract: must match JSModules/onejs-react/src/painter.ts, in
+        // both the numbers below and the operand counts each case arm consumes.
+        // PainterOpcodeContractTests in the container compares the two files and
+        // fails on either kind of drift; a stride mismatch has no other symptom
+        // than a drawing that comes out subtly wrong.
         const int OpBeginPath = 1;
         const int OpClosePath = 2;
         const int OpMoveTo = 3;

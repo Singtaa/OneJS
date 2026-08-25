@@ -5,8 +5,10 @@ namespace OneJS {
     /// <summary>
     /// Wire schema (v1) for the 2D physics world. This is the C#-JS contract:
     /// onejs-unity's physics2d.ts normalizes its ergonomic config into this flat,
-    /// JsonUtility-compatible document. Keep the two sides in sync; parity
-    /// fixtures live in physics2d.test.ts (JS) and Physics2DTests.cs (C#).
+    /// JsonUtility-compatible document. Keep the two sides in sync; the guard
+    /// that compares them is Physics2DWireContractTests in the container, which
+    /// reads this file and physics2d.ts. (An earlier version of this comment
+    /// named a Physics2DTests.cs that never existed.)
     ///
     /// Follows the particle wire in shape and for the same reasons: an entire
     /// world crosses the boundary once, and nothing crosses again while it runs.
