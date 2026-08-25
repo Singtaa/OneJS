@@ -38,7 +38,16 @@ if (!globalThis.requestAnimationFrame && globalThis.console && !globalThis.conso
         // Only Errors are formatted differently than before. Everything else
         // goes through String() to keep output identical to what the native
         // console produced, including the bare handle a CS proxy prints as.
-        if (v instanceof Error) return v.stack || (v.name + ": " + v.message);
+        if (v instanceof Error) {
+            // QuickJS stacks are frames only, where V8 repeats "Name: message"
+            // on the first line. Taking the stack alone therefore drops the one
+            // part a reader needs, so put the message back unless the engine
+            // already included it.
+            const head = (v.name || "Error") + ": " + (v.message || "");
+            const stack = v.stack || "";
+            if (!stack) return head;
+            return stack.indexOf(head) === 0 ? stack : head + "\n" + stack;
+        }
         try { return String(v); } catch (e) { return "[unprintable]"; }
     };
     // One call per line rather than per argument: the native console invoked the
