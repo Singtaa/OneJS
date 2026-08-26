@@ -27,7 +27,12 @@ namespace OneJS {
         struct StructFieldInfo {
             public string Name;
             public Func<object, object> Getter;
-            public Func<object, object, object> Setter; // Returns modified instance for struct copy semantics
+            /// <summary>
+            /// Returns the modified instance, for struct copy semantics. Null for a
+            /// member that can be read but not written, such as a computed property:
+            /// it is serialized so JS can see it, and skipped on the way back.
+            /// </summary>
+            public Func<object, object, object> Setter;
             public Type FieldType;
         }
 
@@ -309,7 +314,18 @@ namespace OneJS {
 
             for (int i = 0; i < fields.Length; i++) {
                 var field = fields[i];
-                var fieldValue = field.Getter(value);
+                /*
+                 * A computed property runs arbitrary code, so it can throw where
+                 * reading a field cannot. One member that does must not take the
+                 * whole struct with it: it reads as null, and the rest survives.
+                 */
+                object fieldValue;
+                try {
+                    fieldValue = field.Getter(value);
+                } catch (Exception e) {
+                    Debug.LogWarning($"[QuickJS] {type.FullName}.{field.Name} threw while being read: {e.Message}");
+                    fieldValue = null;
+                }
                 sb.Append(",\"");
                 sb.Append(field.Name);
                 sb.Append("\":");
@@ -448,6 +464,10 @@ namespace OneJS {
                     continue;
                 }
 
+                // A read-only member arrives in the JSON because JS was shown it.
+                // There is nowhere to put it back, and that is not an error.
+                if (field.Setter == null) continue;
+
                 var convertedValue = ConvertJsonValue(rawValue, field.FieldType);
                 if (convertedValue != null) {
                     instance = field.Setter(instance, convertedValue);
@@ -518,22 +538,51 @@ namespace OneJS {
                 });
             }
 
-            // Get public instance properties with both getter and setter
+            /*
+             * Public instance properties, readable ones included.
+             *
+             * A getter used to need a setter to be here at all, so a computed
+             * property was missing from JS entirely: `public string Name =>
+             * name.ToString()` simply did not exist on the other side. It looked
+             * like it depended on the struct having a method, because a struct
+             * with any method is not serialized at all, it is handed over as a
+             * handle whose members resolve through general reflection. Adding a
+             * method did not fix the property, it moved the struct onto a
+             * different path that never had the bug.
+             *
+             * A read-only member is serialized and skipped on the way back, which
+             * is what Setter being null means.
+             */
             var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
             foreach (var p in props) {
-                if (!p.CanRead || !p.CanWrite) continue;
+                if (!p.CanRead) continue;
                 if (p.GetIndexParameters().Length > 0) continue;
-                if (list.Exists(f => string.Equals(f.Name, p.Name, StringComparison.OrdinalIgnoreCase))) continue;
+
+                /*
+                 * A writable property that differs from a field only by case would
+                 * be written twice from one JSON key, because reading tries the
+                 * name with a lowercased first letter before the name itself. A
+                 * read-only one is never written, so `name` the field and `Name`
+                 * the property can both be present, which is what C# meant by
+                 * declaring both.
+                 */
+                var clashes = p.CanWrite
+                    ? list.Exists(f => string.Equals(f.Name, p.Name, StringComparison.OrdinalIgnoreCase))
+                    : list.Exists(f => string.Equals(f.Name, p.Name, StringComparison.Ordinal));
+                if (clashes) continue;
 
                 var propCopy = p;
+                var writable = p.CanWrite;
                 list.Add(new StructFieldInfo {
                     Name = p.Name,
                     FieldType = p.PropertyType,
                     Getter = obj => propCopy.GetValue(obj),
-                    Setter = (obj, val) => {
-                        propCopy.SetValue(obj, val);
-                        return obj;
-                    }
+                    Setter = writable
+                        ? (obj, val) => {
+                            propCopy.SetValue(obj, val);
+                            return obj;
+                        }
+                        : (Func<object, object, object>)null
                 });
             }
 

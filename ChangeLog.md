@@ -4,6 +4,9 @@
 - Tailwind: `flex` sets row, `block` sets column
 - Tailwind: `flex-1` includes `flex-basis: 0`
 - WebGL: trackpad scrolling covers the same distance as a mouse wheel instead of many times more
+- Structs: read-only properties are visible from JS
+- Structs: a property and a field that differ only by case are both kept
+- Structs: a property that throws no longer loses the rest of the struct
 
 # [2026-08-24] v3.2.4
 
