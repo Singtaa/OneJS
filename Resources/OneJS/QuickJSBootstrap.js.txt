@@ -1644,9 +1644,16 @@ if (__nativeRequestAnimationFrame) {
     let __wheelCarried = 0;
     let __wheelNormaliser = null;
 
+    // On `document`, not bare, and this is the whole reason the first build of
+    // this failed to boot at all. The bootstrap declares its own
+    // addEventListener(element, type, cb) for CS objects at the top level, so a
+    // bare call reaches THAT and throws "element must be a CS object" from
+    // inside init, taking __root, CS and the entire runtime with it. A document
+    // is a real EventTarget and cannot be shadowed, and capture on it still
+    // runs before a listener on the canvas.
     function __removeWheelNormaliser() {
         if (__wheelNormaliser === null) return;
-        removeEventListener("wheel", __wheelNormaliser, { capture: true });
+        document.removeEventListener("wheel", __wheelNormaliser, { capture: true });
         __wheelNormaliser = null;
         __wheelCarried = 0;
     }
@@ -1683,7 +1690,7 @@ if (__nativeRequestAnimationFrame) {
                 canvas.dispatchEvent(out);
             }
         };
-        addEventListener("wheel", __wheelNormaliser, { capture: true, passive: false });
+        document.addEventListener("wheel", __wheelNormaliser, { capture: true, passive: false });
     }
 }
 
