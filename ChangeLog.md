@@ -1,3 +1,9 @@
+# Unreleased (onejs-unity 0.3.0)
+
+- Tailwind: utility rules emit in the web's cascade order instead of file scan order
+- Tailwind: `flex` sets row, `block` sets column
+- Tailwind: `flex-1` includes `flex-basis: 0`
+
 # [2026-08-24] v3.2.4
 
 - macOS: the native library is a universal binary, so Intel slices of Universal player builds no longer fail to load
