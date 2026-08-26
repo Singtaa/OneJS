@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using UnityEngine;
 using UnityEngine.TestTools;
 using OneJS;
 
@@ -40,6 +41,34 @@ namespace OneJS.Tests.Editor {
 
         struct OnlyComputed {
             public int Answer => 42;
+        }
+
+        /// <summary>What every Unity value type does: a property returning its own type.</summary>
+        struct Selfish {
+            public int a;
+            public Selfish Twin => this;
+        }
+
+        struct Ping { public int n; public Pong Other => default; }
+        struct Pong { public int n; public Ping Other => default; }
+
+        /// <summary>A tree. Its nesting is data, and finite data ends by itself.</summary>
+        struct Node {
+            public int v;
+            public Node[] kids;
+        }
+
+        /// <summary>The same shape computed rather than stored, which does not end.</summary>
+        struct Branchy {
+            public int v;
+            public Branchy[] Kids => new Branchy[] { default };
+        }
+
+        /// <summary>The struct from the crash: Unity value types inside a plain data struct.</summary>
+        struct Holder {
+            public Vector3 position;
+            public Color color;
+            public int id;
         }
 
         static string Json<T>(T value) where T : struct => QuickJSNative.SerializeStruct(value);
@@ -97,6 +126,59 @@ namespace OneJS.Tests.Editor {
         public void AStructThatIsNothingButComputedMembersStillSerializes() {
             var json = Json(new OnlyComputed());
             StringAssert.Contains("\"Answer\":42", json);
+        }
+
+        [Test]
+        public void AUnityValueTypeNestedInADataStructTerminates() {
+            // The crash. Vector3.normalized is a Vector3 and Color.linear is a
+            // Color, so serializing either recomputed itself until the stack ran
+            // out, taking the editor down rather than failing a test.
+            var json = Json(new Holder {
+                position = new Vector3(1, 2, 3), color = new Color(0.5f, 0.5f, 0.5f, 1f), id = 42
+            });
+            StringAssert.Contains("\"position\":", json);
+            StringAssert.Contains("\"id\":42", json);
+            StringAssert.DoesNotContain("normalized", json);
+            StringAssert.DoesNotContain("linear", json);
+        }
+
+        [Test]
+        public void APropertyReturningItsOwnTypeIsLeftOut() {
+            var json = Json(new Selfish { a = 5 });
+            StringAssert.Contains("\"a\":5", json);
+            StringAssert.DoesNotContain("Twin", json);
+        }
+
+        [Test]
+        public void ACycleBetweenTwoStructsStops() {
+            // Neither property names its own type, so a guard that only looked
+            // one level up would not catch this one.
+            var json = Json(new Ping { n = 1 });
+            StringAssert.Contains("\"n\":1", json);
+            StringAssert.Contains("\"Other\":", json);
+            Assert.AreEqual(1, System.Text.RegularExpressions.Regex.Matches(json, "Ping").Count,
+                "Ping should appear once: as the type being written, not again underneath Pong");
+        }
+
+        [Test]
+        public void ATreeOfStructsStillNestsAllTheWayDown() {
+            // The guard must not mistake depth for a cycle. This is stored data,
+            // and it ends, so every level of it belongs in the JSON.
+            var json = Json(new Node {
+                v = 1, kids = new[] { new Node { v = 2, kids = new[] { new Node { v = 3 } } } }
+            });
+            StringAssert.Contains("\"v\":1", json);
+            StringAssert.Contains("\"v\":2", json);
+            StringAssert.Contains("\"v\":3", json);
+        }
+
+        [Test]
+        public void AComputedCollectionOfItsOwnTypeIsLeftOut() {
+            // The same regress one indirection further out: the member's type is
+            // an array, and the type that repeats is the array's element.
+            var json = Json(new Branchy { v = 9 });
+            StringAssert.Contains("\"v\":9", json);
+            StringAssert.DoesNotContain("Kids", json);
         }
     }
 }

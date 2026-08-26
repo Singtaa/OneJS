@@ -305,35 +305,67 @@ namespace OneJS {
             return SerializeStructGeneric(value, type);
         }
 
+        /*
+         * The struct types currently being written, innermost last.
+         *
+         * A computed property can return the type that declares it, and Unity's
+         * own structs do it constantly: `Vector3.normalized` is a Vector3,
+         * `Color.linear` is a Color, `Matrix4x4.inverse` is a Matrix4x4. Writing
+         * one is an infinite regress, because unlike a field it is recomputed
+         * rather than read, so it never bottoms out in data. A Vector3 nested in
+         * a plain data struct overflowed the stack and took the editor with it.
+         *
+         * Fields are deliberately left alone. `Node[] kids` describes a tree,
+         * and a finite tree terminates on its own; refusing a member by type
+         * would truncate the second level of every legitimate nesting.
+         */
+        [ThreadStatic] static List<Type> _beingSerialized;
+
         static string SerializeStructGeneric(object value, Type type) {
             var fields = GetStructFields(type);
+            var stack = _beingSerialized ??= new List<Type>();
             var sb = new StringBuilder(128);
             sb.Append("{\"__type\":\"");
             sb.Append(type.FullName);
             sb.Append('"');
 
-            for (int i = 0; i < fields.Length; i++) {
-                var field = fields[i];
-                /*
-                 * A computed property runs arbitrary code, so it can throw where
-                 * reading a field cannot. One member that does must not take the
-                 * whole struct with it: it reads as null, and the rest survives.
-                 */
-                object fieldValue;
-                try {
-                    fieldValue = field.Getter(value);
-                } catch (Exception e) {
-                    Debug.LogWarning($"[QuickJS] {type.FullName}.{field.Name} threw while being read: {e.Message}");
-                    fieldValue = null;
+            stack.Add(type);
+            try {
+                for (int i = 0; i < fields.Length; i++) {
+                    var field = fields[i];
+                    if (field.Setter == null && LeadsBackToATypeBeingWritten(stack, field.FieldType)) continue;
+                    /*
+                     * A computed property runs arbitrary code, so it can throw where
+                     * reading a field cannot. One member that does must not take the
+                     * whole struct with it: it reads as null, and the rest survives.
+                     */
+                    object fieldValue;
+                    try {
+                        fieldValue = field.Getter(value);
+                    } catch (Exception e) {
+                        Debug.LogWarning($"[QuickJS] {type.FullName}.{field.Name} threw while being read: {e.Message}");
+                        fieldValue = null;
+                    }
+                    sb.Append(",\"");
+                    sb.Append(field.Name);
+                    sb.Append("\":");
+                    AppendJsonValue(sb, fieldValue, field.FieldType);
                 }
-                sb.Append(",\"");
-                sb.Append(field.Name);
-                sb.Append("\":");
-                AppendJsonValue(sb, fieldValue, field.FieldType);
+            } finally {
+                stack.RemoveAt(stack.Count - 1);
             }
 
             sb.Append('}');
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Whether writing this member would re-enter a struct already being written,
+        /// directly or as the element type of a collection.
+        /// </summary>
+        static bool LeadsBackToATypeBeingWritten(List<Type> stack, Type memberType) {
+            if (stack.Contains(memberType)) return true;
+            return TryGetCollectionElementType(memberType, out var element) && stack.Contains(element);
         }
 
         static void AppendJsonValue(StringBuilder sb, object value, Type type) {
