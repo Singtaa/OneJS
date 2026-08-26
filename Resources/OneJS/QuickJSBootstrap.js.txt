@@ -1609,13 +1609,15 @@ if (__nativeRequestAnimationFrame) {
         };
     };
 
-    // MARK: Wheel normalisation (WebGL)
+    // MARK: Wheel normalisation (WebGL, legacy input)
     //
-    // Unity's WebGL input scrolls a FIXED step per wheel event and discards the
-    // event's magnitude. Measured against a shipped build rather than assumed:
-    // a wheel event of 1px and one of 400px each scrolled a ScrollView by
-    // exactly 54px, and so did a line-mode event of 1 and of 16. Only the sign
-    // and the number of events survive.
+    // On the LEGACY input path, Unity's WebGL input scrolls a FIXED step per
+    // wheel event and discards the event's magnitude. Measured against a
+    // shipped build rather than assumed: a wheel event of 1px and one of 400px
+    // each scrolled a ScrollView by exactly 54px, and so did a line-mode event
+    // of 1 and of 16. Only the sign and the number of events survive. 54px is
+    // three ticks of UI Toolkit's 18px mouseWheelScrollSize, which is the
+    // quantisation showing through.
     //
     // That is fine for a mouse wheel, where one notch is one event, and it is
     // what makes a trackpad unusable: macOS sends a dense stream of small
@@ -1634,10 +1636,32 @@ if (__nativeRequestAnimationFrame) {
     // them through the accumulator would need two notches of scrolling to move
     // anything, which would be a worse bug than the one this fixes.
     //
-    // The cost is that trackpad scrolling steps rather than glides. It cannot
-    // be otherwise from here: a sub-step scroll is not expressible to Unity's
-    // WebGL input at all, so the choice is stepped and proportional, or smooth
-    // and ungovernable.
+    // The cost is that trackpad scrolling steps rather than glides, and a
+    // sub-step scroll cannot be expressed on this path at all, so the choice
+    // here is stepped and proportional, or smooth and ungovernable.
+    //
+    // "This path" is load bearing, and an earlier version of this comment said
+    // "Unity's WebGL input" and was wrong. The quantisation belongs to the
+    // legacy input handler, not to the platform: the Input System's provider
+    // divides the raw value and scales it with no rounding to ticks anywhere,
+    // and a build with it enabled was measured carrying magnitude end to end
+    // and moving a ScrollView proportionally. A project is on the legacy path
+    // when activeInputHandler is 0 and the input system package is absent,
+    // which is what the Play container ships.
+    //
+    // Switching is a known alternative, deliberately not taken: on that path a
+    // single pixel of wheel moved the view about a hundredfold, so it needs
+    // retuning before it is usable, and for the container it would also mean
+    // putting a dependency back into a manifest whose whole point is a
+    // hand-chosen list, and changing the input path for every hosted game
+    // rather than only for scrolling. The measurements live in OneJS issue
+    // #112 rather than here.
+    //
+    // KNOWN LIMITATION: this runs on every WebGL build, including one on the
+    // Input System, where the magnitude it is compensating for was never lost.
+    // There it makes a trackpad step at a notch when it could have glided. It
+    // is not gated because the handler is not visible from here, and because
+    // that path is unusable untuned anyway. Gate it if that changes.
 
     /** One notch, in pixels. What Chrome reports for one detent of a wheel. */
     const __WHEEL_NOTCH = 100;
