@@ -240,27 +240,34 @@ namespace OneJS {
                 }
 
                 if (request.result != UnityWebRequest.Result.Success) {
-                    Debug.LogWarning($"[Network] Failed to load texture from {url}: {request.error}");
+                    /*
+                     * Two different failures arrive here and Unity's own text does
+                     * not separate them. A request that never got the bytes is one
+                     * thing; a request that got all of them and could not turn
+                     * them into a texture is another, and it reports as
+                     * "Data Processing Error, see Download Handler error", which
+                     * tells an author nothing about what to change.
+                     *
+                     * The response code separates them. A 200 with a failed result
+                     * means the file is there, it downloaded, and its format is
+                     * one Unity does not read. An animated GIF is the common way
+                     * in: it uploads, it serves, it returns 200, and it will never
+                     * become a texture no matter how many times the path is
+                     * checked.
+                     */
+                    var code = request.responseCode;
+                    var size = request.downloadHandler?.data?.Length ?? 0;
+                    if (code >= 200 && code < 300) {
+                        Debug.LogWarning($"[Network] {url} downloaded {size} bytes and is not an image Unity can decode " +
+                            $"(HTTP {code}: {request.error}). It reads PNG and JPEG; GIF, BMP and TIFF it does not. " +
+                            "The file is present, so the path is not the problem.");
+                    } else {
+                        Debug.LogWarning($"[Network] Failed to load texture from {url}: {request.error}");
+                    }
                     return null;
                 }
 
-                /*
-                 * A request can succeed and still produce no texture, and until
-                 * this said so it was the one failure that was completely silent.
-                 * The caller sees the same null as a 404, so an author whose file
-                 * downloaded perfectly well went looking for a missing file.
-                 *
-                 * The usual cause is a format Unity does not decode. It decodes
-                 * PNG and JPEG; an animated GIF downloads, returns 200, and comes
-                 * back as nothing at all, indistinguishable from a corrupt file.
-                 */
-                var texture = DownloadHandlerTexture.GetContent(request);
-                if (texture == null) {
-                    var size = request.downloadHandler?.data?.Length ?? 0;
-                    Debug.LogWarning($"[Network] {url} returned {size} bytes that are not an image Unity can decode. " +
-                        "PNG and JPEG are the formats it reads; GIF, BMP and TIFF are not.");
-                }
-                return texture;
+                return DownloadHandlerTexture.GetContent(request);
             }
         }
 
