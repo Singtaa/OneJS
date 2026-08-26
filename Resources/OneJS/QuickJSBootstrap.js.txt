@@ -1613,11 +1613,17 @@ if (__nativeRequestAnimationFrame) {
     //
     // On the LEGACY input path, Unity's WebGL input scrolls a FIXED step per
     // wheel event and discards the event's magnitude. Measured against a
-    // shipped build rather than assumed: a wheel event of 1px and one of 400px
-    // each scrolled a ScrollView by exactly 54px, and so did a line-mode event
-    // of 1 and of 16. Only the sign and the number of events survive. 54px is
-    // three ticks of UI Toolkit's 18px mouseWheelScrollSize, which is the
-    // quantisation showing through.
+    // shipped build rather than assumed: single wheel events of 100px, 200px
+    // and 400px each scrolled a ScrollView by exactly 54px, and so did
+    // synthetic line-mode events of 0.1 lines and of 16. Only the sign and the
+    // number of events survive. 54px is three ticks of UI Toolkit's 18px
+    // mouseWheelScrollSize, which is the quantisation showing through.
+    //
+    // Those magnitudes are chosen, not arbitrary. A browser automation harness
+    // can quietly round or drop the delta it is asked to send, so the pixel
+    // figures here are ones a second session confirmed arrive intact, and the
+    // line-mode ones were dispatched as DOM events, which bypasses that path
+    // entirely. The two agree, which is the reason to trust either.
     //
     // That is fine for a mouse wheel, where one notch is one event, and it is
     // what makes a trackpad unusable: macOS sends a dense stream of small
@@ -1642,20 +1648,20 @@ if (__nativeRequestAnimationFrame) {
     //
     // "This path" is load bearing, and an earlier version of this comment said
     // "Unity's WebGL input" and was wrong. The quantisation belongs to the
-    // legacy input handler, not to the platform: the Input System's provider
-    // divides the raw value and scales it with no rounding to ticks anywhere,
-    // and a build with it enabled was measured carrying magnitude end to end
-    // and moving a ScrollView proportionally. A project is on the legacy path
-    // when activeInputHandler is 0 and the input system package is absent,
-    // which is what the Play container ships.
+    // legacy input handler rather than to the platform: the Input System's
+    // provider divides the raw value and scales it, with no rounding to ticks
+    // anywhere. That is read from its source, NOT measured. The measurement
+    // that appeared to confirm it was withdrawn when its harness turned out to
+    // be rounding the deltas it claimed to send, so how a build on that path
+    // actually behaves is currently unknown rather than known-good.
     //
-    // Switching is a known alternative, deliberately not taken: on that path a
-    // single pixel of wheel moved the view about a hundredfold, so it needs
-    // retuning before it is usable, and for the container it would also mean
-    // putting a dependency back into a manifest whose whole point is a
-    // hand-chosen list, and changing the input path for every hosted game
-    // rather than only for scrolling. The measurements live in OneJS issue
-    // #112 rather than here.
+    // A project is on the legacy path when activeInputHandler is 0 and the
+    // input system package is absent, which is what the Play container ships.
+    // Switching is a known alternative and is not taken, for reasons that do
+    // not depend on the withdrawn numbers: it would put a dependency back into
+    // a manifest whose whole point is a hand-chosen list, and change the input
+    // path for every hosted game rather than only for scrolling. OneJS issue
+    // #112 has what survived, the trap included.
     //
     // KNOWN LIMITATION: this runs on every WebGL build, including one on the
     // Input System, where the magnitude it is compensating for was never lost.
