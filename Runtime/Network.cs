@@ -244,7 +244,23 @@ namespace OneJS {
                     return null;
                 }
 
-                return DownloadHandlerTexture.GetContent(request);
+                /*
+                 * A request can succeed and still produce no texture, and until
+                 * this said so it was the one failure that was completely silent.
+                 * The caller sees the same null as a 404, so an author whose file
+                 * downloaded perfectly well went looking for a missing file.
+                 *
+                 * The usual cause is a format Unity does not decode. It decodes
+                 * PNG and JPEG; an animated GIF downloads, returns 200, and comes
+                 * back as nothing at all, indistinguishable from a corrupt file.
+                 */
+                var texture = DownloadHandlerTexture.GetContent(request);
+                if (texture == null) {
+                    var size = request.downloadHandler?.data?.Length ?? 0;
+                    Debug.LogWarning($"[Network] {url} returned {size} bytes that are not an image Unity can decode. " +
+                        "PNG and JPEG are the formats it reads; GIF, BMP and TIFF are not.");
+                }
+                return texture;
             }
         }
 
