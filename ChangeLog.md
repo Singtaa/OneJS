@@ -1,3 +1,8 @@
+# Unreleased
+
+- WebGL: a trackpad gesture covers the same distance in three times as many, smaller steps, so it glides rather than stutters
+- WebGL: `globalThis.__ojWheelNotch` tunes wheel granularity at runtime; a ScrollView's step follows it
+
 # [2026-08-26] v3.3.0
 
 - `fx`: a GPU image pipeline with noise, gradients, 42 signed distance shapes, color adjustments, 27 blend modes, spatial moves and neighbour filters

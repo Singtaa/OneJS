@@ -1642,9 +1642,14 @@ if (__nativeRequestAnimationFrame) {
     // them through the accumulator would need two notches of scrolling to move
     // anything, which would be a worse bug than the one this fixes.
     //
-    // The cost is that trackpad scrolling steps rather than glides, and a
-    // sub-step scroll cannot be expressed on this path at all, so the choice
-    // here is stepped and proportional, or smooth and ungovernable.
+    // Trackpad scrolling still steps rather than glides, because a sub-step
+    // scroll cannot be expressed on this path at all: the step is three ticks
+    // of the ScrollView's mouseWheelScrollSize and the only lever here is how
+    // many events a gesture produces. How BIG each step is belongs to the
+    // ScrollView, which is why the notch below is exposed rather than baked:
+    // shrink both together and the same gesture covers the same distance in
+    // more, smaller jumps. That pairing is what made the first shipped version
+    // of this correct but stuttery.
     //
     // "This path" is load bearing, and an earlier version of this comment said
     // "Unity's WebGL input" and was wrong. The quantisation belongs to the
@@ -1669,8 +1674,27 @@ if (__nativeRequestAnimationFrame) {
     // is not gated because the handler is not visible from here, and because
     // that path is unusable untuned anyway. Gate it if that changes.
 
-    /** One notch, in pixels. What Chrome reports for one detent of a wheel. */
-    const __WHEEL_NOTCH = 100;
+    /**
+     * How much travel earns one emitted event, in pixels, and the only knob
+     * this needs.
+     *
+     * On globalThis so it can be tuned at runtime without rebuilding a
+     * container, and so onejs-react can see it: a ScrollView derives its
+     * mouseWheelScrollSize from this (0.18 x notch), which keeps distance per
+     * gesture constant as granularity changes. Set them apart and one of them
+     * is a sensitivity change wearing a smoothness change's clothes.
+     *
+     * 33 rather than the 100 this shipped with in 3.3.0. 100 is one detent of a
+     * wheel, which made a wheel notch exactly one 54px jump; the paired step
+     * makes the same notch three 18px jumps instead, covering the same ground
+     * with a third of the stutter. A wheel is unchanged in distance and finer
+     * in feel; a trackpad is both.
+     *
+     * Read per event rather than captured, so setting it mid-session takes
+     * effect on the next gesture. Existing ScrollViews keep the step they were
+     * built with; new ones follow.
+     */
+    if (typeof globalThis.__ojWheelNotch !== "number") globalThis.__ojWheelNotch = 33;
     let __wheelCarried = 0;
     let __wheelNormaliser = null;
 
@@ -1708,8 +1732,14 @@ if (__nativeRequestAnimationFrame) {
             if ((__wheelCarried > 0) !== (e.deltaY > 0)) __wheelCarried = 0;
             __wheelCarried += e.deltaY;
 
-            while (Math.abs(__wheelCarried) >= __WHEEL_NOTCH) {
-                const step = __wheelCarried > 0 ? __WHEEL_NOTCH : -__WHEEL_NOTCH;
+            // Read now, not captured at install: a runtime change should take
+            // effect on the next gesture. Guarded, because a page can set this
+            // to anything and a zero or a string would spin this loop forever.
+            const notch = typeof globalThis.__ojWheelNotch === "number" && globalThis.__ojWheelNotch > 0
+                ? globalThis.__ojWheelNotch : 33;
+
+            while (Math.abs(__wheelCarried) >= notch) {
+                const step = __wheelCarried > 0 ? notch : -notch;
                 __wheelCarried -= step;
                 const out = new WheelEvent("wheel", {
                     deltaY: step, deltaX: 0, deltaMode: 0,
