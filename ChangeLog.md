@@ -1,9 +1,15 @@
-# Unreleased (onejs-unity 0.3.0)
+# [2026-08-26] v3.3.0
 
+- `fx`: a GPU image pipeline with noise, gradients, 42 signed distance shapes, color adjustments, 27 blend modes, spatial moves and neighbour filters
+- `fx`: a whole chain crosses to C# once, and its per-pixel steps fuse into one blit
+- `fx`: a chain can render into a target the caller keeps, for animation
+- `console.warn` and `console.error` log at Unity's warning and error levels instead of all arriving as `Debug.Log`
+- A JS `Error` keeps its message when it is logged
+- Synthetic events are built only when a handler asks for one
+- WebGL: trackpad scrolling covers the same distance as a mouse wheel instead of many times more
 - Tailwind: utility rules emit in the web's cascade order instead of file scan order
 - Tailwind: `flex` sets row, `block` sets column
 - Tailwind: `flex-1` includes `flex-basis: 0`
-- WebGL: trackpad scrolling covers the same distance as a mouse wheel instead of many times more
 - Structs: read-only properties are visible from JS
 - Structs: a property and a field that differ only by case are both kept
 - Structs: a property that throws no longer loses the rest of the struct
