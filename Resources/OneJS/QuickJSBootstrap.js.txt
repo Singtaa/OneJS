@@ -1515,6 +1515,10 @@ if (__nativeRequestAnimationFrame) {
         __webglTickRunning = false;
         if (__timersToreDown) return;
         __timersToreDown = true;
+        // Before the early return below, which the no-timers case takes: a
+        // listener left on the host page after teardown would keep swallowing
+        // its wheel events.
+        __removeWheelNormaliser();
 
         const now = typeof performance !== "undefined" ? performance.now() : __currentTime;
         // Timer ids and RAF ids are separate namespaces (as in the browser),
@@ -1604,6 +1608,83 @@ if (__nativeRequestAnimationFrame) {
             }
         };
     };
+
+    // MARK: Wheel normalisation (WebGL)
+    //
+    // Unity's WebGL input scrolls a FIXED step per wheel event and discards the
+    // event's magnitude. Measured against a shipped build rather than assumed:
+    // a wheel event of 1px and one of 400px each scrolled a ScrollView by
+    // exactly 54px, and so did a line-mode event of 1 and of 16. Only the sign
+    // and the number of events survive.
+    //
+    // That is fine for a mouse wheel, where one notch is one event, and it is
+    // what makes a trackpad unusable: macOS sends a dense stream of small
+    // deltas and then momentum, so one flick of two fingers can arrive as sixty
+    // events and scroll sixty steps. The same 300px gesture moved a panel 162px
+    // by wheel and ran it to the end of its 533px of travel by trackpad.
+    //
+    // So the count has to carry the distance, since nothing else can: pixel
+    // deltas accumulate and emit one event per notch of travel. A mouse wheel
+    // notch is already a notch, so it emits one event for one event and feels
+    // exactly as it did. A trackpad now moves the same distance per gesture as
+    // a wheel covering the same distance.
+    //
+    // Line and page events pass through untouched. They are notch-shaped by
+    // definition (Firefox reports a wheel notch as three lines), and putting
+    // them through the accumulator would need two notches of scrolling to move
+    // anything, which would be a worse bug than the one this fixes.
+    //
+    // The cost is that trackpad scrolling steps rather than glides. It cannot
+    // be otherwise from here: a sub-step scroll is not expressible to Unity's
+    // WebGL input at all, so the choice is stepped and proportional, or smooth
+    // and ungovernable.
+
+    /** One notch, in pixels. What Chrome reports for one detent of a wheel. */
+    const __WHEEL_NOTCH = 100;
+    let __wheelCarried = 0;
+    let __wheelNormaliser = null;
+
+    function __removeWheelNormaliser() {
+        if (__wheelNormaliser === null) return;
+        removeEventListener("wheel", __wheelNormaliser, { capture: true });
+        __wheelNormaliser = null;
+        __wheelCarried = 0;
+    }
+
+    if (typeof document !== "undefined" && typeof WheelEvent !== "undefined" && __wheelNormaliser === null) {
+        __wheelNormaliser = function(e) {
+            // Only over a canvas, and only pixel deltas. A OneJS build can sit
+            // in somebody's page beside ordinary content, and swallowing every
+            // wheel event on that page would stop it scrolling at all.
+            if (e.__ojNormalised || e.deltaMode !== 0) return;
+            const canvas = e.target;
+            if (!canvas || canvas.tagName !== "CANVAS") return;
+
+            e.preventDefault();
+            // Capture phase on an ancestor, because at the target itself
+            // listeners run in registration order whatever their capture flag,
+            // and Unity's was registered first.
+            e.stopImmediatePropagation();
+
+            // A reversal starts over rather than spending credit built up in
+            // the other direction, which would swallow the first notch back.
+            if ((__wheelCarried > 0) !== (e.deltaY > 0)) __wheelCarried = 0;
+            __wheelCarried += e.deltaY;
+
+            while (Math.abs(__wheelCarried) >= __WHEEL_NOTCH) {
+                const step = __wheelCarried > 0 ? __WHEEL_NOTCH : -__WHEEL_NOTCH;
+                __wheelCarried -= step;
+                const out = new WheelEvent("wheel", {
+                    deltaY: step, deltaX: 0, deltaMode: 0,
+                    bubbles: true, cancelable: true,
+                    clientX: e.clientX, clientY: e.clientY,
+                });
+                out.__ojNormalised = true;
+                canvas.dispatchEvent(out);
+            }
+        };
+        addEventListener("wheel", __wheelNormaliser, { capture: true, passive: false });
+    }
 }
 
 // MARK: Tasks (C# async/await support)

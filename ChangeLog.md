@@ -3,6 +3,7 @@
 - Tailwind: utility rules emit in the web's cascade order instead of file scan order
 - Tailwind: `flex` sets row, `block` sets column
 - Tailwind: `flex-1` includes `flex-basis: 0`
+- WebGL: trackpad scrolling covers the same distance as a mouse wheel instead of many times more
 
 # [2026-08-24] v3.2.4
 
