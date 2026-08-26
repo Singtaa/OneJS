@@ -1,6 +1,7 @@
 # Unreleased
 
-- WebGL: a trackpad gesture covers the same distance in three times as many, smaller steps, so it glides rather than stutters
+- WebGL: trackpad scrolling advances every frame instead of lurching every few
+- WebGL: a small trackpad nudge scrolls instead of doing nothing
 - WebGL: `globalThis.__ojWheelNotch` tunes wheel granularity at runtime; a ScrollView's step follows it
 
 # [2026-08-26] v3.3.0

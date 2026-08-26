@@ -1642,14 +1642,18 @@ if (__nativeRequestAnimationFrame) {
     // them through the accumulator would need two notches of scrolling to move
     // anything, which would be a worse bug than the one this fixes.
     //
-    // Trackpad scrolling still steps rather than glides, because a sub-step
-    // scroll cannot be expressed on this path at all: the step is three ticks
-    // of the ScrollView's mouseWheelScrollSize and the only lever here is how
-    // many events a gesture produces. How BIG each step is belongs to the
-    // ScrollView, which is why the notch below is exposed rather than baked:
-    // shrink both together and the same gesture covers the same distance in
-    // more, smaller jumps. That pairing is what made the first shipped version
-    // of this correct but stuttery.
+    // What a gesture costs is fixed per event, three ticks of the ScrollView's
+    // mouseWheelScrollSize, so the only lever here is how many events a gesture
+    // produces. How big each one is belongs to the ScrollView, which is why the
+    // notch below is exposed rather than baked: shrink both together and the
+    // same gesture covers the same distance in more, smaller jumps.
+    //
+    // The step itself is not the floor. UI Toolkit takes a fractional
+    // mouseWheelScrollSize and stays exactly linear: measured at eleven sizes
+    // from 18 down to 0.36, every one scrolled exactly three times its step,
+    // the smallest a 1.08px jump. What made the first shipped version stuttery
+    // was the notch being coarser than a trackpad's per-frame travel, not any
+    // limit on how finely this path can scroll.
     //
     // "This path" is load bearing, and an earlier version of this comment said
     // "Unity's WebGL input" and was wrong. The quantisation belongs to the
@@ -1684,17 +1688,40 @@ if (__nativeRequestAnimationFrame) {
      * gesture constant as granularity changes. Set them apart and one of them
      * is a sensitivity change wearing a smoothness change's clothes.
      *
-     * 33 rather than the 100 this shipped with in 3.3.0. 100 is one detent of a
-     * wheel, which made a wheel notch exactly one 54px jump; the paired step
-     * makes the same notch three 18px jumps instead, covering the same ground
-     * with a third of the stutter. A wheel is unchanged in distance and finer
-     * in feel; a trackpad is both.
+     * 4, and the number that matters is what a frame does with it. Emitted
+     * events are consumed by whatever frame they land in, and Unity sums them,
+     * so the panel advances once per frame by 0.54 x the travel that frame saw.
+     * The notch does not divide that jump up. All it decides is whether a frame
+     * emits at all: travel below one notch emits nothing and carries, so the
+     * panel freezes and then lurches a whole notch at once.
+     *
+     * That is the steppiness, and it is why the notch has to sit UNDER the
+     * per-frame travel of a real gesture rather than near a wheel detent. A
+     * trackpad moves a few px per frame. At 33 a 4px/frame drag moved on 3
+     * frames in 29, in 17.82px lurches, and a 22px nudge did nothing at all,
+     * because the gesture ended before one notch was earned. At 4 the same drag
+     * moves on 29 frames in 29, in 2.16px steps, and the nudge scrolls.
+     *
+     * A wheel is untouched, and not by luck: one detent is one native event, so
+     * every event it emits lands in one frame and sums back to the same 54px
+     * jump at any notch. Measured at both, 53.46px and 56.16px, one frame each.
+     *
+     * Not lower than about 4. Distance per gesture is conserved from 33 down to
+     * 4 (ratio 0.54 throughout) and starts being lost below it: at 2 the same
+     * drag delivered 0.36. The cost of going lower is real too, since a hard
+     * flick emits one event per notch of travel, 157 at 4 and 15 in the busiest
+     * frame.
+     *
+     * The 3.3.0 default was 100 and this comment used to claim 33 broke a
+     * detent into three 18px jumps. It does not. Those three land in one frame
+     * and sum, which is why 33 changed nothing for a wheel and too little for a
+     * trackpad. Measured on the shipped 1.0.23 container, not reasoned.
      *
      * Read per event rather than captured, so setting it mid-session takes
      * effect on the next gesture. Existing ScrollViews keep the step they were
      * built with; new ones follow.
      */
-    if (typeof globalThis.__ojWheelNotch !== "number") globalThis.__ojWheelNotch = 33;
+    if (typeof globalThis.__ojWheelNotch !== "number") globalThis.__ojWheelNotch = 4;
     let __wheelCarried = 0;
     let __wheelNormaliser = null;
 
