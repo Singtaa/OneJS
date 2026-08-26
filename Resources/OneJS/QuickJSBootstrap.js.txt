@@ -1128,24 +1128,46 @@ const __nonBubblingEvents = new Set([
  * - stopPropagation() halts the bubble walk
  * - Non-bubbling events (enter/leave, focus/blur, geometry) only fire on target
  */
-globalThis.__dispatchEvent = function(elementHandle, eventType, eventData) {
-    // Create synthetic event object (shared across target + bubble phases)
-    const event = {
+// Shared by every synthetic event rather than closed over per dispatch. They
+// only ever touch `this`, so one copy does for all of them, and creating two
+// closures per pointermove was pure waste on an engine with no JIT to sink it.
+function __eventPreventDefault() { this.defaultPrevented = true; }
+function __eventStopPropagation() { this.propagationStopped = true; }
+
+/**
+ * A fresh event object per dispatch. Deliberately not pooled: handlers commonly
+ * keep the reference and read it later, from a setTimeout or after an await,
+ * and a mutated shared instance gives them the wrong values. React removed
+ * SyntheticEvent pooling in v17 over exactly this, and the saving here is not
+ * worth re-earning that bug.
+ */
+function __makeSyntheticEvent(eventType, elementHandle, eventData) {
+    return {
         type: eventType,
         target: elementHandle,
         currentTarget: elementHandle,
         ...eventData,
-        preventDefault() { this.defaultPrevented = true; },
-        stopPropagation() { this.propagationStopped = true; },
+        preventDefault: __eventPreventDefault,
+        stopPropagation: __eventStopPropagation,
         defaultPrevented: false,
         propagationStopped: false
     };
+}
+
+globalThis.__dispatchEvent = function(elementHandle, eventType, eventData) {
+    // Built on first use, not up front. Most pointer and wheel events land on an
+    // element that has no handler for them and no ancestor that does, and those
+    // used to allocate an event, spread the payload into it and build two
+    // closures before finding out nobody wanted any of it. Nothing observes the
+    // event until a handler runs, so nothing needs it to exist until then.
+    let event = null;
 
     // Dispatch to target element
     const targetHandlers = __eventHandlers.get(elementHandle);
     if (targetHandlers) {
         const callbacks = targetHandlers.get(eventType);
         if (callbacks && callbacks.size > 0) {
+            event = __makeSyntheticEvent(eventType, elementHandle, eventData);
             for (const cb of callbacks) {
                 try {
                     cb(event);
@@ -1157,15 +1179,20 @@ globalThis.__dispatchEvent = function(elementHandle, eventType, eventData) {
     }
 
     // Bubble phase: walk up the parent chain
-    if (!event.propagationStopped && !__nonBubblingEvents.has(eventType)) {
+    if ((event === null || !event.propagationStopped) && !__nonBubblingEvents.has(eventType)) {
         let currentHandle = __parentMap.get(elementHandle);
         while (currentHandle != null && currentHandle > 0) {
-            event.currentTarget = currentHandle;
-
             const parentHandlers = __eventHandlers.get(currentHandle);
             if (parentHandlers) {
                 const callbacks = parentHandlers.get(eventType);
                 if (callbacks && callbacks.size > 0) {
+                    if (event === null) {
+                        event = __makeSyntheticEvent(eventType, elementHandle, eventData);
+                    }
+                    // Assigned here rather than once per ancestor: only a
+                    // handler can read it, so an ancestor with none does not
+                    // need it set.
+                    event.currentTarget = currentHandle;
                     for (const cb of callbacks) {
                         try {
                             cb(event);
@@ -1173,16 +1200,18 @@ globalThis.__dispatchEvent = function(elementHandle, eventType, eventData) {
                             console.error("Event handler error:", e);
                         }
                     }
+                    if (event.propagationStopped) break;
                 }
             }
 
-            if (event.propagationStopped) break;
             currentHandle = __parentMap.get(currentHandle);
         }
     }
 
     // Return suppression flags so the C# bridge can mirror them onto the native event.
     // bit0 = propagationStopped (JS bubble only); bit1 = defaultPrevented (-> native suppression).
+    // No event means no handler ran, so neither flag can be set.
+    if (event === null) return 0;
     return (event.propagationStopped ? 1 : 0) | (event.defaultPrevented ? 2 : 0);
 };
 
