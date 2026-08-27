@@ -1,5 +1,6 @@
 # Unreleased
 
+- An unknown style key warns once instead of being dropped silently
 - WebGL: trackpad scrolling advances every frame instead of lurching every few
 - WebGL: a small trackpad nudge scrolls instead of doing nothing
 - WebGL: `globalThis.__ojWheelNotch` tunes wheel granularity at runtime; a ScrollView's step follows it

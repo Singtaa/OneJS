@@ -217,9 +217,20 @@ namespace OneJS {
         static StyleEnum<T> AsEnum<T>(object v) where T : struct, IConvertible =>
             (StyleEnum<T>)QuickJSNative.ConvertToTargetType(v, typeof(StyleEnum<T>));
 
+        // Styles reapply on every React commit, so an always-on warning for a
+        // bad key would repeat 30 times a second; once per key is enough to
+        // surface the typo without drowning the console.
+        static readonly ConcurrentDictionary<string, bool> _warnedUnknownKeys = new();
+
         static void ApplyReflective(IStyle style, string key, object value) {
             var prop = FindStyleProperty(key);
-            if (prop == null) return;
+            if (prop == null) {
+                if (_warnedUnknownKeys.TryAdd(key, true)) {
+                    Debug.LogWarning(
+                        $"[StyleBridge] Unknown style property '{key}'. IStyle has no property by that name, so the value was dropped. Warning once per key.");
+                }
+                return;
+            }
             var converted = QuickJSNative.ConvertToTargetType(value, prop.PropertyType);
             prop.SetValue(style, converted);
         }
