@@ -163,6 +163,7 @@ namespace OneJS {
                 var styleSheet = ScriptableObject.CreateInstance<StyleSheet>();
                 styleSheet.name = name;
                 _ussCompiler.Compile(styleSheet, ussContent);
+                WarnAboutDiagnostics(name);
                 _root.styleSheets.Add(styleSheet);
                 _jsStyleSheets[name] = styleSheet;
                 return true;
@@ -170,6 +171,29 @@ namespace OneJS {
                 Debug.LogError($"[QuickJSUIBridge] CompileStyleSheet error ({name}): {ex.Message}");
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Diagnostics from the most recent CompileStyleSheet call: the
+        /// declarations the tolerant parse kept but UI Toolkit will ignore.
+        /// Empty when the last sheet was clean. Primarily for tests.
+        /// </summary>
+        public IReadOnlyList<UssCompiler.UssDiagnostic> LastStyleDiagnostics => _ussCompiler.Diagnostics;
+
+        void WarnAboutDiagnostics(string sheetName) {
+            var diags = _ussCompiler.Diagnostics;
+            if (diags.Count == 0) return;
+            var sb = new StringBuilder(128);
+            sb.Append("[OneJS] Stylesheet '").Append(sheetName).Append("': ")
+              .Append(diags.Count).Append(" declaration(s) compile but will be ignored:");
+            int shown = Math.Min(diags.Count, 10);
+            for (int i = 0; i < shown; i++) {
+                sb.Append("\n  ").Append(diags[i]);
+            }
+            if (diags.Count > shown) {
+                sb.Append("\n  (and ").Append(diags.Count - shown).Append(" more)");
+            }
+            Debug.LogWarning(sb.ToString());
         }
 
         /// <summary>

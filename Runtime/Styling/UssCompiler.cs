@@ -22,6 +22,58 @@ namespace OneJS.CustomStyleSheets {
 
         int _currentLine;
 
+        /// <summary>
+        /// One entry per problem the tolerant parse would otherwise swallow.
+        /// Cleared at the start of every Compile; the sheet still compiles,
+        /// these only say which declarations UI Toolkit is going to ignore.
+        /// </summary>
+        public struct UssDiagnostic {
+            public int Line;
+            public string Property;
+            public string Message;
+            public override string ToString() => $"line {Line}: '{Property}': {Message}";
+        }
+
+        public List<UssDiagnostic> Diagnostics { get; } = new List<UssDiagnostic>();
+
+        // Unity's own USS property table, so the unknown-name check can never
+        // disagree with what this editor version actually supports. Internal,
+        // hence reflected; if a Unity upgrade renames it the check disables
+        // with one warning instead of breaking compilation, and the EditMode
+        // diagnostics tests fail loudly because the typo diagnostic stops
+        // firing.
+        static HashSet<string> _knownProps;
+        static bool _knownPropsProbed;
+
+        static HashSet<string> KnownProperties() {
+            if (_knownPropsProbed) return _knownProps;
+            _knownPropsProbed = true;
+            try {
+                var util = typeof(StyleSheet).Assembly.GetType(
+                    "UnityEngine.UIElements.StyleSheets.StylePropertyUtil");
+                const System.Reflection.BindingFlags flags =
+                    System.Reflection.BindingFlags.Static |
+                    System.Reflection.BindingFlags.Public |
+                    System.Reflection.BindingFlags.NonPublic;
+                object dict =
+                    util?.GetProperty("propertyNameToStylePropertyId", flags)?.GetValue(null)
+                    ?? util?.GetField("s_NameToId", flags)?.GetValue(null);
+                if (dict is System.Collections.IDictionary d) {
+                    var set = new HashSet<string>(StringComparer.Ordinal);
+                    foreach (var key in d.Keys) {
+                        if (key is string s) set.Add(s);
+                    }
+                    if (set.Count > 0) _knownProps = set;
+                }
+            } catch { }
+            if (_knownProps == null) {
+                Debug.LogWarning(
+                    "[OneJS] Unknown-property USS diagnostics are unavailable: Unity's " +
+                    "style property table was not found by reflection. Sheets still compile.");
+            }
+            return _knownProps;
+        }
+
         // Unit name to DimensionUnit mapping
         static readonly Dictionary<string, DimensionUnit> UnitMap = new Dictionary<string, DimensionUnit>(StringComparer.OrdinalIgnoreCase) {
             { "px", DimensionUnit.Pixel },
@@ -58,6 +110,7 @@ namespace OneJS.CustomStyleSheets {
             // failed part-way (e.g. a malformed value in another sheet) cannot leak
             // half-built selector/property state into this one.
             _builder.Reset();
+            Diagnostics.Clear();
 
             var stylesheet = _parser.Parse(ussContent);
 
@@ -277,6 +330,27 @@ namespace OneJS.CustomStyleSheets {
         void CompileProperty(Property property) {
             string name = property.Name;
             string value = property.Value;
+
+            // The parser runs with includeUnknownDeclarations and
+            // tolerateInvalidValues, which is right (one bad line must not
+            // abort the sheet) but means a typo'd property or a swallowed
+            // value arrives here looking healthy and UI Toolkit ignores it
+            // at apply time. Record what is about to be ignored.
+            if (!name.StartsWith("--", StringComparison.Ordinal)) {
+                var known = KnownProperties();
+                if (known != null && !known.Contains(name)) {
+                    Diagnostics.Add(new UssDiagnostic {
+                        Line = _currentLine, Property = name,
+                        Message = "not a USS property in this Unity version; UI Toolkit will ignore it",
+                    });
+                }
+            }
+            if (string.IsNullOrWhiteSpace(value)) {
+                Diagnostics.Add(new UssDiagnostic {
+                    Line = _currentLine, Property = name,
+                    Message = "value is empty or was unparseable",
+                });
+            }
 
             _builder.BeginProperty(name, _currentLine);
             ParseAndAddValue(value);
