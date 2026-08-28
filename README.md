@@ -58,6 +58,15 @@ git clone https://github.com/Singtaa/OneJS.git Assets/OneJS
 
 The Asset Store package (linked from [onejs.com](https://onejs.com)) bundles this runtime with premade `onejs-ui` themes (Pixel, Kawaii, Sketch) and sample cartridges (Game HUD, Inventory, Shader Effects).
 
+## AI Skills
+
+OneJS ships an AI Skill at `AI/Skills/`, teaching coding agents how to set up and
+troubleshoot a OneJS project. Unity's AI Assistant discovers it automatically.
+
+For Claude Code, Cursor, and other terminal agents, run **Tools > OneJS > Install
+AI Skills** once: they only scan the project root, so the menu item copies the
+skill into `.claude/skills/`. It never overwrites a skill you have edited.
+
 ## Quick Start
 
 1. Add the `JSRunner` component to a GameObject in a saved scene

@@ -2,6 +2,8 @@
 
 - An unknown style key warns once instead of being dropped silently
 - A USS declaration UI Toolkit will ignore logs a warning naming it and its line
+- AI Skills ship at `AI/Skills/`, discovered by Unity's AI Assistant
+- **Tools > OneJS > Install AI Skills** copies them where terminal agents look
 - WebGL: trackpad scrolling advances every frame instead of lurching every few
 - WebGL: a small trackpad nudge scrolls instead of doing nothing
 - WebGL: `globalThis.__ojWheelNotch` tunes wheel granularity at runtime; a ScrollView's step follows it
