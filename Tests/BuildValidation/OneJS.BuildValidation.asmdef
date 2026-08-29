@@ -10,7 +10,9 @@
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,
-    "defineConstraints": [],
+    "defineConstraints": [
+        "ONEJS_BUILD_VALIDATION || UNITY_EDITOR"
+    ],
     "versionDefines": [],
     "noEngineReferences": false
 }
