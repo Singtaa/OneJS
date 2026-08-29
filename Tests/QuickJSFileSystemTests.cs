@@ -25,9 +25,7 @@ namespace OneJS.Tests {
         public IEnumerator SetUp() {
             // Create a test directory in temp
             _testDir = Path.Combine(Application.temporaryCachePath, "OneJSFileSystemTests");
-            if (Directory.Exists(_testDir)) {
-                Directory.Delete(_testDir, true);
-            }
+            DeleteDirectoryWithRetry(_testDir);
             Directory.CreateDirectory(_testDir);
 
             // Create PanelSettings at runtime
@@ -63,12 +61,64 @@ namespace OneJS.Tests {
             if (_panelSettings != null) Object.Destroy(_panelSettings);
 
             // Clean up test directory
-            if (Directory.Exists(_testDir)) {
-                Directory.Delete(_testDir, true);
-            }
+            DeleteDirectoryWithRetry(_testDir);
 
             QuickJSNative.ClearAllHandles();
             yield return null;
+        }
+
+        // Windows can transiently refuse a recursive delete while an importer,
+        // indexer, or virus scanner still holds a read handle on a just-written
+        // file. In-editor runs never see this because the editor has settled;
+        // full headless runs do, which is how an otherwise-green suite reported
+        // 599/601 with both failures in this teardown. Outwait the handle with
+        // bounded backoff, and rethrow on the last attempt so a genuine leak
+        // still fails loudly.
+        internal static void DeleteDirectoryWithRetry(string path) {
+            const int maxAttempts = 10;
+            for (int attempt = 1; ; attempt++) {
+                try {
+                    if (Directory.Exists(path)) Directory.Delete(path, true);
+                    return;
+                } catch (IOException) when (attempt < maxAttempts) {
+                } catch (System.UnauthorizedAccessException) when (attempt < maxAttempts) {
+                }
+                System.Threading.Thread.Sleep(20 * attempt);
+            }
+        }
+
+        // MARK: Teardown Robustness
+
+        [Test]
+        public void DeleteDirectoryWithRetry_OutwaitsTransientReadHandle() {
+            var dir = Path.Combine(Application.temporaryCachePath, "OneJSRetryPin");
+            DeleteDirectoryWithRetry(dir);
+            Directory.CreateDirectory(dir);
+            var file = Path.Combine(dir, "held.txt");
+            File.WriteAllText(file, "held");
+
+            // Hold a read handle without FileShare.Delete, and release it from a
+            // background thread inside the retry window but well past attempt one.
+            var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var releaser = new System.Threading.Thread(() => {
+                System.Threading.Thread.Sleep(300);
+                stream.Dispose();
+            });
+            releaser.Start();
+            try {
+                // Vacuity guard: if this scenario ever stops blocking a naive
+                // delete, the pin must fail rather than pass without testing
+                // anything. This is also what makes the pin bite on a helper
+                // reverted to a bare Directory.Delete.
+                Assert.Throws<IOException>(() => File.Delete(file),
+                    "precondition: the held handle should block a naive delete");
+                DeleteDirectoryWithRetry(dir);
+                Assert.IsFalse(Directory.Exists(dir),
+                    "retry delete should succeed once the handle is released");
+            } finally {
+                releaser.Join();
+                stream.Dispose();
+            }
         }
 
         // MARK: Path Globals Tests
