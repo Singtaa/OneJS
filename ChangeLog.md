@@ -1,3 +1,8 @@
+# Unreleased
+
+- TextField: `inputClassName` and `inputStyle` style the inner input (onejs-react 0.1.46)
+- Tailwind: opt-in `preflight` strips the runtime theme's control chrome (onejs-unity 0.3.1)
+
 # [2026-08-28] v3.4.0
 
 - An unknown style key warns once instead of being dropped silently
