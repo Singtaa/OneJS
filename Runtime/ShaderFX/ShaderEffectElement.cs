@@ -26,7 +26,8 @@ namespace OneJS.ShaderFX {
     /// Ticked by ShaderEffectBridge.TickAll from QuickJSUIBridge.Tick, which
     /// covers play mode, edit-mode preview and JSPad through one integration point.
     /// </summary>
-    public class ShaderEffectElement : VisualElement {
+    [UxmlElement]
+    public partial class ShaderEffectElement : VisualElement {
         const int MinRes = 8;
         const int MaxRes = 2048;
 
@@ -47,8 +48,6 @@ namespace OneJS.ShaderFX {
         float _seconds;
         bool _paused;
         bool _paintingOnLayout;
-
-        public new class UxmlFactory : UxmlFactory<ShaderEffectElement> { }
 
         public ShaderEffectElement() {
             pickingMode = PickingMode.Ignore;
