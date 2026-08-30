@@ -34,6 +34,8 @@ namespace OneJS.ShaderFX {
         Material _material;
         RenderTexture _rt;
         string _shaderName;
+        string _programHash;
+        bool _isProgram;
         bool _shaderMissing;
 
         // Pending property values, applied to the material before each blit so JS
@@ -94,6 +96,54 @@ namespace OneJS.ShaderFX {
             }
         }
 
+        /// <summary>
+        /// Runs a shader language program instead of a named shader.
+        ///
+        /// The element already owns a render target, a clock, the layout driven
+        /// resize and the backgroundImage plumbing, so a program reuses all of
+        /// it rather than getting a parallel element with the same machinery and
+        /// its own bugs.
+        ///
+        /// Which backend runs is decided by SLProgramBridge: a shader generated
+        /// from this program if the project has one, the interpreter otherwise.
+        /// The caller does not find out, and does not need to.
+        /// </summary>
+        public void SetProgram(object dataObj, int instructionCount, int resultRegister, string hash) {
+            var data = ToFloats(dataObj);
+            // Same program, same everything. Rebuilding would drop the render
+            // target and restart the clock on every React render.
+            if (_programHash == hash && _material != null && _isProgram) return;
+            _isProgram = true;
+            _programHash = hash;
+            _shaderMissing = false;
+            if (_material != null) {
+                UnityEngine.Object.DestroyImmediate(_material);
+                _material = null;
+            }
+            try {
+                _material = SL.SLProgramBridge.CreateMaterial(data, instructionCount, resultRegister, hash, out _);
+                _material.hideFlags = HideFlags.HideAndDontSave;
+            } catch (System.Exception e) {
+                _shaderMissing = true;
+                Debug.LogWarning($"[OneJS sl] {e.Message}");
+            }
+        }
+
+        static float[] ToFloats(object obj) {
+            if (obj is float[] f) return f;
+            if (obj is double[] d) {
+                var o = new float[d.Length];
+                for (int i = 0; i < d.Length; i++) o[i] = (float)d[i];
+                return o;
+            }
+            if (obj is System.Collections.IEnumerable e) {
+                var list = new List<float>();
+                foreach (var v in e) list.Add(System.Convert.ToSingle(v));
+                return list.ToArray();
+            }
+            throw new System.ArgumentException("[OneJS sl] a program buffer must be an array of numbers.");
+        }
+
         public void SetFloat(string name, float value) => _floats[name] = value;
         public void SetVector(string name, float x, float y, float z, float w) => _vectors[name] = new Vector4(x, y, z, w);
         public void SetColor(string name, float r, float g, float b, float a) => _vectors[name] = new Vector4(r, g, b, a);
@@ -151,7 +201,8 @@ namespace OneJS.ShaderFX {
         // MARK: frame
 
         internal void Tick(float dt) {
-            if (_paused || string.IsNullOrEmpty(_shaderName) || _shaderMissing) return;
+            if (_paused || _shaderMissing) return;
+            if (!_isProgram && string.IsNullOrEmpty(_shaderName)) return;
             if (panel == null) return;
             if (!EnsureMaterial()) return;
             if (!EnsureTarget()) return;
@@ -185,6 +236,9 @@ namespace OneJS.ShaderFX {
 
         bool EnsureMaterial() {
             if (_material != null) return true;
+            // A program builds its own material in SetProgram, so reaching here
+            // with one set means that failed and already said why.
+            if (_isProgram) return false;
             var shader = Resources.Load<Shader>(_shaderName);
             if (shader == null || !shader.isSupported) {
                 _shaderMissing = true;

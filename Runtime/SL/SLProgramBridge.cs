@@ -105,13 +105,57 @@ namespace OneJS.SL {
         public static bool IsNative(int handle) =>
             s_Programs.TryGetValue(handle, out var c) && c.Native;
 
-        public static int Upload(float[] data, int instructionCount, int resultRegister,
-                                 string hash = null, string[] uniformNames = null) {
+        /// <summary>
+        /// Builds the material for a program, choosing the backend, without
+        /// taking a handle.
+        ///
+        /// Exists so an element that already owns a render target and a clock,
+        /// like ShaderEffectElement, can run a program without a second copy of
+        /// the target, tick and backgroundImage machinery beside it. `native`
+        /// reports which backend was chosen, because from the outside the two
+        /// are indistinguishable, which is the design working and also the thing
+        /// that makes a silently failed generation impossible to notice.
+        /// </summary>
+        public static Material CreateMaterial(float[] data, int instructionCount, int resultRegister,
+                                              string hash, out bool native) {
+            Validate(data, instructionCount, resultRegister);
+            native = false;
+            Shader gen = string.IsNullOrEmpty(hash) ? null : Shader.Find(GeneratedShaderName(hash));
+            if (gen != null) {
+                native = true;
+                return new Material(gen);
+            }
             if (VmShader == null) {
                 throw new InvalidOperationException(
-                    "[OneJS sl] OneJS/FxProgram.shader is missing from Resources. " +
-                    "Without it a program cannot run at all.");
+                    "[OneJS sl] OneJS/FxProgram.shader is missing from Resources.");
             }
+            var mat = new Material(VmShader);
+            var tex = BuildProgramTexture(data, instructionCount);
+            mat.SetTexture(s_Program, tex);
+            mat.SetFloat(s_InstrCount, instructionCount);
+            mat.SetFloat(s_ProgramWidth, instructionCount * 2);
+            mat.SetFloat(s_ResultReg, resultRegister);
+            return mat;
+        }
+
+        static Texture2D BuildProgramTexture(float[] data, int instructionCount) {
+            int texels = instructionCount * 2;
+            var tex = new Texture2D(texels, 1, TextureFormat.RGBAFloat, false, true) {
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Clamp,
+                name = "sl program",
+            };
+            var px = new Color[texels];
+            for (int t = 0; t < texels; t++) {
+                int o = t * 4;
+                px[t] = new Color(data[o], data[o + 1], data[o + 2], data[o + 3]);
+            }
+            tex.SetPixels(px);
+            tex.Apply(false, false);
+            return tex;
+        }
+
+        static void Validate(float[] data, int instructionCount, int resultRegister) {
             if (instructionCount <= 0 || instructionCount > MaxInstructions) {
                 throw new ArgumentException(
                     $"[OneJS sl] a program has {instructionCount} instructions; the VM runs 1 to {MaxInstructions}.");
@@ -134,6 +178,16 @@ namespace OneJS.SL {
                         "The allocator and the VM disagree about the register file size.");
                 }
             }
+        }
+
+        public static int Upload(float[] data, int instructionCount, int resultRegister,
+                                 string hash = null, string[] uniformNames = null) {
+            if (VmShader == null) {
+                throw new InvalidOperationException(
+                    "[OneJS sl] OneJS/FxProgram.shader is missing from Resources. " +
+                    "Without it a program cannot run at all.");
+            }
+            Validate(data, instructionCount, resultRegister);
 
             var c = new Compiled {
                 InstructionCount = instructionCount,
