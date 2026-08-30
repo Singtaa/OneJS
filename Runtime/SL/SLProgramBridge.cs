@@ -54,6 +54,11 @@ namespace OneJS.SL {
             public int InstructionCount;
             public int ResultRegister;
             public readonly Vector4[] Uniforms = new Vector4[MaxUniforms];
+            /// <summary>True when a shader generated from this program was found.</summary>
+            public bool Native;
+            /// <summary>Uniform names, for the native path's per name properties.</summary>
+            public string[] UniformNames;
+            public int[] UniformIds;
 
             public void Dispose() {
                 if (ProgramTex != null) UnityEngine.Object.DestroyImmediate(ProgramTex);
@@ -79,7 +84,29 @@ namespace OneJS.SL {
         /// would render a wrong picture rather than fail, and a wrong picture is
         /// indistinguishable from an authoring mistake.
         /// </summary>
-        public static int Upload(float[] data, int instructionCount, int resultRegister) {
+        /// <summary>
+        /// The name a shader generated from a program carries. The hash is the
+        /// link between the two, and if it ever fails to match, the runtime
+        /// falls back to the VM and NOBODY IS TOLD: correct output, quietly
+        /// slower, no error. That is why the hash is a Merkle hash over the
+        /// graph rather than a walk of the node array, and why this string is
+        /// written once here rather than spelled out at each call site.
+        /// </summary>
+        public static string GeneratedShaderName(string hash) => "Hidden/SLGenerated/" + hash;
+
+        /// <summary>
+        /// True when a compiled shader exists for this program.
+        ///
+        /// Worth exposing because the difference is otherwise invisible, which
+        /// is the design working as intended and also the design's one hazard:
+        /// an eject that silently failed to generate shaders looks exactly like
+        /// one that worked, only slower.
+        /// </summary>
+        public static bool IsNative(int handle) =>
+            s_Programs.TryGetValue(handle, out var c) && c.Native;
+
+        public static int Upload(float[] data, int instructionCount, int resultRegister,
+                                 string hash = null, string[] uniformNames = null) {
             if (VmShader == null) {
                 throw new InvalidOperationException(
                     "[OneJS sl] OneJS/FxProgram.shader is missing from Resources. " +
@@ -111,8 +138,30 @@ namespace OneJS.SL {
             var c = new Compiled {
                 InstructionCount = instructionCount,
                 ResultRegister = resultRegister,
-                Material = new Material(VmShader),
+                UniformNames = uniformNames,
             };
+
+            // THE EJECT PATH. A project with an editor generates a shader per
+            // program at import time; this looks for one and uses it when it is
+            // there. Play has no such shader and gets the VM. The caller cannot
+            // tell the difference, which is the entire point: an author writes
+            // one program and never learns that two backends exist.
+            Shader native = string.IsNullOrEmpty(hash) ? null : Shader.Find(GeneratedShaderName(hash));
+            if (native != null) {
+                c.Native = true;
+                c.Material = new Material(native);
+                if (uniformNames != null) {
+                    c.UniformIds = new int[uniformNames.Length];
+                    for (int u = 0; u < uniformNames.Length; u++) {
+                        c.UniformIds[u] = Shader.PropertyToID("_u_" + uniformNames[u]);
+                    }
+                }
+                int nativeHandle = s_NextHandle++;
+                s_Programs[nativeHandle] = c;
+                return nativeHandle;
+            }
+
+            c.Material = new Material(VmShader);
 
             // One row, two texels per instruction. Point filtered and clamped:
             // the shader fetches exact texel centres, and any filtering would
@@ -147,6 +196,16 @@ namespace OneJS.SL {
             if (slot < 0 || slot >= MaxUniforms) {
                 throw new ArgumentException($"[OneJS sl] uniform slot {slot} is outside 0..{MaxUniforms - 1}.");
             }
+            // Same call, either backend. A generated shader carries one property
+            // per uniform, so the value goes by name; the VM reads a single
+            // array indexed by slot. A caller that had to know which is which
+            // would be a caller that has to know it ejected.
+            if (c.Native) {
+                if (c.UniformIds != null && slot < c.UniformIds.Length) {
+                    c.Material.SetVector(c.UniformIds[slot], new Vector4(x, y, z, w));
+                }
+                return;
+            }
             c.Uniforms[slot] = new Vector4(x, y, z, w);
             c.Material.SetVectorArray(s_Uniforms, c.Uniforms);
         }
@@ -167,6 +226,7 @@ namespace OneJS.SL {
                 throw new ArgumentException($"[OneJS sl] no program with handle {handle}.");
             }
             c.Material.SetFloat(s_Secs, seconds);
+            // Both backends declare _Secs and _FlipY, so nothing here branches.
             // Render target UV origin differs across graphics APIs, and the VM
             // corrects it in the vertex stage so an author never has to. Getting
             // this wrong is how an effect ends up upside down in a browser and
