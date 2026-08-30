@@ -619,6 +619,7 @@ namespace OneJS.Tests {
         }
 
         [UnityTest]
+        [Category("RequiresGraphics")]
         public IEnumerator Suppression_PreventDefaultInOnWheel_StopsScrollViewScroll() {
             // End-to-end Phase 2: a JS onWheel handler calling preventDefault() must stop the
             // enclosing ScrollView from scrolling (native suppression). Without preventDefault

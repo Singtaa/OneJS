@@ -17,6 +17,7 @@ namespace OneJS.Tests {
     /// is the property worth pinning.
     /// </summary>
     [TestFixture]
+    [Category("RequiresGraphics")]
     public class ShaderFXTests {
         const string kShader = "OneJS/TextureFX";
 

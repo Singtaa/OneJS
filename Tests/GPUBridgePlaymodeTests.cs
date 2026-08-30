@@ -11,6 +11,7 @@ namespace OneJS.Tests {
     /// Tests both the C# GPUBridge directly and through JavaScript interop.
     /// </summary>
     [TestFixture]
+    [Category("RequiresGraphics")]
     public class GPUBridgePlaymodeTests {
         ComputeShader _testShader;
 
@@ -335,6 +336,7 @@ namespace OneJS.Tests {
     /// PlayMode tests for GPU compute shader functionality through JavaScript.
     /// </summary>
     [TestFixture]
+    [Category("RequiresGraphics")]
     public class GPUBridgeJSPlaymodeTests {
         QuickJSContext _ctx;
         ComputeShader _testShader;

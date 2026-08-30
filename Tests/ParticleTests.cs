@@ -471,6 +471,7 @@ namespace OneJS.Tests {
         // MARK: Render smoke (end to end: shader from Resources, premultiplied additive path)
 
         [UnityTest]
+        [Category("RequiresGraphics")]
         public IEnumerator Render_AdditiveParticles_PreserveBackground() {
             LogAssert.ignoreFailingMessages = true; // PanelSettings theme warning
             const int W = 256, H = 256;
@@ -490,7 +491,11 @@ namespace OneJS.Tests {
                 sys.Tick(1f / 60f);
                 yield return null;
             }
-            yield return new WaitForEndOfFrame();
+            // Plain yields, never WaitForEndOfFrame, which batchmode may never
+            // evoke: see Render_Sheet_AdvancesFrameOverLife and the CLAUDE.md
+            // gotcha. Two frame boundaries commit the render for the readback.
+            yield return null;
+            yield return null;
 
             var center = ph.ReadPixel(W / 2, H / 2);
             var corner = ph.ReadPixel(4, 4);
@@ -515,6 +520,7 @@ namespace OneJS.Tests {
         /// This is independent of the per-emitter additiveness knob (held at 0 here).
         /// </summary>
         [UnityTest]
+        [Category("RequiresGraphics")]
         public IEnumerator Render_PremultipliedTexture_MixesAdditiveAndOccludingPerTexel() {
             LogAssert.ignoreFailingMessages = true;
             const int W = 256, H = 256;
@@ -548,7 +554,11 @@ namespace OneJS.Tests {
                 sys.Tick(1f / 60f);
                 yield return null;
             }
-            yield return new WaitForEndOfFrame();
+            // Plain yields, never WaitForEndOfFrame, which batchmode may never
+            // evoke: see Render_Sheet_AdvancesFrameOverLife and the CLAUDE.md
+            // gotcha. Two frame boundaries commit the render for the readback.
+            yield return null;
+            yield return null;
 
             var additive = ph.ReadPixel(CX - 60, CY);  // left half of the quad
             var occluding = ph.ReadPixel(CX + 60, CY); // right half
@@ -573,6 +583,7 @@ namespace OneJS.Tests {
         /// prove the frame actually advances rather than sampling the whole sheet.
         /// </summary>
         [UnityTest]
+        [Category("RequiresGraphics")]
         public IEnumerator Render_Sheet_AdvancesFrameOverLife() {
             LogAssert.ignoreFailingMessages = true;
             const int W = 256, H = 256;
@@ -633,6 +644,7 @@ namespace OneJS.Tests {
         /// below its source: the quad must sit entirely ABOVE the spawn point.
         /// </summary>
         [UnityTest]
+        [Category("RequiresGraphics")]
         public IEnumerator Render_Pivot_BottomAnchorsTheQuadAboveTheSpawnPoint() {
             LogAssert.ignoreFailingMessages = true;
             const int W = 256, H = 256;
@@ -657,7 +669,11 @@ namespace OneJS.Tests {
             sys.Burst(1, ANCHORED, CY, 1);
 
             for (int i = 0; i < 6; i++) { sys.Tick(1f / 60f); yield return null; }
-            yield return new WaitForEndOfFrame();
+            // Plain yields, never WaitForEndOfFrame, which batchmode may never
+            // evoke: see Render_Sheet_AdvancesFrameOverLife and the CLAUDE.md
+            // gotcha. Two frame boundaries commit the render for the readback.
+            yield return null;
+            yield return null;
 
             // ReadPixel is top-down, so +26 is genuinely below the spawn row on screen:
             // inside a centered quad, outside a bottom-anchored one.
@@ -676,6 +692,7 @@ namespace OneJS.Tests {
         }
 
         [UnityTest]
+        [Category("RequiresGraphics")]
         public IEnumerator Render_Aspect_StretchesQuadsHorizontally() {
             LogAssert.ignoreFailingMessages = true;
             const int W = 256, H = 256;
@@ -698,7 +715,11 @@ namespace OneJS.Tests {
                 sys.Tick(1f / 60f);
                 yield return null;
             }
-            yield return new WaitForEndOfFrame();
+            // Plain yields, never WaitForEndOfFrame, which batchmode may never
+            // evoke: see Render_Sheet_AdvancesFrameOverLife and the CLAUDE.md
+            // gotcha. Two frame boundaries commit the render for the readback.
+            yield return null;
+            yield return null;
 
             var right = ph.ReadPixel(CX + 50, CY);
             var below = ph.ReadPixel(CX, CY + 50);

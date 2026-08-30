@@ -261,6 +261,7 @@ namespace OneJS.Tests {
         /// Tests that GPUBridge zero-alloc bindings are properly initialized.
         /// </summary>
         [UnityTest]
+        [Category("RequiresGraphics")]
         public IEnumerator GPUBridge_ZeroAllocBindings_Initialized() {
             var bindingIds = GPUBridge.GetZeroAllocBindingIds();
 
@@ -283,6 +284,7 @@ namespace OneJS.Tests {
         /// Tests ID-based setters in GPUBridge.
         /// </summary>
         [UnityTest]
+        [Category("RequiresGraphics")]
         public IEnumerator GPUBridge_SetFloatById_Works() {
             if (!GPUBridge.SupportsCompute) {
                 Assert.Ignore("Compute shaders not supported on this platform");
