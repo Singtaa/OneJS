@@ -25,8 +25,18 @@ namespace OneJS.Editor {
     public static class SLShaderGenerator {
         /// <summary>Where generated shaders go. Deliberately NOT a Resources folder.</summary>
         public const string OutputDir = "Assets/OneJS.Generated/Shaders";
-        const string CommonSource = "Packages/com.singtaa.onejs/Resources/OneJS/SLCommon.cginc";
-        const string CommonFallback = "Assets/Singtaa/OneJS/Resources/OneJS/SLCommon.cginc";
+        /// <summary>
+        /// Every include a generated shader needs, copied beside it.
+        ///
+        /// A LIST rather than one file, because SLCommon.cginc includes
+        /// SDF2D.cginc for the shape library. Copying only the first produced
+        /// shaders that compiled to nothing and rendered magenta, which is the
+        /// failure the eject path can least afford: it looks like a broken game
+        /// rather than a broken build step.
+        /// </summary>
+        static readonly string[] Includes = { "SLCommon.cginc", "SDF2D.cginc" };
+        const string PackageDir = "Packages/com.singtaa.onejs/Resources/OneJS";
+        const string AssetsDir = "Assets/Singtaa/OneJS/Resources/OneJS";
 
         [Serializable]
         class Entry {
@@ -80,21 +90,23 @@ namespace OneJS.Editor {
             var outAbs = Path.Combine(root, OutputDir.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(outAbs);
 
-            // The generated shaders include the shared helpers, and both backends
-            // must include the SAME file or they can drift on what noise means.
-            // Copying it beside them keeps the include a plain relative path,
-            // which resolves the same way on every Unity version.
-            var common = File.Exists(Path.Combine(root, CommonSource.Replace('/', Path.DirectorySeparatorChar)))
-                ? CommonSource : CommonFallback;
-            var commonAbs = Path.Combine(root, common.Replace('/', Path.DirectorySeparatorChar));
-            if (!File.Exists(commonAbs)) {
-                Debug.LogError(
-                    "[OneJS sl] SLCommon.cginc is missing, so generated shaders cannot compile. " +
-                    "Both backends include it, and without it a program would run on the site and " +
-                    "fail to build after an eject.");
-                return 0;
+            // The generated shaders include the shared helpers, and both
+            // backends must include the SAME files or they can drift on what
+            // noise means. Copying them beside the output keeps every include a
+            // plain relative path, which resolves the same way on every Unity
+            // version.
+            foreach (var inc in Includes) {
+                var pkg = Path.Combine(root, Path.Combine(PackageDir, inc).Replace('/', Path.DirectorySeparatorChar));
+                var loc = Path.Combine(root, Path.Combine(AssetsDir, inc).Replace('/', Path.DirectorySeparatorChar));
+                var from = File.Exists(pkg) ? pkg : loc;
+                if (!File.Exists(from)) {
+                    Debug.LogError(
+                        $"[OneJS sl] {inc} is missing, so generated shaders cannot compile and would " +
+                        "render magenta. A program would run on the site and break after an eject.");
+                    return 0;
+                }
+                CopyIfDifferent(from, Path.Combine(outAbs, inc));
             }
-            CopyIfDifferent(commonAbs, Path.Combine(outAbs, "SLCommon.cginc"));
 
             int count = 0;
             var seen = new HashSet<string>();

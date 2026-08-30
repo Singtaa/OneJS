@@ -112,6 +112,8 @@ Shader "OneJS/FxProgram"
             #define OP_NOISE 128
             #define OP_SIMPLEX 129
             #define OP_FBM 130
+            #define OP_SDF 131
+            #define OP_VORONOI 132
 
             #define OP_SAMPLE 144
 
@@ -299,6 +301,11 @@ Shader "OneJS/FxProgram"
                     else if (op == OP_NOISE)      res = sl_valueNoise(a.xy);
                     else if (op == OP_SIMPLEX)    res = sl_simplex(a.xy);
                     else if (op == OP_FBM)        res = sl_fbm(a.xy, (int)imm.x);
+                    // The shape id rides in the b operand slot, which a one
+                    // argument op leaves free, so all four immediate floats stay
+                    // available for the shape's own parameters.
+                    else if (op == OP_SDF)        res = sl_sdfDistance(rb, a.xy, imm, float2(0, 0));
+                    else if (op == OP_VORONOI)    res = sl_voronoi(a.xy);
                     else if (op == OP_SAMPLE)     res = sampleSlot((int)imm.x, a.xy);
 
                     r[dst] = res;
