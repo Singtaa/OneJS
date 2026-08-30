@@ -89,8 +89,28 @@ namespace OneJS.Tests {
 
         // MARK: Teardown Robustness
 
+        /// <summary>True where an open handle actually blocks a delete.</summary>
+        static bool MandatoryFileLocking =>
+            Application.platform == RuntimePlatform.WindowsEditor ||
+            Application.platform == RuntimePlatform.WindowsPlayer;
+
         [Test]
         public void DeleteDirectoryWithRetry_OutwaitsTransientReadHandle() {
+            // WINDOWS ONLY, and skipped rather than weakened elsewhere.
+            //
+            // The scenario is mandatory file locking: a handle held without
+            // FileShare.Delete stops a delete. POSIX has no such rule, so on
+            // Linux and macOS the file unlinks while the handle is open and the
+            // vacuity guard below fails. That guard is the point of this test,
+            // deliberately written so a scenario that stopped biting would fail
+            // rather than pass having tested nothing, so relaxing it to make CI
+            // green would remove the only thing keeping the pin honest.
+            //
+            // CI runs Linux, which is why this was red from the commit that
+            // added it while passing for whoever wrote it on Windows.
+            if (!MandatoryFileLocking) {
+                Assert.Ignore("Needs mandatory file locking; POSIX unlinks a file that is still open.");
+            }
             var dir = Path.Combine(Application.temporaryCachePath, "OneJSRetryPin");
             DeleteDirectoryWithRetry(dir);
             Directory.CreateDirectory(dir);
@@ -119,6 +139,24 @@ namespace OneJS.Tests {
                 releaser.Join();
                 stream.Dispose();
             }
+        }
+
+        [Test]
+        public void DeleteDirectoryWithRetry_RemovesATreeOnEveryPlatform() {
+            // The half of the helper that is not platform specific, so Linux and
+            // macOS keep covering it while the locking scenario above is skipped.
+            var dir = Path.Combine(Application.temporaryCachePath, "OneJSRetryPlain");
+            DeleteDirectoryWithRetry(dir);
+            Directory.CreateDirectory(Path.Combine(dir, "nested"));
+            File.WriteAllText(Path.Combine(dir, "nested", "a.txt"), "a");
+            DeleteDirectoryWithRetry(dir);
+            Assert.IsFalse(Directory.Exists(dir), "the helper should remove a tree with no handles held");
+        }
+
+        [Test]
+        public void DeleteDirectoryWithRetry_IsFineWithAPathThatDoesNotExist() {
+            var dir = Path.Combine(Application.temporaryCachePath, "OneJSRetryMissing");
+            Assert.DoesNotThrow(() => DeleteDirectoryWithRetry(dir));
         }
 
         // MARK: Path Globals Tests
