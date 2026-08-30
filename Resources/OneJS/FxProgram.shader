@@ -47,6 +47,9 @@ Shader "OneJS/FxProgram"
             #pragma fragment frag
             #pragma target 3.0
             #include "UnityCG.cginc"
+            // Shared with every generated shader, so the two backends cannot
+            // drift on what noise means. See SLCommon.cginc.
+            #include "SLCommon.cginc"
 
             #define REGS 8
             #define MAX_INSTR 256
@@ -153,51 +156,6 @@ Shader "OneJS/FxProgram"
             float4 fetch(int i)
             {
                 return tex2Dlod(_Program, float4((float(i) + 0.5) / _ProgramWidth, 0.5, 0, 0));
-            }
-
-            // Value noise, shared with FxSources so the VM and the generated
-            // HLSL agree about what `noise` means. The two backends disagreeing
-            // on the most used opcode in the set would fail the golden image
-            // test on almost every program.
-            float hash21(float2 p)
-            {
-                p = frac(p * float2(123.34, 456.21));
-                p += dot(p, p + 45.32);
-                return frac(p.x * p.y);
-            }
-
-            float valueNoise(float2 p)
-            {
-                float2 i = floor(p);
-                float2 f = frac(p);
-                f = f * f * (3.0 - 2.0 * f);
-                float a = hash21(i);
-                float b = hash21(i + float2(1, 0));
-                float c = hash21(i + float2(0, 1));
-                float d = hash21(i + float2(1, 1));
-                return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
-            }
-
-            float fbmNoise(float2 p, int octaves)
-            {
-                float sum = 0, amp = 0.5, norm = 0;
-                [unroll]
-                for (int o = 0; o < 8; o++)
-                {
-                    if (o >= octaves) break;
-                    sum += valueNoise(p) * amp;
-                    norm += amp;
-                    p *= 2.0;
-                    amp *= 0.5;
-                }
-                return norm > 0 ? sum / norm : 0;
-            }
-
-            float3 hsv2rgb(float3 c)
-            {
-                float4 K = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-                float3 p = abs(frac(c.xxx + K.xyz) * 6.0 - K.www);
-                return c.z * lerp(K.xxx, saturate(p - K.xxx), c.y);
             }
 
             float4 sampleSlot(int slot, float2 uv)
@@ -328,7 +286,7 @@ Shader "OneJS/FxProgram"
                         res = w == 2 ? float4(normalize(a.xy), 0, 0)
                             : (w == 3 ? float4(normalize(a.xyz), 0) : normalize(a));
                     }
-                    else if (op == OP_LUMINANCE) res = dot(a.rgb, float3(0.2126, 0.7152, 0.0722));
+                    else if (op == OP_LUMINANCE) res = sl_luminance(a.rgb);
                     else if (op == OP_CROSS)     res = float4(cross(a.xyz, b.xyz), 0);
                     else if (op == OP_REFLECT)   res = float4(reflect(a.xyz, b.xyz), 0);
 
@@ -337,10 +295,10 @@ Shader "OneJS/FxProgram"
                     else if (op == OP_SMOOTHSTEP) res = smoothstep(a, b, r[(int)imm.x]);
                     else if (op == OP_SELECT)     res = lerp(r[(int)imm.x], b, step(0.5, a));
 
-                    else if (op == OP_HSV2RGB)    res = float4(hsv2rgb(a.xyz), 1);
-                    else if (op == OP_NOISE)      res = valueNoise(a.xy);
-                    else if (op == OP_SIMPLEX)    res = valueNoise(a.xy * 1.37 + 11.7);
-                    else if (op == OP_FBM)        res = fbmNoise(a.xy, (int)imm.x);
+                    else if (op == OP_HSV2RGB)    res = float4(sl_hsv2rgb(a.xyz), 1);
+                    else if (op == OP_NOISE)      res = sl_valueNoise(a.xy);
+                    else if (op == OP_SIMPLEX)    res = sl_simplex(a.xy);
+                    else if (op == OP_FBM)        res = sl_fbm(a.xy, (int)imm.x);
                     else if (op == OP_SAMPLE)     res = sampleSlot((int)imm.x, a.xy);
 
                     r[dst] = res;
