@@ -1,0 +1,5 @@
+// The build validation bundle. No React, no imports: its only job is to
+// prove the build preprocessor shipped it as a TextAsset and the runner in
+// the player actually executed it. BuildValidationRunner checks this global.
+globalThis.__buildValidationBundleRan = true
+var __exports = (() => { return {} })()

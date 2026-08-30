@@ -145,7 +145,7 @@ Light:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1117698640}
   m_Enabled: 1
-  serializedVersion: 12
+  serializedVersion: 13
   m_Type: 1
   m_Color: {r: 1, g: 0.95686275, b: 0.8392157, a: 1}
   m_Intensity: 1
@@ -197,7 +197,7 @@ Light:
   m_UseBoundingSphereOverride: 0
   m_UseViewFrustumForShadowCasterCull: 1
   m_ForceVisible: 0
-  m_ShadowRadius: 0
+  m_ShapeRadius: 0
   m_ShadowAngle: 0
   m_LightUnit: 1
   m_LuxAtDistance: 1
@@ -293,26 +293,27 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 35e89416e424048d08fdc44af24ad1b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: OneJS.Runtime::JSRunner
-  _workingDir: App
-  _entryFile: '@outputs/esbuild/app.js'
-  _panelSettings: {fileID: 0}
+  _grabFocusOnStart: 1
+  _panelSettings: {fileID: 11400000, guid: 755a6f5120c218f4ca3f53e8587a37d9, type: 2}
+  _visualTreeAsset: {fileID: 0}
   _defaultThemeStylesheet: {fileID: -4733365628477956816, guid: d134caeb9dc27437193943e2515f3d24, type: 3}
-  _scaleMode: 2
-  _referenceResolution: {x: 1920, y: 1080}
-  _screenMatchMode: 0
-  _match: 0.5
-  _scale: 1
-  _referenceDpi: 96
-  _fallbackDpi: 96
-  _sortOrder: 0
   _liveReload: 1
   _pollInterval: 0.5
-  _embeddedScript: {fileID: 0}
-  _streamingAssetsPath: onejs/app.js
+  _enableJanitor: 1
+  _includeSourceMap: 1
+  _tickMode: 0
+  _dontDestroyOnLoad: 0
+  _enableDebugMode: 0
+  _bundleAsset: {fileID: 4900000, guid: afc1160a2c8ffda4f83cf42da907d849, type: 3}
+  _sourceMapAsset: {fileID: 0}
   _defaultFiles: []
+  _typingAssemblies: []
+  _autoGenerateTypings: 1
+  _typingsOutputPath: types/csharp.d.ts
   _stylesheets: []
   _preloads: []
   _globals: []
+  _cartridges: []
 --- !u!4 &1193830913
 Transform:
   m_ObjectHideFlags: 0

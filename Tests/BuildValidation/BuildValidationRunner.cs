@@ -84,19 +84,16 @@ namespace OneJS.Tests.BuildValidation {
             yield return null;
             yield return null;
 
-            // Test 1: StreamingAssets path accessible
+            // Test 1: StreamingAssets path (informational: it only exists when
+            // package assets were copied, the bundle itself ships as a TextAsset)
             TestStreamingAssetsPath();
             yield return null;
 
-            // Test 2: JS bundle exists
-            TestJSBundleExists();
-            yield return null;
-
-            // Test 3: Package assets (@namespace folders)
+            // Test 2: Package assets (@namespace folders)
             TestPackageAssets();
             yield return null;
 
-            // Test 4: JSRunner execution
+            // Test 3: JSRunner execution, bundle deployment and bundle execution
             yield return TestJSRunnerExecution();
 
             // Output all results
@@ -122,31 +119,15 @@ namespace OneJS.Tests.BuildValidation {
         }
 
         void TestStreamingAssetsPath() {
+            // Absence is the ordinary state: the bundle ships as a serialized
+            // TextAsset, and the preprocessor only creates StreamingAssets when
+            // the app has package assets to copy. The old FAIL here tested the
+            // pre-TextAsset design and could never pass again.
             var path = Application.streamingAssetsPath;
-            var exists = Directory.Exists(path);
-
-            if (exists) {
+            if (Directory.Exists(path)) {
                 _results.Add($"PASS: StreamingAssets path exists: {path}");
             } else {
-                _results.Add($"FAIL: StreamingAssets path not found: {path}");
-            }
-        }
-
-        void TestJSBundleExists() {
-            // Look for any .js files in StreamingAssets/onejs/
-            var onejsPath = Path.Combine(Application.streamingAssetsPath, "onejs");
-
-            if (!Directory.Exists(onejsPath)) {
-                _results.Add($"FAIL: StreamingAssets/onejs/ directory not found");
-                return;
-            }
-
-            var jsFiles = Directory.GetFiles(onejsPath, "*.js", SearchOption.AllDirectories);
-
-            if (jsFiles.Length > 0) {
-                _results.Add($"PASS: Found {jsFiles.Length} JS bundle(s) in StreamingAssets/onejs/");
-            } else {
-                _results.Add($"FAIL: No JS bundles found in StreamingAssets/onejs/");
+                _results.Add($"SKIP: No StreamingAssets in this build (expected when the app ships no package assets)");
             }
         }
 
@@ -197,6 +178,28 @@ namespace OneJS.Tests.BuildValidation {
             }
 
             _results.Add("PASS: JSRunner is running");
+
+            // The bundle ships as a serialized TextAsset assigned by the build
+            // preprocessor; a null here means the preprocessor never processed
+            // this runner (e.g. an unconfigured PanelSettings).
+            if (_jsRunner.BundleAsset != null) {
+                _results.Add("PASS: bundle TextAsset was assigned by the build preprocessor");
+            } else {
+                _results.Add("FAIL: no bundle TextAsset on the runner; the build preprocessor did not process it");
+            }
+
+            // The test bundle sets this global, so it proves the deployed
+            // bundle not only arrived but executed in the player.
+            try {
+                var bundleRan = _jsRunner.Bridge.Eval("globalThis.__buildValidationBundleRan === true");
+                if (bundleRan == "true") {
+                    _results.Add("PASS: deployed bundle executed in the player");
+                } else {
+                    _results.Add($"FAIL: deployed bundle did not execute (got: {bundleRan})");
+                }
+            } catch (Exception ex) {
+                _results.Add($"FAIL: bundle execution check errored: {ex.Message}");
+            }
 
             // Execute test script
             try {

@@ -21,23 +21,18 @@ The asmdef carries the define constraint `ONEJS_BUILD_VALIDATION || UNITY_EDITOR
 
 ## Setup
 
-### 1. Create Test Scene
+The scene and its project already exist in this folder: `BuildValidationScene.unity`
+holds a GameObject with `JSRunner` + `BuildValidationRunner`, and `TestApp/` is the
+runner's project (its `PanelSettings.asset` is the project marker; `app.js.txt` beside
+it is a tiny hand-written bundle that sets `globalThis.__buildValidationBundleRan`).
 
-Create `BuildValidationScene.unity` in this folder with:
+If the wiring is ever lost, regenerate it headless with the project closed:
 
-1. **Empty scene** (or default camera/light)
-2. **GameObject** with:
-   - `JSRunner` component configured with a working directory
-   - `BuildValidationRunner` component (this folder)
+```
+unity run . -- -executeMethod OneJS.Tests.Editor.BuildValidationSceneSetup.Configure
+```
 
-### 2. Configure JSRunner
-
-The JSRunner should have:
-- `Working Dir`: Point to a valid JS project (e.g., `App`)
-- `Entry File`: The built JS bundle path
-- `Streaming Assets Path`: Path for build deployment
-
-### 3. Run the Test
+### Run the Test
 
 In Unity Test Runner (Window > General > Test Runner):
 1. Select **EditMode** tab
@@ -58,10 +53,13 @@ The `BuildValidationRunner` outputs results in this format:
 
 ## What Gets Tested
 
-1. **StreamingAssets Path**: Verifies the path exists
-2. **JS Bundle**: Checks for `.js` files in `StreamingAssets/onejs/`
-3. **Package Assets**: Looks for `@namespace/` folders in assets
-4. **JSRunner Execution**: Verifies the JS runtime works:
+1. **StreamingAssets Path**: informational (SKIP when absent; the folder only exists
+   when the app ships package assets, since the bundle travels as a TextAsset)
+2. **Package Assets**: Looks for `@namespace/` folders in assets
+3. **JSRunner Execution**: Verifies the JS runtime works:
+   - JSRunner running
+   - bundle TextAsset assigned by the build preprocessor
+   - the deployed bundle executed (`__buildValidationBundleRan` set by `TestApp/app.js.txt`)
    - `__root` global accessible
    - `__bridge` global accessible
    - `CS` proxy available
