@@ -205,7 +205,7 @@ namespace OneJS.Input {
         /// <summary>
         /// Check if a key is currently held down.
         /// </summary>
-        public static bool GetKeyDown(string keyName) {
+        public static bool GetKeyHeld(string keyName) {
             var keyboard = Keyboard.current;
             if (keyboard == null) return false;
 
@@ -214,6 +214,15 @@ namespace OneJS.Input {
 
             return keyboard[key].isPressed;
         }
+
+        /// <summary>
+        /// Deprecated name for GetKeyHeld. In Unity's own vocabulary,
+        /// GetKeyDown means "went down this frame", which this method never
+        /// meant: it always returned held state. The name is retired rather
+        /// than repurposed so no existing call changes behavior.
+        /// </summary>
+        [Obsolete("GetKeyDown returns held state, not Unity's went-down-this-frame. Use GetKeyHeld for held, GetKeyPressed for the edge.")]
+        public static bool GetKeyDown(string keyName) => GetKeyHeld(keyName);
 
         /// <summary>
         /// Check if a key was pressed this frame.
@@ -247,13 +256,20 @@ namespace OneJS.Input {
         /// Check if a key is currently held down using its integer ID.
         /// Use GetKeyId() once at init to get the ID, then use this in hot paths.
         /// </summary>
-        public static bool GetKeyDownById(int keyId) {
+        public static bool GetKeyHeldById(int keyId) {
             var keyboard = Keyboard.current;
             if (keyboard == null) return false;
             if (keyId == 0) return false; // Key.None
 
             return keyboard[(Key)keyId].isPressed;
         }
+
+        /// <summary>
+        /// Deprecated name for GetKeyHeldById; see GetKeyDown for why the
+        /// name is retired rather than repurposed.
+        /// </summary>
+        [Obsolete("GetKeyDownById returns held state, not Unity's went-down-this-frame. Use GetKeyHeldById for held, GetKeyPressedById for the edge.")]
+        public static bool GetKeyDownById(int keyId) => GetKeyHeldById(keyId);
 
         /// <summary>
         /// Check if a key was pressed this frame using its integer ID.
@@ -980,14 +996,16 @@ namespace OneJS.Input {
             if (_bindingsRegistered) return;
             _bindingsRegistered = true;
 
-            // Keyboard: string-based (for compatibility)
-            _bindingIds.getKeyDown = QuickJSNative.Bind<string, bool>(GetKeyDown);
+            // Keyboard: string-based (for compatibility). The wire ids keep
+            // their old names (reader.ts consumes them); they bind the
+            // renamed methods, whose behavior is unchanged.
+            _bindingIds.getKeyDown = QuickJSNative.Bind<string, bool>(GetKeyHeld);
             _bindingIds.getKeyPressed = QuickJSNative.Bind<string, bool>(GetKeyPressed);
             _bindingIds.getKeyReleased = QuickJSNative.Bind<string, bool>(GetKeyReleased);
 
             // Keyboard: ID-based (zero-alloc hot path)
             _bindingIds.getKeyId = QuickJSNative.Bind<string, int>(GetKeyId);
-            _bindingIds.getKeyDownById = QuickJSNative.Bind<int, bool>(GetKeyDownById);
+            _bindingIds.getKeyDownById = QuickJSNative.Bind<int, bool>(GetKeyHeldById);
             _bindingIds.getKeyPressedById = QuickJSNative.Bind<int, bool>(GetKeyPressedById);
             _bindingIds.getKeyReleasedById = QuickJSNative.Bind<int, bool>(GetKeyReleasedById);
 

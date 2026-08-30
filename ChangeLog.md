@@ -1,5 +1,6 @@
 # Unreleased
 
+- `InputBridge.GetKeyDown`/`GetKeyDownById` are deprecated for `GetKeyHeld`/`GetKeyHeldById`; the old names keep their behavior and warn
 - TextField: `inputClassName` and `inputStyle` style the inner input (onejs-react 0.1.46)
 - Tailwind: opt-in `preflight` strips the runtime theme's control chrome (onejs-unity 0.3.1)
 - The build validation test assembly no longer ships in player builds
