@@ -108,7 +108,10 @@ namespace OneJS.ShaderFX {
         /// from this program if the project has one, the interpreter otherwise.
         /// The caller does not find out, and does not need to.
         /// </summary>
-        public void SetProgram(object dataObj, int instructionCount, int resultRegister, string hash) {
+        int _programHandle = -1;
+
+        public void SetProgram(object dataObj, int instructionCount, int resultRegister, string hash,
+                               object uniformNamesObj = null) {
             var data = ToFloats(dataObj);
             // Same program, same everything. Rebuilding would drop the render
             // target and restart the clock on every React render.
@@ -116,17 +119,49 @@ namespace OneJS.ShaderFX {
             _isProgram = true;
             _programHash = hash;
             _shaderMissing = false;
+            ReleaseProgram();
             if (_material != null) {
                 UnityEngine.Object.DestroyImmediate(_material);
                 _material = null;
             }
             try {
-                _material = SL.SLProgramBridge.CreateMaterial(data, instructionCount, resultRegister, hash, out _);
+                _material = SL.SLProgramBridge.CreateMaterial(
+                    data, instructionCount, resultRegister, hash,
+                    out _, out _programHandle, ToStrings(uniformNamesObj));
                 _material.hideFlags = HideFlags.HideAndDontSave;
             } catch (System.Exception e) {
                 _shaderMissing = true;
                 Debug.LogWarning($"[OneJS sl] {e.Message}");
             }
+        }
+
+        /// <summary>
+        /// Sets one of the program's uniforms, by the slot the encoder gave it.
+        /// </summary>
+        /// <remarks>
+        /// By SLOT, not by name. The VM reads a single array indexed by slot
+        /// and knows nothing about names, so setting a material property called
+        /// _u_warp reached the generated shader and missed the interpreter
+        /// entirely. That is why a program's uniforms did nothing on WebGL
+        /// while working in an editor with a generated shader beside it.
+        /// SLProgramBridge.SetUniform handles both backends behind this.
+        /// </remarks>
+        public void SetUniform(int slot, float x, float y, float z, float w) {
+            if (_programHandle < 0) return;
+            SL.SLProgramBridge.SetUniform(_programHandle, slot, x, y, z, w);
+            MarkDirtyRepaint();
+        }
+
+        /// <summary>Uniform names in slot order, as they arrive from JS.</summary>
+        static string[] ToStrings(object obj) {
+            if (obj == null) return null;
+            if (obj is string[] s) return s;
+            if (obj is System.Collections.IEnumerable e) {
+                var list = new List<string>();
+                foreach (var item in e) list.Add(item?.ToString());
+                return list.ToArray();
+            }
+            return null;
         }
 
         static float[] ToFloats(object obj) {
@@ -303,9 +338,22 @@ namespace OneJS.ShaderFX {
         }
 
         /// <summary>Frees the target and material. Safe to call twice.</summary>
+        /// <summary>
+        /// Drops the program, which owns the material and its program texture.
+        /// </summary>
+        void ReleaseProgram() {
+            if (_programHandle < 0) return;
+            SL.SLProgramBridge.Release(_programHandle);
+            _programHandle = -1;
+            // Released with the program. Leaving it set would have the element
+            // destroy an object the bridge has already destroyed.
+            _material = null;
+        }
+
         public void Dispose() {
             ShaderEffectBridge.Unregister(this);
             ReleaseTexture();
+            ReleaseProgram();
             if (_material != null) {
                 UnityEngine.Object.DestroyImmediate(_material);
                 _material = null;

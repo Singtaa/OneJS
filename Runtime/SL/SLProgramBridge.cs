@@ -116,26 +116,71 @@ namespace OneJS.SL {
         /// are indistinguishable, which is the design working and also the thing
         /// that makes a silently failed generation impossible to notice.
         /// </summary>
+        /// <summary>
+        /// Kept for callers that only want a material and never set a uniform.
+        /// </summary>
         public static Material CreateMaterial(float[] data, int instructionCount, int resultRegister,
                                               string hash, out bool native) {
+            return CreateMaterial(data, instructionCount, resultRegister, hash, out native, out _);
+        }
+
+        /// <summary>
+        /// A material for a program, AND a handle that can set its uniforms.
+        /// </summary>
+        /// <remarks>
+        /// The handle is the part that was missing. This used to hand back a
+        /// bare material and register nothing, so SetUniform had no program to
+        /// find and every uniform stayed at whatever the shader defaulted to:
+        /// zero. A program's uniforms silently did nothing, on both backends,
+        /// for as long as an element used this rather than Upload.
+        ///
+        /// Registering here rather than asking the element to call Upload keeps
+        /// the material the caller renders with and the material SetUniform
+        /// writes to the same object. Two of them would put the values
+        /// somewhere real and still show none of them.
+        /// </remarks>
+        public static Material CreateMaterial(float[] data, int instructionCount, int resultRegister,
+                                              string hash, out bool native, out int handle,
+                                              string[] uniformNames = null) {
             Validate(data, instructionCount, resultRegister);
             native = false;
+
+            var c = new Compiled {
+                InstructionCount = instructionCount,
+                ResultRegister = resultRegister,
+                UniformNames = uniformNames,
+            };
+
             Shader gen = string.IsNullOrEmpty(hash) ? null : Shader.Find(GeneratedShaderName(hash));
             if (gen != null) {
                 native = true;
-                return new Material(gen);
+                c.Native = true;
+                c.Material = new Material(gen);
+                if (uniformNames != null) {
+                    c.UniformIds = new int[uniformNames.Length];
+                    for (int u = 0; u < uniformNames.Length; u++) {
+                        c.UniformIds[u] = Shader.PropertyToID("_u_" + uniformNames[u]);
+                    }
+                }
+            } else {
+                if (VmShader == null) {
+                    throw new InvalidOperationException(
+                        "[OneJS sl] OneJS/FxProgram.shader is missing from Resources.");
+                }
+                c.Material = new Material(VmShader);
+                // Held on the Compiled, not just handed to the material, so
+                // Release disposes it. A local would leak one float texture per
+                // program for the life of the context.
+                c.ProgramTex = BuildProgramTexture(data, instructionCount);
+                c.Material.SetTexture(s_Program, c.ProgramTex);
+                c.Material.SetFloat(s_InstrCount, instructionCount);
+                c.Material.SetFloat(s_ProgramWidth, instructionCount * 2);
+                c.Material.SetFloat(s_ResultReg, resultRegister);
             }
-            if (VmShader == null) {
-                throw new InvalidOperationException(
-                    "[OneJS sl] OneJS/FxProgram.shader is missing from Resources.");
-            }
-            var mat = new Material(VmShader);
-            var tex = BuildProgramTexture(data, instructionCount);
-            mat.SetTexture(s_Program, tex);
-            mat.SetFloat(s_InstrCount, instructionCount);
-            mat.SetFloat(s_ProgramWidth, instructionCount * 2);
-            mat.SetFloat(s_ResultReg, resultRegister);
-            return mat;
+
+            handle = s_NextHandle++;
+            s_Programs[handle] = c;
+            return c.Material;
         }
 
         static Texture2D BuildProgramTexture(float[] data, int instructionCount) {
