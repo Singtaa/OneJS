@@ -258,15 +258,23 @@ float sdRoundedCross(float2 p, float h) {
                : sqrt(min(dot2(p - float2(0, h)), dot2(p - float2(1, 0))));
 }
 
-float sdEgg(float2 p, float ra, float rb) {
-    const float k = sqrt(3.0);
+// Inigo Quilez's four parameter egg: a bottom circle of radius ra, a top circle
+// of radius rb a height he above it, joined by arcs whose radius bu sets, so
+// the sides bulge (bu below 1) or run nearly straight (bu near 1). Centred on
+// the shape's own extent, like every other shape here, rather than on the
+// bottom circle as the original is.
+float sdEgg(float2 p, float he, float ra, float rb, float bu) {
+    float r = 0.5 * (he + ra + rb) / bu;
+    float da = r - ra;
+    float db = r - rb;
+    float y = (db * db - da * da - he * he) / (2.0 * he);
+    float x = sqrt(max(da * da - y * y, 0.0));
+
     p.x = abs(p.x);
-    float r = ra - rb;
-    return ((p.y < 0.0)
-                ? length(float2(p.x, p.y)) - r
-                : (k * (p.x + r) < p.y)
-                ? length(float2(p.x, p.y - k * r))
-                : length(float2(p.x + r, p.y)) - 2.0 * r) - rb;
+    p.y -= 0.5 * (he + rb - ra);
+    float k = p.y * x - p.x * y;
+    if (k > 0.0 && k < he * (p.x + x)) return length(p + float2(x, y)) - r;
+    return min(length(p) - ra, length(float2(p.x, p.y - he)) - rb);
 }
 
 float sdHeart(float2 p) {

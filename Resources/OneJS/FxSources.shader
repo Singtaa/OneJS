@@ -103,7 +103,7 @@ Shader "OneJS/FxSources"
                 case 24: return sdOrientedVesica(p, a.xy, a.zw, b.x);
                 case 25: return sdMoon(p, a.x, a.y, a.z);
                 case 26: return sdRoundedCross(p, a.x);
-                case 27: return sdEgg(p, a.x, a.y);
+                case 27: return sdEgg(p, a.x, a.y, a.z, a.w);
                 case 28: return sdHeart(p);
                 case 29: return sdCross(p, a.xy, a.z);
                 case 30: return sdRoundedX(p, a.x, a.y);
