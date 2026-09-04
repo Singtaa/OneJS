@@ -367,13 +367,17 @@ namespace OneJS.Tests {
             var handle = _bridge.Eval("globalThis.__localHandle");
             _bridge.Eval($"__dispatchEvent({handle}, 'pointerdown', {{ x: 150, y: 90, button: 0 }})");
 
-            var result = _bridge.Eval("JSON.stringify(globalThis.__localResult)");
-            // inner sits at panel (120, 60); outer at (100, 50).
-            StringAssert.Contains("\"innerX\":30", result);
-            StringAssert.Contains("\"innerY\":30", result);
-            StringAssert.Contains("\"outerX\":50", result);
-            StringAssert.Contains("\"outerY\":40", result);
-            StringAssert.Contains("\"plainX\":150", result);
+            // inner sits at panel (120, 60) and outer at (100, 50). The test
+            // panel's scale is not exactly 1, so worldBound lands a fraction
+            // off the styled position; a tolerance keeps that out of the
+            // assertion without hiding a wrong origin.
+            float Read(string key) => float.Parse(_bridge.Eval($"String(globalThis.__localResult.{key})"),
+                System.Globalization.CultureInfo.InvariantCulture);
+            Assert.AreEqual(30f, Read("innerX"), 0.5f);
+            Assert.AreEqual(30f, Read("innerY"), 0.5f);
+            Assert.AreEqual(50f, Read("outerX"), 0.5f);
+            Assert.AreEqual(40f, Read("outerY"), 0.5f);
+            Assert.AreEqual(150f, Read("plainX"), 0.001f);
         }
 
         [UnityTest]
