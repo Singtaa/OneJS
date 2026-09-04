@@ -1,5 +1,10 @@
 # Unreleased
 
+- Pointer and mouse events carry `localX`/`localY`, relative to the element the handler is on
+- `backgroundImage` and the `fx` and asset hooks share an opaque `Texture` type instead of `unknown` (onejs-react 0.1.48, onejs-unity 0.5.1)
+- `fx.useAnimatedTexture` draws with the latest render's build function each frame (onejs-unity 0.5.1)
+- `ShaderProgram` warns once about a uniform name the program never declared (onejs-react 0.1.48)
+- `ScreenProvider` takes a `size` so a host can drive breakpoints from its own box (onejs-react 0.1.48)
 - `InputBridge.GetKeyDown`/`GetKeyDownById` are deprecated for `GetKeyHeld`/`GetKeyHeldById`; the old names keep their behavior and warn
 - TextField: `inputClassName` and `inputStyle` style the inner input (onejs-react 0.1.46)
 - Tailwind: opt-in `preflight` strips the runtime theme's control chrome (onejs-unity 0.3.1)

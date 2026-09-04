@@ -328,6 +328,55 @@ namespace OneJS.Tests {
         }
 
         [UnityTest]
+        public IEnumerator Event_LocalXY_AreRelativeToCurrentTarget() {
+            // localX and localY come off the synthetic event's prototype and
+            // read worldBound on first use, so they need a laid-out element
+            // with a real position, which is why this attaches to the panel
+            // and waits a frame.
+            var root = _uiDocument.rootVisualElement;
+            int rootHandle = QuickJSNative.RegisterObject(root);
+            _bridge.Eval($@"
+                var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+                globalThis.__localResult = null;
+                var outer = new CS.UnityEngine.UIElements.VisualElement();
+                outer.style.position = CS.UnityEngine.UIElements.Position.Absolute;
+                outer.style.left = 100; outer.style.top = 50;
+                outer.style.width = 300; outer.style.height = 200;
+                var inner = new CS.UnityEngine.UIElements.VisualElement();
+                inner.style.position = CS.UnityEngine.UIElements.Position.Absolute;
+                inner.style.left = 20; inner.style.top = 10;
+                inner.style.width = 100; inner.style.height = 100;
+                outer.Add(inner);
+                root.Add(outer);
+                __eventAPI.setParent(inner.__csHandle, outer.__csHandle);
+
+                __eventAPI.addEventListener(inner, 'pointerdown', (e) => {{
+                    globalThis.__localResult = {{ innerX: e.localX, innerY: e.localY }};
+                }});
+                // The same event, bubbling: local coordinates follow currentTarget.
+                __eventAPI.addEventListener(outer, 'pointerdown', (e) => {{
+                    globalThis.__localResult.outerX = e.localX;
+                    globalThis.__localResult.outerY = e.localY;
+                    globalThis.__localResult.plainX = e.x;
+                }});
+                globalThis.__localHandle = inner.__csHandle;
+            ");
+            yield return null;
+            yield return null;
+
+            var handle = _bridge.Eval("globalThis.__localHandle");
+            _bridge.Eval($"__dispatchEvent({handle}, 'pointerdown', {{ x: 150, y: 90, button: 0 }})");
+
+            var result = _bridge.Eval("JSON.stringify(globalThis.__localResult)");
+            // inner sits at panel (120, 60); outer at (100, 50).
+            StringAssert.Contains("\"innerX\":30", result);
+            StringAssert.Contains("\"innerY\":30", result);
+            StringAssert.Contains("\"outerX\":50", result);
+            StringAssert.Contains("\"outerY\":40", result);
+            StringAssert.Contains("\"plainX\":150", result);
+        }
+
+        [UnityTest]
         public IEnumerator Event_EventData_PassedCorrectly() {
             _bridge.Eval(@"
                 globalThis.__eventDataResult = null;

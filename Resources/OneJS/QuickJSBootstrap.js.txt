@@ -1135,6 +1135,49 @@ function __eventPreventDefault() { this.defaultPrevented = true; }
 function __eventStopPropagation() { this.propagationStopped = true; }
 
 /**
+ * The bounds of the element a handler is running on, for localX and localY.
+ *
+ * Read on first use and cached per (event, currentTarget), because worldBound
+ * is a crossing and most handlers never ask. The element is found through the
+ * proxy cache rather than wrapped afresh: a handler runs on an element the
+ * reconciler is holding, so its proxy is alive, and a handle with no live
+ * proxy is not one anybody is handling an event for.
+ */
+function __eventLocalOrigin(event) {
+    const handle = event.currentTarget;
+    if (event.__localFor !== handle) {
+        let x = 0, y = 0;
+        const ref = __proxyCache.get(handle);
+        const el = ref ? ref.deref() : undefined;
+        if (el) {
+            const b = el.worldBound;
+            if (b) { x = b.x; y = b.y; }
+        }
+        event.__localFor = handle;
+        event.__localX = x;
+        event.__localY = y;
+    }
+    return event;
+}
+
+/**
+ * Shared by every synthetic event. The getters make localX and localY cost
+ * nothing until a handler reads them, and the methods only ever touch `this`,
+ * so one prototype does for all events rather than two closures per dispatch.
+ *
+ * localX and localY are relative to `currentTarget`, the element whose handler
+ * is running, which is what a handler wants when it hit tests against its own
+ * box. They only mean something on pointer and mouse events, which carry x
+ * and y; on anything else they are NaN.
+ */
+const __syntheticEventProto = {
+    preventDefault: __eventPreventDefault,
+    stopPropagation: __eventStopPropagation,
+    get localX() { return this.x - __eventLocalOrigin(this).__localX; },
+    get localY() { return this.y - __eventLocalOrigin(this).__localY; }
+};
+
+/**
  * A fresh event object per dispatch. Deliberately not pooled: handlers commonly
  * keep the reference and read it later, from a setTimeout or after an await,
  * and a mutated shared instance gives them the wrong values. React removed
@@ -1142,16 +1185,14 @@ function __eventStopPropagation() { this.propagationStopped = true; }
  * worth re-earning that bug.
  */
 function __makeSyntheticEvent(eventType, elementHandle, eventData) {
-    return {
-        type: eventType,
-        target: elementHandle,
-        currentTarget: elementHandle,
-        ...eventData,
-        preventDefault: __eventPreventDefault,
-        stopPropagation: __eventStopPropagation,
-        defaultPrevented: false,
-        propagationStopped: false
-    };
+    const event = Object.create(__syntheticEventProto);
+    event.type = eventType;
+    event.target = elementHandle;
+    event.currentTarget = elementHandle;
+    for (const key in eventData) event[key] = eventData[key];
+    event.defaultPrevented = false;
+    event.propagationStopped = false;
+    return event;
 }
 
 globalThis.__dispatchEvent = function(elementHandle, eventType, eventData) {
