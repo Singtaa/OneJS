@@ -271,7 +271,7 @@ float sdEgg(float2 p, float he, float ra, float rb, float bu) {
     float x = sqrt(max(da * da - y * y, 0.0));
 
     p.x = abs(p.x);
-    p.y -= 0.5 * (he + rb - ra);
+    p.y += 0.5 * (he + rb - ra);
     float k = p.y * x - p.x * y;
     if (k > 0.0 && k < he * (p.x + x)) return length(p + float2(x, y)) - r;
     return min(length(p) - ra, length(float2(p.x, p.y - he)) - rb);
