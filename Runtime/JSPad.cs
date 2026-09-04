@@ -636,8 +636,10 @@ namespace OneJS {
 
     declare const console: {
       log: (...args: unknown[]) => void;
-      error: (...args: unknown[]) => void;
+      info: (...args: unknown[]) => void;
+      debug: (...args: unknown[]) => void;
       warn: (...args: unknown[]) => void;
+      error: (...args: unknown[]) => void;
     };
 
     declare function setTimeout(callback: () => void, ms?: number): number;

@@ -58,8 +58,10 @@ declare const __csHelpers: {
 // Console (provided by QuickJS)
 declare const console: {
     log: (...args: unknown[]) => void;
-    error: (...args: unknown[]) => void;
+    info: (...args: unknown[]) => void;
+    debug: (...args: unknown[]) => void;
     warn: (...args: unknown[]) => void;
+    error: (...args: unknown[]) => void;
 };
 
 // Timers (provided by QuickJSBootstrap.js)
