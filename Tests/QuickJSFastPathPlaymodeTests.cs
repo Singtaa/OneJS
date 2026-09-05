@@ -295,6 +295,25 @@ namespace OneJS.Tests {
         }
 
         [UnityTest]
+        public IEnumerator StyleBridge_LetterSpacing_SwitchesToStandardGenerator() {
+            // The Advanced generator wraps a content-sized spaced line; see the
+            // letterSpacing case in StyleBridge.
+            var result = _ctx.Eval(@"
+                var el = new CS.UnityEngine.UIElements.Label();
+                el.text = '123';
+                CS.OneJS.StyleBridge.ApplyStyles(el, { letterSpacing: 2 });
+                var UIE = CS.UnityEngine.UIElements;
+                var spaced = el.style.unityTextGenerator.value == UIE.TextGeneratorType.Standard;
+                CS.OneJS.StyleBridge.ApplyStyles(el, { letterSpacing: 0 });
+                var cleared = el.style.unityTextGenerator.keyword == UIE.StyleKeyword.Null;
+                JSON.stringify({ spaced: spaced, cleared: cleared });
+            ");
+            StringAssert.Contains("\"spaced\":true", result);
+            StringAssert.Contains("\"cleared\":true", result);
+            yield return null;
+        }
+
+        [UnityTest]
         public IEnumerator StyleBridge_ApplyStyles_ColorAndLengthDoNotThrow() {
             // Exercises the fast-path AsColor / AsLength setters across several
             // properties. Reading struct-valued styles (StyleColor/StyleLength) back

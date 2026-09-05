@@ -165,7 +165,21 @@ namespace OneJS {
                 case "borderBottomRightRadius": style.borderBottomRightRadius = AsLength(value); return true;
                 case "flexBasis": style.flexBasis = AsLength(value); return true;
                 case "fontSize": style.fontSize = AsLength(value); return true;
-                case "letterSpacing": style.letterSpacing = AsLength(value); return true;
+                case "letterSpacing": {
+                    // The Advanced text generator, the default since Unity 6,
+                    // measures a spaced line narrower than it lays it out, so
+                    // any non-zero spacing on a content-sized element wraps its
+                    // last glyph onto a second line ("12" over "3"). The
+                    // Standard generator measures and lays out with the same
+                    // arithmetic, so a spaced element is switched to it, and
+                    // switched back when the spacing is cleared.
+                    var spacing = AsLength(value);
+                    style.letterSpacing = spacing;
+                    style.unityTextGenerator = spacing.keyword == StyleKeyword.Undefined && spacing.value.value != 0f
+                        ? TextGeneratorType.Standard
+                        : StyleKeyword.Null;
+                    return true;
+                }
                 case "wordSpacing": style.wordSpacing = AsLength(value); return true;
 
                 // Floats

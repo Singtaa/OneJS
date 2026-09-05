@@ -6,6 +6,7 @@
 - `fx` ramps and gradients take hex strings, bare colour lists and readonly arrays (onejs-unity 0.5.2)
 - `fx` noise takes `scroll`, panned by the animated build's clock (onejs-unity 0.5.2)
 - `fx.useImage` builds synchronously and never returns null (onejs-unity 0.5.2)
+- A non-zero `letterSpacing` switches the element to the Standard text generator, so a content-sized spaced line no longer wraps its last glyph
 - The `egg` shape takes `h`, `r`, `rTop` and `bulge`, Quilez's four parameter egg, in `fx`, `sl` and TextureFX
 - `ShaderProgram` warns once about a uniform name the program never declared (onejs-react 0.1.48)
 - `ScreenProvider` takes a `size` so a host can drive breakpoints from its own box (onejs-react 0.1.48)
