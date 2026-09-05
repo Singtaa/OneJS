@@ -7,6 +7,12 @@
 - `fx` noise takes `scroll`, panned by the animated build's clock (onejs-unity 0.5.2)
 - `fx.useImage` builds synchronously and never returns null (onejs-unity 0.5.2)
 - `fx`: `threshold(low, high)`, gradient directions by word, a `turbulence` noise preset, and `alpha` on a stop (onejs-unity 0.5.5)
+- `fx.canvas(size)` bakes the size into the sources; `useAnimatedTexture` takes one (onejs-unity 0.5.6)
+- Physics bodies are handles: `world.bodies[i].enabled`, `moveTo`, `setVelocity`, `push` (onejs-unity 0.5.6)
+- `Painter` colours take a hex string, and `circle(x, y, r)` joins the path methods (onejs-react 0.1.50)
+- `Slider` takes `min` and `max` (onejs-react 0.1.50)
+- Particle emitters read `glow`, `spin` and `position`; the old names remain (onejs-react 0.1.50)
+- oj's `audio.load` takes a file name like the texture loaders (onejs-play 0.4.5)
 - A non-zero `letterSpacing` switches the element to the Standard text generator, so a content-sized spaced line no longer wraps its last glyph
 - The `egg` shape takes `h`, `r`, `rTop` and `bulge`, Quilez's four parameter egg, in `fx`, `sl` and TextureFX
 - `ShaderProgram` warns once about a uniform name the program never declared (onejs-react 0.1.48)
