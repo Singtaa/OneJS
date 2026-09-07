@@ -60,11 +60,30 @@ namespace OneJS {
             if (NativeAbiVersion >= 2) {
                 qjs_set_cs_free_callback(_freeCallback);
             }
+#if UNITY_WEBGL && !UNITY_EDITOR
+            qjs_set_shared_type_hint(ColorHint);
+#endif
         }
+
+        /*
+         * The typeHint that marks a Vector4-packed value as a Color, so the
+         * reader builds {r, g, b, a} rather than {x, y, z, w}. Both readers
+         * (interop_value_to_js in quickjs_unity.c, unmarshalValue in
+         * OneJSWebGL.jslib) looked for it from the start; no writer set it, so
+         * every Color that reached JS answered undefined for r, g, b and a while
+         * the round trip back into C# still worked, which is how it went unseen.
+         *
+         * One buffer for the whole process: a Color crosses on paths that
+         * promise no allocation. A result's hint is freed by the reader, through
+         * HandleFreeFromNative on native and through the jslib on WebGL, and
+         * both leave this one alone. A callback argument's hint is never freed,
+         * so the shared buffer is right there too.
+         */
+        internal static readonly IntPtr ColorHint = StringToUtf8("color");
 
         [MonoPInvokeCallback(typeof(CsFreeCallback))]
         static void HandleFreeFromNative(IntPtr ptr) {
-            if (ptr != IntPtr.Zero) Marshal.FreeCoTaskMem(ptr);
+            if (ptr != IntPtr.Zero && ptr != ColorHint) Marshal.FreeCoTaskMem(ptr);
         }
 
         [MonoPInvokeCallback(typeof(CsReleaseHandleCallback))]
@@ -604,6 +623,7 @@ namespace OneJS {
                 resPtr->returnValue.vecY = c.g;
                 resPtr->returnValue.vecZ = c.b;
                 resPtr->returnValue.vecW = c.a;
+                resPtr->returnValue.typeHint = ColorHint;
                 return true;
             }
 
@@ -847,6 +867,7 @@ namespace OneJS {
                     v.vecY = c.g;
                     v.vecZ = c.b;
                     v.vecW = c.a;
+                    v.typeHint = ColorHint;
                     break;
                 default:
                     int handle = RegisterObject(obj);

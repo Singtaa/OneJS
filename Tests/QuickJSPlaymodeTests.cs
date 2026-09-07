@@ -1043,14 +1043,13 @@ namespace OneJS.Tests {
         [UnityTest]
         public IEnumerator Array_JsColorArray_ToColorArray_Works() {
             // Test passing JS array of {r,g,b,a} objects to Color[]
-            // Note: Color is returned as Vector4, so we access x,y,z (which map to r,g,b)
             var result = _ctx.Eval(@"
                 var colors = [
                     { r: 1, g: 0, b: 0, a: 1 },
                     { r: 0, g: 1, b: 0, a: 1 }
                 ];
                 var avg = CS.OneJS.Tests.ArrayTestHelper.AverageColors(colors);
-                avg.x + ',' + avg.y + ',' + avg.z;
+                avg.r + ',' + avg.g + ',' + avg.b;
             ");
             Assert.AreEqual("0.5,0.5,0", result);
             yield return null;

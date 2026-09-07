@@ -86,6 +86,11 @@ var OneJSWebGLLib = {
             zeroalloc: null
         },
 
+        // A typeHint buffer C# shares across calls instead of allocating per
+        // result (the "color" mark on a Vector4-packed Color). Result hints are
+        // otherwise C#-allocated and freed here after reading; this one is not.
+        sharedTypeHint: 0,
+
         // Struct sizes (WASM32)
         SIZEOF_INTEROP_VALUE: 32,
         SIZEOF_INTEROP_REQUEST: 28,
@@ -450,7 +455,7 @@ var OneJSWebGLLib = {
                 if (strPtr) _free(strPtr);
             }
             var typeHintPtr = HEAPU32[(resPtr + 24) >> 2];
-            if (typeHintPtr) _free(typeHintPtr);
+            if (typeHintPtr && typeHintPtr !== OneJS.sharedTypeHint) _free(typeHintPtr);
 
             _free(reqPtr);
             _free(resPtr);
@@ -487,6 +492,11 @@ var OneJSWebGLLib = {
     // with _free directly and never needs to call it; the entry point exists so
     // the C# registration links.
     qjs_set_cs_free_callback: function(callbackPtr) {
+    },
+
+    qjs_set_shared_type_hint__deps: ["$OneJS"],
+    qjs_set_shared_type_hint: function(ptr) {
+        OneJS.sharedTypeHint = ptr;
     },
 
     qjs_create__deps: ["$OneJS"],
@@ -666,7 +676,7 @@ var OneJSWebGLLib = {
                 if (sp) _free(sp);
             }
             var hp = HEAPU32[(resultPtr + 24) >> 2];
-            if (hp) _free(hp);
+            if (hp && hp !== OneJS.sharedTypeHint) _free(hp);
             _free(resultPtr);
 
             return result;

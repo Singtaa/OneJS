@@ -178,6 +178,12 @@ namespace OneJS {
         }
 
 #if UNITY_WEBGL && !UNITY_EDITOR
+        // Tells the jslib which typeHint buffer C# shares across results, so it
+        // is skipped when a result's hint is freed. Native needs no such call:
+        // it frees through the C# callback, which knows the buffer itself.
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void qjs_set_shared_type_hint(IntPtr ptr);
+
         // Fast event dispatch for WebGL: avoids eval overhead. Returns the suppression-flags
         // bitmask from __dispatchEvent (bit0=propagationStopped, bit1=defaultPrevented), or 0.
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]

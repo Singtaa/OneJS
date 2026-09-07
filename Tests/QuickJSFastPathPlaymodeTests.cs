@@ -151,20 +151,69 @@ namespace OneJS.Tests {
             yield return null;
         }
 
+        /*
+         * A Color crosses to JS packed as a Vector4 with a "color" type hint,
+         * and the reader names the members r, g, b, a from that hint. No writer
+         * set the hint, so every Color read as {x, y, z, w} and `color.r` was
+         * undefined; the round trip back into C# still worked, and the tests
+         * here asserted `.z` and `.w`, so nothing noticed. From a report.
+         *
+         * One test per writer: the fast ctor, reflection dispatch (a static
+         * property and a static method), a callback argument, and a zero-alloc
+         * binding.
+         */
         [UnityTest]
-        public IEnumerator FastCtor_Color_FourArg_ReturnsRGBA() {
-            var b = _ctx.Eval("new CS.UnityEngine.Color(0.25, 0.5, 0.75, 0.125).z");
-            var a = _ctx.Eval("new CS.UnityEngine.Color(0.25, 0.5, 0.75, 0.125).w");
-            Assert.IsTrue(float.TryParse(b, out var fb) && Mathf.Approximately(fb, 0.75f), $"b={b}");
-            Assert.IsTrue(float.TryParse(a, out var fa) && Mathf.Approximately(fa, 0.125f), $"a={a}");
+        public IEnumerator FastCtor_Color_FourArg_ReadsRGBA() {
+            AssertColor("new CS.UnityEngine.Color(0.25, 0.5, 0.75, 0.125)", 0.25f, 0.5f, 0.75f, 0.125f);
             yield return null;
         }
 
         [UnityTest]
         public IEnumerator FastCtor_Color_ThreeArg_DefaultsAlphaToOne() {
-            var a = _ctx.Eval("new CS.UnityEngine.Color(0.1, 0.2, 0.3).w");
-            Assert.IsTrue(float.TryParse(a, out var fa) && Mathf.Approximately(fa, 1f), $"a={a}");
+            AssertColor("new CS.UnityEngine.Color(0.1, 0.2, 0.3)", 0.1f, 0.2f, 0.3f, 1f);
             yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator Color_StaticProperty_ReadsRGBA() {
+            AssertColor("CS.UnityEngine.Color.red", 1f, 0f, 0f, 1f);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator Color_StaticMethod_ReadsRGBA() {
+            AssertColor("CS.UnityEngine.Color.Lerp(CS.UnityEngine.Color.red, CS.UnityEngine.Color.blue, 0.5)", 0.5f, 0f, 0.5f, 1f);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator Color_CallbackArgument_ReadsRGBA() {
+            var handle = int.Parse(_ctx.Eval("__registerCallback(function(c) { return [c.r, c.g, c.b, c.a].join(','); });"));
+            var result = _ctx.InvokeCallback(handle, new Color(0.25f, 0.5f, 0.75f, 0.125f));
+            Assert.AreEqual("0.25,0.5,0.75,0.125", result as string);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator Color_ZeroAllocBinding_ReadsRGBA() {
+            int id = QuickJSNative.Bind<Color>(() => new Color(0.3f, 0.6f, 0.9f, 0.5f));
+            try {
+                AssertColor($"__zaInvoke0({id})", 0.3f, 0.6f, 0.9f, 0.5f);
+            } finally {
+                QuickJSNative.UnregisterZeroAllocBinding(id);
+            }
+            yield return null;
+        }
+
+        void AssertColor(string expr, float r, float g, float b, float a) {
+            var got = _ctx.Eval($"(function() {{ var c = {expr}; return [c.r, c.g, c.b, c.a].join(','); }})()");
+            var parts = got.Split(',');
+            Assert.AreEqual(4, parts.Length, $"{expr} gave {got}");
+            var expected = new[] { r, g, b, a };
+            for (int i = 0; i < 4; i++) {
+                Assert.IsTrue(float.TryParse(parts[i], out var f) && Mathf.Approximately(f, expected[i]),
+                    $"{expr} gave {got}, expected {r},{g},{b},{a}");
+            }
         }
 
         [UnityTest]

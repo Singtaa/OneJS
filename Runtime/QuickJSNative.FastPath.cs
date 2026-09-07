@@ -1034,6 +1034,7 @@ namespace OneJS {
                 result->vecY = col.g;
                 result->vecZ = col.b;
                 result->vecW = col.a;
+                result->typeHint = ColorHint;
                 return;
             }
 

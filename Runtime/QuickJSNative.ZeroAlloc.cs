@@ -283,6 +283,7 @@ namespace OneJS {
                     result->vecY = c.g;
                     result->vecZ = c.b;
                     result->vecW = c.a;
+                    result->typeHint = ColorHint;
                     break;
                 case UnityEngine.Object obj:
                     result->type = InteropType.ObjectHandle;
@@ -558,6 +559,7 @@ namespace OneJS {
                 result->vecY = col.g;
                 result->vecZ = col.b;
                 result->vecW = col.a;
+                result->typeHint = ColorHint;
                 return;
             }
             if (typeof(T) == typeof(Vector2)) {
