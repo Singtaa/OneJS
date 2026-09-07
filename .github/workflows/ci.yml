@@ -1,18 +1,25 @@
 name: CI
 
+# Markdown does not run CI, except under AI/Skills: AISkillContractTests reads
+# the SKILL.md frontmatter, so a skill edit can turn the suite red (or green)
+# and has to be checked. Later patterns win, which is what re-includes it.
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - '**/*.md'
-      - '**/*.md.meta'
-      - '.gitignore'
-      - '.gitattributes'
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!**/*.md.meta'
+      - '!.gitignore'
+      - '!.gitattributes'
+      - 'AI/Skills/**'
   pull_request:
     branches: [main]
-    paths-ignore:
-      - '**/*.md'
-      - '**/*.md.meta'
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!**/*.md.meta'
+      - 'AI/Skills/**'
   workflow_dispatch:
 
 env:
