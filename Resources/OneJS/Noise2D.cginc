@@ -114,9 +114,56 @@ float onejsFbmSimplex(float2 p, float seed, int octaves, float lacunarity, float
     return sum / max(norm, 1e-4);
 }
 
-/// Dispatches on the noise kind: 0 value, 1 simplex.
+// MARK: turbulence and ridged
+//
+// fBm above sums signed octaves, so octaves cancel as often as they add and the
+// field reads as cloud. Turbulence sums the ABSOLUTE value of each octave: the
+// zero crossings become creases, and the creases of every octave stack into
+// the veins and licks that read as fire, smoke and marble. Ridged inverts the
+// same crease so it is the bright line rather than the dark one, and squares
+// it so the ridges stay sharp under the finer octaves. Both are built on
+// simplex; a value noise crease follows the grid and shows as blocks.
+
+/// 0..1. Perlin's turbulence: sum over octaves of |signed simplex|.
+float onejsTurbulence(float2 p, float seed, int octaves, float lacunarity, float gain)
+{
+    float sum = 0, amp = 0.5, norm = 0;
+    [unroll(4)]
+    for (int o = 0; o < 4; o++)
+    {
+        if (o >= octaves) break;
+        sum += abs(onejsSimplexRaw(p + (seed + o * 19.0) * 137.13)) * amp;
+        norm += amp;
+        p *= lacunarity;
+        amp *= gain;
+    }
+    return sum / max(norm, 1e-4);
+}
+
+/// 0..1. Musgrave's ridged multifractal, without the feedback term: the
+/// crease of |signed simplex| turned into a bright ridge and squared.
+float onejsRidged(float2 p, float seed, int octaves, float lacunarity, float gain)
+{
+    float sum = 0, amp = 0.5, norm = 0;
+    [unroll(4)]
+    for (int o = 0; o < 4; o++)
+    {
+        if (o >= octaves) break;
+        float r = 1.0 - abs(onejsSimplexRaw(p + (seed + o * 19.0) * 137.13));
+        sum += r * r * amp;
+        norm += amp;
+        p *= lacunarity;
+        amp *= gain;
+    }
+    return sum / max(norm, 1e-4);
+}
+
+/// Dispatches on the noise kind: 0 value fBm, 1 simplex fBm, 2 turbulence,
+/// 3 ridged. The numbers are the contract with onejs-unity/src/fx/image.ts.
 float onejsFbmKind(int kind, float2 p, float seed, int octaves, float lacunarity, float gain)
 {
+    if (kind == 2) return onejsTurbulence(p, seed, octaves, lacunarity, gain);
+    if (kind == 3) return onejsRidged(p, seed, octaves, lacunarity, gain);
     return kind == 1 ? onejsFbmSimplex(p, seed, octaves, lacunarity, gain)
                      : onejsFbm(p, seed, octaves, lacunarity, gain);
 }
