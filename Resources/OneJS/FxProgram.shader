@@ -108,6 +108,7 @@ Shader "OneJS/FxProgram"
             #define OP_HSV2RGB 113
             #define OP_RGB2HSV 114
             #define OP_LUMINANCE 115
+            #define OP_TO_LINEAR 116
 
             #define OP_NOISE 128
             #define OP_SIMPLEX 129
@@ -289,6 +290,9 @@ Shader "OneJS/FxProgram"
                             : (w == 3 ? float4(normalize(a.xyz), 0) : normalize(a));
                     }
                     else if (op == OP_LUMINANCE) res = sl_luminance(a.rgb);
+                    // Lanes past a narrower value's width hold 0, which converts
+                    // to 0, so one form serves every width; .a is kept for vec4.
+                    else if (op == OP_TO_LINEAR) res = float4(sl_toLinear(a.rgb), a.a);
                     else if (op == OP_CROSS)     res = float4(cross(a.xyz, b.xyz), 0);
                     else if (op == OP_REFLECT)   res = float4(reflect(a.xyz, b.xyz), 0);
 

@@ -1,6 +1,7 @@
 # Unreleased
 
 - `fx` colours are sRGB as written; gradients and ramps interpolate in sRGB and convert to linear (onejs-unity 0.5.7)
+- `sl.ramp` mixes its stops in sRGB and converts once; `sl.color` and `sl.toLinear` added, with a `TO_LINEAR` opcode in both backends (onejs-unity 0.5.8)
 - Pointer and mouse events carry `localX`/`localY`, relative to the element the handler is on
 - `backgroundImage` and the `fx` and asset hooks share an opaque `Texture` type instead of `unknown` (onejs-react 0.1.48, onejs-unity 0.5.1)
 - `fx.useAnimatedTexture` draws with the latest render's build function each frame (onejs-unity 0.5.1)

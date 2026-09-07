@@ -152,4 +152,21 @@ float sl_voronoi(float2 p)
 
 float sl_luminance(float3 c) { return dot(c, float3(0.2126, 0.7152, 0.0722)); }
 
+// A colour as written (sRGB, like CSS) to the working space the target holds.
+// Fx targets are linear float textures that a Linear colour space project
+// encodes on display, so a stop stored as written drew lighter than its swatch.
+// In a Gamma project the written value is already right. The float4 form keeps
+// alpha, which is coverage rather than light. Mirrors fxColorToWorking.
+#ifdef UNITY_COLORSPACE_GAMMA
+float  sl_toLinear(float c)  { return c; }
+float2 sl_toLinear(float2 c) { return c; }
+float3 sl_toLinear(float3 c) { return c; }
+float4 sl_toLinear(float4 c) { return c; }
+#else
+float  sl_toLinear(float c)  { return GammaToLinearSpaceExact(c); }
+float2 sl_toLinear(float2 c) { return float2(GammaToLinearSpaceExact(c.x), GammaToLinearSpaceExact(c.y)); }
+float3 sl_toLinear(float3 c) { return GammaToLinearSpace(c); }
+float4 sl_toLinear(float4 c) { return float4(GammaToLinearSpace(c.rgb), c.a); }
+#endif
+
 #endif
