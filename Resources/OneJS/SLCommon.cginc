@@ -15,7 +15,15 @@
 // The 42 signed distance shapes, shared with FxSources rather than rewritten.
 // The MATHS is what has to match between backends, and it lives in one file.
 #include "SDF2D.cginc"
+#include "Noise2D.cginc"
 
+// Noise is the same code fx draws with (Noise2D.cginc), so `sl.simplex` and
+// `fx.noise({ type: "simplex" })` mean one thing, and turbulence and ridged
+// exist here for the same reason they exist there. A program has no seed of
+// its own: offset the input to get a different field. The four kinds and
+// their numbers are the contract with `onejsFbmKind`: 0 value fBm, 1 simplex
+// fBm, 2 turbulence, 3 ridged, with the classic lacunarity 2 and gain 0.5.
+// Voronoi keeps its own hash: the fx side has no voronoi to share yet.
 float sl_hash21(float2 p)
 {
     p = frac(p * float2(123.34, 456.21));
@@ -23,40 +31,11 @@ float sl_hash21(float2 p)
     return frac(p.x * p.y);
 }
 
-float sl_valueNoise(float2 p)
+float sl_valueNoise(float2 p) { return onejsVNoise(p, 0.0); }
+float sl_simplex(float2 p)    { return onejsSimplex(p, 0.0); }
+float sl_fbm(float2 p, int octaves, int kind)
 {
-    float2 i = floor(p);
-    float2 f = frac(p);
-    f = f * f * (3.0 - 2.0 * f);
-    float a = sl_hash21(i);
-    float b = sl_hash21(i + float2(1, 0));
-    float c = sl_hash21(i + float2(0, 1));
-    float d = sl_hash21(i + float2(1, 1));
-    return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
-}
-
-// The simplex opcode is currently value noise on an offset, rotated lattice.
-// It is NOT simplex noise and the name is a promise this does not yet keep;
-// what matters for now is that both backends compute the same wrong thing
-// rather than two different ones.
-float sl_simplex(float2 p)
-{
-    return sl_valueNoise(p * 1.37 + 11.7);
-}
-
-float sl_fbm(float2 p, int octaves)
-{
-    float sum = 0, amp = 0.5, norm = 0;
-    [unroll]
-    for (int o = 0; o < 8; o++)
-    {
-        if (o >= octaves) break;
-        sum += sl_valueNoise(p) * amp;
-        norm += amp;
-        p *= 2.0;
-        amp *= 0.5;
-    }
-    return norm > 0 ? sum / norm : 0;
+    return onejsFbmKind(kind, p, 0.0, clamp(octaves, 1, 4), 2.0, 0.5);
 }
 
 float3 sl_hsv2rgb(float3 c)

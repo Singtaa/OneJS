@@ -115,6 +115,8 @@ Shader "OneJS/FxProgram"
             #define OP_FBM 130
             #define OP_SDF 131
             #define OP_VORONOI 132
+            #define OP_TURBULENCE 133
+            #define OP_RIDGED 134
 
             #define OP_SAMPLE 144
 
@@ -304,7 +306,9 @@ Shader "OneJS/FxProgram"
                     else if (op == OP_HSV2RGB)    res = float4(sl_hsv2rgb(a.xyz), 1);
                     else if (op == OP_NOISE)      res = sl_valueNoise(a.xy);
                     else if (op == OP_SIMPLEX)    res = sl_simplex(a.xy);
-                    else if (op == OP_FBM)        res = sl_fbm(a.xy, (int)imm.x);
+                    else if (op == OP_FBM)        res = sl_fbm(a.xy, (int)imm.x, (int)imm.y);
+                    else if (op == OP_TURBULENCE) res = sl_fbm(a.xy, (int)imm.x, 2);
+                    else if (op == OP_RIDGED)     res = sl_fbm(a.xy, (int)imm.x, 3);
                     // The shape id rides in the b operand slot, which a one
                     // argument op leaves free, so all four immediate floats stay
                     // available for the shape's own parameters.
