@@ -96,7 +96,7 @@ Shader "OneJS/FxOps"
             {
                 int count = (int)_RampCount;
                 if (count <= 0) return float4(t, t, t, 1);
-                if (count == 1) return _RampColors[0];
+                if (count == 1) return fxColorToWorking(_RampColors[0]);
                 t = saturate(t);
                 float4 col = _RampColors[0];
                 [loop]
@@ -108,7 +108,9 @@ Shader "OneJS/FxOps"
                     float k = saturate((t - p0) / max(p1 - p0, 1e-6));
                     col = t >= p0 ? lerp(_RampColors[i - 1], _RampColors[i], k) : col;
                 }
-                return col;
+                // Stops are sRGB as written and interpolated as such. See
+                // fxColorToWorking in FxColor.cginc.
+                return fxColorToWorking(col);
             }
 
             struct appdata { float4 vertex : POSITION; float2 uv : TEXCOORD0; };

@@ -24,6 +24,7 @@ Shader "OneJS/FxSources"
             #include "UnityCG.cginc"
             #include "SDF2D.cginc"
             #include "Noise2D.cginc"
+            #include "FxColor.cginc"
 
             #define MAX_STOPS 8
 
@@ -136,7 +137,7 @@ Shader "OneJS/FxSources"
 
                 int count = (int)_GradStopCount;
                 if (count <= 0) return float4(0, 0, 0, 0);
-                if (count == 1) return _GradColors[0];
+                if (count == 1) return fxColorToWorking(_GradColors[0]);
 
                 float4 col = _GradColors[0];
                 [loop]
@@ -150,7 +151,9 @@ Shader "OneJS/FxSources"
                     float k = saturate((t - p0) / max(p1 - p0, 1e-6));
                     col = t >= p0 ? lerp(_GradColors[i - 1], _GradColors[i], k) : col;
                 }
-                return col;
+                // Stops are sRGB as written; the lerp above runs in that space
+                // on purpose. See fxColorToWorking.
+                return fxColorToWorking(col);
             }
 
             fixed4 frag(v2f i) : SV_Target

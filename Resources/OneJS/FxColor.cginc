@@ -13,6 +13,24 @@
 // Rec. 709, the same weights UI Toolkit and Unity use elsewhere.
 float onejsLuma(float3 c) { return dot(c, float3(0.2126, 0.7152, 0.0722)); }
 
+// A colour the author wrote (hex or 0..1 rgba, sRGB like CSS and USS) into the
+// value the render target holds. Fx targets are linear float textures, and in
+// a Linear colour space project UI Toolkit encodes them to sRGB on display, so
+// a stop stored as written showed up lighter than the swatch: #808080 drew as
+// #bbbbbb. Gradient and ramp stops are interpolated in sRGB first and converted
+// after, which is what CSS does and what reads as an even ramp; converting the
+// stops and then interpolating looks bright for most of the run. Alpha is
+// coverage, not light, and stays as written. In a Gamma project nothing is
+// encoded on display, so the written value is already right.
+float4 fxColorToWorking(float4 c)
+{
+#ifdef UNITY_COLORSPACE_GAMMA
+    return c;
+#else
+    return float4(GammaToLinearSpace(c.rgb), c.a);
+#endif
+}
+
 float3 onejsSaturation(float3 c, float amount)
 {
     return lerp(onejsLuma(c).xxx, c, amount);

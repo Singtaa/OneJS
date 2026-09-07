@@ -19,6 +19,22 @@ namespace OneJS.Fx {
     /// Wire contract: JSModules/onejs-unity/src/fx/ops.ts. Change both together.
     /// </summary>
     public static class FxBridge {
+        /// <summary>
+        /// A colour the author wrote (sRGB, like CSS and USS) as the value the
+        /// render target holds. Fx targets are linear float textures, and a
+        /// Linear colour space project encodes them to sRGB on display, so a
+        /// colour stored as written drew lighter than its swatch. Gradient and
+        /// ramp stops are not converted here: the shader interpolates them in
+        /// sRGB and converts the result (fxColorToWorking in FxColor.cginc).
+        /// Alpha is coverage and stays as written.
+        /// </summary>
+        static Color Working(Color c) {
+            if (QualitySettings.activeColorSpace != ColorSpace.Linear) return c;
+            var l = c.linear;
+            l.a = c.a;
+            return l;
+        }
+
         public const int WireVersion = 1;
 
         /// <summary>Must match MAX_OPS in OneJS/FxOps.shader and MAX_FUSED_OPS in ops.ts.</summary>
@@ -425,8 +441,8 @@ namespace OneJS.Fx {
                 var target = Borrow(width, height);
                 var prev = RenderTexture.active;
                 RenderTexture.active = target;
-                GL.Clear(true, true, new Color(buffer[cursor + 2], buffer[cursor + 3],
-                                               buffer[cursor + 4], buffer[cursor + 5]));
+                GL.Clear(true, true, Working(new Color(buffer[cursor + 2], buffer[cursor + 3],
+                                                       buffer[cursor + 4], buffer[cursor + 5])));
                 RenderTexture.active = prev;
                 return target;
             }
@@ -542,8 +558,8 @@ namespace OneJS.Fx {
                     buffer[cursor], buffer[cursor + 1], buffer[cursor + 2], buffer[cursor + 3]));
                 mat.SetVector(s_Xform2Id, new Vector4(
                     buffer[cursor + 4], buffer[cursor + 5], buffer[cursor + 6], 0f));
-                mat.SetVector(s_BgColorId, new Vector4(
-                    buffer[cursor + 7], buffer[cursor + 8], buffer[cursor + 9], buffer[cursor + 10]));
+                mat.SetVector(s_BgColorId, Working(new Color(
+                    buffer[cursor + 7], buffer[cursor + 8], buffer[cursor + 9], buffer[cursor + 10])));
             } else if (op == OpTile) {
                 Need(argCount, 4, "tile");
                 mat.SetFloat(s_SpOpId, 1f);
@@ -621,8 +637,8 @@ namespace OneJS.Fx {
 
                 mat.SetFloat(s_FilterId, 5f);
                 mat.SetTexture(s_AltTexId, src);
-                mat.SetVector(s_OutlineColorId, new Vector4(
-                    buffer[cursor + 1], buffer[cursor + 2], buffer[cursor + 3], buffer[cursor + 4]));
+                mat.SetVector(s_OutlineColorId, Working(new Color(
+                    buffer[cursor + 1], buffer[cursor + 2], buffer[cursor + 3], buffer[cursor + 4])));
                 mat.SetFloat(s_OutlineOnId, buffer[cursor + 5]);
                 var dst = Borrow(width, height);
                 Graphics.Blit(grown, dst, mat, 0);
