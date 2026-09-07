@@ -56,6 +56,11 @@ lipo -create -output "$BUILD_DIR/libquickjs_unity.dylib" \
 lipo -info "$BUILD_DIR/libquickjs_unity.dylib"
 
 echo "=== Installing to Plugins/macOS ==="
+# Remove before copying so the install gets a fresh inode. The kernel caches a
+# Mach-O's code signature per vnode, so overwriting a dylib in place while an
+# editor still has the old one mapped leaves a cached signature that no longer
+# matches the bytes, and the next dlopen from that path dies with SIGKILL.
+rm -f ../../Plugins/macOS/libquickjs_unity.dylib
 cp "$BUILD_DIR/libquickjs_unity.dylib" ../../Plugins/macOS/
 
 echo ""

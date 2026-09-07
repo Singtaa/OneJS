@@ -1,6 +1,7 @@
 # Unreleased
 
 - A `Color` read from C# has `r`, `g`, `b` and `a` in JS, on every path
+- A zero-alloc binding can return a string, a data struct or an object; native libraries rebuilt
 - `fx` colours are sRGB as written; gradients and ramps interpolate in sRGB and convert to linear (onejs-unity 0.5.7)
 - `fx` noise `type: "turbulence"` is real turbulence (sum of absolute octaves) and `"ridged"` is new (onejs-unity 0.5.9)
 - `sl` noise shares fx's fields: `sl.simplex` is real simplex, `sl.fbm` takes a base, `sl.turbulence` and `sl.ridged` added (onejs-unity 0.5.10)

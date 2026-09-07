@@ -91,6 +91,15 @@ load, so it tests the slice rather than inspecting it. Rosetta is removed for
 general use in macOS 28, and Unity drops Intel entirely in 6.8, so both this
 check and the x86_64 slice have a finite life.
 
+## Replacing the macOS dylib while an editor is open
+
+Install the dylib under a fresh inode (`build.sh` now removes the old file before
+copying). The kernel caches a Mach-O's code signature per vnode, so a `cp` over a
+dylib an open editor still has mapped leaves the cached signature disagreeing
+with the new bytes, and any process that then loads it from that path is killed
+outright (exit 137, no message), while the same bytes copied to another path load
+fine. The load smoke check is what caught it; run it after every refresh.
+
 ## Dependency Check
 
 Every file here is a committed build artifact, and only the Linux .so is rebuilt

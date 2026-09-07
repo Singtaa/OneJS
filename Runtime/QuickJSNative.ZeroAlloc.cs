@@ -32,7 +32,8 @@ namespace OneJS {
     /// ## Limitations:
     /// - Max 8 arguments per call
     /// - Complex objects require JSON serialization (not zero-alloc)
-    /// - Return values limited to primitives and handles
+    /// - Return values: primitives and vectors stay zero-alloc; a string, data struct or object
+    ///   allocates its buffer or handle the way the fast path does, and native frees the buffer
     /// </summary>
     public static partial class QuickJSNative {
         // MARK: Zero-Alloc Binding Registry
@@ -571,13 +572,15 @@ namespace OneJS {
                 return;
             }
 
-            // Reference types don't box
+            /*
+             * Everything else: strings, data structs as JSON, and any object as
+             * a typed handle, the way the fast path writes them. The string and
+             * typeHint buffers this allocates are freed by the native route once
+             * the value is in JS. Before this only UnityEngine.Object made it
+             * across; a bound method returning a string answered null.
+             */
             if (value == null) return;
-
-            if (value is UnityEngine.Object obj) {
-                result->type = InteropType.ObjectHandle;
-                result->handle = RegisterObject(obj);
-            }
+            WriteToInterop(value, result);
         }
 
     }

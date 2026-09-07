@@ -205,6 +205,38 @@ namespace OneJS.Tests {
             yield return null;
         }
 
+        /*
+         * A zero-alloc result's string and typeHint buffers are C#-allocated and
+         * freed by the native route once the value is copied into JS. These pin
+         * that the copy happens before the free: a string result reads back whole,
+         * and a handle result still resolves its members through __csType, across
+         * enough calls that a use-after-free would show.
+         */
+        [UnityTest]
+        public IEnumerator ZeroAllocBinding_StringResult_ReadsWhole() {
+            int id = QuickJSNative.Bind<string>(() => "the quick brown fox");
+            try {
+                var got = _ctx.Eval($"(function() {{ var s = ''; for (var i = 0; i < 2000; i++) s = __zaInvoke0({id}); return s; }})()");
+                Assert.AreEqual("the quick brown fox", got);
+            } finally {
+                QuickJSNative.UnregisterZeroAllocBinding(id);
+            }
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator ZeroAllocBinding_HandleResult_KeepsItsType() {
+            var ve = new UnityEngine.UIElements.VisualElement { name = "za-handle" };
+            int id = QuickJSNative.Bind<UnityEngine.UIElements.VisualElement>(() => ve);
+            try {
+                var got = _ctx.Eval($"(function() {{ var o; for (var i = 0; i < 2000; i++) o = __zaInvoke0({id}); return o.__csType + '|' + (typeof o.__csHandle); }})()");
+                Assert.AreEqual("UnityEngine.UIElements.VisualElement|number", got);
+            } finally {
+                QuickJSNative.UnregisterZeroAllocBinding(id);
+            }
+            yield return null;
+        }
+
         void AssertColor(string expr, float r, float g, float b, float a) {
             var got = _ctx.Eval($"(function() {{ var c = {expr}; return [c.r, c.g, c.b, c.a].join(','); }})()");
             var parts = got.Split(',');

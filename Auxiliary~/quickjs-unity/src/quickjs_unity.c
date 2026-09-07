@@ -920,6 +920,24 @@ static void interop_value_free_string_ref(JSContext* ctx, InteropValue* v) {
 }
 
 // Zero-arg invoke
+// A zero-alloc result's string payload and typeHint are C#-allocated
+// (StringToCoTaskMemUTF8), exactly like an invoke result's, and the value
+// is fully copied into the JSValue by interop_value_to_js. Free them the
+// same way; before this every handle or string returned through
+// __zaInvokeN leaked its buffer.
+static JSValue za_result_to_js(JSContext* ctx, InteropValue* result) {
+    JSValue v = interop_value_to_js(ctx, result);
+    if (result->type == INTEROP_TYPE_STRING && result->v.str) {
+        free_cs_memory(result->v.str);
+        result->v.str = NULL;
+    }
+    if (result->typeHint) {
+        free_cs_memory(result->typeHint);
+        result->typeHint = NULL;
+    }
+    return v;
+}
+
 static JSValue js_za_invoke0(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
     if (!g_callbacks.zeroalloc) {
         return JS_ThrowInternalError(ctx, "zeroalloc callback not set");
@@ -935,7 +953,7 @@ static JSValue js_za_invoke0(JSContext* ctx, JSValueConst this_val, int argc, JS
 
     InteropValue result = {0};
     g_callbacks.zeroalloc(bindingId, NULL, 0, &result);
-    return interop_value_to_js(ctx, &result);
+    return za_result_to_js(ctx, &result);
 }
 
 // 1-arg invoke
@@ -959,7 +977,7 @@ static JSValue js_za_invoke1(JSContext* ctx, JSValueConst this_val, int argc, JS
     g_callbacks.zeroalloc(bindingId, args, 1, &result);
 
     interop_value_free_string_ref(ctx, &args[0]);
-    return interop_value_to_js(ctx, &result);
+    return za_result_to_js(ctx, &result);
 }
 
 // 2-arg invoke
@@ -985,7 +1003,7 @@ static JSValue js_za_invoke2(JSContext* ctx, JSValueConst this_val, int argc, JS
 
     interop_value_free_string_ref(ctx, &args[0]);
     interop_value_free_string_ref(ctx, &args[1]);
-    return interop_value_to_js(ctx, &result);
+    return za_result_to_js(ctx, &result);
 }
 
 // 3-arg invoke
@@ -1011,7 +1029,7 @@ static JSValue js_za_invoke3(JSContext* ctx, JSValueConst this_val, int argc, JS
     g_callbacks.zeroalloc(bindingId, args, 3, &result);
 
     for (int i = 0; i < 3; i++) interop_value_free_string_ref(ctx, &args[i]);
-    return interop_value_to_js(ctx, &result);
+    return za_result_to_js(ctx, &result);
 }
 
 // 4-arg invoke
@@ -1037,7 +1055,7 @@ static JSValue js_za_invoke4(JSContext* ctx, JSValueConst this_val, int argc, JS
     g_callbacks.zeroalloc(bindingId, args, 4, &result);
 
     for (int i = 0; i < 4; i++) interop_value_free_string_ref(ctx, &args[i]);
-    return interop_value_to_js(ctx, &result);
+    return za_result_to_js(ctx, &result);
 }
 
 // 5-arg invoke
@@ -1063,7 +1081,7 @@ static JSValue js_za_invoke5(JSContext* ctx, JSValueConst this_val, int argc, JS
     g_callbacks.zeroalloc(bindingId, args, 5, &result);
 
     for (int i = 0; i < 5; i++) interop_value_free_string_ref(ctx, &args[i]);
-    return interop_value_to_js(ctx, &result);
+    return za_result_to_js(ctx, &result);
 }
 
 // 6-arg invoke
@@ -1089,7 +1107,7 @@ static JSValue js_za_invoke6(JSContext* ctx, JSValueConst this_val, int argc, JS
     g_callbacks.zeroalloc(bindingId, args, 6, &result);
 
     for (int i = 0; i < 6; i++) interop_value_free_string_ref(ctx, &args[i]);
-    return interop_value_to_js(ctx, &result);
+    return za_result_to_js(ctx, &result);
 }
 
 // 7-arg invoke
@@ -1115,7 +1133,7 @@ static JSValue js_za_invoke7(JSContext* ctx, JSValueConst this_val, int argc, JS
     g_callbacks.zeroalloc(bindingId, args, 7, &result);
 
     for (int i = 0; i < 7; i++) interop_value_free_string_ref(ctx, &args[i]);
-    return interop_value_to_js(ctx, &result);
+    return za_result_to_js(ctx, &result);
 }
 
 // 8-arg invoke
@@ -1141,7 +1159,7 @@ static JSValue js_za_invoke8(JSContext* ctx, JSValueConst this_val, int argc, JS
     g_callbacks.zeroalloc(bindingId, args, 8, &result);
 
     for (int i = 0; i < 8; i++) interop_value_free_string_ref(ctx, &args[i]);
-    return interop_value_to_js(ctx, &result);
+    return za_result_to_js(ctx, &result);
 }
 
 static void qjs_init_zeroalloc(JSContext* ctx) {
