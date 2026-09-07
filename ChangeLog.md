@@ -1,4 +1,4 @@
-# Unreleased
+# [2026-09-07] v3.4.1
 
 - A `Color` read from C# has `r`, `g`, `b` and `a` in JS, on every path
 - A zero-alloc binding can return a string, a data struct or an object; native libraries rebuilt
