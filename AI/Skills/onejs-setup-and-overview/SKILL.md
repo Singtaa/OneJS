@@ -5,14 +5,14 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.4.1"
-  skill-version: "1.0.1"
+  skill-version: "1.1.0"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-09-07"
+  last-verified: "2026-09-11"
 ---
 
 # Set Up a OneJS Project
@@ -140,6 +140,60 @@ Conventions that differ from web React and cause most first-time bugs:
 - Style shorthands such as `padding` and `borderRadius` work and are expanded by the reconciler, even though UI Toolkit has no native shorthand for them.
 - Module-level code runs in edit-mode preview as well as Play mode. Guard play-only logic with the `__isPlaying` global, or put it in the exported `onPlay()` and `onStop()` lifecycle functions. Play-mode singletons are null during preview.
 - Hot reload is a hard reload. All JavaScript state is lost, `useEffect` cleanups run first, then the bundle re-runs.
+
+### Workflow: Write a shader as a `.sl` file
+
+**Goal.** Draw a per-pixel effect (fire, plasma, an animated gradient, a glow) into an element, without writing a `.shader` asset or any C#.
+
+**Steps.**
+
+1. Write the shader beside your components, for example `~/effects/plasma.sl`. It is HLSL with the boilerplate removed: no `Properties`, no `SubShader`, no `CGPROGRAM`, no `appdata` or `v2f`. The file is the fragment function.
+
+```hlsl
+uniform float warp = 0.5;
+uniform float hue = 0.5;
+
+float4 main() {
+    float2 p = (uv - 0.5) * (warp * 14 + 2);
+    float v = sin(p.x + time) + sin(p.y - time * 0.8);
+    float n = saturate(v * 0.22 + 0.5);
+    return float4(hsv2rgb(float3(frac(hue + n * 0.18), 0.75, n)), 1);
+}
+```
+
+2. Confirm `slPlugin()` is in the project's `~/esbuild.config.mjs` plugin list. A project scaffolded by Initialize Project already has it:
+
+```js
+import { importTransformPlugin, slPlugin, tailwindPlugin, themesPlugin, ussModulesPlugin } from "onejs-unity/esbuild"
+// ...
+plugins: [importTransformPlugin(), tailwindPlugin({ content: ["./**/*.{tsx,ts,jsx,js}"] }), themesPlugin(), ussModulesPlugin({ generateTypes: true }), slPlugin({ generateTypes: true })]
+```
+
+3. Import it and render it. The uniform names are checked against the file.
+
+```tsx
+import { ShaderProgram } from "onejs-react"
+import plasma from "./effects/plasma.sl"
+
+<ShaderProgram program={plasma} uniforms={{ warp: 0.3, hue: 0.7 }}
+    style={{ width: 240, height: 240 }} />
+```
+
+4. `npm run build` in `~/`, or save with the watcher running.
+
+**Expected result.** The element draws the effect and animates. `app.sl.json` appears beside `app.js.txt`, and importing it makes the editor generate a compiled shader per program under `Assets/OneJS.Generated/Shaders/`.
+
+What a program is given as free identifiers: `uv` (0 to 1 across the element, origin already corrected), `time`, `resolution`, `fragCoord`, `aspect`. The types are `float`, `float2`, `float3`, `float4`, and `texture2D` to declare a sampler; there is no `int` or `bool`.
+
+The traps, all of which are refused at build time with a message rather than rendered wrong:
+
+- **Eight values live at once, and 256 instructions.** These are the interpreter's, and they are real: a fire with a texture, a three iteration loop and a four stop ramp uses all eight registers. A ninth is an error naming the limit.
+- **A `for` loop unrolls**, so its bound has to be a constant. There is no loop on either backend.
+- **An `if` becomes a `select`**: both sides are evaluated. `return` inside one is refused, because there is nothing for it to skip. Assign to a local and return it once at the end.
+- **Swizzles are read only.** Build a new value rather than assigning into `p.x`.
+- **HLSL spellings only.** `mix`, `fract`, `mod` and `vec3` are refused by name, with the HLSL word in the message.
+
+For a program built by code rather than written by hand, `sl.program` records the same graph from TypeScript. Full reference: https://onejs.com/docs/guides/shader-language
 
 ### Workflow: Set up a project without clicking the inspector
 

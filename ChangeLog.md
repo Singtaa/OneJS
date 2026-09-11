@@ -1,5 +1,9 @@
 # Unreleased
 
+- A `float4` of literals is one instruction and one register, not five and four (onejs-unity 0.5.12)
+- `sl.ramp` builds each stop as it needs it; a four stop ramp costs 4 registers, not 7 (onejs-unity 0.5.12)
+- A program's textures bind by the name the shader declares (onejs-react 0.1.52, onejs-unity 0.5.12)
+- A `.sl` import can hand over the file's own text, for showing a shader beside what it draws (onejs-unity 0.5.12)
 - The Play editor reads `.sl` files: highlighting, errors as you type, completion and hover, from the parser itself
 - An ejected game's `.sl` files highlight as HLSL in VS Code with nothing installed
 - `sl` programs read `resolution`, `fragCoord` and `aspect` from the element, not the game window (onejs-unity 0.5.12)

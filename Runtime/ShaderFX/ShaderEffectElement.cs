@@ -168,6 +168,27 @@ namespace OneJS.ShaderFX {
             MarkDirtyRepaint();
         }
 
+        /// <summary>
+        /// Sets one of the program's textures, by the slot the encoder gave it.
+        /// </summary>
+        /// <remarks>
+        /// By SLOT, for the same reason uniforms are. A program's textures are
+        /// _Tex0 to _Tex3 in both backends, so a host handed the name an author
+        /// wrote ("grain") set a material property nothing declares and bound
+        /// nothing at all, in the browser and after an eject alike.
+        /// </remarks>
+        public void SetProgramTexture(int slot, Texture tex) {
+            if (_programHandle < 0 || tex == null) return;
+            SL.SLProgramBridge.SetTexture(_programHandle, slot, tex);
+            MarkDirtyRepaint();
+        }
+
+        /// <summary>The same, from the name of one of the built-in procedural textures.</summary>
+        public void SetProgramBuiltinTexture(int slot, string builtin) {
+            var tex = ShaderEffectBridge.GetBuiltinTexture(builtin);
+            if (tex != null) SetProgramTexture(slot, tex);
+        }
+
         /// <summary>Uniform names in slot order, as they arrive from JS.</summary>
         static string[] ToStrings(object obj) {
             if (obj == null) return null;
