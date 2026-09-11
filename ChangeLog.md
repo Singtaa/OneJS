@@ -1,6 +1,10 @@
 # Unreleased
 
 - `.sl` files: a shader program in HLSL text, parsing to the program the `sl` EDSL records (onejs-unity 0.5.12)
+- `import plasma from "./plasma.sl"`: encoded at build time, with a `.d.ts` and a shader manifest beside the bundle (onejs-unity 0.5.12)
+- An ejected Play game compiles its shaders from the first frame (onejs-play 0.5.2)
+- A uniform's declared default reaches the interpreter, not just the compiled shader (onejs-react 0.1.52, onejs-unity 0.5.12)
+- `<ShaderProgram>` checks uniform names against the program it was given (onejs-react 0.1.52)
 - `sl.cross`, `sl.reflect` and `sl.remap` added (onejs-unity 0.5.12)
 - `sl` select, lerp, step, smoothstep and clamp take their width from the widest operand (onejs-unity 0.5.12)
 - Shader programs interpreted in the editor are recorded and compiled on the next tick; an ejected game runs compiled from its second frame with no manifest written by hand (onejs-unity 0.5.11, onejs-react 0.1.51)

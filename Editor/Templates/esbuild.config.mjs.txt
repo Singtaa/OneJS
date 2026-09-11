@@ -4,7 +4,7 @@ import path from "path"
 import { fileURLToPath } from "url"
 
 // Import plugins from onejs-unity
-import { importTransformPlugin, tailwindPlugin, themesPlugin, ussModulesPlugin } from "onejs-unity/esbuild"
+import { importTransformPlugin, slPlugin, tailwindPlugin, themesPlugin, ussModulesPlugin } from "onejs-unity/esbuild"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -54,6 +54,10 @@ const config = {
         themesPlugin(),
         // USS Modules support (scoped class names, auto-generates .d.ts files)
         ussModulesPlugin({ generateTypes: true }),
+        // Shader programs: `import plasma from "./plasma.sl"`. Encodes at build
+        // time and writes app.sl.json beside the bundle, which an editor turns
+        // into compiled shaders on import.
+        slPlugin({ generateTypes: true }),
     ],
 }
 
