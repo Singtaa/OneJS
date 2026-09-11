@@ -88,6 +88,12 @@ jobs:
   unity-tests:
     name: Unity tests (EditMode + PlayMode)
     runs-on: ubuntu-latest
+    # The unity-ci environment holds the license secrets, and its branch policy
+    # refuses fork branches. Requesting it from a fork PR fails before any step
+    # runs and stamps the PR with a deployment error, so skip the job instead:
+    # fork PRs get the native plugin checks, and the Unity suite runs on main
+    # after merge.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     environment: unity-ci
 
     steps:
