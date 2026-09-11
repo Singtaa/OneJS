@@ -38,6 +38,7 @@ namespace OneJS.SL {
         static readonly int s_ResultReg = Shader.PropertyToID("_ResultReg");
         static readonly int s_Secs = Shader.PropertyToID("_Secs");
         static readonly int s_FlipY = Shader.PropertyToID("_FlipY");
+        static readonly int s_Res = Shader.PropertyToID("_Res");
         static readonly int s_Uniforms = Shader.PropertyToID("_Uniforms");
         static readonly int[] s_TexIds = {
             Shader.PropertyToID("_Tex0"), Shader.PropertyToID("_Tex1"),
@@ -388,6 +389,12 @@ namespace OneJS.SL {
             // this wrong is how an effect ends up upside down in a browser and
             // right way up in the editor.
             c.Material.SetFloat(s_FlipY, SystemInfo.graphicsUVStartsAtTop ? 1f : 0f);
+            // The target's size, because _ScreenParams is not it. Unity sets
+            // that per camera and leaves it alone for a Blit, so a program
+            // drawn into a 64x256 element read the game view's 1737x1226 and
+            // `aspect` stretched every circle by the shape of the window. Both
+            // backends read it from here now.
+            c.Material.SetVector(s_Res, new Vector4(target.width, target.height, 0f, 0f));
             Graphics.Blit(null, target, c.Material);
         }
 

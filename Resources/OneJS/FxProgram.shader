@@ -35,6 +35,7 @@ Shader "OneJS/FxProgram"
         _ResultReg ("Result register", Float) = 0
         _Secs ("Seconds", Float) = 0
         _FlipY ("Flip Y", Float) = 0
+        _Res ("Target size", Vector) = (1, 1, 0, 0)
     }
 
     SubShader
@@ -133,6 +134,14 @@ Shader "OneJS/FxProgram"
             float _ResultReg;
             float _Secs;
             float _FlipY;
+            // The TARGET's size, set by SLProgramBridge.Render, not
+            // _ScreenParams. A program is blitted into the element's own render
+            // texture and Unity leaves _ScreenParams at whatever the last camera
+            // set, so blitting into a 64x256 target reads it as the game view's.
+            // `resolution` and `fragCoord` were the window's and `aspect` was
+            // the window's ratio, identically wrong here and in generated HLSL,
+            // which is why the two backends agreed and nothing caught it.
+            float4 _Res;
 
             float4 _Uniforms[MAX_UNIFORMS];
 
@@ -216,10 +225,10 @@ Shader "OneJS/FxProgram"
                     else if (op == OP_INPUT)
                     {
                         if (ra == IN_UV)              res = float4(i.uv, 0, 0);
-                        else if (ra == IN_FRAGCOORD)  res = float4(i.uv * _ScreenParams.xy, 0, 0);
-                        else if (ra == IN_RESOLUTION) res = float4(_ScreenParams.xy, 0, 0);
+                        else if (ra == IN_FRAGCOORD)  res = float4(i.uv * _Res.xy, 0, 0);
+                        else if (ra == IN_RESOLUTION) res = float4(_Res.xy, 0, 0);
                         else if (ra == IN_TIME)       res = _Secs;
-                        else                          res = _ScreenParams.x / max(_ScreenParams.y, 1.0);
+                        else                          res = _Res.x / max(_Res.y, 1.0);
                     }
                     else if (op == OP_SWIZZLE)
                     {

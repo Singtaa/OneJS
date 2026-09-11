@@ -1,5 +1,6 @@
 # Unreleased
 
+- `sl` programs read `resolution`, `fragCoord` and `aspect` from the element, not the game window (onejs-unity 0.5.12)
 - `.sl` files: a shader program in HLSL text, parsing to the program the `sl` EDSL records (onejs-unity 0.5.12)
 - `import plasma from "./plasma.sl"`: encoded at build time, with a `.d.ts` and a shader manifest beside the bundle (onejs-unity 0.5.12)
 - An ejected Play game compiles its shaders from the first frame (onejs-play 0.5.2)
