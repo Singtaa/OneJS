@@ -59,6 +59,8 @@ namespace OneJS.SL {
             /// <summary>Uniform names, for the native path's per name properties.</summary>
             public string[] UniformNames;
             public int[] UniformIds;
+            /// <summary>The program hash, which is what links it to a generated shader.</summary>
+            public string Hash;
 
             public void Dispose() {
                 if (ProgramTex != null) UnityEngine.Object.DestroyImmediate(ProgramTex);
@@ -106,6 +108,69 @@ namespace OneJS.SL {
             s_Programs.TryGetValue(handle, out var c) && c.Native;
 
         /// <summary>
+        /// Set by an editor that can turn a program into a compiled shader.
+        /// Null in a player, so a program in Play costs nothing here.
+        ///
+        /// Programs exist only once JavaScript has run, so nothing can find them
+        /// by reading source. This is where they are found instead: the host
+        /// asks <see cref="WantsSource"/> when it has just interpreted one, hands
+        /// over the HLSL through <see cref="RecordSource"/>, and the editor
+        /// side writes the manifest and generates the shader. That is how an
+        /// ejected game ends up compiled without anybody writing a manifest.
+        /// </summary>
+        public static Action<string, string> SourceRecorder;
+
+        /// <summary>True when a recorder is attached and this hash has no compiled shader.</summary>
+        public static bool WantsSource(string hash) =>
+            SourceRecorder != null && !string.IsNullOrEmpty(hash) && Shader.Find(GeneratedShaderName(hash)) == null;
+
+        public static void RecordSource(string hash, string hlsl) {
+            if (string.IsNullOrEmpty(hash) || string.IsNullOrEmpty(hlsl)) return;
+            SourceRecorder?.Invoke(hash, hlsl);
+        }
+
+        /// <summary>
+        /// Moves every interpreted program whose shader now exists onto it, in
+        /// place, and returns how many moved.
+        ///
+        /// In place matters: the element renders with the Material object it was
+        /// handed, so the shader is swapped on that object rather than a new
+        /// material issued. Uniform values carry over by being set again under
+        /// the generated shader's per name properties; textures keep their
+        /// names on both backends, so the material already holds them.
+        /// </summary>
+        public static int AdoptGenerated() {
+            int adopted = 0;
+            foreach (var c in s_Programs.Values) {
+                if (c.Native || string.IsNullOrEmpty(c.Hash)) continue;
+                var gen = Shader.Find(GeneratedShaderName(c.Hash));
+                if (gen == null) continue;
+                c.Material.shader = gen;
+                c.Native = true;
+                BindUniformIds(c);
+                if (c.UniformIds != null) {
+                    for (int u = 0; u < c.UniformIds.Length && u < MaxUniforms; u++) {
+                        c.Material.SetVector(c.UniformIds[u], c.Uniforms[u]);
+                    }
+                }
+                if (c.ProgramTex != null) {
+                    UnityEngine.Object.DestroyImmediate(c.ProgramTex);
+                    c.ProgramTex = null;
+                }
+                adopted++;
+            }
+            return adopted;
+        }
+
+        static void BindUniformIds(Compiled c) {
+            if (c.UniformNames == null) return;
+            c.UniformIds = new int[c.UniformNames.Length];
+            for (int u = 0; u < c.UniformNames.Length; u++) {
+                c.UniformIds[u] = Shader.PropertyToID("_u_" + c.UniformNames[u]);
+            }
+        }
+
+        /// <summary>
         /// Builds the material for a program, choosing the backend, without
         /// taking a handle.
         ///
@@ -149,6 +214,7 @@ namespace OneJS.SL {
                 InstructionCount = instructionCount,
                 ResultRegister = resultRegister,
                 UniformNames = uniformNames,
+                Hash = hash,
             };
 
             Shader gen = string.IsNullOrEmpty(hash) ? null : Shader.Find(GeneratedShaderName(hash));
@@ -156,12 +222,7 @@ namespace OneJS.SL {
                 native = true;
                 c.Native = true;
                 c.Material = new Material(gen);
-                if (uniformNames != null) {
-                    c.UniformIds = new int[uniformNames.Length];
-                    for (int u = 0; u < uniformNames.Length; u++) {
-                        c.UniformIds[u] = Shader.PropertyToID("_u_" + uniformNames[u]);
-                    }
-                }
+                BindUniformIds(c);
             } else {
                 if (VmShader == null) {
                     throw new InvalidOperationException(
@@ -238,6 +299,7 @@ namespace OneJS.SL {
                 InstructionCount = instructionCount,
                 ResultRegister = resultRegister,
                 UniformNames = uniformNames,
+                Hash = hash,
             };
 
             // THE EJECT PATH. A project with an editor generates a shader per
@@ -249,12 +311,7 @@ namespace OneJS.SL {
             if (native != null) {
                 c.Native = true;
                 c.Material = new Material(native);
-                if (uniformNames != null) {
-                    c.UniformIds = new int[uniformNames.Length];
-                    for (int u = 0; u < uniformNames.Length; u++) {
-                        c.UniformIds[u] = Shader.PropertyToID("_u_" + uniformNames[u]);
-                    }
-                }
+                BindUniformIds(c);
                 int nativeHandle = s_NextHandle++;
                 s_Programs[nativeHandle] = c;
                 return nativeHandle;

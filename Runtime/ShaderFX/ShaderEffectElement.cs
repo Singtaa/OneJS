@@ -110,12 +110,17 @@ namespace OneJS.ShaderFX {
         /// </summary>
         int _programHandle = -1;
 
-        public void SetProgram(object dataObj, int instructionCount, int resultRegister, string hash,
+        /// <returns>
+        /// True when the host should follow up with <see cref="RecordProgram"/>:
+        /// the program was interpreted and an editor is attached that can
+        /// compile it. False everywhere else, so JS never emits HLSL in Play.
+        /// </returns>
+        public bool SetProgram(object dataObj, int instructionCount, int resultRegister, string hash,
                                object uniformNamesObj = null) {
             var data = ToFloats(dataObj);
             // Same program, same everything. Rebuilding would drop the render
             // target and restart the clock on every React render.
-            if (_programHash == hash && _material != null && _isProgram) return;
+            if (_programHash == hash && _material != null && _isProgram) return false;
             _isProgram = true;
             _programHash = hash;
             _shaderMissing = false;
@@ -127,12 +132,23 @@ namespace OneJS.ShaderFX {
             try {
                 _material = SL.SLProgramBridge.CreateMaterial(
                     data, instructionCount, resultRegister, hash,
-                    out _, out _programHandle, ToStrings(uniformNamesObj));
+                    out var native, out _programHandle, ToStrings(uniformNamesObj));
                 _material.hideFlags = HideFlags.HideAndDontSave;
+                return !native && SL.SLProgramBridge.WantsSource(hash);
             } catch (System.Exception e) {
                 _shaderMissing = true;
                 Debug.LogWarning($"[OneJS sl] {e.Message}");
+                return false;
             }
+        }
+
+        /// <summary>
+        /// The program's HLSL, sent only after <see cref="SetProgram"/> asked for
+        /// it. The editor records it and generates the shader; the material this
+        /// element renders with is moved onto that shader in place.
+        /// </summary>
+        public void RecordProgram(string hash, string hlsl) {
+            SL.SLProgramBridge.RecordSource(hash, hlsl);
         }
 
         /// <summary>

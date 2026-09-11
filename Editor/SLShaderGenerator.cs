@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
+using OneJS.SL;
 using UnityEngine;
 
 namespace OneJS.Editor {
@@ -16,27 +17,66 @@ namespace OneJS.Editor {
     /// there is none.
     ///
     /// A manifest, not a scan. The programs are recorded when JavaScript runs, so
-    /// nothing can find them by reading source. Instead the app's build writes
-    /// `*.sl.json` beside its bundle, holding a hash and the generated HLSL per
-    /// program, and this turns each entry into a `.shader`. That keeps the
-    /// generator ignorant of JavaScript and keeps the emitter, which is the part
-    /// with the interesting logic, in TypeScript where it is unit tested.
+    /// nothing can find them by reading source. A `*.sl.json` manifest holds a
+    /// hash and the generated HLSL per program, and this turns each entry into a
+    /// `.shader`. That keeps the generator ignorant of JavaScript and keeps the
+    /// emitter, which is the part with the interesting logic, in TypeScript
+    /// where it is unit tested.
+    ///
+    /// Who writes the manifest: the running app, through this class. When the
+    /// runtime interprets a program in the editor it hands the HLSL to
+    /// <see cref="Record"/>, which appends it to <see cref="RecordedManifest"/>,
+    /// generates the shader and moves the live material onto it. So the first
+    /// run of an ejected game is interpreted and every run after is compiled,
+    /// with nobody writing a file by hand. An app can still ship its own
+    /// manifest (`manifest()` in onejs-unity/sl) beside its bundle; both are
+    /// read.
     /// </summary>
     public static class SLShaderGenerator {
         /// <summary>Where generated shaders go. Deliberately NOT a Resources folder.</summary>
         public const string OutputDir = "Assets/OneJS.Generated/Shaders";
-        /// <summary>
-        /// Every include a generated shader needs, copied beside it.
-        ///
-        /// A LIST rather than one file, because SLCommon.cginc includes
-        /// SDF2D.cginc for the shape library. Copying only the first produced
-        /// shaders that compiled to nothing and rendered magenta, which is the
-        /// failure the eject path can least afford: it looks like a broken game
-        /// rather than a broken build step.
-        /// </summary>
-        static readonly string[] Includes = { "SLCommon.cginc", "SDF2D.cginc" };
+        /// <summary>The manifest the running app writes, one entry per program it interpreted.</summary>
+        public const string RecordedManifest = OutputDir + "/Recorded.sl.json";
+        /// <summary>The include every generated shader starts from.</summary>
+        public const string RootInclude = "SLCommon.cginc";
         const string PackageDir = "Packages/com.singtaa.onejs/Resources/OneJS";
         const string AssetsDir = "Assets/Singtaa/OneJS/Resources/OneJS";
+
+        /// <summary>
+        /// Every include a generated shader needs, copied beside it: the root
+        /// and everything it includes, transitively, read from the files.
+        ///
+        /// Read rather than listed. A list held SLCommon and SDF2D, and when
+        /// Noise2D was added beside them the list was not, so every shader an
+        /// eject generated compiled to nothing and rendered magenta, which is
+        /// the failure the eject path can least afford: it looks like a broken
+        /// game rather than a broken build step. The test that should have
+        /// caught it kept a list of its own.
+        /// </summary>
+        public static string[] Includes() {
+            var root = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            var ordered = new List<string>();
+            var pending = new Queue<string>();
+            pending.Enqueue(RootInclude);
+            while (pending.Count > 0) {
+                var name = pending.Dequeue();
+                if (ordered.Contains(name)) continue;
+                ordered.Add(name);
+                var from = IncludeSource(root, name);
+                if (from == null) continue;
+                foreach (System.Text.RegularExpressions.Match m in
+                         System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(from), @"#include\s+""([^""]+)""")) {
+                    pending.Enqueue(m.Groups[1].Value);
+                }
+            }
+            return ordered.ToArray();
+        }
+
+        static string IncludeSource(string root, string name) {
+            var pkg = Path.Combine(root, Path.Combine(PackageDir, name).Replace('/', Path.DirectorySeparatorChar));
+            var loc = Path.Combine(root, Path.Combine(AssetsDir, name).Replace('/', Path.DirectorySeparatorChar));
+            return File.Exists(pkg) ? pkg : File.Exists(loc) ? loc : null;
+        }
 
         [Serializable]
         class Entry {
@@ -54,10 +94,83 @@ namespace OneJS.Editor {
             int n = Generate(FindManifests());
             EditorUtility.DisplayDialog("OneJS",
                 n == 0
-                    ? "No shader programs found.\n\nAn app declares them by writing a *.sl.json manifest " +
-                      "beside its bundle during its build."
+                    ? "No shader programs found.\n\nPrograms are recorded when the app runs: run it once " +
+                      "in the editor, or write a *.sl.json manifest beside its bundle."
                     : $"Generated {n} shader program{(n == 1 ? "" : "s")} into {OutputDir}.",
                 "OK");
+        }
+
+        // MARK: recording
+
+        static readonly Dictionary<string, string> s_Pending = new Dictionary<string, string>();
+        static bool s_FlushScheduled;
+
+        [InitializeOnLoadMethod]
+        static void AttachRecorder() {
+            SLProgramBridge.SourceRecorder = Record;
+        }
+
+        /// <summary>
+        /// Takes a program the runtime just interpreted. Batched and flushed on
+        /// the next editor tick rather than acted on here: this is called from
+        /// inside a React commit, and an asset import from there would stall
+        /// the frame that is still being built.
+        /// </summary>
+        public static void Record(string hash, string hlsl) {
+            if (string.IsNullOrEmpty(hash) || string.IsNullOrEmpty(hlsl)) return;
+            s_Pending[hash] = hlsl;
+            if (s_FlushScheduled) return;
+            s_FlushScheduled = true;
+            EditorApplication.delayCall += () => FlushRecorded();
+        }
+
+        /// <summary>
+        /// Writes pending programs into the recorded manifest, generates their
+        /// shaders and moves live materials onto them. Returns how many programs
+        /// were new to the manifest. Public so a test can drive it synchronously.
+        /// </summary>
+        public static int FlushRecorded() {
+            s_FlushScheduled = false;
+            if (s_Pending.Count == 0) return 0;
+            var pending = new Dictionary<string, string>(s_Pending);
+            s_Pending.Clear();
+
+            var root = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            var file = Path.Combine(root, RecordedManifest.Replace('/', Path.DirectorySeparatorChar));
+            var entries = new Dictionary<string, string>();
+            if (File.Exists(file)) {
+                try {
+                    var existing = JsonUtility.FromJson<Manifest>(File.ReadAllText(file));
+                    if (existing?.programs != null) {
+                        foreach (var e in existing.programs) {
+                            if (!string.IsNullOrEmpty(e.hash) && !string.IsNullOrEmpty(e.hlsl)) entries[e.hash] = e.hlsl;
+                        }
+                    }
+                } catch (Exception e) {
+                    Debug.LogWarning($"[OneJS sl] rewriting an unreadable {RecordedManifest}: {e.Message}");
+                }
+            }
+            int added = 0;
+            foreach (var kv in pending) {
+                if (entries.ContainsKey(kv.Key)) continue;
+                entries[kv.Key] = kv.Value;
+                added++;
+            }
+            if (added > 0) {
+                // Sorted by hash so the file does not churn with run order.
+                var list = new List<Entry>();
+                foreach (var kv in entries) list.Add(new Entry { hash = kv.Key, hlsl = kv.Value });
+                list.Sort((a, b) => string.CompareOrdinal(a.hash, b.hash));
+                Directory.CreateDirectory(Path.GetDirectoryName(file));
+                CopyTextIfDifferent(JsonUtility.ToJson(new Manifest { programs = list.ToArray() }, true), file);
+            }
+            Generate(FindManifests());
+            int adopted = SLProgramBridge.AdoptGenerated();
+            if (added > 0) {
+                Debug.Log($"[OneJS sl] recorded {added} shader program{(added == 1 ? "" : "s")} into " +
+                          $"{RecordedManifest}; {adopted} now running compiled.");
+            }
+            return added;
         }
 
         public static string[] FindManifests() {
@@ -95,11 +208,9 @@ namespace OneJS.Editor {
             // noise means. Copying them beside the output keeps every include a
             // plain relative path, which resolves the same way on every Unity
             // version.
-            foreach (var inc in Includes) {
-                var pkg = Path.Combine(root, Path.Combine(PackageDir, inc).Replace('/', Path.DirectorySeparatorChar));
-                var loc = Path.Combine(root, Path.Combine(AssetsDir, inc).Replace('/', Path.DirectorySeparatorChar));
-                var from = File.Exists(pkg) ? pkg : loc;
-                if (!File.Exists(from)) {
+            foreach (var inc in Includes()) {
+                var from = IncludeSource(root, inc);
+                if (from == null) {
                     Debug.LogError(
                         $"[OneJS sl] {inc} is missing, so generated shaders cannot compile and would " +
                         "render magenta. A program would run on the site and break after an eject.");

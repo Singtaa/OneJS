@@ -1,3 +1,8 @@
+# Unreleased
+
+- Shader programs interpreted in the editor are recorded and compiled on the next tick; an ejected game runs compiled from its second frame with no manifest written by hand (onejs-unity 0.5.11, onejs-react 0.1.51)
+- Generated shaders copy every include SLCommon reaches, so they no longer compile to magenta since noise landed
+
 # [2026-09-07] v3.4.1
 
 - A `Color` read from C# has `r`, `g`, `b` and `a` in JS, on every path
