@@ -2241,7 +2241,7 @@ if (__nativeFetch) {
         var headersJson = headers ? JSON.stringify(headers) : null;
 
         // Call C# FetchAsync and wrap result in Response object
-        return CS.OneJS.Network.FetchAsync(url, method, body, headersJson)
+        return Promise.resolve(CS.OneJS.Network.FetchAsync(url, method, body, headersJson))
             .then(function(result) {
                 return new Response(result);
             });
