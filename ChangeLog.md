@@ -1,5 +1,7 @@
 # Unreleased
 
+- The Play editor reads `.sl` files: highlighting, errors as you type, completion and hover, from the parser itself
+- An ejected game's `.sl` files highlight as HLSL in VS Code with nothing installed
 - `sl` programs read `resolution`, `fragCoord` and `aspect` from the element, not the game window (onejs-unity 0.5.12)
 - `.sl` files: a shader program in HLSL text, parsing to the program the `sl` EDSL records (onejs-unity 0.5.12)
 - `import plasma from "./plasma.sl"`: encoded at build time, with a `.d.ts` and a shader manifest beside the bundle (onejs-unity 0.5.12)
