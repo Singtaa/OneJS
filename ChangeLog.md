@@ -1,5 +1,6 @@
 # Unreleased
 
+- Native fetch works when the C# request completes at once, as it does for small Android StreamingAssets files
 - A `float4` of literals is one instruction and one register, not five and four (onejs-unity 0.5.12)
 - `sl.ramp` builds each stop as it needs it; a four stop ramp costs 4 registers, not 7 (onejs-unity 0.5.12)
 - A program's textures bind by the name the shader declares (onejs-react 0.1.52, onejs-unity 0.5.12)
