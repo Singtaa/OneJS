@@ -129,7 +129,7 @@ namespace OneJS {
         /// </summary>
         public static int RegisterZeroAllocMethodBinding(string typeName, string methodName, int argCount) {
             try {
-                var type = FindType(typeName);
+                var type = ResolveType(typeName);
                 if (type == null) {
                     Debug.LogWarning($"[ZeroAlloc] Type not found: {typeName}");
                     return 0;
@@ -139,12 +139,16 @@ namespace OneJS {
                 MethodInfo targetMethod = null;
 
                 foreach (var method in methods) {
-                    if (method.Name == methodName) {
-                        var parameters = method.GetParameters();
-                        if (parameters.Length == argCount) {
-                            targetMethod = method;
-                            break;
-                        }
+                    if (method.Name != methodName) continue;
+                    // An open generic method cannot be invoked: CreateReflectionHandler
+                    // calls MethodInfo.Invoke, which refuses one. Binding it would
+                    // succeed here and throw on every call instead, and a generic twin
+                    // can share a name and arity with the method actually wanted
+                    // (UQueryExtensions.Q). The same rule as FindMethod.
+                    if (method.IsGenericMethodDefinition) continue;
+                    if (method.GetParameters().Length == argCount) {
+                        targetMethod = method;
+                        break;
                     }
                 }
 
@@ -159,18 +163,6 @@ namespace OneJS {
                 Debug.LogError($"[ZeroAlloc] Failed to bind {typeName}.{methodName}: {e}");
                 return 0;
             }
-        }
-
-        static Type FindType(string typeName) {
-            var type = Type.GetType(typeName);
-            if (type != null) return type;
-
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies()) {
-                type = assembly.GetType(typeName);
-                if (type != null) return type;
-            }
-
-            return null;
         }
 
         static unsafe ZeroAllocHandler CreateReflectionHandler(MethodInfo method) {

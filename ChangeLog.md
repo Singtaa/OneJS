@@ -3,6 +3,8 @@
 - Nested C# types resolve by their dotted path: `CS.UnityEngine.UIElements.ScrollView.TouchScrollBehavior.Elastic`
 - A CS path that names no type warns when used as a value instead of reading as 0
 - A static call skips generic overloads it cannot invoke; `UQueryExtensions.Q` through the class works on Unity 6000.5
+- `interop.bind` refuses a generic overload at bind time instead of throwing on every call
+- `interop.bind` resolves a type by the same rules as the rest of the API, nested types included
 - `<ScrollView touchScrollBehavior>` and `nestedInteractionKind` set the value named (onejs-react 0.1.53)
 - `<TextField inputStyle>` and `inputClassName` no longer throw during mount on Unity 6000.5 (onejs-react 0.1.53)
 - Native fetch works when the C# request completes at once, as it does for small Android StreamingAssets files
