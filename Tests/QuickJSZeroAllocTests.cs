@@ -438,6 +438,55 @@ namespace OneJS.Tests {
 
             yield return null;
         }
+
+        /// <summary>
+        /// Reflection bindings, which back interop.bind and za.static in
+        /// onejs-unity.
+        ///
+        /// The handler calls MethodInfo.Invoke, which refuses an open generic
+        /// method, so binding one would succeed here and throw on every call
+        /// instead. Enumerable.Empty exists only as a generic definition, so
+        /// there is nothing to bind and saying so at bind time is the point.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator MethodBinding_GenericOnlyMethod_FailsAtBindTime() {
+            LogAssert.Expect(LogType.Warning, new Regex("Method not found: System.Linq.Enumerable.Empty"));
+
+            int bindingId = QuickJSNative.RegisterZeroAllocMethodBinding("System.Linq.Enumerable", "Empty", 0);
+
+            Assert.AreEqual(0, bindingId, "an open generic method must not bind");
+            yield return null;
+        }
+
+        /// <summary>
+        /// Skipping generics must not reject a name that also has a plain
+        /// overload: UQueryExtensions declares Q&lt;T&gt;(e, name, className)
+        /// ahead of Q(e, name, className), which is the pair that broke
+        /// TextField styling on Unity 6000.5.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator MethodBinding_PrefersNonGenericTwin() {
+            int bindingId = QuickJSNative.RegisterZeroAllocMethodBinding(
+                "UnityEngine.UIElements.UQueryExtensions", "Q", 3);
+
+            Assert.Greater(bindingId, 0, "the non-generic Q overload is bindable");
+            QuickJSNative.UnregisterZeroAllocBinding(bindingId);
+            yield return null;
+        }
+
+        /// <summary>
+        /// Binding resolves types through ResolveType now, so a nested type
+        /// reached by its dotted path works here as it does everywhere else.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator MethodBinding_UnknownType_FailsCleanly() {
+            LogAssert.Expect(LogType.Warning, new Regex("Type not found: Nope.NotAType"));
+
+            int bindingId = QuickJSNative.RegisterZeroAllocMethodBinding("Nope.NotAType", "Whatever", 0);
+
+            Assert.AreEqual(0, bindingId);
+            yield return null;
+        }
     }
 
     /// <summary>
@@ -527,55 +576,6 @@ namespace OneJS.Tests {
 
             Assert.Pass("Pattern demonstration completed");
 
-            yield return null;
-        }
-
-        /// <summary>
-        /// Reflection bindings, which back interop.bind and za.static in
-        /// onejs-unity.
-        ///
-        /// The handler calls MethodInfo.Invoke, which refuses an open generic
-        /// method, so binding one would succeed here and throw on every call
-        /// instead. Enumerable.Empty exists only as a generic definition, so
-        /// there is nothing to bind and saying so at bind time is the point.
-        /// </summary>
-        [UnityTest]
-        public IEnumerator MethodBinding_GenericOnlyMethod_FailsAtBindTime() {
-            LogAssert.Expect(LogType.Warning, new Regex("Method not found: System.Linq.Enumerable.Empty"));
-
-            int bindingId = QuickJSNative.RegisterZeroAllocMethodBinding("System.Linq.Enumerable", "Empty", 0);
-
-            Assert.AreEqual(0, bindingId, "an open generic method must not bind");
-            yield return null;
-        }
-
-        /// <summary>
-        /// Skipping generics must not reject a name that also has a plain
-        /// overload: UQueryExtensions declares Q&lt;T&gt;(e, name, className)
-        /// ahead of Q(e, name, className), which is the pair that broke
-        /// TextField styling on Unity 6000.5.
-        /// </summary>
-        [UnityTest]
-        public IEnumerator MethodBinding_PrefersNonGenericTwin() {
-            int bindingId = QuickJSNative.RegisterZeroAllocMethodBinding(
-                "UnityEngine.UIElements.UQueryExtensions", "Q", 3);
-
-            Assert.Greater(bindingId, 0, "the non-generic Q overload is bindable");
-            QuickJSNative.UnregisterZeroAllocBinding(bindingId);
-            yield return null;
-        }
-
-        /// <summary>
-        /// Binding resolves types through ResolveType now, so a nested type
-        /// reached by its dotted path works here as it does everywhere else.
-        /// </summary>
-        [UnityTest]
-        public IEnumerator MethodBinding_UnknownType_FailsCleanly() {
-            LogAssert.Expect(LogType.Warning, new Regex("Type not found: Nope.NotAType"));
-
-            int bindingId = QuickJSNative.RegisterZeroAllocMethodBinding("Nope.NotAType", "Whatever", 0);
-
-            Assert.AreEqual(0, bindingId);
             yield return null;
         }
     }
