@@ -31,13 +31,17 @@ namespace OneJS {
             if (string.IsNullOrEmpty(fullName)) return null;
             if (_typeCache.TryGetValue(fullName, out var cached)) return cached;
 
-            var type = Type.GetType(fullName);
+            var type = LookupType(fullName);
+
+            // A nested type's CLR name joins it to its owner with '+', but JS
+            // reaches it by the same dotted path it uses for everything else:
+            // CS.UnityEngine.UIElements.ScrollView.TouchScrollBehavior. Retry
+            // with the last dot as '+', then the last two (a nested type inside
+            // a nested type), and so on. Namespaces never nest inside types, so
+            // walking from the right covers every real name.
             if (type == null) {
-                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies()) {
-                    try {
-                        type = asm.GetType(fullName);
-                        if (type != null) break;
-                    } catch { }
+                for (int dot = fullName.LastIndexOf('.'); dot > 0 && type == null; dot = fullName.LastIndexOf('.', dot - 1)) {
+                    type = LookupType(fullName.Substring(0, dot) + fullName.Substring(dot).Replace('.', '+'));
                 }
             }
 
@@ -49,6 +53,33 @@ namespace OneJS {
 
             if (type != null) _typeCache[fullName] = type;
             return type;
+        }
+
+        static readonly HashSet<string> _warnedTypeRefs = new();
+
+        /// <summary>
+        /// A JS path reached C# as a value but names no type. Said once per
+        /// path, because the silent alternative is a zero: an enum member read
+        /// through a wrong path (CS.UnityEngine.UIElements.TouchScrollBehavior
+        /// for ScrollView.TouchScrollBehavior) set every ScrollView to
+        /// Unrestricted with nothing in the console, and took a user to find.
+        /// </summary>
+        static void WarnUnresolvedTypeRef(string name) {
+            if (!_warnedTypeRefs.Add(name)) return;
+            UnityEngine.Debug.LogWarning($"[QuickJS] CS.{name} is not a C# type in any loaded assembly; check the namespace and spelling. A nested type is reached by its dotted path, e.g. CS.UnityEngine.UIElements.ScrollView.TouchScrollBehavior.Elastic.");
+        }
+
+        /// <summary>The name exactly as given, in any loaded assembly.</summary>
+        static Type LookupType(string fullName) {
+            var type = Type.GetType(fullName);
+            if (type != null) return type;
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies()) {
+                try {
+                    type = asm.GetType(fullName);
+                    if (type != null) return type;
+                } catch { }
+            }
+            return null;
         }
 
         // MARK: Member Finders
@@ -131,6 +162,12 @@ namespace OneJS {
             while (type != null) {
                 foreach (var m in type.GetMethods(flags | BindingFlags.DeclaredOnly)) {
                     if (m.Name != name) continue;
+                    // An open generic method cannot be invoked (nothing here
+                    // supplies type arguments), and its parameters can look
+                    // identical to a non-generic twin's: UQueryExtensions has
+                    // Q<T>(e, name, className) beside Q(e, name, className).
+                    // Picking the generic one fails at Invoke on Unity 6.5.
+                    if (m.IsGenericMethodDefinition) continue;
                     var parameters = m.GetParameters();
 
                     if (parameters.Length == args.Length) {

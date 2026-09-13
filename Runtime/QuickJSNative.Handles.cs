@@ -210,6 +210,9 @@ namespace OneJS {
                 _warningLogged = false;
                 _criticalWarningLogged = false;
             }
+            // The next context is a new run of the code; a path that still
+            // names nothing should say so again.
+            _warnedTypeRefs.Clear();
         }
 
         /// <summary>

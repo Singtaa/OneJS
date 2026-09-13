@@ -745,6 +745,7 @@ const __instancePropertyNames = new Set([
 // dominating mount latency on WebGL.
 const __typeExistsCache = new Map();
 const __isEnumTypeCache = new Map();
+const __warnedNumericPaths = new Set();
 // Enum members are compile-time constants, so their resolved numeric values are
 // cached forever (keyed by "Type.Member"). See __resolveEnumMember.
 const __enumValueCache = new Map();
@@ -850,6 +851,14 @@ function __createCsPathProxy(path) {
                         if (__typeExists(parentPath) && __isEnumType(parentPath)) {
                             return __cs.invoke(parentPath, memberName, 4, 1, 0, []);
                         }
+                    }
+                    // Only an enum member has a number. Anything else read as a
+                    // number is a wrong path (a nested enum reached through its
+                    // namespace instead of its owner), and a silent 0 is how
+                    // that stays unnoticed. Once per path.
+                    if (!__warnedNumericPaths.has(typeName)) {
+                        __warnedNumericPaths.add(typeName);
+                        console.warn("CS." + typeName + " is not a C# enum member and reads as 0. Check the path; a nested type is reached by its dotted path, e.g. CS.UnityEngine.UIElements.ScrollView.TouchScrollBehavior.Elastic.");
                     }
                     return 0;
                 };

@@ -1,5 +1,10 @@
 # Unreleased
 
+- Nested C# types resolve by their dotted path: `CS.UnityEngine.UIElements.ScrollView.TouchScrollBehavior.Elastic`
+- A CS path that names no type warns when used as a value instead of reading as 0
+- A static call skips generic overloads it cannot invoke; `UQueryExtensions.Q` through the class works on Unity 6000.5
+- `<ScrollView touchScrollBehavior>` and `nestedInteractionKind` set the value named (onejs-react 0.1.53)
+- `<TextField inputStyle>` and `inputClassName` no longer throw during mount on Unity 6000.5 (onejs-react 0.1.53)
 - Native fetch works when the C# request completes at once, as it does for small Android StreamingAssets files
 - A `float4` of literals is one instruction and one register, not five and four (onejs-unity 0.5.12)
 - `sl.ramp` builds each stop as it needs it; a four stop ramp costs 4 registers, not 7 (onejs-unity 0.5.12)

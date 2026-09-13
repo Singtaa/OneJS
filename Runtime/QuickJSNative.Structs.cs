@@ -829,7 +829,9 @@ namespace OneJS {
                 if (targetType == typeof(Type) &&
                     dict.TryGetValue("__csTypeRef", out var typeRefName) &&
                     typeRefName is string tn) {
-                    return ResolveType(tn);
+                    var resolved = ResolveType(tn);
+                    if (resolved == null) WarnUnresolvedTypeRef(tn);
+                    return resolved;
                 }
 
                 // Handle __csCallbackHandle for JS function -> C# delegate conversion

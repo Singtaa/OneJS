@@ -795,7 +795,9 @@ namespace OneJS {
                             }
                             if (dict.TryGetValue("__csTypeRef", out var typeRefName) &&
                                 typeRefName is string tn) {
-                                return ResolveType(tn);
+                                var resolved = ResolveType(tn);
+                                if (resolved == null) WarnUnresolvedTypeRef(tn);
+                                return resolved;
                             }
                             return dict;
                         }
