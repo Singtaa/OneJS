@@ -5,6 +5,8 @@
 
 # [2026-09-13] v3.4.2
 
+Fixes two Unity 6000.5 bugs: a `ScrollView` ignored its scroll settings, and styling a `TextField`'s input could stop the whole UI from appearing. The rest is the `.sl` shader language: shaders written beside the game, running in the editor while you edit them and compiled for a build.
+
 - Nested C# types resolve by their dotted path: `CS.UnityEngine.UIElements.ScrollView.TouchScrollBehavior.Elastic`
 - A CS path that names no type warns when used as a value instead of reading as 0
 - A static call skips generic overloads it cannot invoke; `UQueryExtensions.Q` through the class works on Unity 6000.5
