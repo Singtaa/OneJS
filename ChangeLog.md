@@ -1,4 +1,6 @@
-# Unreleased
+# [2026-09-14] v3.4.3
+
+In a project with more than one OneJS app, a build kept only the last app's assets and silently dropped the rest; that is fixed, and two apps claiming the same asset path now fail the build instead of overwriting each other. The rest is about saying what went wrong: a failed C# call on WebGL throws with the reason, and the type generator writes real array types instead of `any`.
 
 - Every app's assets reach a multi-app build, instead of only the last one's
 - A build fails when two apps ship the same asset path, naming both
