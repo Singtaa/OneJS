@@ -337,6 +337,44 @@ namespace OneJS.Tests.Editor {
             StringAssert.Contains("Could not rebuild StreamingAssets/onejs/assets", e.Message);
         }
 
+        /// <summary>
+        /// A read only source asset must not leave a read only file in the
+        /// destination.
+        ///
+        /// File.Copy keeps the attribute, and Windows will not delete a read only
+        /// file, so the copy poisoned the NEXT build: its delete threw, and the
+        /// cleanup in the catch threw too and replaced the BuildFailedException
+        /// with something Unity does not abort for. Green build, previous build's
+        /// assets, staging folder left under Assets. A Perforce workspace hit it
+        /// every second build.
+        ///
+        /// Asserted on the attribute rather than on the failure, because the
+        /// failure is Windows only: POSIX ties the right to delete to the
+        /// directory, so a Mac deletes a read only file without complaint and
+        /// could never show the bug. The attribute is observable everywhere.
+        /// </summary>
+        [Test]
+        public void CommitAssets_ReadOnlySource_LeavesAWritableDestination() {
+            var app = Path.Combine(_testBasePath, "app");
+            Write(app, "a.png", "A");
+            File.SetAttributes(Path.Combine(app, "a.png"), FileAttributes.ReadOnly);
+            AddSource(app, "App");
+
+            try {
+                InvokeCommitAssets(Dest);
+
+                var copied = Path.Combine(Dest, "a.png");
+                Assert.IsTrue(File.Exists(copied));
+                Assert.IsFalse(File.GetAttributes(copied).HasFlag(FileAttributes.ReadOnly),
+                    "the destination copy is read only, so the next build cannot replace it on Windows");
+
+                // And the next build must go through rather than throw.
+                Assert.DoesNotThrow(() => InvokeCommitAssets(Dest));
+            } finally {
+                File.SetAttributes(Path.Combine(app, "a.png"), FileAttributes.Normal);
+            }
+        }
+
         [Test]
         public void CommitAssets_SkipsMetaFiles() {
             Write(Path.Combine(_testBasePath, "app"), "a.png", "A");

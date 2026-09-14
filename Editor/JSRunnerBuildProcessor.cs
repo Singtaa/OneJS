@@ -326,22 +326,32 @@ namespace OneJS.Editor {
 
             var staging = destDir + ".staging";
             try {
-                if (Directory.Exists(staging)) Directory.Delete(staging, true);
+                DeleteTree(staging);
                 Directory.CreateDirectory(staging);
 
                 foreach (var entry in plan.Values) {
                     var destFile = Path.Combine(staging, entry.relative);
                     Directory.CreateDirectory(Path.GetDirectoryName(destFile));
                     File.Copy(entry.file, destFile, true);
+                    // File.Copy keeps the read only attribute, and Windows will
+                    // not delete a read only file, so a read only source asset
+                    // (Perforce, a restored archive) would make the NEXT build's
+                    // delete throw. Cleared here so the destination this build
+                    // writes is always one the next build can replace.
+                    File.SetAttributes(destFile, FileAttributes.Normal);
                 }
 
-                if (Directory.Exists(destDir)) Directory.Delete(destDir, true);
+                DeleteTree(destDir);
                 Directory.CreateDirectory(Path.GetDirectoryName(destDir));
                 Directory.Move(staging, destDir);
             } catch (Exception e) {
-                if (Directory.Exists(staging)) {
-                    try { Directory.Delete(staging, true); } catch (IOException) { }
-                }
+                // Catches everything, deliberately. IOException alone let an
+                // UnauthorizedAccessException out of the cleanup REPLACE the
+                // BuildFailedException below, and Unity does not abort for that,
+                // so the build went green with the previous build's assets and a
+                // staging folder left under Assets. The two are siblings, not
+                // parent and child.
+                try { DeleteTree(staging); } catch { }
                 // Rethrown as BuildFailedException because Unity only ABORTS a
                 // build for that type: anything else out of OnPreprocessBuild is
                 // an error line and the build carries on, which here meant
@@ -381,6 +391,23 @@ namespace OneJS.Editor {
             // The destination is under Assets, so Unity has to be told: without
             // this the new files have no .meta and the old ones' metas linger.
             AssetDatabase.Refresh();
+        }
+
+        /// <summary>
+        /// Deletes a tree, clearing read only as it goes.
+        ///
+        /// Windows refuses to delete a read only file, and POSIX does not care
+        /// because it ties the right to delete to the DIRECTORY. So this is a
+        /// Windows failure that cannot be reproduced on a Mac, which is how it
+        /// reached a release: a Perforce workspace, or a restored archive, leaves
+        /// exactly this state.
+        /// </summary>
+        static void DeleteTree(string dir) {
+            if (!Directory.Exists(dir)) return;
+            foreach (var f in Directory.GetFiles(dir, "*", SearchOption.AllDirectories)) {
+                try { File.SetAttributes(f, FileAttributes.Normal); } catch { }
+            }
+            Directory.Delete(dir, true);
         }
 
         /// <summary>Same folder on disk, whatever the separators and case say.</summary>
