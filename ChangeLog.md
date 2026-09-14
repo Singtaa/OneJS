@@ -1,7 +1,6 @@
 # Unreleased
 
 - The type generator emits real array types instead of `any`, and `System.TypeLike` for a `Type` parameter
-
 - A failed C# call throws with the reason on WebGL, where it returned `null` and said nothing
 - The thrown error names the missing type or member instead of "C# invoke error"
 
