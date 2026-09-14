@@ -1,3 +1,8 @@
+# Unreleased
+
+- A failed C# call throws with the reason on WebGL, where it returned `null` and said nothing
+- The thrown error names the missing type or member instead of "C# invoke error"
+
 # [2026-09-13] v3.4.2
 
 - Nested C# types resolve by their dotted path: `CS.UnityEngine.UIElements.ScrollView.TouchScrollBehavior.Elastic`

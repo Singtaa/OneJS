@@ -100,6 +100,32 @@ namespace OneJS {
             JsLog.Route(msg);
         }
 
+        // MARK: Dispatch errors
+        // The message travels to JS through errorMsg, which the native library
+        // turns into the thrown error's text and the WebGL jslib throws
+        // directly. Neither side frees it, so it lives in one static buffer
+        // that is overwritten per failure: dispatch is synchronous and the
+        // reader copies the text before the next call can run.
+        const int ErrorMsgBufferSize = 1024;
+        static IntPtr _errorMsgBuffer;
+
+        static unsafe void Fail(InteropInvokeResult* resPtr, string message, string logMessage = null) {
+            resPtr->errorCode = 1;
+            Debug.LogError(logMessage ?? message);
+
+            if (_errorMsgBuffer == IntPtr.Zero) _errorMsgBuffer = Marshal.AllocHGlobal(ErrorMsgBufferSize);
+            var bytes = System.Text.Encoding.UTF8.GetBytes(message ?? "C# invoke error");
+            int n = bytes.Length;
+            if (n > ErrorMsgBufferSize - 1) {
+                n = ErrorMsgBufferSize - 1;
+                // Never split a multi-byte sequence at the truncation point.
+                while (n > 0 && (bytes[n] & 0xC0) == 0x80) n--;
+            }
+            Marshal.Copy(bytes, 0, _errorMsgBuffer, n);
+            Marshal.WriteByte(_errorMsgBuffer, n, 0);
+            resPtr->errorMsg = _errorMsgBuffer;
+        }
+
         // MARK: Dispatch
         [MonoPInvokeCallback(typeof(CsInvokeCallback))]
         static unsafe void DispatchFromJs(IntPtr ctxPtr, InteropInvokeRequest* reqPtr,
@@ -168,8 +194,7 @@ namespace OneJS {
                 // RegisterExtensionType: scan and cache extension methods from a static class
                 if (reqPtr->callKind == InteropInvokeCallKind.RegisterExtensionType) {
                     if (type == null) {
-                        resPtr->errorCode = 1;
-                        Debug.LogError("[QuickJS] Extension type not found: " + typeName);
+                        Fail(resPtr, "[QuickJS] Extension type not found: " + typeName);
                         return;
                     }
                     RegisterExtensionType(type);
@@ -179,14 +204,12 @@ namespace OneJS {
                 // MakeGenericType: List`1 + [Int32] => List<Int32>
                 if (reqPtr->callKind == InteropInvokeCallKind.MakeGenericType) {
                     if (type == null) {
-                        resPtr->errorCode = 1;
-                        Debug.LogError("[QuickJS] Generic type definition not found: " + typeName);
+                        Fail(resPtr, "[QuickJS] Generic type definition not found: " + typeName);
                         return;
                     }
 
                     if (!type.IsGenericTypeDefinition) {
-                        resPtr->errorCode = 1;
-                        Debug.LogError("[QuickJS] Type is not a generic definition: " + typeName);
+                        Fail(resPtr, "[QuickJS] Type is not a generic definition: " + typeName);
                         return;
                     }
 
@@ -195,15 +218,13 @@ namespace OneJS {
                     for (int i = 0; i < argCount; i++) {
                         string typeArgName = InteropValueToString(argsPtr[i]);
                         if (string.IsNullOrEmpty(typeArgName)) {
-                            resPtr->errorCode = 1;
-                            Debug.LogError($"[QuickJS] Invalid type argument at index {i}");
+                            Fail(resPtr, $"[QuickJS] Invalid type argument at index {i}");
                             return;
                         }
 
                         Type typeArg = ResolveType(typeArgName);
                         if (typeArg == null) {
-                            resPtr->errorCode = 1;
-                            Debug.LogError("[QuickJS] Type argument not found: " + typeArgName);
+                            Fail(resPtr, "[QuickJS] Type argument not found: " + typeArgName);
                             return;
                         }
                         typeArgs[i] = typeArg;
@@ -221,8 +242,7 @@ namespace OneJS {
                         resPtr->returnValue.str = StringToUtf8(constructedTypeName);
                         return;
                     } catch (Exception ex) {
-                        resPtr->errorCode = 1;
-                        Debug.LogError($"[QuickJS] Failed to make generic type: {ex.Message}");
+                        Fail(resPtr, $"[QuickJS] Failed to make generic type: {ex.Message}");
                         return;
                     }
                 }
@@ -248,8 +268,7 @@ namespace OneJS {
                 // Constructor
                 if (reqPtr->callKind == InteropInvokeCallKind.Ctor) {
                     if (type == null) {
-                        resPtr->errorCode = 1;
-                        Debug.LogError("[QuickJS] Type not found for ctor: " + typeName);
+                        Fail(resPtr, "[QuickJS] Type not found for ctor: " + typeName);
                         return;
                     }
 
@@ -284,14 +303,12 @@ namespace OneJS {
                         }
                     }
 
-                    resPtr->errorCode = 1;
-                    Debug.LogError($"[QuickJS] No matching ctor for {typeName} with {args.Length} args");
+                    Fail(resPtr, $"[QuickJS] No matching ctor for {typeName} with {args.Length} args");
                     return;
                 }
 
                 if (type == null) {
-                    resPtr->errorCode = 1;
-                    Debug.LogError("[QuickJS] Type not found: " + typeName);
+                    Fail(resPtr, "[QuickJS] Type not found: " + typeName);
                     return;
                 }
 
@@ -346,8 +363,7 @@ namespace OneJS {
                                 }
                             }
 
-                            resPtr->errorCode = 1;
-                            Debug.LogError("[QuickJS] Method not found: " + type.FullName + "." + memberName);
+                            Fail(resPtr, "[QuickJS] Method not found: " + type.FullName + "." + memberName);
                             return;
                         }
 
@@ -402,8 +418,7 @@ namespace OneJS {
                                 return;
                             }
 
-                            resPtr->errorCode = 1;
-                            Debug.LogError("[QuickJS] Property not found: " + type.FullName + "." + memberName);
+                            Fail(resPtr, "[QuickJS] Property not found: " + type.FullName + "." + memberName);
                             return;
                         }
 
@@ -425,8 +440,7 @@ namespace OneJS {
                                 return;
                             }
 
-                            resPtr->errorCode = 1;
-                            Debug.LogError("[QuickJS] Property or field not found (set): " + type.FullName +
+                            Fail(resPtr, "[QuickJS] Property or field not found (set): " + type.FullName +
                                            "." + memberName);
                             return;
                         }
@@ -441,8 +455,7 @@ namespace OneJS {
                     case InteropInvokeCallKind.GetField: {
                         FieldInfo field = FindFieldCached(type, memberName, isStatic);
                         if (field == null) {
-                            resPtr->errorCode = 1;
-                            Debug.LogError("[QuickJS] Field not found: " + type.FullName + "." + memberName);
+                            Fail(resPtr, "[QuickJS] Field not found: " + type.FullName + "." + memberName);
                             return;
                         }
 
@@ -454,8 +467,7 @@ namespace OneJS {
                     case InteropInvokeCallKind.SetField: {
                         FieldInfo field = FindFieldCached(type, memberName, isStatic);
                         if (field == null) {
-                            resPtr->errorCode = 1;
-                            Debug.LogError("[QuickJS] Field not found (set): " + type.FullName + "." +
+                            Fail(resPtr, "[QuickJS] Field not found (set): " + type.FullName + "." +
                                            memberName);
                             return;
                         }
@@ -496,38 +508,30 @@ namespace OneJS {
                     }
 
                     default:
-                        resPtr->errorCode = 1;
-                        Debug.LogError("[QuickJS] Unsupported call kind: " + reqPtr->callKind);
+                        Fail(resPtr, "[QuickJS] Unsupported call kind: " + reqPtr->callKind);
                         return;
                 }
             } catch (TargetInvocationException tie) {
                 // Unwrap reflection exceptions to get the actual error
                 // TargetInvocationException wraps the real exception from reflected method calls
                 var innerEx = tie.InnerException ?? tie;
-                resPtr->errorCode = 1;
-
-                string typeName = PtrToStringUtf8(reqPtr->typeName) ?? "<unknown>";
-                string memberName = PtrToStringUtf8(reqPtr->memberName) ?? "<unknown>";
-
-                Debug.LogError(
-                    $"[QuickJS Invoke Error] {reqPtr->callKind} on {typeName}.{memberName} failed:\n" +
-                    $"  Exception: {innerEx.GetType().Name}: {innerEx.Message}\n" +
-                    $"  Stack trace:\n{innerEx.StackTrace}");
+                FailWithException(resPtr, reqPtr, innerEx);
             } catch (Exception ex) {
-                resPtr->errorCode = 1;
-
-                // Preserve full exception context
-                string typeName = PtrToStringUtf8(reqPtr->typeName) ?? "<unknown>";
-                string memberName = PtrToStringUtf8(reqPtr->memberName) ?? "<unknown>";
-
-                Debug.LogError(
-                    $"[QuickJS Invoke Error] {reqPtr->callKind} on {typeName}.{memberName} failed:\n" +
-                    $"  Exception: {ex.GetType().Name}: {ex.Message}\n" +
-                    $"  Stack trace:\n{ex.StackTrace}");
+                FailWithException(resPtr, reqPtr, ex);
             } finally {
                 // Restore previous context pointer
                 _currentContextPtr = prevContext;
             }
+        }
+
+        // The thrown JS error carries the one-line summary; the console keeps the
+        // stack trace, which is where it is useful.
+        static unsafe void FailWithException(InteropInvokeResult* resPtr, InteropInvokeRequest* reqPtr, Exception ex) {
+            string typeName = PtrToStringUtf8(reqPtr->typeName) ?? "<unknown>";
+            string memberName = PtrToStringUtf8(reqPtr->memberName) ?? "<unknown>";
+            string summary = $"[QuickJS Invoke Error] {reqPtr->callKind} on {typeName}.{memberName} failed: " +
+                $"{ex.GetType().Name}: {ex.Message}";
+            Fail(resPtr, summary, summary + $"\n  Stack trace:\n{ex.StackTrace}");
         }
 
         // MARK: Return Value

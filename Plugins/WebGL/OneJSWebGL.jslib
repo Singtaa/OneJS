@@ -426,16 +426,20 @@ var OneJSWebGLLib = {
             );
 
             // Read result
+            // A failure throws, as the native QuickJS path does, rather than
+            // returning null: a missing type or member is a bug the caller can
+            // catch, not a value it can use. The message lives in a static C#
+            // buffer, so it is copied out here and never freed. The throw waits
+            // until the frees below have run.
             var errorCode = HEAP32[(resPtr + 32) >> 2];
             var result = null;
+            var errorMsg = null;
 
             if (errorCode === 0) {
                 result = OneJS.unmarshalValue(resPtr);
             } else {
                 var errorMsgPtr = HEAPU32[(resPtr + 36) >> 2];
-                if (errorMsgPtr) {
-                    console.error("[OneJS] C# invoke error:", UTF8ToString(errorMsgPtr));
-                }
+                errorMsg = errorMsgPtr ? UTF8ToString(errorMsgPtr) : "C# invoke error";
             }
 
             // Free allocated memory
@@ -460,6 +464,7 @@ var OneJSWebGLLib = {
             _free(reqPtr);
             _free(resPtr);
 
+            if (errorMsg !== null) throw new Error(errorMsg);
             return result;
         },
 
