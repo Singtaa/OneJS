@@ -22,7 +22,7 @@ namespace OneJS.Editor.TypeGenerator {
         public string ToTypeScript(bool useFullTypeName = true) {
             var name = IsParams ? $"...{Name}" : $"${Name}";
             var optional = IsOptional ? "?" : "";
-            var typeName = Type?.ToTypeScript(useFullTypeName) ?? "any";
+            var typeName = Widen(Type) ?? Type?.ToTypeScript(useFullTypeName) ?? "any";
 
             // For params, use array syntax
             if (IsParams && !typeName.EndsWith("[]")) {
@@ -36,6 +36,28 @@ namespace OneJS.Editor.TypeGenerator {
             }
 
             return $"{name}{optional}: {typeName}";
+        }
+
+        /// <summary>
+        /// `System.TypeLike` for a parameter that wants a `System.Type`, else null.
+        ///
+        /// JS hands C# a class reference (`CS.UnityEngine.Vector3`, a path proxy)
+        /// where C# declares a `Type`, so a `Type` parameter typed as `System.Type`
+        /// rejects the only thing a caller can actually pass. `TypeLike` is the
+        /// union of both, declared in _system.d.ts.
+        ///
+        /// Parameters only. A member that RETURNS a `Type` returns a real one, and
+        /// widening that would lie to the caller in the other direction. This was
+        /// applied by hand to ~118 signatures in unity-types before it lived here.
+        /// </summary>
+        static string Widen(TsTypeRef type) {
+            if (type == null) return null;
+            if (type.OriginalType == typeof(System.Type)) return "System.TypeLike";
+            if (type.IsArray && type.GenericArguments.Count == 1
+                && type.GenericArguments[0].OriginalType == typeof(System.Type)) {
+                return "System.Array$1<System.TypeLike>";
+            }
+            return null;
         }
 
         public override string ToString() => ToTypeScript();

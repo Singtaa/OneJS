@@ -391,5 +391,106 @@ namespace OneJS.Editor.TypeGenerator.Tests {
         }
 
         #endregion
+
+        #region Arrays
+
+        /// <summary>
+        /// A C# array Type's Name carries its brackets ("Single[]"), and the
+        /// invalid-TypeScript-identifier guard rejects '[' and ']'. With that
+        /// guard ahead of the array branch, every array mapped to `any`: the
+        /// branch was dead code, and unity-types carried ~1300 hand-written
+        /// System.Array$1&lt;T&gt; annotations patching the output by hand.
+        /// </summary>
+        [Test]
+        public void MapType_Array_IsAnArrayNotAny() {
+            var mapped = TypeMapper.MapType(typeof(float[]));
+
+            Assert.IsTrue(mapped.IsArray, "a float[] must map as an array");
+            Assert.AreEqual("System.Array$1<number>", mapped.ToTypeScript());
+        }
+
+        [Test]
+        public void MapType_ArrayOfReferenceType_KeepsItsElementType() {
+            Assert.AreEqual("System.Array$1<string>", TypeMapper.MapType(typeof(string[])).ToTypeScript());
+            Assert.AreEqual("System.Array$1<UnityEngine.Vector3>", TypeMapper.MapType(typeof(Vector3[])).ToTypeScript());
+        }
+
+        /// <summary>
+        /// The element still goes through MapType, so an array of something
+        /// unrepresentable degrades to Array$1&lt;any&gt; and not to a bare any:
+        /// the caller still learns it is holding an array.
+        /// </summary>
+        [Test]
+        public void MapType_ArrayOfPointer_KeepsTheArrayAndDegradesTheElement() {
+            var mapped = TypeMapper.MapType(typeof(int).MakePointerType().MakeArrayType());
+
+            Assert.IsTrue(mapped.IsArray);
+            Assert.AreEqual("System.Array$1<any>", mapped.ToTypeScript());
+        }
+
+        [Test]
+        public void MapType_NestedArray_NestsBothLevels() {
+            Assert.AreEqual("System.Array$1<System.Array$1<number>>",
+                TypeMapper.MapType(typeof(float[][])).ToTypeScript());
+        }
+
+        /// <summary>
+        /// The signature that sent this looking: AudioSource.GetOutputData takes
+        /// a float[] and returned `any` in every published unity-types build the
+        /// generator produced.
+        /// </summary>
+        [Test]
+        public void Generate_MethodTakingAnArray_TypesTheParameter() {
+            var result = TypeGenerator.GenerateToResult(typeof(AudioSource));
+
+            StringAssert.Contains("System.Array$1<number>", result.Content);
+        }
+
+        #endregion
+
+        #region Type parameters widen to TypeLike
+
+        /// <summary>
+        /// JS passes a class reference (a CS path proxy) where C# declares a
+        /// System.Type, so a Type PARAMETER has to accept both. unity-types
+        /// carried ~118 of these patched by hand before the rule lived here.
+        /// </summary>
+        [Test]
+        public void Emit_TypeParameter_WidensToTypeLike() {
+            var p = new TsParameterInfo { Name = "type", Type = TypeMapper.MapType(typeof(Type)) };
+
+            Assert.AreEqual("$type: System.TypeLike", p.ToTypeScript());
+        }
+
+        [Test]
+        public void Emit_ParamsArrayOfType_WidensItsElement() {
+            var p = new TsParameterInfo {
+                Name = "components", IsParams = true, Type = TypeMapper.MapType(typeof(Type[]))
+            };
+
+            Assert.AreEqual("...components: System.TypeLike[]", p.ToTypeScript());
+        }
+
+        /// <summary>
+        /// The other direction must NOT widen: a member returning a Type returns
+        /// a real one, and saying TypeLike there would let a caller treat it as
+        /// a class reference it is not.
+        /// </summary>
+        [Test]
+        public void Emit_TypeReturn_StaysType() {
+            var result = TypeGenerator.GenerateToResult(typeof(System.Reflection.MethodInfo));
+
+            StringAssert.Contains("): System.Type", result.Content);
+            StringAssert.DoesNotContain("): System.TypeLike", result.Content);
+        }
+
+        [Test]
+        public void Emit_NonTypeParameter_IsUntouched() {
+            var p = new TsParameterInfo { Name = "n", Type = TypeMapper.MapType(typeof(int)) };
+
+            Assert.AreEqual("$n: number", p.ToTypeScript());
+        }
+
+        #endregion
     }
 }

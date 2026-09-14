@@ -99,6 +99,26 @@ namespace OneJS.Editor.TypeGenerator {
                 };
             }
 
+            // Arrays before ShouldEmitAsAny, because an array Type's Name carries
+            // the brackets ("Single[]") and the invalid-identifier guard below
+            // rejects '[' and ']'. Every C# array therefore left here as `any`,
+            // which made this branch and Array$1 emission dead code for real
+            // arrays and is why unity-types carried ~1300 hand-written
+            // System.Array$1<T> annotations over the generator's output.
+            // The element still goes through MapType, so an array of something
+            // unrepresentable is Array$1<any> rather than a bare any.
+            if (type.IsArray) {
+                var elementType = type.GetElementType();
+                return new TsTypeRef {
+                    OriginalType = type,
+                    IsArray = true,
+                    ArrayRank = type.GetArrayRank(),
+                    Name = "Array",
+                    Namespace = "System",
+                    GenericArguments = { MapType(elementType) },
+                };
+            }
+
             // Types that would produce invalid TypeScript identifiers
             // (compiler-generated nested types like `<buttons>e__FixedBuffer`,
             // closure display classes, async state machines, etc.) must be
@@ -112,17 +132,6 @@ namespace OneJS.Editor.TypeGenerator {
             var typeRef = new TsTypeRef {
                 OriginalType = type
             };
-
-            // Handle array types
-            if (type.IsArray) {
-                var elementType = type.GetElementType();
-                typeRef.IsArray = true;
-                typeRef.ArrayRank = type.GetArrayRank();
-                typeRef.GenericArguments.Add(MapType(elementType));
-                typeRef.Name = "Array";
-                typeRef.Namespace = "System";
-                return typeRef;
-            }
 
             // Check primitive types first
             if (PrimitiveTypeMap.TryGetValue(type, out var primitiveTs)) {
