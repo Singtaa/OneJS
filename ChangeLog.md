@@ -1,4 +1,4 @@
-# Unreleased
+# [2026-09-13] v3.4.2
 
 - Nested C# types resolve by their dotted path: `CS.UnityEngine.UIElements.ScrollView.TouchScrollBehavior.Elastic`
 - A CS path that names no type warns when used as a value instead of reading as 0
