@@ -375,6 +375,31 @@ namespace OneJS.Tests.Editor {
             }
         }
 
+        /// <summary>
+        /// A stale staging folder from an earlier failure is cleared even by a
+        /// build that then fails on a collision.
+        ///
+        /// The collision throws while the plan is being built, before the staging
+        /// block is reached, so clearing it there left one to outlive every
+        /// collision build. It sits under Assets, so Unity imports it and a player
+        /// built before anything cleared it would carry a duplicate of those files.
+        /// </summary>
+        [Test]
+        public void CommitAssets_StaleStaging_IsClearedEvenWhenTheBuildCollides() {
+            var staging = Dest + ".staging";
+            Directory.CreateDirectory(staging);
+            File.WriteAllText(Path.Combine(staging, "left-over.png"), "stale");
+
+            Write(Path.Combine(_testBasePath, "appA"), Path.Combine("img", "logo.png"), "A");
+            Write(Path.Combine(_testBasePath, "appB"), Path.Combine("img", "logo.png"), "B");
+            AddSource(Path.Combine(_testBasePath, "appA"), "AppA");
+            AddSource(Path.Combine(_testBasePath, "appB"), "AppB");
+
+            Assert.Throws<BuildFailedException>(() => InvokeCommitAssets(Dest));
+            Assert.IsFalse(Directory.Exists(staging),
+                "a stale staging folder outlived a collision build and would ship in a later player");
+        }
+
         [Test]
         public void CommitAssets_SkipsMetaFiles() {
             Write(Path.Combine(_testBasePath, "app"), "a.png", "A");

@@ -278,6 +278,14 @@ namespace OneJS.Editor {
         /// </summary>
         void CommitAssetsTo(string destDir) {
 
+            // Cleared before the plan is built, not inside the try below, because
+            // a collision throws while planning and would leave a stale staging
+            // folder from an earlier failure untouched. It sits under Assets, so
+            // Unity imports it and a player built before anything clears it would
+            // carry a duplicate of those files.
+            var staging = destDir + ".staging";
+            try { DeleteTree(staging); } catch { }
+
             // relative path (lowercased) -> what to copy and who owns it.
             var plan = new Dictionary<string, (string file, string relative, string runner, string src)>();
 
@@ -324,9 +332,7 @@ namespace OneJS.Editor {
                 }
             }
 
-            var staging = destDir + ".staging";
             try {
-                DeleteTree(staging);
                 Directory.CreateDirectory(staging);
 
                 foreach (var entry in plan.Values) {
