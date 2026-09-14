@@ -1,7 +1,10 @@
+using System;
+using System.Collections;
 using System.IO;
 using System.Reflection;
 using NUnit.Framework;
 using OneJS.Editor;
+using UnityEditor.Build;
 using UnityEngine;
 
 namespace OneJS.Tests.Editor {
@@ -19,6 +22,8 @@ namespace OneJS.Tests.Editor {
         string _testBasePath;
         JSRunnerBuildProcessor _processor;
         MethodInfo _copyDirectoryRecursive;
+        MethodInfo _commitAssets;
+        IList _assetSources;
 
         [SetUp]
         public void SetUp() {
@@ -37,6 +42,20 @@ namespace OneJS.Tests.Editor {
             Assert.IsNotNull(_copyDirectoryRecursive,
                 "JSRunnerBuildProcessor.CopyDirectoryRecursive(string, string) was not found via reflection - " +
                 "these tests are out of sync with the implementation.");
+
+            _commitAssets = typeof(JSRunnerBuildProcessor).GetMethod(
+                "CommitAssetsTo", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.IsNotNull(_commitAssets,
+                "JSRunnerBuildProcessor.CommitAssetsTo(string) was not found via reflection: " +
+                "these tests are out of sync with the implementation.");
+
+            // Static and shared across a whole build, so one test could otherwise
+            // leave a source behind that makes the next one fail, or pass for free.
+            _assetSources = (IList)typeof(JSRunnerBuildProcessor)
+                .GetField("_assetSources", BindingFlags.NonPublic | BindingFlags.Static)
+                .GetValue(null);
+            Assert.IsNotNull(_assetSources, "JSRunnerBuildProcessor._assetSources was not found via reflection.");
+            _assetSources.Clear();
         }
 
         [TearDown]
@@ -53,6 +72,29 @@ namespace OneJS.Tests.Editor {
 
         int InvokeCopyDirectoryRecursive(string src, string dest) {
             return (int)_copyDirectoryRecursive.Invoke(_processor, new object[] { src, dest });
+        }
+
+        // Reflection wraps a throw in TargetInvocationException, so unwrap it: a
+        // test asserting BuildFailedException should see BuildFailedException.
+        void InvokeCommitAssets(string destDir) {
+            try {
+                _commitAssets.Invoke(_processor, new object[] { destDir });
+            } catch (TargetInvocationException e) {
+                throw e.InnerException;
+            }
+        }
+
+        // The processor reads _assetSources, a List of a private tuple type, so the
+        // entries are built by reflection rather than named here.
+        void AddSource(string srcDir, string runnerName) {
+            var elem = _assetSources.GetType().GetGenericArguments()[0];
+            _assetSources.Add(Activator.CreateInstance(elem, srcDir, runnerName));
+        }
+
+        static void Write(string dir, string relative, string content) {
+            var full = Path.Combine(dir, relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(full));
+            File.WriteAllText(full, content);
         }
 
         // MARK: CopyDirectoryRecursive Tests (via reflection)
@@ -120,5 +162,159 @@ namespace OneJS.Tests.Editor {
             Assert.IsTrue(File.Exists(Path.Combine(destDir, "keep.png")), "Asset file should be copied");
             Assert.IsFalse(File.Exists(Path.Combine(destDir, "keep.png.meta")), ".meta sidecar should be skipped");
         }
+        // MARK: CommitAssets Tests (the multi-app bug, Discord 2026-09-14)
+
+        string Dest => Path.Combine(_testBasePath, "dest");
+
+        /// <summary>
+        /// Two apps in one build, both of their assets in the player.
+        ///
+        /// The copy used to delete the shared destination before every runner, so
+        /// with more than one app only the last one's assets survived. Red against
+        /// that code: app A's file is gone by the time this asserts.
+        /// </summary>
+        [Test]
+        public void CommitAssets_TwoRunners_BothSurvive() {
+            Write(Path.Combine(_testBasePath, "appA"), "a.png", "A");
+            Write(Path.Combine(_testBasePath, "appB"), Path.Combine("nested", "b.png"), "B");
+            AddSource(Path.Combine(_testBasePath, "appA"), "AppA");
+            AddSource(Path.Combine(_testBasePath, "appB"), "AppB");
+
+            InvokeCommitAssets(Dest);
+
+            Assert.IsTrue(File.Exists(Path.Combine(Dest, "a.png")), "AppA's asset was erased by AppB");
+            Assert.IsTrue(File.Exists(Path.Combine(Dest, "nested", "b.png")), "AppB's asset is missing");
+            Assert.AreEqual("A", File.ReadAllText(Path.Combine(Dest, "a.png")));
+        }
+
+        [Test]
+        public void CommitAssets_SamePathFromTwoRunners_FailsNamingBoth() {
+            Write(Path.Combine(_testBasePath, "appA"), Path.Combine("img", "logo.png"), "A");
+            Write(Path.Combine(_testBasePath, "appB"), Path.Combine("img", "logo.png"), "B");
+            AddSource(Path.Combine(_testBasePath, "appA"), "AppA");
+            AddSource(Path.Combine(_testBasePath, "appB"), "AppB");
+
+            var e = Assert.Throws<BuildFailedException>(() => InvokeCommitAssets(Dest));
+
+            StringAssert.Contains("img/logo.png", e.Message);
+            StringAssert.Contains("AppA", e.Message);
+            StringAssert.Contains("AppB", e.Message);
+        }
+
+        /// <summary>
+        /// Windows and macOS both resolve Logo.png and logo.png to one file, so a
+        /// case-only difference is a collision there. Detecting it only on Linux
+        /// would mean CI passing while every developer machine ships one app's
+        /// texture under the other app's name.
+        /// </summary>
+        [Test]
+        public void CommitAssets_CaseOnlyCollision_Fails() {
+            Write(Path.Combine(_testBasePath, "appA"), "Logo.png", "A");
+            Write(Path.Combine(_testBasePath, "appB"), "logo.png", "B");
+            AddSource(Path.Combine(_testBasePath, "appA"), "AppA");
+            AddSource(Path.Combine(_testBasePath, "appB"), "AppB");
+
+            var e = Assert.Throws<BuildFailedException>(() => InvokeCommitAssets(Dest));
+
+            StringAssert.Contains("differ only in case", e.Message);
+        }
+
+        /// <summary>
+        /// An app deleted since the last build must take its files with it. A merge
+        /// that never clears would keep shipping them in every build forever, which
+        /// is the trap in simply removing the delete.
+        /// </summary>
+        [Test]
+        public void CommitAssets_RunnerRemovedSinceLastBuild_LeavesNoStaleFile() {
+            Write(Path.Combine(_testBasePath, "appA"), "a.png", "A");
+            Write(Path.Combine(_testBasePath, "appB"), "b.png", "B");
+            AddSource(Path.Combine(_testBasePath, "appA"), "AppA");
+            AddSource(Path.Combine(_testBasePath, "appB"), "AppB");
+            InvokeCommitAssets(Dest);
+            Assert.IsTrue(File.Exists(Path.Combine(Dest, "b.png")), "setup failed");
+
+            // AppB is gone from the project; build again.
+            _assetSources.Clear();
+            AddSource(Path.Combine(_testBasePath, "appA"), "AppA");
+            InvokeCommitAssets(Dest);
+
+            Assert.IsTrue(File.Exists(Path.Combine(Dest, "a.png")));
+            Assert.IsFalse(File.Exists(Path.Combine(Dest, "b.png")),
+                "a removed app's asset is still being shipped");
+        }
+
+        /// <summary>
+        /// Nothing is deleted until the replacement is complete on disk, so a build
+        /// that fails leaves the previous one's folder intact rather than a partial
+        /// one that the next build would treat as real.
+        /// </summary>
+        [Test]
+        public void CommitAssets_FailedBuild_LeavesThePreviousFolderIntact() {
+            Write(Path.Combine(_testBasePath, "appA"), "a.png", "A");
+            AddSource(Path.Combine(_testBasePath, "appA"), "AppA");
+            InvokeCommitAssets(Dest);
+
+            // Now a build that collides: it must not touch what is already there.
+            Write(Path.Combine(_testBasePath, "appB"), "shared.png", "B");
+            Write(Path.Combine(_testBasePath, "appC"), "shared.png", "C");
+            _assetSources.Clear();
+            AddSource(Path.Combine(_testBasePath, "appB"), "AppB");
+            AddSource(Path.Combine(_testBasePath, "appC"), "AppC");
+            Assert.Throws<BuildFailedException>(() => InvokeCommitAssets(Dest));
+
+            Assert.IsTrue(File.Exists(Path.Combine(Dest, "a.png")),
+                "the failed build destroyed the previous build's assets");
+            Assert.AreEqual("A", File.ReadAllText(Path.Combine(Dest, "a.png")));
+            Assert.IsFalse(Directory.Exists(Dest + ".staging"), "staging folder was left behind");
+        }
+
+        /// <summary>
+        /// One app reached twice is not two apps disagreeing: two JSRunners can
+        /// share a project folder, and a runner can sit in more than one build
+        /// scene. Keying the collision on the runner name alone failed those builds
+        /// outright, which would be a worse bug than the one being fixed.
+        /// </summary>
+        [Test]
+        public void CommitAssets_SameSourceTwice_IsNotACollision() {
+            Write(Path.Combine(_testBasePath, "app"), "a.png", "A");
+            AddSource(Path.Combine(_testBasePath, "app"), "AppInSceneOne");
+            AddSource(Path.Combine(_testBasePath, "app"), "AppInSceneTwo");
+
+            Assert.DoesNotThrow(() => InvokeCommitAssets(Dest));
+            Assert.IsTrue(File.Exists(Path.Combine(Dest, "a.png")));
+        }
+
+        /// <summary>
+        /// A runner with no assets folder records no source, so it cannot erase
+        /// the apps that do. Under the old code the survivor was "the last runner
+        /// that HAS assets", which made the bug look intermittent: adding an
+        /// asset-less app changed nothing, adding one with assets lost the others.
+        /// </summary>
+        [Test]
+        public void CommitAssets_RunnerWithoutAssets_ErasesNothing() {
+            Write(Path.Combine(_testBasePath, "appA"), "a.png", "A");
+            AddSource(Path.Combine(_testBasePath, "appA"), "AppA");
+            InvokeCommitAssets(Dest);
+
+            // AppB ships no assets folder at all, so CopyAssets records no source
+            // for it. The commit still runs, because the build had runners.
+            InvokeCommitAssets(Dest);
+
+            Assert.IsTrue(File.Exists(Path.Combine(Dest, "a.png")),
+                "an app with no assets folder erased an app that has one");
+        }
+
+        [Test]
+        public void CommitAssets_SkipsMetaFiles() {
+            Write(Path.Combine(_testBasePath, "app"), "a.png", "A");
+            Write(Path.Combine(_testBasePath, "app"), "a.png.meta", "meta");
+            AddSource(Path.Combine(_testBasePath, "app"), "App");
+
+            InvokeCommitAssets(Dest);
+
+            Assert.IsTrue(File.Exists(Path.Combine(Dest, "a.png")));
+            Assert.IsFalse(File.Exists(Path.Combine(Dest, "a.png.meta")));
+        }
+
     }
 }
