@@ -304,6 +304,39 @@ namespace OneJS.Tests.Editor {
                 "an app with no assets folder erased an app that has one");
         }
 
+        /// <summary>
+        /// Anything that goes wrong while replacing the folder has to stop the
+        /// build, not just log.
+        ///
+        /// Unity aborts a build only for BuildFailedException; any other exception
+        /// out of OnPreprocessBuild is an error line and the build carries on. On
+        /// Windows a read only file in the destination made Directory.Delete throw,
+        /// and the build then shipped the PREVIOUS build's assets under a green
+        /// result. Found by a real Windows player build.
+        ///
+        /// The trigger is not portable, which is worth knowing: POSIX ties the
+        /// right to delete a file to the DIRECTORY's permissions, so the same read
+        /// only file is removed without complaint on macOS and Linux. So this
+        /// asserts the thing that was actually changed, that a failure inside the
+        /// commit surfaces as BuildFailedException, using a destination that
+        /// cannot be created on any platform.
+        /// </summary>
+        [Test]
+        public void CommitAssets_DestinationCannotBeReplaced_FailsTheBuild() {
+            Write(Path.Combine(_testBasePath, "appA"), "a.png", "A");
+            AddSource(Path.Combine(_testBasePath, "appA"), "AppA");
+
+            // The destination's parent is a regular file, so neither it nor its
+            // staging sibling can be made.
+            var blocker = Path.Combine(_testBasePath, "blocker");
+            File.WriteAllText(blocker, "not a directory");
+            var impossible = Path.Combine(blocker, "assets");
+
+            var e = Assert.Throws<BuildFailedException>(() => InvokeCommitAssets(impossible),
+                "a destination that cannot be replaced must stop the build, not be logged past");
+            StringAssert.Contains("Could not rebuild StreamingAssets/onejs/assets", e.Message);
+        }
+
         [Test]
         public void CommitAssets_SkipsMetaFiles() {
             Write(Path.Combine(_testBasePath, "app"), "a.png", "A");

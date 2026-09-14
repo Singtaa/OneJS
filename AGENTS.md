@@ -148,7 +148,7 @@ Performance on QuickJS (an interpreter): every proxy access is a reflection cros
 - IL2CPP/AOT builds strip dynamically-accessed code: ship a `link.xml` preserving your game assemblies or you get `[QuickJS] Type/Method not found` in builds only. See https://onejs.com/docs/guides/building
 - Scene transitions destroy JSRunner before React cleanup runs: also clear static delegate subscriptions in `onStop`.
 - On Android/WebGL, `StreamingAssets` is a URL, not a directory: use the async asset loaders (`loadImageAsync` etc.) from `onejs-unity/assets`.
-- `StreamingAssets/onejs/assets/` is generated: the build processor rebuilds it from every app's `~/assets/` on each build, so anything put there by hand is removed. Keep hand placed files elsewhere under `StreamingAssets/`. Two apps cannot ship the same relative path (the build fails naming both), and the comparison is case insensitive.
+- `StreamingAssets/onejs/assets/` is generated: the build processor rebuilds it from every app's `~/assets/` on each build, so anything put there by hand is removed. What is normally in there is the last build's output, not your files. Keep hand placed files elsewhere under `StreamingAssets/`. Two apps cannot ship the same relative path (the build fails naming both), and the comparison is case insensitive.
 - WebGL embedding: `unityInstance.Quit()` is safe on 3.1.5+ (OneJS stops its tick and hands the page's timers back on teardown). Timers your bundle never cleans up keep running on the page afterward (their C# calls are ignored): create timers inside React effects, or clear them in `onStop`.
 
 ## Verifying without the editor GUI

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using OneJS;
 using UnityEditor;
 using UnityEditor.Build;
@@ -37,6 +38,17 @@ namespace OneJS.Editor {
         /// collision is found BEFORE anything is deleted, so a failed build leaves
         /// the previous build's folder intact instead of a half written one.
         /// </summary>
+        /// <summary>
+        /// Runners met in the scene walk, however they turned out.
+        ///
+        /// Counted separately from _processedRunners, which only gains an entry
+        /// when a bundle is actually created: a runner with a pre-assigned bundle
+        /// never lands there, so gating on it meant a build where every runner had
+        /// one and none shipped assets skipped the commit entirely, which is the
+        /// exact case the commit exists to cover.
+        /// </summary>
+        static int _runnersSeen = 0;
+
         static List<(string srcDir, string runnerName)> _assetSources =
             new List<(string srcDir, string runnerName)>();
 
@@ -45,6 +57,7 @@ namespace OneJS.Editor {
             _processedRunners.Clear();
             _copiedAssetCount = 0;
             _assetSources.Clear();
+            _runnersSeen = 0;
 
             Debug.Log("[JSRunner] Processing JSRunner components in build scenes...");
 
@@ -70,7 +83,7 @@ namespace OneJS.Editor {
 
             // Every scene has been walked, so the full set of apps is known and
             // the shared asset folder can be resolved in one pass.
-            CommitAssets(_processedRunners.Count > 0 || _assetSources.Count > 0);
+            CommitAssets(_runnersSeen > 0);
 
             // Refresh asset database to pick up new TextAssets
             if (_createdAssets.Count > 0) {
@@ -101,6 +114,7 @@ namespace OneJS.Editor {
                         continue;
                     }
 
+                    _runnersSeen++;
                     ProcessJSRunner(runner);
                     ExtractCartridges(runner);
                     CopyAssets(runner);
@@ -247,6 +261,10 @@ namespace OneJS.Editor {
         /// needs a manifest of what it wrote last time and still cannot tell a
         /// stale asset from a deliberate one. Hand placed files belong anywhere
         /// else under StreamingAssets, which this never touches.
+        ///
+        /// In practice what is found in there is the previous build's output
+        /// rather than anything a person put there, which is the point: those
+        /// leftovers are what used to ship in every later build.
         /// </summary>
         void CommitAssets(bool hadRunners) {
             if (!hadRunners) return;
@@ -274,7 +292,10 @@ namespace OneJS.Editor {
                     // Logo.png and logo.png to one file. Detecting this only on
                     // Linux would mean a build that passes CI and ships one app's
                     // texture under the other app's name on every developer machine.
-                    var key = relative.ToLowerInvariant();
+                    // FormC before the fold: a composed and a decomposed accent
+                    // are different keys but the same file on APFS, so two apps
+                    // could pass on Windows and collide on a colleague's Mac.
+                    var key = relative.Normalize(NormalizationForm.FormC).ToLowerInvariant();
 
                     if (plan.TryGetValue(key, out var owner)) {
                         // The same folder twice is one app reached twice, not two
@@ -317,11 +338,23 @@ namespace OneJS.Editor {
                 if (Directory.Exists(destDir)) Directory.Delete(destDir, true);
                 Directory.CreateDirectory(Path.GetDirectoryName(destDir));
                 Directory.Move(staging, destDir);
-            } catch {
+            } catch (Exception e) {
                 if (Directory.Exists(staging)) {
                     try { Directory.Delete(staging, true); } catch (IOException) { }
                 }
-                throw;
+                // Rethrown as BuildFailedException because Unity only ABORTS a
+                // build for that type: anything else out of OnPreprocessBuild is
+                // an error line and the build carries on, which here meant
+                // shipping the previous build's assets under a green result. A
+                // read only file in the destination (Perforce, a restored
+                // archive, or a read only source asset, since File.Copy keeps the
+                // attribute) is enough to reach this.
+                if (e is BuildFailedException) throw;
+                throw new BuildFailedException(
+                    $"[JSRunner] Could not rebuild StreamingAssets/onejs/assets: {e.Message} " +
+                    $"The destination may be partly deleted, so delete it and build again. " +
+                    $"A read only file in it will do this, and File.Copy keeps the read only " +
+                    $"attribute, so a read only source asset causes it on the NEXT build.");
             }
 
             // Counted off the destination rather than off the copies performed,
