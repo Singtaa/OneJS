@@ -527,7 +527,15 @@ namespace OneJS {
         /// PanelSettings is the single marker for the project folder (no separate ProjectConfig).
         /// </summary>
         public void EnsureProjectFolderAndAssets(bool useSceneNameAsRootFolder = true) {
-            if (_panelSettings != null) return;
+            if (_panelSettings != null) {
+                if (IsPanelSettingsInValidProjectFolder()) return;
+                // Assigned, but the folder is not a project folder. Say so rather than reporting success:
+                // the folder is not repaired here on purpose, because one PanelSettings is often shared
+                // with other UIDocuments and scaffolding into its folder would be a surprise.
+                Debug.LogWarning($"[JSRunner] Panel Settings is assigned but {GetInvalidProjectFolderReason()}. " +
+                    "Nothing was created. Clear the field with Remove Settings, then Initialize Project.", this);
+                return;
+            }
 
             var instanceFolder = GetDefaultInstanceFolderPath(useSceneNameAsRootFolder);
             if (string.IsNullOrEmpty(instanceFolder)) return;
@@ -756,6 +764,22 @@ namespace OneJS {
             var appJs = Path.Combine(instanceFolder, "app.js");
             var appJsTxt = Path.Combine(instanceFolder, "app.js.txt");
             return Directory.Exists(tildeDir) || File.Exists(appJs) || File.Exists(appJsTxt);
+        }
+
+        /// <summary>
+        /// Says why the assigned PanelSettings is not in a valid project folder, phrased for a log line
+        /// or an inspector message. Null when nothing is assigned or when the folder is already valid.
+        /// </summary>
+        public string GetInvalidProjectFolderReason() {
+            if (_panelSettings == null || IsPanelSettingsInValidProjectFolder()) return null;
+            var assetPath = UnityEditor.AssetDatabase.GetAssetPath(_panelSettings);
+            if (string.IsNullOrEmpty(assetPath))
+                return $"'{_panelSettings.name}' has not been saved as an asset";
+            if (!assetPath.StartsWith("Assets", StringComparison.OrdinalIgnoreCase))
+                return $"'{assetPath}' is outside the Assets folder";
+            var dir = Path.GetDirectoryName(assetPath);
+            if (string.IsNullOrEmpty(dir)) return $"'{assetPath}' has no containing folder";
+            return $"its folder '{dir.Replace('\\', '/')}' holds no ~ working directory and no app.js.txt";
         }
 #endif
 

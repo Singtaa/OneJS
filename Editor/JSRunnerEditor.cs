@@ -1432,7 +1432,7 @@ namespace OneJS.Editor {
             _statusLabelNotValid.style.color = OneJSEditorDesign.Colors.StatusWarning;
             notValidStatusRow.Add(_statusLabelNotValid);
             notValidLeft.Add(notValidStatusRow);
-            var notValidMsg = new Label("Panel Settings is not valid. The asset must be located in a valid project folder that contains OneJS project files.");
+            var notValidMsg = new Label("Panel Settings is not valid. A project folder is one holding a ~ working directory or an app.js.txt beside the PanelSettings asset. Unity hides ~ folders in the Project window, so check on disk. Press Remove Settings to clear the field, then Initialize Project.");
             notValidMsg.style.marginTop = 4;
             notValidMsg.style.whiteSpace = WhiteSpace.Normal;
             notValidMsg.style.fontSize = 11;
@@ -1978,7 +1978,15 @@ namespace OneJS.Editor {
             AssetDatabase.Refresh();
 
             var workingDir = _target.WorkingDirFullPath;
-            if (!string.IsNullOrEmpty(workingDir) && File.Exists(Path.Combine(workingDir, "package.json"))) {
+            if (string.IsNullOrEmpty(workingDir)) {
+                // No working directory means nothing was initialized, which is not the same as a project
+                // that simply has no package.json. Report the failure instead of claiming success.
+                // The assigned-but-invalid case is already reported by EnsureProjectFolderAndAssets,
+                // which names the folder and what it lacks; only the other case is left to report here.
+                if (_target.GetInvalidProjectFolderReason() == null)
+                    Debug.LogWarning("[JSRunner] Nothing was initialized: no project folder could be resolved. " +
+                        "Save the scene first, then Initialize Project again.", _target);
+            } else if (File.Exists(Path.Combine(workingDir, "package.json"))) {
                 RunNpmCommand(workingDir, "install", onSuccess: () => {
                     RunNpmCommand(workingDir, "run build", onSuccess: () => {
                         AssetDatabase.Refresh();
