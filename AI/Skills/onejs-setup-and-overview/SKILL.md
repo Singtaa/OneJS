@@ -5,14 +5,14 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.4.3"
-  skill-version: "1.1.0"
+  skill-version: "1.2.0"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-09-11"
+  last-verified: "2026-09-14"
 ---
 
 # Set Up a OneJS Project
@@ -344,6 +344,10 @@ Fix: select the JSRunner GameObject, or switch the overlay's Scene mode to Camer
 **Game view is blank and the Console is silent.**
 Cause: no PanelSettings assigned, or `app.js.txt` missing. JSRunner treats both as "not set up yet" rather than as errors.
 Fix: assign PanelSettings (or click Initialize Project), then run `npm run build` in `~/`.
+
+**The JSRunner inspector has no tabs, and Initialize Project appears to do nothing.**
+Cause: the assigned PanelSettings is not in a project folder, so Status reads "Not Valid" and the whole tab bar is hidden, Build and its scaffolding Restore buttons included. A project folder is one holding a `~` working directory or an `app.js.txt` beside the PanelSettings asset. The folder's name never matters.
+Fix: press **Remove Settings** to clear the field, then **Initialize Project**. Or assign the `PanelSettings.asset` that sits beside the `~` folder. Unity hides `~` folders in the Project window, so check on disk rather than in the Project view.
 
 **Text does not appear where expected.**
 Cause: a raw string child was used instead of the `text` prop.
