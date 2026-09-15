@@ -6,7 +6,9 @@ using System.Reflection;
 using NUnit.Framework;
 using OneJS.Editor;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
 
 namespace OneJS.Tests.Editor {
@@ -30,6 +32,11 @@ namespace OneJS.Tests.Editor {
         GameObject _go;
         MethodInfo _runInitializeProject;
 
+        // The test object lives in a preview scene, never in whoever's scene is open. A GameObject
+        // created in the open scene dirties it, and the EditMode runner then prompts to save modified
+        // scenes when the NEXT run starts, which blocks the editor on a modal dialog.
+        Scene _previewScene;
+
         static string AbsolutePath(string assetPath) =>
             Path.Combine(Path.GetDirectoryName(Application.dataPath), assetPath.Replace('/', Path.DirectorySeparatorChar));
 
@@ -41,6 +48,8 @@ namespace OneJS.Tests.Editor {
                 "JSRunnerEditor.RunInitializeProject() was not found via reflection: " +
                 "these tests are out of sync with the implementation.");
 
+            _previewScene = EditorSceneManager.NewPreviewScene();
+
             if (AssetDatabase.IsValidFolder(TEST_FOLDER)) AssetDatabase.DeleteAsset(TEST_FOLDER);
             Directory.CreateDirectory(AbsolutePath(TEST_FOLDER));
             AssetDatabase.Refresh();
@@ -51,6 +60,7 @@ namespace OneJS.Tests.Editor {
             if (_go != null) UnityEngine.Object.DestroyImmediate(_go);
             AssetDatabase.DeleteAsset(TEST_FOLDER);
             AssetDatabase.Refresh();
+            if (_previewScene.IsValid()) EditorSceneManager.ClosePreviewScene(_previewScene);
         }
 
         [Test]
@@ -62,6 +72,7 @@ namespace OneJS.Tests.Editor {
             AssetDatabase.SaveAssets();
 
             _go = new GameObject(nameof(JSRunnerInitializeReportingTests));
+            SceneManager.MoveGameObjectToScene(_go, _previewScene);
             var runner = _go.AddComponent<JSRunner>();
             runner.SetPanelSettings(panelSettings);
             Assert.IsFalse(runner.IsPanelSettingsInValidProjectFolder(),
