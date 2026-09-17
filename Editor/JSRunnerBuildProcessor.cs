@@ -154,8 +154,22 @@ namespace OneJS.Editor {
             }
 
             if (_processedRunners.Contains(bundleAssetPathUnity)) {
-                Debug.Log($"[JSRunner] Bundle already processed: {bundleAssetPathUnity}");
-                return false;
+                // The FILE is written once per app, but the reference to it is
+                // serialized on each COMPONENT, so this runner still needs its own
+                // assignment. Returning here without one shipped it with a null
+                // bundle, and a runner with a null bundle runs OneJS's default
+                // placeholder app in the player: the app looks built and is not.
+                //
+                // Two runners land here whenever they resolve to one app folder,
+                // which is keyed off the PanelSettings asset. The everyday way in
+                // is one prefab dropped into several build scenes, since every
+                // instance carries the same PanelSettings; assigning one
+                // PanelSettings to two runners by hand does it too. The first
+                // runner reached got a bundle and the rest did not, so which scene
+                // worked depended on Build Settings order.
+                Debug.Log($"[JSRunner] Bundle already written, assigning it to " +
+                    $"{runner.gameObject.name}: {bundleAssetPathUnity}");
+                return AssignBundle(runner, bundleAssetPathUnity, sourceMapAssetPathUnity);
             }
             _processedRunners.Add(bundleAssetPathUnity);
 
@@ -180,27 +194,43 @@ namespace OneJS.Editor {
                 }
             }
 
-            // Use ImportAsset for synchronous import instead of Refresh which can be async on Windows
+            // Imported here, where the file was just written, rather than inside
+            // AssignBundle: the import is per FILE and belongs with the write, and
+            // re-running it per runner reloads the asset, handing each runner a
+            // different managed wrapper for the same file.
+            // ImportAsset rather than Refresh, which can be asynchronous on Windows.
             AssetDatabase.ImportAsset(bundleAssetPathUnity, ImportAssetOptions.ForceSynchronousImport);
-            if (runner.IncludeSourceMap && sourceMapAssetPathUnity != null)
+            if (runner.IncludeSourceMap && !string.IsNullOrEmpty(sourceMapAssetPathUnity))
                 AssetDatabase.ImportAsset(sourceMapAssetPathUnity, ImportAssetOptions.ForceSynchronousImport);
 
+            return AssignBundle(runner, bundleAssetPathUnity, sourceMapAssetPathUnity);
+        }
+
+        /// <summary>
+        /// Points one runner at the bundle TextAsset on disk.
+        ///
+        /// Split out from writing the file because the two do not happen the same
+        /// number of times: the file is written once per app, the reference is
+        /// serialized once per runner. Every path that reaches a runner with no
+        /// bundle has to end here, including the one where another runner already
+        /// wrote and imported the file.
+        /// </summary>
+        bool AssignBundle(JSRunner runner, string bundleAssetPathUnity, string sourceMapAssetPathUnity) {
             var bundleAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(bundleAssetPathUnity);
-            if (bundleAsset != null) {
-                runner.SetBundleAsset(bundleAsset);
-            } else {
+            if (bundleAsset == null) {
                 // Fallback: try a full Refresh and retry once
-                Debug.LogWarning($"[JSRunner] ImportAsset did not find bundle, retrying with full Refresh: {bundleAssetPathUnity}");
+                Debug.LogWarning($"[JSRunner] Bundle is not in the asset database, retrying with full Refresh: {bundleAssetPathUnity}");
                 AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
                 bundleAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(bundleAssetPathUnity);
-                if (bundleAsset != null) {
-                    runner.SetBundleAsset(bundleAsset);
-                } else {
-                    Debug.LogError($"[JSRunner] Failed to load bundle asset after retry: {bundleAssetPathUnity}. " +
-                        $"File exists on disk: {File.Exists(bundleFullPath)}");
-                    return false;
-                }
             }
+
+            if (bundleAsset == null) {
+                Debug.LogError($"[JSRunner] Failed to load bundle asset after retry: {bundleAssetPathUnity}. " +
+                    $"File exists on disk: {File.Exists(runner.EntryFileFullPath ?? "")}");
+                return false;
+            }
+
+            runner.SetBundleAsset(bundleAsset);
 
             if (runner.IncludeSourceMap && !string.IsNullOrEmpty(sourceMapAssetPathUnity)) {
                 var sourceMapAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(sourceMapAssetPathUnity);
