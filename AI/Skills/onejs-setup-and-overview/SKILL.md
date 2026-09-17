@@ -5,14 +5,14 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.4.3"
-  skill-version: "1.2.0"
+  skill-version: "1.3.0"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-09-14"
+  last-verified: "2026-09-17"
 ---
 
 # Set Up a OneJS Project
@@ -372,6 +372,10 @@ Fix: if state must survive, keep it in C# and read it back, or persist it delibe
 **The build has no user interface, but the editor did.**
 Cause: the bundle was not built before the player build.
 Fix: run `npm run build` in `~/`, then build. The bundle ships as a serialized TextAsset, so StreamingAssets is not involved.
+
+**One app in a multi-app build shows OneJS's default placeholder instead of its own user interface.**
+Cause: that runner got no bundle. A player build builds every JSRunner in a scene or a prefab, so the usual reasons are that its GameObject is inactive, its component is disabled, or **Include In Build** is off on it.
+Fix: check those three on the runner. Include In Build is in the inspector's Build tab and is on by default; turn it off only for a runner you keep in the project but never ship, which also keeps its files out of the asset collision check.
 
 ## Boundaries
 

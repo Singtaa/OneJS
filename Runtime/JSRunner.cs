@@ -124,6 +124,14 @@ namespace OneJS {
         [Tooltip("Include source map in build for better error messages")]
         [SerializeField] bool _includeSourceMap = true;
 
+        [Tooltip("Build this runner's app when a player is built. Every JSRunner in a scene or " +
+            "a prefab is built unless it opts out here.\n\n" +
+            "Turn it off for a runner you keep in the project but never ship: a template prefab, " +
+            "or a scene that is not in the build. An excluded runner gets no bundle and no assets, " +
+            "its files cannot collide with another app's, and if it does reach a player it runs " +
+            "OneJS's default placeholder app instead of yours.")]
+        [SerializeField] bool _includeInBuild = true;
+
         [Tooltip("Which Unity update loop drives the JS tick. LateUpdate runs after all Update calls, useful when reading transform/physics results.")]
         [SerializeField] TickMode _tickMode = TickMode.Update;
 
@@ -219,6 +227,12 @@ namespace OneJS {
         public DateTime LastModifiedTime => _lastModifiedTime;
         public DateTime LastReloadTime => _lastReloadTime;
         public bool IncludeSourceMap => _includeSourceMap;
+
+        /// <summary>
+        /// Whether a player build should build this runner's app. Default true.
+        /// See the field's tooltip for what excluding one costs.
+        /// </summary>
+        public bool IncludeInBuild => _includeInBuild;
         public PanelSettings PanelSettingsAsset => _panelSettings;
         public TextAsset BundleAsset => _bundleAsset;
         public TextAsset SourceMapAsset => _sourceMapAsset;

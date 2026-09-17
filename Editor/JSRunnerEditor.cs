@@ -443,6 +443,7 @@ namespace OneJS.Editor {
 
             // Source map option
             container.Add(new PropertyField(serializedObject.FindProperty("_includeSourceMap"), "Include Source Map"));
+            container.Add(new PropertyField(serializedObject.FindProperty("_includeInBuild"), "Include In Build"));
 
             var buildHelpBox = CreateInfoBox("Bundle TextAsset is auto-generated during Unity build.");
             buildHelpBox.style.marginTop = 4;
