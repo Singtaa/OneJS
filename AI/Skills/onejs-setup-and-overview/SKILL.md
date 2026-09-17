@@ -5,7 +5,7 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.4.3"
-  skill-version: "1.3.0"
+  skill-version: "1.3.1"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
@@ -374,8 +374,8 @@ Cause: the bundle was not built before the player build.
 Fix: run `npm run build` in `~/`, then build. The bundle ships as a serialized TextAsset, so StreamingAssets is not involved.
 
 **One app in a multi-app build shows OneJS's default placeholder instead of its own user interface.**
-Cause: that runner got no bundle. A player build builds every JSRunner in a scene or a prefab, so the usual reasons are that its GameObject is inactive, its component is disabled, or **Include In Build** is off on it.
-Fix: check those three on the runner. Include In Build is in the inspector's Build tab and is on by default; turn it off only for a runner you keep in the project but never ship, which also keeps its files out of the asset collision check.
+Cause: that runner got no bundle. A player build builds every JSRunner in a scene or a prefab, so the usual reasons are that its GameObject is inactive, its component is disabled, or **Exclude From Build** is on it.
+Fix: check those three on the runner. Exclude From Build is in the inspector's Build tab and is off by default; turn it on only for a runner you keep in the project but never ship, which also keeps its files out of the asset collision check.
 
 ## Boundaries
 

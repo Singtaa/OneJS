@@ -16,7 +16,7 @@ using UnityEngine.UIElements;
 namespace OneJS.Tests.Editor {
     /// <summary>
     /// EditMode tests for apps a build reaches through a prefab rather than a scene,
-    /// and for the Include In Build opt out.
+    /// and for the Exclude From Build opt out.
     ///
     /// The rule these pin down is one sentence: every JSRunner in a scene or a
     /// prefab is built unless it opts out. The fixture writes real prefabs under
@@ -114,7 +114,7 @@ namespace OneJS.Tests.Editor {
         /// it was built from is destroyed, so nothing here is reachable from a scene.
         /// </summary>
         JSRunner CreatePrefabWithRunner(string prefabName, PanelSettings ps,
-            bool includeInBuild = true, bool activeSelf = true) {
+            bool excludeFromBuild = false, bool activeSelf = true) {
             // Kept inactive for its whole life in the scene. JSRunner's OnEnable
             // schedules an edit-mode preview, which would start a QuickJS context
             // behind the test, so the source object is never enabled.
@@ -123,7 +123,7 @@ namespace OneJS.Tests.Editor {
             _spawned.Add(go);
             var runner = go.AddComponent<JSRunner>();
             runner.SetPanelSettings(ps);
-            if (!includeInBuild) SetIncludeInBuild(runner, false);
+            if (excludeFromBuild) SetExcludeFromBuild(runner, true);
 
             var path = FIXTURE_ROOT + "/" + prefabName + ".prefab";
             PrefabUtility.SaveAsPrefabAsset(go, path);
@@ -147,11 +147,11 @@ namespace OneJS.Tests.Editor {
             return reloaded.GetComponent<JSRunner>();
         }
 
-        static void SetIncludeInBuild(JSRunner runner, bool value) {
+        static void SetExcludeFromBuild(JSRunner runner, bool value) {
             var so = new SerializedObject(runner);
-            var prop = so.FindProperty("_includeInBuild");
+            var prop = so.FindProperty("_excludeFromBuild");
             Assert.IsNotNull(prop,
-                "JSRunner._includeInBuild was not found. The Include In Build toggle is what these " +
+                "JSRunner._excludeFromBuild was not found. The Exclude From Build toggle is what these " +
                 "tests are about, so a rename has to reach here too.");
             prop.boolValue = value;
             so.ApplyModifiedPropertiesWithoutUndo();
@@ -235,14 +235,14 @@ namespace OneJS.Tests.Editor {
         [Test]
         public void AnExcludedPrefabRunner_GetsNothingAndWarnsNothing() {
             var ps = CreateApp("ExcludedApp", "shared.png");
-            var runner = CreatePrefabWithRunner("ExcludedRunner", ps, includeInBuild: false);
+            var runner = CreatePrefabWithRunner("ExcludedRunner", ps, excludeFromBuild: true);
 
             InvokeProcessPrefabs();
 
             Assert.IsNull(Reload(runner).BundleAsset,
-                "A runner with Include In Build off was still given a bundle.");
+                "A runner with Exclude From Build on was still given a bundle.");
             Assert.AreEqual(0, _assetSources.Count,
-                "A runner with Include In Build off still contributed its assets, so it could still " +
+                "A runner with Exclude From Build on still contributed its assets, so it could still " +
                 "collide with an app that does ship. Not colliding is the point of the toggle.");
         }
 
@@ -253,7 +253,7 @@ namespace OneJS.Tests.Editor {
             var shipping = CreateApp("ShippingApp", "logo.png", "from shipping");
             CreatePrefabWithRunner("ShippingRunner", shipping);
             var parked = CreateApp("ParkedApp", "logo.png", "from parked");
-            CreatePrefabWithRunner("ParkedRunner", parked, includeInBuild: false);
+            CreatePrefabWithRunner("ParkedRunner", parked, excludeFromBuild: true);
 
             InvokeProcessPrefabs();
 

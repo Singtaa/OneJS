@@ -136,9 +136,9 @@ namespace OneJS.Editor {
                         continue;
                     }
 
-                    if (!runner.IncludeInBuild) {
+                    if (runner.ExcludeFromBuild) {
                         Debug.Log($"[JSRunner] Skipped {runner.gameObject.name} in {scene.name}: " +
-                            $"Include In Build is off. No bundle or assets will be built for it, and " +
+                            $"Exclude From Build is on. No bundle or assets will be built for it, and " +
                             $"its files cannot collide with another app's.");
                         continue;
                     }
@@ -167,7 +167,7 @@ namespace OneJS.Editor {
         /// not declare where they ship: reading Addressables groups would need the
         /// package and would still miss Resources and plain references. The rule is
         /// one sentence instead: every JSRunner in a scene or a prefab is built
-        /// unless it opts out with Include In Build.
+        /// unless it opts out with Exclude From Build.
         ///
         /// Runs from PrepareForBuild, not OnPreprocessBuild, and that is not a
         /// detail. Addressables builds its content from a BuildPlayerProcessor, and
@@ -206,9 +206,9 @@ namespace OneJS.Editor {
                         continue;
                     }
 
-                    if (!runner.IncludeInBuild) {
+                    if (runner.ExcludeFromBuild) {
                         Debug.Log($"[JSRunner] Skipped {runner.gameObject.name} in prefab {path}: " +
-                            $"Include In Build is off. No bundle or assets will be built for it, and " +
+                            $"Exclude From Build is on. No bundle or assets will be built for it, and " +
                             $"its files cannot collide with another app's.");
                         continue;
                     }
@@ -496,7 +496,7 @@ namespace OneJS.Editor {
                             $"Every OneJS app in a build copies into the same StreamingAssets/onejs/assets " +
                             $"folder, which is the one place the runtime resolves assets from, so two apps " +
                             $"cannot ship the same relative path. Rename one of them, put each app's files " +
-                            $"under a folder of their own, or turn off Include In Build on the runner that " +
+                            $"under a folder of their own, or turn on Exclude From Build on the runner that " +
                             $"does not ship.";
 
                         // Both apps came from build scenes, so both certainly ship and

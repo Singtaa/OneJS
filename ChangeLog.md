@@ -1,7 +1,7 @@
 # Unreleased
 
 - Every JSRunner in a scene or a prefab is built, so an app that ships through Addressables, Resources or a prefab reference gets its bundle and assets
-- `Include In Build` on JSRunner leaves a runner out of the build, and out of the asset collision check with it
+- `Exclude From Build` on JSRunner leaves a runner out of the build, and out of the asset collision check with it
 - An asset path claimed by two apps warns instead of failing the build when a prefab reached either of them
 - Every runner sharing an app gets its bundle, instead of only the first
 
