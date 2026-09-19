@@ -186,9 +186,9 @@ Only processes when:
 
 ## JSRunnerBuildProcessor
 
-Implements `IPreprocessBuildWithReport` to handle TextAssets for builds:
+Implements `BuildPlayerProcessor` and `IPreprocessBuildWithReport` to handle TextAssets for builds:
 
-1. Scans all enabled build scenes for JSRunner components
+1. Scans the scenes this build is shipping for JSRunner components
 2. For each JSRunner without a bundle TextAsset assigned:
    - The bundle at `{InstanceFolder}/app.js.txt` (esbuild output) is already there
    - Loads it as a TextAsset and assigns to the JSRunner component
@@ -198,6 +198,22 @@ Implements `IPreprocessBuildWithReport` to handle TextAssets for builds:
 4. Logs status during build
 
 Since esbuild outputs directly to `app.js.txt`, the build processor just needs to load the existing file as a TextAsset.
+
+### Which scenes it walks
+
+`BuildPlayerOptions.scenes`, whatever the build passed. `PrepareForBuild` records the list; `OnPreprocessBuild` reads and spends it.
+
+Three cases, because Unity treats them differently:
+
+| The build passed | Unity ships | The processor walks |
+|---|---|---|
+| A scene list | those scenes | those scenes |
+| An empty list, or none | the open scene | the open scene |
+| Nothing at all, because `PrepareForBuild` did not run | unknown | the enabled Build Settings scenes |
+
+This detour exists because `BuildReport` has no scene list: at `OnPreprocessBuild` time its `packedAssets` and `scenesUsingAssets` are both empty, `files` throws, and `BuildSummary` carries no scenes at all. `BuildPlayerProcessor` is the only place the list can be read before the build runs.
+
+It matters because a command line or CI build passes its own list and ignores Build Settings. Reading Build Settings here meant the player shipped one set of scenes and another set's assets, with the scenes that did ship getting no bundle.
 
 ### Skipping Auto-Assignment
 

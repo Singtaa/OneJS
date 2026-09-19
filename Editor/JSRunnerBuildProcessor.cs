@@ -14,14 +14,14 @@ using UnityEngine.SceneManagement;
 namespace OneJS.Editor {
     /// <summary>
     /// Build processor that automatically creates TextAsset bundles for JSRunner components.
-    /// Scans all enabled scenes in Build Settings and generates TextAssets for each JSRunner.
+    /// Scans the scenes this build is shipping and generates TextAssets for each JSRunner.
     ///
     /// Directory structure:
     ///   {SceneDir}/{SceneName}/{GameObjectName}/app.js.txt
     ///   {SceneDir}/{SceneName}/{GameObjectName}/app.js.txt.map (optional)
     /// </summary>
-    public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBuildWithReport {
-        public int callbackOrder => 0;
+    public class JSRunnerBuildProcessor : BuildPlayerProcessor, IPreprocessBuildWithReport, IPostprocessBuildWithReport {
+        public override int callbackOrder => 0;
 
         static List<string> _createdAssets = new List<string>();
         static HashSet<string> _processedRunners = new HashSet<string>();
@@ -52,6 +52,87 @@ namespace OneJS.Editor {
         static List<(string srcDir, string runnerName)> _assetSources =
             new List<(string srcDir, string runnerName)>();
 
+        /// <summary>
+        /// Where PrepareForBuild leaves the scene list for OnPreprocessBuild.
+        ///
+        /// SessionState rather than a static field, for two reasons. Unity builds
+        /// this type twice, once for the BuildPlayerProcessor list and once for the
+        /// IPreprocessBuildWithReport list, so the two callbacks never run on the
+        /// same instance. And a build that switches the active build target reloads
+        /// the domain between them, which would clear a static and put the bug back
+        /// silently, on the one build path least likely to be watched.
+        /// </summary>
+        const string RequestedScenesKey = "OneJS.JSRunnerBuildProcessor.RequestedScenes";
+
+        /// <summary>
+        /// Records the scene list this build was actually given.
+        ///
+        /// This callback exists only because BuildReport does not carry one. Asked
+        /// what it holds at OnPreprocessBuild time, a BuildReport answers with
+        /// files (which throws), packedAssets and scenesUsingAssets (both empty
+        /// until after the build), steps, strippingInfo, name, hideFlags and
+        /// summary, and BuildSummary has no scene list at all. BuildPlayerProcessor
+        /// is the one place BuildPlayerOptions.scenes can be read before the build
+        /// runs, and it runs before OnPreprocessBuild.
+        /// </summary>
+        public override void PrepareForBuild(BuildPlayerContext buildPlayerContext) {
+            var scenes = buildPlayerContext.BuildPlayerOptions.scenes ?? new string[0];
+            // Written with a leading newline so that a build which passed NO scenes
+            // still records a non-empty value. "Passed an empty list" and "never
+            // asked" mean different things here and the two must stay tellable
+            // apart; see ResolveBuildScenes.
+            SessionState.SetString(RequestedScenesKey, "\n" + string.Join("\n", scenes));
+        }
+
+        /// <summary>
+        /// The scenes this build ships, which is not the same list as Build Settings.
+        ///
+        /// A build that passes BuildPlayerOptions.scenes, which is the documented
+        /// command line way and what CI does, ships those scenes and ignores Build
+        /// Settings entirely. Reading EditorBuildSettings here meant the processor
+        /// built bundles and gathered assets for one set of apps while the player
+        /// shipped another: assets belonging to scenes that are not in the player,
+        /// and no bundle at all for the scenes that are, which at runtime is
+        /// indistinguishable from the app being broken.
+        ///
+        /// A build that passes an EMPTY list is a third case, and not the same as
+        /// one that passes nothing at all. Unity builds the open scene for it, so
+        /// this returns nothing and lets OnPreprocessBuild walk the open scene too.
+        /// Reading Build Settings there was the same bug wearing a different face:
+        /// a build of the open SceneB shipped SceneA's asset, watched happening.
+        ///
+        /// Build Settings is the fallback only when PrepareForBuild never ran at
+        /// all, which leaves a build path that somehow skips it behaving as before.
+        /// </summary>
+        static string[] ResolveBuildScenes() {
+            return ResolveBuildScenes(EditorBuildSettings.scenes);
+        }
+
+        /// <summary>
+        /// ResolveBuildScenes against a given Build Settings list. Split out so the
+        /// tests can drive the real resolve and the real fallback without rewriting
+        /// the project's own EditorBuildSettings, the same reason CommitAssetsTo
+        /// takes its destination.
+        /// </summary>
+        static string[] ResolveBuildScenes(EditorBuildSettingsScene[] buildSettingsScenes) {
+            var recorded = SessionState.GetString(RequestedScenesKey, "");
+            // Read once. A list left behind by a build that was abandoned after
+            // PrepareForBuild must not become the list some later build walks.
+            SessionState.EraseString(RequestedScenesKey);
+
+            // Non-empty means PrepareForBuild ran, because it always writes at
+            // least its leading newline. Whatever it recorded is then the answer,
+            // an empty list included.
+            if (!string.IsNullOrEmpty(recorded)) {
+                return recorded.Split('\n').Where(p => !string.IsNullOrWhiteSpace(p)).ToArray();
+            }
+
+            return (buildSettingsScenes ?? new EditorBuildSettingsScene[0])
+                .Where(s => s != null && s.enabled && !string.IsNullOrEmpty(s.path))
+                .Select(s => s.path)
+                .ToArray();
+        }
+
         public void OnPreprocessBuild(BuildReport report) {
             _createdAssets.Clear();
             _processedRunners.Clear();
@@ -62,22 +143,18 @@ namespace OneJS.Editor {
             Debug.Log("[JSRunner] Processing JSRunner components in build scenes...");
 
             var originalScenePath = SceneManager.GetActiveScene().path;
-            var buildScenes = EditorBuildSettings.scenes;
+            var buildScenes = ResolveBuildScenes();
 
-            // If no enabled scenes in build settings, process current scene
-            if (buildScenes.Length == 0 || !Array.Exists(buildScenes, s => s.enabled)) {
-                ProcessScene(SceneManager.GetActiveScene());
+            // No scene list at all means a build of whatever happens to be open.
+            if (buildScenes.Length == 0) {
+                var openScene = SceneManager.GetActiveScene();
+                ProcessScene(openScene);
+                SaveIfDirty(openScene);
             } else {
-                // Process each enabled scene
-                foreach (var buildScene in buildScenes) {
-                    if (!buildScene.enabled) continue;
-
-                    var scene = EditorSceneManager.OpenScene(buildScene.path);
+                foreach (var scenePath in buildScenes) {
+                    var scene = EditorSceneManager.OpenScene(scenePath);
                     ProcessScene(scene);
-
-                    if (scene.isDirty) {
-                        EditorSceneManager.SaveScene(scene);
-                    }
+                    SaveIfDirty(scene);
                 }
             }
 
@@ -97,6 +174,25 @@ namespace OneJS.Editor {
 
             var assetMsg = _copiedAssetCount > 0 ? $", copied {_copiedAssetCount} asset file(s) to StreamingAssets" : "";
             Debug.Log($"[JSRunner] Build preprocessing complete. Processed {_processedRunners.Count} runner(s), created {_createdAssets.Count} asset(s){assetMsg}.");
+        }
+
+        /// <summary>
+        /// Persists a scene the walk changed, which means the bundle TextAsset it
+        /// just assigned to a runner.
+        ///
+        /// A player is built from the scene on disk, and this method restores the
+        /// originally open scene afterwards, which reloads from disk as well. So an
+        /// assignment left unsaved is not merely at risk of being lost, it is
+        /// discarded twice over. The open-scene branch used to skip this, and a
+        /// build that passed no scene list duly shipped a player whose app had no
+        /// bundle at all, which at runtime looks like the app being broken.
+        ///
+        /// An untitled scene has nowhere to be saved to, and asking would open a
+        /// dialog that a batch mode build would hang on.
+        /// </summary>
+        static void SaveIfDirty(Scene scene) {
+            if (!scene.isDirty || string.IsNullOrEmpty(scene.path)) return;
+            EditorSceneManager.SaveScene(scene);
         }
 
         void ProcessScene(Scene scene) {

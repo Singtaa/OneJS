@@ -28,6 +28,8 @@ Tests/
 ├── Editor/                      # EditMode tests
 │   ├── OneJS.Tests.Editor.asmdef
 │   ├── JSRunnerBuildProcessorTests.cs
+│   ├── JSRunnerBuildProcessorWindowsTests.cs # Read only handling; Windows only
+│   ├── JSRunnerBuildSceneListTests.cs  # Which scenes a build walks
 │   ├── CartridgeUtilsTests.cs
 │   ├── PremadeCartridgeTests.cs # Validates the shipped Premade/ cartridge assets
 │   └── BuildValidationTests.cs
@@ -99,6 +101,12 @@ Tests/
 - **Asset Detection**: `@namespace/` folder detection
 - **Scoped Packages**: `@scope/package` handling
 - **Deduplication**: Multiple JSRunner handling
+
+### Build Scene List Tests (JSRunnerBuildSceneListTests)
+
+Which scenes the build processor walks: a passed `BuildPlayerOptions.scenes` wins over Build Settings, is spent after one read, and falls back to the enabled Build Settings scenes when a build passes none.
+
+These cover the selection only. That Unity calls `PrepareForBuild` before `OnPreprocessBuild` and hands it the real list is not reachable from EditMode, since nothing here drives a `BuildPlayerContext`; only a player build shows it. A green run is not evidence of that half.
 
 ### Zero-Alloc Tests (QuickJSZeroAllocTests)
 
