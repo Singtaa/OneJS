@@ -186,9 +186,9 @@ Only processes when:
 
 ## JSRunnerBuildProcessor
 
-Implements `BuildPlayerProcessor` and `IPreprocessBuildWithReport` to handle TextAssets for builds:
+Implements `IPreprocessBuildWithReport` to handle TextAssets for builds, alongside its nested `PrefabAppBaker`, which is a `BuildPlayerProcessor`:
 
-1. Scans the scenes this build is shipping for JSRunner components
+1. Scans the scenes this build is shipping, and every prefab, for JSRunner components
 2. For each JSRunner without a bundle TextAsset assigned:
    - The bundle at `{InstanceFolder}/app.js.txt` (esbuild output) is already there
    - Loads it as a TextAsset and assigns to the JSRunner component
@@ -201,7 +201,7 @@ Since esbuild outputs directly to `app.js.txt`, the build processor just needs t
 
 ### Which scenes it walks
 
-`BuildPlayerOptions.scenes`, whatever the build passed. `PrepareForBuild` records the list; `OnPreprocessBuild` reads and spends it.
+`BuildPlayerOptions.scenes`, whatever the build passed. `PrefabAppBaker.PrepareForBuild` records the list; `OnPreprocessBuild` reads and spends it.
 
 Three cases, because Unity treats them differently:
 
@@ -211,7 +211,7 @@ Three cases, because Unity treats them differently:
 | An empty list, or none | the open scene | the open scene |
 | Nothing at all, because `PrepareForBuild` did not run | unknown | the enabled Build Settings scenes |
 
-This detour exists because `BuildReport` has no scene list: at `OnPreprocessBuild` time its `packedAssets` and `scenesUsingAssets` are both empty, `files` throws, and `BuildSummary` carries no scenes at all. `BuildPlayerProcessor` is the only place the list can be read before the build runs.
+This detour exists because `BuildReport` has no scene list: at `OnPreprocessBuild` time its `packedAssets` and `scenesUsingAssets` are both empty, `files` throws, and `BuildSummary` carries no scenes at all. `BuildPlayerContext` is the only place the list can be read before the build runs, and only a `BuildPlayerProcessor` is handed one, which is why the record rides along in `PrefabAppBaker`.
 
 It matters because a command line or CI build passes its own list and ignores Build Settings. Reading Build Settings here meant the player shipped one set of scenes and another set's assets, with the scenes that did ship getting no bundle.
 

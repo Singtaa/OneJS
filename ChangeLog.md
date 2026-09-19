@@ -3,6 +3,17 @@
 - A build processes the scenes it was given, not the Build Settings list
 - A build that ships the open scene gives that app its bundle, instead of none
 
+# [2026-09-17] v3.4.4
+
+A player build now finds every OneJS app, including one that ships inside a prefab through Addressables, a `Resources/` folder or a plain reference; before this such an app shipped with no bundle and ran OneJS's placeholder instead. Two smaller fixes: JSRunner leaves a UIDocument you added yourself alone, and Initialize Project says why it did nothing rather than reporting success.
+
+- Every JSRunner in a scene or a prefab is built, so an app that ships through Addressables, Resources or a prefab reference gets its bundle and assets
+- `Exclude From Build` on JSRunner leaves a runner out of the build, and out of the asset collision check with it
+- An asset path claimed by two apps warns instead of failing the build when a prefab reached either of them
+- Every runner sharing an app gets its bundle, instead of only the first
+- Clearing Panel Settings removes only a UIDocument that JSRunner added itself
+- Initialize Project warns and names the folder instead of reporting success it did not deliver
+
 # [2026-09-14] v3.4.3
 
 In a project with more than one OneJS app, a build kept only the last app's assets and silently dropped the rest; that is fixed, and two apps claiming the same asset path now fail the build instead of overwriting each other. The rest is about saying what went wrong: a failed C# call on WebGL throws with the reason, and the type generator writes real array types instead of `any`.

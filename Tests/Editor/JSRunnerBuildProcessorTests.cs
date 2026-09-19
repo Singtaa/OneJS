@@ -86,9 +86,12 @@ namespace OneJS.Tests.Editor {
 
         // The processor reads _assetSources, a List of a private tuple type, so the
         // entries are built by reflection rather than named here.
-        void AddSource(string srcDir, string runnerName) {
+        // fromScene defaults true because every case in this fixture is about apps a
+        // build scene reached, where a collision is a hard error. The prefab side,
+        // where it is a warning instead, is covered in JSRunnerPrefabAppTests.
+        void AddSource(string srcDir, string runnerName, bool fromScene = true) {
             var elem = _assetSources.GetType().GetGenericArguments()[0];
-            _assetSources.Add(Activator.CreateInstance(elem, srcDir, runnerName));
+            _assetSources.Add(Activator.CreateInstance(elem, srcDir, runnerName, fromScene));
         }
 
         static void Write(string dir, string relative, string content) {

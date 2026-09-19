@@ -14,14 +14,15 @@ using UnityEngine.SceneManagement;
 namespace OneJS.Editor {
     /// <summary>
     /// Build processor that automatically creates TextAsset bundles for JSRunner components.
-    /// Scans the scenes this build is shipping and generates TextAssets for each JSRunner.
+    /// Scans the scenes this build is shipping, and every prefab, and generates
+    /// TextAssets for each JSRunner.
     ///
     /// Directory structure:
     ///   {SceneDir}/{SceneName}/{GameObjectName}/app.js.txt
     ///   {SceneDir}/{SceneName}/{GameObjectName}/app.js.txt.map (optional)
     /// </summary>
-    public class JSRunnerBuildProcessor : BuildPlayerProcessor, IPreprocessBuildWithReport, IPostprocessBuildWithReport {
-        public override int callbackOrder => 0;
+    public class JSRunnerBuildProcessor : IPreprocessBuildWithReport, IPostprocessBuildWithReport {
+        public int callbackOrder => 0;
 
         static List<string> _createdAssets = new List<string>();
         static HashSet<string> _processedRunners = new HashSet<string>();
@@ -49,39 +50,46 @@ namespace OneJS.Editor {
         /// </summary>
         static int _runnersSeen = 0;
 
-        static List<(string srcDir, string runnerName)> _assetSources =
-            new List<(string srcDir, string runnerName)>();
+        /// <summary>
+        /// fromScene says whether a build scene reached this app. It decides how
+        /// loudly a path collision is reported: two scene apps colliding is a hard
+        /// error as it has been since 3.4.3, because both certainly ship, while an
+        /// app that only a prefab reached may not ship at all and must not be able
+        /// to fail somebody's build on a guess.
+        /// </summary>
+        static List<(string srcDir, string runnerName, bool fromScene)> _assetSources =
+            new List<(string srcDir, string runnerName, bool fromScene)>();
+
+        /// <summary>
+        /// Set by PrepareForBuild, which runs FIRST and has already cleared the
+        /// statics and walked the prefabs by the time OnPreprocessBuild starts.
+        /// Without this, OnPreprocessBuild's own reset would erase the prefab walk.
+        /// </summary>
+        static bool _preparedThisBuild;
 
         /// <summary>
         /// Where PrepareForBuild leaves the scene list for OnPreprocessBuild.
         ///
-        /// SessionState rather than a static field, for two reasons. Unity builds
-        /// this type twice, once for the BuildPlayerProcessor list and once for the
-        /// IPreprocessBuildWithReport list, so the two callbacks never run on the
-        /// same instance. And a build that switches the active build target reloads
-        /// the domain between them, which would clear a static and put the bug back
-        /// silently, on the one build path least likely to be watched.
+        /// SessionState rather than a static like _preparedThisBuild, because the
+        /// two fail differently. A build that switches the active target reloads the
+        /// domain between the two hooks; losing the flag there costs the prefab walk
+        /// and is at least visible in the build log, while losing this list silently
+        /// reinstates a shipped bug, on the one build path least likely to be
+        /// watched. SessionState survives the reload.
         /// </summary>
         const string RequestedScenesKey = "OneJS.JSRunnerBuildProcessor.RequestedScenes";
 
         /// <summary>
         /// Records the scene list this build was actually given.
         ///
-        /// This callback exists only because BuildReport does not carry one. Asked
-        /// what it holds at OnPreprocessBuild time, a BuildReport answers with
-        /// files (which throws), packedAssets and scenesUsingAssets (both empty
-        /// until after the build), steps, strippingInfo, name, hideFlags and
-        /// summary, and BuildSummary has no scene list at all. BuildPlayerProcessor
-        /// is the one place BuildPlayerOptions.scenes can be read before the build
-        /// runs, and it runs before OnPreprocessBuild.
+        /// Written with a leading newline so that a build which passed NO scenes
+        /// still records a non-empty value. "Passed an empty list" and "never asked"
+        /// mean different things here and the two must stay tellable apart; see
+        /// ResolveBuildScenes.
         /// </summary>
-        public override void PrepareForBuild(BuildPlayerContext buildPlayerContext) {
-            var scenes = buildPlayerContext.BuildPlayerOptions.scenes ?? new string[0];
-            // Written with a leading newline so that a build which passed NO scenes
-            // still records a non-empty value. "Passed an empty list" and "never
-            // asked" mean different things here and the two must stay tellable
-            // apart; see ResolveBuildScenes.
-            SessionState.SetString(RequestedScenesKey, "\n" + string.Join("\n", scenes));
+        static void RecordRequestedScenes(string[] scenes) {
+            SessionState.SetString(RequestedScenesKey,
+                "\n" + string.Join("\n", scenes ?? new string[0]));
         }
 
         /// <summary>
@@ -93,13 +101,21 @@ namespace OneJS.Editor {
         /// built bundles and gathered assets for one set of apps while the player
         /// shipped another: assets belonging to scenes that are not in the player,
         /// and no bundle at all for the scenes that are, which at runtime is
-        /// indistinguishable from the app being broken.
+        /// indistinguishable from the app being broken. Watched on a real
+        /// StandaloneWindows64 player, not reasoned about.
+        ///
+        /// BuildReport does not carry the list, which is what made this look like it
+        /// needed a different shape. Asked what it holds at OnPreprocessBuild time,
+        /// it answers with files (which throws), packedAssets and scenesUsingAssets
+        /// (both empty until after the build), steps, strippingInfo, name, hideFlags
+        /// and summary, and BuildSummary has no scenes either. BuildPlayerContext
+        /// does carry it, which is why the record happens in PrefabAppBaker.
         ///
         /// A build that passes an EMPTY list is a third case, and not the same as
         /// one that passes nothing at all. Unity builds the open scene for it, so
         /// this returns nothing and lets OnPreprocessBuild walk the open scene too.
         /// Reading Build Settings there was the same bug wearing a different face:
-        /// a build of the open SceneB shipped SceneA's asset, watched happening.
+        /// a build of the open SceneB shipped SceneA's asset, also watched.
         ///
         /// Build Settings is the fallback only when PrepareForBuild never ran at
         /// all, which leaves a build path that somehow skips it behaving as before.
@@ -120,9 +136,9 @@ namespace OneJS.Editor {
             // PrepareForBuild must not become the list some later build walks.
             SessionState.EraseString(RequestedScenesKey);
 
-            // Non-empty means PrepareForBuild ran, because it always writes at
-            // least its leading newline. Whatever it recorded is then the answer,
-            // an empty list included.
+            // Non-empty means PrepareForBuild ran, because RecordRequestedScenes
+            // always writes at least its leading newline. Whatever it recorded is
+            // then the answer, an empty list included.
             if (!string.IsNullOrEmpty(recorded)) {
                 return recorded.Split('\n').Where(p => !string.IsNullOrWhiteSpace(p)).ToArray();
             }
@@ -133,12 +149,39 @@ namespace OneJS.Editor {
                 .ToArray();
         }
 
-        public void OnPreprocessBuild(BuildReport report) {
+        /// <summary>
+        /// Persists a scene the walk changed, which means the bundle TextAsset it
+        /// just assigned to a runner.
+        ///
+        /// A player is built from the scene on disk, and OnPreprocessBuild restores
+        /// the originally open scene afterwards, which reloads from disk as well. So
+        /// an assignment left unsaved is not merely at risk of being lost, it is
+        /// discarded twice over. The open-scene branch used to skip this, and a
+        /// build that passed no scene list duly shipped a player whose app had no
+        /// bundle at all, which at runtime looks like the app being broken.
+        ///
+        /// An untitled scene has nowhere to be saved to, and asking would open a
+        /// dialog that a batch mode build would hang on.
+        /// </summary>
+        static void SaveIfDirty(Scene scene) {
+            if (!scene.isDirty || string.IsNullOrEmpty(scene.path)) return;
+            EditorSceneManager.SaveScene(scene);
+        }
+
+        static void ResetForBuild() {
             _createdAssets.Clear();
             _processedRunners.Clear();
             _copiedAssetCount = 0;
             _assetSources.Clear();
             _runnersSeen = 0;
+        }
+
+        public void OnPreprocessBuild(BuildReport report) {
+            // PrepareForBuild already reset and walked the prefabs. Resetting again
+            // here would throw that away, and the prefab apps would lose both their
+            // place in the asset commit and their claim in the collision check.
+            if (!_preparedThisBuild) ResetForBuild();
+            _preparedThisBuild = false;
 
             Debug.Log("[JSRunner] Processing JSRunner components in build scenes...");
 
@@ -176,25 +219,6 @@ namespace OneJS.Editor {
             Debug.Log($"[JSRunner] Build preprocessing complete. Processed {_processedRunners.Count} runner(s), created {_createdAssets.Count} asset(s){assetMsg}.");
         }
 
-        /// <summary>
-        /// Persists a scene the walk changed, which means the bundle TextAsset it
-        /// just assigned to a runner.
-        ///
-        /// A player is built from the scene on disk, and this method restores the
-        /// originally open scene afterwards, which reloads from disk as well. So an
-        /// assignment left unsaved is not merely at risk of being lost, it is
-        /// discarded twice over. The open-scene branch used to skip this, and a
-        /// build that passed no scene list duly shipped a player whose app had no
-        /// bundle at all, which at runtime looks like the app being broken.
-        ///
-        /// An untitled scene has nowhere to be saved to, and asking would open a
-        /// dialog that a batch mode build would hang on.
-        /// </summary>
-        static void SaveIfDirty(Scene scene) {
-            if (!scene.isDirty || string.IsNullOrEmpty(scene.path)) return;
-            EditorSceneManager.SaveScene(scene);
-        }
-
         void ProcessScene(Scene scene) {
             foreach (var rootObj in scene.GetRootGameObjects()) {
                 var runners = rootObj.GetComponentsInChildren<JSRunner>(true);
@@ -210,12 +234,113 @@ namespace OneJS.Editor {
                         continue;
                     }
 
+                    if (runner.ExcludeFromBuild) {
+                        Debug.Log($"[JSRunner] Skipped {runner.gameObject.name} in {scene.name}: " +
+                            $"Exclude From Build is on. No bundle or assets will be built for it, and " +
+                            $"its files cannot collide with another app's.");
+                        continue;
+                    }
+
                     _runnersSeen++;
                     ProcessJSRunner(runner);
                     ExtractCartridges(runner);
-                    CopyAssets(runner);
+                    CopyAssets(runner, fromScene: true);
                 }
             }
+        }
+
+        /// <summary>
+        /// Walks every prefab under Assets for JSRunners, so an app ships whether a
+        /// scene holds it or a prefab does.
+        ///
+        /// A JSRunner can ship without appearing in any build scene: an Addressable
+        /// group, a Resources folder, an AssetBundle, or a prefab a script
+        /// instantiates. The scene walk sees none of those, so the app shipped with
+        /// no bundle and no assets and the player ran OneJS's default placeholder
+        /// app in its place. JSRunner has supported the setup since
+        /// GetDefaultInstanceFolderPath grew a "Prefab in Project" branch; only the
+        /// build did not.
+        ///
+        /// Every prefab, rather than only the Addressable ones, because prefabs do
+        /// not declare where they ship: reading Addressables groups would need the
+        /// package and would still miss Resources and plain references. The rule is
+        /// one sentence instead: every JSRunner in a scene or a prefab is built
+        /// unless it opts out with Exclude From Build.
+        ///
+        /// Runs from PrepareForBuild, not OnPreprocessBuild, and that is not a
+        /// detail. Addressables builds its content from a BuildPlayerProcessor, and
+        /// every BuildPlayerProcessor runs before every IPreprocessBuildWithReport
+        /// (measured on 6000.5.2f1: PrepareForBuild at 03:41:43.093, OnPreprocessBuild
+        /// at 03:41:44.379). A bundle baked in OnPreprocessBuild is therefore already
+        /// too late for the Addressable content that carries the prefab.
+        /// </summary>
+        void ProcessPrefabs() {
+            var guids = AssetDatabase.FindAssets("t:Prefab", new[] { "Assets" });
+            var scanned = 0;
+            var withRunners = 0;
+
+            foreach (var guid in guids) {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (string.IsNullOrEmpty(path)) continue;
+
+                var root = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                scanned++;
+                if (root == null) continue;
+
+                var runners = root.GetComponentsInChildren<JSRunner>(true);
+                if (runners.Length == 0) continue;
+                withRunners++;
+
+                var dirty = false;
+                foreach (var runner in runners) {
+                    // activeInHierarchy is meaningless on a prefab asset, which is in
+                    // no loaded scene, so activeSelf is walked to the root instead.
+                    // Reading activeInHierarchy here would skip every prefab runner
+                    // and quietly restore the bug this method exists to fix.
+                    if (!runner.enabled || !IsActiveWithinPrefab(runner.gameObject, root)) {
+                        Debug.Log($"[JSRunner] Skipped {runner.gameObject.name} in prefab {path}: " +
+                            $"{(runner.enabled ? "its GameObject is inactive" : "the component is disabled")}. " +
+                            $"No bundle or assets will be built for it.");
+                        continue;
+                    }
+
+                    if (runner.ExcludeFromBuild) {
+                        Debug.Log($"[JSRunner] Skipped {runner.gameObject.name} in prefab {path}: " +
+                            $"Exclude From Build is on. No bundle or assets will be built for it, and " +
+                            $"its files cannot collide with another app's.");
+                        continue;
+                    }
+
+                    _runnersSeen++;
+                    if (ProcessJSRunner(runner)) dirty = true;
+                    ExtractCartridges(runner);
+                    CopyAssets(runner, fromScene: false);
+                }
+
+                // Saved because the bundle reference lives on the component, and a
+                // prefab asset only keeps what is written back to it. Skipped when
+                // nothing changed, so a build does not rewrite every prefab it reads.
+                if (dirty) PrefabUtility.SavePrefabAsset(root);
+            }
+
+            Debug.Log($"[JSRunner] Scanned {scanned} prefab(s) under Assets, " +
+                $"{withRunners} carrying a JSRunner.");
+        }
+
+        /// <summary>
+        /// activeSelf walked from a prefab's node up to its root.
+        ///
+        /// A prefab asset belongs to no loaded scene, so activeInHierarchy on it
+        /// does not answer the question the scene walk asks. This does, and it does
+        /// it the same way for every prefab regardless of how Unity happens to
+        /// report activeInHierarchy for assets.
+        /// </summary>
+        static bool IsActiveWithinPrefab(GameObject go, GameObject root) {
+            for (var t = go.transform; t != null; t = t.parent) {
+                if (!t.gameObject.activeSelf) return false;
+                if (t.gameObject == root) break;
+            }
+            return true;
         }
 
         bool ProcessJSRunner(JSRunner runner) {
@@ -250,8 +375,22 @@ namespace OneJS.Editor {
             }
 
             if (_processedRunners.Contains(bundleAssetPathUnity)) {
-                Debug.Log($"[JSRunner] Bundle already processed: {bundleAssetPathUnity}");
-                return false;
+                // The FILE is written once per app, but the reference to it is
+                // serialized on each COMPONENT, so this runner still needs its own
+                // assignment. Returning here without one shipped it with a null
+                // bundle, and a runner with a null bundle runs OneJS's default
+                // placeholder app in the player: the app looks built and is not.
+                //
+                // Two runners land here whenever they resolve to one app folder,
+                // which is keyed off the PanelSettings asset. The everyday way in
+                // is one prefab dropped into several build scenes, since every
+                // instance carries the same PanelSettings; assigning one
+                // PanelSettings to two runners by hand does it too. The first
+                // runner reached got a bundle and the rest did not, so which scene
+                // worked depended on Build Settings order.
+                Debug.Log($"[JSRunner] Bundle already written, assigning it to " +
+                    $"{runner.gameObject.name}: {bundleAssetPathUnity}");
+                return AssignBundle(runner, bundleAssetPathUnity, sourceMapAssetPathUnity);
             }
             _processedRunners.Add(bundleAssetPathUnity);
 
@@ -276,27 +415,43 @@ namespace OneJS.Editor {
                 }
             }
 
-            // Use ImportAsset for synchronous import instead of Refresh which can be async on Windows
+            // Imported here, where the file was just written, rather than inside
+            // AssignBundle: the import is per FILE and belongs with the write, and
+            // re-running it per runner reloads the asset, handing each runner a
+            // different managed wrapper for the same file.
+            // ImportAsset rather than Refresh, which can be asynchronous on Windows.
             AssetDatabase.ImportAsset(bundleAssetPathUnity, ImportAssetOptions.ForceSynchronousImport);
-            if (runner.IncludeSourceMap && sourceMapAssetPathUnity != null)
+            if (runner.IncludeSourceMap && !string.IsNullOrEmpty(sourceMapAssetPathUnity))
                 AssetDatabase.ImportAsset(sourceMapAssetPathUnity, ImportAssetOptions.ForceSynchronousImport);
 
+            return AssignBundle(runner, bundleAssetPathUnity, sourceMapAssetPathUnity);
+        }
+
+        /// <summary>
+        /// Points one runner at the bundle TextAsset on disk.
+        ///
+        /// Split out from writing the file because the two do not happen the same
+        /// number of times: the file is written once per app, the reference is
+        /// serialized once per runner. Every path that reaches a runner with no
+        /// bundle has to end here, including the one where another runner already
+        /// wrote and imported the file.
+        /// </summary>
+        bool AssignBundle(JSRunner runner, string bundleAssetPathUnity, string sourceMapAssetPathUnity) {
             var bundleAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(bundleAssetPathUnity);
-            if (bundleAsset != null) {
-                runner.SetBundleAsset(bundleAsset);
-            } else {
+            if (bundleAsset == null) {
                 // Fallback: try a full Refresh and retry once
-                Debug.LogWarning($"[JSRunner] ImportAsset did not find bundle, retrying with full Refresh: {bundleAssetPathUnity}");
+                Debug.LogWarning($"[JSRunner] Bundle is not in the asset database, retrying with full Refresh: {bundleAssetPathUnity}");
                 AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
                 bundleAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(bundleAssetPathUnity);
-                if (bundleAsset != null) {
-                    runner.SetBundleAsset(bundleAsset);
-                } else {
-                    Debug.LogError($"[JSRunner] Failed to load bundle asset after retry: {bundleAssetPathUnity}. " +
-                        $"File exists on disk: {File.Exists(bundleFullPath)}");
-                    return false;
-                }
             }
+
+            if (bundleAsset == null) {
+                Debug.LogError($"[JSRunner] Failed to load bundle asset after retry: {bundleAssetPathUnity}. " +
+                    $"File exists on disk: {File.Exists(runner.EntryFileFullPath ?? "")}");
+                return false;
+            }
+
+            runner.SetBundleAsset(bundleAsset);
 
             if (runner.IncludeSourceMap && !string.IsNullOrEmpty(sourceMapAssetPathUnity)) {
                 var sourceMapAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(sourceMapAssetPathUnity);
@@ -321,7 +476,7 @@ namespace OneJS.Editor {
         }
 
         /// <summary>Records an app's asset folder. The copying happens in CommitAssets.</summary>
-        void CopyAssets(JSRunner runner) {
+        void CopyAssets(JSRunner runner, bool fromScene) {
             var workingDir = runner.WorkingDirFullPath;
             if (string.IsNullOrEmpty(workingDir)) return;
 
@@ -331,10 +486,18 @@ namespace OneJS.Editor {
             // The same folder twice is one app reached twice, not two apps: two
             // JSRunners can share a project, and a runner can sit in more than one
             // build scene. Recording it once keeps it out of the collision check.
-            foreach (var known in _assetSources) {
-                if (PathsEqual(known.srcDir, assetsDir)) return;
+            for (var i = 0; i < _assetSources.Count; i++) {
+                if (!PathsEqual(_assetSources[i].srcDir, assetsDir)) continue;
+
+                // One app reached by a prefab AND by a scene is a scene app: the
+                // scene proves it ships, so its collisions stay hard errors. The
+                // prefab walk runs first, so this upgrade is the usual direction.
+                if (fromScene && !_assetSources[i].fromScene) {
+                    _assetSources[i] = (_assetSources[i].srcDir, _assetSources[i].runnerName, true);
+                }
+                return;
             }
-            _assetSources.Add((assetsDir, runner.gameObject.name));
+            _assetSources.Add((assetsDir, runner.gameObject.name, fromScene));
         }
 
         /// <summary>
@@ -383,9 +546,19 @@ namespace OneJS.Editor {
             try { DeleteTree(staging); } catch { }
 
             // relative path (lowercased) -> what to copy and who owns it.
-            var plan = new Dictionary<string, (string file, string relative, string runner, string src)>();
+            var plan = new Dictionary<string,
+                (string file, string relative, string runner, string src, bool fromScene)>();
 
-            foreach (var (srcDir, runnerName) in _assetSources) {
+            // Scene apps first, so that when a scene app and a prefab app want the
+            // same path the scene app is always the one already holding it. That
+            // makes the resolution below a property of the ORDER rather than a
+            // comparison, and it makes which app wins independent of the order the
+            // walks happened to run in.
+            var ordered = _assetSources
+                .OrderByDescending(s => s.fromScene)
+                .ToList();
+
+            foreach (var (srcDir, runnerName, fromScene) in ordered) {
                 foreach (var file in Directory.GetFiles(srcDir, "*", SearchOption.AllDirectories)) {
                     if (file.EndsWith(".meta")) continue;
 
@@ -417,14 +590,40 @@ namespace OneJS.Editor {
                         var same = string.Equals(owner.relative, relative, StringComparison.Ordinal)
                             ? ""
                             : $" (as \"{owner.relative}\" and \"{relative}\", which differ only in case)";
-                        throw new BuildFailedException(
+                        var shared =
+                            $"Every OneJS app in a build copies into the same StreamingAssets/onejs/assets " +
+                            $"folder, which is the one place the runtime resolves assets from, so two apps " +
+                            $"cannot ship the same relative path. Rename one of them, put each app's files " +
+                            $"under a folder of their own, or turn on Exclude From Build on the runner that " +
+                            $"does not ship.";
+
+                        // Both apps came from build scenes, so both certainly ship and
+                        // one of them would silently get the other's file. Hard error,
+                        // as it has been since 3.4.3.
+                        if (owner.fromScene && fromScene) {
+                            throw new BuildFailedException(
+                                $"[JSRunner] Asset path collision: \"{relative}\" is shipped by both " +
+                                $"\"{owner.runner}\" and \"{runnerName}\"{same}. {shared}");
+                        }
+
+                        // At least one side only a prefab reached, and a prefab does
+                        // not say whether it ships. Failing the build on that would
+                        // let a template prefab nobody ships stop a release, so this
+                        // warns instead. Scene sources were ordered first, so the
+                        // holder is always the stronger claim: the scene app when
+                        // there is one, otherwise the prefab app seen first.
+                        var why = owner.fromScene
+                            ? $"\"{owner.runner}\" is in a build scene and keeps the path, and " +
+                              $"\"{runnerName}\" was reached only through a prefab"
+                            : $"both were reached only through prefabs, so \"{owner.runner}\" keeps the path";
+                        Debug.LogWarning(
                             $"[JSRunner] Asset path collision: \"{relative}\" is shipped by both " +
-                            $"\"{owner.runner}\" and \"{runnerName}\"{same}. Every OneJS app in a build copies into " +
-                            $"the same StreamingAssets/onejs/assets folder, which is the one place the runtime " +
-                            $"resolves assets from, so two apps cannot ship the same relative path. Rename one of " +
-                            $"them, or put each app's files under a folder of their own.");
+                            $"\"{owner.runner}\" and \"{runnerName}\"{same}. {why}. This is a warning rather " +
+                            $"than a failed build because a prefab does not say whether it ships. If it does " +
+                            $"ship, the file it reads will be the other app's. {shared}");
+                        continue;
                     }
-                    plan[key] = (file, relative, runnerName, srcDir);
+                    plan[key] = (file, relative, runnerName, srcDir, fromScene);
                 }
             }
 
@@ -543,8 +742,57 @@ namespace OneJS.Editor {
         }
 
         public void OnPostprocessBuild(BuildReport report) {
+            // Second place the flag is consumed. OnPreprocessBuild is the first and
+            // the usual one; this covers a build that ran PrepareForBuild and then
+            // stopped before the preprocess, which would otherwise leave the flag set
+            // and make some later build skip its reset.
+            _preparedThisBuild = false;
+
             if (_createdAssets.Count > 0) {
                 Debug.Log($"[JSRunner] Build complete. {_createdAssets.Count} asset(s) created/updated.");
+            }
+        }
+
+        /// <summary>
+        /// Bakes prefab borne apps before anything that packs prefabs gets to see
+        /// them, and records which scenes this build was given.
+        ///
+        /// The second job rides along because this is the only hook that is handed a
+        /// BuildPlayerContext, and so the only place BuildPlayerOptions.scenes can
+        /// be read. See ResolveBuildScenes.
+        ///
+        /// This exists as a separate hook because of WHEN it has to run, not what it
+        /// does. Addressables builds its content from
+        /// AddressablesPlayerBuildProcessor.PrepareForBuild, a BuildPlayerProcessor
+        /// at callbackOrder 1, and every BuildPlayerProcessor runs before every
+        /// IPreprocessBuildWithReport. Measured on 6000.5.2f1 with a real player
+        /// build: PrepareForBuild at 03:41:43.093, OnPreprocessBuild 1.3 seconds
+        /// later at 03:41:44.379. So a bundle baked in OnPreprocessBuild, where
+        /// OneJS has always baked them, is already too late for the Addressable
+        /// content that carries the prefab: Addressables packed the prefab while its
+        /// bundle reference was still null.
+        ///
+        /// Sitting at callbackOrder 0 puts this ahead of Addressables' 1, and
+        /// BuildPlayerProcessors do run in ascending order (measured in the same
+        /// build: 0 at 03:41:43.093, 1 at 03:41:43.099). Scene runners stay in
+        /// OnPreprocessBuild, which runs later: a scene is packed by the player
+        /// build itself, long after both hooks.
+        /// </summary>
+        public class PrefabAppBaker : BuildPlayerProcessor {
+            // Must stay below AddressablesPlayerBuildProcessor's 1. A number equal to
+            // it would leave the two in an order Unity does not promise.
+            public override int callbackOrder => 0;
+
+            public override void PrepareForBuild(BuildPlayerContext buildPlayerContext) {
+                // First, and deliberately before anything that can throw. This is
+                // the only hook that sees BuildPlayerOptions, so it is the only
+                // chance to learn which scenes the build is actually shipping;
+                // BuildReport, which OnPreprocessBuild gets, carries no scene list.
+                RecordRequestedScenes(buildPlayerContext.BuildPlayerOptions.scenes);
+
+                ResetForBuild();
+                _preparedThisBuild = true;
+                new JSRunnerBuildProcessor().ProcessPrefabs();
             }
         }
     }

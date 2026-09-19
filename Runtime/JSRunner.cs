@@ -98,6 +98,14 @@ namespace OneJS {
         // UIDocument is added at runtime and assigned from _panelSettings/_visualTreeAsset; not shown in editor.
         UIDocument _uiDocument;
 
+        // True only while the UIDocument on this GameObject is one JSRunner added itself, so the
+        // cleanup in OnValidate removes what JSRunner created and never a component the user put
+        // there before adding JSRunner. Serialized so it survives domain reloads and scene saves.
+        // A project saved before this field existed deserializes false, which leaves a UIDocument
+        // behind rather than deleting one the user wanted; that is the safe direction to be wrong in,
+        // and the value is deliberately never inferred from the scene.
+        [SerializeField, HideInInspector] bool _uiDocumentAddedByRunner;
+
         [Tooltip("PanelSettings asset for the UI. Assigned to the runtime UIDocument. Auto-created in instance folder on Initialize if not set.")]
         [SerializeField] PanelSettings _panelSettings;
 
@@ -115,6 +123,14 @@ namespace OneJS {
 
         [Tooltip("Include source map in build for better error messages")]
         [SerializeField] bool _includeSourceMap = true;
+
+        [Tooltip("Leave this runner's app out of the build. Every JSRunner in a scene or " +
+            "a prefab is built unless it opts out here.\n\n" +
+            "Turn it on for a runner you keep in the project but never ship: a template prefab, " +
+            "or a scene that is not in the build. An excluded runner gets no bundle and no assets, " +
+            "its files cannot collide with another app's, and if it does reach a player it runs " +
+            "OneJS's default placeholder app instead of yours.")]
+        [SerializeField] bool _excludeFromBuild;
 
         [Tooltip("Which Unity update loop drives the JS tick. LateUpdate runs after all Update calls, useful when reading transform/physics results.")]
         [SerializeField] TickMode _tickMode = TickMode.Update;
@@ -211,6 +227,13 @@ namespace OneJS {
         public DateTime LastModifiedTime => _lastModifiedTime;
         public DateTime LastReloadTime => _lastReloadTime;
         public bool IncludeSourceMap => _includeSourceMap;
+
+        /// <summary>
+        /// Whether a player build should leave this runner's app out. Default false,
+        /// so every runner builds unless it says otherwise.
+        /// See the field's tooltip for what excluding one costs.
+        /// </summary>
+        public bool ExcludeFromBuild => _excludeFromBuild;
         public PanelSettings PanelSettingsAsset => _panelSettings;
         public TextAsset BundleAsset => _bundleAsset;
         public TextAsset SourceMapAsset => _sourceMapAsset;
@@ -527,7 +550,15 @@ namespace OneJS {
         /// PanelSettings is the single marker for the project folder (no separate ProjectConfig).
         /// </summary>
         public void EnsureProjectFolderAndAssets(bool useSceneNameAsRootFolder = true) {
-            if (_panelSettings != null) return;
+            if (_panelSettings != null) {
+                if (IsPanelSettingsInValidProjectFolder()) return;
+                // Assigned, but the folder is not a project folder. Say so rather than reporting success:
+                // the folder is not repaired here on purpose, because one PanelSettings is often shared
+                // with other UIDocuments and scaffolding into its folder would be a surprise.
+                Debug.LogWarning($"[JSRunner] Panel Settings is assigned but {GetInvalidProjectFolderReason()}. " +
+                    "Nothing was created. Clear the field with Remove Settings, then Initialize Project.", this);
+                return;
+            }
 
             var instanceFolder = GetDefaultInstanceFolderPath(useSceneNameAsRootFolder);
             if (string.IsNullOrEmpty(instanceFolder)) return;
@@ -756,6 +787,22 @@ namespace OneJS {
             var appJs = Path.Combine(instanceFolder, "app.js");
             var appJsTxt = Path.Combine(instanceFolder, "app.js.txt");
             return Directory.Exists(tildeDir) || File.Exists(appJs) || File.Exists(appJsTxt);
+        }
+
+        /// <summary>
+        /// Says why the assigned PanelSettings is not in a valid project folder, phrased for a log line
+        /// or an inspector message. Null when nothing is assigned or when the folder is already valid.
+        /// </summary>
+        public string GetInvalidProjectFolderReason() {
+            if (_panelSettings == null || IsPanelSettingsInValidProjectFolder()) return null;
+            var assetPath = UnityEditor.AssetDatabase.GetAssetPath(_panelSettings);
+            if (string.IsNullOrEmpty(assetPath))
+                return $"'{_panelSettings.name}' has not been saved as an asset";
+            if (!assetPath.StartsWith("Assets", StringComparison.OrdinalIgnoreCase))
+                return $"'{assetPath}' is outside the Assets folder";
+            var dir = Path.GetDirectoryName(assetPath);
+            if (string.IsNullOrEmpty(dir)) return $"'{assetPath}' has no containing folder";
+            return $"its folder '{dir.Replace('\\', '/')}' holds no ~ working directory and no app.js.txt";
         }
 #endif
 
@@ -1850,17 +1897,11 @@ namespace OneJS {
                     _visualTreeAsset = null;
                     UnityEditor.EditorUtility.SetDirty(this);
                 }
-                // Remove UIDocument when Panel Settings is cleared or invalid (deferred so removal isn't ignored during OnValidate)
-                if (!Application.isPlaying) {
-                    var ud = GetComponent<UIDocument>();
-                    if (ud != null) {
-                        var toRemove = ud;
-                        UnityEditor.EditorApplication.delayCall += () => {
-                            if (toRemove != null && (_panelSettings == null || !IsPanelSettingsInValidProjectFolder()))
-                                UnityEditor.Undo.DestroyObjectImmediate(toRemove);
-                        };
-                    }
-                }
+                // Deferred so the removal isn't ignored during OnValidate. Whether anything is
+                // actually removed is decided by RemoveUIDocumentIfOwned, which is the one place
+                // that policy lives.
+                if (!Application.isPlaying)
+                    UnityEditor.EditorApplication.delayCall += RemoveUIDocumentIfOwned;
                 if (!shouldUsePanelSettings) return;
             }
             SyncVisualTreeAssetFromPanelSettingsFolder();
@@ -1884,13 +1925,45 @@ namespace OneJS {
             }
         }
 
+        /// <summary>
+        /// Removes the UIDocument when Panel Settings is cleared or points outside a project folder,
+        /// but only when it is one JSRunner added itself. A UIDocument the user put on the GameObject
+        /// before adding JSRunner is theirs: removing it here would be a deferred, silent delete they
+        /// cannot trace back to the field they just changed.
+        /// Called from OnValidate through delayCall, and directly by tests, so the decision does not
+        /// depend on the editor scheduler running.
+        /// </summary>
+        void RemoveUIDocumentIfOwned() {
+            if (this == null || Application.isPlaying) return;
+            if (!_uiDocumentAddedByRunner) return;
+            if (_panelSettings != null && IsPanelSettingsInValidProjectFolder()) return;
+            var toRemove = GetComponent<UIDocument>();
+            if (toRemove == null) {
+                _uiDocumentAddedByRunner = false;
+                return;
+            }
+            var group = UnityEditor.Undo.GetCurrentGroup();
+            // Release the claim in the same undo step, so undoing the removal restores both the
+            // component and JSRunner's ownership of it.
+            UnityEditor.Undo.RecordObject(this, "Remove UIDocument");
+            _uiDocumentAddedByRunner = false;
+            UnityEditor.EditorUtility.SetDirty(this);
+            UnityEditor.Undo.DestroyObjectImmediate(toRemove);
+            UnityEditor.Undo.CollapseUndoOperations(group);
+        }
+
         /// <summary>Adds UIDocument if missing and syncs Panel Settings / Visual Tree. Call after assigning _panelSettings (e.g. from Initialize). Only runs when Panel Settings is in a valid project folder.</summary>
         void EnsureUIDocumentInEditor() {
             if (_panelSettings == null || !IsPanelSettingsInValidProjectFolder()) return;
             SyncVisualTreeAssetFromPanelSettingsFolder();
             var udoc = GetComponent<UIDocument>();
-            if (udoc == null)
+            if (udoc == null) {
                 udoc = UnityEditor.Undo.AddComponent<UIDocument>(gameObject);
+                // Claim it, so the cleanup in OnValidate knows this one is ours to remove.
+                UnityEditor.Undo.RecordObject(this, "Add UIDocument");
+                _uiDocumentAddedByRunner = true;
+                UnityEditor.EditorUtility.SetDirty(this);
+            }
             if (udoc != null && (udoc.panelSettings != _panelSettings || udoc.visualTreeAsset != _visualTreeAsset)) {
                 UnityEditor.Undo.RecordObject(udoc, "Sync UIDocument to Panel Settings");
                 udoc.panelSettings = _panelSettings;

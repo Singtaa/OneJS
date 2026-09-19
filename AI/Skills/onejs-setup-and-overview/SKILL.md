@@ -4,15 +4,15 @@ description: "Use this skill whenever the user wants to build or set up user int
 metadata:
   asset: "OneJS"
   publisher: "DragonGround"
-  asset-version: "3.4.3"
-  skill-version: "1.1.0"
+  asset-version: "3.4.4"
+  skill-version: "1.3.1"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-09-11"
+  last-verified: "2026-09-17"
 ---
 
 # Set Up a OneJS Project
@@ -345,6 +345,10 @@ Fix: select the JSRunner GameObject, or switch the overlay's Scene mode to Camer
 Cause: no PanelSettings assigned, or `app.js.txt` missing. JSRunner treats both as "not set up yet" rather than as errors.
 Fix: assign PanelSettings (or click Initialize Project), then run `npm run build` in `~/`.
 
+**The JSRunner inspector has no tabs, and Initialize Project appears to do nothing.**
+Cause: the assigned PanelSettings is not in a project folder, so Status reads "Not Valid" and the whole tab bar is hidden, Build and its scaffolding Restore buttons included. A project folder is one holding a `~` working directory or an `app.js.txt` beside the PanelSettings asset. The folder's name never matters.
+Fix: press **Remove Settings** to clear the field, then **Initialize Project**. Or assign the `PanelSettings.asset` that sits beside the `~` folder. Unity hides `~` folders in the Project window, so check on disk rather than in the Project view.
+
 **Text does not appear where expected.**
 Cause: a raw string child was used instead of the `text` prop.
 Fix: use `<Text text="Hello" />` rather than `<View>Hello</View>`.
@@ -368,6 +372,10 @@ Fix: if state must survive, keep it in C# and read it back, or persist it delibe
 **The build has no user interface, but the editor did.**
 Cause: the bundle was not built before the player build.
 Fix: run `npm run build` in `~/`, then build. The bundle ships as a serialized TextAsset, so StreamingAssets is not involved.
+
+**One app in a multi-app build shows OneJS's default placeholder instead of its own user interface.**
+Cause: that runner got no bundle. A player build builds every JSRunner in a scene or a prefab, so the usual reasons are that its GameObject is inactive, its component is disabled, or **Exclude From Build** is on it.
+Fix: check those three on the runner. Exclude From Build is in the inspector's Build tab and is off by default; turn it on only for a runner you keep in the project but never ship, which also keeps its files out of the asset collision check.
 
 ## Boundaries
 
