@@ -130,10 +130,23 @@ namespace OneJS.Tests.Editor {
             }
         }
 
-        /// <summary>_assetSources is a List of a private tuple type, so it is built by reflection.</summary>
-        void AddSource(string srcDir, string runnerName) {
+        /// <summary>
+        /// _assetSources is a List of a private tuple type, so it is built by reflection.
+        ///
+        /// fromScene defaults true because both cases here are about apps a build
+        /// scene reached; neither is about collisions, which is the only thing the
+        /// flag decides. It matches JSRunnerBuildProcessorTests.AddSource.
+        ///
+        /// Reflection means a tuple that gains a field compiles fine here and throws
+        /// MissingMethodException at run time instead, and this fixture is
+        /// [Platform("Win")], so the throw is invisible to anyone on macOS. That is
+        /// how it got here: the fromScene field landed with the prefab walk, the
+        /// sibling fixture was updated and this one was not, and v3.4.4 shipped with
+        /// these two red on Windows only.
+        /// </summary>
+        void AddSource(string srcDir, string runnerName, bool fromScene = true) {
             var elem = _assetSources.GetType().GetGenericArguments()[0];
-            _assetSources.Add(Activator.CreateInstance(elem, srcDir, runnerName));
+            _assetSources.Add(Activator.CreateInstance(elem, srcDir, runnerName, fromScene));
         }
 
         static void Write(string dir, string relative, string content) {
