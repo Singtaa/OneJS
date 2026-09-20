@@ -1,12 +1,13 @@
 {
     "name": "com.singtaa.onejs",
-    "version": "3.4.4",
+    "version": "3.4.5",
     "displayName": "OneJS",
     "description": "JavaScript runtime for Unity UI Toolkit. Write UI with React and TypeScript, render natively through Unity's GPU-accelerated UI system.",
     "unity": "6000.3",
     "unityRelease": "0f1",
     "dependencies": {
         "com.unity.ugui": "2.0.0",
+        "com.unity.inputsystem": "1.19.0",
         "com.unity.modules.uielements": "1.0.0",
         "com.unity.modules.imgui": "1.0.0",
         "com.unity.modules.jsonserialize": "1.0.0",

@@ -1,5 +1,9 @@
-# Unreleased
+# [2026-09-20] v3.4.5
 
+`npm install` failed in every newly scaffolded app, so Initialize Project left new projects with no dependencies and no bundle. The scaffold pinned an `onejs-unity` version that no published `onejs-play` can pair with. OneJS also now installs the Input System it has always required.
+
+- A new app's `npm install` resolves, instead of failing on the `onejs-unity` and `onejs-play` pins
+- `com.unity.inputsystem` installs with OneJS, which its runtime assembly already referenced
 - A build processes the scenes it was given, not the Build Settings list
 - A build that ships the open scene gives that app its bundle, instead of none
 
