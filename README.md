@@ -50,6 +50,13 @@ Save the file and the UI hot-reloads in the editor, in both Edit mode and Play m
 2. Click + > Add package from git URL
 3. Enter: `https://github.com/Singtaa/OneJS.git`
 
+Use that URL with no branch suffix. `onejs-v1`, `onejs-v2` and `onejs-v3` are
+frozen historical branches; pinning one installs an old runtime that still
+compiles, so nothing tells you it happened.
+
+**No editor to click in?** Setting Up Without the Inspector, below, has the
+whole terminal recipe: https://onejs.com/docs/ai-setup
+
 **Manual:**
 
 ```bash
