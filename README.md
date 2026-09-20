@@ -1,4 +1,4 @@
-# OneJS
+# OneJS (frozen branch, 3.1.0). The current release is on `main`.
 
 > **This branch is frozen at OneJS 3.1.0.** Development moved to `main`, which
 > is the release branch and the one the Package Manager installs by default.
