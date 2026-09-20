@@ -1,5 +1,17 @@
 # OneJS
 
+> **This branch is frozen at OneJS 3.1.0.** Development moved to `main`, which
+> is the release branch and the one the Package Manager installs by default.
+> Install with the plain git URL, no branch suffix:
+>
+> ```
+> https://github.com/Singtaa/OneJS.git
+> ```
+>
+> Pinning `#onejs-v3` installs 3.1.0, which still resolves and still compiles,
+> so nothing will tell you that you are several releases behind. Documentation
+> for the current release is at https://onejs.com/docs.
+
 JavaScript runtime for Unity UI Toolkit. Write UI with React and TypeScript, render natively through Unity's GPU-accelerated UI system.
 
 ## V3 vs V2
