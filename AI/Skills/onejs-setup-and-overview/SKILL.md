@@ -4,15 +4,15 @@ description: "Use this skill whenever the user wants to build or set up user int
 metadata:
   asset: "OneJS"
   publisher: "DragonGround"
-  asset-version: "3.4.4"
-  skill-version: "1.3.1"
+  asset-version: "3.4.5"
+  skill-version: "1.4.0"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-09-17"
+  last-verified: "2026-09-20"
 ---
 
 # Set Up a OneJS Project
@@ -66,6 +66,17 @@ Get a rendering, hot reloading component in a saved scene.
 5. Save. The bundle rebuilds and Unity reloads it.
 
 **Expected observable result:** the Game view shows the rendered interface without entering Play mode, `app.js.txt` exists next to the scene folder's `PanelSettings.asset`, and the Console has no OneJS errors.
+
+**No editor to click in?** The button calls three public methods on `JSRunner`, so an editor script can do the same thing and `-executeMethod` can run it:
+
+```csharp
+var runner = new GameObject("App").AddComponent<OneJS.JSRunner>();
+runner.PopulateDefaultFiles();
+runner.EnsureProjectFolderAndAssets(true);
+runner.EnsureProjectSetup();
+```
+
+Save the scene before calling them, then run `npm install && npm run build` in the app's `~/` folder yourself, because only the button does that part for you. The full terminal recipe, including creating the Unity project and driving a live editor through the Unity MCP server, is at https://onejs.com/docs/ai-setup.
 
 There is a second path that skips the button: assign nothing and just enter Play mode. On first play, `JSRunnerAutoWatch` creates and assigns PanelSettings, scaffolds any missing files, runs `npm install` and `npm run build` in the background, and starts the file watcher.
 
