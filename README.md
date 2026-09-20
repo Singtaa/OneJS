@@ -34,17 +34,23 @@ V3 requires Unity 6.3+. For older Unity versions, use the `main` branch (V2).
 
 ## Installation
 
+Install the current release. This branch is frozen at 3.1.0 and should not be
+installed.
+
 **Package Manager (recommended):**
 
 1. Open Window > Package Manager
 2. Click + > Add package from git URL
-3. Enter: `https://github.com/Singtaa/OneJS.git#onejs-v3`
+3. Enter: `https://github.com/Singtaa/OneJS.git`
 
 **Manual:**
 
 ```bash
-git clone -b onejs-v3 https://github.com/Singtaa/OneJS.git Assets/OneJS
+git clone https://github.com/Singtaa/OneJS.git Assets/OneJS
 ```
+
+Adding `#onejs-v3` to either of those installs 3.1.0 from this branch. Only do
+that if you have a specific reason to stay on 3.1.0.
 
 ## Quick Start
 
