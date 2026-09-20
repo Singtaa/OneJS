@@ -8,15 +8,19 @@
 > https://github.com/Singtaa/OneJS.git
 > ```
 >
-> Pinning `#onejs-v3` installs 3.1.0, which still resolves and still compiles,
-> so nothing will tell you that you are several releases behind. Documentation
-> for the current release is at https://onejs.com/docs.
+> This branch used to be called `onejs-v3`. That name no longer resolves, so a
+> `#onejs-v3` pin now fails with "Could not clone ... Make sure [onejs-v3] is a
+> valid branch name"; the fix is to drop the suffix, and
+> https://github.com/Singtaa/OneJS/issues/118 has the detail. Pinning
+> `#archive/onejs-v3` still works and still gives you 3.1.0, which is frozen and
+> gets no fixes. Documentation for the current release is at
+> https://onejs.com/docs.
 
 JavaScript runtime for Unity UI Toolkit. Write UI with React and TypeScript, render natively through Unity's GPU-accelerated UI system.
 
 ## V3 vs V2
 
-This is the V3 branch. Key changes from V2:
+This was the V3 branch, up to 3.1.0. Key changes from V2:
 
 | | V2 | V3 |
 |---|---|---|
