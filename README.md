@@ -67,6 +67,26 @@ For Claude Code, Cursor, and other terminal agents, run **Tools > OneJS > Instal
 AI Skills** once: they only scan the project root, so the menu item copies the
 skill into `.claude/skills/`. It never overwrites a skill you have edited.
 
+## Setting Up Without the Inspector
+
+Full recipe, including the Unity MCP server: **https://onejs.com/docs/ai-setup**
+
+The **Initialize Project** button calls three public methods on `JSRunner`, so a
+script can do the same thing headlessly:
+
+```csharp
+var runner = new GameObject("App").AddComponent<OneJS.JSRunner>();
+runner.PopulateDefaultFiles();
+runner.EnsureProjectFolderAndAssets(true);
+runner.EnsureProjectSetup();
+```
+
+Save the scene first; the app is created next to it. Run the script with
+`unity run <project> -- -nographics -executeMethod YourClass.Run`, then
+`npm install && npm run build` in the app's `~/` folder. Install with the git
+URL above and no branch suffix: `onejs-v1`, `onejs-v2` and `onejs-v3` are frozen
+historical branches, and pinning one installs an old runtime that still compiles.
+
 ## Quick Start
 
 1. Add the `JSRunner` component to a GameObject in a saved scene
