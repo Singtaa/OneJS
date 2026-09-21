@@ -30,6 +30,13 @@ namespace OneJS {
             // Pending async tasks (stale after context destruction)
             ClearPendingTasks();
 
+            // Task-queue counters and latches belong to the session that is ending. The
+            // context ownership registries deliberately survive: with domain reload disabled
+            // the managed QuickJSContext objects survive this reset too, and forgetting a
+            // live context would have its completions discarded as orphans.
+            _foreignCompletionCount = 0;
+            _unownedTaskWarningLogged = false;
+
             // FastPath registry (re-registered by component Awake methods)
             FastPath.Clear();
 

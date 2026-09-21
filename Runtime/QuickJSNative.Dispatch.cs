@@ -715,8 +715,20 @@ namespace OneJS {
                 return;
             }
 
-            // Task is still pending: register for async completion
-            int taskId = RegisterTask(task);
+            // Task is still pending: register for async completion, owned by the context
+            // that is mid-dispatch. Ownership is what keeps the completion from being
+            // resolved into a different JSRunner's context, where the id means nothing and
+            // the resolve is dropped in silence (issue #120).
+            int ownerContextId = CurrentContextId;
+            if (ownerContextId == 0 && !_unownedTaskWarningLogged) {
+                _unownedTaskWarningLogged = true;
+                Debug.LogWarning(
+                    "[QuickJSNative] A Task was returned to JS while no context was recorded as dispatching, so its " +
+                    "completion cannot be routed back to the context that asked for it and will be retired by " +
+                    "whichever context ticks first. With more than one JSRunner live this can drop the resolve and " +
+                    "leave the Promise pending (issue #120).");
+            }
+            int taskId = RegisterTaskForContext(ownerContextId, task);
             resPtr->returnValue.type = InteropType.String;
             resPtr->returnValue.str = StringToUtf8($"{{\"__csTaskId\":{taskId}}}");
         }

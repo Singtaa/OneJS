@@ -739,15 +739,36 @@ Async C# methods create pending task completions. The queue is monitored:
 | Threshold | Action |
 |-----------|--------|
 | 100 pending | Logs warning about queue growth |
-| 50 per tick | Max tasks processed per frame to prevent blocking |
+| 50 per tick | Max entries **examined** per frame to prevent blocking |
 
 ```csharp
 // Monitoring API
-int pending = QuickJSNative.GetPendingTaskCount();    // Current queue size
-int peak = QuickJSNative.GetPeakTaskQueueSize();      // Peak since last reset
-QuickJSNative.ResetTaskQueueMonitoring();             // Reset peak and warnings
-QuickJSNative.ClearPendingTasks();                    // Clear queue (on dispose)
+int pending = QuickJSNative.GetPendingTaskCount();        // Current queue size, all contexts
+int peak = QuickJSNative.GetPeakTaskQueueSize();          // Peak since last reset
+int foreign = QuickJSNative.GetForeignCompletionCount();  // Entries left for another context
+QuickJSNative.ResetTaskQueueMonitoring();                 // Reset peak, warnings and foreign count
+QuickJSNative.DiscardCompletionsForContext(ctx.Id);       // Drop one context's entries
+QuickJSNative.ClearPendingTasks();                        // Clear queue (last context going away)
 ```
+
+#### Completions belong to one context
+
+The queue is process-wide but a completion carries the id of the context that registered it
+(`QuickJSContext.Id`), and only that context resolves it. A context that meets somebody else's
+completion puts it back rather than consuming it, so two JSRunners ticking against one queue no
+longer race: without this, the first runner to tick consumed the second's completion and resolved
+it into a context where the task id means nothing, leaving the owning Promise pending with nothing
+logged (issue #120).
+
+Two consequences worth knowing:
+
+- The per-tick budget counts entries **examined**, not entries processed. Counting processed
+  entries would never terminate once foreign completions are put back, and it is what keeps a
+  runner with a large backlog from starving a quiet one: requeued entries go to the back, so each
+  pass brings a context's own completions forward.
+- `RegisterTask(ctx, task)` names the owner. The dispatch path takes it from the context currently
+  dispatching. A task registered with no context at all is unowned and retired by whichever context
+  ticks first, which is safe only while task ids are process-global.
 
 ### Event Handler Cleanup (QuickJSBootstrap.js)
 When C# objects are released (either manually via `releaseObject()` or automatically via garbage collection), event handlers registered for that element are automatically cleaned up:

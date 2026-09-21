@@ -14,6 +14,7 @@ namespace OneJS {
         static string _cachedBootstrap;
 
         IntPtr _ptr;
+        readonly int _id;
         byte[] _buffer;
         bool _disposed;
         int _evalCount;
@@ -22,6 +23,13 @@ namespace OneJS {
         System.Collections.Generic.Dictionary<(string, Type), Delegate> _jsFunctionCache;
 
         public IntPtr NativePtr => _ptr;
+
+        /// <summary>
+        /// Ownership id for this context, unique within the session and never reused.
+        /// Async task completions carry the id of the context that registered them so that
+        /// only that context resolves them; see QuickJSNative.ProcessCompletedTasks.
+        /// </summary>
+        public int Id => _id;
 
         /// <summary>True while the context can execute JS (created and not yet disposed).</summary>
         public bool IsAlive => !_disposed && _ptr != IntPtr.Zero;
@@ -52,6 +60,7 @@ namespace OneJS {
             if (_ptr == IntPtr.Zero) {
                 throw new Exception("qjs_create failed");
             }
+            _id = QuickJSNative.RegisterContext(_ptr);
             _buffer = new byte[bufferSize];
 
             // Install JS-side helpers (__cs, wrapObject, newObject, callMethod, callStatic)
@@ -165,6 +174,11 @@ namespace OneJS {
 
             QuickJSNative.ClearDelegateCache();
 
+            // Before the native context goes: give up this context's ownership id and drop
+            // the queued completions it owns. Their promises die here, and an entry nobody
+            // can claim would be examined and put back by every other context, forever.
+            QuickJSNative.UnregisterContext(_ptr, _id);
+
             if (_ptr != IntPtr.Zero) {
                 QuickJSNative.qjs_destroy(_ptr);
                 _ptr = IntPtr.Zero;
@@ -175,6 +189,7 @@ namespace OneJS {
 
         ~QuickJSContext() {
             // Last line of defense if somebody forgets Dispose
+            QuickJSNative.UnregisterContext(_ptr, _id);
             if (_ptr != IntPtr.Zero) {
                 QuickJSNative.qjs_destroy(_ptr);
                 _ptr = IntPtr.Zero;

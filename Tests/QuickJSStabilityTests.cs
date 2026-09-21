@@ -323,7 +323,7 @@ namespace OneJS.Tests {
         public IEnumerator TaskQueueMonitoring_CompletedTasksAreQueued() {
             // Create a task that completes immediately
             var task = Task.FromResult(42);
-            QuickJSNative.RegisterTask(task);
+            QuickJSNative.RegisterTask(_ctx, task);
 
             // Wait a frame for the continuation to run
             yield return null;
@@ -337,7 +337,7 @@ namespace OneJS.Tests {
             // Create and register multiple completed tasks
             for (int i = 0; i < 5; i++) {
                 var task = Task.FromResult(i);
-                QuickJSNative.RegisterTask(task);
+                QuickJSNative.RegisterTask(_ctx, task);
             }
 
             // Wait for continuations to run
@@ -358,7 +358,7 @@ namespace OneJS.Tests {
             // Create multiple tasks
             for (int i = 0; i < 10; i++) {
                 var task = Task.FromResult(i);
-                QuickJSNative.RegisterTask(task);
+                QuickJSNative.RegisterTask(_ctx, task);
             }
 
             // Wait for continuations
@@ -382,7 +382,7 @@ namespace OneJS.Tests {
             // Create some tasks
             for (int i = 0; i < 5; i++) {
                 var task = Task.FromResult(i);
-                QuickJSNative.RegisterTask(task);
+                QuickJSNative.RegisterTask(_ctx, task);
             }
 
             yield return null;
@@ -426,7 +426,7 @@ namespace OneJS.Tests {
             // Create tasks
             for (int i = 0; i < 3; i++) {
                 var task = Task.FromResult(i);
-                QuickJSNative.RegisterTask(task);
+                QuickJSNative.RegisterTask(_ctx, task);
             }
 
             yield return null;

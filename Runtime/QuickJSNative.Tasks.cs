@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 
@@ -11,6 +12,12 @@ namespace OneJS {
     /// 2. JS creates a Promise and stores resolve/reject callbacks keyed by taskId
     /// 3. When Task completes, we queue the result for dispatch on next tick
     /// 4. QuickJSUIBridge.Tick() calls ProcessCompletedTasks() to invoke JS callbacks
+    ///
+    /// The completion queue is process-wide, shared by every live context, but a completion
+    /// belongs to the context that registered it and only that context may take it out.
+    /// Without that rule a second JSRunner's tick consumes the first one's completion and
+    /// resolves it into a context where the task id means nothing, leaving the owning
+    /// Promise pending forever with nothing logged (issue #120).
     /// </summary>
     public static partial class QuickJSNative {
         static int _nextTaskId = 1;
@@ -21,27 +28,95 @@ namespace OneJS {
 
         // Task queue monitoring
         const int TaskQueueWarningThreshold = 100;    // Warn when queue exceeds this
-        const int MaxTasksPerTick = 50;               // Process at most this many per tick to avoid blocking
+        const int MaxTasksPerTick = 50;               // Examine at most this many per tick to avoid blocking
         static bool _taskQueueWarningLogged;
         static int _peakTaskQueueSize;
+        static int _foreignCompletionCount;
+        static bool _unownedTaskWarningLogged;
 
         struct TaskCompletionInfo {
             public int TaskId;
+            public int OwnerContextId; // Context that registered the task; 0 = unowned
             public bool IsSuccess;
             public object Result;     // Result value (for Task<T>) or null (for Task)
             public string ErrorMessage; // Error message if failed
         }
 
+        // MARK: Context Ownership
+        //
+        // Ownership is recorded as a small integer id rather than as a QuickJSContext
+        // reference or a native pointer, for two reasons:
+        //
+        //   - A managed reference would keep a disposed context alive for as long as one of
+        //     its completions sat in the queue.
+        //   - A native pointer is reusable: qjs_create can hand the next context the address
+        //     a destroyed one had, and a completion from the dead context would then be
+        //     claimed by an unrelated live one.
+        //
+        // Ids come from one counter and are never reused. These registries are deliberately
+        // NOT cleared by ResetStaticState: with "Enter Play Mode" domain reload disabled the
+        // managed contexts survive that reset, and forgetting a live context would have its
+        // completions discarded as orphans. When the domain really does reload, the statics
+        // go with it and there is nothing to clear.
+        static int _nextContextId;
+        static readonly ConcurrentDictionary<IntPtr, int> _contextIdsByPtr = new();
+        static readonly ConcurrentDictionary<int, byte> _liveContextIds = new();
+
         /// <summary>
-        /// Register a Task for async completion tracking.
-        /// Returns a unique taskId that JS uses to create a pending Promise.
+        /// Allocate an ownership id for a newly created context and map its native pointer
+        /// to it, so the dispatch path can name the context a Task was returned to. Called
+        /// by QuickJSContext's constructor. Ids are never reused within a session.
         /// </summary>
-        public static int RegisterTask(Task task) {
+        internal static int RegisterContext(IntPtr nativePtr) {
+            int id = Interlocked.Increment(ref _nextContextId);
+            _liveContextIds[id] = 0;
+            if (nativePtr != IntPtr.Zero) _contextIdsByPtr[nativePtr] = id;
+            return id;
+        }
+
+        /// <summary>
+        /// Forget a context that is going away, and drop the completions it owns. Those
+        /// promises died with the context, and entries nobody can ever claim would otherwise
+        /// be examined and put back by every surviving context on every tick.
+        /// </summary>
+        internal static void UnregisterContext(IntPtr nativePtr, int contextId) {
+            if (nativePtr != IntPtr.Zero) _contextIdsByPtr.TryRemove(nativePtr, out _);
+            if (contextId == 0) return;
+            _liveContextIds.TryRemove(contextId, out _);
+            DiscardCompletionsForContext(contextId);
+        }
+
+        /// <summary>
+        /// Ownership id of the context currently dispatching, or 0 outside a dispatch.
+        /// </summary>
+        internal static int CurrentContextId {
+            get {
+                var ptr = _currentContextPtr;
+                if (ptr == IntPtr.Zero) return 0;
+                return _contextIdsByPtr.TryGetValue(ptr, out var id) ? id : 0;
+            }
+        }
+
+        // MARK: Task Registration
+        /// <summary>
+        /// Register a Task for async completion tracking, owned by the given context.
+        /// Returns a unique taskId that JS uses to create a pending Promise.
+        /// Only <paramref name="ctx"/> will resolve the resulting completion.
+        /// </summary>
+        public static int RegisterTask(QuickJSContext ctx, Task task) {
+            return RegisterTaskForContext(ctx?.Id ?? 0, task);
+        }
+
+        /// <summary>
+        /// Register a Task against a context ownership id. Used by the dispatch path, which
+        /// holds a native context pointer rather than a QuickJSContext.
+        /// </summary>
+        internal static int RegisterTaskForContext(int ownerContextId, Task task) {
             int taskId = _nextTaskId++;
 
             // Attach continuation to queue result when task completes
             task.ContinueWith(t => {
-                var info = new TaskCompletionInfo { TaskId = taskId };
+                var info = new TaskCompletionInfo { TaskId = taskId, OwnerContextId = ownerContextId };
 
                 if (t.IsFaulted) {
                     info.IsSuccess = false;
@@ -99,9 +174,11 @@ namespace OneJS {
             return false;
         }
 
+        // MARK: Completion Dispatch
         /// <summary>
-        /// Process completed tasks and invoke JS callbacks.
+        /// Process completed tasks owned by this context and invoke their JS callbacks.
         /// Call this from QuickJSUIBridge.Tick() on the main thread.
+        /// Completions belonging to another live context are left in the queue for it.
         /// Returns the number of tasks processed.
         /// </summary>
         public static int ProcessCompletedTasks(QuickJSContext ctx) {
@@ -125,8 +202,41 @@ namespace OneJS {
                 _taskQueueWarningLogged = false;
             }
 
+            // Bound the pass by entries EXAMINED, not by entries processed.
+            //
+            // Foreign completions go back in the queue instead of being consumed, so a budget
+            // spent only on processed entries would never terminate: a queue holding nothing
+            // but another context's completions would dequeue and re-enqueue the same entries
+            // forever, with processed stuck at zero. Capping at the number of entries present
+            // when the pass started also stops a pass from re-examining what it just put back,
+            // and it is what keeps a busy runner from starving a quiet one: foreign entries
+            // are pushed to the BACK, so each pass moves this context's own completions
+            // closer to the front and they are reached within a bounded number of ticks.
+            int budget = Math.Min(MaxTasksPerTick, queueSize);
+            int ownerId = ctx.Id;
             int processed = 0;
-            while (processed < MaxTasksPerTick && _completedTasks.TryDequeue(out var info)) {
+
+            for (int examined = 0; examined < budget; examined++) {
+                if (!_completedTasks.TryDequeue(out var info)) break;
+
+                if (info.OwnerContextId != 0 && info.OwnerContextId != ownerId) {
+                    // Another context's completion. Put it back for its owner's next tick,
+                    // unless that owner is gone, in which case nothing will ever claim it and
+                    // keeping it would cost every live context an examination slot per tick.
+                    if (_liveContextIds.ContainsKey(info.OwnerContextId)) {
+                        _completedTasks.Enqueue(info);
+                        _foreignCompletionCount++;
+                    }
+                    continue;
+                }
+
+                // OwnerContextId == 0 means no context was dispatching when the task was
+                // registered, so no JS promise is waiting on it in any context and whoever
+                // ticks first may retire it. That is only safe while _nextTaskId is
+                // process-global, which is what makes such an id impossible to confuse with a
+                // live task here. If task ids are ever made per context, these entries must be
+                // dropped at this point instead of resolved, or an unowned completion will
+                // settle a real promise that happens to share its id. See issue #120.
                 try {
                     if (info.IsSuccess) {
                         // Call __resolveTask(taskId, result)
@@ -191,8 +301,10 @@ namespace OneJS {
             return $"{{ \"__csHandle\": {handle}, \"__csType\": \"{typeName}\" }}";
         }
 
+        // MARK: Queue Maintenance
         /// <summary>
-        /// Clear all pending tasks. Call on context destruction.
+        /// Clear all pending tasks, for every context. Call when the last context goes away.
+        /// To retire one context's completions, use DiscardCompletionsForContext.
         /// </summary>
         public static void ClearPendingTasks() {
             while (_completedTasks.TryDequeue(out _)) { }
@@ -200,7 +312,30 @@ namespace OneJS {
         }
 
         /// <summary>
-        /// Returns the current number of pending task completions waiting to be processed.
+        /// Drop every queued completion owned by the given context, leaving other contexts'
+        /// entries in place and in order. Returns how many were dropped.
+        /// </summary>
+        public static int DiscardCompletionsForContext(int contextId) {
+            if (contextId == 0) return 0;
+
+            // Bounded by the entries present now, so a completion arriving mid-rotation
+            // cannot keep this spinning.
+            int rotations = _completedTasks.Count;
+            int discarded = 0;
+            for (int i = 0; i < rotations; i++) {
+                if (!_completedTasks.TryDequeue(out var info)) break;
+                if (info.OwnerContextId == contextId) {
+                    discarded++;
+                    continue;
+                }
+                _completedTasks.Enqueue(info);
+            }
+            return discarded;
+        }
+
+        /// <summary>
+        /// Returns the current number of pending task completions waiting to be processed,
+        /// across every context.
         /// </summary>
         public static int GetPendingTaskCount() {
             return _completedTasks.Count;
@@ -215,11 +350,22 @@ namespace OneJS {
         }
 
         /// <summary>
+        /// Number of completions that have been examined by a context which did not register
+        /// them and put back for their owner, since the last ResetTaskQueueMonitoring. A
+        /// steadily climbing value with more than one runner live is normal; it is the cost
+        /// of sharing one queue, and it is what the per-tick examination budget bounds.
+        /// </summary>
+        public static int GetForeignCompletionCount() {
+            return _foreignCompletionCount;
+        }
+
+        /// <summary>
         /// Resets task queue monitoring statistics.
         /// </summary>
         public static void ResetTaskQueueMonitoring() {
             _peakTaskQueueSize = _completedTasks.Count;
             _taskQueueWarningLogged = false;
+            _foreignCompletionCount = 0;
         }
     }
 }

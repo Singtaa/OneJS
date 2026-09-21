@@ -1,7 +1,8 @@
 # Unreleased
 
-- A physics world builds without warnings, instead of a line per body
-- A body's density sets its mass, instead of being ignored
+- An async C# call resolves in the runner that made it, not whichever ticks first
+- A runner's task backlog no longer delays another runner's completions
+- `QuickJSNative.RegisterTask` takes the owning context
 
 # [2026-09-20] v3.4.5
 
