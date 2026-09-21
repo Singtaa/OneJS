@@ -25,6 +25,7 @@ Tests/
 ├── JSRunnerPlaymodeTests.cs     # JSRunner MonoBehaviour tests
 ├── JSPadPlaymodeTests.cs        # JSPad MonoBehaviour tests
 ├── CartridgeUtilsPlaymodeTests.cs  # Cartridge injection and platform defines
+├── Physics2DBodyTests.cs        # 2D physics body setup: warnings and mass
 ├── Editor/                      # EditMode tests
 │   ├── OneJS.Tests.Editor.asmdef
 │   ├── JSRunnerBuildProcessorTests.cs
@@ -71,6 +72,7 @@ Tests/
 | `CartridgeUtilsPlaymodeTests.cs` | PlayMode | Cartridge global injection, platform defines, `__cart()` API |
 | `CartridgeUtilsTests.cs` | EditMode | String escaping, path calculation, file extraction, stylesheets |
 | `PremadeCartridgeTests.cs` | EditMode | The shipped `Assets/Singtaa/Premade/` cartridge **assets**: metadata completeness, path-safe slugs, unique identities, resolvable payloads, extraction round-trip |
+| `Physics2DBodyTests.cs` | PlayMode | How a wire body becomes a Rigidbody2D: no engine warnings on build, and density driving mass |
 | `ShaderFXTests.cs` | PlayMode | ShaderFX render-target lifecycle against real layout, uniform marshalling, ramp/texture caching |
 | `JSRunnerBuildProcessorTests.cs` | EditMode | Asset copying, namespace detection |
 | `BuildValidationTests.cs` | EditMode | Full build + run validation (slow) |

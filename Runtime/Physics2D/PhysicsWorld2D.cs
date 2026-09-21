@@ -95,8 +95,14 @@ namespace OneJS {
             rb.linearDamping = wire.linearDamping;
             rb.angularDamping = wire.angularDamping;
             rb.freezeRotation = wire.fixedRotation;
-            rb.linearVelocity = new Vector2(wire.vx / ppu, -wire.vy / ppu);
-            rb.angularVelocity = -wire.angularVelocity;
+            // A static body has no velocity to set, and Unity warns per
+            // assignment rather than ignoring it quietly. Five static ramps in
+            // one world were twenty lines of console before the game drew a
+            // frame, which buries whatever a game prints on purpose.
+            if (rb.bodyType != RigidbodyType2D.Static) {
+                rb.linearVelocity = new Vector2(wire.vx / ppu, -wire.vy / ppu);
+                rb.angularVelocity = -wire.angularVelocity;
+            }
             // Small fast things tunnel through thin walls with discrete
             // collision, and a ball leaving a sealed box reads as broken.
             rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
@@ -129,7 +135,20 @@ namespace OneJS {
             }
             collider.sharedMaterial = material;
             collider.isTrigger = wire.sensor;
-            collider.density = wire.density;
+            // Collider2D.density only applies to a dynamic body deriving its
+            // mass from its colliders, and Unity warns on every other
+            // assignment: one line per body, per world, before a frame is
+            // drawn. Auto-mass is also what `density` in the wire means, mass
+            // from area, so a big shape outweighs a small one; without it the
+            // field parsed, validated, warned, and then did nothing.
+            //
+            // Both flags go on after the collider exists. Auto-mass with no
+            // collider to measure computes a mass of zero, which Unity clamps
+            // and complains about in its own right.
+            if (rb.bodyType == RigidbodyType2D.Dynamic) {
+                rb.useAutoMass = true;
+                collider.density = wire.density;
+            }
 
             var body = new Body {
                 Rb = rb,
