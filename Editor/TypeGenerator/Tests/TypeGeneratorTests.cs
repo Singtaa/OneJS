@@ -492,5 +492,62 @@ namespace OneJS.Editor.TypeGenerator.Tests {
         }
 
         #endregion
+
+        #region Overload curation
+
+        /// <summary>
+        /// JS hands C# the class reference as a VALUE, so this is the form OneJS
+        /// callers must write: a type parameter would erase and leave the runtime
+        /// nothing to dispatch on. Without this overload `GetComponent(MeshRenderer)`
+        /// returns Component and every member access after it fails to typecheck.
+        /// unity-types carried these by hand until 6000.5.0 regenerated without them.
+        /// </summary>
+        [Test]
+        public void Curate_TypeArgumentGetter_ReturnsTheTypeItWasGiven() {
+            var result = TypeGenerator.GenerateToResult(typeof(UnityEngine.GameObject));
+
+            StringAssert.Contains(
+                "GetComponent<T extends UnityEngine.Component>($type: { new(...args: any[]): T }): T",
+                result.Content);
+            StringAssert.Contains(
+                "AddComponent<T extends UnityEngine.Component>($componentType: { new(...args: any[]): T }): T",
+                result.Content);
+        }
+
+        /// <summary>
+        /// The curation must not fire when the generic sibling returns T[] rather
+        /// than a bare T: there the type argument refines the ELEMENT, so binding it
+        /// to the whole return value would claim GetComponents gives back one component.
+        /// </summary>
+        [Test]
+        public void Curate_CollectionReturningGetter_IsLeftAlone() {
+            var result = TypeGenerator.GenerateToResult(typeof(UnityEngine.GameObject));
+
+            StringAssert.DoesNotContain(
+                "GetComponents<T extends UnityEngine.Component>($type: { new(...args: any[]): T }): T",
+                result.Content);
+        }
+
+        /// <summary>
+        /// TypeScript resolves to the FIRST matching overload, so a non-generic
+        /// sibling sitting ahead of a generic one silently wins and widens the
+        /// return type. Order is part of the contract, which is how a regeneration
+        /// that kept every signature still broke `Instantiate(material)`.
+        /// </summary>
+        [Test]
+        public void Curate_GenericOverloads_ComeBeforeTheirNonGenericSiblings() {
+            var result = TypeGenerator.GenerateToResult(typeof(UnityEngine.Object));
+            var lines = result.Content.Split('\n');
+
+            var firstGeneric = Array.FindIndex(lines, l => l.Contains("static Instantiate<"));
+            var firstNonGeneric = Array.FindIndex(lines, l => l.Contains("static Instantiate($"));
+
+            Assert.Greater(firstGeneric, -1, "no generic Instantiate overload was emitted");
+            Assert.Greater(firstNonGeneric, -1, "no non-generic Instantiate overload was emitted");
+            Assert.Less(firstGeneric, firstNonGeneric,
+                "the non-generic Instantiate precedes the generic one, so Instantiate(material) resolves to Object");
+        }
+
+        #endregion
     }
 }

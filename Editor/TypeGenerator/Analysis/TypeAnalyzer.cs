@@ -289,14 +289,108 @@ namespace OneJS.Editor.TypeGenerator {
                 flags |= BindingFlags.NonPublic;
             }
 
-            return type.GetMethods(flags)
+            var methods = type.GetMethods(flags)
                 .Where(m => !TypeMapper.ShouldSkipMember(m))
                 .Where(m => !m.IsSpecialName) // Skip property accessors, event methods, etc.
                 .Where(m => !IsUnsupportedMethod(m))
                 .Select(m => AnalyzeMethod(m))
                 .Where(m => m != null)
                 .ToList();
+
+            return CurateOverloads(methods);
         }
+
+        /// <summary>
+        /// Two overload curations that a raw reflection walk cannot produce on its own.
+        /// Both were applied by hand to unity-types before they lived here, and a clean
+        /// regeneration silently dropped them (unity-types 6000.5.0), which is the reason
+        /// they are generator rules now rather than edits on top of generated files.
+        ///
+        /// 1. A `Method(Type)` whose generic sibling is `Method&lt;T&gt;()` gains a
+        ///    constructor-shaped overload, so `go.GetComponent(MeshRenderer)` returns
+        ///    `MeshRenderer` instead of `Component`. JS passes the class reference as a
+        ///    VALUE (the type parameter would erase and leave the runtime nothing to
+        ///    dispatch on), so this is the form OneJS callers must actually write.
+        ///
+        /// 2. Generic overloads are emitted ahead of their non-generic siblings.
+        ///    TypeScript resolves to the FIRST matching overload, so a non-generic
+        ///    `Instantiate(Object): Object` sitting first defeats the generic
+        ///    `Instantiate&lt;T&gt;(T): T` behind it. Order is part of the contract here,
+        ///    not cosmetics.
+        /// </summary>
+        private List<TsMethodInfo> CurateOverloads(List<TsMethodInfo> methods) {
+            // Materialize before appending: the builder reads `methods` to find generic
+            // siblings, so adding to it mid-enumeration invalidates the iterator.
+            methods.AddRange(BuildConstructorShapedOverloads(methods).ToList());
+
+            // Group same-name overloads together, generics first, preserving the order
+            // in which each name first appeared and the relative order within each half.
+            var result = new List<TsMethodInfo>(methods.Count);
+            var emitted = new HashSet<string>();
+            foreach (var method in methods) {
+                if (!emitted.Add(method.Name)) continue;
+                var group = methods.Where(m => m.Name == method.Name).ToList();
+                result.AddRange(group.Where(m => m.IsGenericMethod));
+                result.AddRange(group.Where(m => !m.IsGenericMethod));
+            }
+            return result;
+        }
+
+        private static IEnumerable<TsMethodInfo> BuildConstructorShapedOverloads(List<TsMethodInfo> methods) {
+            foreach (var method in methods) {
+                if (method.IsGenericMethod || method.Parameters.Count == 0) continue;
+                if (method.Parameters[0].Type?.OriginalType != typeof(Type)) continue;
+                if (method.ReturnType == null || method.ReturnType.OriginalType == typeof(void)) continue;
+
+                // Only when C# also offers the generic form with the remaining parameters
+                // AND that form returns the bare type parameter, which is what states
+                // "pass a Type, get an instance of that Type back". Requiring a bare `T`
+                // keeps `GetComponents(Type): Component[]` out: its sibling returns `T[]`,
+                // so the type argument refines the ELEMENT and binding it to the whole
+                // return value would be wrong.
+                var tail = method.Parameters.Count - 1;
+                var hasGenericSibling = methods.Any(m =>
+                    m.IsGenericMethod
+                    && m.Name == method.Name
+                    && m.GenericParameters.Count == 1
+                    && m.Parameters.Count == tail
+                    && ReturnsBareTypeParameter(m));
+                if (!hasGenericSibling) continue;
+
+                var overload = new TsMethodInfo {
+                    Name = method.Name,
+                    IsStatic = method.IsStatic,
+                    Accessibility = method.Accessibility,
+                    IsGenericMethod = true,
+                    GenericParameters = { "T" },
+                    ReturnType = RawType("T"),
+                    OriginalMethod = method.OriginalMethod
+                };
+                overload.GenericConstraints.Add(new TsGenericConstraint {
+                    ParameterName = "T",
+                    TypeConstraints = { method.ReturnType }
+                });
+                overload.Parameters.Add(new TsParameterInfo {
+                    Name = method.Parameters[0].Name,
+                    Type = RawType("{ new(...args: any[]): T }")
+                });
+                for (int i = 1; i < method.Parameters.Count; i++) {
+                    overload.Parameters.Add(method.Parameters[i]);
+                }
+                yield return overload;
+            }
+        }
+
+        /// <summary>True when the method returns its own type parameter unadorned (`T`, not `T[]`).</summary>
+        private static bool ReturnsBareTypeParameter(TsMethodInfo method) {
+            var ret = method.ReturnType;
+            if (ret == null || ret.IsArray || ret.IsGeneric || ret.IsByRef || ret.IsOut) return false;
+            return ret.Name == method.GenericParameters[0];
+        }
+
+        /// <summary>A type reference that emits <paramref name="text"/> verbatim.</summary>
+        private static TsTypeRef RawType(string text) =>
+            new TsTypeRef { IsPrimitive = true, PrimitiveTypeName = text };
 
         private List<TsMethodInfo> AnalyzeConstructors(Type type) {
             var flags = DefaultFlags;
