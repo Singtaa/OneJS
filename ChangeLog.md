@@ -1,8 +1,13 @@
-# Unreleased
+# [2026-09-21] v3.4.6
+
+With two OneJS apps live at once, an `await` could hang forever and log nothing about it. A 2D physics world also stops printing a warning per body, and a body's density finally sets its mass.
 
 - An async C# call resolves in the runner that made it, not whichever ticks first
 - A runner's task backlog no longer delays another runner's completions
 - `QuickJSNative.RegisterTask` takes the owning context
+- A physics world builds without warnings, instead of a line per body
+- A body's density sets its mass, instead of being ignored
+- Generated `CS.*` typings hand back the type you passed, so `GetComponent(MeshRenderer)` is a MeshRenderer
 
 # [2026-09-20] v3.4.5
 
