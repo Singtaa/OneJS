@@ -734,6 +734,117 @@ namespace OneJS.Tests {
                 $"preventDefault() in onWheel must stop the ScrollView from scrolling. (scrollOffset.y={sv.scrollOffset.y})");
         }
 
+        [UnityTest]
+        public IEnumerator Suppression_PreventDefaultInOnNavigationMove_KeepsFocus([Values] bool fastPath) {
+            // NavigationMoveEvent's native default is to move focus. A JS onNavigationMove calling
+            // preventDefault() must stop that, on both dispatch paths; without it focus still
+            // moves (backward-compat). Guards against the navigation handlers dropping the flags.
+            var root = _uiDocument.rootVisualElement;
+            int rootHandle = QuickJSNative.RegisterObject(root);
+            if (fastPath) _bridge.CacheEventDispatchCallback();
+
+            _bridge.Eval($@"
+                var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+                var first = new CS.UnityEngine.UIElements.Button();
+                var second = new CS.UnityEngine.UIElements.Button();
+                root.Add(first);
+                root.Add(second);
+                globalThis.__first = first;
+                globalThis.__navFired = 0;
+                globalThis.__doPreventDefault = false;
+                __eventAPI.addEventListener(first, 'navigationmove', (e) => {{
+                    globalThis.__navFired++;
+                    if (globalThis.__doPreventDefault) e.preventDefault();
+                }});
+            ");
+            yield return null;
+
+            var first = QuickJSNative.GetObjectByHandle(int.Parse(_bridge.Eval("globalThis.__first.__csHandle"))) as VisualElement;
+            Assert.IsNotNull(first, "First button should resolve back to C#.");
+            var focus = root.panel.focusController;
+
+            // Backward-compat: without preventDefault, focus moves off the first button.
+            first.Focus();
+            _bridge.Eval("globalThis.__navFired = 0; globalThis.__doPreventDefault = false;");
+            SendNavigationMove(root, first);
+            yield return null;
+            Assert.AreEqual("1", _bridge.Eval("globalThis.__navFired"), "JS onNavigationMove should fire.");
+            Assert.AreNotSame(first, focus.focusedElement,
+                "Without preventDefault, NavigationMove should move focus off the first button.");
+
+            // Suppression: with preventDefault, focus stays where it was.
+            first.Focus();
+            _bridge.Eval("globalThis.__navFired = 0; globalThis.__doPreventDefault = true;");
+            SendNavigationMove(root, first);
+            yield return null;
+            Assert.AreEqual("1", _bridge.Eval("globalThis.__navFired"), "JS onNavigationMove should still fire.");
+            Assert.AreSame(first, focus.focusedElement,
+                "preventDefault() in onNavigationMove must keep focus on the first button.");
+        }
+
+        [UnityTest]
+        public IEnumerator Suppression_PreventDefaultInOnNavigationSubmitOrCancel_Suppresses(
+            [Values("navigationsubmit", "navigationcancel")] string eventType, [Values] bool fastPath) {
+            // Submit and cancel carry no payload, so they take the arity-0 dispatch. A JS handler
+            // calling preventDefault() must stop the native event reaching the target's own
+            // callbacks, as it does for pointer events; without it the native callback fires.
+            var root = _uiDocument.rootVisualElement;
+            int rootHandle = QuickJSNative.RegisterObject(root);
+            if (fastPath) _bridge.CacheEventDispatchCallback();
+
+            _bridge.Eval($@"
+                var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+                var child = new CS.UnityEngine.UIElements.VisualElement();
+                root.Add(child);
+                globalThis.__child = child;
+                globalThis.__navFired = 0;
+                globalThis.__doPreventDefault = false;
+                __eventAPI.addEventListener(child, '{eventType}', (e) => {{
+                    globalThis.__navFired++;
+                    if (globalThis.__doPreventDefault) e.preventDefault();
+                }});
+            ");
+            yield return null;
+
+            var child = QuickJSNative.GetObjectByHandle(int.Parse(_bridge.Eval("globalThis.__child.__csHandle"))) as VisualElement;
+            Assert.IsNotNull(child, "Child should resolve back to C#.");
+            bool nativeFired = false;
+            if (eventType == "navigationsubmit") child.RegisterCallback<NavigationSubmitEvent>(_ => nativeFired = true);
+            else child.RegisterCallback<NavigationCancelEvent>(_ => nativeFired = true);
+
+            void Send() {
+                using (EventBase evt = eventType == "navigationsubmit"
+                           ? NavigationSubmitEvent.GetPooled()
+                           : NavigationCancelEvent.GetPooled()) {
+                    evt.target = child;
+                    root.SendEvent(evt);
+                }
+            }
+
+            // Backward-compat: without preventDefault the native callback fires.
+            _bridge.Eval("globalThis.__navFired = 0; globalThis.__doPreventDefault = false;");
+            Send();
+            yield return null;
+            Assert.AreEqual("1", _bridge.Eval("globalThis.__navFired"), $"JS {eventType} handler should fire.");
+            Assert.IsTrue(nativeFired, $"Without preventDefault, the native {eventType} callback should fire.");
+
+            // Suppression: with preventDefault the native callback does not.
+            nativeFired = false;
+            _bridge.Eval("globalThis.__navFired = 0; globalThis.__doPreventDefault = true;");
+            Send();
+            yield return null;
+            Assert.AreEqual("1", _bridge.Eval("globalThis.__navFired"), $"JS {eventType} handler should still fire.");
+            Assert.IsFalse(nativeFired, $"preventDefault() in {eventType} must suppress the native callback.");
+        }
+
+        // Helper: dispatch a NavigationMove toward the next focusable element, targeting `target`.
+        static void SendNavigationMove(VisualElement root, VisualElement target) {
+            using (var evt = NavigationMoveEvent.GetPooled(NavigationMoveEvent.Direction.Next)) {
+                evt.target = target;
+                root.SendEvent(evt);
+            }
+        }
+
         // Helper: dispatch a synthetic vertical wheel scroll targeting `target`.
         static void SendWheel(VisualElement root, VisualElement target, float deltaY) {
             var systemEvent = new Event { type = EventType.ScrollWheel, delta = new Vector2(0f, deltaY) };

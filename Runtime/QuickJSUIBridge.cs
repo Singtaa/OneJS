@@ -646,29 +646,30 @@ namespace OneJS {
         void OnKeyUp(KeyUpEvent e) => DispatchKeyEvent("keyup", e.target, e.keyCode, '\0', e.modifiers);
 
         // Navigation events (controller / keyboard focus navigation)
+        // preventDefault() is mirrored like the pointer handlers. A NavigationMove's native default
+        // is moving focus, which UI Toolkit does in PostDispatch regardless of propagation, so the
+        // focus controller also has to be told to ignore the event.
         void OnNavigationMove(NavigationMoveEvent e) {
-            if (_eventDispatchHandle >= 0) {
-                DispatchEventFast(EVT_NAVIGATION_MOVE, FindElementHandle(e.target), (int)e.direction);
-            } else {
-                DispatchEvent("navigationmove", e.target,
+            int flags = _eventDispatchHandle >= 0
+                ? DispatchEventFast(EVT_NAVIGATION_MOVE, FindElementHandle(e.target), (int)e.direction)
+                : DispatchEvent("navigationmove", e.target,
                     $"{{\"direction\":\"{NavigationDirectionName(e.direction)}\"}}");
-            }
+            ApplyNativeSuppression(e, flags);
+            if ((flags & FLAG_DEFAULT_PREVENTED) != 0) _root.focusController?.IgnoreEvent(e);
         }
 
         void OnNavigationSubmit(NavigationSubmitEvent e) {
-            if (_eventDispatchHandle >= 0) {
-                DispatchEventFast(EVT_NAVIGATION_SUBMIT, FindElementHandle(e.target));
-            } else {
-                DispatchEvent("navigationsubmit", e.target, "{}");
-            }
+            int flags = _eventDispatchHandle >= 0
+                ? DispatchEventFast(EVT_NAVIGATION_SUBMIT, FindElementHandle(e.target))
+                : DispatchEvent("navigationsubmit", e.target, "{}");
+            ApplyNativeSuppression(e, flags);
         }
 
         void OnNavigationCancel(NavigationCancelEvent e) {
-            if (_eventDispatchHandle >= 0) {
-                DispatchEventFast(EVT_NAVIGATION_CANCEL, FindElementHandle(e.target));
-            } else {
-                DispatchEvent("navigationcancel", e.target, "{}");
-            }
+            int flags = _eventDispatchHandle >= 0
+                ? DispatchEventFast(EVT_NAVIGATION_CANCEL, FindElementHandle(e.target))
+                : DispatchEvent("navigationcancel", e.target, "{}");
+            ApplyNativeSuppression(e, flags);
         }
 
         static string NavigationDirectionName(NavigationMoveEvent.Direction d) => d switch {
@@ -785,16 +786,9 @@ namespace OneJS {
 
         // MARK: Zero-Alloc Event Dispatch
 
-        void DispatchEventFast(int eventTypeId, int elemHandle) {
-            if (elemHandle == 0 || _inEval) return;
-            _inEval = true;
-            try {
-                _ctx.InvokeCallbackNoAlloc(_eventDispatchHandle, eventTypeId, elemHandle, 0);
-                _ctx.ExecutePendingJobs();
-            } catch (Exception ex) {
-                Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error ({eventTypeId}): {ex.Message}");
-            } finally { _inEval = false; }
-        }
+        // The no-payload and int overloads return the suppression-flags bitmask like the pointer
+        // overload below; callers without a native default to suppress ignore it.
+        int DispatchEventFast(int eventTypeId, int elemHandle) => DispatchEventFast(eventTypeId, elemHandle, 0);
 
         void DispatchEventFast(int eventTypeId, int elemHandle, float a0) {
             if (elemHandle == 0 || _inEval) return;
@@ -807,14 +801,16 @@ namespace OneJS {
             } finally { _inEval = false; }
         }
 
-        void DispatchEventFast(int eventTypeId, int elemHandle, int a0) {
-            if (elemHandle == 0 || _inEval) return;
+        int DispatchEventFast(int eventTypeId, int elemHandle, int a0) {
+            if (elemHandle == 0 || _inEval) return 0;
             _inEval = true;
             try {
-                _ctx.InvokeCallbackNoAlloc(_eventDispatchHandle, eventTypeId, elemHandle, a0);
+                int flags = _ctx.InvokeCallbackReturnInt(_eventDispatchHandle, eventTypeId, elemHandle, a0);
                 _ctx.ExecutePendingJobs();
+                return flags;
             } catch (Exception ex) {
                 Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error ({eventTypeId}): {ex.Message}");
+                return 0;
             } finally { _inEval = false; }
         }
 

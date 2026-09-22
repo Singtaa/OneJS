@@ -427,6 +427,16 @@ namespace OneJS {
             return InvokeAndGetInt(handle, args, 6);
         }
 
+        /// <summary>
+        /// Invoke a callback with 3 int arguments and return its int result. ZERO ALLOCATION.
+        /// Mirror of the 3-int InvokeCallbackNoAlloc, for event dispatch that needs the flags back.
+        /// </summary>
+        public unsafe int InvokeCallbackReturnInt(int handle, int arg0, int arg1, int arg2) {
+            ThrowIfInvalid();
+            var args = stackalloc QuickJSNative.InteropValue[3] { MakeInt(arg0), MakeInt(arg1), MakeInt(arg2) };
+            return InvokeAndGetInt(handle, args, 3);
+        }
+
         // MARK: Typed JS Functions
         /// <summary>
         /// Returns a typed delegate that calls a JS function by name ("showToast",
