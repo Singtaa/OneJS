@@ -1,6 +1,10 @@
-# Unreleased
+# [2026-09-22] v3.4.7
+
+OneJS no longer installs Unity's Input System into every project. If you set up a project on 3.4.5 or 3.4.6 and use the Input System, add `"com.unity.inputsystem": "1.19.0"` to `Packages/manifest.json` when you upgrade.
 
 - OneJS no longer installs the Input System; `InputBridge` needs `com.unity.inputsystem` in the project
+- A project without the Input System package compiles, whatever its input handling setting
+- `preventDefault()` works in navigation handlers, and keeps focus in place on a move
 
 # [2026-09-21] v3.4.6
 

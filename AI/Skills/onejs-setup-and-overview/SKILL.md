@@ -4,15 +4,15 @@ description: "Use this skill whenever the user wants to build or set up user int
 metadata:
   asset: "OneJS"
   publisher: "DragonGround"
-  asset-version: "3.4.6"
-  skill-version: "1.4.0"
+  asset-version: "3.4.7"
+  skill-version: "1.5.0"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-09-21"
+  last-verified: "2026-09-22"
 ---
 
 # Set Up a OneJS Project
@@ -379,6 +379,10 @@ Fix: install Node 18 or newer. OneJS also probes common `nvm` install locations.
 **State resets on every save.**
 Cause: none. Hot reload is a hard reload by design.
 Fix: if state must survive, keep it in C# and read it back, or persist it deliberately.
+
+**JavaScript input throws `Type not found: OneJS.Input.InputBridge`.**
+Cause: `onejs-unity/input` reads through `InputBridge`, which exists only when the Input System package is installed and Player Settings select it. OneJS does not install the package itself.
+Fix: add `"com.unity.inputsystem": "1.19.0"` to `Packages/manifest.json`, and set **Active Input Handling** to Input System Package or Both. A host that supplies input some other way can call `setInputBackend` instead.
 
 **The build has no user interface, but the editor did.**
 Cause: the bundle was not built before the player build.
