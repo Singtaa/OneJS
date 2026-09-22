@@ -4,12 +4,24 @@
 and reached from JS by name through the CS proxy, so nothing in C# calls most of
 it and the linker cannot see any of it being used.
 
+OneJS does not install the Input System package. A project that wants
+`InputBridge` installs `com.unity.inputsystem` itself; Unity's 3D templates
+already include it.
+
 ## Why this folder is its own assembly
 
-`OneJS.Runtime.InputSystem.asmdef` carries
-`"defineConstraints": ["ENABLE_INPUT_SYSTEM"]`, so it compiles only in projects
-where the Input System is an active input handler. Everywhere else the assembly
-is simply not built and `InputBridge` does not exist.
+`OneJS.Runtime.InputSystem.asmdef` compiles only when two things hold, and both
+are needed:
+
+- `ENABLE_INPUT_SYSTEM`: Player Settings select the Input System as an active
+  input handler.
+- `ONEJS_INPUT_SYSTEM_PACKAGE`: the package is installed. The asmdef defines it
+  through `versionDefines`, because `ENABLE_INPUT_SYSTEM` comes from the Player
+  Settings and not from the package, so a project can select the Input System
+  with the package removed. The first condition alone does not compile there.
+
+Everywhere else the assembly is simply not built and `InputBridge` does not
+exist.
 
 That is deliberate. `InputBridge` uses Input System types in its method
 *signatures*, not only in its bodies: `RegisterActionAsset(InputActionAsset)`
@@ -35,7 +47,15 @@ Clicks, focus and hover reach a runtime panel through Unity's own input path.
 Verified both ways: with the package absent, clicking Wordle's on-screen keyboard
 still puts a letter on the board.
 
-`JSRunner` still references the Input System, guarded by `ENABLE_INPUT_SYSTEM`,
-to attach an `InputSystemUIInputModule` for keyboard and gamepad navigation. The
-asmdef reference has to stay for that; Unity tolerates it going unresolved when
-the package is absent, which is what lets a project drop it entirely.
+## Keyboard and gamepad navigation
+
+`JSRunner` creates an EventSystem at play start so a runtime panel receives
+navigation events. `OneJS.Runtime` does not reference the Input System, so the
+`InputSystemUIInputModule` for that EventSystem is added from here:
+`InputSystemUIModule` sets `JSRunner.AddInputSystemModule` at
+`SubsystemRegistration`. Where this assembly is not built, `JSRunner` adds the
+legacy `StandaloneInputModule` instead. When Player Settings select only the
+Input System and the package is absent, there is no module to add, so it creates
+no EventSystem and logs a warning naming the package.
+
+`JSRunnerEventSystemPlaymodeTests` pins which module each configuration gets.

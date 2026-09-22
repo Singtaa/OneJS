@@ -1,7 +1,7 @@
 // InputBridge lives in the OneJS.Runtime.InputSystem child assembly, which
-// only compiles when the Input System package is installed; these tests
-// follow it.
-#if ENABLE_INPUT_SYSTEM
+// only compiles when the Input System package is installed and active; these
+// tests follow it, under the same two conditions.
+#if ENABLE_INPUT_SYSTEM && ONEJS_INPUT_SYSTEM_PACKAGE
 using System;
 using System.Reflection;
 using NUnit.Framework;

@@ -1,3 +1,7 @@
+# Unreleased
+
+- OneJS no longer installs the Input System; `InputBridge` needs `com.unity.inputsystem` in the project
+
 # [2026-09-21] v3.4.6
 
 With two OneJS apps live at once, an `await` could hang forever and log nothing about it. A 2D physics world also stops printing a warning per body, and a body's density finally sets its mass.

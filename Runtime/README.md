@@ -41,6 +41,7 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `GPU/GPUBridge.cs` | Compute shader API for JavaScript |
 | `GPU/ComputeShaderProvider.cs` | MonoBehaviour for registering shaders via inspector |
 | `Input/InputBridge.cs` | Input System bridge for keyboard, mouse, gamepad, touch |
+| `Input/InputSystemUIModule.cs` | Adds the `InputSystemUIInputModule` to the EventSystem JSRunner creates, so `OneJS.Runtime` never references the Input System |
 | `Styling/UssCompiler.cs` | Runtime USS compilation from strings |
 | `Styling/StyleSheetBuilderWrapper.cs` | Reflection wrapper for Unity's internal StyleSheetBuilder |
 | `Controls/CodeField.cs` | TextField with syntax highlighting via per-glyph vertex coloring |

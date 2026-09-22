@@ -5,9 +5,6 @@ using OneJS.Utils;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UIElements;
-#if ENABLE_INPUT_SYSTEM
-using UnityEngine.InputSystem;
-#endif
 
 namespace OneJS {
     /// <summary>
@@ -972,29 +969,28 @@ namespace OneJS {
             if (!Application.isPlaying) return;
             if (EventSystem.current != null || FindAnyObjectByType<EventSystem>() != null) return;
 
+#if !ENABLE_LEGACY_INPUT_MANAGER
+            if (AddInputSystemModule == null) {
+                Debug.LogWarning("[JSRunner] Keyboard and gamepad navigation are unavailable: Player Settings " +
+                    "select the Input System, but the com.unity.inputsystem package is not installed. " +
+                    "Install it from the Package Manager.");
+                return;
+            }
+#endif
             var go = new GameObject("EventSystem (OneJS)");
             go.AddComponent<EventSystem>();
-#if ENABLE_INPUT_SYSTEM
-            var module = go.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
-            module.AssignDefaultActions();
-            // Keep the panel selected when clicking non-focusable areas (most of a OneJS
-            // layout is non-focusable Views). The default (true) deselects on such clicks,
-            // which drops the navigation anchor and breaks keyboard/gamepad nav continuity.
-            module.deselectOnBackgroundClick = false;
-            // The default Submit action binds Enter + gamepad only; add Space so focused
-            // controls (toggles, radios, buttons) activate with Space too (the convention).
-            var submit = module.submit != null ? module.submit.action : null;
-            if (submit != null) {
-                bool wasEnabled = submit.enabled;
-                if (wasEnabled) submit.Disable();
-                submit.AddBinding("<Keyboard>/space");
-                if (wasEnabled) submit.Enable();
-            }
-#elif ENABLE_LEGACY_INPUT_MANAGER
-            go.AddComponent<StandaloneInputModule>();
-#endif
+            if (AddInputSystemModule != null) AddInputSystemModule(go);
+            else go.AddComponent<StandaloneInputModule>();
             Debug.Log("[JSRunner] Created EventSystem for UI Toolkit navigation (gamepad/keyboard focus).");
         }
+
+        /// <summary>
+        /// Adds an InputSystemUIInputModule to the EventSystem above. Set by the
+        /// OneJS.Runtime.InputSystem assembly, which compiles only where the Input System
+        /// package is installed and active, so this assembly never references the package.
+        /// Null everywhere else, where the legacy StandaloneInputModule is used instead.
+        /// </summary>
+        internal static Action<GameObject> AddInputSystemModule;
 
         /// <summary>
         /// One-shot (runs each tick until it succeeds): once the app has rendered a
