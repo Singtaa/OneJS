@@ -1,4 +1,6 @@
-# Unreleased
+# [2026-09-23] v3.4.8
+
+Dialogs and drawers now keep keyboard focus inside them, and `preventDefault()` in pointer and key handlers now works as it does in a browser, so check any handler that already calls it. New projects start on `onejs-play` 0.6; older ones stay on their pin until you change it.
 
 - `onFocusIn` and `onFocusOut` fire, and bubble to ancestors
 - `FocusScope`'s focus trap works, so `Dialog` and `Drawer` now hold focus
