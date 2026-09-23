@@ -15,7 +15,7 @@
     "onejs-react": "^0.1.0",
     "onejs-ui": "^0.0.3",
     "onejs-unity": "^0.5.15",
-    "onejs-play": "^0.5.5"
+    "onejs-play": "^0.6.1"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
