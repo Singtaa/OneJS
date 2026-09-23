@@ -850,6 +850,14 @@ _root.RegisterCallback<ClickEvent>(OnClick, TrickleDown.TrickleDown);
 // → Eval("__dispatchEvent(handle, 'click', {...})")
 ```
 
+`__dispatchEvent` returns a flags bitmask. A JS `preventDefault()` comes back as
+`StopImmediatePropagation()` on the native event, so the target's own callbacks
+(a ScrollView's pan, a TextField's typing) never run; `stopPropagation()` stays
+JS-only. Pointerdown and navigation move also change focus in `PostDispatch`,
+which ignores propagation, so a prevented one is handed to
+`FocusController.IgnoreEvent` as well. Each focus change reaches JS as `focus`/`blur`
+(not bubbled) and then `focusin`/`focusout` (bubbled), as in the DOM.
+
 ### Scheduling
 ```javascript
 requestAnimationFrame(cb)  // Called each Tick()

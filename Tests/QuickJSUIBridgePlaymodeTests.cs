@@ -885,6 +885,117 @@ namespace OneJS.Tests {
         }
 
         [UnityTest]
+        public IEnumerator Suppression_PreventDefaultInOnKeyDownOrUp_Suppresses([Values("keydown", "keyup")] string eventType) {
+            // Key events take the string dispatch path on both bridge configurations. A JS handler
+            // calling preventDefault() must stop the native event reaching the target's own
+            // callbacks, as it does for pointer and navigation events; without it the native
+            // callback fires.
+            var root = _uiDocument.rootVisualElement;
+            int rootHandle = QuickJSNative.RegisterObject(root);
+
+            _bridge.Eval($@"
+                var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+                var child = new CS.UnityEngine.UIElements.VisualElement();
+                root.Add(child);
+                globalThis.__child = child;
+                globalThis.__keyFired = 0;
+                globalThis.__doPreventDefault = false;
+                __eventAPI.addEventListener(child, '{eventType}', (e) => {{
+                    globalThis.__keyFired++;
+                    if (globalThis.__doPreventDefault) e.preventDefault();
+                }});
+            ");
+            yield return null;
+
+            var child = QuickJSNative.GetObjectByHandle(int.Parse(_bridge.Eval("globalThis.__child.__csHandle"))) as VisualElement;
+            Assert.IsNotNull(child, "Child should resolve back to C#.");
+            bool nativeFired = false;
+            if (eventType == "keydown") child.RegisterCallback<KeyDownEvent>(_ => nativeFired = true);
+            else child.RegisterCallback<KeyUpEvent>(_ => nativeFired = true);
+
+            void Send() {
+                using (EventBase evt = eventType == "keydown"
+                           ? KeyDownEvent.GetPooled('a', KeyCode.A, EventModifiers.None)
+                           : KeyUpEvent.GetPooled('a', KeyCode.A, EventModifiers.None)) {
+                    evt.target = child;
+                    root.SendEvent(evt);
+                }
+            }
+
+            // Backward-compat: without preventDefault the native callback fires.
+            _bridge.Eval("globalThis.__keyFired = 0; globalThis.__doPreventDefault = false;");
+            Send();
+            yield return null;
+            Assert.AreEqual("1", _bridge.Eval("globalThis.__keyFired"), $"JS {eventType} handler should fire.");
+            Assert.IsTrue(nativeFired, $"Without preventDefault, the native {eventType} callback should fire.");
+
+            // Suppression: with preventDefault the native callback does not.
+            nativeFired = false;
+            _bridge.Eval("globalThis.__keyFired = 0; globalThis.__doPreventDefault = true;");
+            Send();
+            yield return null;
+            Assert.AreEqual("1", _bridge.Eval("globalThis.__keyFired"), $"JS {eventType} handler should still fire.");
+            Assert.IsFalse(nativeFired, $"preventDefault() in {eventType} must suppress the native callback.");
+        }
+
+        [UnityTest]
+        public IEnumerator Suppression_PreventDefaultInOnKeyDown_StopsTextFieldInput() {
+            // The behaviour change the ChangeLog names: a TextField whose JS onKeyDown calls
+            // preventDefault() no longer receives that key, as in the DOM. Without it the
+            // character is typed (backward-compat).
+            var root = _uiDocument.rootVisualElement;
+            int rootHandle = QuickJSNative.RegisterObject(root);
+
+            _bridge.Eval($@"
+                var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+                var field = new CS.UnityEngine.UIElements.TextField();
+                root.Add(field);
+                globalThis.__field = field;
+                globalThis.__keyFired = 0;
+                globalThis.__doPreventDefault = false;
+                __eventAPI.addEventListener(field, 'keydown', (e) => {{
+                    globalThis.__keyFired++;
+                    if (globalThis.__doPreventDefault) e.preventDefault();
+                }});
+            ");
+            yield return null;
+
+            var field = QuickJSNative.GetObjectByHandle(int.Parse(_bridge.Eval("globalThis.__field.__csHandle"))) as TextField;
+            Assert.IsNotNull(field, "TextField should resolve back to C#.");
+            // The key handler lives on the field's inner text element, which is what holds focus
+            // when the field does (focusedElement reports the field itself). Its USS class is the
+            // only public way to find it: TextInputBase.innerTextElementUssClassName is protected.
+            var inner = field.Q<TextElement>(className: "unity-text-element--inner-input-field-component");
+            Assert.IsNotNull(inner, "Setup: the TextField's inner text element should be found by its USS class.");
+            var focus = root.panel.focusController;
+
+            void Type(char c) {
+                using (var evt = KeyDownEvent.GetPooled(c, KeyCode.None, EventModifiers.None)) {
+                    evt.target = inner;
+                    root.SendEvent(evt);
+                }
+            }
+
+            field.Focus();
+            yield return null;
+            Assert.AreSame(field, focus.focusedElement, "Setup: the TextField should hold focus.");
+
+            // Backward-compat: without preventDefault the character reaches the field.
+            _bridge.Eval("globalThis.__keyFired = 0; globalThis.__doPreventDefault = false;");
+            Type('a');
+            yield return null;
+            Assert.AreEqual("1", _bridge.Eval("globalThis.__keyFired"), "JS onKeyDown should fire.");
+            Assert.AreEqual("a", field.value, "Without preventDefault, the typed character should reach the TextField.");
+
+            // Suppression: with preventDefault the field does not receive it.
+            _bridge.Eval("globalThis.__keyFired = 0; globalThis.__doPreventDefault = true;");
+            Type('b');
+            yield return null;
+            Assert.AreEqual("1", _bridge.Eval("globalThis.__keyFired"), "JS onKeyDown should still fire.");
+            Assert.AreEqual("a", field.value, "preventDefault() in onKeyDown must keep the character out of the TextField.");
+        }
+
+        [UnityTest]
         public IEnumerator Focus_FocusOutBubblesToAncestor_SoAFocusScopeTrapHoldsFocus([Values] bool fastPath) {
             // onejs-ui's FocusScope traps focus by listening for focusout on its root, which only
             // sees a descendant losing focus if focusout bubbles in JS. This mounts that trap as

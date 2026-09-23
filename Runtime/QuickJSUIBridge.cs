@@ -688,9 +688,14 @@ namespace OneJS {
             }
         }
 
-        // Key events stay on eval path (need string args)
-        void OnKeyDown(KeyDownEvent e) => DispatchKeyEvent("keydown", e.target, e.keyCode, e.character, e.modifiers);
-        void OnKeyUp(KeyUpEvent e) => DispatchKeyEvent("keyup", e.target, e.keyCode, '\0', e.modifiers);
+        // Key events stay on eval path (need string args). preventDefault() is mirrored like the
+        // pointer handlers, so a prevented key never reaches the target's own callbacks: a
+        // TextField does not receive it. It does not cancel the NavigationMove/Submit/Cancel the
+        // same key press produces, which arrives as its own event with its own handlers.
+        void OnKeyDown(KeyDownEvent e) =>
+            ApplyNativeSuppression(e, DispatchKeyEvent("keydown", e.target, e.keyCode, e.character, e.modifiers));
+        void OnKeyUp(KeyUpEvent e) =>
+            ApplyNativeSuppression(e, DispatchKeyEvent("keyup", e.target, e.keyCode, '\0', e.modifiers));
 
         // Navigation events (controller / keyboard focus navigation)
         // preventDefault() is mirrored like the pointer handlers. A NavigationMove's native default
@@ -975,9 +980,9 @@ namespace OneJS {
         /// <summary>
         /// Dispatch a keyboard event with key and modifier data.
         /// </summary>
-        void DispatchKeyEvent(string eventType, IEventHandler target, KeyCode keyCode, char character, EventModifiers modifiers) {
+        int DispatchKeyEvent(string eventType, IEventHandler target, KeyCode keyCode, char character, EventModifiers modifiers) {
             int handle = FindElementHandle(target);
-            if (handle == 0) return;
+            if (handle == 0) return 0;
 
             string charEscaped = character != '\0' ? EscapeForJson(character.ToString()) : "";
             string data = string.Format(CultureInfo.InvariantCulture,
@@ -990,7 +995,7 @@ namespace OneJS {
                 (modifiers & EventModifiers.Alt) != 0 ? "true" : "false",
                 (modifiers & EventModifiers.Command) != 0 ? "true" : "false");
 
-            DispatchEventInternal(handle, eventType, data);
+            return DispatchEventInternal(handle, eventType, data);
         }
 
         // MARK: Per-Element Pointer Handlers (capture support)
