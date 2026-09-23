@@ -4,6 +4,10 @@
 - `FocusScope`'s focus trap works, so `Dialog` and `Drawer` now hold focus
 - `preventDefault()` on pointerdown keeps focus where it was
 - `preventDefault()` works in key handlers; a `TextField` no longer receives a key its `onKeyDown` prevents, Enter included
+- Two pointer events within one millisecond both reach JS, instead of the second being dropped
+- A new project depends on `onejs-play` `^0.6.1`
+- Older projects can bump `onejs-play` from `^0.5.5` or `^0.1.1` to `^0.6.1`, which builds each physics world once, not twice
+- `onejs-play` 0.6 removes the stage fits: `useStage()` returns only `{ width, height }`
 
 # [2026-09-22] v3.4.7
 
