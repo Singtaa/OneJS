@@ -823,6 +823,76 @@ namespace OneJS.Tests {
             Assert.IsFalse(nativeFired, $"preventDefault() in {eventType} must suppress the native callback.");
         }
 
+        [UnityTest]
+        public IEnumerator Focus_FocusOutBubblesToAncestor_SoAFocusScopeTrapHoldsFocus([Values] bool fastPath) {
+            // onejs-ui's FocusScope traps focus by listening for focusout on its root, which only
+            // sees a descendant losing focus if focusout bubbles in JS. This mounts that trap as
+            // FocusScope writes it (focusout on the scope, then a requestAnimationFrame that pulls
+            // focus back inside if it landed outside), moves focus out by navigation, and asserts
+            // the trap returned it. blur on the same elements is the control: it must still fire
+            // on the element that lost focus and must still not bubble.
+            var root = _uiDocument.rootVisualElement;
+            int rootHandle = QuickJSNative.RegisterObject(root);
+            if (fastPath) _bridge.CacheEventDispatchCallback();
+
+            _bridge.Eval($@"
+                var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+                var scope = new CS.UnityEngine.UIElements.VisualElement();
+                var inside = new CS.UnityEngine.UIElements.Button();
+                var outside = new CS.UnityEngine.UIElements.Button();
+                scope.Add(inside);
+                root.Add(scope);
+                root.Add(outside);
+                __eventAPI.setParent(inside.__csHandle, scope.__csHandle);
+                __eventAPI.setParent(scope.__csHandle, root.__csHandle);
+                __eventAPI.setParent(outside.__csHandle, root.__csHandle);
+                globalThis.__inside = inside;
+                globalThis.__outside = outside;
+                globalThis.__scopeFocusOut = 0;
+                globalThis.__scopeFocusIn = 0;
+                globalThis.__scopeBlur = 0;
+                globalThis.__insideBlur = 0;
+                __eventAPI.addEventListener(scope, 'focusout', () => {{
+                    globalThis.__scopeFocusOut++;
+                    requestAnimationFrame(() => {{
+                        var focused = root.focusController.focusedElement;
+                        if (focused && !scope.Contains(focused)) inside.Focus();
+                    }});
+                }});
+                __eventAPI.addEventListener(scope, 'focusin', () => {{ globalThis.__scopeFocusIn++; }});
+                __eventAPI.addEventListener(scope, 'blur', () => {{ globalThis.__scopeBlur++; }});
+                __eventAPI.addEventListener(inside, 'blur', () => {{ globalThis.__insideBlur++; }});
+            ");
+            yield return null;
+
+            var inside = QuickJSNative.GetObjectByHandle(int.Parse(_bridge.Eval("globalThis.__inside.__csHandle"))) as VisualElement;
+            var outside = QuickJSNative.GetObjectByHandle(int.Parse(_bridge.Eval("globalThis.__outside.__csHandle"))) as VisualElement;
+            Assert.IsNotNull(inside, "Inside button should resolve back to C#.");
+            Assert.IsNotNull(outside, "Outside button should resolve back to C#.");
+            var focus = root.panel.focusController;
+
+            inside.Focus();
+            yield return null;
+            Assert.AreSame(inside, focus.focusedElement, "Setup: focus should start inside the scope.");
+            Assert.AreEqual("1", _bridge.Eval("globalThis.__scopeFocusIn"),
+                "focusin on a descendant should bubble to the scope.");
+
+            // Navigate out of the scope. Nothing in JS prevents it, so focus really does leave.
+            SendNavigationMove(root, inside);
+            yield return null;
+            Assert.AreSame(outside, focus.focusedElement,
+                "Setup: the navigation move should have taken focus outside the scope.");
+            Assert.AreEqual("1", _bridge.Eval("globalThis.__insideBlur"), "blur should still fire on the element that lost focus.");
+            Assert.AreEqual("0", _bridge.Eval("globalThis.__scopeBlur"), "blur must not bubble.");
+            Assert.AreEqual("1", _bridge.Eval("globalThis.__scopeFocusOut"),
+                "focusout on a descendant should bubble to the scope.");
+
+            // The trap's deferred check runs on the next tick and pulls focus back inside.
+            _bridge.Tick();
+            yield return null;
+            Assert.AreSame(inside, focus.focusedElement, "The focus trap should have returned focus inside the scope.");
+        }
+
         // Helper: dispatch a NavigationMove toward the next focusable element, targeting `target`.
         static void SendNavigationMove(VisualElement root, VisualElement target) {
             using (var evt = NavigationMoveEvent.GetPooled(NavigationMoveEvent.Direction.Next)) {

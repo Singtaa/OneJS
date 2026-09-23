@@ -1,3 +1,8 @@
+# Unreleased
+
+- `onFocusIn` and `onFocusOut` fire, and bubble to ancestors
+- `FocusScope`'s focus trap works, so `Dialog` and `Drawer` now hold focus
+
 # [2026-09-22] v3.4.7
 
 OneJS no longer installs Unity's Input System into every project. If you set up a project on 3.4.5 or 3.4.6 and use the Input System, add `"com.unity.inputsystem": "1.19.0"` to `Packages/manifest.json` when you upgrade.

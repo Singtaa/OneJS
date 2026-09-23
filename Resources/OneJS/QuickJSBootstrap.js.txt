@@ -1118,6 +1118,9 @@ function removeAllEventListeners(element) {
 /**
  * Events that should NOT bubble up the parent chain.
  * These are element-specific events that only make sense on the target.
+ * focus and blur are here and focusin and focusout are not, as in the DOM:
+ * the bridge sends both pairs for every focus change, so an ancestor that
+ * wants to hear about a descendant listens for focusin/focusout.
  */
 const __nonBubblingEvents = new Set([
     "pointerenter", "pointerleave",
@@ -1135,7 +1138,8 @@ const __nonBubblingEvents = new Set([
  * - Target phase: dispatch to the target element
  * - Bubble phase: walk up __parentMap, dispatching to each ancestor
  * - stopPropagation() halts the bubble walk
- * - Non-bubbling events (enter/leave, focus/blur, geometry) only fire on target
+ * - Non-bubbling events (enter/leave, focus/blur, geometry) only fire on target;
+ *   focusin/focusout are the bubbling counterparts of focus/blur
  */
 // Shared by every synthetic event rather than closed over per dispatch. They
 // only ever touch `this`, so one copy does for all of them, and creating two
@@ -1282,6 +1286,8 @@ const __EVT_WHEEL = 16;
 const __EVT_FOCUS = 20;
 const __EVT_BLUR = 21;
 const __EVT_FOCUSCHANGE = 22;
+const __EVT_FOCUS_IN = 23;
+const __EVT_FOCUS_OUT = 24;
 const __EVT_VIEWPORT_CHANGE = 30;
 const __EVT_NAVIGATION_MOVE = 40;
 const __EVT_NAVIGATION_SUBMIT = 41;
@@ -1301,6 +1307,8 @@ const __EVT_TYPE_NAMES = {
     [__EVT_FOCUS]: "focus",
     [__EVT_BLUR]: "blur",
     [__EVT_FOCUSCHANGE]: "focuschange",
+    [__EVT_FOCUS_IN]: "focusin",
+    [__EVT_FOCUS_OUT]: "focusout",
     [__EVT_VIEWPORT_CHANGE]: "viewportchange",
     [__EVT_NAVIGATION_MOVE]: "navigationmove",
     [__EVT_NAVIGATION_SUBMIT]: "navigationsubmit",
@@ -1326,7 +1334,7 @@ globalThis.__dispatchEventFast = function(eventTypeId, elementHandle, a0, a1, a2
         // Pointer/click events: a0=x, a1=y, a2=button, a3=pointerId
         eventData = { x: a0, y: a1, button: a2, pointerId: a3 };
     } else if (eventTypeId < 30) {
-        // Focus/blur: no data
+        // Focus/blur/focusin/focusout: no data
         eventData = {};
     } else if (eventTypeId < 40) {
         // Viewport: a0=width, a1=height

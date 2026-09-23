@@ -54,6 +54,8 @@ namespace OneJS {
         const int EVT_FOCUS = 20;
         const int EVT_BLUR = 21;
         const int EVT_FOCUSCHANGE = 22;
+        const int EVT_FOCUS_IN = 23;
+        const int EVT_FOCUS_OUT = 24;
         const int EVT_VIEWPORT_CHANGE = 30;
         const int EVT_NAVIGATION_MOVE = 40;
         const int EVT_NAVIGATION_SUBMIT = 41;
@@ -651,19 +653,29 @@ namespace OneJS {
             ApplyNativeSuppression(e, flags);
         }
 
+        // Each native focus change reaches JS as both of the DOM's pairs, in the DOM's order:
+        // focus/blur, which the bootstrap does not bubble, then focusin/focusout, which it does,
+        // so an ancestor sees a descendant gain or lose focus (FocusScope's trap depends on it).
+        // Focus changes are rare, so the second crossing costs nothing that matters.
         void OnFocusIn(FocusInEvent e) {
+            int handle = FindElementHandle(e.target);
             if (_eventDispatchHandle >= 0) {
-                DispatchEventFast(EVT_FOCUS, FindElementHandle(e.target));
+                DispatchEventFast(EVT_FOCUS, handle);
+                DispatchEventFast(EVT_FOCUS_IN, handle);
             } else {
-                DispatchEvent("focus", e.target, "{}");
+                DispatchEventInternal(handle, "focus", "{}");
+                DispatchEventInternal(handle, "focusin", "{}");
             }
         }
 
         void OnFocusOut(FocusOutEvent e) {
+            int handle = FindElementHandle(e.target);
             if (_eventDispatchHandle >= 0) {
-                DispatchEventFast(EVT_BLUR, FindElementHandle(e.target));
+                DispatchEventFast(EVT_BLUR, handle);
+                DispatchEventFast(EVT_FOCUS_OUT, handle);
             } else {
-                DispatchEvent("blur", e.target, "{}");
+                DispatchEventInternal(handle, "blur", "{}");
+                DispatchEventInternal(handle, "focusout", "{}");
             }
         }
 
