@@ -77,15 +77,47 @@ namespace OneJS {
         // fire for the same event. UI Toolkit's event pool reuses instances across
         // dispatches, so a reference-equality check would treat consecutive pooled
         // events as duplicates and silently drop them (this was the WebGL drag
-        // regression). EventBase.timestamp is refreshed in Init() each time an event
-        // is acquired from the pool, so it's the same within one dispatch (root +
-        // per-element phases) and different across dispatches.
-        long _lastDispatchedPointerDownTs = -1;
-        long _lastDispatchedPointerUpTs = -1;
-        long _lastDispatchedPointerMoveTs = -1;
-        long _lastDispatchedPointerCancelTs = -1;
-        long _lastDispatchedPointerCaptureTs = -1;
-        long _lastDispatchedPointerCaptureOutTs = -1;
+        // regression). EventBase.timestamp is no better: it is whole milliseconds,
+        // so two distinct events inside one millisecond (fast frames, several
+        // pointers moving in one frame) compare equal and the second never reaches
+        // JS. EventBase.eventId is assigned from a counter each time an event is
+        // acquired from the pool, so it is the same within one dispatch (root +
+        // per-element phases) and different across dispatches. It is internal, so
+        // it is bound once below; nothing public tells two dispatches apart.
+        ulong _lastDispatchedPointerDownId = ulong.MaxValue;
+        ulong _lastDispatchedPointerUpId = ulong.MaxValue;
+        ulong _lastDispatchedPointerMoveId = ulong.MaxValue;
+        ulong _lastDispatchedPointerCancelId = ulong.MaxValue;
+        ulong _lastDispatchedPointerCaptureId = ulong.MaxValue;
+        ulong _lastDispatchedPointerCaptureOutId = ulong.MaxValue;
+
+        // Open delegate over the internal getter: no allocation per event. Looked up
+        // by method name because stripping can drop property metadata while keeping
+        // the getter, which UI Toolkit itself calls. If a Unity upgrade removes it,
+        // the dedup falls back to the timestamp and warns, and
+        // PointerMove_TwoInOneFrame_EachReachesJsOnce fails.
+        static readonly Func<EventBase, ulong> s_eventId = BindEventId();
+
+        static Func<EventBase, ulong> BindEventId() {
+            var getter = typeof(EventBase).GetMethod("get_eventId",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            if (getter != null && getter.ReturnType == typeof(ulong)) {
+                try {
+                    return (Func<EventBase, ulong>)Delegate.CreateDelegate(typeof(Func<EventBase, ulong>), getter);
+                } catch (Exception) { }
+            }
+            Debug.LogWarning("[OneJS] EventBase.eventId is unavailable; pointer events inside one millisecond may be deduplicated as one.");
+            return null;
+        }
+
+        // True the first time a handler sees this dispatch, false when another
+        // handler (root TrickleDown or per-element) already dispatched it to JS.
+        static bool IsNewDispatch(ref ulong lastId, EventBase e) {
+            ulong id = s_eventId != null ? s_eventId(e) : (ulong)e.timestamp;
+            if (id == lastId) return false;
+            lastId = id;
+            return true;
+        }
 
         public QuickJSContext Context => _ctx;
         public VisualElement Root => _root;
@@ -438,9 +470,9 @@ namespace OneJS {
 
             _inEval = true;
 
-            // No per-frame dedup reset needed: dedup uses EventBase.timestamp,
-            // which is unique per dispatch (refreshed in EventBase.Init() each time
-            // the pool reuses an instance).
+            // No per-frame dedup reset needed: dedup uses EventBase.eventId,
+            // which is unique per dispatch (reassigned each time the pool reuses
+            // an instance).
 
             try {
                 // Process completed C# Tasks and resolve/reject their JS Promises
@@ -546,8 +578,7 @@ namespace OneJS {
         }
 
         void OnPointerDown(PointerDownEvent e) {
-            if (e.timestamp == _lastDispatchedPointerDownTs) return;
-            _lastDispatchedPointerDownTs = e.timestamp;
+            if (!IsNewDispatch(ref _lastDispatchedPointerDownId, e)) return;
             int flags = _eventDispatchHandle >= 0
                 ? DispatchEventFast(EVT_POINTER_DOWN, FindElementHandle(e.target), e.position.x, e.position.y, e.button, e.pointerId)
                 : DispatchPointerEvent("pointerdown", e.target, e.position, e.button, e.pointerId);
@@ -555,8 +586,7 @@ namespace OneJS {
         }
 
         void OnPointerUp(PointerUpEvent e) {
-            if (e.timestamp == _lastDispatchedPointerUpTs) return;
-            _lastDispatchedPointerUpTs = e.timestamp;
+            if (!IsNewDispatch(ref _lastDispatchedPointerUpId, e)) return;
             int flags = _eventDispatchHandle >= 0
                 ? DispatchEventFast(EVT_POINTER_UP, FindElementHandle(e.target), e.position.x, e.position.y, e.button, e.pointerId)
                 : DispatchPointerEvent("pointerup", e.target, e.position, e.button, e.pointerId);
@@ -565,8 +595,7 @@ namespace OneJS {
 
         void OnPointerMove(PointerMoveEvent e) {
             if (!PointerEvents.MoveEventsEnabled) return;
-            if (e.timestamp == _lastDispatchedPointerMoveTs) return;
-            _lastDispatchedPointerMoveTs = e.timestamp;
+            if (!IsNewDispatch(ref _lastDispatchedPointerMoveId, e)) return;
             int flags = _eventDispatchHandle >= 0
                 ? DispatchEventFast(EVT_POINTER_MOVE, FindElementHandle(e.target), e.position.x, e.position.y, e.button, e.pointerId)
                 : DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
@@ -595,20 +624,17 @@ namespace OneJS {
         // so they stay on the string dispatch path rather than adding parallel fast-path
         // EVT_* constants. Capture events carry only a pointerId.
         void OnPointerCancel(PointerCancelEvent e) {
-            if (e.timestamp == _lastDispatchedPointerCancelTs) return;
-            _lastDispatchedPointerCancelTs = e.timestamp;
+            if (!IsNewDispatch(ref _lastDispatchedPointerCancelId, e)) return;
             DispatchPointerEvent("pointercancel", e.target, e.position, e.button, e.pointerId);
         }
 
         void OnPointerCapture(PointerCaptureEvent e) {
-            if (e.timestamp == _lastDispatchedPointerCaptureTs) return;
-            _lastDispatchedPointerCaptureTs = e.timestamp;
+            if (!IsNewDispatch(ref _lastDispatchedPointerCaptureId, e)) return;
             DispatchPointerCaptureEvent("pointercapture", e.target, e.pointerId);
         }
 
         void OnPointerCaptureOut(PointerCaptureOutEvent e) {
-            if (e.timestamp == _lastDispatchedPointerCaptureOutTs) return;
-            _lastDispatchedPointerCaptureOutTs = e.timestamp;
+            if (!IsNewDispatch(ref _lastDispatchedPointerCaptureOutId, e)) return;
             DispatchPointerCaptureEvent("pointercaptureout", e.target, e.pointerId);
         }
 
@@ -616,7 +642,7 @@ namespace OneJS {
         // (active-scroll bursts can approach frame rate on trackpads), falling back to the
         // string path otherwise. The fast path passes the delta as (x=deltaX, y=deltaY); the
         // JS side rebuilds { deltaX, deltaY } for EVT_WHEEL. Only the root TrickleDown handler
-        // fires (wheel has no per-element/capture handler), so no timestamp dedup is needed.
+        // fires (wheel has no per-element/capture handler), so no eventId dedup is needed.
         // WheelEvent.delta is a Vector3; the z component is unused.
         void OnWheel(WheelEvent e) {
             int flags = _eventDispatchHandle >= 0
@@ -1040,10 +1066,9 @@ namespace OneJS {
         // wiring: captured pointermove (the hottest drag path) takes the same zero-alloc
         // DispatchEventFast route as the root, and preventDefault() keeps suppressing native
         // controls mid-drag, not just on the initial press. When both _root and per-element
-        // fire, the timestamp dedup makes this a no-op (the root handler already ran).
+        // fire, the eventId dedup makes this a no-op (the root handler already ran).
         void OnPerElementPointerDown(PointerDownEvent e) {
-            if (e.timestamp == _lastDispatchedPointerDownTs) return;
-            _lastDispatchedPointerDownTs = e.timestamp;
+            if (!IsNewDispatch(ref _lastDispatchedPointerDownId, e)) return;
             int flags = _eventDispatchHandle >= 0
                 ? DispatchEventFast(EVT_POINTER_DOWN, FindElementHandle(e.target), e.position.x, e.position.y, e.button, e.pointerId)
                 : DispatchPointerEvent("pointerdown", e.target, e.position, e.button, e.pointerId);
@@ -1051,8 +1076,7 @@ namespace OneJS {
         }
 
         void OnPerElementPointerUp(PointerUpEvent e) {
-            if (e.timestamp == _lastDispatchedPointerUpTs) return;
-            _lastDispatchedPointerUpTs = e.timestamp;
+            if (!IsNewDispatch(ref _lastDispatchedPointerUpId, e)) return;
             int flags = _eventDispatchHandle >= 0
                 ? DispatchEventFast(EVT_POINTER_UP, FindElementHandle(e.target), e.position.x, e.position.y, e.button, e.pointerId)
                 : DispatchPointerEvent("pointerup", e.target, e.position, e.button, e.pointerId);
@@ -1061,8 +1085,7 @@ namespace OneJS {
 
         void OnPerElementPointerMove(PointerMoveEvent e) {
             if (!PointerEvents.MoveEventsEnabled) return;
-            if (e.timestamp == _lastDispatchedPointerMoveTs) return;
-            _lastDispatchedPointerMoveTs = e.timestamp;
+            if (!IsNewDispatch(ref _lastDispatchedPointerMoveId, e)) return;
             int flags = _eventDispatchHandle >= 0
                 ? DispatchEventFast(EVT_POINTER_MOVE, FindElementHandle(e.target), e.position.x, e.position.y, e.button, e.pointerId)
                 : DispatchPointerEvent("pointermove", e.target, e.position, e.button, e.pointerId);
@@ -1070,21 +1093,18 @@ namespace OneJS {
         }
 
         void OnPerElementPointerCancel(PointerCancelEvent e) {
-            if (e.timestamp == _lastDispatchedPointerCancelTs) return;
-            _lastDispatchedPointerCancelTs = e.timestamp;
+            if (!IsNewDispatch(ref _lastDispatchedPointerCancelId, e)) return;
             int flags = DispatchPointerEvent("pointercancel", e.target, e.position, e.button, e.pointerId);
             ApplyNativeSuppression(e, flags);
         }
 
         void OnPerElementPointerCapture(PointerCaptureEvent e) {
-            if (e.timestamp == _lastDispatchedPointerCaptureTs) return;
-            _lastDispatchedPointerCaptureTs = e.timestamp;
+            if (!IsNewDispatch(ref _lastDispatchedPointerCaptureId, e)) return;
             DispatchPointerCaptureEvent("pointercapture", e.target, e.pointerId);
         }
 
         void OnPerElementPointerCaptureOut(PointerCaptureOutEvent e) {
-            if (e.timestamp == _lastDispatchedPointerCaptureOutTs) return;
-            _lastDispatchedPointerCaptureOutTs = e.timestamp;
+            if (!IsNewDispatch(ref _lastDispatchedPointerCaptureOutId, e)) return;
             DispatchPointerCaptureEvent("pointercaptureout", e.target, e.pointerId);
         }
 
