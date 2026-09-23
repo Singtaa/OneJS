@@ -87,6 +87,22 @@ namespace OneJS.Tests {
             }
         }
 
+        /// <summary>
+        /// readTextFile and writeTextFile finish on a thread-pool task, so how many
+        /// ticks they take is up to the scheduler. A headless frame is a fraction of
+        /// a millisecond, and the fixed ten ticks these tests used to wait failed
+        /// intermittently. Tick until the JS condition holds instead, with a wall-clock
+        /// limit so a promise that never settles still fails at the assertion.
+        /// </summary>
+        IEnumerator TickUntil(string jsCondition, float timeoutSeconds = 5f) {
+            float deadline = Time.realtimeSinceStartup + timeoutSeconds;
+            while (_bridge.Eval($"({jsCondition}) ? 'true' : 'false'") != "true"
+                   && Time.realtimeSinceStartup < deadline) {
+                _bridge.Tick();
+                yield return null;
+            }
+        }
+
         // MARK: Teardown Robustness
 
         /// <summary>True where an open handle actually blocks a delete.</summary>
@@ -301,11 +317,7 @@ namespace OneJS.Tests {
                     .catch(function(err) {{ globalThis.__testError = err.message; }});
             ");
 
-            // Wait for async operation and tick
-            for (int i = 0; i < 10; i++) {
-                _bridge.Tick();
-                yield return null;
-            }
+            yield return TickUntil("globalThis.__testResult !== null || globalThis.__testError !== null");
 
             var result = _bridge.Eval("globalThis.__testResult");
             var error = _bridge.Eval("globalThis.__testError");
@@ -341,11 +353,7 @@ namespace OneJS.Tests {
                 }})();
             ");
 
-            // Wait for async operation
-            for (int i = 0; i < 30; i++) {
-                _bridge.Tick();
-                yield return null;
-            }
+            yield return TickUntil("globalThis.__testError !== null || globalThis.__testResult !== 'not_set'");
 
             var result = _bridge.Eval("globalThis.__testResult");
             var error = _bridge.Eval("globalThis.__testError");
@@ -372,16 +380,12 @@ namespace OneJS.Tests {
                     .catch(function(err) {{ globalThis.__testError = err.message; }});
             ");
 
-            // Wait for async operation
-            for (int i = 0; i < 10; i++) {
-                _bridge.Tick();
-                yield return null;
-            }
+            yield return TickUntil("globalThis.__testDone || globalThis.__testError !== null");
 
             var done = _bridge.Eval("globalThis.__testDone ? 'true' : 'false'");
             var error = _bridge.Eval("globalThis.__testError");
 
-            Assert.AreEqual("true", done);
+            Assert.AreEqual("true", done, $"writeTextFile did not resolve. error={error}");
             Assert.IsTrue(File.Exists(testPath), "File should exist");
             Assert.AreEqual("Written from JS!", File.ReadAllText(testPath));
         }
@@ -392,18 +396,16 @@ namespace OneJS.Tests {
 
             _bridge.Eval($@"
                 globalThis.__testDone = false;
+                globalThis.__testError = null;
                 writeTextFile('{testPath}', 'Nested content')
-                    .then(function() {{ globalThis.__testDone = true; }});
+                    .then(function() {{ globalThis.__testDone = true; }})
+                    .catch(function(err) {{ globalThis.__testError = err.message; }});
             ");
 
-            // Wait for async operation
-            for (int i = 0; i < 10; i++) {
-                _bridge.Tick();
-                yield return null;
-            }
+            yield return TickUntil("globalThis.__testDone || globalThis.__testError !== null");
 
             var done = _bridge.Eval("globalThis.__testDone ? 'true' : 'false'");
-            Assert.AreEqual("true", done);
+            Assert.AreEqual("true", done, $"writeTextFile did not resolve. error={_bridge.Eval("globalThis.__testError")}");
             Assert.IsTrue(File.Exists(testPath), "File should exist in nested directory");
         }
 
@@ -496,21 +498,19 @@ namespace OneJS.Tests {
 
             _bridge.Eval($@"
                 globalThis.__testDone = false;
+                globalThis.__testError = null;
                 readTextFile('{ussPath}')
                     .then(function(content) {{
                         compileStyleSheet(content, 'test-theme');
                         globalThis.__testDone = true;
-                    }});
+                    }})
+                    .catch(function(err) {{ globalThis.__testError = err.message; }});
             ");
 
-            // Wait for async operation
-            for (int i = 0; i < 10; i++) {
-                _bridge.Tick();
-                yield return null;
-            }
+            yield return TickUntil("globalThis.__testDone || globalThis.__testError !== null");
 
             var done = _bridge.Eval("globalThis.__testDone ? 'true' : 'false'");
-            Assert.AreEqual("true", done);
+            Assert.AreEqual("true", done, $"Loading the stylesheet did not finish. error={_bridge.Eval("globalThis.__testError")}");
 
             // Verify stylesheet was loaded by checking it can be removed
             var removed = _bridge.Eval("removeStyleSheet('test-theme') ? 'true' : 'false'");
