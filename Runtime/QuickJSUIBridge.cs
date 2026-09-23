@@ -572,6 +572,15 @@ namespace OneJS {
             if ((flags & FLAG_DEFAULT_PREVENTED) != 0) e.StopImmediatePropagation();
         }
 
+        // A pointerdown's and a navigation move's native default includes moving focus, which UI
+        // Toolkit does in PostDispatch regardless of propagation. FocusController.IgnoreEvent is the
+        // public gate PostDispatch checks, so a prevented one is also handed to it and focus stays
+        // where it was, as preventDefault() on a DOM mousedown does.
+        void ApplyNativeSuppressionAndKeepFocus(EventBase e, int flags) {
+            ApplyNativeSuppression(e, flags);
+            if ((flags & FLAG_DEFAULT_PREVENTED) != 0) _root.focusController?.IgnoreEvent(e);
+        }
+
         void OnClick(ClickEvent e) {
             int flags = _eventDispatchHandle >= 0
                 ? DispatchEventFast(EVT_CLICK, FindElementHandle(e.target), e.position.x, e.position.y, e.button, 0)
@@ -584,7 +593,7 @@ namespace OneJS {
             int flags = _eventDispatchHandle >= 0
                 ? DispatchEventFast(EVT_POINTER_DOWN, FindElementHandle(e.target), e.position.x, e.position.y, e.button, e.pointerId)
                 : DispatchPointerEvent("pointerdown", e.target, e.position, e.button, e.pointerId);
-            ApplyNativeSuppression(e, flags);
+            ApplyNativeSuppressionAndKeepFocus(e, flags);
         }
 
         void OnPointerUp(PointerUpEvent e) {
@@ -685,15 +694,13 @@ namespace OneJS {
 
         // Navigation events (controller / keyboard focus navigation)
         // preventDefault() is mirrored like the pointer handlers. A NavigationMove's native default
-        // is moving focus, which UI Toolkit does in PostDispatch regardless of propagation, so the
-        // focus controller also has to be told to ignore the event.
+        // is moving focus, so a prevented one also keeps focus where it was.
         void OnNavigationMove(NavigationMoveEvent e) {
             int flags = _eventDispatchHandle >= 0
                 ? DispatchEventFast(EVT_NAVIGATION_MOVE, FindElementHandle(e.target), (int)e.direction)
                 : DispatchEvent("navigationmove", e.target,
                     $"{{\"direction\":\"{NavigationDirectionName(e.direction)}\"}}");
-            ApplyNativeSuppression(e, flags);
-            if ((flags & FLAG_DEFAULT_PREVENTED) != 0) _root.focusController?.IgnoreEvent(e);
+            ApplyNativeSuppressionAndKeepFocus(e, flags);
         }
 
         void OnNavigationSubmit(NavigationSubmitEvent e) {
@@ -1084,7 +1091,7 @@ namespace OneJS {
             int flags = _eventDispatchHandle >= 0
                 ? DispatchEventFast(EVT_POINTER_DOWN, FindElementHandle(e.target), e.position.x, e.position.y, e.button, e.pointerId)
                 : DispatchPointerEvent("pointerdown", e.target, e.position, e.button, e.pointerId);
-            ApplyNativeSuppression(e, flags);
+            ApplyNativeSuppressionAndKeepFocus(e, flags);
         }
 
         void OnPerElementPointerUp(PointerUpEvent e) {

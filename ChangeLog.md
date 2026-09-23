@@ -2,6 +2,7 @@
 
 - `onFocusIn` and `onFocusOut` fire, and bubble to ancestors
 - `FocusScope`'s focus trap works, so `Dialog` and `Drawer` now hold focus
+- `preventDefault()` on pointerdown keeps focus where it was
 
 # [2026-09-22] v3.4.7
 

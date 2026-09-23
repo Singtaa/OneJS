@@ -824,6 +824,67 @@ namespace OneJS.Tests {
         }
 
         [UnityTest]
+        public IEnumerator Suppression_PreventDefaultInOnPointerDown_KeepsFocus([Values] bool fastPath) {
+            // Part of a PointerDownEvent's native default is moving focus to the pressed element,
+            // which UI Toolkit does in PostDispatch regardless of propagation. A JS onPointerDown
+            // calling preventDefault() must stop that, as it does in the DOM; without it the press
+            // still takes focus (backward-compat).
+            var root = _uiDocument.rootVisualElement;
+            int rootHandle = QuickJSNative.RegisterObject(root);
+            if (fastPath) _bridge.CacheEventDispatchCallback();
+
+            _bridge.Eval($@"
+                var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+                var first = new CS.UnityEngine.UIElements.Button();
+                var second = new CS.UnityEngine.UIElements.Button();
+                root.Add(first);
+                root.Add(second);
+                globalThis.__first = first;
+                globalThis.__second = second;
+                globalThis.__pdFired = 0;
+                globalThis.__doPreventDefault = false;
+                __eventAPI.addEventListener(second, 'pointerdown', (e) => {{
+                    globalThis.__pdFired++;
+                    if (globalThis.__doPreventDefault) e.preventDefault();
+                }});
+            ");
+            yield return null;
+
+            var first = QuickJSNative.GetObjectByHandle(int.Parse(_bridge.Eval("globalThis.__first.__csHandle"))) as VisualElement;
+            var second = QuickJSNative.GetObjectByHandle(int.Parse(_bridge.Eval("globalThis.__second.__csHandle"))) as VisualElement;
+            Assert.IsNotNull(first, "First button should resolve back to C#.");
+            Assert.IsNotNull(second, "Second button should resolve back to C#.");
+            var focus = root.panel.focusController;
+
+            void Press() {
+                using (var evt = PointerDownEvent.GetPooled()) {
+                    evt.target = second;
+                    root.SendEvent(evt);
+                }
+            }
+
+            // Backward-compat: without preventDefault, the press moves focus to the second button.
+            first.Focus();
+            Assert.AreSame(first, focus.focusedElement, "Setup: the first button should hold focus before the press.");
+            _bridge.Eval("globalThis.__pdFired = 0; globalThis.__doPreventDefault = false;");
+            Press();
+            yield return null;
+            Assert.AreEqual("1", _bridge.Eval("globalThis.__pdFired"), "JS onPointerDown should fire.");
+            Assert.AreSame(second, focus.focusedElement,
+                "Without preventDefault, a press should move focus to the pressed button.");
+
+            // Suppression: with preventDefault, focus stays where it was.
+            first.Focus();
+            Assert.AreSame(first, focus.focusedElement, "Setup: the first button should hold focus before the press.");
+            _bridge.Eval("globalThis.__pdFired = 0; globalThis.__doPreventDefault = true;");
+            Press();
+            yield return null;
+            Assert.AreEqual("1", _bridge.Eval("globalThis.__pdFired"), "JS onPointerDown should still fire.");
+            Assert.AreSame(first, focus.focusedElement,
+                "preventDefault() in onPointerDown must keep focus on the first button.");
+        }
+
+        [UnityTest]
         public IEnumerator Focus_FocusOutBubblesToAncestor_SoAFocusScopeTrapHoldsFocus([Values] bool fastPath) {
             // onejs-ui's FocusScope traps focus by listening for focusout on its root, which only
             // sees a descendant losing focus if focusout bubbles in JS. This mounts that trap as
