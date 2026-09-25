@@ -81,9 +81,9 @@ namespace OneJS.CustomStyleSheets {
                 throw new TypeLoadException(
                     $"OneJS could not resolve internal Unity type '{fullName}'. " +
                     "This usually means IL2CPP managed-code stripping removed it " +
-                    "(common in WebGL/iOS Release builds). OneJS ships a link.xml " +
-                    "at Assets/Singtaa/OneJS/Plugins/link.xml to preserve these - " +
-                    "if it's missing or your build still strips, add the type to your project's link.xml.");
+                    "(common in WebGL/iOS Release builds). OneJS's Plugins/link.xml " +
+                    "preserves these; if it is missing or your build still strips, " +
+                    "add the type to your project's link.xml.");
             }
             return t;
         }
