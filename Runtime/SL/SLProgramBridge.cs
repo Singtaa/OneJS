@@ -38,7 +38,7 @@ namespace OneJS.SL {
         /// that can run it, so this refuses only programs that use an
         /// instruction it does not have, and only where the VM would run them.
         /// </summary>
-        public const int WireVersion = 1;
+        public const int WireVersion = 2;
 
         /// <summary>Refuses a buffer newer than this VM, rather than drawing it wrong.</summary>
         static void CheckWire(int wire) {
