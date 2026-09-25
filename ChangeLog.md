@@ -9,6 +9,8 @@
 - `sdf` takes the fifth and sixth parameters of orientedVesica, roundedBox, orientedBox, triangle, horseshoe and bezier
 - A scalar or `float2` `toLinear` in a shader program draws the same in the editor as in a player
 - `toLinear` in a shader program runs at full precision on mobile
+- A shader program can assign to a swizzle, and a single number fills a vector
+- A shader program can no longer name a value after a keyword or a type
 
 # [2026-09-23] v3.4.8
 
