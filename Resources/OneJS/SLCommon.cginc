@@ -136,14 +136,19 @@ float sl_luminance(float3 c) { return dot(c, float3(0.2126, 0.7152, 0.0722)); }
 // encodes on display, so a stop stored as written drew lighter than its swatch.
 // In a Gamma project the written value is already right. The float4 form keeps
 // alpha, which is coverage rather than light. Mirrors fxColorToWorking.
+//
+// Every width uses Unity's cubic approximation, lane by lane. The VM has one
+// TO_LINEAR for all widths (its registers are float4, so it converts .rgb),
+// and a scalar or float2 on the exact curve here drew up to 5/255 apart from
+// it in the dark range: the editor and a player disagreed.
 #ifdef UNITY_COLORSPACE_GAMMA
 float  sl_toLinear(float c)  { return c; }
 float2 sl_toLinear(float2 c) { return c; }
 float3 sl_toLinear(float3 c) { return c; }
 float4 sl_toLinear(float4 c) { return c; }
 #else
-float  sl_toLinear(float c)  { return GammaToLinearSpaceExact(c); }
-float2 sl_toLinear(float2 c) { return float2(GammaToLinearSpaceExact(c.x), GammaToLinearSpaceExact(c.y)); }
+float  sl_toLinear(float c)  { return GammaToLinearSpace(float3(c, 0, 0)).x; }
+float2 sl_toLinear(float2 c) { return GammaToLinearSpace(float3(c, 0)).xy; }
 float3 sl_toLinear(float3 c) { return GammaToLinearSpace(c); }
 float4 sl_toLinear(float4 c) { return float4(GammaToLinearSpace(c.rgb), c.a); }
 #endif
