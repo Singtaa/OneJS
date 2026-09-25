@@ -14,6 +14,8 @@
 - `toLinear` in a shader program runs at full precision on mobile
 - A shader program can assign to a swizzle, and a single number fills a vector
 - A shader program can no longer name a value after a keyword or a type
+- A new project depends on `onejs-react` `^0.1.59` and `onejs-unity` `^0.5.16`
+- Existing projects must bump `onejs-react` to `^0.1.59` and `onejs-unity` to `^0.5.16`, or shader programs do not draw in a WebGL build
 
 # [2026-09-23] v3.4.8
 
