@@ -927,7 +927,7 @@ namespace OneJS {
                 // Editor: reload from file
                 var entryFile = EntryFileFullPath;
                 if (File.Exists(entryFile)) {
-                    var code = File.ReadAllText(entryFile);
+                    var code = ReadBundleForEditor(entryFile);
                     RunScript(code, Path.GetFileName(entryFile));
                     if (Application.isPlaying) InvokeOnPlay();
                 }
@@ -1033,6 +1033,27 @@ namespace OneJS {
         }
 
 #if UNITY_EDITOR
+        /// <summary>
+        /// Raised in the editor with the bundle's path just before it is read
+        /// from disk and run, on first load and on every reload.
+        ///
+        /// For editor tooling that has to catch up with what the build wrote
+        /// beside the bundle before the app sees it. The shader language uses
+        /// it: the build writes app.sl.json there, Unity has not imported it
+        /// when a watcher rebuild triggers a reload, and a program whose shader
+        /// was not generated first would draw nothing on the frames until then.
+        /// </summary>
+        public static event Action<string> EditorLoadingBundle;
+
+        string ReadBundleForEditor(string entryFile) {
+            try {
+                EditorLoadingBundle?.Invoke(entryFile);
+            } catch (Exception ex) {
+                Debug.LogError($"[JSRunner] An EditorLoadingBundle handler threw: {ex}");
+            }
+            return File.ReadAllText(entryFile);
+        }
+
         void InitializeEditor() {
             if (!IsSceneSaved) {
                 Debug.LogError("[JSRunner] Scene must be saved before JSRunner can initialize. Save the scene and enter Play mode again.");
@@ -1098,7 +1119,7 @@ namespace OneJS {
                 _janitor = janitorGO.AddComponent<Janitor>();
             }
 
-            var code = File.ReadAllText(entryFile);
+            var code = ReadBundleForEditor(entryFile);
             RunScript(code, Path.GetFileName(entryFile));
             if (Application.isPlaying) InvokeOnPlay();
 
@@ -1418,7 +1439,7 @@ namespace OneJS {
                 InitializeBridge();
 
                 // 5. Load and run script
-                var code = File.ReadAllText(EntryFileFullPath);
+                var code = ReadBundleForEditor(EntryFileFullPath);
                 RunScript(code, Path.GetFileName(EntryFileFullPath));
                 if (Application.isPlaying) InvokeOnPlay();
 
@@ -1568,7 +1589,7 @@ namespace OneJS {
                 _uiDocument.rootVisualElement.styleSheets.Clear();
                 InitializeBridge();
 
-                var code = File.ReadAllText(entryFile);
+                var code = ReadBundleForEditor(entryFile);
                 RunScript(code, Path.GetFileName(entryFile));
 
                 // Set up file watching for live reload in edit-mode

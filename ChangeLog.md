@@ -1,7 +1,11 @@
 # Unreleased
 
 - Native players draw shader language programs compiled instead of on the VM
-- A program with no compiled shader in a native player falls back to the VM and warns once, naming its hash
+- A program with no compiled shader in a native player draws nothing and logs one error naming its hash
+- The editor compiles a shader program the first time it draws it, and draws nothing until then instead of running the VM
+- Every load of an app generates the shaders for its `.sl` files before it runs
+- JSPad loads `.sl` files
+- The shader language VM is off, and left out of every player, unless `ONEJS_SL_VM` is defined
 - Programs built in code are recorded into `Assets/OneJS/Recorded.sl.json`, which a project commits
 - Shader language programs run compiled on WebGL2 and WebGPU, and the VM no longer runs them in a WebGL player
 - A program's `resolution`, `fragCoord` and `aspect` read the element's real size

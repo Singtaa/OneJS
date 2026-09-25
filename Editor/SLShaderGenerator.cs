@@ -11,28 +11,27 @@ namespace OneJS.Editor {
     /// <summary>
     /// Turns the shader programs an app declares into compiled shader assets.
     ///
-    /// This is what makes ejecting worth anything. On play.onejs.com a program is
-    /// interpreted, because a prebuilt container cannot compile a shader. In a
-    /// project with an editor the same program becomes real HLSL, and Unity
+    /// In a project with an editor a program becomes real HLSL, and Unity
     /// compiles it like any other asset. The author changes nothing; the runtime
-    /// picks the compiled shader by program hash and falls back to the VM when
-    /// there is none.
+    /// picks the compiled shader by program hash, and draws nothing until there
+    /// is one.
     ///
-    /// A manifest, not a scan. The programs are recorded when JavaScript runs, so
-    /// nothing can find them by reading source. A `*.sl.json` manifest holds a
-    /// hash and the generated HLSL per program, and this turns each entry into a
-    /// `.shader`. That keeps the generator ignorant of JavaScript and keeps the
-    /// emitter, which is the part with the interesting logic, in TypeScript
-    /// where it is unit tested.
+    /// A manifest, not a scan. A `*.sl.json` manifest holds a hash and the
+    /// generated HLSL per program, and this turns each entry into a `.shader`.
+    /// That keeps the generator ignorant of JavaScript and keeps the emitter,
+    /// which is the part with the interesting logic, in TypeScript where it is
+    /// unit tested.
     ///
-    /// Who writes the manifest: the running app, through this class. When the
-    /// runtime interprets a program in the editor it hands the HLSL to
-    /// <see cref="Record"/>, which appends it to <see cref="RecordedManifest"/>,
-    /// generates the shader and moves the live material onto it. So the first
-    /// run of an ejected game is interpreted and every run after is compiled,
-    /// with nobody writing a file by hand. An app can still ship its own
-    /// manifest (`manifest()` in onejs-unity/sl) beside its bundle; both are
-    /// read.
+    /// Who writes the manifests. The build of a `.sl` file writes app.sl.json
+    /// beside the bundle, and this generates from it before every load
+    /// (<see cref="GenerateBeside"/>), so such a program is compiled from its
+    /// first frame. A program built in code is known only once it runs: the
+    /// editor sees it has no shader, the host hands its HLSL to
+    /// <see cref="Record"/>, and the next editor update appends it to
+    /// <see cref="RecordedManifest"/>, generates the shader and gives the live
+    /// element a material, so it is blank for a frame and compiled after.
+    /// JSPad's manifest is under Temp, so its build records it here as well
+    /// (<see cref="RecordManifest"/>).
     ///
     /// A player gets the same shaders from <see cref="SLShaderBuildStep"/>,
     /// which generates from every manifest again and writes the registry that
@@ -123,25 +122,69 @@ namespace OneJS.Editor {
         // MARK: recording
 
         static readonly Dictionary<string, string> s_Pending = new Dictionary<string, string>();
-        static bool s_FlushScheduled;
 
         [InitializeOnLoadMethod]
         static void AttachRecorder() {
             SLProgramBridge.SourceRecorder = Record;
+            EditorApplication.update -= FlushOnUpdate;
+            EditorApplication.update += FlushOnUpdate;
+            JSRunner.EditorLoadingBundle -= GenerateBeside;
+            JSRunner.EditorLoadingBundle += GenerateBeside;
         }
 
         /// <summary>
-        /// Takes a program the runtime just interpreted. Batched and flushed on
-        /// the next editor tick rather than acted on here: this is called from
-        /// inside a React commit, and an asset import from there would stall
-        /// the frame that is still being built.
+        /// Takes a program the editor has just seen with no compiled shader.
+        /// Flushed on the next editor update rather than acted on here: this is
+        /// called from inside a React commit, and an asset import from there
+        /// would stall the frame that is still being built.
+        ///
+        /// The update rather than `delayCall`, which is what this used: an
+        /// unfocused editor left a delayCall pending for as long as nobody
+        /// clicked on it, and the program drew nothing all that time.
         /// </summary>
         public static void Record(string hash, string hlsl) {
             if (string.IsNullOrEmpty(hash) || string.IsNullOrEmpty(hlsl)) return;
             s_Pending[hash] = hlsl;
-            if (s_FlushScheduled) return;
-            s_FlushScheduled = true;
-            EditorApplication.delayCall += () => FlushRecorded();
+        }
+
+        /// <summary>True while a program handed to <see cref="Record"/> has not been generated.</summary>
+        public static bool HasPendingRecordings => s_Pending.Count > 0;
+
+        static void FlushOnUpdate() {
+            if (s_Pending.Count > 0) FlushRecorded();
+        }
+
+        /// <summary>
+        /// Generates the shaders of the manifest a build wrote beside a bundle,
+        /// before the bundle runs. Attached to <see cref="JSRunner.EditorLoadingBundle"/>.
+        ///
+        /// Generated here rather than left to the manifest's import. The watcher
+        /// rewrites app.sl.json with every build, and the reload that follows
+        /// reads the bundle straight from disk, so nothing imported the manifest
+        /// until the editor next refreshed, and every program new in that build
+        /// drew nothing until then. The files are compared first, so a reload
+        /// that changed no program costs a read and no import.
+        /// </summary>
+        public static void GenerateBeside(string bundlePath) {
+            var dir = Path.GetDirectoryName(bundlePath);
+            if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return;
+            var manifests = Directory.GetFiles(dir, "*.sl.json", SearchOption.TopDirectoryOnly);
+            if (manifests.Length == 0) return;
+            Generate(manifests);
+            SLProgramBridge.AdoptGenerated();
+        }
+
+        /// <summary>
+        /// Records every program in a manifest the project cannot see, and
+        /// returns how many were new. For JSPad, whose build writes its manifest
+        /// under Temp: recorded, its programs are generated now and ship in a
+        /// player like any program the editor has drawn.
+        /// </summary>
+        public static int RecordManifest(string manifestPath) {
+            foreach (var kv in ReadEntriesAt(manifestPath)) {
+                if (!s_Pending.ContainsKey(kv.Key)) s_Pending[kv.Key] = kv.Value;
+            }
+            return FlushRecorded();
         }
 
         /// <summary>
@@ -150,7 +193,6 @@ namespace OneJS.Editor {
         /// were new to the manifest. Public so a test can drive it synchronously.
         /// </summary>
         public static int FlushRecorded() {
-            s_FlushScheduled = false;
             if (s_Pending.Count == 0) return 0;
             var pending = new Dictionary<string, string>(s_Pending);
             s_Pending.Clear();
@@ -196,9 +238,10 @@ namespace OneJS.Editor {
             Path.Combine(Path.GetFullPath(Path.Combine(Application.dataPath, "..")),
                 assetPath.Replace('/', Path.DirectorySeparatorChar));
 
-        static Dictionary<string, string> ReadEntries(string assetPath) {
+        static Dictionary<string, string> ReadEntries(string assetPath) => ReadEntriesAt(Abs(assetPath));
+
+        static Dictionary<string, string> ReadEntriesAt(string file) {
             var entries = new Dictionary<string, string>();
-            var file = Abs(assetPath);
             if (!File.Exists(file)) return entries;
             try {
                 var existing = JsonUtility.FromJson<Manifest>(File.ReadAllText(file));
@@ -208,7 +251,7 @@ namespace OneJS.Editor {
                     }
                 }
             } catch (Exception e) {
-                Debug.LogWarning($"[OneJS sl] rewriting an unreadable {assetPath}: {e.Message}");
+                Debug.LogWarning($"[OneJS sl] could not read {file}, so its programs are left out: {e.Message}");
             }
             return entries;
         }
@@ -415,6 +458,9 @@ namespace OneJS.Editor {
             foreach (var path in imported) {
                 if (!path.EndsWith(".sl.json", StringComparison.OrdinalIgnoreCase)) continue;
                 SLShaderGenerator.Generate(SLShaderGenerator.FindManifests());
+                // A program already on screen and waiting for its shader draws
+                // from this frame on, rather than from the next reload.
+                SLProgramBridge.AdoptGenerated();
                 return;
             }
         }

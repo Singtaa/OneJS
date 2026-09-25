@@ -4,20 +4,21 @@ using UnityEngine;
 
 namespace OneJS.SL {
     /// <summary>
-    /// Runs a shader language program on the GPU.
+    /// Runs a shader language program on the GPU, compiled.
     ///
-    /// A program is authored in TypeScript (`onejs-unity/sl`), recorded as a
-    /// graph, and encoded by `onejs-sl/src/encode.ts` into a flat float buffer: two texels
-    /// per instruction, eight registers, indexed store. This side uploads that
-    /// buffer as a texture and lets OneJS/FxProgram.shader evaluate it.
+    /// A program is authored in TypeScript (`onejs-unity/sl`) or a `.sl` file
+    /// and arrives here with its hash. The editor generates a shader from it
+    /// (SLShaderGenerator, in the editor assembly), a native player ships those
+    /// shaders (<see cref="SLShaderRegistry"/>), and a WebGL page compiles the
+    /// program itself (<see cref="SLWeb"/>). Where none of that has happened
+    /// yet, the program draws nothing.
     ///
-    /// WHY A VM AT ALL. Unity cannot compile a shader at runtime in a player
-    /// build, on any graphics API. Every game on play.onejs.com runs inside a
-    /// prebuilt container, so a program written there can never become shader
-    /// code; it has to become data a fixed shader interprets. A project with an
-    /// editor generates HLSL from the same program and compiles it, so an
-    /// ejected game pays none of this. The author writes one thing either way,
-    /// which is the point.
+    /// THE VM. The program also arrives encoded by `onejs-sl/src/encode.ts` as a
+    /// flat float buffer (two texels per instruction, eight registers), which
+    /// OneJS/FxProgram.shader can evaluate. That used to draw every program in
+    /// a native player and every program the editor had not compiled yet. It
+    /// is kept behind ONEJS_SL_VM for one release (<see cref="VmAllowed"/>),
+    /// and the parity harness keeps it on the web with ONEJS_SL_WEB_VM.
     ///
     /// The buffer crosses from JS ONCE per program, not per frame. Uniforms
     /// cross when they change, diffed by value the way ShaderEffect's props are,
@@ -87,6 +88,11 @@ namespace OneJS.SL {
             public bool WebAllowed = true;
             /// <summary>True when the last frame was drawn compiled rather than on the VM.</summary>
             public bool DrewCompiled;
+            /// <summary>
+            /// When the editor started waiting for this program's shader, or -1.
+            /// See <see cref="CurrentMaterial"/>.
+            /// </summary>
+            public float AwaitingSince = -1f;
 
             public void Dispose() {
                 SLWeb.Release(WebId);
@@ -116,6 +122,30 @@ namespace OneJS.SL {
 #else
             false;
 #endif
+
+        /// <summary>
+        /// True where the VM may draw a program that has no compiled shader.
+        ///
+        /// Off by default. The editor generates a shader the first time it sees
+        /// a program and draws nothing until it exists, and a native player ships
+        /// every program compiled (<see cref="SLShaderRegistry"/>), so nothing
+        /// needs the VM. It stays for one release as a way back: build with
+        /// ONEJS_SL_VM and a program with no compiled shader draws on it, as it
+        /// did before. A WebGL build with ONEJS_SL_WEB_VM keeps it as well, for
+        /// the parity harness. Settable so a test that compares against the VM
+        /// can turn it on; nothing else should.
+        /// </summary>
+        public static bool VmAllowed { get; set; } = VmByDefault;
+
+        const bool VmByDefault =
+#if ONEJS_SL_VM || (UNITY_WEBGL && !UNITY_EDITOR && ONEJS_SL_WEB_VM)
+            true;
+#else
+            false;
+#endif
+
+        /// <summary>How long the editor waits for a shader before saying a program has none.</summary>
+        const float MissingAfterSeconds = 3f;
 
         /// <summary>Why a program cannot run at all here, or null when it can.</summary>
         static string Unrunnable() {
@@ -182,14 +212,54 @@ namespace OneJS.SL {
         }
 
         static readonly HashSet<string> s_WarnedVm = new HashSet<string>();
+        static readonly HashSet<string> s_WarnedMissing = new HashSet<string>();
 
         /// <summary>
-        /// Says, once per program, that a player is drawing it on the VM.
+        /// A program with no compiled shader and no VM to fall back on: it draws
+        /// nothing until one exists. The editor waits for it, because it is
+        /// about to generate one (<see cref="CurrentMaterial"/>); a player never
+        /// will, so it says so now.
+        /// </summary>
+        static void AwaitShader(Compiled c) {
+            if (Application.isEditor) {
+                c.AwaitingSince = Time.realtimeSinceStartup;
+                return;
+            }
+            SayMissing(c.Hash, editor: false);
+        }
+
+        /// <summary>
+        /// Says, once per program, that it has no compiled shader and draws
+        /// nothing. An error in a player, where the build left the program out;
+        /// a warning in the editor, where its shader did not arrive in time and
+        /// still may.
+        /// </summary>
+        static void SayMissing(string hash, bool editor) {
+            if (!s_WarnedMissing.Add(hash ?? "")) return;
+            var name = string.IsNullOrEmpty(hash) ? "(no hash)" : hash;
+            if (editor) {
+                Debug.LogWarning(
+                    $"[OneJS sl] program {name} has no compiled shader yet, so it draws nothing. A program " +
+                    "from a .sl file gets one from the app.sl.json beside its bundle, so build the app again. " +
+                    "A program built in code gets one the first time it is drawn, from the HLSL its host sends.");
+                return;
+            }
+            Debug.LogError(
+                $"[OneJS sl] program {name} has no compiled shader in this player, so it draws nothing. The " +
+                "build compiles every program listed in a *.sl.json manifest: a .sl file is listed in " +
+                "app.sl.json when the app is built, and a program built in code is listed in " +
+                "Assets/OneJS/Recorded.sl.json once the editor has drawn it. Run the app in the editor, then " +
+                "build again. For this release, building with ONEJS_SL_VM draws it on the VM instead.");
+        }
+
+        /// <summary>
+        /// Says, once per program, that a player built with ONEJS_SL_VM is
+        /// drawing it on the VM.
         ///
         /// Once, because a program that falls back does so on every mount, and
         /// a warning per mount buries the one line that says what to do. Only
-        /// in a player: the editor draws a program on the VM while it records
-        /// and generates its shader, which is expected rather than wrong.
+        /// in a player: in the editor the VM draws only where a test or the
+        /// define asked for it.
         /// </summary>
         static void WarnVmFallback(string hash) {
             if (Application.isEditor || !s_WarnedVm.Add(hash ?? "")) return;
@@ -235,8 +305,9 @@ namespace OneJS.SL {
         }
 
         /// <summary>
-        /// Moves every interpreted program whose shader now exists onto it, in
-        /// place, and returns how many moved.
+        /// Moves every program whose shader now exists onto it, and returns how
+        /// many moved: one on the VM in place, one drawing nothing onto a new
+        /// material, which its element picks up through <see cref="CurrentMaterial"/>.
         ///
         /// In place matters: the element renders with the Material object it was
         /// handed, so the shader is swapped on that object rather than a new
@@ -250,7 +321,18 @@ namespace OneJS.SL {
                 if (c.Native || string.IsNullOrEmpty(c.Hash)) continue;
                 var gen = FindGenerated(c.Hash);
                 if (gen == null) continue;
-                c.Material.shader = gen;
+                if (c.Material == null) {
+                    // Nothing was drawing it, since there is no VM here. The
+                    // textures were kept by slot for exactly this, and keep
+                    // their names on the generated shader.
+                    c.Material = new Material(gen) { hideFlags = HideFlags.HideAndDontSave };
+                    for (int t = 0; t < MaxTextures; t++) {
+                        if (c.Textures[t] != null) c.Material.SetTexture(s_TexIds[t], c.Textures[t]);
+                    }
+                } else {
+                    c.Material.shader = gen;
+                }
+                c.AwaitingSince = -1f;
                 c.Native = true;
                 BindUniformIds(c);
                 if (c.UniformIds != null) {
@@ -333,6 +415,10 @@ namespace OneJS.SL {
             } else if (CompiledOnly) {
                 // No material: the page draws it (TryRenderCompiled) once the
                 // host hands over its WGSL and GLSL.
+            } else if (!VmAllowed) {
+                // No material either: nothing draws until the editor has
+                // generated a shader and adopted it.
+                AwaitShader(c);
             } else {
                 if (VmShader == null) {
                     throw new InvalidOperationException(
@@ -411,11 +497,6 @@ namespace OneJS.SL {
                 };
                 return webHandle;
             }
-            if (VmShader == null) {
-                throw new InvalidOperationException(
-                    "[OneJS sl] OneJS/FxProgram.shader is missing from Resources. " +
-                    "Without it a program cannot run at all.");
-            }
             Validate(data, instructionCount, resultRegister);
 
             var c = new Compiled {
@@ -441,6 +522,17 @@ namespace OneJS.SL {
                 return nativeHandle;
             }
 
+            if (!VmAllowed) {
+                AwaitShader(c);
+                int waitingHandle = s_NextHandle++;
+                s_Programs[waitingHandle] = c;
+                return waitingHandle;
+            }
+            if (VmShader == null) {
+                throw new InvalidOperationException(
+                    "[OneJS sl] OneJS/FxProgram.shader is missing from Resources. " +
+                    "Without it a program cannot run at all.");
+            }
             CheckWire(wire);
             WarnVmFallback(hash);
             c.Material = new Material(VmShader);
@@ -538,14 +630,35 @@ namespace OneJS.SL {
         static bool DrawsCompiled(Compiled c) => c.Native || c.DrewCompiled;
 
         /// <summary>
-        /// Sorts every live program's hash into the ones drawing compiled and the
-        /// ones drawing on the VM. For a player build test, which has to assert
-        /// on every program rather than the one it happened to look at.
+        /// Sorts every live program's hash into the ones drawing compiled, the
+        /// ones drawing on the VM and the ones drawing nothing. For a player
+        /// build test, which has to assert on every program rather than the one
+        /// it happened to look at.
         /// </summary>
-        public static void Census(ICollection<string> compiled, ICollection<string> vm) {
+        public static void Census(ICollection<string> compiled, ICollection<string> vm,
+                                  ICollection<string> nothing = null) {
             foreach (var c in s_Programs.Values) {
-                (DrawsCompiled(c) ? compiled : vm)?.Add(c.Hash ?? "");
+                var into = DrawsCompiled(c) ? compiled : c.Material != null ? vm : nothing;
+                into?.Add(c.Hash ?? "");
             }
+        }
+
+        /// <summary>
+        /// The material a program draws with now, or null while it has none.
+        ///
+        /// Asked every frame by the element, because a program with no compiled
+        /// shader gets its material later, when the editor has generated one
+        /// (<see cref="AdoptGenerated"/>). A program the editor has waited on for
+        /// a few seconds says so once, rather than staying blank without a word.
+        /// </summary>
+        public static Material CurrentMaterial(int handle) {
+            if (!s_Programs.TryGetValue(handle, out var c)) return null;
+            if (c.Material == null && c.AwaitingSince >= 0f &&
+                Time.realtimeSinceStartup - c.AwaitingSince > MissingAfterSeconds) {
+                c.AwaitingSince = -1f;
+                SayMissing(c.Hash, editor: true);
+            }
+            return c.Material;
         }
 
         static readonly float[] s_Flat = new float[SLWeb.UniformFloats];

@@ -133,6 +133,8 @@ namespace OneJS {
 
         public string OutputFile => Path.Combine(TempDir, "@outputs", "app.js");
         public string SourceMapFile => OutputFile + ".map";
+        /// <summary>The shader program manifest the build writes beside the bundle, when it has any `.sl` imports.</summary>
+        public string ProgramManifestFile => Path.Combine(TempDir, "@outputs", "app.sl.json");
 
         /// <summary>
         /// Returns true if there's a built bundle available in the serialized field.
@@ -334,9 +336,13 @@ namespace OneJS {
             Directory.CreateDirectory(TempDir);
             Directory.CreateDirectory(Path.Combine(TempDir, "@outputs"));
 
-            // Write package.json (always dynamic: needs _modules list)
+            // Write package.json (always dynamic: needs _modules list). Only
+            // when it changed, because its time is what NeedsNpmInstall reads.
             var packageJson = GetPackageJsonContent();
-            File.WriteAllText(Path.Combine(TempDir, "package.json"), packageJson);
+            var packageJsonPath = Path.Combine(TempDir, "package.json");
+            if (!File.Exists(packageJsonPath) || File.ReadAllText(packageJsonPath) != packageJson) {
+                File.WriteAllText(packageJsonPath, packageJson);
+            }
 
             // Write tsconfig.json (from template if available)
             var tsconfigEntry = _defaultFiles.Find(e => e.path == "tsconfig.json");
@@ -481,6 +487,21 @@ namespace OneJS {
             return Directory.Exists(Path.Combine(TempDir, "node_modules"));
         }
 
+        /// <summary>
+        /// True when node_modules is missing or older than package.json, which
+        /// <see cref="EnsureTempDirectory"/> rewrites only when its content
+        /// changes. Without the second half a pad installed before a dependency
+        /// moved kept building against the old one: a pad from before the `.sl`
+        /// loader kept onejs-unity 0.2, which has none, and every build failed.
+        /// </summary>
+        public bool NeedsNpmInstall() {
+            if (!HasNodeModules()) return true;
+            var lockFile = Path.Combine(TempDir, "node_modules", ".package-lock.json");
+            var packageJson = Path.Combine(TempDir, "package.json");
+            if (!File.Exists(lockFile) || !File.Exists(packageJson)) return true;
+            return File.GetLastWriteTimeUtc(packageJson) > File.GetLastWriteTimeUtc(lockFile);
+        }
+
         void InjectPlatformDefines() {
             CartridgeUtils.InjectPlatformDefines(_bridge);
         }
@@ -528,11 +549,11 @@ namespace OneJS {
       ""dependencies"": {{
         ""react"": ""^19.0.0"",
         ""onejs-react"": ""^0.1.0"",
-        ""onejs-unity"": ""^0.2.0""{additionalDeps}
+        ""onejs-unity"": ""^0.5.15""{additionalDeps}
       }},
       ""devDependencies"": {{
         ""@types/react"": ""^19.0.0"",
-        ""esbuild"": ""^0.24.0"",
+        ""esbuild"": ""^0.28.1"",
         ""typescript"": ""^5.7.0""
       }}
     }}
@@ -561,7 +582,7 @@ namespace OneJS {
             return @"import * as esbuild from 'esbuild';
     import path from 'path';
     import { fileURLToPath } from 'url';
-    import { importTransformPlugin, tailwindPlugin } from 'onejs-unity/esbuild';
+    import { importTransformPlugin, slPlugin, tailwindPlugin } from 'onejs-unity/esbuild';
 
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -586,6 +607,9 @@ namespace OneJS {
       plugins: [
         importTransformPlugin(),
         tailwindPlugin({ content: ['./**/*.{tsx,ts,jsx,js}'] }),
+        // .sl shader programs; writes @outputs/app.sl.json, which the editor
+        // records after each build so the programs compile
+        slPlugin({ generateTypes: false }),
       ],
     });
 

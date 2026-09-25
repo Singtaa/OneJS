@@ -5,7 +5,7 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.4.8"
-  skill-version: "1.5.2"
+  skill-version: "1.5.3"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
@@ -203,7 +203,7 @@ The traps, all of which are refused at build time with a message rather than ren
 - **An `if` becomes a `select`**: both sides are evaluated. `return` inside one is refused, because there is nothing for it to skip. Assign to a local and return it once at the end.
 - **HLSL spellings only.** `mix`, `fract`, `mod` and `vec3` are refused by name, with the HLSL word in the message.
 
-For a program built by code rather than written by hand, `sl.program` records the same graph from TypeScript. No build can see one, so the editor records it the first time it draws it, into `Assets/OneJS/Recorded.sl.json`. Commit that file, or a player built on another machine draws the program on the slower VM and warns with its hash. Full reference: https://onejs.com/docs/guides/shader-language
+For a program built by code rather than written by hand, `sl.program` records the same graph from TypeScript. No build can see one, so the editor records it the first time it draws it, into `Assets/OneJS/Recorded.sl.json`. Until its shader exists, a moment after it first draws, the element is blank. Commit that file, or a player built on another machine draws nothing for that program and logs an error with its hash. Full reference: https://onejs.com/docs/guides/shader-language
 
 ### Workflow: Set up a project without clicking the inspector
 

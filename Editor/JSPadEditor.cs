@@ -765,7 +765,7 @@ namespace OneJS.Editor {
             _target.ExtractCartridges();
 
             // Check if npm install is needed (unless skipped for play mode reload)
-            if (!skipNpmInstall && !_target.HasNodeModules()) {
+            if (!skipNpmInstall && _target.NeedsNpmInstall()) {
                 RunNpmInstall(() => {
                     RunBuild(runAfter);
                 });
@@ -861,6 +861,13 @@ namespace OneJS.Editor {
                             _target.SaveBundleToSerializedFields();
                             // Also cache for Play Mode persistence
                             SaveBundleToCache();
+                            // Before it runs, so a .sl program draws compiled
+                            // from its first frame. Recorded rather than only
+                            // generated: the manifest is under Temp, where a
+                            // player build cannot see it.
+                            if (File.Exists(_target.ProgramManifestFile)) {
+                                SLShaderGenerator.RecordManifest(_target.ProgramManifestFile);
+                            }
                             if (runAfter && Application.isPlaying) {
                                 _target.Reload();
                             }

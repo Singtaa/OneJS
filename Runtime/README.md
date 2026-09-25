@@ -705,11 +705,23 @@ pack them: `Shader.Find` in a player sees only shaders the build packed, and
 before the registry every program in every native player drew on the VM.
 `SLProgramBridge.FindGenerated` looks there first; the editor also falls back to
 `Shader.Find`, because it generates shaders mid session when it records one. A
-program the registry lacks draws on the VM and logs one warning naming its hash.
+program the registry lacks draws nothing and logs one error naming its hash.
 A program built in code is known only once the editor has drawn it, so it ships
 only from the committed `Assets/OneJS/Recorded.sl.json`. `IsCompiled` is true
 for either compiled path, and `Census` sorts every live program by backend,
 which the container's `SLPlayerBuildTests` asserts on in a real player.
+
+**Nothing needs the VM.** In the editor a program with no shader draws nothing:
+`CreateMaterial` returns no material, the host hands its HLSL to the recorder,
+the next editor update generates the shader, and `AdoptGenerated` gives the
+program a material, which `ShaderEffectElement` picks up through
+`SLProgramBridge.CurrentMaterial` on its next tick. A program still waiting after
+a few seconds warns once. A `.sl` program never waits: `JSRunner` raises
+`EditorLoadingBundle` before every editor load, and the generator builds the
+shaders of the app.sl.json beside the bundle first. The VM is kept for one
+release behind `ONEJS_SL_VM` (`SLProgramBridge.VmAllowed`, which tests that
+compare against it set), and `SLVmShaderStripper` leaves it out of every player
+without that define.
 
 Tests: `Tests/ShaderFXTests.cs` (render-target lifecycle against real layout with
 no tick at all, explicit-resolution override, bridge registration, uniform
