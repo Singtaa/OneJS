@@ -125,6 +125,7 @@ Shader "OneJS/FxProgram"
             #define OP_VORONOI 132
             #define OP_TURBULENCE 133
             #define OP_RIDGED 134
+            #define OP_SDF_WIDE 135
 
             #define OP_SAMPLE 144
 
@@ -329,6 +330,9 @@ Shader "OneJS/FxProgram"
                     // argument op leaves free, so all four immediate floats stay
                     // available for the shape's own parameters.
                     else if (op == OP_SDF)        res = sl_sdfDistance(rb, a.xy, imm, float2(0, 0));
+                    // A shape given a fifth or sixth parameter: id and the first two
+                    // in the immediate, the other four in the constant register b.
+                    else if (op == OP_SDF_WIDE)   res = sl_sdfDistance((int)imm.x, a.xy, float4(imm.y, imm.z, b.x, b.y), b.zw);
                     else if (op == OP_VORONOI)    res = sl_voronoi(a.xy);
                     else if (op == OP_SAMPLE)     res = sampleSlot((int)imm.x, a.xy);
 
