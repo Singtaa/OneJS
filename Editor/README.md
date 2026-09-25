@@ -11,6 +11,7 @@ Editor scripts for OneJS Unity integration.
 | `JSRunnerCleanup.cs` | Tracks JSRunner instances for cleanup bookkeeping |
 | `JSPadEditor.cs` | Custom inspector for JSPad inline runner |
 | `JSRunnerBuildProcessor.cs` | Build hook for auto-copying JS bundles |
+| `SLVmShaderStripper.cs` | Strips every variant of the shader language VM (`OneJS/FxProgram`) from a WebGL build, which never draws with it; a build with `ONEJS_SL_WEB_VM` keeps it |
 | `NodeWatcherManager.cs` | Manages Node.js file watcher processes for live reload |
 | `OneJSProcessUtils.cs` | Process helpers (tree-kill on Windows via `taskkill /T /F`, Unix via `pgrep -P`) |
 | `OneJSEditorDesign.cs` | Centralized design tokens (colors, text labels) for editor UIs |

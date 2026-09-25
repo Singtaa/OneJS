@@ -109,6 +109,8 @@ namespace OneJS.ShaderFX {
         /// The caller does not find out, and does not need to.
         /// </summary>
         int _programHandle = -1;
+        bool _compiledAllowed = true;
+        static readonly int s_Res = Shader.PropertyToID("_Res");
 
         /// <returns>
         /// True when the host should follow up with <see cref="RecordProgram"/>:
@@ -120,7 +122,8 @@ namespace OneJS.ShaderFX {
             var data = ToFloats(dataObj);
             // Same program, same everything. Rebuilding would drop the render
             // target and restart the clock on every React render.
-            if (_programHash == hash && _material != null && _isProgram) return false;
+            if (_programHash == hash && _isProgram && _programHandle >= 0 &&
+                (_material != null || SL.SLProgramBridge.HasNoVm(_programHandle))) return false;
             _isProgram = true;
             _programHash = hash;
             _shaderMissing = false;
@@ -133,7 +136,9 @@ namespace OneJS.ShaderFX {
                 _material = SL.SLProgramBridge.CreateMaterial(
                     data, instructionCount, resultRegister, hash,
                     out var native, out _programHandle, ToStrings(uniformNamesObj));
-                _material.hideFlags = HideFlags.HideAndDontSave;
+                // Null in a WebGL player, where the page draws the program.
+                if (_material != null) _material.hideFlags = HideFlags.HideAndDontSave;
+                SL.SLProgramBridge.SetCompiledAllowed(_programHandle, _compiledAllowed);
                 return !native && SL.SLProgramBridge.WantsSource(hash);
             } catch (System.Exception e) {
                 _shaderMissing = true;
@@ -150,6 +155,35 @@ namespace OneJS.ShaderFX {
         public void RecordProgram(string hash, string hlsl) {
             SL.SLProgramBridge.RecordSource(hash, hlsl);
         }
+
+        /// <summary>
+        /// True when <see cref="SetProgramWeb"/> would be used: a WebGL player
+        /// whose page can draw compiled programs. Asked once per program, so a
+        /// host sends the two sources only where they run.
+        /// </summary>
+        public bool WantsWebSource => _programHandle >= 0 && SL.SLWeb.Available;
+
+        /// <summary>
+        /// The program as WGSL and GLSL ES. A WebGL player compiles the one its
+        /// device speaks and draws it instead of the VM, once it is ready; the
+        /// VM draws until then, and for good if it fails to compile.
+        /// </summary>
+        public void SetProgramWeb(string wgsl, string glsl) {
+            if (_programHandle < 0) return;
+            SL.SLProgramBridge.SetWebSource(_programHandle, wgsl, glsl);
+        }
+
+        /// <summary>
+        /// False keeps the program on the VM even where it could run compiled.
+        /// For comparing the two; nothing else should need it.
+        /// </summary>
+        public void SetCompiled(bool allowed) {
+            _compiledAllowed = allowed;
+            if (_programHandle >= 0) SL.SLProgramBridge.SetCompiledAllowed(_programHandle, allowed);
+        }
+
+        /// <summary>True when the last frame was drawn by the compiled program rather than the VM.</summary>
+        public bool IsCompiled => _programHandle >= 0 && SL.SLProgramBridge.IsCompiled(_programHandle);
 
         /// <summary>
         /// Sets one of the program's uniforms, by the slot the encoder gave it.
@@ -266,7 +300,7 @@ namespace OneJS.ShaderFX {
         /// <summary>Resets the effect clock, so a restarted effect looks the same every time.</summary>
         public void ResetTime() => _seconds = 0f;
 
-        public bool IsReady => _material != null && _rt != null;
+        public bool IsReady => (_material != null || (_isProgram && SL.SLProgramBridge.HasNoVm(_programHandle))) && _rt != null;
         public int RenderWidth => _rtW;
         public int RenderHeight => _rtH;
 
@@ -280,16 +314,31 @@ namespace OneJS.ShaderFX {
             if (!EnsureTarget()) return;
 
             _seconds += dt;
+            // Compiled where the page can compile it (a WebGL player), into the
+            // same target at the same point in the frame the VM would draw.
+            if (_isProgram && SL.SLProgramBridge.TryRenderCompiled(_programHandle, _rt, _seconds)) {
+                MarkDirtyRepaint();
+                return;
+            }
+            // No VM here and the page has not compiled it yet: nothing to draw
+            // this frame, and the target was cleared when it was made.
+            if (_material == null) return;
             _material.SetFloat("_Secs", _seconds);
-            // Render-target UV origin differs across graphics APIs; correct it here
-            // so a shader can always treat uv.y = 0 as the BOTTOM of the element and
-            // never care which API it is running on. Verified visually on D3D11,
-            // where graphicsUVStartsAtTop is true and no flip is what reads upright.
-            _material.SetFloat("_FlipY", SystemInfo.graphicsUVStartsAtTop ? 0f : 1f);
+            // Never flipped. A Blit into a render target already puts v = 0 on
+            // texel row 0 on every API, and UI Toolkit shows that row at the
+            // bottom, so uv.y = 0 is the BOTTOM of the element everywhere. This
+            // used to flip wherever graphicsUVStartsAtTop is false, which drew
+            // every effect upside down on WebGL2 (#127) while D3D, Metal and
+            // WebGPU looked right. FxBridge has always blitted with 0.
+            _material.SetFloat("_FlipY", 0f);
             // SDF shapes are drawn in a centred, aspect corrected space so a circle
             // stays round on a non square element. Without this every shape stretches
             // with the element, which is fine for a noise field and wrong for an outline.
             _material.SetFloat("_Aspect", _rtH > 0 ? _rtW / (float)_rtH : 1f);
+            // A program's resolution, fragCoord and aspect inputs read the
+            // target size from _Res. Nothing set it here, so every program in
+            // an element saw a 1x1 target: aspect 1, fragCoord equal to uv.
+            if (_isProgram) _material.SetVector(s_Res, new Vector4(_rtW, _rtH, 0f, 0f));
 
             foreach (var kv in _floats) _material.SetFloat(kv.Key, kv.Value);
             foreach (var kv in _vectors) _material.SetVector(kv.Key, kv.Value);
@@ -309,8 +358,9 @@ namespace OneJS.ShaderFX {
         bool EnsureMaterial() {
             if (_material != null) return true;
             // A program builds its own material in SetProgram, so reaching here
-            // with one set means that failed and already said why.
-            if (_isProgram) return false;
+            // with none means that failed and already said why, or that there
+            // is no VM and the page draws it.
+            if (_isProgram) return _programHandle >= 0 && SL.SLProgramBridge.HasNoVm(_programHandle);
             var shader = Resources.Load<Shader>(_shaderName);
             if (shader == null || !shader.isSupported) {
                 _shaderMissing = true;
@@ -359,6 +409,12 @@ namespace OneJS.ShaderFX {
                 filterMode = FilterMode.Bilinear,
             };
             _rt.Create();
+            // A new target's contents are undefined, and a program drawn only
+            // compiled leaves it untouched until the page has compiled it.
+            var active = RenderTexture.active;
+            RenderTexture.active = _rt;
+            GL.Clear(false, true, Color.clear);
+            RenderTexture.active = active;
             _rtW = w;
             _rtH = h;
             style.backgroundImage = new StyleBackground(Background.FromRenderTexture(_rt));

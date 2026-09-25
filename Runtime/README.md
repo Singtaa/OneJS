@@ -36,6 +36,8 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `Particles/ParticleBridge.cs` | JS entry (`Create`), live-system registry, `TickAll` (driven from QuickJSUIBridge.Tick) |
 | `Particles/ParticleWire.cs` | Versioned wire schema + validation (the C#-JS contract; parity with onejs-react particles.test.ts) |
 | `ShaderFX/ShaderEffectElement.cs` | Runs a shader into an element's `backgroundImage` via a per-frame blit to a RenderTexture |
+| `SL/SLProgramBridge.cs` | Shader language programs: uploads the VM's encoded buffer, or finds a shader generated from the same program; uniforms and textures by slot |
+| `SL/SLWeb.cs` | Compiled programs in a WebGL player, through `Plugins/WebGL/OneJSSLWeb.jslib`; `Describe()` is the startup handle check |
 | `ShaderFX/ShaderEffectBridge.cs` | Live-effect registry, `TickAll` (driven from QuickJSUIBridge.Tick), built-in procedural textures and ramp cache |
 | `NodeBridge.cs` | Zero-alloc tree wiring (Add/Insert/RemoveFromHierarchy) by element handle. Add/Insert log an error on an unresolvable handle; detach stays a tolerant no-op |
 | `GPU/GPUBridge.cs` | Compute shader API for JavaScript |
@@ -676,6 +678,24 @@ tick is fine in play mode but not in edit-mode preview, where
 gap stretches from a frame to seconds and every hot reload reads as a broken
 effect. `ShaderEffectElement` therefore also paints from `GeometryChangedEvent`,
 guarded against re-entrancy (assigning `backgroundImage` re-dirties layout).
+
+**A program runs compiled in a browser.** A WebGL player cannot compile a
+shader either, but its page can: a program arrives with WGSL and GLSL ES printed
+by onejs-unity, `SLProgramBridge.SetWebSource` hands them to
+`Plugins/WebGL/OneJSSLWeb.jslib`, and `Tick` draws the compiled program into
+the same target, at the same point in the frame, where it would otherwise blit
+the VM. A WebGL player has no VM for programs (`SLProgramBridge.CompiledOnly`):
+an element draws nothing until the browser has compiled its program, a compile
+error is logged once by the host, and a page that cannot compile at all throws
+when the program is made. Building with the `ONEJS_SL_WEB_VM` define keeps the
+VM as the fallback, which the parity harness needs. The host reads three handles private to
+Unity's framework (`GL.textures`, `Module.WebGPU.device`, lib_webgpu's `wgpu`
+table); `SLWeb.Describe()` checks all three on first use and reports
+"unavailable" rather than drawing wrong, and the Play container's smoke test
+prints it, so a Unity upgrade that renames one is caught there.
+In such a build `SetCompiled(false)` keeps an element on the VM, which is how
+the two are compared (`Tools/sl-web-parity` in the container). The native
+player keeps the VM.
 
 Tests: `Tests/ShaderFXTests.cs` (render-target lifecycle against real layout with
 no tick at all, explicit-resolution override, bridge registration, uniform
