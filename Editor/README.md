@@ -11,9 +11,9 @@ Editor scripts for OneJS Unity integration.
 | `JSRunnerCleanup.cs` | Tracks JSRunner instances for cleanup bookkeeping |
 | `JSPadEditor.cs` | Custom inspector for JSPad inline runner |
 | `JSRunnerBuildProcessor.cs` | Build hook for auto-copying JS bundles |
-| `SLShaderGenerator.cs` | Turns `*.sl.json` manifests into generated shaders, records programs the editor draws into `Assets/OneJS/Recorded.sl.json`, and holds `SLShaderBuildStep`, which ships every program compiled in a native player through `SLShaderRegistry` |
+| `SLShaderGenerator.cs` | Turns `*.sl.json` manifests into generated shaders, records programs the editor draws into `Assets/OneJS/Recorded.sl.json` on the next editor update, generates from the manifest beside a bundle before every load (`JSRunner.EditorLoadingBundle`), records JSPad's manifest after its build, and holds `SLShaderBuildStep`, which ships every program compiled in a native player through `SLShaderRegistry` |
 | `OneJSLinkXmlProcessor.cs` | Hands the linker `Plugins/link.xml` when OneJS is a package, since Unity reads a link.xml only under `Assets/`; without it IL2CPP strips the UI Toolkit internals OneJS reflects on |
-| `SLVmShaderStripper.cs` | Strips every variant of the shader language VM (`OneJS/FxProgram`) from a WebGL build, which never draws with it; a build with `ONEJS_SL_WEB_VM` keeps it |
+| `SLVmShaderStripper.cs` | Strips every variant of the shader language VM (`OneJS/FxProgram`) from every player, which never draws with it; a native build with `ONEJS_SL_VM` keeps it, and so does a WebGL build with `ONEJS_SL_WEB_VM` |
 | `NodeWatcherManager.cs` | Manages Node.js file watcher processes for live reload |
 | `OneJSProcessUtils.cs` | Process helpers (tree-kill on Windows via `taskkill /T /F`, Unix via `pgrep -P`) |
 | `OneJSEditorDesign.cs` | Centralized design tokens (colors, text labels) for editor UIs |

@@ -104,9 +104,9 @@ namespace OneJS.ShaderFX {
         /// it rather than getting a parallel element with the same machinery and
         /// its own bugs.
         ///
-        /// Which backend runs is decided by SLProgramBridge: a shader generated
-        /// from this program if the project has one, the interpreter otherwise.
-        /// The caller does not find out, and does not need to.
+        /// SLProgramBridge finds the shader generated from this program. Until
+        /// one exists the element draws nothing; the editor generates it the
+        /// first time it sees the program, and a player ships it.
         /// </summary>
         int _programHandle = -1;
         bool _compiledAllowed = true;
@@ -114,8 +114,8 @@ namespace OneJS.ShaderFX {
 
         /// <returns>
         /// True when the host should follow up with <see cref="RecordProgram"/>:
-        /// the program was interpreted and an editor is attached that can
-        /// compile it. False everywhere else, so JS never emits HLSL in Play.
+        /// the program has no compiled shader and an editor is attached that can
+        /// generate one. False everywhere else, so JS never emits HLSL in Play.
         /// </returns>
         public bool SetProgram(object dataObj, int instructionCount, int resultRegister, string hash,
                                object uniformNamesObj = null, int wire = 1) {
@@ -320,8 +320,11 @@ namespace OneJS.ShaderFX {
                 MarkDirtyRepaint();
                 return;
             }
-            // No VM here and the page has not compiled it yet: nothing to draw
-            // this frame, and the target was cleared when it was made.
+            // A program with no compiled shader yet has no material, and gets one
+            // when the editor has generated it, so it is asked for every frame
+            // until then. Nothing to draw meanwhile: there is no VM, and the
+            // target was cleared when it was made.
+            if (_material == null && _isProgram) _material = SL.SLProgramBridge.CurrentMaterial(_programHandle);
             if (_material == null) return;
             _material.SetFloat("_Secs", _seconds);
             // Never flipped. A Blit into a render target already puts v = 0 on

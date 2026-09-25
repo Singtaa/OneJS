@@ -1,3 +1,11 @@
+# Unreleased
+
+- A native player missing a program's shader draws nothing and logs one error naming its hash, instead of running the VM
+- The editor compiles a shader program the first time it draws it, and draws nothing until then instead of running the VM
+- Every load of an app generates the shaders for its `.sl` files before it runs
+- JSPad loads `.sl` files
+- The shader language VM is off, and left out of every player, unless `ONEJS_SL_VM` is defined
+
 # [2026-09-27] v3.5.1
 
 A default file you delete from a project now stays deleted, and the inspector's lists remove the entry you clicked after an undo. A horizontal slider stays centred beside its label when its height is restyled.
