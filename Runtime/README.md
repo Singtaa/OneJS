@@ -37,6 +37,7 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `Particles/ParticleWire.cs` | Versioned wire schema + validation (the C#-JS contract; parity with onejs-react particles.test.ts) |
 | `ShaderFX/ShaderEffectElement.cs` | Runs a shader into an element's `backgroundImage` via a per-frame blit to a RenderTexture |
 | `SL/SLProgramBridge.cs` | Shader language programs: uploads the VM's encoded buffer, or finds a shader generated from the same program; uniforms and textures by slot |
+| `SL/SLShaderRegistry.cs` | Every generated shader by program hash, as the Resources asset a native build writes so the player packs them |
 | `SL/SLWeb.cs` | Compiled programs in a WebGL player, through `Plugins/WebGL/OneJSSLWeb.jslib`; `Describe()` is the startup handle check |
 | `ShaderFX/ShaderEffectBridge.cs` | Live-effect registry, `TickAll` (driven from QuickJSUIBridge.Tick), built-in procedural textures and ramp cache |
 | `NodeBridge.cs` | Zero-alloc tree wiring (Add/Insert/RemoveFromHierarchy) by element handle. Add/Insert log an error on an unresolvable handle; detach stays a tolerant no-op |
@@ -694,8 +695,21 @@ table); `SLWeb.Describe()` checks all three on first use and reports
 "unavailable" rather than drawing wrong, and the Play container's smoke test
 prints it, so a Unity upgrade that renames one is caught there.
 In such a build `SetCompiled(false)` keeps an element on the VM, which is how
-the two are compared (`Tools/sl-web-parity` in the container). The native
-player keeps the VM.
+the two are compared (`Tools/sl-web-parity` in the container).
+
+**A native player runs a program compiled too.** At the start of every native
+build `SLShaderBuildStep` (in the editor assembly) generates a shader for every
+program in every `*.sl.json` manifest and writes `SLShaderRegistry` to
+`Assets/OneJS.Generated/Resources/OneJS/`. The registry is what makes the build
+pack them: `Shader.Find` in a player sees only shaders the build packed, and
+before the registry every program in every native player drew on the VM.
+`SLProgramBridge.FindGenerated` looks there first; the editor also falls back to
+`Shader.Find`, because it generates shaders mid session when it records one. A
+program the registry lacks draws on the VM and logs one warning naming its hash.
+A program built in code is known only once the editor has drawn it, so it ships
+only from the committed `Assets/OneJS/Recorded.sl.json`. `IsCompiled` is true
+for either compiled path, and `Census` sorts every live program by backend,
+which the container's `SLPlayerBuildTests` asserts on in a real player.
 
 Tests: `Tests/ShaderFXTests.cs` (render-target lifecycle against real layout with
 no tick at all, explicit-resolution override, bridge registration, uniform

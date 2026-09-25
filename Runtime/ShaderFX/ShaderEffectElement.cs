@@ -182,7 +182,7 @@ namespace OneJS.ShaderFX {
             if (_programHandle >= 0) SL.SLProgramBridge.SetCompiledAllowed(_programHandle, allowed);
         }
 
-        /// <summary>True when the last frame was drawn by the compiled program rather than the VM.</summary>
+        /// <summary>True when the program draws compiled, through a generated shader or the page, rather than on the VM.</summary>
         public bool IsCompiled => _programHandle >= 0 && SL.SLProgramBridge.IsCompiled(_programHandle);
 
         /// <summary>
