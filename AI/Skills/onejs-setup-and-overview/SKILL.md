@@ -5,14 +5,14 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.4.8"
-  skill-version: "1.5.0"
+  skill-version: "1.5.1"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-09-23"
+  last-verified: "2026-09-25"
 ---
 
 # Set Up a OneJS Project
@@ -201,7 +201,6 @@ The traps, all of which are refused at build time with a message rather than ren
 - **Eight values live at once, and 256 instructions.** These are the interpreter's, and they are real: a fire with a texture, a three iteration loop and a four stop ramp uses all eight registers. A ninth is an error naming the limit.
 - **A `for` loop unrolls**, so its bound has to be a constant. There is no loop on either backend.
 - **An `if` becomes a `select`**: both sides are evaluated. `return` inside one is refused, because there is nothing for it to skip. Assign to a local and return it once at the end.
-- **Swizzles are read only.** Build a new value rather than assigning into `p.x`.
 - **HLSL spellings only.** `mix`, `fract`, `mod` and `vec3` are refused by name, with the HLSL word in the message.
 
 For a program built by code rather than written by hand, `sl.program` records the same graph from TypeScript. Full reference: https://onejs.com/docs/guides/shader-language
