@@ -323,16 +323,29 @@ Shader "OneJS/FxProgram"
                     else if (op == OP_HSV2RGB)    res = float4(sl_hsv2rgb(a.xyz), 1);
                     else if (op == OP_NOISE)      res = sl_valueNoise(a.xy);
                     else if (op == OP_SIMPLEX)    res = sl_simplex(a.xy);
+                    // Three calls, unlike the shapes below. Folded into one with the
+                    // kind chosen at run time, cov-noise drew wrong on WebGL2 on a
+                    // Mac (115/255 off) while WebGPU matched, though the source
+                    // meant the same thing.
                     else if (op == OP_FBM)        res = sl_fbm(a.xy, (int)imm.x, (int)imm.y);
                     else if (op == OP_TURBULENCE) res = sl_fbm(a.xy, (int)imm.x, 2);
                     else if (op == OP_RIDGED)     res = sl_fbm(a.xy, (int)imm.x, 3);
-                    // The shape id rides in the b operand slot, which a one
-                    // argument op leaves free, so all four immediate floats stay
-                    // available for the shape's own parameters.
-                    else if (op == OP_SDF)        res = sl_sdfDistance(rb, a.xy, imm, float2(0, 0));
-                    // A shape given a fifth or sixth parameter: id and the first two
-                    // in the immediate, the other four in the constant register b.
-                    else if (op == OP_SDF_WIDE)   res = sl_sdfDistance((int)imm.x, a.xy, float4(imm.y, imm.z, b.x, b.y), b.zw);
+                    // One call for both forms: the compiler inlines every call
+                    // site, and a second call to the 42 shape dispatcher made the
+                    // WebGL shader 75% larger and ANGLE's D3D compile of it 2.4
+                    // times slower.
+                    else if (op == OP_SDF || op == OP_SDF_WIDE)
+                    {
+                        // The plain form: the shape id rides in the b operand
+                        // slot, which a one argument op leaves free, so all four
+                        // immediate floats stay the shape's own parameters. A
+                        // shape given a fifth or sixth parameter: id and the
+                        // first two in the immediate, the other four in the
+                        // constant register b.
+                        bool wide = op == OP_SDF_WIDE;
+                        res = sl_sdfDistance(wide ? (int)imm.x : rb, a.xy,
+                            wide ? float4(imm.y, imm.z, b.x, b.y) : imm, wide ? b.zw : float2(0, 0));
+                    }
                     else if (op == OP_VORONOI)    res = sl_voronoi(a.xy);
                     else if (op == OP_SAMPLE)     res = sampleSlot((int)imm.x, a.xy);
 
