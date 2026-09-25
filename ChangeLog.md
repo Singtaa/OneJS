@@ -1,6 +1,9 @@
-# Unreleased
+# [2026-09-25] v3.5.0
+
+Shader programs now run as real compiled shaders in every player, native and WebGL, instead of on an interpreter. Bump `onejs-react` and `onejs-unity` in an existing project, or its shader programs will not draw in a WebGL build, and commit `Assets/OneJS/Recorded.sl.json` if you build programs in code.
 
 - Native players draw shader language programs compiled instead of on the VM
+- A WebGL build of a Package Manager install no longer fails at start with a stripped type
 - A program with no compiled shader in a native player falls back to the VM and warns once, naming its hash
 - Programs built in code are recorded into `Assets/OneJS/Recorded.sl.json`, which a project commits
 - Shader language programs run compiled on WebGL2 and WebGPU, and the VM no longer runs them in a WebGL player
