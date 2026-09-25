@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
+using UnityEditor.Build;
+using UnityEditor.Build.Reporting;
 using OneJS.SL;
 using UnityEngine;
 
@@ -31,12 +33,30 @@ namespace OneJS.Editor {
     /// with nobody writing a file by hand. An app can still ship its own
     /// manifest (`manifest()` in onejs-unity/sl) beside its bundle; both are
     /// read.
+    ///
+    /// A player gets the same shaders from <see cref="SLShaderBuildStep"/>,
+    /// which generates from every manifest again and writes the registry that
+    /// makes the build pack them (<see cref="SLShaderRegistry"/>).
     /// </summary>
     public static class SLShaderGenerator {
-        /// <summary>Where generated shaders go. Deliberately NOT a Resources folder.</summary>
+        /// <summary>
+        /// Where generated shaders go. Deliberately NOT a Resources folder: a
+        /// player ships only the ones the registry names, not every shader an
+        /// editor ever generated. Derived from the manifests, so a project need
+        /// not commit it.
+        /// </summary>
         public const string OutputDir = "Assets/OneJS.Generated/Shaders";
-        /// <summary>The manifest the running app writes, one entry per program it interpreted.</summary>
-        public const string RecordedManifest = OutputDir + "/Recorded.sl.json";
+        /// <summary>
+        /// The manifest the running app writes, one entry per program it
+        /// interpreted. Outside <see cref="OutputDir"/> because it is a source,
+        /// not a product: a program built in code is known only from this file,
+        /// so it has to be committed for a teammate's build or CI to ship it.
+        /// </summary>
+        public const string RecordedManifest = "Assets/OneJS/Recorded.sl.json";
+        /// <summary>Where <see cref="RecordedManifest"/> lived before, inside the folder projects ignore.</summary>
+        public const string LegacyRecordedManifest = OutputDir + "/Recorded.sl.json";
+        /// <summary>The registry a player loads its generated shaders from (<see cref="SLShaderRegistry"/>).</summary>
+        public const string RegistryAsset = "Assets/OneJS.Generated/Resources/" + SLShaderRegistry.ResourcePath + ".asset";
         /// <summary>The include every generated shader starts from.</summary>
         public const string RootInclude = "SLCommon.cginc";
         const string PackageDir = "Packages/com.singtaa.onejs/Resources/OneJS";
@@ -135,35 +155,15 @@ namespace OneJS.Editor {
             var pending = new Dictionary<string, string>(s_Pending);
             s_Pending.Clear();
 
-            var root = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
-            var file = Path.Combine(root, RecordedManifest.Replace('/', Path.DirectorySeparatorChar));
-            var entries = new Dictionary<string, string>();
-            if (File.Exists(file)) {
-                try {
-                    var existing = JsonUtility.FromJson<Manifest>(File.ReadAllText(file));
-                    if (existing?.programs != null) {
-                        foreach (var e in existing.programs) {
-                            if (!string.IsNullOrEmpty(e.hash) && !string.IsNullOrEmpty(e.hlsl)) entries[e.hash] = e.hlsl;
-                        }
-                    }
-                } catch (Exception e) {
-                    Debug.LogWarning($"[OneJS sl] rewriting an unreadable {RecordedManifest}: {e.Message}");
-                }
-            }
+            MigrateRecorded();
+            var entries = ReadEntries(RecordedManifest);
             int added = 0;
             foreach (var kv in pending) {
                 if (entries.ContainsKey(kv.Key)) continue;
                 entries[kv.Key] = kv.Value;
                 added++;
             }
-            if (added > 0) {
-                // Sorted by hash so the file does not churn with run order.
-                var list = new List<Entry>();
-                foreach (var kv in entries) list.Add(new Entry { hash = kv.Key, hlsl = kv.Value });
-                list.Sort((a, b) => string.CompareOrdinal(a.hash, b.hash));
-                Directory.CreateDirectory(Path.GetDirectoryName(file));
-                CopyTextIfDifferent(JsonUtility.ToJson(new Manifest { programs = list.ToArray() }, true), file);
-            }
+            if (added > 0) WriteEntries(RecordedManifest, entries);
             Generate(FindManifests());
             int adopted = SLProgramBridge.AdoptGenerated();
             if (added > 0) {
@@ -171,6 +171,56 @@ namespace OneJS.Editor {
                           $"{RecordedManifest}; {adopted} now running compiled.");
             }
             return added;
+        }
+
+        /// <summary>
+        /// Moves a recorded manifest from where older versions wrote it, inside
+        /// the ignored folder, to <see cref="RecordedManifest"/>, merging when
+        /// both exist. Returns true when there was one to move.
+        /// </summary>
+        public static bool MigrateRecorded() {
+            if (!File.Exists(Abs(LegacyRecordedManifest))) return false;
+            var entries = ReadEntries(RecordedManifest);
+            foreach (var kv in ReadEntries(LegacyRecordedManifest)) {
+                if (!entries.ContainsKey(kv.Key)) entries[kv.Key] = kv.Value;
+            }
+            WriteEntries(RecordedManifest, entries);
+            if (!AssetDatabase.DeleteAsset(LegacyRecordedManifest)) File.Delete(Abs(LegacyRecordedManifest));
+            AssetDatabase.ImportAsset(RecordedManifest, ImportAssetOptions.ForceSynchronousImport);
+            Debug.Log($"[OneJS sl] moved {LegacyRecordedManifest} to {RecordedManifest}, where it can be committed " +
+                      "so every build of this project ships the programs it lists.");
+            return true;
+        }
+
+        static string Abs(string assetPath) =>
+            Path.Combine(Path.GetFullPath(Path.Combine(Application.dataPath, "..")),
+                assetPath.Replace('/', Path.DirectorySeparatorChar));
+
+        static Dictionary<string, string> ReadEntries(string assetPath) {
+            var entries = new Dictionary<string, string>();
+            var file = Abs(assetPath);
+            if (!File.Exists(file)) return entries;
+            try {
+                var existing = JsonUtility.FromJson<Manifest>(File.ReadAllText(file));
+                if (existing?.programs != null) {
+                    foreach (var e in existing.programs) {
+                        if (!string.IsNullOrEmpty(e.hash) && !string.IsNullOrEmpty(e.hlsl)) entries[e.hash] = e.hlsl;
+                    }
+                }
+            } catch (Exception e) {
+                Debug.LogWarning($"[OneJS sl] rewriting an unreadable {assetPath}: {e.Message}");
+            }
+            return entries;
+        }
+
+        static void WriteEntries(string assetPath, Dictionary<string, string> entries) {
+            // Sorted by hash so the file does not churn with run order.
+            var list = new List<Entry>();
+            foreach (var kv in entries) list.Add(new Entry { hash = kv.Key, hlsl = kv.Value });
+            list.Sort((a, b) => string.CompareOrdinal(a.hash, b.hash));
+            var file = Abs(assetPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(file));
+            CopyTextIfDifferent(JsonUtility.ToJson(new Manifest { programs = list.ToArray() }, true), file);
         }
 
         public static string[] FindManifests() {
@@ -197,8 +247,11 @@ namespace OneJS.Editor {
         /// on a project with many programs turns every import into a stall for
         /// no change at all.
         /// </summary>
-        public static int Generate(string[] manifestPaths) {
-            if (manifestPaths.Length == 0) return 0;
+        public static int Generate(string[] manifestPaths) => GenerateHashes(manifestPaths).Length;
+
+        /// <summary>The same, returning the hash of every program, sorted.</summary>
+        public static string[] GenerateHashes(string[] manifestPaths) {
+            if (manifestPaths.Length == 0) return new string[0];
             var root = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
             var outAbs = Path.Combine(root, OutputDir.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(outAbs);
@@ -214,7 +267,7 @@ namespace OneJS.Editor {
                     Debug.LogError(
                         $"[OneJS sl] {inc} is missing, so generated shaders cannot compile and would " +
                         "render magenta. A program would run on the site and break after an eject.");
-                    return 0;
+                    return new string[0];
                 }
                 CopyIfDifferent(from, Path.Combine(outAbs, inc));
             }
@@ -240,7 +293,62 @@ namespace OneJS.Editor {
             }
 
             if (count > 0) AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-            return seen.Count;
+            var hashes = new List<string>(seen);
+            hashes.Sort(string.CompareOrdinal);
+            return hashes.ToArray();
+        }
+
+        // MARK: the registry a player loads
+
+        /// <summary>
+        /// Writes <see cref="RegistryAsset"/> naming the generated shader of each
+        /// program, and returns how many it names.
+        ///
+        /// A shader that did not import, or imported with errors, is left out and
+        /// said so: a player then draws that program on the VM, which is slower
+        /// and still right, where a registered broken shader would draw magenta.
+        /// </summary>
+        public static int WriteRegistry(IEnumerable<string> hashes) {
+            var entries = new List<SLShaderRegistry.Entry>();
+            foreach (var hash in hashes) {
+                var path = OutputDir + "/" + hash + ".shader";
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(path);
+                if (shader == null && File.Exists(Abs(path))) {
+                    AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport);
+                    shader = AssetDatabase.LoadAssetAtPath<Shader>(path);
+                }
+                if (shader == null) {
+                    Debug.LogError($"[OneJS sl] {path} did not import, so program {hash} draws on the VM in this player.");
+                    continue;
+                }
+                if (ShaderUtil.ShaderHasError(shader)) {
+                    Debug.LogError($"[OneJS sl] {path} has compile errors, so program {hash} draws on the VM in this " +
+                                   "player. Select the shader to see them.");
+                    continue;
+                }
+                entries.Add(new SLShaderRegistry.Entry { hash = hash, shader = shader });
+            }
+            entries.Sort((a, b) => string.CompareOrdinal(a.hash, b.hash));
+
+            var registry = AssetDatabase.LoadAssetAtPath<SLShaderRegistry>(RegistryAsset);
+            if (registry == null) {
+                Directory.CreateDirectory(Path.GetDirectoryName(Abs(RegistryAsset)));
+                registry = ScriptableObject.CreateInstance<SLShaderRegistry>();
+                registry.SetEntries(entries.ToArray());
+                AssetDatabase.CreateAsset(registry, RegistryAsset);
+            } else {
+                registry.SetEntries(entries.ToArray());
+                EditorUtility.SetDirty(registry);
+            }
+            AssetDatabase.SaveAssetIfDirty(registry);
+            SLProgramBridge.ReloadRegistry();
+            return entries.Count;
+        }
+
+        /// <summary>Removes the registry, so a build packs no generated shader.</summary>
+        public static void DeleteRegistry() {
+            if (File.Exists(Abs(RegistryAsset))) AssetDatabase.DeleteAsset(RegistryAsset);
+            SLProgramBridge.ReloadRegistry();
         }
 
         static void CopyIfDifferent(string from, string to) {
@@ -251,6 +359,46 @@ namespace OneJS.Editor {
             if (File.Exists(to) && File.ReadAllText(to) == text) return false;
             File.WriteAllText(to, text);
             return true;
+        }
+    }
+
+    /// <summary>
+    /// Ships a compiled shader for every program the project knows in each
+    /// native player.
+    ///
+    /// Generates from every `*.sl.json` again rather than trusting what the
+    /// editor last left in <see cref="SLShaderGenerator.OutputDir"/>, because a
+    /// clean checkout or a CI machine has none of it: the manifests are the
+    /// source, and the shaders and the registry are rebuilt from them here.
+    ///
+    /// Not for WebGL, which draws programs compiled by the page
+    /// (<see cref="SLProgramBridge.CompiledOnly"/>): there the registry is
+    /// removed, so the build packs no generated shader and that path is
+    /// unchanged.
+    /// </summary>
+    public class SLShaderBuildStep : IPreprocessBuildWithReport {
+        // After JSRunnerBuildProcessor's 0, which copies app bundles, although
+        // nothing here reads what it writes.
+        public int callbackOrder => 1;
+
+        public void OnPreprocessBuild(BuildReport report) => Prepare(report.summary.platform);
+
+        /// <summary>
+        /// What a build for `target` does, callable without one. Returns how many
+        /// programs the registry names: 0 for WebGL, which gets none.
+        /// </summary>
+        public static int Prepare(BuildTarget target) {
+            if (target == BuildTarget.WebGL) {
+                SLShaderGenerator.DeleteRegistry();
+                return 0;
+            }
+            SLShaderGenerator.MigrateRecorded();
+            var manifests = SLShaderGenerator.FindManifests();
+            var hashes = SLShaderGenerator.GenerateHashes(manifests);
+            int shipped = SLShaderGenerator.WriteRegistry(hashes);
+            Debug.Log($"[OneJS sl] {shipped} of {hashes.Length} shader program{(hashes.Length == 1 ? "" : "s")} " +
+                      $"from {manifests.Length} manifest{(manifests.Length == 1 ? "" : "s")} ship compiled in this player.");
+            return shipped;
         }
     }
 

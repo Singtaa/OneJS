@@ -150,6 +150,57 @@ namespace OneJS.SL {
         /// </summary>
         public static string GeneratedShaderName(string hash) => "Hidden/SLGenerated/" + hash;
 
+        static SLShaderRegistry s_Registry;
+        static bool s_RegistryLoaded;
+
+        /// <summary>
+        /// The shader generated from a program, or null when there is none.
+        ///
+        /// The registry first, because it is the only way a player has one: the
+        /// build packs every generated shader through it (<see cref="SLShaderRegistry"/>),
+        /// and `Shader.Find` alone found nothing there. The editor also falls
+        /// back to `Shader.Find`, since it generates shaders mid session, when
+        /// it records a program, and the registry is written only by a build.
+        /// </summary>
+        public static Shader FindGenerated(string hash) {
+            if (string.IsNullOrEmpty(hash)) return null;
+            if (!s_RegistryLoaded) {
+                s_Registry = Resources.Load<SLShaderRegistry>(SLShaderRegistry.ResourcePath);
+                s_RegistryLoaded = true;
+            }
+            var shader = s_Registry != null ? s_Registry.Find(hash) : null;
+#if UNITY_EDITOR
+            if (shader == null) shader = Shader.Find(GeneratedShaderName(hash));
+#endif
+            return shader;
+        }
+
+        /// <summary>Loads the registry again on the next lookup. For the build step and tests, which rewrite it.</summary>
+        public static void ReloadRegistry() {
+            s_Registry = null;
+            s_RegistryLoaded = false;
+        }
+
+        static readonly HashSet<string> s_WarnedVm = new HashSet<string>();
+
+        /// <summary>
+        /// Says, once per program, that a player is drawing it on the VM.
+        ///
+        /// Once, because a program that falls back does so on every mount, and
+        /// a warning per mount buries the one line that says what to do. Only
+        /// in a player: the editor draws a program on the VM while it records
+        /// and generates its shader, which is expected rather than wrong.
+        /// </summary>
+        static void WarnVmFallback(string hash) {
+            if (Application.isEditor || !s_WarnedVm.Add(hash ?? "")) return;
+            Debug.LogWarning(
+                $"[OneJS sl] program {(string.IsNullOrEmpty(hash) ? "(no hash)" : hash)} has no compiled shader " +
+                "in this player, so it draws on the VM, which is slower. The build compiles every program " +
+                "listed in a *.sl.json manifest: a .sl file is listed in app.sl.json when the app is built, " +
+                "and a program built in code is listed in Assets/OneJS/Recorded.sl.json once the editor has " +
+                "drawn it. Run the app in the editor, then build again.");
+        }
+
         /// <summary>
         /// True when a compiled shader exists for this program.
         ///
@@ -176,7 +227,7 @@ namespace OneJS.SL {
 
         /// <summary>True when a recorder is attached and this hash has no compiled shader.</summary>
         public static bool WantsSource(string hash) =>
-            SourceRecorder != null && !string.IsNullOrEmpty(hash) && Shader.Find(GeneratedShaderName(hash)) == null;
+            SourceRecorder != null && !string.IsNullOrEmpty(hash) && FindGenerated(hash) == null;
 
         public static void RecordSource(string hash, string hlsl) {
             if (string.IsNullOrEmpty(hash) || string.IsNullOrEmpty(hlsl)) return;
@@ -197,7 +248,7 @@ namespace OneJS.SL {
             int adopted = 0;
             foreach (var c in s_Programs.Values) {
                 if (c.Native || string.IsNullOrEmpty(c.Hash)) continue;
-                var gen = Shader.Find(GeneratedShaderName(c.Hash));
+                var gen = FindGenerated(c.Hash);
                 if (gen == null) continue;
                 c.Material.shader = gen;
                 c.Native = true;
@@ -273,7 +324,7 @@ namespace OneJS.SL {
                 Hash = hash,
             };
 
-            Shader gen = string.IsNullOrEmpty(hash) ? null : Shader.Find(GeneratedShaderName(hash));
+            Shader gen = FindGenerated(hash);
             if (gen != null) {
                 native = true;
                 c.Native = true;
@@ -288,6 +339,7 @@ namespace OneJS.SL {
                         "[OneJS sl] OneJS/FxProgram.shader is missing from Resources.");
                 }
                 CheckWire(wire);
+                WarnVmFallback(hash);
                 c.Material = new Material(VmShader);
                 // Held on the Compiled, not just handed to the material, so
                 // Release disposes it. A local would leak one float texture per
@@ -374,11 +426,12 @@ namespace OneJS.SL {
             };
 
             // THE EJECT PATH. A project with an editor generates a shader per
-            // program at import time; this looks for one and uses it when it is
-            // there. Play has no such shader and gets the VM. The caller cannot
-            // tell the difference, which is the entire point: an author writes
-            // one program and never learns that two backends exist.
-            Shader native = string.IsNullOrEmpty(hash) ? null : Shader.Find(GeneratedShaderName(hash));
+            // program at import time, and its player builds ship them; this
+            // looks for one and uses it when it is there. Play has no such
+            // shader and gets the VM. The caller cannot tell the difference,
+            // which is the entire point: an author writes one program and never
+            // learns that two backends exist.
+            Shader native = FindGenerated(hash);
             if (native != null) {
                 c.Native = true;
                 c.Material = new Material(native);
@@ -389,6 +442,7 @@ namespace OneJS.SL {
             }
 
             CheckWire(wire);
+            WarnVmFallback(hash);
             c.Material = new Material(VmShader);
 
             // One row, two texels per instruction. Point filtered and clamped:
@@ -474,9 +528,25 @@ namespace OneJS.SL {
         public static bool HasNoVm(int handle) =>
             s_Programs.TryGetValue(handle, out var c) && c.Material == null;
 
-        /// <summary>True when the program's last frame was drawn compiled.</summary>
+        /// <summary>
+        /// True when the program draws compiled: through a generated shader, or,
+        /// in a WebGL player, when its last frame was drawn by the page.
+        /// </summary>
         public static bool IsCompiled(int handle) =>
-            s_Programs.TryGetValue(handle, out var c) && c.DrewCompiled;
+            s_Programs.TryGetValue(handle, out var c) && DrawsCompiled(c);
+
+        static bool DrawsCompiled(Compiled c) => c.Native || c.DrewCompiled;
+
+        /// <summary>
+        /// Sorts every live program's hash into the ones drawing compiled and the
+        /// ones drawing on the VM. For a player build test, which has to assert
+        /// on every program rather than the one it happened to look at.
+        /// </summary>
+        public static void Census(ICollection<string> compiled, ICollection<string> vm) {
+            foreach (var c in s_Programs.Values) {
+                (DrawsCompiled(c) ? compiled : vm)?.Add(c.Hash ?? "");
+            }
+        }
 
         static readonly float[] s_Flat = new float[SLWeb.UniformFloats];
 

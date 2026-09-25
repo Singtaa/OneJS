@@ -1,5 +1,8 @@
 # Unreleased
 
+- Native players draw shader language programs compiled instead of on the VM
+- A program with no compiled shader in a native player falls back to the VM and warns once, naming its hash
+- Programs built in code are recorded into `Assets/OneJS/Recorded.sl.json`, which a project commits
 - Shader language programs run compiled on WebGL2 and WebGPU, and the VM no longer runs them in a WebGL player
 - A program's `resolution`, `fragCoord` and `aspect` read the element's real size
 - Shader effects draw the right way up on WebGL2

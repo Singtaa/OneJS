@@ -5,14 +5,14 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.4.8"
-  skill-version: "1.5.0"
+  skill-version: "1.5.1"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-09-23"
+  last-verified: "2026-09-25"
 ---
 
 # Set Up a OneJS Project
@@ -192,7 +192,7 @@ import plasma from "./effects/plasma.sl"
 
 4. `npm run build` in `~/`, or save with the watcher running.
 
-**Expected result.** The element draws the effect and animates. `app.sl.json` appears beside `app.js.txt`, and importing it makes the editor generate a compiled shader per program under `Assets/OneJS.Generated/Shaders/`.
+**Expected result.** The element draws the effect and animates. `app.sl.json` appears beside `app.js.txt`, and importing it makes the editor generate a compiled shader per program under `Assets/OneJS.Generated/Shaders/`. A player build generates them again from the manifests and ships them, so the player draws compiled too. There is nothing to commit for a `.sl` file beyond its source.
 
 What a program is given as free identifiers: `uv` (0 to 1 across the element, origin already corrected), `time`, `resolution`, `fragCoord`, `aspect`. The types are `float`, `float2`, `float3`, `float4`, and `texture2D` to declare a sampler; there is no `int` or `bool`.
 
@@ -204,7 +204,7 @@ The traps, all of which are refused at build time with a message rather than ren
 - **Swizzles are read only.** Build a new value rather than assigning into `p.x`.
 - **HLSL spellings only.** `mix`, `fract`, `mod` and `vec3` are refused by name, with the HLSL word in the message.
 
-For a program built by code rather than written by hand, `sl.program` records the same graph from TypeScript. Full reference: https://onejs.com/docs/guides/shader-language
+For a program built by code rather than written by hand, `sl.program` records the same graph from TypeScript. No build can see one, so the editor records it the first time it draws it, into `Assets/OneJS/Recorded.sl.json`. Commit that file, or a player built on another machine draws the program on the slower VM and warns with its hash. Full reference: https://onejs.com/docs/guides/shader-language
 
 ### Workflow: Set up a project without clicking the inspector
 
