@@ -5,6 +5,7 @@
 - Shader effects draw the right way up on WebGL2
 - A program texture with nothing bound reads white on every backend
 - WebGL builds leave out the shader language VM
+- A shader program that needs a newer VM is refused with a message instead of drawn wrong
 - A scalar or `float2` `toLinear` in a shader program draws the same in the editor as in a player
 
 # [2026-09-23] v3.4.8

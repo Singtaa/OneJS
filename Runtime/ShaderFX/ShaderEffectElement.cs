@@ -118,7 +118,7 @@ namespace OneJS.ShaderFX {
         /// compile it. False everywhere else, so JS never emits HLSL in Play.
         /// </returns>
         public bool SetProgram(object dataObj, int instructionCount, int resultRegister, string hash,
-                               object uniformNamesObj = null) {
+                               object uniformNamesObj = null, int wire = 1) {
             var data = ToFloats(dataObj);
             // Same program, same everything. Rebuilding would drop the render
             // target and restart the clock on every React render.
@@ -135,7 +135,7 @@ namespace OneJS.ShaderFX {
             try {
                 _material = SL.SLProgramBridge.CreateMaterial(
                     data, instructionCount, resultRegister, hash,
-                    out var native, out _programHandle, ToStrings(uniformNamesObj));
+                    out var native, out _programHandle, ToStrings(uniformNamesObj), wire);
                 // Null in a WebGL player, where the page draws the program.
                 if (_material != null) _material.hideFlags = HideFlags.HideAndDontSave;
                 SL.SLProgramBridge.SetCompiledAllowed(_programHandle, _compiledAllowed);

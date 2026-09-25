@@ -32,6 +32,23 @@ namespace OneJS.SL {
         const int MaxTextures = 4;
         const int FloatsPerInstruction = 8;   // two RGBA texels
 
+        /// <summary>
+        /// The newest VM encoding FxProgram.shader runs. Must match
+        /// SL_WIRE_VERSION in onejs-unity. A payload carries the lowest version
+        /// that can run it, so this refuses only programs that use an
+        /// instruction it does not have, and only where the VM would run them.
+        /// </summary>
+        public const int WireVersion = 1;
+
+        /// <summary>Refuses a buffer newer than this VM, rather than drawing it wrong.</summary>
+        static void CheckWire(int wire) {
+            if (wire <= WireVersion) return;
+            throw new ArgumentException(
+                $"[OneJS sl] this program needs the shader language VM at wire version {wire}, " +
+                $"and this OneJS runs up to {WireVersion}. Update OneJS, or build the program " +
+                "with the onejs-unity this OneJS shipped with.");
+        }
+
         static readonly int s_Program = Shader.PropertyToID("_Program");
         static readonly int s_InstrCount = Shader.PropertyToID("_InstrCount");
         static readonly int s_ProgramWidth = Shader.PropertyToID("_ProgramWidth");
@@ -243,7 +260,7 @@ namespace OneJS.SL {
         /// </remarks>
         public static Material CreateMaterial(float[] data, int instructionCount, int resultRegister,
                                               string hash, out bool native, out int handle,
-                                              string[] uniformNames = null) {
+                                              string[] uniformNames = null, int wire = 1) {
             Validate(data, instructionCount, resultRegister);
             native = false;
             var why = Unrunnable();
@@ -270,6 +287,7 @@ namespace OneJS.SL {
                     throw new InvalidOperationException(
                         "[OneJS sl] OneJS/FxProgram.shader is missing from Resources.");
                 }
+                CheckWire(wire);
                 c.Material = new Material(VmShader);
                 // Held on the Compiled, not just handed to the material, so
                 // Release disposes it. A local would leak one float texture per
@@ -329,7 +347,7 @@ namespace OneJS.SL {
         }
 
         public static int Upload(float[] data, int instructionCount, int resultRegister,
-                                 string hash = null, string[] uniformNames = null) {
+                                 string hash = null, string[] uniformNames = null, int wire = 1) {
             var why = Unrunnable();
             if (why != null) throw new InvalidOperationException(why);
             if (CompiledOnly) {
@@ -370,6 +388,7 @@ namespace OneJS.SL {
                 return nativeHandle;
             }
 
+            CheckWire(wire);
             c.Material = new Material(VmShader);
 
             // One row, two texels per instruction. Point filtered and clamped:
