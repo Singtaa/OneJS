@@ -9,8 +9,9 @@ namespace OneJS.SL {
     /// browser can, so on WebGL a program also carries WGSL and GLSL ES
     /// (printed at build time by onejs-unity), and `Plugins/WebGL/OneJSSLWeb.jslib`
     /// compiles whichever one the device speaks and draws it into the element's
-    /// RenderTexture. The VM stays as the fallback: a program draws on it until
-    /// the compiled one is ready, and forever if it never is.
+    /// RenderTexture. A WebGL player has no VM for programs
+    /// (<see cref="SLProgramBridge.CompiledOnly"/>) unless it is built with
+    /// ONEJS_SL_WEB_VM, which keeps it as the fallback for comparing the two.
     ///
     /// The host reads three handles private to Unity's framework, so whether
     /// any of this works is checked once, at first use, by drawing nothing:
@@ -58,7 +59,7 @@ namespace OneJS.SL {
                 Object.Destroy(probe);
             }
             s_Available = s_Description == "webgl2 ok" || s_Description.StartsWith("webgpu ok ");
-            if (!s_Available) Debug.LogWarning($"[OneJS sl] compiled programs are {s_Description}; drawing on the VM.");
+            if (!s_Available) Debug.LogWarning($"[OneJS sl] compiled programs are {s_Description}.");
 #else
             s_Description = "unavailable: not a WebGL player";
 #endif

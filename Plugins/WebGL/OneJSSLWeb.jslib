@@ -72,7 +72,7 @@ var OneJSSLWebLibrary = {
             p.failed = message
             if (!OJSL.loggedFail[p.id]) {
                 OJSL.loggedFail[p.id] = true
-                console.warn("[OneJS sl] compiled program " + p.id + " falls back to the VM: " + message)
+                console.warn("[OneJS sl] compiled program " + p.id + " failed, so it will not draw compiled: " + message)
             }
             return -1
         },

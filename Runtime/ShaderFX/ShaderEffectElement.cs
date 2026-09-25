@@ -122,7 +122,8 @@ namespace OneJS.ShaderFX {
             var data = ToFloats(dataObj);
             // Same program, same everything. Rebuilding would drop the render
             // target and restart the clock on every React render.
-            if (_programHash == hash && _material != null && _isProgram) return false;
+            if (_programHash == hash && _isProgram && _programHandle >= 0 &&
+                (_material != null || SL.SLProgramBridge.HasNoVm(_programHandle))) return false;
             _isProgram = true;
             _programHash = hash;
             _shaderMissing = false;
@@ -135,7 +136,8 @@ namespace OneJS.ShaderFX {
                 _material = SL.SLProgramBridge.CreateMaterial(
                     data, instructionCount, resultRegister, hash,
                     out var native, out _programHandle, ToStrings(uniformNamesObj));
-                _material.hideFlags = HideFlags.HideAndDontSave;
+                // Null in a WebGL player, where the page draws the program.
+                if (_material != null) _material.hideFlags = HideFlags.HideAndDontSave;
                 SL.SLProgramBridge.SetCompiledAllowed(_programHandle, _compiledAllowed);
                 return !native && SL.SLProgramBridge.WantsSource(hash);
             } catch (System.Exception e) {
@@ -298,7 +300,7 @@ namespace OneJS.ShaderFX {
         /// <summary>Resets the effect clock, so a restarted effect looks the same every time.</summary>
         public void ResetTime() => _seconds = 0f;
 
-        public bool IsReady => _material != null && _rt != null;
+        public bool IsReady => (_material != null || (_isProgram && SL.SLProgramBridge.HasNoVm(_programHandle))) && _rt != null;
         public int RenderWidth => _rtW;
         public int RenderHeight => _rtH;
 
@@ -318,6 +320,9 @@ namespace OneJS.ShaderFX {
                 MarkDirtyRepaint();
                 return;
             }
+            // No VM here and the page has not compiled it yet: nothing to draw
+            // this frame, and the target was cleared when it was made.
+            if (_material == null) return;
             _material.SetFloat("_Secs", _seconds);
             // Never flipped. A Blit into a render target already puts v = 0 on
             // texel row 0 on every API, and UI Toolkit shows that row at the
@@ -353,8 +358,9 @@ namespace OneJS.ShaderFX {
         bool EnsureMaterial() {
             if (_material != null) return true;
             // A program builds its own material in SetProgram, so reaching here
-            // with one set means that failed and already said why.
-            if (_isProgram) return false;
+            // with none means that failed and already said why, or that there
+            // is no VM and the page draws it.
+            if (_isProgram) return _programHandle >= 0 && SL.SLProgramBridge.HasNoVm(_programHandle);
             var shader = Resources.Load<Shader>(_shaderName);
             if (shader == null || !shader.isSupported) {
                 _shaderMissing = true;
@@ -403,6 +409,12 @@ namespace OneJS.ShaderFX {
                 filterMode = FilterMode.Bilinear,
             };
             _rt.Create();
+            // A new target's contents are undefined, and a program drawn only
+            // compiled leaves it untouched until the page has compiled it.
+            var active = RenderTexture.active;
+            RenderTexture.active = _rt;
+            GL.Clear(false, true, Color.clear);
+            RenderTexture.active = active;
             _rtW = w;
             _rtH = h;
             style.backgroundImage = new StyleBackground(Background.FromRenderTexture(_rt));

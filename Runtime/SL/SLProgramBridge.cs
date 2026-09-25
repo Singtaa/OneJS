@@ -81,6 +81,32 @@ namespace OneJS.SL {
             }
         }
 
+        /// <summary>
+        /// True in a WebGL player: a program there is drawn only compiled, by
+        /// the page (<see cref="SLWeb"/>), never by the VM. Measured faster by
+        /// 90 to 600 times and matching it within 1/255, so the VM would only
+        /// ever be a slower copy of the same picture.
+        ///
+        /// A page that cannot compile (the startup handle check failed) draws
+        /// nothing and says why, rather than falling back quietly; the Play
+        /// container's smoke test is what catches that. ONEJS_SL_WEB_VM keeps
+        /// the VM in a WebGL build, for measuring the two against each other
+        /// (Tools/sl-web-parity in the container).
+        /// </summary>
+        public static bool CompiledOnly =>
+#if UNITY_WEBGL && !UNITY_EDITOR && !ONEJS_SL_WEB_VM
+            true;
+#else
+            false;
+#endif
+
+        /// <summary>Why a program cannot run at all here, or null when it can.</summary>
+        static string Unrunnable() {
+            if (!CompiledOnly || SLWeb.Available) return null;
+            return $"[OneJS sl] this page cannot compile shader programs ({SLWeb.Describe()}), " +
+                   "and a WebGL player has no VM to fall back on, so the program will not draw.";
+        }
+
         static Shader VmShader {
             get {
                 if (s_Shader == null) s_Shader = Resources.Load<Shader>("OneJS/FxProgram");
@@ -220,6 +246,8 @@ namespace OneJS.SL {
                                               string[] uniformNames = null) {
             Validate(data, instructionCount, resultRegister);
             native = false;
+            var why = Unrunnable();
+            if (why != null) throw new InvalidOperationException(why);
 
             var c = new Compiled {
                 InstructionCount = instructionCount,
@@ -234,6 +262,9 @@ namespace OneJS.SL {
                 c.Native = true;
                 c.Material = new Material(gen);
                 BindUniformIds(c);
+            } else if (CompiledOnly) {
+                // No material: the page draws it (TryRenderCompiled) once the
+                // host hands over its WGSL and GLSL.
             } else {
                 if (VmShader == null) {
                     throw new InvalidOperationException(
@@ -299,6 +330,17 @@ namespace OneJS.SL {
 
         public static int Upload(float[] data, int instructionCount, int resultRegister,
                                  string hash = null, string[] uniformNames = null) {
+            var why = Unrunnable();
+            if (why != null) throw new InvalidOperationException(why);
+            if (CompiledOnly) {
+                Validate(data, instructionCount, resultRegister);
+                int webHandle = s_NextHandle++;
+                s_Programs[webHandle] = new Compiled {
+                    InstructionCount = instructionCount, ResultRegister = resultRegister,
+                    UniformNames = uniformNames, Hash = hash,
+                };
+                return webHandle;
+            }
             if (VmShader == null) {
                 throw new InvalidOperationException(
                     "[OneJS sl] OneJS/FxProgram.shader is missing from Resources. " +
@@ -374,7 +416,7 @@ namespace OneJS.SL {
                 return;
             }
             c.Uniforms[slot] = new Vector4(x, y, z, w);
-            c.Material.SetVectorArray(s_Uniforms, c.Uniforms);
+            if (c.Material != null) c.Material.SetVectorArray(s_Uniforms, c.Uniforms);
         }
 
         public static void SetTexture(int handle, int slot, Texture tex) {
@@ -384,7 +426,7 @@ namespace OneJS.SL {
                     $"[OneJS sl] texture slot {slot} is outside 0..{MaxTextures - 1}. " +
                     "The VM binds its samplers by name, so this is a fixed set rather than a budget.");
             }
-            c.Material.SetTexture(s_TexIds[slot], tex);
+            if (c.Material != null) c.Material.SetTexture(s_TexIds[slot], tex);
             c.Textures[slot] = tex;
         }
 
@@ -401,10 +443,17 @@ namespace OneJS.SL {
             c.WebId = SLWeb.Create(wgsl, glsl);
         }
 
-        /// <summary>False forces the VM even where the program could run compiled.</summary>
+        /// <summary>
+        /// False forces the VM even where the program could run compiled.
+        /// Ignored where there is no VM (<see cref="CompiledOnly"/>).
+        /// </summary>
         public static void SetCompiledAllowed(int handle, bool allowed) {
-            if (s_Programs.TryGetValue(handle, out var c)) c.WebAllowed = allowed;
+            if (s_Programs.TryGetValue(handle, out var c)) c.WebAllowed = allowed || CompiledOnly;
         }
+
+        /// <summary>True when the program has no VM material and draws only compiled.</summary>
+        public static bool HasNoVm(int handle) =>
+            s_Programs.TryGetValue(handle, out var c) && c.Material == null;
 
         /// <summary>True when the program's last frame was drawn compiled.</summary>
         public static bool IsCompiled(int handle) =>
@@ -435,10 +484,20 @@ namespace OneJS.SL {
             return c.DrewCompiled;
         }
 
-        /// <summary>Renders the program into a target. `seconds` drives the time input.</summary>
+        /// <summary>
+        /// Renders the program into a target. `seconds` drives the time input.
+        /// A program with no VM (<see cref="CompiledOnly"/>) draws compiled, and
+        /// draws nothing until the page has compiled it: a caller reading back
+        /// straight away renders again on a later frame, once
+        /// <see cref="IsCompiled"/> says it drew.
+        /// </summary>
         public static void Render(int handle, RenderTexture target, float seconds) {
             if (!s_Programs.TryGetValue(handle, out var c)) {
                 throw new ArgumentException($"[OneJS sl] no program with handle {handle}.");
+            }
+            if (c.Material == null) {
+                TryRenderCompiled(handle, target, seconds);
+                return;
             }
             c.Material.SetFloat(s_Secs, seconds);
             // Both backends declare _Secs and _FlipY, so nothing here branches.
