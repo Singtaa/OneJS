@@ -1,7 +1,7 @@
 // The shader language VM.
 //
 // Evaluates a program authored in TypeScript (`onejs-unity/sl`) and encoded by
-// `sl/encode.ts` into a texture. This is the backend that runs where a shader
+// `onejs-sl/src/encode.ts` into a texture. This is the backend that runs where a shader
 // cannot be compiled at runtime, which is every player build on every platform,
 // and therefore every game on play.onejs.com.
 //
@@ -24,7 +24,7 @@
 // fixed width, so instruction i is at texels 2i and 2i+1 with no cursor to
 // advance and no dependent read to decode a length.
 //
-// Opcode numbers are the contract in onejs-unity/src/sl/ops.ts. Change both.
+// Opcode numbers are the contract in onejs-sl/src/ops.ts. Change both.
 Shader "OneJS/FxProgram"
 {
     Properties
@@ -64,7 +64,7 @@ Shader "OneJS/FxProgram"
             #define MAX_UNIFORMS 16
             #define MAX_TEXTURES 4
 
-            // Must match SLOP in onejs-unity/src/sl/ops.ts.
+            // Must match SLOP in onejs-sl/src/ops.ts.
             #define OP_CONST 0
             #define OP_INPUT 1
             #define OP_UNIFORM 2
@@ -129,7 +129,7 @@ Shader "OneJS/FxProgram"
 
             #define OP_SAMPLE 144
 
-            // Input ids, matching INPUT_ID in sl/encode.ts.
+            // Input ids, matching INPUT_ID in onejs-sl/src/ops.ts.
             #define IN_UV 0
             #define IN_FRAGCOORD 1
             #define IN_RESOLUTION 2

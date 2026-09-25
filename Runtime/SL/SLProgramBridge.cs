@@ -7,7 +7,7 @@ namespace OneJS.SL {
     /// Runs a shader language program on the GPU.
     ///
     /// A program is authored in TypeScript (`onejs-unity/sl`), recorded as a
-    /// graph, and encoded by `sl/encode.ts` into a flat float buffer: two texels
+    /// graph, and encoded by `onejs-sl/src/encode.ts` into a flat float buffer: two texels
     /// per instruction, eight registers, indexed store. This side uploads that
     /// buffer as a texture and lets OneJS/FxProgram.shader evaluate it.
     ///
