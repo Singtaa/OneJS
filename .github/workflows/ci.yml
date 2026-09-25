@@ -19,8 +19,14 @@ on:
       - '**'
       - '!**/*.md'
       - '!**/*.md.meta'
+      - '!.gitignore'
+      - '!.gitattributes'
       - 'AI/Skills/**'
   workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   UNITY_VERSION: 6000.5.2f1
@@ -143,7 +149,11 @@ jobs:
           restore-keys: |
             Library-${{ env.UNITY_VERSION }}-
 
-      - uses: game-ci/unity-test-runner@v4
+      # Pinned to v4.3.2 by commit. The floating v4 moved on 9 September 2026
+      # to v4.4.0, a wrapper around game-ci/cli, and package resolution went
+      # from 1 to 2 seconds to 12 to 16. v4.3.2 is the old runner plus the
+      # Unity 6.6 shared memory fix, released for exactly this choice.
+      - uses: game-ci/unity-test-runner@fa6ced25861c16ef56187828c43f76d00df43a23 # v4.3.2
         id: tests
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
