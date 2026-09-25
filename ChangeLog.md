@@ -1,3 +1,10 @@
+# Unreleased
+
+- Shader language programs run compiled on WebGL2 and WebGPU, with the VM as the fallback
+- A program's `resolution`, `fragCoord` and `aspect` read the element's real size
+- Shader effects draw the right way up on WebGL2
+- A program texture with nothing bound reads white on every backend
+
 # [2026-09-23] v3.4.8
 
 Dialogs and drawers now keep keyboard focus inside them, and `preventDefault()` in pointer and key handlers now works as it does in a browser, so check any handler that already calls it. New projects start on `onejs-play` 0.6; older ones stay on their pin until you change it.

@@ -36,6 +36,13 @@ Shader "OneJS/FxProgram"
         _Secs ("Seconds", Float) = 0
         _FlipY ("Flip Y", Float) = 0
         _Res ("Target size", Vector) = (1, 1, 0, 0)
+        // White when nothing is bound, as a generated shader declares them and
+        // as the compiled web path binds them, so an unset texture reads the
+        // same on all three.
+        _Tex0 ("Texture 0", 2D) = "white" {}
+        _Tex1 ("Texture 1", 2D) = "white" {}
+        _Tex2 ("Texture 2", 2D) = "white" {}
+        _Tex3 ("Texture 3", 2D) = "white" {}
     }
 
     SubShader

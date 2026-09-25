@@ -27,6 +27,7 @@ In WebGL builds, JavaScript runs directly in the browser's JS engine (V8/SpiderM
 | File | Purpose |
 |------|---------|
 | `OneJSWebGL.jslib` | Emscripten library implementing qjs_* functions |
+| `OneJSSLWeb.jslib` | Compiles shader language programs (WGSL or GLSL ES) on Unity's own device and draws them into a RenderTexture; closure-private, reached only through `Runtime/SL/SLWeb.cs` |
 
 ## How It Works
 

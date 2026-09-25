@@ -62,8 +62,18 @@ namespace OneJS.SL {
             public int[] UniformIds;
             /// <summary>The program hash, which is what links it to a generated shader.</summary>
             public string Hash;
+            /// <summary>By slot, for the compiled web path, which binds them itself.</summary>
+            public readonly Texture[] Textures = new Texture[MaxTextures];
+            /// <summary>The browser compiled program, 0 when there is none. See <see cref="SLWeb"/>.</summary>
+            public int WebId;
+            /// <summary>Cleared by the host to force the VM, which is how parity is measured.</summary>
+            public bool WebAllowed = true;
+            /// <summary>True when the last frame was drawn compiled rather than on the VM.</summary>
+            public bool DrewCompiled;
 
             public void Dispose() {
+                SLWeb.Release(WebId);
+                WebId = 0;
                 if (ProgramTex != null) UnityEngine.Object.DestroyImmediate(ProgramTex);
                 if (Material != null) UnityEngine.Object.DestroyImmediate(Material);
                 ProgramTex = null;
@@ -375,6 +385,54 @@ namespace OneJS.SL {
                     "The VM binds its samplers by name, so this is a fixed set rather than a budget.");
             }
             c.Material.SetTexture(s_TexIds[slot], tex);
+            c.Textures[slot] = tex;
+        }
+
+        /// <summary>
+        /// Hands over the program as WGSL and GLSL ES, which a WebGL player
+        /// compiles and draws in place of the VM (<see cref="SLWeb"/>). Does
+        /// nothing anywhere else, so a host can call it unconditionally.
+        /// </summary>
+        public static void SetWebSource(int handle, string wgsl, string glsl) {
+            if (!s_Programs.TryGetValue(handle, out var c) || c.Native) return;
+            if (string.IsNullOrEmpty(wgsl) && string.IsNullOrEmpty(glsl)) return;
+            if (!SLWeb.Available) return;
+            SLWeb.Release(c.WebId);
+            c.WebId = SLWeb.Create(wgsl, glsl);
+        }
+
+        /// <summary>False forces the VM even where the program could run compiled.</summary>
+        public static void SetCompiledAllowed(int handle, bool allowed) {
+            if (s_Programs.TryGetValue(handle, out var c)) c.WebAllowed = allowed;
+        }
+
+        /// <summary>True when the program's last frame was drawn compiled.</summary>
+        public static bool IsCompiled(int handle) =>
+            s_Programs.TryGetValue(handle, out var c) && c.DrewCompiled;
+
+        static readonly float[] s_Flat = new float[SLWeb.UniformFloats];
+
+        /// <summary>
+        /// Draws the compiled program into `target` when there is one and it is
+        /// ready. False means the caller draws the VM this frame, which is what
+        /// happens while a browser is still compiling and, for good, after a
+        /// compile error (the host has said why).
+        /// </summary>
+        public static bool TryRenderCompiled(int handle, RenderTexture target, float seconds) {
+            if (!s_Programs.TryGetValue(handle, out var c)) return false;
+            c.DrewCompiled = false;
+            if (c.WebId <= 0 || !c.WebAllowed) return false;
+            for (int i = 0; i < MaxUniforms; i++) {
+                var u = c.Uniforms[i];
+                s_Flat[i * 4] = u.x; s_Flat[i * 4 + 1] = u.y; s_Flat[i * 4 + 2] = u.z; s_Flat[i * 4 + 3] = u.w;
+            }
+            int r = SLWeb.Draw(c.WebId, target, seconds, s_Flat, c.Textures);
+            if (r < 0) {
+                SLWeb.Release(c.WebId);
+                c.WebId = 0;
+            }
+            c.DrewCompiled = r > 0;
+            return c.DrewCompiled;
         }
 
         /// <summary>Renders the program into a target. `seconds` drives the time input.</summary>
@@ -384,11 +442,10 @@ namespace OneJS.SL {
             }
             c.Material.SetFloat(s_Secs, seconds);
             // Both backends declare _Secs and _FlipY, so nothing here branches.
-            // Render target UV origin differs across graphics APIs, and the VM
-            // corrects it in the vertex stage so an author never has to. Getting
-            // this wrong is how an effect ends up upside down in a browser and
-            // right way up in the editor.
-            c.Material.SetFloat(s_FlipY, SystemInfo.graphicsUVStartsAtTop ? 1f : 0f);
+            // Never flipped, as in ShaderEffectElement: a Blit into a render
+            // target puts v = 0 on texel row 0 on every API. Flipping where
+            // graphicsUVStartsAtTop is true drew upside down on WebGPU (#127).
+            c.Material.SetFloat(s_FlipY, 0f);
             // The target's size, because _ScreenParams is not it. Unity sets
             // that per camera and leaves it alone for a Blit, so a program
             // drawn into a 64x256 element read the game view's 1737x1226 and
