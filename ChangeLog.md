@@ -8,6 +8,7 @@
 - A shader program that needs a newer VM is refused with a message instead of drawn wrong
 - `sdf` takes the fifth and sixth parameters of orientedVesica, roundedBox, orientedBox, triangle, horseshoe and bezier
 - A scalar or `float2` `toLinear` in a shader program draws the same in the editor as in a player
+- `toLinear` in a shader program runs at full precision on mobile
 
 # [2026-09-23] v3.4.8
 

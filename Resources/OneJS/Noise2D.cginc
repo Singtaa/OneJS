@@ -1,3 +1,9 @@
+// GENERATED from lib/noise2d.hlsl in onejs-sl (github.com/Singtaa/onejs-sl).
+// Do not edit this copy: change the source there and run `npm run lib`,
+// which rewrites it. The web backends are translated from the same text.
+#ifndef ONEJS_NOISE2D
+#define ONEJS_NOISE2D
+
 // Scrolling fBm value noise, shared by OneJS/TextureFX and OneJS/FxSources.
 //
 // Computed from a seed rather than sampled, so an effect needs no texture, any
@@ -8,8 +14,6 @@
 // copy in each would let them drift, and a noise field that differs by shader
 // is the kind of thing nobody notices until two effects that should match do
 // not.
-#ifndef ONEJS_NOISE2D
-#define ONEJS_NOISE2D
 
 float onejsHash21(float2 p, float seed)
 {

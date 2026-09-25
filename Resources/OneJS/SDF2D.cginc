@@ -1,10 +1,14 @@
+// GENERATED from lib/sdf2d.hlsl in onejs-sl (github.com/Singtaa/onejs-sl).
+// Do not edit this copy: change the source there and run `npm run lib`,
+// which rewrites it. The web backends are translated from the same text.
+#ifndef ONEJS_SDF2D
+#define ONEJS_SDF2D
+
 // 2D signed distance functions, from Inigo Quilez.
 // https://iquilezles.org/articles/distfunctions2d/
 // Ported to HLSL in Spark2D; imported here for the TextureFX shape spike.
 // sdPolygon is deliberately absent: it needs a vertex array, which does not
 // fit the uniform-array layer model.
-#ifndef ONEJS_SDF2D
-#define ONEJS_SDF2D
 
 // IQ writes these in GLSL, where mod() floors. HLSL fmod() truncates, so the
 // two disagree for negative x and every shape using it is wrong over half its

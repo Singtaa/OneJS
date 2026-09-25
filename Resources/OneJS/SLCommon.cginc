@@ -1,23 +1,26 @@
-// Helpers shared by BOTH shader language backends.
+// GENERATED from lib/common.hlsl in onejs-sl (github.com/Singtaa/onejs-sl).
+// Do not edit this copy: change the source there and run `npm run lib`,
+// which rewrites it. The web backends are translated from the same text.
+#ifndef ONEJS_SL_COMMON_INCLUDED
+#define ONEJS_SL_COMMON_INCLUDED
+#include "SDF2D.cginc"
+#include "Noise2D.cginc"
+
+// Helpers shared by EVERY shader language backend.
 //
-// The VM (OneJS/FxProgram.shader) includes this, and every shader generated
-// from a program by the HLSL emitter includes it too. That sharing is the whole
-// reason this file exists: the two backends have to agree, and the fastest way
-// to make them disagree is to write `noise` twice.
+// The VM (OneJS/FxProgram.shader) includes this as SLCommon.cginc, and every
+// shader generated from a program by the HLSL emitter includes it too. The web
+// emitters and a host's own frame (`emitBody`) get it translated, by
+// `lib/translate.ts`, from this one text. That sharing is the whole reason this
+// file exists: the backends have to agree, and the fastest way to make them
+// disagree is to write `noise` twice.
 //
 // Anything an opcode needs that is more than one expression belongs here rather
 // than in either backend. If it lives in only one, the golden image comparison
 // fails on every program that touches it, and the failure looks like a bug in
 // the program.
-#ifndef ONEJS_SL_COMMON_INCLUDED
-#define ONEJS_SL_COMMON_INCLUDED
 
-// The 42 signed distance shapes, shared with FxSources rather than rewritten.
-// The MATHS is what has to match between backends, and it lives in one file.
-#include "SDF2D.cginc"
-#include "Noise2D.cginc"
-
-// Noise is the same code fx draws with (Noise2D.cginc), so `sl.simplex` and
+// Noise is the same code fx draws with (noise2d.hlsl), so `sl.simplex` and
 // `fx.noise({ type: "simplex" })` mean one thing, and turbulence and ridged
 // exist here for the same reason they exist there. A program has no seed of
 // its own: offset the input to get a different field. The four kinds and
@@ -141,16 +144,22 @@ float sl_luminance(float3 c) { return dot(c, float3(0.2126, 0.7152, 0.0722)); }
 // TO_LINEAR for all widths (its registers are float4, so it converts .rgb),
 // and a scalar or float2 on the exact curve here drew up to 5/255 apart from
 // it in the dark range: the editor and a player disagreed.
+//
+// The curve is Unity's GammaToLinearSpace, written out here so that a target
+// without UnityCG.cginc has it too. The switch below is the one piece of
+// preprocessor the translator reads: it becomes the target's colour setting.
+float3 sl_gammaToLinear(float3 c) { return c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878); }
+
 #ifdef UNITY_COLORSPACE_GAMMA
 float  sl_toLinear(float c)  { return c; }
 float2 sl_toLinear(float2 c) { return c; }
 float3 sl_toLinear(float3 c) { return c; }
 float4 sl_toLinear(float4 c) { return c; }
 #else
-float  sl_toLinear(float c)  { return GammaToLinearSpace(float3(c, 0, 0)).x; }
-float2 sl_toLinear(float2 c) { return GammaToLinearSpace(float3(c, 0)).xy; }
-float3 sl_toLinear(float3 c) { return GammaToLinearSpace(c); }
-float4 sl_toLinear(float4 c) { return float4(GammaToLinearSpace(c.rgb), c.a); }
+float  sl_toLinear(float c)  { return sl_gammaToLinear(float3(c, 0, 0)).x; }
+float2 sl_toLinear(float2 c) { return sl_gammaToLinear(float3(c, 0)).xy; }
+float3 sl_toLinear(float3 c) { return sl_gammaToLinear(c); }
+float4 sl_toLinear(float4 c) { return float4(sl_gammaToLinear(c.rgb), c.a); }
 #endif
 
 #endif
