@@ -2,8 +2,9 @@
  * Compiled shader language programs, drawn on Unity's own graphics device.
  *
  * Unity cannot compile a shader in a built player, which is why the SL VM
- * exists. A browser can: onejs-unity prints every program as WGSL and GLSL ES
- * 3.00 at build time (`src/sl/web.ts`), and this host compiles whichever one
+ * exists. A browser can: the shader language compiler (`onejs-sl`, which
+ * onejs-unity re-exports) prints every program as WGSL and GLSL ES 3.00 at
+ * build time (`onejs-sl/src/web.ts`), and this host compiles whichever one
  * the device speaks and draws it straight into the RenderTexture a
  * ShaderEffectElement shows. Same pixels as the VM within 1/255, and on the
  * spike's measurements 100 to 600 times cheaper per pixel, with no register or
