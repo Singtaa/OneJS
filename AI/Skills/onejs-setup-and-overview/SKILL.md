@@ -5,14 +5,14 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.5.1"
-  skill-version: "1.6.1"
+  skill-version: "1.7.0"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-09-27"
+  last-verified: "2026-09-28"
 ---
 
 # Set Up a OneJS Project
@@ -71,7 +71,7 @@ Get a rendering, hot reloading component in a saved scene.
 
 ```csharp
 var runner = new GameObject("App").AddComponent<OneJS.JSRunner>();
-runner.PopulateDefaultFiles();
+runner.AddMissingDefaultFiles();
 runner.EnsureProjectFolderAndAssets(true);
 runner.EnsureProjectSetup();
 ```
@@ -213,7 +213,7 @@ For a program built by code rather than written by hand, `sl.program` records th
 **Steps.** The three methods the Initialize Project button calls are public on `JSRunner`. Call them in this order from an editor script, which `-executeMethod` can then invoke:
 
 ```csharp
-runner.PopulateDefaultFiles();
+runner.AddMissingDefaultFiles();
 runner.EnsureProjectFolderAndAssets(true);
 runner.EnsureProjectSetup();
 ```
@@ -331,11 +331,12 @@ untested rather than guaranteed.
 |---|---|---|
 | `OneJS.JSRunner` | MonoBehaviour | Runs a JavaScript app from a project folder. The one component a scene needs. |
 | `JSRunner.PanelSettingsAsset` | Property | The assigned PanelSettings. Its folder is the project marker. |
-| `JSRunner.PopulateDefaultFiles()` | Method | Loads the scaffold templates into the runner's default file list. |
+| `JSRunner.AddMissingDefaultFiles()` | Method | Adds the scaffold templates the runner's default file list lacks, keeping every entry it has. What Initialize Project calls. |
+| `JSRunner.PopulateDefaultFiles()` | Method | Replaces the runner's default file list with the scaffold templates: Reset to Defaults. |
 | `JSRunner.EnsureProjectFolderAndAssets(bool)` | Method | Creates the project folder, PanelSettings, and UIDocument.uxml. |
 | `JSRunner.EnsureProjectSetup()` | Method | Scaffolds a new app's source files, and once each any default file the app has not had. Never overwrites, never rewrites a deleted file. |
 | `JSRunner.DescribeMissingDefaultFiles()` | Method | Names the default files missing from `~/` and how to restore them, or null. |
-| `JSRunner.RestoreDefaultFile(int index)` | Method | Writes one default file from its template, overwriting what is there: the Restore button, for when you cannot click. |
+| `JSRunner.RestoreDefaultFile(string path)` | Method | Writes one default file from its template, overwriting what is there, and records it: the Restore button, for when you cannot click. Takes any path the missing-file warning names, e.g. `"index.tsx"`. |
 | `JSRunner.GetJSFunction<T>(string)` | Method | Binds a JavaScript global to a typed C# delegate that survives hot reload. |
 | `JSRunner.Reloaded` | Event | Fires after each hot reload, for C# code caching anything JavaScript side. |
 | `OneJS.JSPad` | MonoBehaviour | Prototyping alternative with an inline code editor and no npm project. No hot reload. |

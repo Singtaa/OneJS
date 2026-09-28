@@ -8,6 +8,11 @@
 - A WebGL build can no longer keep the shader language VM: `ONEJS_SL_WEB_VM` is gone
 - `ShaderEffectElement.SetTime` sets an effect's clock, and a paused effect draws that frame
 - Seeded value noise draws alike on every GPU, so fbm past its first octave and `fx.noise` draw a different pattern than before
+- The Scaffolding list has a row for every default file the missing-file warning names, templates its list lacks included
+- Restore records what it wrote, so Template newer shows when a template changes
+- The Scaffolding list says Differs for a file it cannot tell you changed, instead of Modified
+- A default file that differs from its template only in line endings reads Up to date
+- Edit-mode preview and Initialize Project name the default files that are missing
 
 # [2026-09-27] v3.5.1
 

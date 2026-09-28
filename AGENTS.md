@@ -53,7 +53,7 @@ Key model:
 - Scaffolding never overwrites existing files, and writes each default file once: `~/.onejs/scaffold` records what the app was given, so a deleted file stays deleted until Restore in the Build tab brings it back.
 - `~/.onejs/` holds small per-app OneJS state the project commits, never caches or machine-local files.
 
-Headless (no inspector click): the three methods the button calls are public on `JSRunner`, `PopulateDefaultFiles()`, `EnsureProjectFolderAndAssets(true)`, `EnsureProjectSetup()`, callable from a small editor script (which `-executeMethod` can invoke); then run `npm install && npm run build` in `~/`.
+Headless (no inspector click): the three methods the button calls are public on `JSRunner`, `AddMissingDefaultFiles()`, `EnsureProjectFolderAndAssets(true)`, `EnsureProjectSetup()`, callable from a small editor script (which `-executeMethod` can invoke); then run `npm install && npm run build` in `~/`.
 
 ## Build and live reload
 

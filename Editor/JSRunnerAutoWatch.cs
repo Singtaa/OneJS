@@ -18,6 +18,8 @@ namespace OneJS.Editor {
     public static class JSRunnerAutoWatch {
         static readonly HashSet<string> _pendingInstalls = new();
         static readonly HashSet<string> _watchersStartedThisSession = new();
+        /// <summary>Working directories whose missing package.json the preview has reported, so it says so once per domain.</summary>
+        static readonly HashSet<string> _warnedNoPackageJson = new();
 
         static JSRunnerAutoWatch() {
             EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
@@ -62,7 +64,12 @@ namespace OneJS.Editor {
             var workingDir = runner.WorkingDirFullPath;
             if (string.IsNullOrEmpty(workingDir) || !Directory.Exists(workingDir)) return;
             if (NodeWatcherManager.IsRunning(workingDir)) return;
-            if (!File.Exists(Path.Combine(workingDir, "package.json"))) return;
+            if (!File.Exists(Path.Combine(workingDir, "package.json"))) {
+                // The preview still runs the bundle it has, but nothing will rebuild it. Default
+                // files are written once, so say which are gone, once per working directory.
+                if (_warnedNoPackageJson.Add(workingDir)) WarnMissingDefaultFiles(runner);
+                return;
+            }
             if (!runner.HasNodeModules) return;
 
             StartWatcher(workingDir, runner.name);

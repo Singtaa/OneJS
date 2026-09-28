@@ -307,6 +307,20 @@ namespace OneJS.Tests.Editor {
         }
 
         [Test]
+        public void ARestoreInAnAppFromBeforeTheRecordBringsNothingElseBack() {
+            var runner = MakeRunner();
+            MakeAppFromBeforeTheRecord(runner, _ => "// scaffolded long ago");
+            File.Delete(InWorkingDir("styles/main.uss"));
+
+            // The first thing after upgrading is a Restore, before any Play has seeded the record.
+            Assert.IsTrue(runner.RestoreDefaultFile("index.tsx"));
+            runner.EnsureProjectSetup();
+
+            Assert.IsFalse(File.Exists(InWorkingDir("styles/main.uss")),
+                "A Restore made a record of one file, and the next Play took every other deleted file for one the app never had.");
+        }
+
+        [Test]
         public void ASeededFileThatIsTheTemplateShowsTemplateNewerWhenTheTemplateMovesOn() {
             var runner = MakeRunner();
             MakeAppFromBeforeTheRecord(runner, TemplateText);
@@ -316,6 +330,20 @@ namespace OneJS.Tests.Editor {
 
             Assert.AreEqual(DefaultFileStatus.TemplateUpdated, runner.GetDefaultFileStatus("index.tsx"),
                 "An untouched copy of the template reads as changed by the user after an upgrade.");
+        }
+
+        [Test]
+        public void ARecordedFileWithNoHashGainsOneOnceItIsSeenToBeTheTemplate() {
+            var runner = MakeRunner();
+            runner.EnsureProjectSetup();
+            // What 3.5.1 seeded: the path, with no hash of what it started as.
+            File.WriteAllLines(Record, File.ReadAllLines(Record).Select(l => l.StartsWith("index.tsx\t") ? "index.tsx" : l));
+            Assert.IsNull(RecordedHash("index.tsx"), "Test setup is wrong: index.tsx still has a hash.");
+
+            runner.EnsureProjectSetup();
+
+            Assert.AreEqual(ScaffoldRecord.Hash(TemplateText("index.tsx")), RecordedHash("index.tsx"),
+                "An untouched copy of the template is still recorded without a hash, so a later template change would read as Differs.");
         }
 
         [Test]

@@ -244,12 +244,13 @@ Prefabs in the Project window (not placed in a scene) are also supported: the in
 ### Auto-Scaffolding (Editor Only)
 JSRunner writes each default file once (`EnsureProjectSetup`, on Initialize and before every Play). Existing files are never overwritten, and a file the user deletes stays deleted.
 
-- **`~/.onejs/scaffold`** (`ScaffoldRecord`) lists every default path the app has been given, one per line with a hash of the content written. A recorded path is never written again. It lives in the working directory, not on the component, so runners and prefab instances sharing a folder agree, and a scene is never dirtied.
+- **`~/.onejs/scaffold`** (`ScaffoldRecord`) lists every default path the app has been given, one per line with a hash of the content written. A path recorded without writing (a file already there, or seeded) gets the template's hash only when the file is the template's content, then or on any later Play; otherwise it has none. A recorded path is never written again. It lives in the working directory, not on the component, so runners and prefab instances sharing a folder agree, and a scene is never dirtied.
 - **`~/.onejs/`** is the home for per-app OneJS state: only small state a project commits goes there, never caches or machine-local files. The scaffolded `.gitignore` leaves it in.
 - **A new app** (no record, no `package.json`) gets every default file. **An app from before the record** (no record, a `package.json`) is seeded with every default path on disk or in the runner's list, so nothing deleted comes back. Then, in either case, a default path the record lacks (a template a newer OneJS added, or one the runner's list never had) is written once, with one log line naming it.
 - **Default Files**: the runner's list of `path → TextAsset` pairs, relative to Working Dir. It decides a path's content where it has one; OneJS templates it does not cover are given too. Initialize Project adds missing templates and keeps the rest (`AddMissingDefaultFiles`); Reset to Defaults replaces the list. Neither touches disk.
-- **Restore** writes one file from its template, on purpose. Status reads Missing (normal, not an error), Modified, or Template newer (unchanged since written, template changed since).
-- A build or watcher that fails with default files missing names them and points at Restore (`DescribeMissingDefaultFiles`).
+- **The Scaffolding list** shows `ScaffoldingPaths`: the runner's list, then the OneJS templates it lacks (muted), which is the set the missing-file warning names, so every file it tells you to Restore has a row.
+- **Restore** (`RestoreDefaultFile(path)`) writes one file from its template, on purpose, and records its hash. Status, line endings ignored: Up to date; Missing (normal, not an error); Template newer (matches the recorded hash, so the template moved); Modified (differs from the recorded hash, so the user changed it); Differs (no recorded hash, so nobody can tell which).
+- A build or watcher that fails with default files missing, edit-mode preview with no `package.json` (once per working directory), and Initialize Project name them and point at Restore (`DescribeMissingDefaultFiles`).
 
 Default template files (in `Assets/Singtaa/OneJS/Editor/Templates/`):
 - `package.json.txt`: npm configuration with React and onejs-react dependencies

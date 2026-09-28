@@ -134,6 +134,7 @@ public static class OneJSEditorDesign {
         public const string FileModified = "Modified";
         public const string FileMissing = "Missing";
         public const string FileTemplateUpdated = "Template newer";
+        public const string FileDiffers = "Differs";
 
         // --- Watcher ---
         public const string Watcher = "Watcher: ";

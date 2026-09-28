@@ -83,7 +83,7 @@ script can do the same thing headlessly:
 
 ```csharp
 var runner = new GameObject("App").AddComponent<OneJS.JSRunner>();
-runner.PopulateDefaultFiles();
+runner.AddMissingDefaultFiles();
 runner.EnsureProjectFolderAndAssets(true);
 runner.EnsureProjectSetup();
 ```

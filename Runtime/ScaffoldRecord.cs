@@ -21,7 +21,8 @@ namespace OneJS {
     /// One line per path, sorted, so two teammates who each gain the same new default file
     /// merge cleanly: the path, then a tab and a hash of the content it was written with. A
     /// path recorded without writing (a file that was already there, or one seeded when the
-    /// record was first made for an existing app) has no hash.
+    /// record was first made for an existing app) has the hash only when the file was the
+    /// template's content, since only then is it known what it started as.
     /// </summary>
     public sealed class ScaffoldRecord {
         /// <summary>The per-app OneJS state folder inside the working directory.</summary>
@@ -59,6 +60,17 @@ namespace OneJS {
         public void Add(string path, string hash) {
             path = Normalize(path);
             if (_given.ContainsKey(path)) return;
+            _given[path] = hash;
+            Changed = true;
+        }
+
+        /// <summary>
+        /// Records `path` as written with the content `hash` stands for, replacing whatever the
+        /// record said: what Restore does, since it writes the file again.
+        /// </summary>
+        public void Set(string path, string hash) {
+            path = Normalize(path);
+            if (_given.TryGetValue(path, out var had) && had == hash) return;
             _given[path] = hash;
             Changed = true;
         }

@@ -893,9 +893,14 @@ namespace OneJS.Editor {
             row.style.backgroundColor = OneJSEditorDesign.Colors.RowBg;
             row.style.SetBorderRadius(3);
 
-            // Path label
+            // Path label. A OneJS template this runner's list lacks (one added after the runner
+            // was) still gets a row, so every file the missing-file warning names can be restored.
             var pathLabel = new Label(path);
             pathLabel.style.flexGrow = 1;
+            if (!_target.ListsDefaultFile(path)) {
+                pathLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
+                pathLabel.tooltip = "A OneJS template this runner's list does not have. Restore writes OneJS's version; Reset to Defaults adds it to the list.";
+            }
             row.Add(pathLabel);
 
             // Status label
@@ -924,6 +929,12 @@ namespace OneJS.Editor {
                     statusLabel.text = OneJSEditorDesign.Texts.FileTemplateUpdated;
                     statusLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
                     statusLabel.tooltip = "Unchanged since it was written, and OneJS's template has changed since. Restore writes the new template.";
+                    break;
+                case DefaultFileStatus.Differs:
+                    // Written before OneJS recorded what it wrote, so it cannot say who changed it.
+                    statusLabel.text = OneJSEditorDesign.Texts.FileDiffers;
+                    statusLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
+                    statusLabel.tooltip = "Differs from OneJS's template. It was written before OneJS recorded what it wrote, so either you changed it or the template did. Restore writes the template.";
                     break;
                 default:
                     statusLabel.text = "";
@@ -2044,15 +2055,20 @@ namespace OneJS.Editor {
                 RunNpmCommand(workingDir, "install", onSuccess: () => {
                     RunNpmCommand(workingDir, "run build", onSuccess: () => {
                         AssetDatabase.Refresh();
-                        Debug.Log("[JSRunner] Project initialized. Working directory, default files, node_modules, and build created.");
+                        Debug.Log("[JSRunner] Project initialized: dependencies installed and the bundle built.");
                     }, onFailure: (code) => {
-                        Debug.LogWarning($"[JSRunner] Build step failed (exit code {code}). Project and node_modules are ready; you can run 'npm run build' manually.");
+                        Debug.LogWarning($"[JSRunner] Build step failed (exit code {code}). node_modules is ready; you can run 'npm run build' manually.");
+                        WarnMissingDefaultFiles();
                     });
                 }, onFailure: (code) => {
-                    Debug.LogWarning($"[JSRunner] npm install failed (exit code {code}). Default files and folder were created.");
+                    Debug.LogWarning($"[JSRunner] npm install failed (exit code {code}).");
+                    WarnMissingDefaultFiles();
                 });
             } else {
-                Debug.Log("[JSRunner] Project initialized. Working directory and default files created.");
+                // An app that already had its default files and has since lost package.json:
+                // Initialize Project writes default files only for a new app, so say which are gone.
+                Debug.LogWarning(_target.DescribeMissingDefaultFiles() ??
+                    $"[JSRunner] {_target.name} has no package.json, so nothing was installed or built.", _target);
             }
         }
 

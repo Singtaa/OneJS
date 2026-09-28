@@ -1139,19 +1139,7 @@ namespace OneJS {
             if (string.IsNullOrEmpty(workingDir)) return false;
 
             var defaults = DefaultFilesToGive();
-            var record = ScaffoldRecord.Read(workingDir);
-            bool isNew = false;
-            if (record == null) {
-                record = new ScaffoldRecord();
-                isNew = !File.Exists(Path.Combine(workingDir, "package.json"));
-                if (!isNew) {
-                    foreach (var entry in defaults) {
-                        if (File.Exists(Path.Combine(workingDir, entry.path)) || ListsDefaultFile(entry.path)) {
-                            record.Add(entry.path, null);
-                        }
-                    }
-                }
-            }
+            var record = RecordFor(workingDir, defaults, out var isNew);
 
             bool wrote = false;
             foreach (var entry in defaults) {
@@ -1159,7 +1147,7 @@ namespace OneJS {
                 var fullPath = Path.Combine(workingDir, entry.path);
                 if (File.Exists(fullPath)) {
                     // Something is there already. Recorded, so it is never replaced or recreated.
-                    record.Add(entry.path, null);
+                    record.Add(entry.path, HashIfTemplate(fullPath, entry));
                     continue;
                 }
                 var dir = Path.GetDirectoryName(fullPath);
@@ -1181,6 +1169,46 @@ namespace OneJS {
         }
 
         /// <summary>
+        /// The working directory's record, or the one it starts with when it has none: empty
+        /// for a new app (`isNew`, no package.json), and for an app from before the record,
+        /// every default path on disk or in this runner's list, so nothing the user deleted
+        /// comes back.
+        ///
+        /// A path recorded without a hash is given one when its file is the template's
+        /// content, which is then known to be what it started as. That is what lets the
+        /// Status column tell a template that moved on from a file the user changed, for
+        /// the files an app had before OneJS kept hashes.
+        /// </summary>
+        ScaffoldRecord RecordFor(string workingDir, List<DefaultFileEntry> defaults, out bool isNew) {
+            isNew = false;
+            var record = ScaffoldRecord.Read(workingDir);
+            if (record == null) {
+                record = new ScaffoldRecord();
+                isNew = !File.Exists(Path.Combine(workingDir, "package.json"));
+                if (isNew) return record;
+                foreach (var entry in defaults) {
+                    var fullPath = Path.Combine(workingDir, entry.path);
+                    if (File.Exists(fullPath)) record.Add(entry.path, HashIfTemplate(fullPath, entry));
+                    else if (ListsDefaultFile(entry.path)) record.Add(entry.path, null);
+                }
+                return record;
+            }
+            foreach (var entry in defaults) {
+                if (!record.Has(entry.path) || record.HashOf(entry.path) != null) continue;
+                var hash = HashIfTemplate(Path.Combine(workingDir, entry.path), entry);
+                if (hash != null) record.Set(entry.path, hash);
+            }
+            return record;
+        }
+
+        /// <summary>The template's hash when the file at `fullPath` is the template's content, line endings aside; otherwise null.</summary>
+        static string HashIfTemplate(string fullPath, DefaultFileEntry entry) {
+            if (!File.Exists(fullPath)) return null;
+            var template = ScaffoldRecord.Hash(entry.content.text);
+            return ScaffoldRecord.Hash(File.ReadAllText(fullPath)) == template ? template : null;
+        }
+
+        /// <summary>
         /// The default files this runner gives a working directory: its own list, then every
         /// OneJS template its list does not cover. The list decides a path's content where it
         /// has one (the Premade demo ships its own index.tsx that way); the templates are what
@@ -1197,10 +1225,6 @@ namespace OneJS {
             foreach (var entry in PackageDefaultFiles()) Take(entry);
             return result;
         }
-
-        bool ListsDefaultFile(string path) =>
-            _defaultFiles != null && _defaultFiles.Any(e => e != null && e.path != null &&
-                e.path.Replace('\\', '/') == path.Replace('\\', '/'));
 
         /// <summary>
         /// Names the default files missing from the working directory and says how to get one
@@ -2146,65 +2170,91 @@ namespace OneJS {
             return result;
         }
 
-        /// <summary>The paths the inspector's Scaffolding list shows, each with a status and a Restore.</summary>
-        public IReadOnlyList<string> ScaffoldingPaths =>
-            (_defaultFiles ?? new List<DefaultFileEntry>()).Where(e => e != null && !string.IsNullOrEmpty(e.path)).Select(e => e.path).ToList();
+        /// <summary>
+        /// The paths the inspector's Scaffolding list shows, each with a status and a Restore:
+        /// every default file this runner gives its working directory, its own list first, then
+        /// the OneJS templates the list does not cover. The same set the missing-file warning
+        /// names, so every file it tells you to Restore has a row.
+        /// </summary>
+        public IReadOnlyList<string> ScaffoldingPaths => DefaultFilesToGive().Select(e => e.path).ToList();
 
-        /// <summary>The entry the Scaffolding list's row for `path` stands for, or null.</summary>
+        /// <summary>Whether `path` is in this runner's own list, rather than a OneJS template it lacks.</summary>
+        public bool ListsDefaultFile(string path) =>
+            _defaultFiles != null && _defaultFiles.Any(e => e != null && e.path != null &&
+                e.path.Replace('\\', '/') == path.Replace('\\', '/'));
+
+        /// <summary>The default file the Scaffolding list's row for `path` stands for, or null.</summary>
         DefaultFileEntry ScaffoldingEntry(string path) {
-            if (string.IsNullOrEmpty(path) || _defaultFiles == null) return null;
+            if (string.IsNullOrEmpty(path)) return null;
             var wanted = path.Replace('\\', '/');
-            return _defaultFiles.FirstOrDefault(e => e != null && e.path != null && e.path.Replace('\\', '/') == wanted);
+            return DefaultFilesToGive().FirstOrDefault(e => e.path.Replace('\\', '/') == wanted);
         }
 
         /// <summary>
-        /// Returns the status of a default file entry by comparing disk content to the template.
+        /// The status of the default file at `index` in this runner's own list. Kept for scripts;
+        /// the inspector goes by path, which reaches the templates the list lacks as well.
         /// </summary>
         public DefaultFileStatus GetDefaultFileStatus(int index) {
             if (index < 0 || index >= _defaultFiles.Count) return DefaultFileStatus.Invalid;
             return GetDefaultFileStatus(_defaultFiles[index]?.path);
         }
 
-        /// <summary>The status of the default file at `path` in the working directory.</summary>
+        /// <summary>
+        /// The status of the default file at `path` in the working directory, against its
+        /// template, with line endings ignored. When it differs, the record's hash of what it was
+        /// written with says who moved: the template (<see cref="DefaultFileStatus.TemplateUpdated"/>)
+        /// or the user (<see cref="DefaultFileStatus.Modified"/>). Without a hash nobody knows,
+        /// and it is <see cref="DefaultFileStatus.Differs"/>.
+        /// </summary>
         public DefaultFileStatus GetDefaultFileStatus(string path) {
             var entry = ScaffoldingEntry(path);
-            if (entry == null || entry.content == null) return DefaultFileStatus.Invalid;
+            if (entry == null) return DefaultFileStatus.Invalid;
             var workingDir = WorkingDirFullPath;
             if (string.IsNullOrEmpty(workingDir)) return DefaultFileStatus.Invalid;
 
             var fullPath = Path.Combine(workingDir, entry.path);
             if (!File.Exists(fullPath)) return DefaultFileStatus.Missing;
 
-            var diskContent = File.ReadAllText(fullPath);
-            if (diskContent == entry.content.text) return DefaultFileStatus.UpToDate;
-            // Unchanged since it was written, so it is the template that moved on, not the user.
+            var onDisk = ScaffoldRecord.Hash(File.ReadAllText(fullPath));
+            if (onDisk == ScaffoldRecord.Hash(entry.content.text)) return DefaultFileStatus.UpToDate;
             var written = ScaffoldRecord.Read(workingDir)?.HashOf(entry.path);
-            return written != null && written == ScaffoldRecord.Hash(diskContent)
-                ? DefaultFileStatus.TemplateUpdated
-                : DefaultFileStatus.Modified;
+            if (written == null) return DefaultFileStatus.Differs;
+            return written == onDisk ? DefaultFileStatus.TemplateUpdated : DefaultFileStatus.Modified;
         }
 
         /// <summary>
-        /// Overwrites (or creates) a single default file on disk with its template content.
+        /// Restores the default file at `index` in this runner's own list. Kept for scripts; the
+        /// inspector goes by path, which reaches the templates the list lacks as well.
         /// </summary>
         public bool RestoreDefaultFile(int index) {
             if (index < 0 || index >= _defaultFiles.Count) return false;
             return RestoreDefaultFile(_defaultFiles[index]?.path);
         }
 
-        /// <summary>Overwrites (or creates) the default file at `path` with its template content.</summary>
+        /// <summary>
+        /// Overwrites (or creates) the default file at `path` with its template content, and
+        /// records what it wrote, so the Status column can later tell a template change from
+        /// the user's. Any default file the Scaffolding list shows can be restored, the OneJS
+        /// templates this runner's list lacks included.
+        /// </summary>
         public bool RestoreDefaultFile(string path) {
             var entry = ScaffoldingEntry(path);
-            if (entry == null || entry.content == null) return false;
+            if (entry == null) return false;
             var workingDir = WorkingDirFullPath;
             if (string.IsNullOrEmpty(workingDir)) return false;
+
+            // Read before writing: an app from before the record is seeded from what is on disk now.
+            var record = RecordFor(workingDir, DefaultFilesToGive(), out _);
 
             var fullPath = Path.Combine(workingDir, entry.path);
             var dir = Path.GetDirectoryName(fullPath);
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                 Directory.CreateDirectory(dir);
 
-            File.WriteAllText(fullPath, entry.content.text);
+            var text = entry.content.text;
+            File.WriteAllText(fullPath, text);
+            record.Set(entry.path, ScaffoldRecord.Hash(text));
+            record.Write(workingDir);
             return true;
         }
 #endif
