@@ -22,6 +22,11 @@ namespace OneJS.Tests.Editor {
     ///
     /// These use only EnsureProjectSetup, PopulateDefaultFiles and the files on disk, so they
     /// read the same against a JSRunner that has never heard of the record.
+    ///
+    /// Then Restore and the Scaffolding list's Status column, which the inspector draws from
+    /// ScaffoldingPaths, GetDefaultFileStatus and RestoreDefaultFile: every file the missing-file
+    /// warning names has a row Restore works on, Restore records what it wrote, and the status
+    /// says "Template newer" or "Modified" only when OneJS can tell which.
     /// </summary>
     [TestFixture]
     public class JSRunnerScaffoldOnceTests {
@@ -201,6 +206,146 @@ namespace OneJS.Tests.Editor {
             second.EnsureProjectSetup();
 
             Assert.IsFalse(File.Exists(InWorkingDir("index.tsx")), "The second runner brought back a file the first had already given the folder.");
+        }
+
+        // MARK: Restore and status
+
+        /// <summary>A OneJS template's text, from a fresh runner's list.</summary>
+        string TemplateText(string path) {
+            var go = new GameObject("Templates");
+            SceneManager.MoveGameObjectToScene(go, _previewScene);
+            var runner = go.AddComponent<JSRunner>();
+            runner.PopulateDefaultFiles();
+            var list = new SerializedObject(runner).FindProperty("_defaultFiles");
+            for (int i = 0; i < list.arraySize; i++) {
+                var entry = list.GetArrayElementAtIndex(i);
+                if (entry.FindPropertyRelative("path").stringValue == path)
+                    return ((TextAsset)entry.FindPropertyRelative("content").objectReferenceValue).text;
+            }
+            Assert.Fail($"Test setup is wrong: OneJS has no template for {path}.");
+            return null;
+        }
+
+        /// <summary>Gives the runner's entry for `path` new content, as an upgrade that changes a template does.</summary>
+        static void ChangeTemplate(JSRunner runner, string path, string text) {
+            var so = new SerializedObject(runner);
+            var list = so.FindProperty("_defaultFiles");
+            for (int i = 0; i < list.arraySize; i++) {
+                var entry = list.GetArrayElementAtIndex(i);
+                if (entry.FindPropertyRelative("path").stringValue != path) continue;
+                entry.FindPropertyRelative("content").objectReferenceValue = new TextAsset(text);
+                so.ApplyModifiedPropertiesWithoutUndo();
+                return;
+            }
+            Assert.Fail($"Test setup is wrong: {path} is not in the list.");
+        }
+
+        /// <summary>An app scaffolded by a OneJS from before the record: every listed file on disk, no record.</summary>
+        void MakeAppFromBeforeTheRecord(JSRunner runner, System.Func<string, string> content) {
+            foreach (var path in ListedPaths(runner)) {
+                var full = InWorkingDir(path);
+                Directory.CreateDirectory(Path.GetDirectoryName(full));
+                File.WriteAllText(full, content(path));
+            }
+            Assert.IsFalse(File.Exists(Record), "Test setup is wrong: the app already has a record.");
+        }
+
+        static string RecordedHash(string path) {
+            var line = File.ReadAllLines(Record).SingleOrDefault(l => l.Split('\t')[0] == path);
+            Assert.IsNotNull(line, $"{path} is not recorded.");
+            var parts = line.Split('\t');
+            return parts.Length > 1 ? parts[1] : null;
+        }
+
+        [Test]
+        public void EveryMissingFileTheWarningNamesHasARowRestoreWorksOn() {
+            var runner = MakeRunner();
+            // A runner from before AGENTS.md was a template: the template reaches it, its list does not.
+            Unlist(runner, "AGENTS.md");
+            runner.EnsureProjectSetup();
+            File.Delete(InWorkingDir("AGENTS.md"));
+
+            StringAssert.Contains("AGENTS.md", runner.DescribeMissingDefaultFiles(), "Test setup is wrong: the warning does not name AGENTS.md.");
+            CollectionAssert.Contains(runner.ScaffoldingPaths, "AGENTS.md",
+                "The warning says to Restore AGENTS.md in the Scaffolding list, which has no row for it.");
+            Assert.AreEqual(DefaultFileStatus.Missing, runner.GetDefaultFileStatus("AGENTS.md"));
+
+            Assert.IsTrue(runner.RestoreDefaultFile("AGENTS.md"), "Restore refused a path the warning names.");
+            Assert.AreEqual(TemplateText("AGENTS.md"), File.ReadAllText(InWorkingDir("AGENTS.md")), "Restore did not write OneJS's template.");
+            Assert.AreEqual(ScaffoldRecord.Hash(TemplateText("AGENTS.md")), RecordedHash("AGENTS.md"), "Restore did not record what it wrote.");
+            Assert.AreEqual(DefaultFileStatus.UpToDate, runner.GetDefaultFileStatus("AGENTS.md"));
+        }
+
+        [Test]
+        public void RestoreBringsBackADeletedFileAsItsTemplate() {
+            var runner = MakeRunner();
+            runner.EnsureProjectSetup();
+            File.Delete(InWorkingDir("index.tsx"));
+            Assert.AreEqual(DefaultFileStatus.Missing, runner.GetDefaultFileStatus("index.tsx"));
+
+            Assert.IsTrue(runner.RestoreDefaultFile("index.tsx"));
+
+            Assert.AreEqual(TemplateText("index.tsx"), File.ReadAllText(InWorkingDir("index.tsx")));
+            Assert.AreEqual(DefaultFileStatus.UpToDate, runner.GetDefaultFileStatus("index.tsx"));
+            runner.EnsureProjectSetup();
+            Assert.AreEqual(TemplateText("index.tsx"), File.ReadAllText(InWorkingDir("index.tsx")), "The next Play changed a restored file.");
+        }
+
+        [Test]
+        public void RestoreRecordsWhatItWroteSoALaterTemplateChangeShows() {
+            var runner = MakeRunner();
+            MakeAppFromBeforeTheRecord(runner, _ => "// scaffolded long ago");
+            runner.EnsureProjectSetup();
+
+            Assert.IsTrue(runner.RestoreDefaultFile("index.tsx"));
+
+            Assert.AreEqual(ScaffoldRecord.Hash(TemplateText("index.tsx")), RecordedHash("index.tsx"),
+                "Restore wrote the template and left the record saying nothing about it.");
+            ChangeTemplate(runner, "index.tsx", "// a newer template");
+            Assert.AreEqual(DefaultFileStatus.TemplateUpdated, runner.GetDefaultFileStatus("index.tsx"),
+                "A restored file nobody touched since reads as changed by the user after the template moved on.");
+        }
+
+        [Test]
+        public void ASeededFileThatIsTheTemplateShowsTemplateNewerWhenTheTemplateMovesOn() {
+            var runner = MakeRunner();
+            MakeAppFromBeforeTheRecord(runner, TemplateText);
+            runner.EnsureProjectSetup();
+
+            ChangeTemplate(runner, "index.tsx", "// a newer template");
+
+            Assert.AreEqual(DefaultFileStatus.TemplateUpdated, runner.GetDefaultFileStatus("index.tsx"),
+                "An untouched copy of the template reads as changed by the user after an upgrade.");
+        }
+
+        [Test]
+        public void ASeededFileOfUnknownOriginIsNotCalledModified() {
+            var runner = MakeRunner();
+            MakeAppFromBeforeTheRecord(runner, _ => "// scaffolded long ago");
+            runner.EnsureProjectSetup();
+
+            // No record of what it was written with: the user may have changed it, or the template may have.
+            Assert.AreEqual(DefaultFileStatus.Differs, runner.GetDefaultFileStatus("package.json"));
+        }
+
+        [Test]
+        public void TheTemplateWithOtherLineEndingsIsUpToDate() {
+            var runner = MakeRunner();
+            runner.EnsureProjectSetup();
+            // What a Windows checkout with autocrlf makes of it.
+            File.WriteAllText(InWorkingDir("index.tsx"), TemplateText("index.tsx").Replace("\r\n", "\n").Replace("\n", "\r\n"));
+
+            Assert.AreEqual(DefaultFileStatus.UpToDate, runner.GetDefaultFileStatus("index.tsx"));
+        }
+
+        [Test]
+        public void ARestoreBeforeTheFirstPlayLeavesTheAppNew() {
+            var runner = MakeRunner();
+            Assert.IsTrue(runner.RestoreDefaultFile("index.tsx"));
+
+            runner.EnsureProjectSetup();
+
+            foreach (var path in ListedPaths(runner)) Assert.IsTrue(File.Exists(InWorkingDir(path)), $"{path} was not written: one Restore made the app look old.");
         }
     }
 }

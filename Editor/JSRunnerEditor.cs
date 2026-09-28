@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using OneJS.Editor;
 using OneJS.Editor.TypeGenerator;
 using Unity.CodeEditor;
@@ -860,9 +861,8 @@ namespace OneJS.Editor {
             _defaultFilesListContainer.Clear();
             serializedObject.Update();
 
-            var defaultFilesProp = serializedObject.FindProperty("_defaultFiles");
-
-            if (defaultFilesProp.arraySize == 0) {
+            var paths = _target.ScaffoldingPaths;
+            if (paths.Count == 0) {
                 var emptyLabel = new Label("No default files. Click \"Reset to Defaults\" to populate.");
                 emptyLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
                 emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
@@ -872,17 +872,15 @@ namespace OneJS.Editor {
                 return;
             }
 
-            for (int i = 0; i < defaultFilesProp.arraySize; i++) {
-                var row = CreateDefaultFileRow(i);
-                _defaultFilesListContainer.Add(row);
-            }
+            foreach (var path in paths) _defaultFilesListContainer.Add(CreateDefaultFileRow(path));
         }
 
-        VisualElement CreateDefaultFileRow(int index) {
-            var status = _target.GetDefaultFileStatus(index);
-            var entry = serializedObject.FindProperty("_defaultFiles").GetArrayElementAtIndex(index);
-            var pathProp = entry.FindPropertyRelative("path");
-            var pathValue = pathProp.stringValue;
+        static bool CanRestore(DefaultFileStatus s) =>
+            s == DefaultFileStatus.Modified || s == DefaultFileStatus.Missing ||
+            s == DefaultFileStatus.TemplateUpdated || s == DefaultFileStatus.Differs;
+
+        VisualElement CreateDefaultFileRow(string path) {
+            var status = _target.GetDefaultFileStatus(path);
 
             var row = new VisualElement();
             row.style.flexDirection = FlexDirection.Row;
@@ -896,10 +894,8 @@ namespace OneJS.Editor {
             row.style.SetBorderRadius(3);
 
             // Path label
-            var pathLabel = new Label(string.IsNullOrEmpty(pathValue) ? "(empty)" : pathValue);
+            var pathLabel = new Label(path);
             pathLabel.style.flexGrow = 1;
-            if (string.IsNullOrEmpty(pathValue))
-                pathLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
             row.Add(pathLabel);
 
             // Status label
@@ -937,41 +933,26 @@ namespace OneJS.Editor {
             row.Add(statusLabel);
 
             // Restore button
-            var capturedIndex = index;
             var restoreBtn = new Button(() => {
-                if (status == DefaultFileStatus.Modified) {
+                if (status == DefaultFileStatus.Modified || status == DefaultFileStatus.Differs) {
                     if (!EditorUtility.DisplayDialog("Restore File",
-                        $"Overwrite '{pathValue}' with the template version?", "Restore", "Cancel"))
+                        $"Overwrite '{path}' with the template version?", "Restore", "Cancel"))
                         return;
                 }
-                serializedObject.Update();
-                var at = FindListEntry(serializedObject.FindProperty("_defaultFiles"), capturedIndex, ShowsPath(pathValue));
-                if (at >= 0) _target.RestoreDefaultFile(at);
+                _target.RestoreDefaultFile(path);
                 RebuildDefaultFilesList();
             }) { text = OneJSEditorDesign.Texts.Restore };
             restoreBtn.style.width = 56;
             restoreBtn.style.height = 20;
-            restoreBtn.SetEnabled(status == DefaultFileStatus.Modified || status == DefaultFileStatus.Missing ||
-                                  status == DefaultFileStatus.TemplateUpdated);
+            restoreBtn.SetEnabled(CanRestore(status));
             row.Add(restoreBtn);
 
             return row;
         }
 
-        static Func<SerializedProperty, bool> ShowsPath(string path) =>
-            e => e.FindPropertyRelative("path").stringValue == path;
-
         void RestoreAllDefaultFiles() {
             serializedObject.Update();
-            var prop = serializedObject.FindProperty("_defaultFiles");
-
-            // Collect indices that need restoring
-            var toRestore = new List<int>();
-            for (int i = 0; i < prop.arraySize; i++) {
-                var s = _target.GetDefaultFileStatus(i);
-                if (s == DefaultFileStatus.Modified || s == DefaultFileStatus.Missing || s == DefaultFileStatus.TemplateUpdated)
-                    toRestore.Add(i);
-            }
+            var toRestore = _target.ScaffoldingPaths.Where(p => CanRestore(_target.GetDefaultFileStatus(p))).ToList();
 
             if (toRestore.Count == 0) {
                 EditorUtility.DisplayDialog("Restore All", "All files are already up to date.", "OK");
@@ -983,8 +964,8 @@ namespace OneJS.Editor {
                 "Restore All", "Cancel"))
                 return;
 
-            foreach (var i in toRestore)
-                _target.RestoreDefaultFile(i);
+            foreach (var path in toRestore)
+                _target.RestoreDefaultFile(path);
 
             RebuildDefaultFilesList();
         }

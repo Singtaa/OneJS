@@ -56,7 +56,12 @@ namespace OneJS {
     /// Status of a default file relative to its template. TemplateUpdated is a file nobody
     /// changed since it was written, whose template has changed since.
     /// </summary>
-    public enum DefaultFileStatus { UpToDate, Modified, Missing, Invalid, TemplateUpdated }
+    /// <summary>
+    /// A default file on disk against its template. <see cref="Differs"/> is a file that differs
+    /// from the template with no record of what it was written with, so OneJS cannot tell whether
+    /// the user changed it or the template moved on.
+    /// </summary>
+    public enum DefaultFileStatus { UpToDate, Modified, Missing, Invalid, TemplateUpdated, Differs }
 
     /// <summary>
     /// MonoBehaviour that runs JavaScript from an auto-managed working directory.
@@ -2141,13 +2146,29 @@ namespace OneJS {
             return result;
         }
 
+        /// <summary>The paths the inspector's Scaffolding list shows, each with a status and a Restore.</summary>
+        public IReadOnlyList<string> ScaffoldingPaths =>
+            (_defaultFiles ?? new List<DefaultFileEntry>()).Where(e => e != null && !string.IsNullOrEmpty(e.path)).Select(e => e.path).ToList();
+
+        /// <summary>The entry the Scaffolding list's row for `path` stands for, or null.</summary>
+        DefaultFileEntry ScaffoldingEntry(string path) {
+            if (string.IsNullOrEmpty(path) || _defaultFiles == null) return null;
+            var wanted = path.Replace('\\', '/');
+            return _defaultFiles.FirstOrDefault(e => e != null && e.path != null && e.path.Replace('\\', '/') == wanted);
+        }
+
         /// <summary>
         /// Returns the status of a default file entry by comparing disk content to the template.
         /// </summary>
         public DefaultFileStatus GetDefaultFileStatus(int index) {
             if (index < 0 || index >= _defaultFiles.Count) return DefaultFileStatus.Invalid;
-            var entry = _defaultFiles[index];
-            if (string.IsNullOrEmpty(entry.path) || entry.content == null) return DefaultFileStatus.Invalid;
+            return GetDefaultFileStatus(_defaultFiles[index]?.path);
+        }
+
+        /// <summary>The status of the default file at `path` in the working directory.</summary>
+        public DefaultFileStatus GetDefaultFileStatus(string path) {
+            var entry = ScaffoldingEntry(path);
+            if (entry == null || entry.content == null) return DefaultFileStatus.Invalid;
             var workingDir = WorkingDirFullPath;
             if (string.IsNullOrEmpty(workingDir)) return DefaultFileStatus.Invalid;
 
@@ -2168,8 +2189,13 @@ namespace OneJS {
         /// </summary>
         public bool RestoreDefaultFile(int index) {
             if (index < 0 || index >= _defaultFiles.Count) return false;
-            var entry = _defaultFiles[index];
-            if (string.IsNullOrEmpty(entry.path) || entry.content == null) return false;
+            return RestoreDefaultFile(_defaultFiles[index]?.path);
+        }
+
+        /// <summary>Overwrites (or creates) the default file at `path` with its template content.</summary>
+        public bool RestoreDefaultFile(string path) {
+            var entry = ScaffoldingEntry(path);
+            if (entry == null || entry.content == null) return false;
             var workingDir = WorkingDirFullPath;
             if (string.IsNullOrEmpty(workingDir)) return false;
 
