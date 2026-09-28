@@ -2,6 +2,8 @@
 
 - A shader program with no VM encoding, as onejs-sl 0.2.0 builds it, draws from its compiled shader
 - `ShaderEffectElement.AcceptsCompiledPrograms` tells a host it can send one
+- `ONEJS_SL_VM` does nothing for a project on `onejs-unity` 0.6, whose programs carry no VM encoding
+- Shader programs have no length or live value limit on `onejs-unity` 0.6
 
 # [2026-09-28] v3.6.0
 
