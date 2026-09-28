@@ -13,12 +13,14 @@ namespace OneJS.SL {
     /// program itself (<see cref="SLWeb"/>). Where none of that has happened
     /// yet, the program draws nothing.
     ///
-    /// THE VM. The program also arrives encoded by `onejs-sl/src/encode.ts` as a
-    /// flat float buffer (two texels per instruction, eight registers), which
-    /// OneJS/FxProgram.shader can evaluate. That used to draw every program in
-    /// a native player and every program the editor had not compiled yet. It
-    /// is kept behind ONEJS_SL_VM for one release (<see cref="VmAllowed"/>),
-    /// in the editor and native players only.
+    /// THE VM. A program from onejs-sl before 0.2.0 also arrives encoded by
+    /// `encode()` as a flat float buffer (two texels per instruction, eight
+    /// registers), which OneJS/FxProgram.shader can evaluate. That used to draw
+    /// every program in a native player and every program the editor had not
+    /// compiled yet. It is kept behind ONEJS_SL_VM for one release
+    /// (<see cref="VmAllowed"/>), in the editor and native players only.
+    /// `compile()` sends no buffer at all, and a program without one draws only
+    /// compiled; the buffer is read, and checked, only where the VM draws it.
     ///
     /// The buffer crosses from JS ONCE per program, not per frame. Uniforms
     /// cross when they change, diffed by value the way ShaderEffect's props are,
@@ -98,6 +100,8 @@ namespace OneJS.SL {
             /// See <see cref="CurrentMaterial"/>.
             /// </summary>
             public float AwaitingSince = -1f;
+            /// <summary>False for a program that arrived with no VM encoding, which only a compiled shader can draw.</summary>
+            public bool Encoded = true;
 
             public void Dispose() {
                 SLWeb.Release(WebId);
@@ -166,15 +170,6 @@ namespace OneJS.SL {
         }
 
         /// <summary>
-        /// Uploads an encoded program and returns a handle.
-        ///
-        /// `data` is the flat buffer `encode()` produced. It is validated here
-        /// rather than trusted: a buffer whose length does not match its
-        /// instruction count, or that names a register the VM does not have,
-        /// would render a wrong picture rather than fail, and a wrong picture is
-        /// indistinguishable from an authoring mistake.
-        /// </summary>
-        /// <summary>
         /// The name a shader generated from a program carries. The hash is the
         /// link between the two, and if it ever fails to match, the program
         /// finds no shader and draws nothing, and a build with ONEJS_SL_VM
@@ -230,8 +225,16 @@ namespace OneJS.SL {
                 c.AwaitingSince = Time.realtimeSinceStartup;
                 return;
             }
-            SayMissing(c.Hash, editor: false);
+            SayMissing(c.Hash, editor: false, c.Encoded);
         }
+
+        /// <summary>
+        /// True for a program sent with no VM encoding, as onejs-sl's compile()
+        /// sends it. A program that has any part of one is encoded, and the VM
+        /// checks it (<see cref="Validate"/>) if it is the one to draw it.
+        /// </summary>
+        static bool Unencoded(float[] data, int instructionCount) =>
+            instructionCount == 0 && (data == null || data.Length == 0);
 
         /// <summary>
         /// Says, once per program, that it has no compiled shader and draws
@@ -239,7 +242,7 @@ namespace OneJS.SL {
         /// a warning in the editor, where its shader did not arrive in time and
         /// still may.
         /// </summary>
-        static void SayMissing(string hash, bool editor) {
+        static void SayMissing(string hash, bool editor, bool encoded = true) {
             if (!s_WarnedMissing.Add(hash ?? "")) return;
             var name = string.IsNullOrEmpty(hash) ? "(no hash)" : hash;
             if (editor) {
@@ -254,7 +257,9 @@ namespace OneJS.SL {
                 "build compiles every program listed in a *.sl.json manifest: a .sl file is listed in " +
                 "app.sl.json when the app is built, and a program built in code is listed in " +
                 "Assets/OneJS/Recorded.sl.json once the editor has drawn it. Run the app in the editor, then " +
-                "build again. For this release, building with ONEJS_SL_VM draws it on the VM instead.");
+                "build again. " + (encoded
+                    ? "For this release, building with ONEJS_SL_VM draws it on the VM instead."
+                    : "It carries no VM encoding, so building with ONEJS_SL_VM would not draw it either."));
         }
 
         /// <summary>
@@ -399,7 +404,6 @@ namespace OneJS.SL {
         public static Material CreateMaterial(float[] data, int instructionCount, int resultRegister,
                                               string hash, out bool native, out int handle,
                                               string[] uniformNames = null, int wire = 1) {
-            Validate(data, instructionCount, resultRegister);
             native = false;
             var why = Unrunnable();
             if (why != null) throw new InvalidOperationException(why);
@@ -409,6 +413,7 @@ namespace OneJS.SL {
                 ResultRegister = resultRegister,
                 UniformNames = uniformNames,
                 Hash = hash,
+                Encoded = !Unencoded(data, instructionCount),
             };
 
             Shader gen = FindGenerated(hash);
@@ -420,11 +425,12 @@ namespace OneJS.SL {
             } else if (CompiledOnly) {
                 // No material: the page draws it (TryRenderCompiled) once the
                 // host hands over its WGSL and GLSL.
-            } else if (!VmAllowed) {
+            } else if (!VmAllowed || !c.Encoded) {
                 // No material either: nothing draws until the editor has
                 // generated a shader and adopted it.
                 AwaitShader(c);
             } else {
+                Validate(data, instructionCount, resultRegister);
                 if (VmShader == null) {
                     throw new InvalidOperationException(
                         "[OneJS sl] OneJS/FxProgram.shader is missing from Resources.");
@@ -489,27 +495,34 @@ namespace OneJS.SL {
             }
         }
 
+        /// <summary>
+        /// Uploads a program and returns a handle.
+        ///
+        /// `data` is the flat buffer `encode()` produced, or empty for a program
+        /// from `compile()`, which has none. Where the VM draws the program the
+        /// buffer is validated rather than trusted: a buffer whose length does
+        /// not match its instruction count, or that names a register the VM does
+        /// not have, would render a wrong picture rather than fail, and a wrong
+        /// picture is indistinguishable from an authoring mistake. Nothing else
+        /// reads it.
+        /// </summary>
         public static int Upload(float[] data, int instructionCount, int resultRegister,
                                  string hash = null, string[] uniformNames = null, int wire = 1) {
             var why = Unrunnable();
             if (why != null) throw new InvalidOperationException(why);
-            if (CompiledOnly) {
-                Validate(data, instructionCount, resultRegister);
-                int webHandle = s_NextHandle++;
-                s_Programs[webHandle] = new Compiled {
-                    InstructionCount = instructionCount, ResultRegister = resultRegister,
-                    UniformNames = uniformNames, Hash = hash,
-                };
-                return webHandle;
-            }
-            Validate(data, instructionCount, resultRegister);
 
             var c = new Compiled {
                 InstructionCount = instructionCount,
                 ResultRegister = resultRegister,
                 UniformNames = uniformNames,
                 Hash = hash,
+                Encoded = !Unencoded(data, instructionCount),
             };
+            if (CompiledOnly) {
+                int webHandle = s_NextHandle++;
+                s_Programs[webHandle] = c;
+                return webHandle;
+            }
 
             // THE EJECT PATH. A project with an editor generates a shader per
             // program at import time, and its player builds ship them; this
@@ -527,12 +540,13 @@ namespace OneJS.SL {
                 return nativeHandle;
             }
 
-            if (!VmAllowed) {
+            if (!VmAllowed || !c.Encoded) {
                 AwaitShader(c);
                 int waitingHandle = s_NextHandle++;
                 s_Programs[waitingHandle] = c;
                 return waitingHandle;
             }
+            Validate(data, instructionCount, resultRegister);
             if (VmShader == null) {
                 throw new InvalidOperationException(
                     "[OneJS sl] OneJS/FxProgram.shader is missing from Resources. " +

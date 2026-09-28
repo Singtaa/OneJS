@@ -113,6 +113,18 @@ namespace OneJS.ShaderFX {
         bool _compiledAllowed = true;
         static readonly int s_Res = Shader.PropertyToID("_Res");
 
+        /// <summary>
+        /// True on a OneJS that draws a program with no VM encoding, which is
+        /// what onejs-sl's compile() produces. A host reads it before sending
+        /// such a program, so an older OneJS gets a message naming the version
+        /// it needs rather than a refused empty buffer.
+        /// </summary>
+        public bool AcceptsCompiledPrograms => true;
+
+        /// <param name="dataObj">
+        /// The VM encoding, or empty (or null) for a program that has none. Only
+        /// the VM reads it.
+        /// </param>
         /// <returns>
         /// True when the host should follow up with <see cref="RecordProgram"/>:
         /// the program has no compiled shader and an editor is attached that can
@@ -238,6 +250,7 @@ namespace OneJS.ShaderFX {
         }
 
         static float[] ToFloats(object obj) {
+            if (obj == null) return System.Array.Empty<float>();
             if (obj is float[] f) return f;
             if (obj is double[] d) {
                 var o = new float[d.Length];

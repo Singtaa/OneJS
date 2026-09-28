@@ -1,3 +1,8 @@
+# Unreleased
+
+- A shader program with no VM encoding, as onejs-sl 0.2.0 builds it, draws from its compiled shader
+- `ShaderEffectElement.AcceptsCompiledPrograms` tells a host it can send one
+
 # [2026-09-28] v3.6.0
 
 A shader program's `noise`, `fbm` and `voronoi`, and value `fx.noise`, look different at every seed, and now look the same on every GPU; simplex, turbulence and ridged noise don't change. A shader program with no compiled shader draws nothing instead of running on the VM, and an existing project should bump `onejs-unity` to `^0.5.20` so its noise on the web matches the editor.
