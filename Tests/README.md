@@ -32,7 +32,9 @@ Tests/
 │   ├── JSRunnerBuildProcessorTests.cs
 │   ├── JSRunnerBuildProcessorWindowsTests.cs # Read only handling; Windows only
 │   ├── JSRunnerBuildSceneListTests.cs  # Which scenes a build walks
-│   ├── JSRunnerInspectorListTests.cs   # The inspector's hand built lists: remove, undo, EnsureProjectSetup
+│   ├── JSRunnerInspectorListTests.cs   # The inspector's lists with a remove button: remove and undo
+│   ├── JSRunnerScaffoldOnceTests.cs    # Each default file written once: the record's states, deletions, shared folders
+│   ├── JSRunnerDefaultFilesTests.cs    # Initialize keeps the list, missing file message, Template newer, no Scaffolding X
 │   ├── CartridgeUtilsTests.cs
 │   ├── PremadeCartridgeTests.cs # Validates the shipped Premade/ cartridge assets
 │   └── BuildValidationTests.cs
@@ -77,7 +79,9 @@ Tests/
 | `Physics2DBodyTests.cs` | PlayMode | How a wire body becomes a Rigidbody2D: no engine warnings on build, and density driving mass |
 | `ShaderFXTests.cs` | PlayMode | ShaderFX render-target lifecycle against real layout, uniform marshalling, ramp/texture caching |
 | `JSRunnerBuildProcessorTests.cs` | EditMode | Asset copying, namespace detection |
-| `JSRunnerInspectorListTests.cs` | EditMode | The X button in the Stylesheets, Preloads, Globals, Cartridges and Scaffolding lists removes the row clicked, after an undo and after another inspector changed the list, and EnsureProjectSetup stops recreating a removed file |
+| `JSRunnerInspectorListTests.cs` | EditMode | The X button in the Stylesheets, Preloads, Globals and Cartridges lists removes the row clicked, after an undo and after another inspector changed the list |
+| `JSRunnerScaffoldOnceTests.cs` | EditMode | Default files are written once: a new app, an app with a record, an app from before the record, a deleted package.json or record, two runners on one folder |
+| `JSRunnerDefaultFilesTests.cs` | EditMode | Initialize keeps a customized list, a missing default file is named with Restore, Template newer status, the Scaffolding list has no X, the scaffolded .gitignore keeps `.onejs/` |
 | `BuildValidationTests.cs` | EditMode | Full build + run validation (slow) |
 
 ## Test Categories

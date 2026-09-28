@@ -137,9 +137,11 @@ namespace OneJS.Editor {
                 // Skip if watcher is already running
                 if (NodeWatcherManager.IsRunning(workingDir)) continue;
 
-                // Check for package.json
+                // No package.json means no npm at all. Default files are written once, so a
+                // deleted one stays deleted: say which, and how to get it back.
                 if (!File.Exists(Path.Combine(workingDir, "package.json"))) {
-                    Debug.Log($"[JSRunner] Skipping auto-watch for {runner.name}: no package.json");
+                    Debug.LogWarning(runner.DescribeMissingDefaultFiles() ??
+                        $"[JSRunner] Skipping auto-watch for {runner.name}: no package.json", runner);
                     continue;
                 }
 
@@ -160,6 +162,12 @@ namespace OneJS.Editor {
                     StartWatcher(workingDir, runner.name);
                 }
             }
+        }
+
+        static void WarnMissingDefaultFiles(JSRunner runner) {
+            if (runner == null) return;
+            var missing = runner.DescribeMissingDefaultFiles();
+            if (missing != null) Debug.LogWarning(missing, runner);
         }
 
         static void StartWatcher(string workingDir, string runnerName) {
@@ -187,6 +195,7 @@ namespace OneJS.Editor {
             }, code => {
                 _pendingInstalls.Remove(workingDir);
                 Debug.LogError($"[JSRunner] npm install failed for {runner.name} (exit code {code})");
+                WarnMissingDefaultFiles(runner);
             });
         }
 
@@ -205,6 +214,7 @@ namespace OneJS.Editor {
                 StartWatcher(workingDir, runner.name);
             }, code => {
                 Debug.LogError($"[JSRunner] npm build failed for {runner.name} (exit code {code})");
+                WarnMissingDefaultFiles(runner);
             });
         }
 

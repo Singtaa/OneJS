@@ -15,9 +15,10 @@ using Object = UnityEngine.Object;
 
 namespace OneJS.Tests.Editor {
     /// <summary>
-    /// EditMode tests for the lists JSRunner's inspector builds by hand:
-    /// Stylesheets, Preloads, Globals, Cartridges and Scaffolding. Each test
-    /// builds the real inspector and clicks the real X button.
+    /// EditMode tests for the lists in JSRunner's inspector that have a remove
+    /// button: Stylesheets, Preloads, Globals and Cartridges. Each test builds the
+    /// real inspector and clicks the real X button. (Scaffolding has no remove
+    /// button: a default file is written once, see JSRunnerScaffoldOnceTests.)
     ///
     /// The bug these guard against lived in the rows, not in JSRunner. Every row
     /// kept the index it was built with and removed through the list as it was
@@ -42,7 +43,6 @@ namespace OneJS.Tests.Editor {
             ["_preloads"] = (0, "Remove this preload"),
             ["_globals"] = (0, "Remove this global"),
             ["_cartridges"] = (2, "Remove from list"),
-            ["_defaultFiles"] = (3, "Stop scaffolding"),
         };
 
         GameObject _go;
@@ -63,8 +63,6 @@ namespace OneJS.Tests.Editor {
 
         static string AbsolutePath(string assetPath) =>
             Path.Combine(Path.GetDirectoryName(Application.dataPath), assetPath.Replace('/', Path.DirectorySeparatorChar));
-
-        string WorkingFile(string path) => Path.Combine(_runner.WorkingDirFullPath, path);
 
         T Make<T>(T obj, string name) where T : Object {
             obj.name = name;
@@ -88,7 +86,7 @@ namespace OneJS.Tests.Editor {
             _previewScene = EditorSceneManager.NewPreviewScene();
 
             // A folder holding a "~" is a project folder, so the runner resolves
-            // a working directory and EnsureProjectSetup has somewhere to write.
+            // a working directory and the inspector draws its tabs.
             if (AssetDatabase.IsValidFolder(TEST_FOLDER)) AssetDatabase.DeleteAsset(TEST_FOLDER);
             Directory.CreateDirectory(Path.Combine(AbsolutePath(TEST_FOLDER), "~"));
             AssetDatabase.Refresh();
@@ -113,9 +111,6 @@ namespace OneJS.Tests.Editor {
                 so.FindProperty("_globals").GetArrayElementAtIndex(i).FindPropertyRelative("key").stringValue = n;
                 so.FindProperty("_cartridges").GetArrayElementAtIndex(i).objectReferenceValue =
                     Make(ScriptableObject.CreateInstance<UICartridge>(), n);
-                var file = so.FindProperty("_defaultFiles").GetArrayElementAtIndex(i);
-                file.FindPropertyRelative("path").stringValue = n;
-                file.FindPropertyRelative("content").objectReferenceValue = Make(new TextAsset($"template for {n}"), n);
             }
             so.ApplyModifiedPropertiesWithoutUndo();
 
@@ -150,7 +145,6 @@ namespace OneJS.Tests.Editor {
             return Enumerable.Range(0, prop.arraySize).Select(i => {
                 var e = prop.GetArrayElementAtIndex(i);
                 if (list == "_globals") return e.FindPropertyRelative("key").stringValue;
-                if (list == "_defaultFiles") return e.FindPropertyRelative("path").stringValue;
                 return e.objectReferenceValue != null ? e.objectReferenceValue.name : "(none)";
             }).ToArray();
         }
@@ -158,13 +152,12 @@ namespace OneJS.Tests.Editor {
         List<Button> XButtons(string list) =>
             _root.Query<Button>().Where(b => b.text == "X" && b.tooltip != null && b.tooltip.StartsWith(Lists[list].tooltip)).ToList();
 
-        /// <summary>What a row shows: a global's key, an object's name, or a file's path.</summary>
+        /// <summary>What a row shows: a global's key, or an object's name.</summary>
         static string RowName(VisualElement row) {
             var key = row.Q<TextField>();
             if (key != null) return key.value;
             var field = row.Q<ObjectField>();
-            if (field != null) return field.value != null ? field.value.name : "(none)";
-            return row.Q<Label>().text;
+            return field.value != null ? field.value.name : "(none)";
         }
 
         /// <summary>The rows the inspector draws for `list`, top to bottom.</summary>
@@ -184,7 +177,6 @@ namespace OneJS.Tests.Editor {
         [TestCase("_preloads")]
         [TestCase("_globals")]
         [TestCase("_cartridges")]
-        [TestCase("_defaultFiles")]
         public void RemoveTakesOutOnlyTheRowClicked(string list) {
             Show(list);
             Undo.IncrementCurrentGroup();
@@ -198,7 +190,6 @@ namespace OneJS.Tests.Editor {
         [TestCase("_preloads")]
         [TestCase("_globals")]
         [TestCase("_cartridges")]
-        [TestCase("_defaultFiles")]
         public void AfterUndoTheRemovedRowIsBackAndRemoveStillTakesTheRowClicked(string list) {
             Show(list);
             Undo.IncrementCurrentGroup();
@@ -223,7 +214,6 @@ namespace OneJS.Tests.Editor {
         [TestCase("_preloads")]
         [TestCase("_globals")]
         [TestCase("_cartridges")]
-        [TestCase("_defaultFiles")]
         public void ARowDrawnBeforeTheListChangedRemovesItsOwnEntry(string list) {
             Show(list);
             // The list changes under rows that are already drawn, as it does when
@@ -241,23 +231,6 @@ namespace OneJS.Tests.Editor {
             ClickRemove(list, "c");
 
             CollectionAssert.AreEqual(new[] { "b" }, Listed(list), "A row drawn before the list changed removed the wrong entry.");
-        }
-
-        [Test]
-        public void ARemovedScaffoldingFileIsNotRecreatedWhileTheOthersAre() {
-            Show("_defaultFiles");
-            _runner.EnsureProjectSetup();
-            foreach (var n in Names) Assert.IsTrue(File.Exists(WorkingFile(n)), $"Test setup is wrong: {n} was not scaffolded.");
-
-            Undo.IncrementCurrentGroup();
-            ClickRemove("_defaultFiles", "b");
-            File.Delete(WorkingFile("b"));
-            File.Delete(WorkingFile("c"));
-            _runner.EnsureProjectSetup();
-
-            Assert.IsFalse(File.Exists(WorkingFile("b")), "b was recreated after it was removed from the list.");
-            Assert.IsTrue(File.Exists(WorkingFile("c")), "c is still listed, so a missing c should have been recreated.");
-            Assert.IsTrue(File.Exists(WorkingFile("a")), "a, which nobody deleted, is gone.");
         }
     }
 }

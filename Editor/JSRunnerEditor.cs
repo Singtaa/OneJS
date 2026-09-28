@@ -919,8 +919,15 @@ namespace OneJS.Editor {
                     statusLabel.style.color = OneJSEditorDesign.Colors.StatusWarning;
                     break;
                 case DefaultFileStatus.Missing:
+                    // Not an error: a default file is written once, and deleting it is allowed.
                     statusLabel.text = OneJSEditorDesign.Texts.FileMissing;
-                    statusLabel.style.color = OneJSEditorDesign.Colors.StatusError;
+                    statusLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
+                    statusLabel.tooltip = "Not in the working directory. Default files are written once, so it stays gone until you Restore it.";
+                    break;
+                case DefaultFileStatus.TemplateUpdated:
+                    statusLabel.text = OneJSEditorDesign.Texts.FileTemplateUpdated;
+                    statusLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
+                    statusLabel.tooltip = "Unchanged since it was written, and OneJS's template has changed since. Restore writes the new template.";
                     break;
                 default:
                     statusLabel.text = "";
@@ -944,18 +951,9 @@ namespace OneJS.Editor {
             }) { text = OneJSEditorDesign.Texts.Restore };
             restoreBtn.style.width = 56;
             restoreBtn.style.height = 20;
-            restoreBtn.SetEnabled(status == DefaultFileStatus.Modified || status == DefaultFileStatus.Missing);
+            restoreBtn.SetEnabled(status == DefaultFileStatus.Modified || status == DefaultFileStatus.Missing ||
+                                  status == DefaultFileStatus.TemplateUpdated);
             row.Add(restoreBtn);
-
-            // Remove button: the only way to delete a scaffolded file for good,
-            // since any file still listed is recreated when it goes missing.
-            var removeBtn = new Button(() => RemoveListEntry("_defaultFiles", capturedIndex,
-                ShowsPath(pathValue), RebuildDefaultFilesList)) { text = "X" };
-            removeBtn.style.width = 24;
-            removeBtn.style.height = 20;
-            removeBtn.style.marginLeft = 2;
-            removeBtn.tooltip = "Stop scaffolding this file. The file on disk is left alone, and Reset to Defaults brings the entry back.";
-            row.Add(removeBtn);
 
             return row;
         }
@@ -971,7 +969,7 @@ namespace OneJS.Editor {
             var toRestore = new List<int>();
             for (int i = 0; i < prop.arraySize; i++) {
                 var s = _target.GetDefaultFileStatus(i);
-                if (s == DefaultFileStatus.Modified || s == DefaultFileStatus.Missing)
+                if (s == DefaultFileStatus.Modified || s == DefaultFileStatus.Missing || s == DefaultFileStatus.TemplateUpdated)
                     toRestore.Add(i);
             }
 
@@ -1106,7 +1104,7 @@ namespace OneJS.Editor {
             deleteBtn.style.width = 24;
             deleteBtn.style.height = 20;
             deleteBtn.style.marginLeft = 2;
-            deleteBtn.tooltip = "Delete extracted cartridge folder";
+            deleteBtn.tooltip = "Delete the extracted folder. While the cartridge is listed it is extracted again on the next Play; X removes it from the list.";
             var cartPath = _target.IsSceneSaved ? _target.GetCartridgePath(cartridge) : null;
             bool canDelete = cartridge != null && !string.IsNullOrEmpty(cartridge?.Slug) &&
                              !string.IsNullOrEmpty(cartPath) && Directory.Exists(cartPath);
@@ -1957,14 +1955,22 @@ namespace OneJS.Editor {
                     _buildInProgress = false;
                     _buildOutput = $"Build failed with exit code {code}";
                     Debug.LogError($"[JSRunner] Build failed with exit code {code}");
+                    WarnMissingDefaultFiles();
                     RestartWatcherIfNeeded();
                 });
             }, onFailure: (code) => {
                 _buildInProgress = false;
                 _buildOutput = $"Install failed with exit code {code}";
                 Debug.LogError($"[JSRunner] npm install failed with exit code {code}");
+                WarnMissingDefaultFiles();
                 RestartWatcherIfNeeded();
             });
+        }
+
+        void WarnMissingDefaultFiles() {
+            if (_target == null) return;
+            var missing = _target.DescribeMissingDefaultFiles();
+            if (missing != null) Debug.LogWarning(missing, _target);
         }
 
         // MARK: npm Resolution
@@ -2037,7 +2043,7 @@ namespace OneJS.Editor {
 
         void RunInitializeProject() {
             Undo.RecordObject(_target, "JSRunner Initialize Project");
-            _target.PopulateDefaultFiles();
+            _target.AddMissingDefaultFiles();
             _target.EnsureProjectFolderAndAssets(EditorPrefs.GetBool(UseSceneNameAsRootFolderPrefKey, true));
             _target.EnsureProjectSetup();
             EditorUtility.SetDirty(_target);

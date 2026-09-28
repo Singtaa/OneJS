@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using OneJS.Utils;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -52,9 +53,10 @@ namespace OneJS {
     }
 
     /// <summary>
-    /// Status of a default file relative to its template.
+    /// Status of a default file relative to its template. TemplateUpdated is a file nobody
+    /// changed since it was written, whose template has changed since.
     /// </summary>
-    public enum DefaultFileStatus { UpToDate, Modified, Missing, Invalid }
+    public enum DefaultFileStatus { UpToDate, Modified, Missing, Invalid, TemplateUpdated }
 
     /// <summary>
     /// MonoBehaviour that runs JavaScript from an auto-managed working directory.
@@ -683,9 +685,12 @@ namespace OneJS {
         }
 
         /// <summary>
-        /// Ensures the project is set up with all required directories and scaffolded files.
-        /// Called before entering Play mode to ensure everything is ready.
-        /// Returns true if scaffolding was performed (first-time setup).
+        /// Ensures the project is set up: the working directory exists, its default files have
+        /// been written once (<see cref="ScaffoldDefaultFiles"/>), and cartridges are extracted.
+        /// Called before entering Play mode. Returns true if it created anything.
+        ///
+        /// A default file is written once and never again, so one the user deletes stays
+        /// deleted; Restore in the inspector brings it back on purpose.
         /// </summary>
         public bool EnsureProjectSetup() {
             var workingDir = WorkingDirFullPath;
@@ -707,28 +712,7 @@ namespace OneJS {
                 didScaffold = true;
             }
 
-            // Scaffold default files
-            if (_defaultFiles != null && _defaultFiles.Count > 0) {
-                foreach (var entry in _defaultFiles) {
-                    if (string.IsNullOrEmpty(entry.path) || entry.content == null) continue;
-
-                    var fullPath = Path.Combine(workingDir, entry.path);
-
-                    // Skip if file already exists
-                    if (File.Exists(fullPath)) continue;
-
-                    // Ensure directory exists
-                    var dir = Path.GetDirectoryName(fullPath);
-                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) {
-                        Directory.CreateDirectory(dir);
-                    }
-
-                    // Write file content
-                    File.WriteAllText(fullPath, entry.content.text);
-                    Debug.Log($"[JSRunner] Created default file: {entry.path}");
-                    didScaffold = true;
-                }
-            }
+            if (ScaffoldDefaultFiles()) didScaffold = true;
 
             // Extract cartridges (skip existing, generates .d.ts)
             if (_cartridges != null && _cartridges.Count > 0) {
@@ -1111,30 +1095,103 @@ namespace OneJS {
         }
 
         /// <summary>
-        /// Scaffold any missing default files from the _defaultFiles list.
-        /// Existing files are left untouched.
+        /// Writes each default file once. The working directory's <see cref="ScaffoldRecord"/>
+        /// lists every default path it has been given, and a recorded path is never written
+        /// again, so a file the user deletes stays deleted. Existing files are never overwritten.
+        ///
+        /// Without a record, the app is new when it has no package.json, and gets every default
+        /// file. Otherwise it predates the record, which is seeded with every default path that
+        /// is on disk or in this runner's list, so nothing the user deleted comes back. Then any
+        /// default path the record still lacks, one a newer OneJS added or this runner never
+        /// listed, is written once if nothing is there. With a record, a deleted package.json
+        /// does not make the app new again.
+        ///
+        /// Returns true if it wrote a file.
         /// </summary>
-        void ScaffoldDefaultFiles() {
-            if (_defaultFiles == null || _defaultFiles.Count == 0) return;
+        bool ScaffoldDefaultFiles() {
+            var workingDir = WorkingDirFullPath;
+            if (string.IsNullOrEmpty(workingDir)) return false;
 
-            foreach (var entry in _defaultFiles) {
-                if (string.IsNullOrEmpty(entry.path) || entry.content == null) continue;
-
-                var fullPath = Path.Combine(WorkingDirFullPath, entry.path);
-
-                // Skip if file already exists
-                if (File.Exists(fullPath)) continue;
-
-                // Ensure directory exists
-                var dir = Path.GetDirectoryName(fullPath);
-                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) {
-                    Directory.CreateDirectory(dir);
+            var defaults = DefaultFilesToGive();
+            var record = ScaffoldRecord.Read(workingDir);
+            bool isNew = false;
+            if (record == null) {
+                record = new ScaffoldRecord();
+                isNew = !File.Exists(Path.Combine(workingDir, "package.json"));
+                if (!isNew) {
+                    foreach (var entry in defaults) {
+                        if (File.Exists(Path.Combine(workingDir, entry.path)) || ListsDefaultFile(entry.path)) {
+                            record.Add(entry.path, null);
+                        }
+                    }
                 }
-
-                // Write file content
-                File.WriteAllText(fullPath, entry.content.text);
-                Debug.Log($"[JSRunner] Created default file: {entry.path}");
             }
+
+            bool wrote = false;
+            foreach (var entry in defaults) {
+                if (record.Has(entry.path)) continue;
+                var fullPath = Path.Combine(workingDir, entry.path);
+                if (File.Exists(fullPath)) {
+                    // Something is there already. Recorded, so it is never replaced or recreated.
+                    record.Add(entry.path, null);
+                    continue;
+                }
+                var dir = Path.GetDirectoryName(fullPath);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                var text = entry.content.text;
+                File.WriteAllText(fullPath, text);
+                record.Add(entry.path, ScaffoldRecord.Hash(text));
+                wrote = true;
+                Debug.Log(isNew
+                    ? $"[JSRunner] Created default file: {entry.path}"
+                    : $"[JSRunner] Created {entry.path}, a default file this project did not have yet. It is written once: delete it and it stays deleted.");
+            }
+
+            if (record.Changed) {
+                if (!Directory.Exists(workingDir)) Directory.CreateDirectory(workingDir);
+                record.Write(workingDir);
+            }
+            return wrote;
+        }
+
+        /// <summary>
+        /// The default files this runner gives a working directory: its own list, then every
+        /// OneJS template its list does not cover. The list decides a path's content where it
+        /// has one (the Premade demo ships its own index.tsx that way); the templates are what
+        /// a newer OneJS adds, since a serialized list never grows by itself.
+        /// </summary>
+        List<DefaultFileEntry> DefaultFilesToGive() {
+            var result = new List<DefaultFileEntry>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            void Take(DefaultFileEntry entry) {
+                if (entry == null || string.IsNullOrEmpty(entry.path) || entry.content == null) return;
+                if (seen.Add(entry.path.Replace('\\', '/'))) result.Add(entry);
+            }
+            if (_defaultFiles != null) foreach (var entry in _defaultFiles) Take(entry);
+            foreach (var entry in PackageDefaultFiles()) Take(entry);
+            return result;
+        }
+
+        bool ListsDefaultFile(string path) =>
+            _defaultFiles != null && _defaultFiles.Any(e => e != null && e.path != null &&
+                e.path.Replace('\\', '/') == path.Replace('\\', '/'));
+
+        /// <summary>
+        /// Names the default files missing from the working directory and says how to get one
+        /// back, or returns null when none is missing. For a build that failed or could not
+        /// start: default files are written once, so a deleted one never reappears by itself.
+        /// </summary>
+        public string DescribeMissingDefaultFiles() {
+            var workingDir = WorkingDirFullPath;
+            if (string.IsNullOrEmpty(workingDir)) return null;
+            var missing = DefaultFilesToGive()
+                .Select(e => e.path)
+                .Where(p => !File.Exists(Path.Combine(workingDir, p)))
+                .ToList();
+            if (missing.Count == 0) return null;
+            return $"[JSRunner] {name}: {string.Join(", ", missing)} {(missing.Count == 1 ? "is" : "are")} missing from {workingDir}. " +
+                   "Default files are written once, so a deleted one stays deleted. If the build needs it, " +
+                   "Restore it in JSRunner's Build tab, under Scaffolding.";
         }
 
         /// <summary>
@@ -1987,6 +2044,26 @@ namespace OneJS {
         /// Uses PackageInfo to robustly locate the package regardless of installation method.
         /// </summary>
         public void PopulateDefaultFiles() {
+            _defaultFiles.Clear();
+            _defaultFiles.AddRange(PackageDefaultFiles());
+            Debug.Log($"[JSRunner] Populated {_defaultFiles.Count} default files from templates");
+        }
+
+        /// <summary>
+        /// Adds every OneJS template this runner's list does not cover, and keeps every entry it
+        /// has, including one whose content replaces a template's. What Initialize Project uses,
+        /// so initializing never throws away a customized list (the Premade demo's, say); Reset to
+        /// Defaults is the way to replace the list.
+        /// </summary>
+        public void AddMissingDefaultFiles() {
+            foreach (var entry in PackageDefaultFiles()) {
+                if (!ListsDefaultFile(entry.path)) _defaultFiles.Add(entry);
+            }
+        }
+
+        /// <summary>The OneJS templates, each with the path it is written to in the working directory.</summary>
+        static List<DefaultFileEntry> PackageDefaultFiles() {
+            var result = new List<DefaultFileEntry>();
             // Template mapping: source file name → target path in WorkingDir
             // Note: esbuild outputs directly to ../app.js.txt (outside working dir)
             var templateMapping = new (string templateName, string targetPath)[] {
@@ -1999,8 +2076,6 @@ namespace OneJS {
                 ("gitignore.txt", ".gitignore"),
                 ("AGENTS.md.txt", "AGENTS.md"),
             };
-
-            _defaultFiles.Clear();
 
             // Find the OneJS package using the assembly that contains JSRunner
             var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(JSRunner).Assembly);
@@ -2025,7 +2100,7 @@ namespace OneJS {
 
                 if (string.IsNullOrEmpty(templatesFolder)) {
                     Debug.LogWarning("[JSRunner] Could not find OneJS Editor/Templates folder");
-                    return;
+                    return result;
                 }
             }
 
@@ -2034,7 +2109,7 @@ namespace OneJS {
                 var textAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<TextAsset>(templatePath);
 
                 if (textAsset != null) {
-                    _defaultFiles.Add(new DefaultFileEntry {
+                    result.Add(new DefaultFileEntry {
                         path = targetPath,
                         content = textAsset
                     });
@@ -2042,8 +2117,7 @@ namespace OneJS {
                     Debug.LogWarning($"[JSRunner] Template not found: {templatePath}");
                 }
             }
-
-            Debug.Log($"[JSRunner] Populated {_defaultFiles.Count} default files from templates");
+            return result;
         }
 
         /// <summary>
@@ -2060,7 +2134,12 @@ namespace OneJS {
             if (!File.Exists(fullPath)) return DefaultFileStatus.Missing;
 
             var diskContent = File.ReadAllText(fullPath);
-            return diskContent == entry.content.text ? DefaultFileStatus.UpToDate : DefaultFileStatus.Modified;
+            if (diskContent == entry.content.text) return DefaultFileStatus.UpToDate;
+            // Unchanged since it was written, so it is the template that moved on, not the user.
+            var written = ScaffoldRecord.Read(workingDir)?.HashOf(entry.path);
+            return written != null && written == ScaffoldRecord.Hash(diskContent)
+                ? DefaultFileStatus.TemplateUpdated
+                : DefaultFileStatus.Modified;
         }
 
         /// <summary>
