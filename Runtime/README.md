@@ -1278,6 +1278,8 @@ const themes = listFiles(`${__persistentDataPath}/themes`, "*.uss");
 const allFiles = listFiles(`${__persistentDataPath}/mods`, "*", true); // recursive
 ```
 
+`loadStyleSheet(path)` is the short form of the theme example above for a path relative to the working directory, which is the app's `~/` folder in the Editor and `persistentDataPath` in a build. `~/` is not shipped, so styles the game ships go through `compileStyleSheet()` from the bundle.
+
 **Use cases**:
 - **Runtime theming**: Load USS files from user-writable storage
 - **User preferences**: Save/load JSON configuration

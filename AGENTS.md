@@ -101,7 +101,7 @@ The esbuild config must keep `format: "iife"` + `globalName: "__exports"` (Quick
 All four options embed in the bundle and work in player builds:
 
 1. Inline objects: numbers are px; flexbox layout; shorthands `padding/margin/borderWidth/borderColor/borderRadius` auto-expand; transforms via `translate: [x, y]`, `rotate: "45deg"`, `scale: 1.5`.
-2. Plain USS: `import uss from "./styles/main.uss"` then `compileStyleSheet(uss, "main.uss")` once at startup. (Avoid runtime `loadStyleSheet()` for app styles: it reads the filesystem and is not shipped in builds.)
+2. Plain USS: `import uss from "./styles/main.uss"` then `compileStyleSheet(uss, "main.uss")` once at startup. (Avoid `loadStyleSheet()` for app styles: it reads a file at runtime, from `~/` in the Editor and from `Application.persistentDataPath` in a build, and `~/` is not shipped.)
 3. CSS Modules: `import styles from "./x.module.uss"` → `className={styles.container}`; `.d.ts` auto-generated.
 4. Tailwind: `import "onejs:tailwind"` once, then utility classNames. Built-in JIT generator, no npm dependency. Responsive prefixes need `<ScreenProvider>`.
 

@@ -78,6 +78,11 @@ declare const performance: {
 };
 
 // StyleSheet API
+/**
+ * Reads a USS file at runtime, relative to `~/` in the Editor and to
+ * `__persistentDataPath` in a build, where `~/` is not shipped. Styles the game
+ * ships belong in the bundle: import the .uss file and pass it to compileStyleSheet().
+ */
 declare function loadStyleSheet(path: string): boolean;
 declare function compileStyleSheet(ussContent: string, name?: string): boolean;
 declare function removeStyleSheet(name: string): boolean;
