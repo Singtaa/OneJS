@@ -247,6 +247,7 @@ On Initialize (or first Play mode if not already set up), JSRunner creates missi
 Configure scaffolding in the inspector:
 - **Default Files**: List of `path → TextAsset` pairs. Each path is relative to Working Dir.
 - Files are created only if missing, preserving user modifications.
+- A row's **X** removes it from the list, which is the only way to stop a missing file coming back. The file on disk is left alone, and Reset to Defaults restores the list.
 
 Default template files (in `Assets/Singtaa/OneJS/Editor/Templates/`):
 - `package.json.txt`: npm configuration with React and onejs-react dependencies

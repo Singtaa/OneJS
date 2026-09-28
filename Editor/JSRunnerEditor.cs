@@ -69,6 +69,7 @@ namespace OneJS.Editor {
             _target = (JSRunner)target;
             _activeTab = EditorPrefs.GetInt(TabPrefKey, 0);
             EditorApplication.update += UpdateDynamicUI;
+            Undo.undoRedoPerformed += OnUndoRedo;
 
             // Subscribe to watcher events
             NodeWatcherManager.OnWatcherStarted += OnWatcherStateChanged;
@@ -94,8 +95,20 @@ namespace OneJS.Editor {
 
         void OnDisable() {
             EditorApplication.update -= UpdateDynamicUI;
+            Undo.undoRedoPerformed -= OnUndoRedo;
             NodeWatcherManager.OnWatcherStarted -= OnWatcherStateChanged;
             NodeWatcherManager.OnWatcherStopped -= OnWatcherStateChanged;
+        }
+
+        /// <summary>
+        /// The Scaffolding list is built by hand rather than bound, so nothing
+        /// redraws it when an undo or redo changes the entries under it: an
+        /// entry brought back stayed invisible, and every row after it kept
+        /// the index it was built with.
+        /// </summary>
+        void OnUndoRedo() {
+            if (target == null) return;
+            RebuildDefaultFilesList();
         }
 
         void OnWatcherStateChanged(string workingDir) {
@@ -879,7 +892,9 @@ namespace OneJS.Editor {
                         $"Overwrite '{pathValue}' with the template version?", "Restore", "Cancel"))
                         return;
                 }
-                _target.RestoreDefaultFile(capturedIndex);
+                serializedObject.Update();
+                var at = IndexOfDefaultFile(serializedObject.FindProperty("_defaultFiles"), capturedIndex, pathValue);
+                if (at >= 0) _target.RestoreDefaultFile(at);
                 RebuildDefaultFilesList();
             }) { text = OneJSEditorDesign.Texts.Restore };
             restoreBtn.style.width = 56;
@@ -890,10 +905,13 @@ namespace OneJS.Editor {
             // Remove button: the only way to delete a scaffolded file for good,
             // since any file still listed is recreated when it goes missing.
             var removeBtn = new Button(() => {
+                serializedObject.Update();
                 var arrayProp = serializedObject.FindProperty("_defaultFiles");
-                if (capturedIndex < 0 || capturedIndex >= arrayProp.arraySize) return;
-                arrayProp.DeleteArrayElementAtIndex(capturedIndex);
-                serializedObject.ApplyModifiedProperties();
+                var at = IndexOfDefaultFile(arrayProp, capturedIndex, pathValue);
+                if (at >= 0) {
+                    arrayProp.DeleteArrayElementAtIndex(at);
+                    serializedObject.ApplyModifiedProperties();
+                }
                 RebuildDefaultFilesList();
             }) { text = "X" };
             removeBtn.style.width = 24;
@@ -903,6 +921,22 @@ namespace OneJS.Editor {
             row.Add(removeBtn);
 
             return row;
+        }
+
+        /// <summary>
+        /// The index of the entry a row shows, found by its path. The row's own
+        /// index is only a hint: the list may have changed since the row was
+        /// built, by an undo or by another inspector on the same runner, and
+        /// acting on a stale index removes or overwrites a file nobody clicked.
+        /// Returns -1 when the entry is gone.
+        /// </summary>
+        static int IndexOfDefaultFile(SerializedProperty list, int hint, string path) {
+            bool Shows(int i) => list.GetArrayElementAtIndex(i).FindPropertyRelative("path").stringValue == path;
+            if (hint >= 0 && hint < list.arraySize && Shows(hint)) return hint;
+            for (int i = 0; i < list.arraySize; i++) {
+                if (Shows(i)) return i;
+            }
+            return -1;
         }
 
         void RestoreAllDefaultFiles() {
