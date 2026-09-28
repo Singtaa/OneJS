@@ -10,8 +10,7 @@ namespace OneJS.SL {
     /// (printed at build time by onejs-unity), and `Plugins/WebGL/OneJSSLWeb.jslib`
     /// compiles whichever one the device speaks and draws it into the element's
     /// RenderTexture. A WebGL player has no VM for programs
-    /// (<see cref="SLProgramBridge.CompiledOnly"/>) unless it is built with
-    /// ONEJS_SL_WEB_VM, which keeps it as the fallback for comparing the two.
+    /// (<see cref="SLProgramBridge.CompiledOnly"/>).
     ///
     /// The host reads three handles private to Unity's framework, so whether
     /// any of this works is checked once, at first use, by drawing nothing:

@@ -693,14 +693,13 @@ the same target, at the same point in the frame, where it would otherwise blit
 the VM. A WebGL player has no VM for programs (`SLProgramBridge.CompiledOnly`):
 an element draws nothing until the browser has compiled its program, a compile
 error is logged once by the host, and a page that cannot compile at all throws
-when the program is made. Building with the `ONEJS_SL_WEB_VM` define keeps the
-VM as the fallback, which the parity harness needs. The host reads three handles private to
+when the program is made. The host reads three handles private to
 Unity's framework (`GL.textures`, `Module.WebGPU.device`, lib_webgpu's `wgpu`
 table); `SLWeb.Describe()` checks all three on first use and reports
 "unavailable" rather than drawing wrong, and the Play container's smoke test
 prints it, so a Unity upgrade that renames one is caught there.
-In such a build `SetCompiled(false)` keeps an element on the VM, which is how
-the two are compared (`Tools/sl-web-parity` in the container).
+`Tools/sl-web-parity` in the container holds what a player draws to onejs-sl's
+goldens.
 
 **A native player runs a program compiled too.** At the start of every native
 build `SLShaderBuildStep` (in the editor assembly) generates a shader for every

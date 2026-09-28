@@ -18,7 +18,7 @@ namespace OneJS.SL {
     /// OneJS/FxProgram.shader can evaluate. That used to draw every program in
     /// a native player and every program the editor had not compiled yet. It
     /// is kept behind ONEJS_SL_VM for one release (<see cref="VmAllowed"/>),
-    /// and the parity harness keeps it on the web with ONEJS_SL_WEB_VM.
+    /// in the editor and native players only.
     ///
     /// The buffer crosses from JS ONCE per program, not per frame. Uniforms
     /// cross when they change, diffed by value the way ShaderEffect's props are,
@@ -112,12 +112,11 @@ namespace OneJS.SL {
         ///
         /// A page that cannot compile (the startup handle check failed) draws
         /// nothing and says why, rather than falling back quietly; the Play
-        /// container's smoke test is what catches that. ONEJS_SL_WEB_VM keeps
-        /// the VM in a WebGL build, for measuring the two against each other
-        /// (Tools/sl-web-parity in the container).
+        /// container's smoke test is what catches that, and Tools/sl-web-parity
+        /// in the container holds the compiled picture to onejs-sl's goldens.
         /// </summary>
         public static bool CompiledOnly =>
-#if UNITY_WEBGL && !UNITY_EDITOR && !ONEJS_SL_WEB_VM
+#if UNITY_WEBGL && !UNITY_EDITOR
             true;
 #else
             false;
@@ -131,14 +130,14 @@ namespace OneJS.SL {
         /// every program compiled (<see cref="SLShaderRegistry"/>), so nothing
         /// needs the VM. It stays for one release as a way back: build with
         /// ONEJS_SL_VM and a program with no compiled shader draws on it, as it
-        /// did before. A WebGL build with ONEJS_SL_WEB_VM keeps it as well, for
-        /// the parity harness. Settable so a test that compares against the VM
-        /// can turn it on; nothing else should.
+        /// did before. Never in a WebGL player (<see cref="CompiledOnly"/>).
+        /// Settable so a test that compares against the VM can turn it on;
+        /// nothing else should.
         /// </summary>
         public static bool VmAllowed { get; set; } = VmByDefault;
 
         const bool VmByDefault =
-#if ONEJS_SL_VM || (UNITY_WEBGL && !UNITY_EDITOR && ONEJS_SL_WEB_VM)
+#if ONEJS_SL_VM && !(UNITY_WEBGL && !UNITY_EDITOR)
             true;
 #else
             false;

@@ -49,6 +49,7 @@ namespace OneJS.ShaderFX {
         int _rtW, _rtH;
         float _seconds;
         bool _paused;
+        bool _drawAtSetTime;   // SetTime's frame is still to be drawn, paused or not
         bool _paintingOnLayout;
 
         public ShaderEffectElement() {
@@ -300,6 +301,16 @@ namespace OneJS.ShaderFX {
         /// <summary>Resets the effect clock, so a restarted effect looks the same every time.</summary>
         public void ResetTime() => _seconds = 0f;
 
+        /// <summary>
+        /// Sets the effect clock. The next frame draws at exactly this time, even
+        /// while paused, so a paused effect shows the frame chosen rather than
+        /// one a frame's delta away from it.
+        /// </summary>
+        public void SetTime(float seconds) {
+            _seconds = seconds;
+            _drawAtSetTime = true;
+        }
+
         public bool IsReady => (_material != null || (_isProgram && SL.SLProgramBridge.HasNoVm(_programHandle))) && _rt != null;
         public int RenderWidth => _rtW;
         public int RenderHeight => _rtH;
@@ -307,16 +318,17 @@ namespace OneJS.ShaderFX {
         // MARK: frame
 
         internal void Tick(float dt) {
-            if (_paused || _shaderMissing) return;
+            if ((_paused && !_drawAtSetTime) || _shaderMissing) return;
             if (!_isProgram && string.IsNullOrEmpty(_shaderName)) return;
             if (panel == null) return;
             if (!EnsureMaterial()) return;
             if (!EnsureTarget()) return;
 
-            _seconds += dt;
+            if (!_drawAtSetTime) _seconds += dt;
             // Compiled where the page can compile it (a WebGL player), into the
             // same target at the same point in the frame the VM would draw.
             if (_isProgram && SL.SLProgramBridge.TryRenderCompiled(_programHandle, _rt, _seconds)) {
+                _drawAtSetTime = false;
                 MarkDirtyRepaint();
                 return;
             }
@@ -351,6 +363,7 @@ namespace OneJS.ShaderFX {
             var prev = RenderTexture.active;
             Graphics.Blit(null, _rt, _material, 0);
             RenderTexture.active = prev;
+            _drawAtSetTime = false;
 
             // The draw command already references this texture, so the new contents
             // appear without re-tessellating, but edit-mode preview only repaints
