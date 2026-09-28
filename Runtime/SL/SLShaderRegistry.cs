@@ -11,9 +11,9 @@ namespace OneJS.SL {
     /// shaders are ordinary assets outside Resources, and a player build packs
     /// an asset only when something it ships references it. `Shader.Find` in a
     /// player sees only shaders the build packed, so before this existed it
-    /// found nothing and every program drew on the VM. The registry is that
-    /// reference: it lives in a Resources folder, so the build packs it, and it
-    /// holds each shader, so the build packs those too.
+    /// found nothing and every program fell back to the VM OneJS once had. The
+    /// registry is that reference: it lives in a Resources folder, so the
+    /// build packs it, and it holds each shader, so the build packs those too.
     ///
     /// Written by the build (<c>SLShaderBuildStep</c> in the editor assembly)
     /// from every `*.sl.json` manifest in the project, never by hand.

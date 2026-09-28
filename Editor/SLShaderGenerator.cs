@@ -348,8 +348,8 @@ namespace OneJS.Editor {
         /// program, and returns how many it names.
         ///
         /// A shader that did not import, or imported with errors, is left out and
-        /// said so: a player then draws that program on the VM, which is slower
-        /// and still right, where a registered broken shader would draw magenta.
+        /// said so: a player then draws nothing for that program and says so
+        /// again, where a registered broken shader would draw magenta.
         /// </summary>
         public static int WriteRegistry(IEnumerable<string> hashes) {
             var entries = new List<SLShaderRegistry.Entry>();
@@ -361,11 +361,11 @@ namespace OneJS.Editor {
                     shader = AssetDatabase.LoadAssetAtPath<Shader>(path);
                 }
                 if (shader == null) {
-                    Debug.LogError($"[OneJS sl] {path} did not import, so program {hash} draws on the VM in this player.");
+                    Debug.LogError($"[OneJS sl] {path} did not import, so program {hash} draws nothing in this player.");
                     continue;
                 }
                 if (ShaderUtil.ShaderHasError(shader)) {
-                    Debug.LogError($"[OneJS sl] {path} has compile errors, so program {hash} draws on the VM in this " +
+                    Debug.LogError($"[OneJS sl] {path} has compile errors, so program {hash} draws nothing in this " +
                                    "player. Select the shader to see them.");
                     continue;
                 }

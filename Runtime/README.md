@@ -36,7 +36,7 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `Particles/ParticleBridge.cs` | JS entry (`Create`), live-system registry, `TickAll` (driven from QuickJSUIBridge.Tick) |
 | `Particles/ParticleWire.cs` | Versioned wire schema + validation (the C#-JS contract; parity with onejs-react particles.test.ts) |
 | `ShaderFX/ShaderEffectElement.cs` | Runs a shader into an element's `backgroundImage` via a per-frame blit to a RenderTexture |
-| `SL/SLProgramBridge.cs` | Shader language programs: finds the shader generated from a program, or, behind `ONEJS_SL_VM`, uploads the VM's encoded buffer; uniforms and textures by slot |
+| `SL/SLProgramBridge.cs` | Shader language programs: finds the shader generated from a program, or hands a WebGL page its WGSL and GLSL; uniforms and textures by slot |
 | `SL/SLShaderRegistry.cs` | Every generated shader by program hash, as the Resources asset a native build writes so the player packs them |
 | `SL/SLWeb.cs` | Compiled programs in a WebGL player, through `Plugins/WebGL/OneJSSLWeb.jslib`; `Describe()` is the startup handle check |
 | `ShaderFX/ShaderEffectBridge.cs` | Live-effect registry, `TickAll` (driven from QuickJSUIBridge.Tick), built-in procedural textures and ramp cache |
@@ -691,8 +691,9 @@ shader either, but its page can: a program arrives with WGSL and GLSL ES printed
 by onejs-unity, `SLProgramBridge.SetWebSource` hands them to
 `Plugins/WebGL/OneJSSLWeb.jslib`, and `Tick` draws the compiled program into
 the same target, at the same point in the frame, where it would otherwise blit
-the VM. A WebGL player has no VM for programs (`SLProgramBridge.CompiledOnly`):
-an element draws nothing until the browser has compiled its program, a compile
+a material. That is the only way a program draws there
+(`SLProgramBridge.CompiledOnly`): an element draws nothing until the browser
+has compiled its program, a compile
 error is logged once by the host, and a page that cannot compile at all throws
 when the program is made. The host reads three handles private to
 Unity's framework (`GL.textures`, `Module.WebGPU.device`, lib_webgpu's `wgpu`
@@ -706,31 +707,31 @@ goldens.
 build `SLShaderBuildStep` (in the editor assembly) generates a shader for every
 program in every `*.sl.json` manifest and writes `SLShaderRegistry` to
 `Assets/OneJS.Generated/Resources/OneJS/`. The registry is what makes the build
-pack them: `Shader.Find` in a player sees only shaders the build packed, and
-before the registry every program in every native player drew on the VM.
+pack them: `Shader.Find` in a player sees only shaders the build packed.
 `SLProgramBridge.FindGenerated` looks there first; the editor also falls back to
 `Shader.Find`, because it generates shaders mid session when it records one. A
 program the registry lacks draws nothing and logs one error naming its hash.
 A program built in code is known only once the editor has drawn it, so it ships
 only from the committed `Assets/OneJS/Recorded.sl.json`. `IsCompiled` is true
-for either compiled path, and `Census` sorts every live program by backend,
-which the container's `SLPlayerBuildTests` asserts on in a real player.
+for either compiled path, and `Census` sorts every live program into drawing
+compiled or drawing nothing, which the container's `SLPlayerBuildTests`
+asserts on in a real player.
 
-**Nothing needs the VM.** In the editor a program with no shader draws nothing:
+**The editor compiles a program the first time it draws it.** Until then the
+program draws nothing:
 `CreateMaterial` returns no material, the host hands its HLSL to the recorder,
 the next editor update generates the shader, and `AdoptGenerated` gives the
 program a material, which `ShaderEffectElement` picks up through
 `SLProgramBridge.CurrentMaterial` on its next tick. A program still waiting after
 a few seconds warns once. A `.sl` program never waits: `JSRunner` raises
 `EditorLoadingBundle` before every editor load, and the generator builds the
-shaders of the app.sl.json beside the bundle first. The VM is kept for one
-release behind `ONEJS_SL_VM` (`SLProgramBridge.VmAllowed`, which tests that
-compare against it set), and `SLVmShaderStripper` leaves it out of every player
-without that define. A program from onejs-sl 0.2.0's `compile()` carries no VM
-buffer at all: the buffer is read and validated only on the VM path, a program
-without one waits for its shader even with the define, and
-`ShaderEffectElement.AcceptsCompiledPrograms` is what a host checks before
-sending one.
+shaders of the app.sl.json beside the bundle first.
+
+`ShaderEffectElement.SetProgram` keeps the shape it had when a program also
+carried the shader language VM's encoding, and ignores that part, so an
+onejs-react that still sends a buffer binds its programs; `SetCompiled` is kept
+as a no-op for the same reason. `AcceptsCompiledPrograms` is what a host checks
+before sending a program with no buffer.
 
 Tests: `Tests/ShaderFXTests.cs` (render-target lifecycle against real layout with
 no tick at all, explicit-resolution override, bridge registration, uniform

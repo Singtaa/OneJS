@@ -1,3 +1,10 @@
+# Unreleased
+
+- The shader language VM is gone: a program with no compiled shader draws nothing, and `ONEJS_SL_VM` does nothing
+- `SLProgramBridge.Upload` and `CreateMaterial` take a program's hash and uniform names only
+- `SLProgramBridge.Exists` replaces `HasNoVm`
+- `ShaderEffectElement.SetProgram` ignores its VM arguments, and `SetCompiled` does nothing
+
 # [2026-09-28] v3.7.0
 
 A shader program is no longer held to the old interpreter's 256 instructions and eight live values. Bump `onejs-unity` to `^0.6.0` and `onejs-react` to `^0.1.60` to lift them; a project that stays on `onejs-unity` 0.5 keeps working as it did.

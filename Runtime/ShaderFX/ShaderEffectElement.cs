@@ -110,7 +110,6 @@ namespace OneJS.ShaderFX {
         /// first time it sees the program, and a player ships it.
         /// </summary>
         int _programHandle = -1;
-        bool _compiledAllowed = true;
         static readonly int s_Res = Shader.PropertyToID("_Res");
 
         /// <summary>
@@ -121,10 +120,12 @@ namespace OneJS.ShaderFX {
         /// </summary>
         public bool AcceptsCompiledPrograms => true;
 
-        /// <param name="dataObj">
-        /// The VM encoding, or empty (or null) for a program that has none. Only
-        /// the VM reads it.
-        /// </param>
+        /// <remarks>
+        /// `dataObj`, `instructionCount`, `resultRegister` and `wire` are
+        /// ignored. They carried the shader language VM's encoding, which OneJS
+        /// no longer runs, and stay so an onejs-react that still sends them
+        /// binds its programs.
+        /// </remarks>
         /// <returns>
         /// True when the host should follow up with <see cref="RecordProgram"/>:
         /// the program has no compiled shader and an editor is attached that can
@@ -132,11 +133,9 @@ namespace OneJS.ShaderFX {
         /// </returns>
         public bool SetProgram(object dataObj, int instructionCount, int resultRegister, string hash,
                                object uniformNamesObj = null, int wire = 1) {
-            var data = ToFloats(dataObj);
             // Same program, same everything. Rebuilding would drop the render
             // target and restart the clock on every React render.
-            if (_programHash == hash && _isProgram && _programHandle >= 0 &&
-                (_material != null || SL.SLProgramBridge.HasNoVm(_programHandle))) return false;
+            if (_programHash == hash && _isProgram && SL.SLProgramBridge.Exists(_programHandle)) return false;
             _isProgram = true;
             _programHash = hash;
             _shaderMissing = false;
@@ -147,11 +146,10 @@ namespace OneJS.ShaderFX {
             }
             try {
                 _material = SL.SLProgramBridge.CreateMaterial(
-                    data, instructionCount, resultRegister, hash,
-                    out var native, out _programHandle, ToStrings(uniformNamesObj), wire);
-                // Null in a WebGL player, where the page draws the program.
+                    hash, out var native, out _programHandle, ToStrings(uniformNamesObj));
+                // Null until there is a generated shader, and always in a WebGL
+                // player, where the page draws the program.
                 if (_material != null) _material.hideFlags = HideFlags.HideAndDontSave;
-                SL.SLProgramBridge.SetCompiledAllowed(_programHandle, _compiledAllowed);
                 return !native && SL.SLProgramBridge.WantsSource(hash);
             } catch (System.Exception e) {
                 _shaderMissing = true;
@@ -162,8 +160,8 @@ namespace OneJS.ShaderFX {
 
         /// <summary>
         /// The program's HLSL, sent only after <see cref="SetProgram"/> asked for
-        /// it. The editor records it and generates the shader; the material this
-        /// element renders with is moved onto that shader in place.
+        /// it. The editor records it and generates the shader, and the element
+        /// picks up a material on it on its next tick.
         /// </summary>
         public void RecordProgram(string hash, string hlsl) {
             SL.SLProgramBridge.RecordSource(hash, hlsl);
@@ -187,28 +185,22 @@ namespace OneJS.ShaderFX {
         }
 
         /// <summary>
-        /// False asked a WebGL player to draw on the VM rather than compiled.
-        /// A WebGL player has no VM any more, so this changes nothing; it goes
-        /// with the VM.
+        /// Changes nothing. False once asked a WebGL player to draw on the VM
+        /// rather than compiled; it stays so an onejs-react that still calls it
+        /// keeps working.
         /// </summary>
-        public void SetCompiled(bool allowed) {
-            _compiledAllowed = allowed;
-            if (_programHandle >= 0) SL.SLProgramBridge.SetCompiledAllowed(_programHandle, allowed);
-        }
+        public void SetCompiled(bool allowed) { }
 
-        /// <summary>True when the program draws compiled, through a generated shader or the page, rather than on the VM.</summary>
+        /// <summary>True when the program draws compiled: through a generated shader, or the page.</summary>
         public bool IsCompiled => _programHandle >= 0 && SL.SLProgramBridge.IsCompiled(_programHandle);
 
         /// <summary>
-        /// Sets one of the program's uniforms, by the slot the encoder gave it.
+        /// Sets one of the program's uniforms, by the slot the compiler gave it.
         /// </summary>
         /// <remarks>
-        /// By SLOT, not by name. The VM reads a single array indexed by slot
-        /// and knows nothing about names, so setting a material property called
-        /// _u_warp reached the generated shader and missed the interpreter
-        /// entirely. That is why a program's uniforms did nothing on WebGL
-        /// while working in an editor with a generated shader beside it.
-        /// SLProgramBridge.SetUniform handles both backends behind this.
+        /// By SLOT, not by name. The page's program reads its uniforms by slot
+        /// and a generated shader by name, so SLProgramBridge.SetUniform maps
+        /// the slot to the name the program gave it.
         /// </remarks>
         public void SetUniform(int slot, float x, float y, float z, float w) {
             if (_programHandle < 0) return;
@@ -217,11 +209,11 @@ namespace OneJS.ShaderFX {
         }
 
         /// <summary>
-        /// Sets one of the program's textures, by the slot the encoder gave it.
+        /// Sets one of the program's textures, by the slot the compiler gave it.
         /// </summary>
         /// <remarks>
         /// By SLOT, for the same reason uniforms are. A program's textures are
-        /// _Tex0 to _Tex3 in both backends, so a host handed the name an author
+        /// _Tex0 to _Tex3 on every backend, so a host handed the name an author
         /// wrote ("grain") set a material property nothing declares and bound
         /// nothing at all, in the browser and after an eject alike.
         /// </remarks>
@@ -247,22 +239,6 @@ namespace OneJS.ShaderFX {
                 return list.ToArray();
             }
             return null;
-        }
-
-        static float[] ToFloats(object obj) {
-            if (obj == null) return System.Array.Empty<float>();
-            if (obj is float[] f) return f;
-            if (obj is double[] d) {
-                var o = new float[d.Length];
-                for (int i = 0; i < d.Length; i++) o[i] = (float)d[i];
-                return o;
-            }
-            if (obj is System.Collections.IEnumerable e) {
-                var list = new List<float>();
-                foreach (var v in e) list.Add(System.Convert.ToSingle(v));
-                return list.ToArray();
-            }
-            throw new System.ArgumentException("[OneJS sl] a program buffer must be an array of numbers.");
         }
 
         public void SetFloat(string name, float value) => _floats[name] = value;
@@ -325,7 +301,7 @@ namespace OneJS.ShaderFX {
             _drawAtSetTime = true;
         }
 
-        public bool IsReady => (_material != null || (_isProgram && SL.SLProgramBridge.HasNoVm(_programHandle))) && _rt != null;
+        public bool IsReady => (_material != null || (_isProgram && SL.SLProgramBridge.Exists(_programHandle))) && _rt != null;
         public int RenderWidth => _rtW;
         public int RenderHeight => _rtH;
 
@@ -348,8 +324,8 @@ namespace OneJS.ShaderFX {
             }
             // A program with no compiled shader yet has no material, and gets one
             // when the editor has generated it, so it is asked for every frame
-            // until then. Nothing to draw meanwhile: there is no VM, and the
-            // target was cleared when it was made.
+            // until then. Nothing to draw meanwhile, and the target was cleared
+            // when it was made.
             if (_material == null && _isProgram) _material = SL.SLProgramBridge.CurrentMaterial(_programHandle);
             if (_material == null) return;
             _material.SetFloat("_Secs", _seconds);
@@ -387,10 +363,11 @@ namespace OneJS.ShaderFX {
 
         bool EnsureMaterial() {
             if (_material != null) return true;
-            // A program builds its own material in SetProgram, so reaching here
-            // with none means that failed and already said why, or that there
-            // is no VM and the page draws it.
-            if (_isProgram) return _programHandle >= 0 && SL.SLProgramBridge.HasNoVm(_programHandle);
+            // A program's material comes from SetProgram or, once its shader is
+            // generated, CurrentMaterial. Reaching here with none means it is
+            // waiting for that, the page draws it, or SetProgram failed and
+            // already said why.
+            if (_isProgram) return SL.SLProgramBridge.Exists(_programHandle);
             var shader = Resources.Load<Shader>(_shaderName);
             if (shader == null || !shader.isSupported) {
                 _shaderMissing = true;

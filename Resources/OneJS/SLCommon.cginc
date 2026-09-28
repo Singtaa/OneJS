@@ -8,8 +8,8 @@
 
 // Helpers shared by EVERY shader language backend.
 //
-// The VM (OneJS/FxProgram.shader) includes this as SLCommon.cginc, and every
-// shader generated from a program by the HLSL emitter includes it too. The web
+// Every shader generated from a program by the HLSL emitter includes this as
+// SLCommon.cginc. The web
 // emitters and a host's own frame (`emitBody`) get it translated, by
 // `lib/translate.ts`, from this one text. That sharing is the whole reason this
 // file exists: the backends have to agree, and the fastest way to make them
@@ -142,10 +142,9 @@ float sl_luminance(float3 c) { return dot(c, float3(0.2126, 0.7152, 0.0722)); }
 // In a Gamma project the written value is already right. The float4 form keeps
 // alpha, which is coverage rather than light. Mirrors fxColorToWorking.
 //
-// Every width uses Unity's cubic approximation, lane by lane. The VM has one
-// TO_LINEAR for all widths (its registers are float4, so it converts .rgb),
-// and a scalar or float2 on the exact curve here drew up to 5/255 apart from
-// it in the dark range: the editor and a player disagreed.
+// Every width uses Unity's cubic approximation, lane by lane. A scalar or
+// float2 on the exact curve once drew up to 5/255 apart from the float3 form
+// in the dark range.
 //
 // The curve is Unity's GammaToLinearSpace, written out here so that a target
 // without UnityCG.cginc has it too. The switch below is the one piece of

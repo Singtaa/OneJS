@@ -1,14 +1,13 @@
 /**
  * Compiled shader language programs, drawn on Unity's own graphics device.
  *
- * Unity cannot compile a shader in a built player, which is why the SL VM
- * exists. A browser can: the shader language compiler (`onejs-sl`, which
+ * Unity cannot compile a shader in a built player, and a WebGL build ships no
+ * generated shaders. A browser can compile one: the shader language compiler (`onejs-sl`, which
  * onejs-unity re-exports) prints every program as WGSL and GLSL ES 3.00 at
  * build time (`onejs-sl/src/web.ts`), and this host compiles whichever one
  * the device speaks and draws it straight into the RenderTexture a
- * ShaderEffectElement shows. Same pixels as the VM within 1/255, and on the
- * spike's measurements 100 to 600 times cheaper per pixel, with no register or
- * instruction budget.
+ * ShaderEffectElement shows. Tools/sl-web-parity in the container holds what it
+ * draws to onejs-sl's goldens.
  *
  * WHY IT LIVES HERE, IN THE FRAMEWORK CLOSURE. Drawing needs Unity's WebGL2
  * context or WebGPU device and the table that turns a texture's native pointer
@@ -19,7 +18,8 @@
  *
  * Three private handles are read, and all three are checked at startup by
  * `OneJS_SLWeb_Check` (`SLWeb.Describe()`), so a Unity upgrade that renames one
- * turns into "unavailable, drawing on the VM" rather than a broken picture:
+ * turns into "unavailable", drawing nothing and saying why, rather than a
+ * broken picture:
  *
  *   GLctx, GL.textures   Emscripten's WebGL2 context and texture name table;
  *                        GetNativeTexturePtr() is an index into the table
@@ -32,8 +32,8 @@
  * report "unavailable" at runtime.
  *
  * Draw returns 1 when it drew, 0 when the program is not ready yet (the caller
- * draws the VM this frame), and -1 when it never will be (compile error, lost
- * handle); the caller then stays on the VM and says why once.
+ * draws nothing this frame), and -1 when it never will be (compile error, lost
+ * handle); the host has then said why, once.
  */
 var OneJSSLWebLibrary = {
     $OJSL: {
@@ -80,7 +80,7 @@ var OneJSSLWebLibrary = {
 
         // Unity's TextureWrapMode (Repeat, Clamp, Mirror, MirrorOnce) and
         // FilterMode (Point, Bilinear, Trilinear), from the texture itself, so
-        // a compiled program samples exactly as the VM's material does.
+        // a compiled program samples exactly as a generated shader does.
         gpuSampler: function (dev, wrapU, wrapV, filter) {
             var key = wrapU + "," + wrapV + "," + filter
             var s = OJSL.samplers[key]
@@ -140,7 +140,7 @@ var OneJSSLWebLibrary = {
         glReady: function (gl, p) {
             var g = p.gl
             // With parallel compile, asking for LINK_STATUS before completion
-            // blocks; the caller draws the VM until the driver is done.
+            // blocks; the caller draws nothing until the driver is done.
             if (g.ext && !gl.getProgramParameter(g.prog, g.ext.COMPLETION_STATUS_KHR)) return 0
             if (!gl.getProgramParameter(g.prog, gl.LINK_STATUS)) {
                 var log = gl.getShaderInfoLog(g.fs) || gl.getProgramInfoLog(g.prog) || "link failed"
@@ -261,7 +261,7 @@ var OneJSSLWebLibrary = {
             var pl = g.pipelines[format]
             if (pl === undefined) {
                 // Built off the frame, per target format (sRGB in a Linear
-                // project, plain in a Gamma one); the VM draws until it lands.
+                // project, plain in a Gamma one); nothing draws until it lands.
                 g.pipelines[format] = null
                 dev.createRenderPipelineAsync({
                     label: "sl " + p.id,

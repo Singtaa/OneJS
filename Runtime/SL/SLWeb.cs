@@ -5,12 +5,12 @@ namespace OneJS.SL {
     /// <summary>
     /// Shader language programs compiled by the browser, on Unity's own device.
     ///
-    /// The VM exists because Unity cannot compile a shader in a player. A
-    /// browser can, so on WebGL a program also carries WGSL and GLSL ES
-    /// (printed at build time by onejs-unity), and `Plugins/WebGL/OneJSSLWeb.jslib`
-    /// compiles whichever one the device speaks and draws it into the element's
-    /// RenderTexture. A WebGL player has no VM for programs
-    /// (<see cref="SLProgramBridge.CompiledOnly"/>).
+    /// Unity cannot compile a shader in a player, and a WebGL build ships no
+    /// generated shaders. A browser can compile one, so on WebGL a program also
+    /// carries WGSL and GLSL ES (printed at build time by onejs-unity), and
+    /// `Plugins/WebGL/OneJSSLWeb.jslib` compiles whichever one the device speaks
+    /// and draws it into the element's RenderTexture. That is the only way a
+    /// program draws there (<see cref="SLProgramBridge.CompiledOnly"/>).
     ///
     /// The host reads three handles private to Unity's framework, so whether
     /// any of this works is checked once, at first use, by drawing nothing:
@@ -88,8 +88,8 @@ namespace OneJS.SL {
 #if UNITY_WEBGL && !UNITY_EDITOR
             int count = 0;
             for (int i = 0; i < textures.Length; i++) {
-                // An unset slot samples white, which is what the VM and a
-                // generated shader declare for it. The host binds only the
+                // An unset slot samples white, which is what a generated
+                // shader declares for it. The host binds only the
                 // slots the program samples.
                 var t = textures[i] != null ? textures[i] : Texture2D.whiteTexture;
                 int o = i * TextureInts;
