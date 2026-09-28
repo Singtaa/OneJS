@@ -1,4 +1,6 @@
-# Unreleased
+# [2026-09-28] v3.6.0
+
+A shader program's `noise`, `fbm` and `voronoi`, and value `fx.noise`, look different at every seed, and now look the same on every GPU; simplex, turbulence and ridged noise don't change. A shader program with no compiled shader draws nothing instead of running on the VM, and an existing project should bump `onejs-unity` to `^0.5.20` so its noise on the web matches the editor.
 
 - A native player missing a program's shader draws nothing and logs one error naming its hash, instead of running the VM
 - The editor compiles a shader program the first time it draws it, and draws nothing until then instead of running the VM
@@ -7,12 +9,14 @@
 - The shader language VM is off, and left out of every player, unless `ONEJS_SL_VM` is defined
 - A WebGL build can no longer keep the shader language VM: `ONEJS_SL_WEB_VM` is gone
 - `ShaderEffectElement.SetTime` sets an effect's clock, and a paused effect draws that frame
-- Value noise, value fBm, voronoi and `fx.noise` draw alike on every GPU, each in a different pattern than before
+- Value noise, value fBm, voronoi and value `fx.noise` draw alike on every GPU, each in a different pattern than before
 - The Scaffolding list has a row for every default file the missing-file warning names, templates its list lacks included
 - Restore records what it wrote, so Template newer shows when a template changes
 - The Scaffolding list says Differs for a file it cannot tell you changed, instead of Modified
 - A default file that differs from its template only in line endings reads Up to date
 - Edit-mode preview and Initialize Project name the default files that are missing
+- A new project depends on `onejs-unity` `^0.5.20`
+- Existing projects should bump `onejs-unity` to `^0.5.20`, or shader programs' noise draws the old pattern on WebGL
 
 # [2026-09-27] v3.5.1
 
