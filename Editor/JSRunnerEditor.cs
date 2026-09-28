@@ -887,6 +887,21 @@ namespace OneJS.Editor {
             restoreBtn.SetEnabled(status == DefaultFileStatus.Modified || status == DefaultFileStatus.Missing);
             row.Add(restoreBtn);
 
+            // Remove button: the only way to delete a scaffolded file for good,
+            // since any file still listed is recreated when it goes missing.
+            var removeBtn = new Button(() => {
+                var arrayProp = serializedObject.FindProperty("_defaultFiles");
+                if (capturedIndex < 0 || capturedIndex >= arrayProp.arraySize) return;
+                arrayProp.DeleteArrayElementAtIndex(capturedIndex);
+                serializedObject.ApplyModifiedProperties();
+                RebuildDefaultFilesList();
+            }) { text = "X" };
+            removeBtn.style.width = 24;
+            removeBtn.style.height = 20;
+            removeBtn.style.marginLeft = 2;
+            removeBtn.tooltip = "Stop scaffolding this file. The file on disk is left alone, and Reset to Defaults brings the entry back.";
+            row.Add(removeBtn);
+
             return row;
         }
 
