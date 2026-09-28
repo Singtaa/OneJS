@@ -1,3 +1,7 @@
+# Unreleased
+
+- The Scaffolding list's X button removes the file clicked after an undo, instead of another
+
 # [2026-09-25] v3.5.0
 
 Shader programs now run as real compiled shaders in every player, native and WebGL, instead of on an interpreter. Bump `onejs-react` and `onejs-unity` in an existing project, or its shader programs will not draw in a WebGL build, and commit `Assets/OneJS/Recorded.sl.json` if you build programs in code.
