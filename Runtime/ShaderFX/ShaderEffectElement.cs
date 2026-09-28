@@ -166,8 +166,8 @@ namespace OneJS.ShaderFX {
 
         /// <summary>
         /// The program as WGSL and GLSL ES. A WebGL player compiles the one its
-        /// device speaks and draws it instead of the VM, once it is ready; the
-        /// VM draws until then, and for good if it fails to compile.
+        /// device speaks and draws it once it is ready; the element draws
+        /// nothing until then, and for good if it fails to compile.
         /// </summary>
         public void SetProgramWeb(string wgsl, string glsl) {
             if (_programHandle < 0) return;
@@ -175,8 +175,9 @@ namespace OneJS.ShaderFX {
         }
 
         /// <summary>
-        /// False keeps the program on the VM even where it could run compiled.
-        /// For comparing the two; nothing else should need it.
+        /// False asked a WebGL player to draw on the VM rather than compiled.
+        /// A WebGL player has no VM any more, so this changes nothing; it goes
+        /// with the VM.
         /// </summary>
         public void SetCompiled(bool allowed) {
             _compiledAllowed = allowed;
@@ -325,8 +326,8 @@ namespace OneJS.ShaderFX {
             if (!EnsureTarget()) return;
 
             if (!_drawAtSetTime) _seconds += dt;
-            // Compiled where the page can compile it (a WebGL player), into the
-            // same target at the same point in the frame the VM would draw.
+            // Compiled by the page in a WebGL player, into the same target at the
+            // same point in the frame a material would draw.
             if (_isProgram && SL.SLProgramBridge.TryRenderCompiled(_programHandle, _rt, _seconds)) {
                 _drawAtSetTime = false;
                 MarkDirtyRepaint();

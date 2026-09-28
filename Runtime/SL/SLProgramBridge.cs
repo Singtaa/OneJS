@@ -84,7 +84,12 @@ namespace OneJS.SL {
             public readonly Texture[] Textures = new Texture[MaxTextures];
             /// <summary>The browser compiled program, 0 when there is none. See <see cref="SLWeb"/>.</summary>
             public int WebId;
-            /// <summary>Cleared by the host to force the VM, which is how parity is measured.</summary>
+            /// <summary>
+            /// Cleared to keep the program off the page's compiled path. Nothing
+            /// clears it now: that path exists only in a WebGL player, which has
+            /// no VM to fall back on, so <see cref="SetCompiledAllowed"/> keeps it
+            /// set there. It goes with the VM.
+            /// </summary>
             public bool WebAllowed = true;
             /// <summary>True when the last frame was drawn compiled rather than on the VM.</summary>
             public bool DrewCompiled;
@@ -597,8 +602,9 @@ namespace OneJS.SL {
 
         /// <summary>
         /// Hands over the program as WGSL and GLSL ES, which a WebGL player
-        /// compiles and draws in place of the VM (<see cref="SLWeb"/>). Does
-        /// nothing anywhere else, so a host can call it unconditionally.
+        /// compiles and draws (<see cref="SLWeb"/>), the only way a program
+        /// draws there. Does nothing anywhere else, so a host can call it
+        /// unconditionally.
         /// </summary>
         public static void SetWebSource(int handle, string wgsl, string glsl) {
             if (!s_Programs.TryGetValue(handle, out var c) || c.Native) return;
@@ -609,8 +615,11 @@ namespace OneJS.SL {
         }
 
         /// <summary>
-        /// False forces the VM even where the program could run compiled.
-        /// Ignored where there is no VM (<see cref="CompiledOnly"/>).
+        /// False keeps the program off the page's compiled path. Ignored in a
+        /// WebGL player, the only place that path exists, because it has no VM
+        /// (<see cref="CompiledOnly"/>), so this changes nothing now; an editor
+        /// or native player chooses between a generated shader and the VM
+        /// without it. It goes with the VM.
         /// </summary>
         public static void SetCompiledAllowed(int handle, bool allowed) {
             if (s_Programs.TryGetValue(handle, out var c)) c.WebAllowed = allowed || CompiledOnly;
@@ -664,10 +673,12 @@ namespace OneJS.SL {
         static readonly float[] s_Flat = new float[SLWeb.UniformFloats];
 
         /// <summary>
-        /// Draws the compiled program into `target` when there is one and it is
-        /// ready. False means the caller draws the VM this frame, which is what
-        /// happens while a browser is still compiling and, for good, after a
-        /// compile error (the host has said why).
+        /// Draws the page's compiled program into `target` when there is one and
+        /// it is ready. False means it drew nothing: in a WebGL player the
+        /// element then draws nothing this frame, which is what happens while
+        /// the browser is still compiling and, for good, after a compile error
+        /// (the host has said why). Elsewhere there is no page program, and the
+        /// caller draws the program's material instead.
         /// </summary>
         public static bool TryRenderCompiled(int handle, RenderTexture target, float seconds) {
             if (!s_Programs.TryGetValue(handle, out var c)) return false;

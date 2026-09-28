@@ -83,7 +83,7 @@ namespace OneJS.SL {
 #endif
         }
 
-        /// <summary>1 drew, 0 not ready yet (draw the VM), -1 never will (draw the VM, stop asking).</summary>
+        /// <summary>1 drew, 0 not ready yet (the element draws nothing this frame), -1 never will (the host said why; stop asking).</summary>
         internal static int Draw(int id, RenderTexture target, float seconds, float[] uniforms, Texture[] textures) {
 #if UNITY_WEBGL && !UNITY_EDITOR
             int count = 0;
