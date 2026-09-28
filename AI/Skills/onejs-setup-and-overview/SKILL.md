@@ -12,7 +12,7 @@ metadata:
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-09-25"
+  last-verified: "2026-09-27"
 ---
 
 # Set Up a OneJS Project
