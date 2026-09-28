@@ -140,6 +140,10 @@ namespace OneJS.Tests {
             _root.Add(view);
             yield return null;
             yield return null;
+            if (!(view.worldBound.height > 0)) {
+                _root.Remove(view);
+                Assert.Ignore("ScrollView has no layout: this runner does not lay panels out");
+            }
 
             var failures = new List<string>();
             void Inside(Scroller scroller, bool horizontal) {
@@ -181,6 +185,12 @@ namespace OneJS.Tests {
                 yield return null;
 
                 var b = control.worldBound;
+                // A headless player lays nothing out, and every centre is then
+                // zero, which would pass without having measured anything.
+                if (!(b.height > 0)) {
+                    _root.Remove(row);
+                    Assert.Ignore($"{typeof(T).Name} has no layout ({b.height}px box): this runner does not lay panels out");
+                }
                 var r = control.resolvedStyle;
                 float centre = b.y - r.marginTop + (b.height + r.marginTop + r.marginBottom) / 2f;
                 foreach (var kv in parts(control)) {
