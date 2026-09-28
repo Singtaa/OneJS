@@ -31,7 +31,7 @@ Tests/
 │   ├── JSRunnerBuildProcessorTests.cs
 │   ├── JSRunnerBuildProcessorWindowsTests.cs # Read only handling; Windows only
 │   ├── JSRunnerBuildSceneListTests.cs  # Which scenes a build walks
-│   ├── JSRunnerScaffoldingListTests.cs # The inspector's Scaffolding list: remove, undo, EnsureProjectSetup
+│   ├── JSRunnerInspectorListTests.cs   # The inspector's hand built lists: remove, undo, EnsureProjectSetup
 │   ├── CartridgeUtilsTests.cs
 │   ├── PremadeCartridgeTests.cs # Validates the shipped Premade/ cartridge assets
 │   └── BuildValidationTests.cs
@@ -76,7 +76,7 @@ Tests/
 | `Physics2DBodyTests.cs` | PlayMode | How a wire body becomes a Rigidbody2D: no engine warnings on build, and density driving mass |
 | `ShaderFXTests.cs` | PlayMode | ShaderFX render-target lifecycle against real layout, uniform marshalling, ramp/texture caching |
 | `JSRunnerBuildProcessorTests.cs` | EditMode | Asset copying, namespace detection |
-| `JSRunnerScaffoldingListTests.cs` | EditMode | The Scaffolding list's X button removes the row clicked, after an undo too, and EnsureProjectSetup stops recreating a removed file |
+| `JSRunnerInspectorListTests.cs` | EditMode | The X button in the Stylesheets, Preloads, Globals, Cartridges and Scaffolding lists removes the row clicked, after an undo and after another inspector changed the list, and EnsureProjectSetup stops recreating a removed file |
 | `BuildValidationTests.cs` | EditMode | Full build + run validation (slow) |
 
 ## Test Categories

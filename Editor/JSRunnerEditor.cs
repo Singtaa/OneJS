@@ -100,15 +100,9 @@ namespace OneJS.Editor {
             NodeWatcherManager.OnWatcherStopped -= OnWatcherStateChanged;
         }
 
-        /// <summary>
-        /// The Scaffolding list is built by hand rather than bound, so nothing
-        /// redraws it when an undo or redo changes the entries under it: an
-        /// entry brought back stayed invisible, and every row after it kept
-        /// the index it was built with.
-        /// </summary>
         void OnUndoRedo() {
             if (target == null) return;
-            RebuildDefaultFilesList();
+            RebuildLists();
         }
 
         void OnWatcherStateChanged(string workingDir) {
@@ -607,6 +601,66 @@ namespace OneJS.Editor {
             container.Add(spacer);
         }
 
+        // MARK: Hand Built Lists
+
+        /// <summary>
+        /// Asks before a destructive list change. A field rather than a direct
+        /// call so a test can answer it; nothing else should replace it.
+        /// </summary>
+        static Func<string, string, string, string, bool> s_Confirm = EditorUtility.DisplayDialog;
+
+        /// <summary>
+        /// Redraws every list this inspector builds by hand: Stylesheets,
+        /// Preloads, Globals, Cartridges and Scaffolding. None of them is bound,
+        /// so nothing else redraws them when an undo or redo changes the entries
+        /// under them, and an entry brought back stayed invisible.
+        /// </summary>
+        void RebuildLists() {
+            RebuildStylesheetsList();
+            RebuildPreloadsList();
+            RebuildGlobalsList();
+            RebuildCartridgeList();
+            RebuildDefaultFilesList();
+        }
+
+        /// <summary>
+        /// Removes the entry a row shows from the list property `propertyName`,
+        /// then redraws that list with `rebuild`.
+        ///
+        /// Read fresh first: a row is drawn from the list as it was then, and a
+        /// removal applied to that copy wrote the whole stale list back, bringing
+        /// entries back and taking others. The entry is found by what the row
+        /// shows (<see cref="FindListEntry"/>), so a row drawn before an undo, or
+        /// before another inspector on the same runner changed the list, still
+        /// removes its own entry.
+        /// </summary>
+        void RemoveListEntry(string propertyName, int hint, Func<SerializedProperty, bool> shows, Action rebuild) {
+            serializedObject.Update();
+            var list = serializedObject.FindProperty(propertyName);
+            var at = FindListEntry(list, hint, shows);
+            if (at >= 0) {
+                var element = list.GetArrayElementAtIndex(at);
+                // Cleared first: deleting a set object reference used to only null it.
+                if (element.propertyType == SerializedPropertyType.ObjectReference) element.objectReferenceValue = null;
+                list.DeleteArrayElementAtIndex(at);
+                serializedObject.ApplyModifiedProperties();
+            }
+            rebuild();
+        }
+
+        /// <summary>
+        /// The index of the entry a row shows, or -1 when it is gone. The row's
+        /// own index is only a hint, taken when it still shows that entry, so of
+        /// two equal entries the one clicked is the one found.
+        /// </summary>
+        static int FindListEntry(SerializedProperty list, int hint, Func<SerializedProperty, bool> shows) {
+            if (hint >= 0 && hint < list.arraySize && shows(list.GetArrayElementAtIndex(hint))) return hint;
+            for (int i = 0; i < list.arraySize; i++) {
+                if (shows(list.GetArrayElementAtIndex(i))) return i;
+            }
+            return -1;
+        }
+
         // MARK: List Management (Stylesheets, Preloads, Globals)
 
         void RebuildStylesheetsList() {
@@ -655,12 +709,8 @@ namespace OneJS.Editor {
             });
             row.Add(objectField);
 
-            var removeBtn = new Button(() => {
-                arrayProp.GetArrayElementAtIndex(index).objectReferenceValue = null;
-                arrayProp.DeleteArrayElementAtIndex(index);
-                serializedObject.ApplyModifiedProperties();
-                RebuildStylesheetsList();
-            }) { text = "X" };
+            var removeBtn = new Button(() => RemoveListEntry("_stylesheets", index,
+                e => e.objectReferenceValue == objectField.value, RebuildStylesheetsList)) { text = "X" };
             removeBtn.style.width = 24;
             removeBtn.style.height = 20;
             removeBtn.style.marginLeft = 4;
@@ -716,12 +766,8 @@ namespace OneJS.Editor {
             });
             row.Add(objectField);
 
-            var removeBtn = new Button(() => {
-                arrayProp.GetArrayElementAtIndex(index).objectReferenceValue = null;
-                arrayProp.DeleteArrayElementAtIndex(index);
-                serializedObject.ApplyModifiedProperties();
-                RebuildPreloadsList();
-            }) { text = "X" };
+            var removeBtn = new Button(() => RemoveListEntry("_preloads", index,
+                e => e.objectReferenceValue == objectField.value, RebuildPreloadsList)) { text = "X" };
             removeBtn.style.width = 24;
             removeBtn.style.height = 20;
             removeBtn.style.marginLeft = 4;
@@ -794,11 +840,10 @@ namespace OneJS.Editor {
             });
             row.Add(valueField);
 
-            var removeBtn = new Button(() => {
-                arrayProp.DeleteArrayElementAtIndex(index);
-                serializedObject.ApplyModifiedProperties();
-                RebuildGlobalsList();
-            }) { text = "X" };
+            var removeBtn = new Button(() => RemoveListEntry("_globals", index,
+                e => e.FindPropertyRelative("key").stringValue == keyField.value &&
+                     e.FindPropertyRelative("value").objectReferenceValue == valueField.value,
+                RebuildGlobalsList)) { text = "X" };
             removeBtn.style.width = 24;
             removeBtn.style.height = 20;
             removeBtn.style.marginLeft = 4;
@@ -893,7 +938,7 @@ namespace OneJS.Editor {
                         return;
                 }
                 serializedObject.Update();
-                var at = IndexOfDefaultFile(serializedObject.FindProperty("_defaultFiles"), capturedIndex, pathValue);
+                var at = FindListEntry(serializedObject.FindProperty("_defaultFiles"), capturedIndex, ShowsPath(pathValue));
                 if (at >= 0) _target.RestoreDefaultFile(at);
                 RebuildDefaultFilesList();
             }) { text = OneJSEditorDesign.Texts.Restore };
@@ -904,16 +949,8 @@ namespace OneJS.Editor {
 
             // Remove button: the only way to delete a scaffolded file for good,
             // since any file still listed is recreated when it goes missing.
-            var removeBtn = new Button(() => {
-                serializedObject.Update();
-                var arrayProp = serializedObject.FindProperty("_defaultFiles");
-                var at = IndexOfDefaultFile(arrayProp, capturedIndex, pathValue);
-                if (at >= 0) {
-                    arrayProp.DeleteArrayElementAtIndex(at);
-                    serializedObject.ApplyModifiedProperties();
-                }
-                RebuildDefaultFilesList();
-            }) { text = "X" };
+            var removeBtn = new Button(() => RemoveListEntry("_defaultFiles", capturedIndex,
+                ShowsPath(pathValue), RebuildDefaultFilesList)) { text = "X" };
             removeBtn.style.width = 24;
             removeBtn.style.height = 20;
             removeBtn.style.marginLeft = 2;
@@ -923,21 +960,8 @@ namespace OneJS.Editor {
             return row;
         }
 
-        /// <summary>
-        /// The index of the entry a row shows, found by its path. The row's own
-        /// index is only a hint: the list may have changed since the row was
-        /// built, by an undo or by another inspector on the same runner, and
-        /// acting on a stale index removes or overwrites a file nobody clicked.
-        /// Returns -1 when the entry is gone.
-        /// </summary>
-        static int IndexOfDefaultFile(SerializedProperty list, int hint, string path) {
-            bool Shows(int i) => list.GetArrayElementAtIndex(i).FindPropertyRelative("path").stringValue == path;
-            if (hint >= 0 && hint < list.arraySize && Shows(hint)) return hint;
-            for (int i = 0; i < list.arraySize; i++) {
-                if (Shows(i)) return i;
-            }
-            return -1;
-        }
+        static Func<SerializedProperty, bool> ShowsPath(string path) =>
+            e => e.FindPropertyRelative("path").stringValue == path;
 
         void RestoreAllDefaultFiles() {
             serializedObject.Update();
@@ -1090,7 +1114,7 @@ namespace OneJS.Editor {
             row.Add(deleteBtn);
 
             // Remove from list button
-            var removeBtn = new Button(() => RemoveCartridgeFromList(index)) { text = "X" };
+            var removeBtn = new Button(() => RemoveCartridgeFromList(index, objectField.value as UICartridge)) { text = "X" };
             removeBtn.style.width = 24;
             removeBtn.style.height = 20;
             removeBtn.style.marginLeft = 2;
@@ -1243,14 +1267,10 @@ namespace OneJS.Editor {
             }
         }
 
-        void RemoveCartridgeFromList(int index) {
-            var cartridgesProp = serializedObject.FindProperty("_cartridges");
-            if (index < 0 || index >= cartridgesProp.arraySize) return;
+        void RemoveCartridgeFromList(int index, UICartridge cartridge) {
+            string name = cartridge != null ? cartridge.DisplayName : $"Item {index}";
 
-            var cartridge = cartridgesProp.GetArrayElementAtIndex(index).objectReferenceValue as UICartridge;
-            string name = cartridge?.DisplayName ?? $"Item {index}";
-
-            if (!EditorUtility.DisplayDialog(
+            if (!s_Confirm(
                 "Remove from List?",
                 $"Remove '{name}' from the cartridge list?\n\n" +
                 "(This does not delete any extracted files)",
@@ -1258,10 +1278,7 @@ namespace OneJS.Editor {
                 return;
             }
 
-            cartridgesProp.GetArrayElementAtIndex(index).objectReferenceValue = null;
-            cartridgesProp.DeleteArrayElementAtIndex(index);
-            serializedObject.ApplyModifiedProperties();
-            RebuildCartridgeList();
+            RemoveListEntry("_cartridges", index, e => e.objectReferenceValue == cartridge, RebuildCartridgeList);
         }
 
         void ExtractAllCartridges() {
