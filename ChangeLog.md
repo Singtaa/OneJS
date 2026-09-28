@@ -7,6 +7,7 @@
 - The shader language VM is off, and left out of every player, unless `ONEJS_SL_VM` is defined
 - A WebGL build can no longer keep the shader language VM: `ONEJS_SL_WEB_VM` is gone
 - `ShaderEffectElement.SetTime` sets an effect's clock, and a paused effect draws that frame
+- Seeded value noise draws alike on every GPU, so fbm past its first octave and `fx.noise` draw a different pattern than before
 
 # [2026-09-27] v3.5.1
 

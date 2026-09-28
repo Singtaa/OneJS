@@ -15,9 +15,16 @@
 // is the kind of thing nobody notices until two effects that should match do
 // not.
 
+// The product is reduced before the seed is added, and must stay that way.
+// p * k reaches the tens of thousands, where one rounding step is a few
+// thousandths, and `p * k + seed * c` is a multiply-add a compiler may fuse
+// into one rounding. Dawn on Windows did and Metal and ANGLE did not, so the
+// same program drew a different fbm on each. frac(frac(x) + frac(y)) is the
+// same number, with nothing large left to fuse, and at seed 0 it is exactly
+// what it was.
 float onejsHash21(float2 p, float seed)
 {
-    p = frac(p * float2(123.34, 456.21) + seed * 0.1731);
+    p = frac(frac(p * float2(123.34, 456.21)) + frac(seed * 0.1731));
     p += dot(p, p + 45.32);
     return frac(p.x * p.y);
 }
