@@ -1,6 +1,7 @@
 # Unreleased
 
-- The Scaffolding list's X button removes the file clicked after an undo, instead of another
+- Default files are scaffolded once, so a deleted one stays deleted and the Scaffolding list drops its X; Restore brings one back
+- The first Play after upgrading writes, once, any default file a project never had, including one removed with 3.5.0's X
 - The Stylesheets, Preloads, Globals and Cartridges lists' X button removes the entry clicked after an undo, instead of another
 
 # [2026-09-25] v3.5.0

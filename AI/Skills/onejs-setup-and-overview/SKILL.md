@@ -5,7 +5,7 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.5.0"
-  skill-version: "1.5.2"
+  skill-version: "1.6.0"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
@@ -78,7 +78,7 @@ runner.EnsureProjectSetup();
 
 Save the scene before calling them, then run `npm install && npm run build` in the app's `~/` folder yourself, because only the button does that part for you. The full terminal recipe, including creating the Unity project and driving a live editor through the Unity MCP server, is at https://onejs.com/docs/ai-setup.
 
-There is a second path that skips the button: assign nothing and just enter Play mode. On first play, `JSRunnerAutoWatch` creates and assigns PanelSettings, scaffolds any missing files, runs `npm install` and `npm run build` in the background, and starts the file watcher.
+There is a second path that skips the button: assign nothing and just enter Play mode. On first play, `JSRunnerAutoWatch` creates and assigns PanelSettings, scaffolds a new app's files, runs `npm install` and `npm run build` in the background, and starts the file watcher.
 
 ## Workflows
 
@@ -98,7 +98,8 @@ There is a second path that skips the button: assign nothing and just enter Play
 │   ├── index.tsx           # entry point
 │   ├── package.json, tsconfig.json, esbuild.config.mjs
 │   ├── types/global.d.ts, styles/main.uss, .gitignore
-│   └── AGENTS.md           # per-app agent notes, written by the scaffold
+│   ├── AGENTS.md           # per-app agent notes, written by the scaffold
+│   └── .onejs/scaffold     # which default files this app was given; commit it
 ├── PanelSettings.asset     # project marker, the one mandatory JSRunner field
 ├── UIDocument.uxml
 ├── app.js.txt              # built bundle, esbuild writes ../app.js.txt
@@ -114,7 +115,7 @@ Two rules that matter here:
 - **PanelSettings is the project marker.** The folder containing the assigned PanelSettings asset defines the project, and the bundle is always loaded from `{that folder}/app.js.txt`. Moving or reassigning that asset moves the project.
 - **Do not add a UIDocument component yourself.** JSRunner adds and wires one at runtime, plus an EventSystem if the scene lacks one. On Unity 6.5 and newer, do not substitute the newer `PanelRenderer` either: it never attaches a panel outside Play mode, so edit-mode preview would silently render nothing.
 
-Scaffolding never overwrites files that already exist, so running Initialize Project again on a set-up project is safe.
+Scaffolding never overwrites files that already exist, so running Initialize Project again on a set-up project is safe. Each default file is written once: `~/.onejs/scaffold` records it, and a file the user deletes stays deleted. To bring one back, click **Restore** on its row in the Build tab's Scaffolding list. Do not delete a file expecting Play to regenerate it.
 
 ### Workflow: Add a UI component
 
@@ -332,7 +333,8 @@ untested rather than guaranteed.
 | `JSRunner.PanelSettingsAsset` | Property | The assigned PanelSettings. Its folder is the project marker. |
 | `JSRunner.PopulateDefaultFiles()` | Method | Loads the scaffold templates into the runner's default file list. |
 | `JSRunner.EnsureProjectFolderAndAssets(bool)` | Method | Creates the project folder, PanelSettings, and UIDocument.uxml. |
-| `JSRunner.EnsureProjectSetup()` | Method | Writes any missing scaffolded source files. Never overwrites. |
+| `JSRunner.EnsureProjectSetup()` | Method | Scaffolds a new app's source files, and once each any default file the app has not had. Never overwrites, never rewrites a deleted file. |
+| `JSRunner.DescribeMissingDefaultFiles()` | Method | Names the default files missing from `~/` and how to restore them, or null. |
 | `JSRunner.GetJSFunction<T>(string)` | Method | Binds a JavaScript global to a typed C# delegate that survives hot reload. |
 | `JSRunner.Reloaded` | Event | Fires after each hot reload, for C# code caching anything JavaScript side. |
 | `OneJS.JSPad` | MonoBehaviour | Prototyping alternative with an inline code editor and no npm project. No hot reload. |

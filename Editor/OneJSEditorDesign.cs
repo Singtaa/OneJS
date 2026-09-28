@@ -133,6 +133,7 @@ public static class OneJSEditorDesign {
         public const string FileUpToDate = "Up to date";
         public const string FileModified = "Modified";
         public const string FileMissing = "Missing";
+        public const string FileTemplateUpdated = "Template newer";
 
         // --- Watcher ---
         public const string Watcher = "Watcher: ";

@@ -96,7 +96,7 @@ Automatically manages file watchers and project readiness for JSRunner instances
 ### Features
 
 - **PanelSettings auto-creation**: Creates PanelSettings assets for JSRunners that don't have one before entering Play mode
-- **Project scaffolding**: Ensures project files are scaffolded (`EnsureProjectSetup()`) before Play mode
+- **Project scaffolding**: Ensures a new app is scaffolded and each default file written once (`EnsureProjectSetup()`) before Play mode; a missing `package.json` is a warning naming the missing default files and pointing at Restore
 - **Auto-install + build**: Runs `npm install` and `npm run build` if needed before starting watcher
 - **Auto-start on Play**: Watchers start automatically when entering Play mode
 - **Auto-stop on Exit**: All watchers are stopped when exiting Play mode (via `NodeWatcherManager.StopAll()`)
@@ -106,7 +106,7 @@ Automatically manages file watchers and project readiness for JSRunner instances
 1. Uses `[InitializeOnLoad]` to register `playModeStateChanged` callback
 2. On `ExitingEditMode` (before Play starts):
    - `EnsurePanelSettingsAssets()`: Creates/assigns PanelSettings for runners missing one
-   - `EnsureProjectsReady()`: Calls `EnsureProjectSetup()` on each valid runner to scaffold files
+   - `EnsureProjectsReady()`: Calls `EnsureProjectSetup()` on each valid runner, which writes each default file once (see Runtime/README, Auto-Scaffolding)
    - `PrepareWatchers()`: Clears the session tracking set
 3. On `EnteredPlayMode`:
    - Finds all active JSRunner components with valid working directories

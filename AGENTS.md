@@ -43,14 +43,15 @@ Or clone into Assets: `git clone https://github.com/Singtaa/OneJS.git`. Package 
 
 then runs `npm install` and `npm run build` automatically.
 
-Alternative: skip the button and just enter Play mode. On first play, `JSRunnerAutoWatch` auto-creates and assigns PanelSettings, scaffolds missing files, runs `npm install` + `npm run build` in the background, and starts the watcher. The first run takes a moment while packages install.
+Alternative: skip the button and just enter Play mode. On first play, `JSRunnerAutoWatch` auto-creates and assigns PanelSettings, scaffolds a new app's files, runs `npm install` + `npm run build` in the background, and starts the watcher. The first run takes a moment while packages install.
 
 Key model:
 
 - **Panel Settings is the project marker.** The folder containing the assigned PanelSettings asset defines the project; the bundle is always loaded from `{that folder}/app.js.txt`. A folder is considered valid when it contains `~/` or `app.js.txt`.
 - **Do not add a UIDocument.** JSRunner adds and wires one at runtime (and an EventSystem if missing). On Unity 6.5+, do **not** substitute the new `PanelRenderer` either: it never attaches a panel outside Play mode, so edit-mode preview would silently render nothing. OneJS stays on `UIDocument`, which is not `[Obsolete]`. See `Runtime/README.md`.
 - **Edit-mode preview**: JSRunner renders the UI in the Game view without Play mode whenever Panel Settings is valid, `app.js.txt` exists on disk, and the UIDocument root is ready. Ticks at 30 Hz. Ticking is gated by the Scene view's **OneJS overlay** update modes: in the default Auto mode only the selected runner (or, with nothing selected, the one closest to the Scene view camera) ticks, so an unselected runner's timers freeze while its hot reload keeps working. Select the runner or switch the overlay's Scene mode to Camera when driving previews headlessly.
-- Scaffolding never overwrites existing files.
+- Scaffolding never overwrites existing files, and writes each default file once: `~/.onejs/scaffold` records what the app was given, so a deleted file stays deleted until Restore in the Build tab brings it back.
+- `~/.onejs/` holds small per-app OneJS state the project commits, never caches or machine-local files.
 
 Headless (no inspector click): the three methods the button calls are public on `JSRunner`, `PopulateDefaultFiles()`, `EnsureProjectFolderAndAssets(true)`, `EnsureProjectSetup()`, callable from a small editor script (which `-executeMethod` can invoke); then run `npm install && npm run build` in `~/`.
 

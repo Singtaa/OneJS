@@ -242,12 +242,14 @@ The "Use Scene Name as Root Folder" option (right-click the status block) contro
 Prefabs in the Project window (not placed in a scene) are also supported: the instance folder is created next to the prefab asset.
 
 ### Auto-Scaffolding (Editor Only)
-On Initialize (or first Play mode if not already set up), JSRunner creates missing files from its **Default Files** list. This is non-destructive: existing files are never overwritten.
+JSRunner writes each default file once (`EnsureProjectSetup`, on Initialize and before every Play). Existing files are never overwritten, and a file the user deletes stays deleted.
 
-Configure scaffolding in the inspector:
-- **Default Files**: List of `path → TextAsset` pairs. Each path is relative to Working Dir.
-- Files are created only if missing, preserving user modifications.
-- A row's **X** removes it from the list, which is the only way to stop a missing file coming back. The file on disk is left alone, and Reset to Defaults restores the list.
+- **`~/.onejs/scaffold`** (`ScaffoldRecord`) lists every default path the app has been given, one per line with a hash of the content written. A recorded path is never written again. It lives in the working directory, not on the component, so runners and prefab instances sharing a folder agree, and a scene is never dirtied.
+- **`~/.onejs/`** is the home for per-app OneJS state: only small state a project commits goes there, never caches or machine-local files. The scaffolded `.gitignore` leaves it in.
+- **A new app** (no record, no `package.json`) gets every default file. **An app from before the record** (no record, a `package.json`) is seeded with every default path on disk or in the runner's list, so nothing deleted comes back. Then, in either case, a default path the record lacks (a template a newer OneJS added, or one the runner's list never had) is written once, with one log line naming it.
+- **Default Files**: the runner's list of `path → TextAsset` pairs, relative to Working Dir. It decides a path's content where it has one; OneJS templates it does not cover are given too. Initialize Project adds missing templates and keeps the rest (`AddMissingDefaultFiles`); Reset to Defaults replaces the list. Neither touches disk.
+- **Restore** writes one file from its template, on purpose. Status reads Missing (normal, not an error), Modified, or Template newer (unchanged since written, template changed since).
+- A build or watcher that fails with default files missing names them and points at Restore (`DescribeMissingDefaultFiles`).
 
 Default template files (in `Assets/Singtaa/OneJS/Editor/Templates/`):
 - `package.json.txt`: npm configuration with React and onejs-react dependencies
@@ -296,7 +298,7 @@ The inspector adapts to the project state:
 | Include Source Map | Whether to include source maps in builds |
 | Bundle/Source Map status | Shows current TextAsset assignment state |
 | Type Generation | Generate `.d.ts` files from C# assemblies |
-| Scaffolding | Default Files list and Reset to Defaults |
+| Scaffolding | Default Files list with Restore, and Reset to Defaults |
 | **Cartridges tab** | |
 | UI Cartridges | Packaged UI module assets; extracts on assignment (never overwriting), E/D re-extract and delete controls, flags stale extractions as Outdated via the version stamped in the generated `.d.ts` |
 
@@ -369,7 +371,9 @@ void ForceReload();                                        // Manually trigger r
 void SetPanelSettings(PanelSettings ps);                   // Assign PanelSettings at runtime
 void SetVisualTreeAsset(VisualTreeAsset vta);              // Assign VisualTreeAsset at runtime
 void EnsureProjectFolderAndAssets(bool useSceneName);      // Create folder + PanelSettings + UXML
-void EnsureProjectSetup();                                 // Scaffold files into working dir
+void EnsureProjectSetup();                                 // Scaffold a new app, and each default file once
+string DescribeMissingDefaultFiles();                      // Missing default files and how to restore, or null
+void AddMissingDefaultFiles();                             // Add templates the list lacks, keep the rest
 TDelegate GetJSFunction<TDelegate>(string globalName);     // Typed delegate for a JS function (survives hot reload)
 
 // Events
