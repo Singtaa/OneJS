@@ -15,28 +15,76 @@
 // is the kind of thing nobody notices until two effects that should match do
 // not.
 
-// The product is reduced before the seed is added, and must stay that way.
-// p * k reaches the tens of thousands, where one rounding step is a few
-// thousandths, and `p * k + seed * c` is a multiply-add a compiler may fuse
-// into one rounding. Dawn on Windows did and Metal and ANGLE did not, so the
-// same program drew a different fbm on each. frac(frac(x) + frac(y)) is the
-// same number, with nothing large left to fuse, and at seed 0 it is exactly
-// what it was.
+// MARK: hash
+//
+// The lattice hash is integer arithmetic, and has to stay integer arithmetic.
+// A float hash, frac of a large product as most shader noise is written, is
+// only as exact as the compiler lets it be: one that contracts a multiply and
+// an add into a single rounding computes a different hash, and a different
+// hash is a different picture. Dawn on Windows contracted frac(p * k + c), and
+// Metal computes dot(p, q) as fma(p.y, q.y, p.x * q.x), so one program drew a
+// different noise on each. 32 bit unsigned multiply, add, xor and shift wrap
+// modulo 2^32 on every target (HLSL, Metal, GLSL ES 3.00 highp and WGSL), so
+// nothing is left for a compiler to round. goldens/probes.hlsl holds both
+// hashes to the bit, and src/lib/lib.test.ts refuses a frac in any of them.
+
+/// pcg2d (Jarzynski and Olano, "Hash Functions for GPU Rendering", 2020):
+/// two 32 bit words in, two well mixed words out.
+uint2 onejsPcg2d(uint2 v)
+{
+    v = v * 1664525u + 1013904223u;
+    v.x += v.y * 1664525u;
+    v.y += v.x * 1664525u;
+    v = v ^ (v >> 16u);
+    v.x += v.y * 1664525u;
+    v.y += v.x * 1664525u;
+    v = v ^ (v >> 16u);
+    return v;
+}
+
+/// A lattice cell and a seed as the two words the hash mixes.
+///
+/// The cell is a whole number already, the floor of a point. A float outside
+/// int's range has no defined conversion in HLSL or GLSL, so it is clamped
+/// first: every cell past -2^31 or 2^31 - 128 (the last float below 2^31) is
+/// the edge cell. -0 is 0. A NaN coordinate gives an undefined cell, because
+/// clamp returns either bound for a NaN depending on the backend.
+///
+/// The seed is its whole part, clamped the same way, and its fraction in
+/// 65536ths, so seeds closer than 1/65536 draw the same field. Each is spread
+/// by a large odd multiplier before it is added, so a seed moves the field far
+/// across the lattice rather than one cell over.
+uint2 onejsHashKey(float2 cell, float seed)
+{
+    float2 c = clamp(cell, float2(-2147483648.0, -2147483648.0), float2(2147483520.0, 2147483520.0));
+    float s = clamp(seed, -2147483648.0, 2147483520.0);
+    float whole = floor(s);
+    uint2 key = uint2((uint)(int)whole, (uint)(int)((s - whole) * 65536.0));
+    return uint2((uint)(int)c.x, (uint)(int)c.y) + key * uint2(2654435769u, 2246822507u);
+}
+
+/// A key's hash as 0..1: the top 24 bits, which a float holds exactly.
+float onejsHashUnit(uint2 key)
+{
+    return (float)(onejsPcg2d(key).x >> 8u) * 5.9604644775390625e-8;
+}
+
 float onejsHash21(float2 p, float seed)
 {
-    p = frac(frac(p * float2(123.34, 456.21)) + frac(seed * 0.1731));
-    p += dot(p, p + 45.32);
-    return frac(p.x * p.y);
+    return onejsHashUnit(onejsHashKey(p, seed));
 }
 
 float onejsVNoise(float2 p, float seed)
 {
     float2 i = floor(p), f = frac(p);
     f = f * f * (3.0 - 2.0 * f);
-    float a = onejsHash21(i, seed);
-    float b = onejsHash21(i + float2(1, 0), seed);
-    float c = onejsHash21(i + float2(0, 1), seed);
-    float d = onejsHash21(i + float2(1, 1), seed);
+    // The neighbours are found in integers, so they stay distinct past 2^24,
+    // where i + 1 as a float is i again.
+    uint2 k = onejsHashKey(i, seed);
+    float a = onejsHashUnit(k);
+    float b = onejsHashUnit(k + uint2(1u, 0u));
+    float c = onejsHashUnit(k + uint2(0u, 1u));
+    float d = onejsHashUnit(k + uint2(1u, 1u));
     return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
 }
 

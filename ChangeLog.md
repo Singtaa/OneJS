@@ -7,7 +7,7 @@
 - The shader language VM is off, and left out of every player, unless `ONEJS_SL_VM` is defined
 - A WebGL build can no longer keep the shader language VM: `ONEJS_SL_WEB_VM` is gone
 - `ShaderEffectElement.SetTime` sets an effect's clock, and a paused effect draws that frame
-- Seeded value noise draws alike on every GPU, so fbm past its first octave and `fx.noise` draw a different pattern than before
+- Value noise, value fBm, voronoi and `fx.noise` draw alike on every GPU, each in a different pattern than before
 - The Scaffolding list has a row for every default file the missing-file warning names, templates its list lacks included
 - Restore records what it wrote, so Template newer shows when a template changes
 - The Scaffolding list says Differs for a file it cannot tell you changed, instead of Modified

@@ -26,12 +26,14 @@
 // its own: offset the input to get a different field. The four kinds and
 // their numbers are the contract with `onejsFbmKind`: 0 value fBm, 1 simplex
 // fBm, 2 turbulence, 3 ridged, with the classic lacunarity 2 and gain 0.5.
-// Voronoi keeps its own hash: the fx side has no voronoi to share yet.
-float sl_hash21(float2 p)
+// Voronoi hashes with the value noise's integer hash (noise2d.hlsl says why it
+// is integer), from a key moved well away from the value noise's own, so a
+// program that draws both does not get the same cells lit in each.
+/// A lattice point's jitter, both axes: what voronoi places each point by.
+float2 sl_hash22(float2 p)
 {
-    p = frac(p * float2(123.34, 456.21));
-    p += dot(p, p + 45.32);
-    return frac(p.x * p.y);
+    uint2 v = onejsPcg2d(onejsHashKey(p, 0.0) + uint2(1759714724u, 3002137945u));
+    return float2((float)(v.x >> 8u), (float)(v.y >> 8u)) * 5.9604644775390625e-8;
 }
 
 float sl_valueNoise(float2 p) { return onejsVNoise(p, 0.0); }
@@ -125,7 +127,7 @@ float sl_voronoi(float2 p)
         for (int x = -1; x <= 1; x++)
         {
             float2 o = float2(x, y);
-            float2 jitter = float2(sl_hash21(cell + o), sl_hash21(cell + o + 37.7));
+            float2 jitter = sl_hash22(cell + o);
             best = min(best, length(o + jitter - f));
         }
     }
