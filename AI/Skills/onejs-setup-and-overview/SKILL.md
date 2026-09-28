@@ -4,8 +4,8 @@ description: "Use this skill whenever the user wants to build or set up user int
 metadata:
   asset: "OneJS"
   publisher: "DragonGround"
-  asset-version: "3.7.0"
-  skill-version: "1.8.0"
+  asset-version: "3.8.0"
+  skill-version: "1.9.0"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
@@ -199,8 +199,8 @@ What a program is given as free identifiers: `uv` (0 to 1 across the element, or
 
 The traps, all of which are refused at build time with a message rather than rendered wrong:
 
-- **Sixteen uniforms and four textures.** Pack related values into a `float4`. Length has no limit: a long program costs what the same shader written by hand would. A project on `onejs-unity` 0.5 still gets the old interpreter's limits at build time (eight live values, 256 instructions); `^0.6.0` lifts them.
-- **A `for` loop unrolls**, so its bound has to be a constant. There is no loop on either backend.
+- **Sixteen uniforms and four textures.** Pack related values into a `float4`. Length has no limit: a long program costs what the same shader written by hand would.
+- **A `for` loop unrolls**, so its bound has to be a constant. The compiled shader has no loop.
 - **An `if` becomes a `select`**: both sides are evaluated. `return` inside one is refused, because there is nothing for it to skip. Assign to a local and return it once at the end.
 - **HLSL spellings only.** `mix`, `fract`, `mod` and `vec3` are refused by name, with the HLSL word in the message.
 
