@@ -1,4 +1,6 @@
-# Unreleased
+# [2026-09-27] v3.5.1
+
+A default file you delete from a project now stays deleted, and the inspector's lists remove the entry you clicked after an undo. A horizontal slider stays centred beside its label when its height is restyled.
 
 - Default files are scaffolded once, so a deleted one stays deleted and the Scaffolding list drops its X; Restore brings one back
 - The first Play after upgrading writes, once, any default file a project never had, including one removed with 3.5.0's X
