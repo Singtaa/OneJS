@@ -26,6 +26,7 @@ Tests/
 ├── JSPadPlaymodeTests.cs        # JSPad MonoBehaviour tests
 ├── CartridgeUtilsPlaymodeTests.cs  # Cartridge injection and platform defines
 ├── Physics2DBodyTests.cs        # 2D physics body setup: warnings and mass
+├── ControlAlignmentPlaymodeTests.cs # Each control's visible part centred in its box, so an align-items: center row lines up
 ├── Editor/                      # EditMode tests
 │   ├── OneJS.Tests.Editor.asmdef
 │   ├── JSRunnerBuildProcessorTests.cs

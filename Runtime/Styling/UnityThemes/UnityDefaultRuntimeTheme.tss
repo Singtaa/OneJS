@@ -393,6 +393,17 @@
     border-width: 0;
 }
 
+/* Unity's default theme places a horizontal slider's tracker at top: 50% and
+   pulls it back up by a margin matching its default height, so any other
+   height leaves it off the centre line an align-items: center row lines up
+   on. Half its own height, as a translate, centres it at any height. The
+   dragger cannot do the same: BaseSlider moves it along the track with an
+   inline translate, which replaces this one. Scrollers reset it below. */
+.unity-base-slider--horizontal .unity-base-slider__tracker {
+    margin-top: 0;
+    translate: 0 -50%;
+}
+
 /* ==========================================================================
    ScrollView
    USS classes: unity-scroll-view, unity-scroll-view__content-viewport,
@@ -468,6 +479,7 @@
 .unity-scroller .unity-base-slider__tracker {
     background-color: transparent;
     border-width: 0;
+    translate: 0 0;
     position: absolute;
     top: 0;
     bottom: 0;
