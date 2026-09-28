@@ -335,6 +335,7 @@ untested rather than guaranteed.
 | `JSRunner.EnsureProjectFolderAndAssets(bool)` | Method | Creates the project folder, PanelSettings, and UIDocument.uxml. |
 | `JSRunner.EnsureProjectSetup()` | Method | Scaffolds a new app's source files, and once each any default file the app has not had. Never overwrites, never rewrites a deleted file. |
 | `JSRunner.DescribeMissingDefaultFiles()` | Method | Names the default files missing from `~/` and how to restore them, or null. |
+| `JSRunner.RestoreDefaultFile(int index)` | Method | Writes one default file from its template, overwriting what is there: the Restore button, for when you cannot click. |
 | `JSRunner.GetJSFunction<T>(string)` | Method | Binds a JavaScript global to a typed C# delegate that survives hot reload. |
 | `JSRunner.Reloaded` | Event | Fires after each hot reload, for C# code caching anything JavaScript side. |
 | `OneJS.JSPad` | MonoBehaviour | Prototyping alternative with an inline code editor and no npm project. No hot reload. |
