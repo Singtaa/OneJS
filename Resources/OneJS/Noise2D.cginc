@@ -219,12 +219,18 @@ float onejsRidged(float2 p, float seed, int octaves, float lacunarity, float gai
 
 /// Dispatches on the noise kind: 0 value fBm, 1 simplex fBm, 2 turbulence,
 /// 3 ridged. The numbers are the contract with onejs-unity/src/fx/image.ts.
+///
+/// One return, at the end. Written with early returns, every path still
+/// returns, but Unity's Metal compile warns of a potentially uninitialized
+/// variable named after this function in every project that imports OneJS.
 float onejsFbmKind(int kind, float2 p, float seed, int octaves, float lacunarity, float gain)
 {
-    if (kind == 2) return onejsTurbulence(p, seed, octaves, lacunarity, gain);
-    if (kind == 3) return onejsRidged(p, seed, octaves, lacunarity, gain);
-    return kind == 1 ? onejsFbmSimplex(p, seed, octaves, lacunarity, gain)
-                     : onejsFbm(p, seed, octaves, lacunarity, gain);
+    float n;
+    if (kind == 2) n = onejsTurbulence(p, seed, octaves, lacunarity, gain);
+    else if (kind == 3) n = onejsRidged(p, seed, octaves, lacunarity, gain);
+    else if (kind == 1) n = onejsFbmSimplex(p, seed, octaves, lacunarity, gain);
+    else n = onejsFbm(p, seed, octaves, lacunarity, gain);
+    return n;
 }
 
 #endif
