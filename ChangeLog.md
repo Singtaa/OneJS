@@ -1,9 +1,12 @@
-# Unreleased
+# [2026-09-28] v3.7.0
+
+A shader program is no longer held to the old interpreter's 256 instructions and eight live values. Bump `onejs-unity` to `^0.6.0` and `onejs-react` to `^0.1.60` to lift them; a project that stays on `onejs-unity` 0.5 keeps working as it did.
 
 - A shader program with no VM encoding, as onejs-sl 0.2.0 builds it, draws from its compiled shader
 - `ShaderEffectElement.AcceptsCompiledPrograms` tells a host it can send one
 - `ONEJS_SL_VM` does nothing for a project on `onejs-unity` 0.6, whose programs carry no VM encoding
 - Shader programs have no length or live value limit on `onejs-unity` 0.6
+- A new project depends on `onejs-unity` `^0.6.0`, `onejs-react` `^0.1.60` and `onejs-play` `^0.7.0`
 
 # [2026-09-28] v3.6.0
 
