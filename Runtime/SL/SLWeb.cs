@@ -29,7 +29,7 @@ namespace OneJS.SL {
         [DllImport("__Internal")] static extern string OneJS_SLWeb_Check(int nativeId, int webgpu);
         [DllImport("__Internal")] static extern int OneJS_SLWeb_Create(string wgsl, string glsl, int webgpu);
         [DllImport("__Internal")] static extern int OneJS_SLWeb_Draw(int id, int target, int w, int h, float secs,
-            int linear, float[] uniforms, int[] textures, int textureCount);
+            int linear, float[] uniforms, int[] textures, int textureCount, float frame, float step, int previous);
         [DllImport("__Internal")] static extern void OneJS_SLWeb_Release(int id);
         [DllImport("__Internal")] static extern void OneJS_SLWeb_SetRestore(int on);
 #endif
@@ -83,8 +83,13 @@ namespace OneJS.SL {
 #endif
         }
 
-        /// <summary>1 drew, 0 not ready yet (the element draws nothing this frame), -1 never will (the host said why; stop asking).</summary>
-        internal static int Draw(int id, RenderTexture target, float seconds, float[] uniforms, Texture[] textures) {
+        /// <summary>
+        /// 1 drew, 0 not ready yet (the element draws nothing this frame), -1 never will (the host said why; stop asking).
+        /// `frame` and `step` go to `sl_Res.w` and `sl_Opt.z`, and `previous`, when the program reads it, is bound
+        /// bilinear and clamped at the binding the program declares for it.
+        /// </summary>
+        internal static int Draw(int id, RenderTexture target, float seconds, float[] uniforms, Texture[] textures,
+                                 int frame, float step, Texture previous) {
 #if UNITY_WEBGL && !UNITY_EDITOR
             int count = 0;
             for (int i = 0; i < textures.Length; i++) {
@@ -102,7 +107,7 @@ namespace OneJS.SL {
             }
             int linear = QualitySettings.activeColorSpace == ColorSpace.Linear ? 1 : 0;
             return OneJS_SLWeb_Draw(id, NativeId(target), target.width, target.height, seconds,
-                linear, uniforms, s_Textures, count);
+                linear, uniforms, s_Textures, count, frame, step, previous != null ? NativeId(previous) : 0);
 #else
             return -1;
 #endif

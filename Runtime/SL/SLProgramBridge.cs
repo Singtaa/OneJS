@@ -24,6 +24,7 @@ namespace OneJS.SL {
         static readonly int s_Secs = Shader.PropertyToID("_Secs");
         static readonly int s_FlipY = Shader.PropertyToID("_FlipY");
         static readonly int s_Res = Shader.PropertyToID("_Res");
+        static readonly int s_Prev = Shader.PropertyToID("_Prev");
         static readonly int[] s_TexIds = {
             Shader.PropertyToID("_Tex0"), Shader.PropertyToID("_Tex1"),
             Shader.PropertyToID("_Tex2"), Shader.PropertyToID("_Tex3"),
@@ -53,6 +54,12 @@ namespace OneJS.SL {
             public int WebId;
             /// <summary>True when the last frame was drawn by the page.</summary>
             public bool DrewCompiled;
+            /// <summary>
+            /// True when the program reads the frame it drew before, as its
+            /// compiled form says: a generated shader with a `_Prev` property,
+            /// or web source declaring `sl_prev`. See <see cref="ReadsPrevious"/>.
+            /// </summary>
+            public bool ReadsPrevious;
             /// <summary>
             /// When the editor started waiting for this program's shader, or -1.
             /// See <see cref="CurrentMaterial"/>.
@@ -222,6 +229,7 @@ namespace OneJS.SL {
                 var gen = FindGenerated(c.Hash);
                 if (gen == null) continue;
                 c.Material = new Material(gen) { hideFlags = HideFlags.HideAndDontSave };
+                c.ReadsPrevious = c.Material.HasProperty(s_Prev);
                 for (int t = 0; t < MaxTextures; t++) {
                     if (c.Textures[t] != null) c.Material.SetTexture(s_TexIds[t], c.Textures[t]);
                 }
@@ -282,6 +290,7 @@ namespace OneJS.SL {
             if (gen != null) {
                 c.Native = true;
                 c.Material = new Material(gen);
+                c.ReadsPrevious = c.Material.HasProperty(s_Prev);
                 BindUniformIds(c);
             } else if (!CompiledOnly) {
                 AwaitShader(c);
@@ -329,7 +338,21 @@ namespace OneJS.SL {
             if (!SLWeb.Available) return;
             SLWeb.Release(c.WebId);
             c.WebId = SLWeb.Create(wgsl, glsl);
+            // The emitters declare the previous frame's binding only for a
+            // program that samples it (onejs-sl's web.ts).
+            c.ReadsPrevious = (wgsl != null && wgsl.Contains(" var sl_prev: ")) ||
+                              (glsl != null && glsl.Contains("uniform sampler2D sl_Prev;"));
         }
+
+        /// <summary>
+        /// True when the program reads the frame it drew before
+        /// (`tex2D(previous, uv)`), so whoever draws it has to keep that frame
+        /// and bind it: `_Prev` on the generated shader, the previous texture
+        /// in <see cref="TryRenderCompiled"/>. Read from the program's compiled
+        /// form, so it is false until there is one.
+        /// </summary>
+        public static bool ReadsPrevious(int handle) =>
+            s_Programs.TryGetValue(handle, out var c) && c.ReadsPrevious;
 
         /// <summary>
         /// True while the handle names a live program: false once it has been
@@ -386,7 +409,18 @@ namespace OneJS.SL {
         /// (the host has said why). Elsewhere there is no page program, and the
         /// caller draws the program's material instead.
         /// </summary>
-        public static bool TryRenderCompiled(int handle, RenderTexture target, float seconds) {
+        public static bool TryRenderCompiled(int handle, RenderTexture target, float seconds) =>
+            TryRenderCompiled(handle, target, seconds, 0, 0f, null);
+
+        /// <summary>
+        /// The same, for a program drawn frame after frame: `frame` counts the
+        /// frames since `previous` was last cleared and `step` is the seconds
+        /// since the frame before (both 0 on the first), and `previous` is that
+        /// frame, for a program that <see cref="ReadsPrevious"/>. Null binds
+        /// transparent black, which is what a clear previous frame is.
+        /// </summary>
+        public static bool TryRenderCompiled(int handle, RenderTexture target, float seconds, int frame, float step,
+                                             Texture previous) {
             if (!s_Programs.TryGetValue(handle, out var c)) return false;
             c.DrewCompiled = false;
             if (c.WebId <= 0) return false;
@@ -394,7 +428,8 @@ namespace OneJS.SL {
                 var u = c.Uniforms[i];
                 s_Flat[i * 4] = u.x; s_Flat[i * 4 + 1] = u.y; s_Flat[i * 4 + 2] = u.z; s_Flat[i * 4 + 3] = u.w;
             }
-            int r = SLWeb.Draw(c.WebId, target, seconds, s_Flat, c.Textures);
+            int r = SLWeb.Draw(c.WebId, target, seconds, s_Flat, c.Textures, frame, step,
+                c.ReadsPrevious ? (previous != null ? previous : Texture2D.blackTexture) : null);
             if (r < 0) {
                 SLWeb.Release(c.WebId);
                 c.WebId = 0;

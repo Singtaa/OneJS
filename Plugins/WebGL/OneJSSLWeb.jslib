@@ -34,6 +34,12 @@
  * Draw returns 1 when it drew, 0 when the program is not ready yet (the caller
  * draws nothing this frame), and -1 when it never will be (compile error, lost
  * handle); the host has then said why, once.
+ *
+ * A program drawn frame after frame (onejs-sl 0.7) reads `frame` from
+ * `sl_Res.w`, `deltaTime` from `sl_Opt.z`, and the frame it drew before from
+ * `sl_Prev` (GLSL) or `sl_prev` (WGSL), which the emitter declares only for a
+ * program that samples it. The element keeps that frame and passes it in;
+ * it is bound bilinear and clamped, and is never the target.
  */
 var OneJSSLWebLibrary = {
     $OJSL: {
@@ -52,6 +58,8 @@ var OneJSSLWebLibrary = {
         loggedFail: {},
         // Cleared only by the negative control (SLWeb.SetRestoreGLState).
         restore: true,
+        // The unit the previous frame is bound on, after the four texture slots'.
+        prevUnit: 4,
 
         gl: function () {
             return typeof GLctx !== "undefined" && GLctx ? GLctx : null
@@ -153,9 +161,10 @@ var OneJSSLWebLibrary = {
                 tex: [],
             }
             for (var i = 0; i < 16; i++) g.loc.tex.push(gl.getUniformLocation(g.prog, "sl_Tex" + i))
+            g.loc.prev = gl.getUniformLocation(g.prog, "sl_Prev")
             return 1
         },
-        glDraw: function (gl, p, target, w, h, secs, linear, uniforms, tex) {
+        glDraw: function (gl, p, target, w, h, secs, linear, uniforms, tex, frame, step, prev) {
             var g = p.gl
             if (!g.loc) {
                 var r = OJSL.glReady(gl, p)
@@ -176,11 +185,16 @@ var OneJSSLWebLibrary = {
                 at: gl.getParameter(gl.ACTIVE_TEXTURE), en: [], units: [],
             }
             var c, u
+            var PU = OJSL.prevUnit
             if (restore) {
                 for (c = 0; c < caps.length; c++) s.en.push(gl.isEnabled(caps[c]))
                 for (u = 0; u < tex.length; u++) {
                     gl.activeTexture(gl.TEXTURE0 + u)
                     s.units.push([gl.getParameter(gl.TEXTURE_BINDING_2D), gl.getParameter(gl.SAMPLER_BINDING)])
+                }
+                if (g.loc.prev) {
+                    gl.activeTexture(gl.TEXTURE0 + PU)
+                    s.prevUnit = [gl.getParameter(gl.TEXTURE_BINDING_2D), gl.getParameter(gl.SAMPLER_BINDING)]
                 }
             }
 
@@ -199,8 +213,8 @@ var OneJSSLWebLibrary = {
                 gl.colorMask(true, true, true, true)
                 gl.useProgram(g.prog)
                 gl.bindVertexArray(OJSL.vao)
-                gl.uniform4f(g.loc.res, w, h, secs, 0)
-                gl.uniform4f(g.loc.opt, linear, 0, 0, 0)
+                gl.uniform4f(g.loc.res, w, h, secs, frame)
+                gl.uniform4f(g.loc.opt, linear, 0, step, 0)
                 if (g.loc.u) gl.uniform4fv(g.loc.u, uniforms)
                 for (u = 0; u < tex.length; u++) {
                     var t = tex[u]
@@ -209,6 +223,13 @@ var OneJSSLWebLibrary = {
                     gl.bindTexture(gl.TEXTURE_2D, gt)
                     gl.bindSampler(u, t ? OJSL.glSampler(gl, t[1], t[2], t[3], t[4]) : null)
                     if (g.loc.tex[u]) gl.uniform1i(g.loc.tex[u], u)
+                }
+                if (g.loc.prev) {
+                    gl.activeTexture(gl.TEXTURE0 + PU)
+                    gl.bindTexture(gl.TEXTURE_2D, prev ? OJSL.glTexture(prev) : null)
+                    // Clamp (1) and bilinear (1), with one level.
+                    gl.bindSampler(PU, OJSL.glSampler(gl, 1, 1, 1, 0))
+                    gl.uniform1i(g.loc.prev, PU)
                 }
                 gl.drawArrays(gl.TRIANGLES, 0, 3)
             }
@@ -219,6 +240,11 @@ var OneJSSLWebLibrary = {
                 gl.activeTexture(gl.TEXTURE0 + u)
                 gl.bindTexture(gl.TEXTURE_2D, s.units[u][0])
                 gl.bindSampler(u, s.units[u][1])
+            }
+            if (s.prevUnit) {
+                gl.activeTexture(gl.TEXTURE0 + PU)
+                gl.bindTexture(gl.TEXTURE_2D, s.prevUnit[0])
+                gl.bindSampler(PU, s.prevUnit[1])
             }
             gl.activeTexture(s.at)
             gl.bindVertexArray(s.vao)
@@ -242,6 +268,11 @@ var OneJSSLWebLibrary = {
             // read back from the source rather than assumed from the C# side.
             var re = /var sl_tex(\d+)\s*:/g, m
             while ((m = re.exec(wgsl)) !== null) g.slots.push(+m[1])
+            // The previous frame's sampler and texture, declared only when the
+            // program samples it.
+            var ps = /@binding\((\d+)\)\s*var\s+sl_prevSamp\s*:/.exec(wgsl)
+            var pt = /@binding\((\d+)\)\s*var\s+sl_prev\s*:/.exec(wgsl)
+            g.prev = ps && pt ? [+ps[1], +pt[1]] : null
             g.module.getCompilationInfo().then(function (info) {
                 var errs = info.messages.filter(function (m) { return m.type === "error" })
                 if (errs.length) {
@@ -252,7 +283,7 @@ var OneJSSLWebLibrary = {
             }, function (e) { OJSL.fail(p, "WGSL: " + e) })
             return g
         },
-        gpuDraw: function (dev, p, target, w, h, secs, linear, uniforms, tex) {
+        gpuDraw: function (dev, p, target, w, h, secs, linear, uniforms, tex, frame, step, prev) {
             var g = p.gpu
             if (!g.ready) return 0
             var rt = OJSL.gpuTexture(target)
@@ -278,8 +309,8 @@ var OneJSSLWebLibrary = {
             if (!g.buf) g.buf = dev.createBuffer({ size: 72 * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST })
             if (!OJSL.data) OJSL.data = new Float32Array(72)
             var d = OJSL.data
-            d[0] = w; d[1] = h; d[2] = secs; d[3] = 0
-            d[4] = linear; d[5] = 0; d[6] = 0; d[7] = 0
+            d[0] = w; d[1] = h; d[2] = secs; d[3] = frame
+            d[4] = linear; d[5] = 0; d[6] = step; d[7] = 0
             d.set(uniforms, 8)
             dev.queue.writeBuffer(g.buf, 0, d)
 
@@ -294,6 +325,14 @@ var OneJSSLWebLibrary = {
                 if (!view) { view = gt.createView(); OJSL.views.set(gt, view) }
                 entries.push({ binding: 1 + 2 * u, resource: OJSL.gpuSampler(dev, t[1], t[2], t[3]) })
                 entries.push({ binding: 2 + 2 * u, resource: view })
+            }
+            if (g.prev) {
+                var pg = prev ? OJSL.gpuTexture(prev) : null
+                if (!pg) return OJSL.fail(p, "the program reads the previous frame and none was passed")
+                var pv = OJSL.views.get(pg)
+                if (!pv) { pv = pg.createView(); OJSL.views.set(pg, pv) }
+                entries.push({ binding: g.prev[0], resource: OJSL.gpuSampler(dev, 1, 1, 1) })
+                entries.push({ binding: g.prev[1], resource: pv })
             }
             var target_ = OJSL.views.get(rt)
             if (!target_) { target_ = rt.createView(); OJSL.views.set(rt, target_) }
@@ -376,10 +415,11 @@ var OneJSSLWebLibrary = {
      * Draws program `id` into the RenderTexture whose native pointer is
      * `target`. `uniforms` is 64 floats (16 slots of vec4); `textures` is 5
      * ints per slot: native pointer (0 for none), wrapU, wrapV, filter, has
-     * mips.
+     * mips. `frame` and `step` are the frame count and the seconds since the
+     * frame before; `previous` is that frame's native pointer, 0 for none.
      */
     OneJS_SLWeb_Draw__deps: ["$OJSL"],
-    OneJS_SLWeb_Draw: function (id, target, w, h, secs, linear, uniformsPtr, texturesPtr, textureCount) {
+    OneJS_SLWeb_Draw: function (id, target, w, h, secs, linear, uniformsPtr, texturesPtr, textureCount, frame, step, previous) {
         var p = OJSL.programs[id]
         if (!p) return -1
         if (p.failed) return -1
@@ -392,10 +432,10 @@ var OneJSSLWebLibrary = {
             }
             if (p.gpu) {
                 var dev = OJSL.device()
-                return dev ? OJSL.gpuDraw(dev, p, target, w, h, secs, linear, uniforms, tex) : OJSL.fail(p, "the WebGPU device is gone")
+                return dev ? OJSL.gpuDraw(dev, p, target, w, h, secs, linear, uniforms, tex, frame, step, previous) : OJSL.fail(p, "the WebGPU device is gone")
             }
             var gl = OJSL.gl()
-            return gl ? OJSL.glDraw(gl, p, target, w, h, secs, linear, uniforms, tex) : OJSL.fail(p, "the WebGL2 context is gone")
+            return gl ? OJSL.glDraw(gl, p, target, w, h, secs, linear, uniforms, tex, frame, step, previous) : OJSL.fail(p, "the WebGL2 context is gone")
         } catch (e) {
             return OJSL.fail(p, String(e && e.message ? e.message : e))
         }

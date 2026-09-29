@@ -732,6 +732,27 @@ a few seconds warns once. A `.sl` program never waits: `JSRunner` raises
 `EditorLoadingBundle` before every editor load, and the generator builds the
 shaders of the app.sl.json beside the bundle first.
 
+**A program that reads the frame before keeps a history pair.** Whether it
+does is read from its compiled form, not sent by the host: a generated shader
+with a `_Prev` property, or web source declaring the previous frame's binding
+(`SLProgramBridge.ReadsPrevious`). Such a program draws its raw result into one
+half of two `ARGBHalf` linear targets, reading the other half as `_Prev` (the
+web page binds it on its own unit), and a display pass copies the new half into
+the element's target. Every program gets `frame` and the step in `_Res.zw`
+(`sl_Res.w` and `sl_Opt.z` on the web). A frame is one step of the element's
+clock: a tick or `Step(dt)` that moved time advances the count and swaps the
+halves, a draw at the same time draws the same frame again, and a new program,
+a new size, `SetTime` or `ResetTime` makes the next frame frame 0. Frame 0 reads
+`Texture2D.blackTexture` (transparent black) instead of a half cleared first,
+because in a WebGPU player Unity submits its own clear at the end of the frame,
+after the page has drawn, and wiped the frames drawn over it (sl-web-parity
+caught it; WebGL2 and native, which run in order, did not). The plan is
+committed only when a frame is drawn,
+so a program the page is still compiling steps by all the time that passed
+meanwhile. `AcceptsSteppedPrograms` is what a host checks before sending a
+program that reads `previous`, `frame` or `deltaTime`; the container's
+`SLSteppedProgramTests` holds the native path to onejs-sl's stepped goldens.
+
 `ShaderEffectElement.SetProgram` keeps the shape it had when a program also
 carried the shader language VM's encoding, and ignores that part, so an
 onejs-react that still sends a buffer binds its programs; `SetCompiled` is kept

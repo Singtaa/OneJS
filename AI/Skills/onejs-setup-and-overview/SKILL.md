@@ -5,14 +5,14 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.9.0"
-  skill-version: "1.11.0"
+  skill-version: "1.12.0"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-09-28"
+  last-verified: "2026-09-29"
 ---
 
 # Set Up a OneJS Project
@@ -195,7 +195,7 @@ import plasma from "./effects/plasma.sl"
 
 **Expected result.** The element draws the effect and animates. `app.sl.json` appears beside `app.js.txt`, and importing it makes the editor generate a compiled shader per program under `Assets/OneJS.Generated/Shaders/`. A player build generates them again from the manifests and ships them, so the player draws compiled too. There is nothing to commit for a `.sl` file beyond its source.
 
-What a program is given as free identifiers: `uv` (0 to 1 across the element, origin already corrected), `time`, `resolution`, `fragCoord`, `aspect`. The types are `float`, `float2`, `float3`, `float4`, `int`, `uint`, `bool`, and `texture2D` to declare a sampler; two ints divide toward zero.
+What a program is given as free identifiers: `uv` (0 to 1 across the element, origin already corrected), `time`, `resolution`, `fragCoord`, `aspect`, and `frame` and `deltaTime` for a program drawn frame after frame. `tex2D(previous, uv)` reads the frame it drew before (OneJS 3.9.1 and onejs-unity 0.9.1). The types are `float`, `float2`, `float3`, `float4`, `int`, `uint`, `bool`, and `texture2D` to declare a sampler; two ints divide toward zero.
 
 The traps, all of which are refused at build time with a message rather than rendered wrong:
 

@@ -52,6 +52,19 @@ namespace OneJS.ShaderFX {
         bool _drawAtSetTime;   // SetTime's frame is still to be drawn, paused or not
         bool _paintingOnLayout;
 
+        // A program drawn frame after frame (Specs/SL_NEXT.md 4). A frame is
+        // one step of this element's clock: the last result becomes the
+        // previous frame, the count goes up by one and the step is the time
+        // moved. A draw at the same time draws the same frame again. A clear
+        // makes the next frame frame 0, on a transparent black previous frame.
+        RenderTexture[] _history;  // the raw frames, only for a program that reads the previous one
+        int _current;              // the half of _history holding the last frame drawn
+        int _frame;                // frames since the last clear
+        float _step;               // the seconds from the frame before to this one
+        float _unstepped;          // time moved since the last frame drawn, which the next one steps by
+        bool _cleared = true;      // the next frame is frame 0
+        static bool s_WarnedHistoryFormat;
+
         public ShaderEffectElement() {
             pickingMode = PickingMode.Ignore;
             ShaderEffectBridge.Register(this);
@@ -111,6 +124,7 @@ namespace OneJS.ShaderFX {
         /// </summary>
         int _programHandle = -1;
         static readonly int s_Res = Shader.PropertyToID("_Res");
+        static readonly int s_Prev = Shader.PropertyToID("_Prev");
 
         /// <summary>
         /// True on a OneJS that draws a program with no VM encoding, which is
@@ -119,6 +133,15 @@ namespace OneJS.ShaderFX {
         /// it needs rather than a refused empty buffer.
         /// </summary>
         public bool AcceptsCompiledPrograms => true;
+
+        /// <summary>
+        /// True on a OneJS that steps a program: keeps the frame it drew before
+        /// for one that reads `previous`, and hands every program `frame` and
+        /// `deltaTime`. A host reads it before sending a program that reads any
+        /// of them, so an older OneJS gets a message rather than a program
+        /// that draws its first frame forever.
+        /// </summary>
+        public bool AcceptsSteppedPrograms => true;
 
         /// <remarks>
         /// `dataObj`, `instructionCount`, `resultRegister` and `wire` are
@@ -139,6 +162,8 @@ namespace OneJS.ShaderFX {
             _isProgram = true;
             _programHash = hash;
             _shaderMissing = false;
+            // A new program starts on a clear previous frame at frame 0.
+            _cleared = true;
             ReleaseProgram();
             if (_material != null) {
                 UnityEngine.Object.DestroyImmediate(_material);
@@ -288,18 +313,44 @@ namespace OneJS.ShaderFX {
 
         public void Pause() => _paused = true;
         public void Resume() => _paused = false;
-        /// <summary>Resets the effect clock, so a restarted effect looks the same every time.</summary>
-        public void ResetTime() => _seconds = 0f;
+        /// <summary>
+        /// Resets the effect clock, so a restarted effect looks the same every
+        /// time. A program's previous frame clears and its count restarts at 0.
+        /// </summary>
+        public void ResetTime() {
+            _seconds = 0f;
+            _cleared = true;
+        }
 
         /// <summary>
         /// Sets the effect clock. The next frame draws at exactly this time, even
         /// while paused, so a paused effect shows the frame chosen rather than
-        /// one a frame's delta away from it.
+        /// one a frame's delta away from it. A seek, not a step: a program's
+        /// previous frame clears and that frame is frame 0.
         /// </summary>
         public void SetTime(float seconds) {
             _seconds = seconds;
             _drawAtSetTime = true;
+            _cleared = true;
         }
+
+        /// <summary>
+        /// Draws exactly one frame, paused or not, `dt` seconds after the last,
+        /// with `deltaTime` `dt` and the frame count one higher. After a clear
+        /// (a new program, a new size, <see cref="SetTime"/>) the step draws
+        /// frame 0 at the clock's time instead, so SetTime(0) then n steps of dt
+        /// draw frames 0 to n - 1 at 0, dt, 2dt: the same frames on every run,
+        /// which is what a recorder or a test needs and a live clock cannot give.
+        /// Draws with no panel when the element has an explicit resolution.
+        /// </summary>
+        public void Step(float dt) {
+            if (!(dt > 0f) || _shaderMissing) return;
+            if (!_cleared) _seconds += dt;
+            Draw(_cleared ? 0f : dt, stepping: true);
+        }
+
+        /// <summary>The frames drawn since the previous frame was last cleared: a program's `frame`.</summary>
+        public int Frame => _frame;
 
         public bool IsReady => (_material != null || (_isProgram && SL.SLProgramBridge.Exists(_programHandle))) && _rt != null;
         public int RenderWidth => _rtW;
@@ -309,24 +360,53 @@ namespace OneJS.ShaderFX {
 
         internal void Tick(float dt) {
             if ((_paused && !_drawAtSetTime) || _shaderMissing) return;
+            if (_drawAtSetTime) dt = 0f;
+            else _seconds += dt;
+            Draw(dt, stepping: false);
+        }
+
+        /// <summary>
+        /// Draws at the clock's time. `dt` is how far the clock just moved: more
+        /// than 0 advances a program to its next frame, 0 draws the last frame
+        /// again. The clock has already moved.
+        /// </summary>
+        void Draw(float dt, bool stepping) {
             if (!_isProgram && string.IsNullOrEmpty(_shaderName)) return;
-            if (panel == null) return;
+            if (panel == null && !(stepping && _resW > 0 && _resH > 0)) return;
             if (!EnsureMaterial()) return;
             if (!EnsureTarget()) return;
-
-            if (!_drawAtSetTime) _seconds += dt;
-            // Compiled by the page in a WebGL player, into the same target at the
-            // same point in the frame a material would draw.
-            if (_isProgram && SL.SLProgramBridge.TryRenderCompiled(_programHandle, _rt, _seconds)) {
-                _drawAtSetTime = false;
-                MarkDirtyRepaint();
-                return;
-            }
+            _unstepped += dt;
             // A program with no compiled shader yet has no material, and gets one
             // when the editor has generated it, so it is asked for every frame
-            // until then. Nothing to draw meanwhile, and the target was cleared
-            // when it was made.
+            // until then. Asked before anything else, since the shader is what
+            // says whether the program reads the frame before.
             if (_material == null && _isProgram) _material = SL.SLProgramBridge.CurrentMaterial(_programHandle);
+            // A new pair of halves is a clear, so this comes before the plan.
+            bool keeps = _isProgram && SL.SLProgramBridge.ReadsPrevious(_programHandle) && EnsureHistory();
+
+            // Which frame this is, committed only once it is drawn: a program
+            // the page is still compiling draws nothing, and its clock runs on.
+            int frame, into;
+            float step;
+            if (_cleared) { frame = 0; step = 0f; into = 0; }
+            else if (_unstepped > 0f) { frame = _frame + 1; step = _unstepped; into = 1 - _current; }
+            else { frame = _frame; step = _step; into = _current; }
+            // The program draws its raw result into its history when it reads
+            // the frame before, and straight into the target otherwise. Frame 0
+            // reads transparent black, which is what a clear previous frame is,
+            // rather than a half cleared first: in a WebGPU player Unity submits
+            // its own clear at the end of the frame, after the page has drawn,
+            // and would wipe the frame drawn over it.
+            var drawInto = keeps ? _history[into] : _rt;
+            Texture previous = !keeps ? null : frame == 0 ? Texture2D.blackTexture : _history[1 - into];
+
+            // Compiled by the page in a WebGL player, into the same target at the
+            // same point in the frame a material would draw.
+            if (_isProgram && SL.SLProgramBridge.TryRenderCompiled(_programHandle, drawInto, _seconds, frame, step, previous)) {
+                Drew(frame, step, into, keeps);
+                return;
+            }
+            // Nothing to draw until then, and the target was cleared when it was made.
             if (_material == null) return;
             _material.SetFloat("_Secs", _seconds);
             // Never flipped. A Blit into a render target already puts v = 0 on
@@ -343,22 +423,91 @@ namespace OneJS.ShaderFX {
             // A program's resolution, fragCoord and aspect inputs read the
             // target size from _Res. Nothing set it here, so every program in
             // an element saw a 1x1 target: aspect 1, fragCoord equal to uv.
-            if (_isProgram) _material.SetVector(s_Res, new Vector4(_rtW, _rtH, 0f, 0f));
+            // Its frame count and step ride in _Res's spare zw.
+            if (_isProgram) _material.SetVector(s_Res, new Vector4(_rtW, _rtH, frame, step));
+            if (keeps) _material.SetTexture(s_Prev, previous);
 
             foreach (var kv in _floats) _material.SetFloat(kv.Key, kv.Value);
             foreach (var kv in _vectors) _material.SetVector(kv.Key, kv.Value);
             foreach (var kv in _vectorArrays) _material.SetVectorArray(kv.Key, kv.Value);
             foreach (var kv in _textures) if (kv.Value != null) _material.SetTexture(kv.Key, kv.Value);
 
-            var prev = RenderTexture.active;
-            Graphics.Blit(null, _rt, _material, 0);
-            RenderTexture.active = prev;
-            _drawAtSetTime = false;
+            var active = RenderTexture.active;
+            Graphics.Blit(null, drawInto, _material, 0);
+            RenderTexture.active = active;
+            Drew(frame, step, into, keeps);
+        }
 
+        /// <summary>
+        /// A frame was drawn: it is now the last one, and a program keeping its
+        /// frames shows it through the display pass, a plain copy into the
+        /// target that stores it as any program's result is stored.
+        /// </summary>
+        void Drew(int frame, float step, int into, bool keeps) {
+            _frame = frame;
+            _step = step;
+            _current = into;
+            _unstepped = 0f;
+            _cleared = false;
+            _drawAtSetTime = false;
+            if (keeps) {
+                var active = RenderTexture.active;
+                Graphics.Blit(_history[into], _rt);
+                RenderTexture.active = active;
+            }
             // The draw command already references this texture, so the new contents
             // appear without re-tessellating, but edit-mode preview only repaints
             // dirty elements, so ask for one.
             MarkDirtyRepaint();
+        }
+
+        /// <summary>
+        /// The two halves of the history at the target's size: 16 bits a
+        /// channel, linear, bilinear and clamped. A new pair is a clear, and
+        /// needs none, since frame 0 never reads a half. False when there is
+        /// no target yet.
+        /// </summary>
+        bool EnsureHistory() {
+            if (_rt == null) return false;
+            if (_history != null && _history[0].width == _rtW && _history[0].height == _rtH) {
+                RenderTextureUtils.EnsureCreated(_history[0]);
+                RenderTextureUtils.EnsureCreated(_history[1]);
+                return true;
+            }
+            ReleaseHistory();
+            var format = RenderTextureFormat.ARGBHalf;
+            if (!SystemInfo.SupportsRenderTextureFormat(format)) {
+                // Every desktop and WebGPU device renders half floats, and a
+                // WebGL2 one needs EXT_color_buffer_float. Without it a slow fade
+                // stalls on 8 bit steps, which is still a picture.
+                format = RenderTextureFormat.ARGB32;
+                if (!s_WarnedHistoryFormat) {
+                    s_WarnedHistoryFormat = true;
+                    Debug.LogWarning($"[OneJS sl] this device cannot render 16 bit float targets, so the previous frame " +
+                                     $"of \"{name}\" is kept at 8 bits a channel and a slow fade will step.");
+                }
+            }
+            _history = new RenderTexture[2];
+            for (int i = 0; i < 2; i++) {
+                _history[i] = new RenderTexture(_rtW, _rtH, 0, format, RenderTextureReadWrite.Linear) {
+                    name = $"OneJS_ShaderFX_Previous{i}_{_rtW}x{_rtH}",
+                    hideFlags = HideFlags.HideAndDontSave,
+                    wrapMode = TextureWrapMode.Clamp,
+                    filterMode = FilterMode.Bilinear,
+                };
+                _history[i].Create();
+            }
+            _cleared = true;
+            return true;
+        }
+
+        void ReleaseHistory() {
+            if (_history == null) return;
+            foreach (var h in _history) {
+                h.Release();
+                UnityEngine.Object.DestroyImmediate(h);
+            }
+            _history = null;
         }
 
         bool EnsureMaterial() {
@@ -416,6 +565,8 @@ namespace OneJS.ShaderFX {
                 filterMode = FilterMode.Bilinear,
             };
             _rt.Create();
+            // A new size clears a program's previous frame: it is not resampled.
+            _cleared = true;
             // A new target's contents are undefined, and a program drawn only
             // compiled leaves it untouched until the page has compiled it.
             var active = RenderTexture.active;
@@ -429,6 +580,7 @@ namespace OneJS.ShaderFX {
         }
 
         void ReleaseTexture() {
+            ReleaseHistory();
             if (_rt == null) return;
             style.backgroundImage = StyleKeyword.Null;
             _rt.Release();
