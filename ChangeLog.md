@@ -1,3 +1,13 @@
+# [2026-09-29] v3.9.1
+
+A shader program can read the frame it drew before, and count frames and the time between them, for trails, feedback and effects that settle; bump `onejs-unity` to `^0.9.1` for them. Existing programs draw as they did.
+
+- Shader programs: `tex2D(previous, uv)` reads the frame drawn before
+- Shader programs: `frame` and `deltaTime`
+- `ShaderEffectElement.Step` draws exactly one frame, and `Frame` counts them
+- Shader programs: an `int` uniform is typed as an int, and `uint` constants past 2^31 fold correctly
+- A new project depends on `onejs-unity` `^0.9.1`, `onejs-react` `^0.2.1` and `onejs-play` `^0.8.2`
+
 # [2026-09-28] v3.9.0
 
 Shader programs get real branches and loops, and `int`, `uint` and `bool`; bump `onejs-unity` to `^0.8.1` for them. Every shader program's hash changes once, so if you build programs in code, run the app in the editor once and commit `Assets/OneJS/Recorded.sl.json` before your next build.
