@@ -1,3 +1,16 @@
+# [2026-09-28] v3.9.0
+
+Shader programs get real branches and loops, and `int`, `uint` and `bool`; bump `onejs-unity` to `^0.8.1` for them. Every shader program's hash changes once, so if you build programs in code, run the app in the editor once and commit `Assets/OneJS/Recorded.sl.json` before your next build.
+
+- Shader programs: `if` is a real branch, and `return` works anywhere
+- Shader programs: `while`, `break`, `continue` and `switch`, and loops that stop early
+- Shader programs: `int`, `uint` and `bool`, with bit operators
+- Shader programs: `tex2Dlod` reads one mip level
+- A shape's parameters and an octave count may be any value, a uniform included
+- A native build stops when a recorded program is under a hash scheme no app produces, and says to run the app in the editor once
+- Recording a program drops the one it replaces
+- A new project depends on `onejs-unity` `^0.8.1`, `onejs-ui` `^0.0.4` and `onejs-play` `^0.8.1`
+
 # [2026-09-28] v3.8.0
 
 Every shader program now draws from its compiled shader, and the old interpreter is gone. Bump `onejs-unity` to `^0.7.0` and `onejs-react` to `^0.2.0` with it.
@@ -48,7 +61,7 @@ A default file you delete from a project now stays deleted, and the inspector's 
 - The Stylesheets, Preloads, Globals and Cartridges lists' X button removes the entry clicked after an undo, instead of another
 - A horizontal slider's track stays centred when its height is restyled
 
-# [2026-09-25] v3.5.0
+# [2026-09-27] v3.5.0
 
 Shader programs now run as real compiled shaders in every player, native and WebGL, instead of on an interpreter. Bump `onejs-react` and `onejs-unity` in an existing project, or its shader programs will not draw in a WebGL build, and commit `Assets/OneJS/Recorded.sl.json` if you build programs in code.
 

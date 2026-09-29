@@ -4,15 +4,15 @@ description: "Use this skill whenever the user wants to build or set up user int
 metadata:
   asset: "OneJS"
   publisher: "DragonGround"
-  asset-version: "3.8.0"
-  skill-version: "1.10.0"
+  asset-version: "3.9.0"
+  skill-version: "1.11.0"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-09-29"
+  last-verified: "2026-09-28"
 ---
 
 # Set Up a OneJS Project
@@ -195,14 +195,15 @@ import plasma from "./effects/plasma.sl"
 
 **Expected result.** The element draws the effect and animates. `app.sl.json` appears beside `app.js.txt`, and importing it makes the editor generate a compiled shader per program under `Assets/OneJS.Generated/Shaders/`. A player build generates them again from the manifests and ships them, so the player draws compiled too. There is nothing to commit for a `.sl` file beyond its source.
 
-What a program is given as free identifiers: `uv` (0 to 1 across the element, origin already corrected), `time`, `resolution`, `fragCoord`, `aspect`. The types are `float`, `float2`, `float3`, `float4`, and `texture2D` to declare a sampler; there is no `int` or `bool`.
+What a program is given as free identifiers: `uv` (0 to 1 across the element, origin already corrected), `time`, `resolution`, `fragCoord`, `aspect`. The types are `float`, `float2`, `float3`, `float4`, `int`, `uint`, `bool`, and `texture2D` to declare a sampler; two ints divide toward zero.
 
 The traps, all of which are refused at build time with a message rather than rendered wrong:
 
 - **Sixteen uniforms and four textures.** Pack related values into a `float4`. Length has no limit: a long program costs what the same shader written by hand would.
-- **A `for` loop unrolls**, so its bound has to be a constant. The compiled shader has no loop.
-- **An `if` becomes a `select`**: both sides are evaluated. `return` inside one is refused, because there is nothing for it to skip. Assign to a local and return it once at the end.
+- **A `switch` case never falls through.** Each ends in `break` or `return`; stack labels to share a body.
 - **HLSL spellings only.** `mix`, `fract`, `mod` and `vec3` are refused by name, with the HLSL word in the message.
+
+`if` is a real branch and `return` works anywhere. A `for` with a known count of 64 or fewer and nothing leaving early unrolls; any other loop (a uniform bound, `while`, `break`) runs as a loop and stops at its constant count, its uniform bound's `[Range]` maximum, or 1024 turns, so it can never hang the GPU.
 
 For a program built by code rather than written by hand, `sl.program` records the same graph from TypeScript. No build can see one, so the editor records it the first time it draws it, into `Assets/OneJS/Recorded.sl.json`. Until its shader exists, a moment after it first draws, the element is blank. Commit that file, or a player built on another machine draws nothing for that program and logs an error with its hash. After an onejs-sl update that changes how programs are hashed, a native build stops with a message saying to run the app in the editor once: do that, which records the programs again and drops the old ones, and commit the file. Full reference: https://onejs.com/docs/guides/shader-language
 
