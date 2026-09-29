@@ -105,6 +105,8 @@ namespace OneJS.Editor {
 
         [Serializable]
         class Manifest {
+            /// <summary>The hash scheme an app's programs are made under; 0 in a manifest that names none.</summary>
+            public int hashVersion;
             public Entry[] programs;
         }
 
@@ -198,14 +200,7 @@ namespace OneJS.Editor {
             s_Pending.Clear();
 
             MigrateRecorded();
-            var entries = ReadEntries(RecordedManifest);
-            int added = 0;
-            foreach (var kv in pending) {
-                if (entries.ContainsKey(kv.Key)) continue;
-                entries[kv.Key] = kv.Value;
-                added++;
-            }
-            if (added > 0) WriteEntries(RecordedManifest, entries);
+            int added = MergeRecorded(Abs(RecordedManifest), pending, AppManifests(FindManifests()));
             Generate(FindManifests());
             int adopted = SLProgramBridge.AdoptGenerated();
             if (added > 0) {
@@ -234,11 +229,111 @@ namespace OneJS.Editor {
             return true;
         }
 
-        static string Abs(string assetPath) =>
+        internal static string Abs(string assetPath) =>
             Path.Combine(Path.GetFullPath(Path.Combine(Application.dataPath, "..")),
                 assetPath.Replace('/', Path.DirectorySeparatorChar));
 
         static Dictionary<string, string> ReadEntries(string assetPath) => ReadEntriesAt(Abs(assetPath));
+
+        // MARK: hash schemes
+
+        static readonly System.Text.RegularExpressions.Regex s_SchemeLine =
+            new System.Text.RegularExpressions.Regex(@"^// SL_HASH_VERSION (\d+)\s*$", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+        /// <summary>
+        /// The hash scheme a generated shader names in its header, and 1 when it
+        /// names none, as nothing before onejs-sl 0.4.0 did.
+        /// </summary>
+        public static int SchemeOf(string hlsl) {
+            var m = s_SchemeLine.Match(hlsl ?? "");
+            return m.Success ? int.Parse(m.Groups[1].Value) : 1;
+        }
+
+        /// <summary>The manifests apps write, which is every one but the recorded manifest.</summary>
+        public static string[] AppManifests(string[] manifests) {
+            var recorded = Path.GetFullPath(Abs(RecordedManifest));
+            var legacy = Path.GetFullPath(Abs(LegacyRecordedManifest));
+            var apps = new List<string>();
+            foreach (var m in manifests) {
+                var full = Path.GetFullPath(m);
+                if (!string.Equals(full, recorded, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(full, legacy, StringComparison.OrdinalIgnoreCase)) apps.Add(m);
+            }
+            return apps.ToArray();
+        }
+
+        /// <summary>
+        /// Every hash scheme the app manifests produce: the one each names for
+        /// its programs built in code, and the one each program's shader names.
+        /// </summary>
+        public static HashSet<int> ProducedSchemes(IEnumerable<string> appManifests) {
+            var schemes = new HashSet<int>();
+            foreach (var path in appManifests) {
+                Manifest m;
+                try {
+                    m = JsonUtility.FromJson<Manifest>(File.ReadAllText(path));
+                } catch (Exception) {
+                    // Generation says so when it reads the same file.
+                    continue;
+                }
+                if (m == null) continue;
+                if (m.hashVersion > 0) schemes.Add(m.hashVersion);
+                if (m.programs == null) continue;
+                foreach (var p in m.programs) {
+                    if (!string.IsNullOrEmpty(p.hlsl)) schemes.Add(SchemeOf(p.hlsl));
+                }
+            }
+            return schemes;
+        }
+
+        /// <summary>
+        /// The recorded programs made under a hash scheme no app manifest
+        /// produces, sorted. No app can make those hashes any more, so they are
+        /// dead, and a program built in code that they stood for draws nothing
+        /// until the editor records it again. Empty when no app manifest names a
+        /// scheme, since then there is nothing to judge them by. Each hash maps
+        /// to the scheme it was made under.
+        /// </summary>
+        public static SortedDictionary<string, int> StaleRecorded(string recordedFile, IEnumerable<string> appManifests) =>
+            Stale(ReadEntriesAt(recordedFile), ProducedSchemes(appManifests));
+
+        static SortedDictionary<string, int> Stale(Dictionary<string, string> entries, HashSet<int> produced) {
+            var stale = new SortedDictionary<string, int>(StringComparer.Ordinal);
+            if (produced.Count == 0) return stale;
+            foreach (var kv in entries) {
+                int scheme = SchemeOf(kv.Value);
+                if (!produced.Contains(scheme)) stale[kv.Key] = scheme;
+            }
+            return stale;
+        }
+
+        /// <summary>
+        /// Adds the programs just recorded to the recorded manifest at
+        /// `recordedFile` and drops the stale ones, and returns how many were
+        /// new. A scheme a program was just recorded under counts as produced,
+        /// since an app is running it.
+        /// </summary>
+        public static int MergeRecorded(string recordedFile, Dictionary<string, string> pending, string[] appManifests) {
+            var entries = ReadEntriesAt(recordedFile);
+            int added = 0;
+            foreach (var kv in pending) {
+                if (entries.ContainsKey(kv.Key)) continue;
+                entries[kv.Key] = kv.Value;
+                added++;
+            }
+            var produced = ProducedSchemes(appManifests);
+            if (produced.Count > 0) {
+                foreach (var hlsl in pending.Values) produced.Add(SchemeOf(hlsl));
+            }
+            var stale = Stale(entries, produced);
+            foreach (var hash in stale.Keys) entries.Remove(hash);
+            if (added > 0 || stale.Count > 0) WriteEntriesAt(recordedFile, entries);
+            if (stale.Count > 0) {
+                Debug.Log($"[OneJS sl] dropped {stale.Count} recorded program{(stale.Count == 1 ? "" : "s")} made under a " +
+                          $"hash scheme no app produces any more: {string.Join(", ", stale.Keys)}.");
+            }
+            return added;
+        }
 
         static Dictionary<string, string> ReadEntriesAt(string file) {
             var entries = new Dictionary<string, string>();
@@ -256,12 +351,14 @@ namespace OneJS.Editor {
             return entries;
         }
 
-        static void WriteEntries(string assetPath, Dictionary<string, string> entries) {
+        static void WriteEntries(string assetPath, Dictionary<string, string> entries) =>
+            WriteEntriesAt(Abs(assetPath), entries);
+
+        static void WriteEntriesAt(string file, Dictionary<string, string> entries) {
             // Sorted by hash so the file does not churn with run order.
             var list = new List<Entry>();
             foreach (var kv in entries) list.Add(new Entry { hash = kv.Key, hlsl = kv.Value });
             list.Sort((a, b) => string.CompareOrdinal(a.hash, b.hash));
-            var file = Abs(assetPath);
             Directory.CreateDirectory(Path.GetDirectoryName(file));
             CopyTextIfDifferent(JsonUtility.ToJson(new Manifest { programs = list.ToArray() }, true), file);
         }
@@ -437,11 +534,33 @@ namespace OneJS.Editor {
             }
             SLShaderGenerator.MigrateRecorded();
             var manifests = SLShaderGenerator.FindManifests();
+            CheckRecorded(SLShaderGenerator.Abs(SLShaderGenerator.RecordedManifest), SLShaderGenerator.AppManifests(manifests));
             var hashes = SLShaderGenerator.GenerateHashes(manifests);
             int shipped = SLShaderGenerator.WriteRegistry(hashes);
             Debug.Log($"[OneJS sl] {shipped} of {hashes.Length} shader program{(hashes.Length == 1 ? "" : "s")} " +
                       $"from {manifests.Length} manifest{(manifests.Length == 1 ? "" : "s")} ship compiled in this player.");
             return shipped;
+        }
+
+        /// <summary>
+        /// Fails the build when the recorded manifest at `recordedFile` holds
+        /// programs no app produces any more, which is what an upgrade that
+        /// changed the hash scheme leaves until the editor records them again.
+        /// Without this the build would pass and each such program would draw
+        /// nothing in the player, where the only sign is its log.
+        /// </summary>
+        public static void CheckRecorded(string recordedFile, string[] appManifests) {
+            var stale = SLShaderGenerator.StaleRecorded(recordedFile, appManifests);
+            if (stale.Count == 0) return;
+            var schemes = new SortedSet<int>(stale.Values);
+            var produced = new SortedSet<int>(SLShaderGenerator.ProducedSchemes(appManifests));
+            throw new BuildFailedException(
+                $"[OneJS sl] {SLShaderGenerator.RecordedManifest} holds {stale.Count} program{(stale.Count == 1 ? "" : "s")} " +
+                $"recorded under hash version {string.Join(" and ", schemes)} ({string.Join(", ", stale.Keys)}), and this " +
+                $"project's apps hash under {string.Join(" and ", produced)}, so no app makes those hashes any more and each " +
+                "program they stood for would draw nothing in this player. Run the app in the editor once, so it " +
+                "records its programs again, then build. If no app builds that program in code any more, delete its " +
+                "entry from the file.");
         }
     }
 

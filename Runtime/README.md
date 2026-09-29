@@ -712,7 +712,12 @@ pack them: `Shader.Find` in a player sees only shaders the build packed.
 `Shader.Find`, because it generates shaders mid session when it records one. A
 program the registry lacks draws nothing and logs one error naming its hash.
 A program built in code is known only once the editor has drawn it, so it ships
-only from the committed `Assets/OneJS/Recorded.sl.json`. `IsCompiled` is true
+only from the committed `Assets/OneJS/Recorded.sl.json`. Each generated shader
+names the hash scheme it was made under (`// SL_HASH_VERSION`) and each app's
+manifest names its own (`hashVersion`), so the build fails, saying to run the
+app in the editor, when a recorded program is under a scheme no app produces
+any more, as every one is after an onejs-sl that changed the scheme; the editor
+drops such programs when it records their replacements. `IsCompiled` is true
 for either compiled path, and `Census` sorts every live program into drawing
 compiled or drawing nothing, which the container's `SLPlayerBuildTests`
 asserts on in a real player.
