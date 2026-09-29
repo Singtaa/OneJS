@@ -559,8 +559,9 @@ namespace OneJS.Editor {
                 $"recorded under hash version {string.Join(" and ", schemes)} ({string.Join(", ", stale.Keys)}), and this " +
                 $"project's apps hash under {string.Join(" and ", produced)}, so no app makes those hashes any more and each " +
                 "program they stood for would draw nothing in this player. Run the app in the editor once, so it " +
-                "records its programs again, then build. If no app builds that program in code any more, delete its " +
-                "entry from the file.");
+                "records its programs again, then build. An app on onejs-unity 0.7 or older writes no hash version: " +
+                "update its onejs-unity to 0.8, or its programs stay under the old scheme however often it runs. If no " +
+                "app builds that program in code any more, delete its entry from the file.");
         }
     }
 
