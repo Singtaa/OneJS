@@ -3,6 +3,7 @@
 
 // Virtual modules resolved by onejs-unity esbuild plugins (no runtime export).
 declare module "onejs:tailwind";
+declare module "onejs:themes";
 
 // Plain .uss imports resolve to the file contents as a string (esbuild "text" loader).
 // Pass to compileStyleSheet() to embed global styles in the bundle so they work in builds.
