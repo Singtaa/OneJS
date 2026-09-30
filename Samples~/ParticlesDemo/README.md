@@ -7,9 +7,9 @@ rendered in C#, configured from a single TSX component via `useParticles` from
 
 ## Usage
 
-1. Import this sample via the Package Manager (OneJS > Samples > Particles Demo).
-2. Drag `ParticlesDemo.asset` into your JSRunner's **Cartridges** tab and click
-   **Extract** (also happens automatically on first run).
+1. Import this sample from the Package Manager (select OneJS, then the Samples tab).
+2. Drag `ParticlesDemo.asset` into your JSRunner's **Cartridges** tab. Assigning
+   it extracts the component to `~/@cartridges/@singtaa/particlesDemo/`.
 3. Render the component from your app:
 
 ```tsx

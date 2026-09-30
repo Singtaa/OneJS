@@ -25,8 +25,8 @@ exist.
 
 That is deliberate. `InputBridge` uses Input System types in its method
 *signatures*, not only in its bodies: `RegisterActionAsset(InputActionAsset)`
-cannot be stubbed without the package. The alternative was a second copy of a
-64-method surface guarded by `#if`, which would have to be kept in step by hand
+cannot be stubbed without the package. The alternative was a second copy of the
+whole method surface (66 methods) guarded by `#if`, which would have to be kept in step by hand
 forever, and would still be unable to mirror those methods.
 
 Without the package a game reads input through `setInputBackend` instead. That

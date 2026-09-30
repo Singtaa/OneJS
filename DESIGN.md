@@ -12,7 +12,7 @@ a specific, measured failure, and each one names it.
 physics, rendering, audio, animation. JavaScript configures it, drives it, reacts
 to it, and decides what happens next.
 
-The line is not "never call into C# per frame" -- calling into C# is exactly what
+The line is not "never call into C# per frame": calling into C# is exactly what
 JavaScript is for. The line is **never write the simulation in JavaScript**.
 
 This is not a performance preference. It is what makes a OneJS app *portable*.
@@ -40,7 +40,7 @@ built on it cannot leave the browser at all.
 
 **The subtler corollary**, and the one that decides most designs: what degrades
 on an interpreter is *JavaScript computation*, not the crossings. A crossing is
-mostly bridge work -- reflection, marshalling, a C# call -- and that cost is
+mostly bridge work (reflection, marshalling, a C# call), and that cost is
 similar on both engines. A `for` loop doing vector maths is pure JavaScript, and
 that is what runs one to two orders of magnitude slower.
 
@@ -105,8 +105,8 @@ not as properties read one at a time. `PainterBridge` is the reference: a whole
 vector drawing becomes one numeric command buffer replayed in C# with direct
 typed calls, no reflection, structs built C#-side.
 
-*Breaking it looks like:* `for (const b of bodies) b.position.x` — two crossings
-per body per frame, plus a `Vector2` boxed for each.
+*Breaking it looks like:* `for (const b of bodies) b.position.x`, which is two
+crossings per body per frame, plus a `Vector2` boxed for each.
 
 ### 4. Commands batch into one crossing
 
@@ -161,11 +161,12 @@ The container shadows the globals a game must not reach. That list is a
 **portability contract**, not only a sandbox:
 
 - **Allowed**, because OneJS implements them on every platform: `fetch`,
-  `localStorage`, `performance`, `requestAnimationFrame`, `setTimeout`, `URL`,
-  `btoa` and `atob`
+  `WebSocket`, `localStorage`, `performance`, `requestAnimationFrame`,
+  `setTimeout`, `URL`, `btoa` and `atob`
 - **Shadowed**, because they exist only in a browser: `document`, `window`,
-  `AudioContext`, `WebSocket`, `XMLHttpRequest`, `Worker`, `indexedDB`,
-  `location`, `navigator`
+  `AudioContext`, `XMLHttpRequest`, `Worker`, `indexedDB`, `location`,
+  `navigator` (the full list is `BROWSER_ONLY_GLOBALS` in onejs-play's
+  `src/sandbox.ts`)
 - **Given a seam** where a real need has no portable API: audio is the case, and
   `oj.audio` over Unity's `AudioSource` is the answer rather than WebAudio
 

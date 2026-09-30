@@ -20,11 +20,27 @@ Editor scripts for OneJS Unity integration.
 | `GlobalEntryDrawer.cs` | Property drawer for global entries in JSRunner |
 | `CartridgeFileEntryDrawer.cs` | Property drawer for cartridge file entries |
 | `CartridgeObjectEntryDrawer.cs` | Property drawer for cartridge object entries |
-| `CodeFieldTestWindow.cs` | Editor window for testing CodeField control |
+| `UICartridgeEditor.cs` | Custom inspector for `UICartridge` assets |
+| `OneJSEditorOverlay.cs` | The Scene view **OneJS** overlay and its update modes, installed as `JSRunner.EditModeUpdateFilter`: decides which runners' edit-mode previews tick (default Auto: the selected runner, else the one closest to the Scene camera) |
+| `OneJSWslHelper.cs` | Windows only: runs Open Terminal and npm through WSL when chosen from Open Terminal's right-click menu |
+| `AISkillsInstaller.cs` | **Tools > OneJS > Install AI Skills**: copies `AI/Skills/` into the project's `.claude/skills/`, never overwriting an edited skill without asking |
 | `Recording/PanelRecorder.cs` | Renders a running JSRunner's UI to an mp4 by frame-stepping it on `VirtualClock` (see below) |
 | `Recording/OffscreenPanelRenderer.cs` | Draws a PanelSettings' panel into an offscreen RenderTexture at an exact size |
+| `Recording/InputTrack.cs` | Scripted pointer and keyboard input for a recording (see below) |
+| `Recording/CursorOverlay.cs` | Draws the pointer and click ripples into recorded frames |
 | `Recording/FfmpegLocator.cs` | Locates ffmpeg (well-known paths, then login shell) |
+| `Templates/` | Files Initialize Project scaffolds into `~/` (see Templates below) |
 | `TypeGenerator/` | TypeScript declaration generator (see [TypeGenerator/README.md](TypeGenerator/README.md)) |
+
+## Menu items
+
+| Menu | Source |
+|------|--------|
+| Tools > OneJS > Type Generator | `TypeGenerator/TypeGeneratorWindow.cs` |
+| Tools > OneJS > Regenerate All Project Typings | `TypeGenerator/TypeGeneratorService.cs` |
+| Tools > OneJS > Generate Shader Programs | `SLShaderGenerator.cs` |
+| Tools > OneJS > Install AI Skills | `AISkillsInstaller.cs` |
+| Assets > Create > OneJS > UI Cartridge | `Runtime/UICartridge.cs` |
 
 ## JSRunnerEditor
 
@@ -44,15 +60,15 @@ The inspector shows different UI depending on the PanelSettings configuration:
 
 When fully initialized, the inspector shows four tabs:
 
-- **Project**: Status section, actions, watcher status, project folder path
-- **UI**: Panel Settings reference, scale mode, stylesheets, preloads, globals
-- **Cartridges**: UI Cartridge management
-- **Build**: Build output, type generation, scaffolding
+- **Project**: Panel Settings reference, tick mode, Don't Destroy On Load, live reload (poll interval, Janitor), preloads, globals
+- **UI**: Stylesheets, and the assigned PanelSettings asset's own inspector (the reference itself is on Project)
+- **Cartridges**: UI Cartridge list with per-row Extract (**E**), Delete extracted (**D**) and remove (**X**), plus Extract All and Delete All Extracted
+- **Build**: Build output (bundle, source map, Include Source Map, Exclude From Build), type generation, scaffolding (default files with Restore)
 
 ### Status Section
 
 - **Running/Stopped/Loading indicator** with color-coded labels
-- **Reload count** showing number of hot reloads since entering Play mode
+- **Last Reload** time, shown in Play mode after the first hot reload
 - **Watcher status** showing file watcher state (Running, Starting, Idle)
 - **Project folder path** (clickable to open in file explorer)
 
@@ -61,16 +77,15 @@ When fully initialized, the inspector shows four tabs:
 - **Reload**: Force reload the JavaScript runtime (works in both Play mode and edit-mode preview)
 - **Rebuild**: Delete node_modules, reinstall dependencies, and rebuild
 - **Open Folder**: Open working directory in file explorer
-- **Open Terminal**: Open terminal at working directory
-- **Open in Code Editor**: Open working directory in configured code editor (VSCode, Cursor, etc.)
+- **Open Terminal**: Open terminal at working directory (right-click on Windows to choose cmd or WSL)
+- **Open Code Editor**: Open working directory in the editor set in Preferences > External Tools (right-click to pick another)
 
 ### Context Menu Options
 
-Right-click the JSRunner component header for additional options:
+Right-click the status section for:
 
-- **Run in Background**: Toggle whether this JSRunner starts watchers and runs on Play mode
-- **Use Scene Name as Root Folder**: Toggle whether the project folder name derives from the scene name (stored in `EditorPrefs`)
-- **Dev Mode**: Show the full tabbed UI even without a valid PanelSettings (for debugging)
+- **Run in Background**: Toggles the project's `PlayerSettings.runInBackground`
+- **Use Scene Name as Root Folder**: Toggle whether Initialize Project creates the folder under `{SceneDir}/{SceneName}/` or directly beside the scene (stored in `EditorPrefs`)
 
 ### Initialize Project Button
 
@@ -94,7 +109,7 @@ Automatically manages file watchers and project readiness for JSRunner instances
 
 ### Features
 
-- **PanelSettings auto-creation**: Creates PanelSettings assets for JSRunners that don't have one before entering Play mode
+- **Edit-mode watcher**: Starts the esbuild watcher when a runner's edit-mode preview starts, if `package.json` and `node_modules` exist
 - **Project scaffolding**: Ensures a new app is scaffolded and each default file written once (`EnsureProjectSetup()`) before Play mode; a missing `package.json` is a warning naming the missing default files and pointing at Restore
 - **Auto-install + build**: Runs `npm install` and `npm run build` if needed before starting watcher
 - **Auto-start on Play**: Watchers start automatically when entering Play mode
@@ -104,7 +119,7 @@ Automatically manages file watchers and project readiness for JSRunner instances
 
 1. Uses `[InitializeOnLoad]` to register `playModeStateChanged` callback
 2. On `ExitingEditMode` (before Play starts):
-   - `EnsurePanelSettingsAssets()`: Creates/assigns PanelSettings for runners missing one
+   - `EnsurePanelSettingsAssets()`: Walks only runners that already resolve a project folder, which requires an assigned PanelSettings, so it creates nothing; a runner without one must go through Initialize Project
    - `EnsureProjectsReady()`: Calls `EnsureProjectSetup()` on each valid runner, which writes each default file once (see Runtime/README, Auto-Scaffolding)
    - `PrepareWatchers()`: Clears the session tracking set
 3. On `EnteredPlayMode`:
@@ -130,33 +145,12 @@ The inspector's watcher status label shows:
 ## JSPadEditor
 
 Custom inspector for the inline TSX runner:
-- **Status section**: Current state (building, running, ready)
-- **Actions**:
-  - **Build & Run**: Build TSX and run immediately (Play mode)
-  - **Build Only**: Build without running
-  - **Run**: Execute previously built output
-  - **Stop**: Stop execution and clear UI
-  - **Open Temp Folder**: Reveal `Temp/OneJSPad/{id}/`
-  - **Clean**: Delete temp directory and node_modules
+- **Status**: Ready, Not built, or Processing, plus the bundle size
+- **Action button**: **Build** in Edit mode (writes `index.tsx`, runs `npm install` if `node_modules` is missing, then esbuild) and **Build & Reload** in Play mode (skips `npm install`, rebuilds, reloads)
+- **Overflow menu** (**⋮**): **Open Folder** reveals `Temp/OneJSPad/{id}/`; **Clean** deletes it, `node_modules` included
+- **Tabs**: UI, Cartridges, Modules (extra npm packages, with **Install**), and a Settings foldout
 
-### Build Process
-1. On first build, creates temp directory with package.json, tsconfig.json, esbuild.config.mjs
-2. Runs `npm install` if node_modules missing (~10s)
-3. Writes source code to `index.tsx`
-4. Runs `npm run build` (esbuild)
-5. Executes built output if in Play mode
-
-### Static Initialization (`[InitializeOnLoad]`)
-
-JSPadEditor uses `[InitializeOnLoad]` with a static constructor to register a global `playModeStateChanged` callback. This ensures all JSPad instances are built before entering Play mode, regardless of which object is selected in the hierarchy.
-
-**Flow**:
-1. Static constructor registers `OnPlayModeStateChangedStatic`
-2. On `ExitingEditMode`, `BuildAllJSPadsSync()` finds all JSPad components
-3. Each JSPad is built synchronously (npm install if needed, then esbuild)
-4. Bundle and source map are saved to serialized fields
-5. Scene is saved to persist data for standalone builds
-6. On `EnteredPlayMode`, JSPad.Start() runs the serialized bundle
+Entering Play mode does not build: `JSPad.Start()` runs the bundle already serialized on the component. Work done in Play mode survives the return to Edit mode: source edits are kept in `EditorPrefs`, and a bundle built in Play mode is cached to `Temp/JSPadCache/` on exit, restored onto the component, and the scene is saved so standalone builds pick it up.
 
 ## JSRunnerCleanup
 
@@ -188,15 +182,15 @@ Only processes when:
 
 ## JSRunnerBuildProcessor
 
-Implements `IPreprocessBuildWithReport` to handle TextAssets for builds, alongside its nested `PrefabAppBaker`, which is a `BuildPlayerProcessor`:
+Implements `IPreprocessBuildWithReport` and `IPostprocessBuildWithReport` to handle TextAssets for builds, alongside its nested `PrefabAppBaker`, which is a `BuildPlayerProcessor`:
 
-1. Scans the scenes this build is shipping, and every prefab, for JSRunner components
-2. For each JSRunner without a bundle TextAsset assigned:
+1. `PrefabAppBaker.PrepareForBuild` bakes every prefab under `Assets/` that holds a JSRunner, before Addressables packs content; `OnPreprocessBuild` then walks the scenes this build is shipping
+2. For each JSRunner not marked Exclude From Build and without a bundle assigned:
    - The bundle at `{InstanceFolder}/app.js.txt` (esbuild output) is already there
    - Loads it as a TextAsset and assigns to the JSRunner component
    - Loads source map TextAsset if `Include Source Map` is enabled
    - Saves modified scenes
-3. Extracts Cartridge files to `{WorkingDir}/@cartridges/{slug}/`
+3. Extracts Cartridge files, with overwrite, to `{WorkingDir}/@cartridges/{slug}/` (namespaced: `@cartridges/@{namespace}/{slug}/`)
 4. Logs status during build
 
 Since esbuild outputs directly to `app.js.txt`, the build processor just needs to load the existing file as a TextAsset.
@@ -219,9 +213,8 @@ It matters because a command line or CI build passes its own list and ignores Bu
 
 ### Skipping Auto-Assignment
 
-To skip auto-assignment for a specific JSRunner:
-- Pre-assign a TextAsset to the `Bundle Asset` field in the inspector
-- The build processor will skip processing for that JSRunner
+- A runner whose bundle is already assigned (by an earlier build, or by `JSRunner.SetBundleAsset` from a script; the field is hidden in the inspector) is skipped
+- To leave a runner out of the build entirely, turn on **Exclude From Build** in its Build tab
 
 ## OneJSEditorDesign
 
@@ -334,7 +327,7 @@ speed. Disable with `ShowCursor = false`, resize with `CursorScale`.
 
 ## Templates
 
-The `Templates/` directory contains TextAsset templates scaffolded by `Initialize Project`:
+The `Templates/` directory contains TextAsset templates scaffolded by `Initialize Project`: `package.json`, `tsconfig.json`, `esbuild.config.mjs`, `index.tsx`, `main.uss`, `global.d.ts`, `gitignore` (written as `.gitignore`) and `AGENTS.md`. Notes on three of them:
 
 - `esbuild.config.mjs.txt` uses `format: "iife"` with `globalName: "__exports"` (not ESM). This is required for `onPlay()`/`onStop()` lifecycle hook support. QuickJS evaluates in global scope where ESM `export {}` would be a syntax error.
 - `global.d.ts.txt` declares runtime globals (`__root`, `__isPlaying`, `__eventAPI`, etc.)
@@ -344,8 +337,8 @@ The `Templates/` directory contains TextAsset templates scaffolded by `Initializ
 
 Generates TypeScript declaration files (`.d.ts`) from C# types. Provides:
 
-- **Interactive UI**: `OneJS > Type Generator` menu
-- **Quick menu items**: `OneJS > Generate Typings > ...`
+- **Interactive UI**: `Tools > OneJS > Type Generator` menu
+- **Per-runner typings**: the Build tab's Type Generation section (assemblies, Auto Generate, output path, default `types/csharp.d.ts` in `~/`), regenerated on domain reload and by `Tools > OneJS > Regenerate All Project Typings`
 - **Programmatic API**: Static facade, fluent builder, presets
 
 ### Quick Start

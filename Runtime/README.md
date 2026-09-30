@@ -6,11 +6,12 @@ Core C# runtime for QuickJS integration with Unity.
 
 | Platform | JS Engine | Notes |
 |----------|-----------|-------|
-| Editor/Standalone | Native QuickJS | `quickjs_unity.dylib/.dll/.so` |
+| Editor/Standalone | Native QuickJS | `libquickjs_unity.dylib`, `quickjs_unity.dll`, `libquickjs_unity.so` |
+| Android | Native QuickJS | `libquickjs_unity.so` per ABI (arm64-v8a, armeabi-v7a, x86_64) |
 | iOS | Native QuickJS | Statically linked (`__Internal`) |
 | WebGL | Browser JS | Via `OneJSWebGL.jslib`: runs with JIT! |
 
-For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
+For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `../Plugins/README.md`.
 
 ## Files
 
@@ -20,8 +21,15 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `QuickJSUIBridge.cs` | UI Toolkit integration, event delegation, scheduling (RAF, timers) |
 | `JSRunner.cs` | MonoBehaviour entry point with auto-scaffolding and live reload |
 | `JSPad.cs` | Inline TSX runner with no external working directory |
+| `ScaffoldRecord.cs` | `~/.onejs/scaffold`: the default files a working directory has been given (see Auto-Scaffolding) |
+| `JsFunctionBinding.cs` | Backs `GetJSFunction`: a named JS function as a typed C# delegate |
+| `JsLog.cs` | Routes JS console output to the matching Unity log level (the bootstrap encodes it); `ErrorCount`/`LastError` for tests |
+| `AssemblyInfo.cs` | `InternalsVisibleTo("OneJS.Runtime.InputSystem")` for `JSRunner.AddInputSystemModule` |
 | `Janitor.cs` | Marker component for live reload cleanup of JS-created GameObjects |
-| `Network.cs` | Fetch API implementation using UnityWebRequest |
+| `Network.cs` | Fetch API implementation using UnityWebRequest; `LoadTextureFromUrl` for `<Image src>` on a URL |
+| `WebSocketBridge.cs` | WebSocket on native platforms (`ClientWebSocket` on background threads, events drained per context in `Tick`); WebGL uses the browser's |
+| `PerElementEventSupport.cs` | Per-element C# handlers for events that never pass the root: captured pointer events and non-bubbling ones like `GeometryChangedEvent` |
+| `PointerEvents.cs` | `MoveEventsEnabled`: whether pointermove reaches JS at all (off saves ~0.6KB/frame when polling) |
 | `FileSystem.cs` | File system access for runtime loading (readTextFile, writeTextFile, etc.) |
 | `AssetLoader.cs` | Async resource loading (loadResourceAsync) wrapping Resources.LoadAsync |
 | `SourceMapParser.cs` | Parses source maps for error stack trace translation |
@@ -33,22 +41,31 @@ For WebGL details, see `../Plugins/WebGL/OVERVIEW.md`.
 | `PainterBridge.cs` | Batched vector drawing: replays a Painter2D command buffer in one crossing |
 | `TreeViewBridge.cs` | TreeView data plumbing: wraps the generic `SetRootItems<T>` (generic methods are unreachable from JS) taking the tree as parallel pre-order int arrays with data kept JS-side, plus int[] selection getters (`IEnumerable<int>` cannot cross) |
 | `Particles/ParticleSystem2D.cs` | 2D particle system: C#-owned SoA sim + quad mesh write inside a host element |
-| `Particles/ParticleBridge.cs` | JS entry (`Create`), live-system registry, `TickAll` (driven from QuickJSUIBridge.Tick) |
+| `Particles/ParticleBridge.cs` | JS entry (`Create`), live-system registry, `TickAll` (driven from `QuickJSUIBridge.TickSystems()`) |
 | `Particles/ParticleWire.cs` | Versioned wire schema + validation (the C#-JS contract; parity with onejs-react particles.test.ts) |
+| `Physics2D/Physics2DBridge.cs` | JS entry for 2D physics worlds, `TickAll`, `DisposeAll` (same shape as `ParticleBridge`) |
+| `Physics2D/PhysicsWorld2D.cs` | A script-simulated Unity 2D physics world (`Rigidbody2D`) whose bodies drive VisualElements by `transform.position`; contacts come back as one flat event buffer |
+| `Physics2D/Physics2DWire.cs` | Versioned wire schema (v1) shared with onejs-unity `src/physics2d/index.ts`, guarded by the container's `Physics2DWireContractTests` |
+| `Audio/AudioBridge.cs` | Sound on every platform: clips load once to a handle, plays are single calls on a pool of 24 `AudioSource` voices |
+| `Fx/FxBridge.cs` | Image operation chains (onejs-unity `fx`): one flat float buffer per chain, per-pixel ops fused into one `OneJS/FxOps` blit |
 | `ShaderFX/ShaderEffectElement.cs` | Runs a shader into an element's `backgroundImage` via a per-frame blit to a RenderTexture |
+| `ShaderFX/ShaderEffectBridge.cs` | Live-effect registry, `TickAll` (driven from `QuickJSUIBridge.TickSystems()`), built-in procedural textures and ramp cache |
 | `SL/SLProgramBridge.cs` | Shader language programs: finds the shader generated from a program, or hands a WebGL page its WGSL and GLSL; uniforms and textures by slot |
 | `SL/SLShaderRegistry.cs` | Every generated shader by program hash, as the Resources asset a native build writes so the player packs them |
 | `SL/SLWeb.cs` | Compiled programs in a WebGL player, through `Plugins/WebGL/OneJSSLWeb.jslib`; `Describe()` is the startup handle check |
-| `ShaderFX/ShaderEffectBridge.cs` | Live-effect registry, `TickAll` (driven from QuickJSUIBridge.Tick), built-in procedural textures and ramp cache |
 | `NodeBridge.cs` | Zero-alloc tree wiring (Add/Insert/RemoveFromHierarchy) by element handle. Add/Insert log an error on an unresolvable handle; detach stays a tolerant no-op |
-| `GPU/GPUBridge.cs` | Compute shader API for JavaScript |
+| `GPU/GPUBridge.cs` | Compute shader API for JavaScript (see `GPU/README.md`) |
 | `GPU/ComputeShaderProvider.cs` | MonoBehaviour for registering shaders via inspector |
-| `Input/InputBridge.cs` | Input System bridge for keyboard, mouse, gamepad, touch |
+| `GPU/FrostedGlassElement.cs` | `<FrostedGlass>`: a VisualElement showing the blurred scene behind it, with `blur` and `tint` |
+| `GPU/BackdropBlurManager.cs` | Scene capture and two-pass blur for every FrostedGlassElement; created by the first, destroyed with the last |
+| `Proc/MeshGenerator.cs` | Procedural primitive meshes (cube, sphere, cylinder, cone, plane, torus, quad); see `Proc/README.md` |
+| `Input/InputBridge.cs` | Input System bridge for keyboard, mouse, gamepad, touch; its own assembly, built only when the package is installed (see `Input/README.md`) |
 | `Input/InputSystemUIModule.cs` | Adds the `InputSystemUIInputModule` to the EventSystem JSRunner creates, so `OneJS.Runtime` never references the Input System |
-| `Styling/UssCompiler.cs` | Runtime USS compilation from strings |
+| `Styling/UssCompiler.cs` | Runtime USS compilation from strings, with diagnostics (see `Styling/README.md`) |
 | `Styling/StyleSheetBuilderWrapper.cs` | Reflection wrapper for Unity's internal StyleSheetBuilder |
 | `Controls/CodeField.cs` | TextField with syntax highlighting via per-glyph vertex coloring |
 | `Utils/UIDebugger.cs` | Runtime UI debugger for dumping visual tree and inspecting USS classes |
+| `Utils/SVGUtils.cs` | `LoadFromString`: SVG text to a `VectorImage` entirely in C# (the parser's `SceneInfo` cannot cross to JS); used by `loadImage` for `.svg` |
 | `Utils/FindCompat.cs` | Version-portable FindObjectsByType wrappers (FindObjectsSortMode overloads are obsolete on Unity 6.4+) |
 | `Utils/RenderTextureUtils.cs` | `EnsureCreated` re-creates a RenderTexture the device dropped (standby, backgrounding, fullscreen toggle) |
 
@@ -88,7 +105,7 @@ Assets/Scenes/Level1/               # Auto-created folder next to scene
 │   ├── PanelSettings.asset         # Project marker (source of truth)
 │   ├── UIDocument.uxml             # Auto-synced VisualTreeAsset
 │   ├── app.js.txt                  # Built bundle (esbuild output + TextAsset)
-│   └── app.js.txt.map              # Source map (optional)
+│   └── app.js.map.txt              # Source map (optional)
 ```
 
 **Key points:**
@@ -252,14 +269,15 @@ JSRunner writes each default file once (`EnsureProjectSetup`, on Initialize and 
 - **Restore** (`RestoreDefaultFile(path)`) writes one file from its template, on purpose, and records its hash. Status, line endings ignored: Up to date; Missing (normal, not an error); Template newer (matches the recorded hash, so the template moved); Modified (differs from the recorded hash, so the user changed it); Differs (no recorded hash, so nobody can tell which).
 - A build or watcher that fails with default files missing, edit-mode preview with no `package.json` (once per working directory), and Initialize Project name them and point at Restore (`DescribeMissingDefaultFiles`).
 
-Default template files (in `Assets/Singtaa/OneJS/Editor/Templates/`):
-- `package.json.txt`: npm configuration with React and onejs-react dependencies
-- `esbuild.config.mjs.txt`: Build configuration with CSS Modules and Tailwind support
-- `tsconfig.json.txt`: TypeScript configuration
-- `global.d.ts.txt`: TypeScript declarations for OneJS globals
-- `index.tsx.txt`: Sample React application
-- `main.uss.txt`: Sample USS stylesheet
-- `gitignore.txt`: Git ignore for node_modules
+Default template files (in `Assets/Singtaa/OneJS/Editor/Templates/`), with the path each is written to (`PackageDefaultFiles`):
+- `package.json.txt` → `package.json`: npm configuration with React and onejs-react dependencies
+- `esbuild.config.mjs.txt` → `esbuild.config.mjs`: Build configuration with CSS Modules and Tailwind support
+- `tsconfig.json.txt` → `tsconfig.json`: TypeScript configuration
+- `global.d.ts.txt` → `types/global.d.ts`: TypeScript declarations for OneJS globals
+- `index.tsx.txt` → `index.tsx`: Sample React application
+- `main.uss.txt` → `styles/main.uss`: Sample USS stylesheet
+- `gitignore.txt` → `.gitignore`: ignores `node_modules/`, logs, `.DS_Store`
+- `AGENTS.md.txt` → `AGENTS.md`: the app's guide for coding agents
 
 ### Inspector Layout
 
@@ -310,8 +328,9 @@ The inspector adapts to the project state:
 - **Use Scene Name as Root Folder**: toggle whether instance folder is nested under scene name
 
 ### Live Reload (Editor Only)
-- Polls the entry file for changes (Mono-compatible, no FileSystemWatcher)
+- Polls the bundle (`app.js.txt`) and compares a content hash, not the mtime (NTFS can report a stale mtime for a file esbuild deletes and recreates)
 - Configurable poll interval (default: 0.5s)
+- In edit mode a `FileSystemWatcher` on the bundle only wakes an unfocused editor (`QueuePlayerLoopUpdate`); the poll still decides
 - Hard reload: disposes context, clears UI, recreates fresh
 - **Janitor cleanup**: When enabled, destroys JS-created GameObjects on reload (see below)
 
@@ -340,7 +359,7 @@ const cube = new CS.UnityEngine.GameObject("MyCube")
 For standalone/mobile builds, JSRunner loads from a TextAsset:
 - **Same file**: esbuild outputs directly to `app.js.txt` which is also the TextAsset
 - **Bundle path**: `{InstanceFolder}/app.js.txt`
-- **Source maps**: Optional `app.js.txt.map` for error stack translation
+- **Source maps**: Optional `app.js.map.txt` for error stack translation
 - **Pre-assigned**: If a bundle TextAsset is already assigned, build processor skips it
 
 ### Public API
@@ -359,7 +378,7 @@ string InstanceFolderAssetPath { get; } // Same as above, Unity-relative asset p
 string WorkingDirFullPath { get; }     // {InstanceFolder}/~/
 string EntryFileFullPath { get; }      // {InstanceFolder}/app.js.txt
 string BundleAssetPath { get; }        // Same as EntryFileFullPath
-string SourceMapAssetPath { get; }     // {InstanceFolder}/app.js.txt.map
+string SourceMapAssetPath { get; }     // {InstanceFolder}/app.js.map.txt
 string PanelSettingsAssetPath { get; }  // {InstanceFolder}/PanelSettings.asset
 string VisualTreeAssetPath { get; }     // {InstanceFolder}/UIDocument.uxml
 
@@ -372,9 +391,12 @@ void ForceReload();                                        // Manually trigger r
 void SetPanelSettings(PanelSettings ps);                   // Assign PanelSettings at runtime
 void SetVisualTreeAsset(VisualTreeAsset vta);              // Assign VisualTreeAsset at runtime
 void EnsureProjectFolderAndAssets(bool useSceneName);      // Create folder + PanelSettings + UXML
-void EnsureProjectSetup();                                 // Scaffold a new app, and each default file once
+string GetInvalidProjectFolderReason();                    // Why the PanelSettings folder is not valid, or null
+bool EnsureProjectSetup();                                 // Scaffold a new app, and each default file once
 string DescribeMissingDefaultFiles();                      // Missing default files and how to restore, or null
 void AddMissingDefaultFiles();                             // Add templates the list lacks, keep the rest
+IReadOnlyList<string> ScaffoldingPaths { get; }            // The runner's list, then the templates it lacks
+bool RestoreDefaultFile(string path);                      // Rewrite one default file from its template
 TDelegate GetJSFunction<TDelegate>(string globalName);     // Typed delegate for a JS function (survives hot reload)
 
 // Events
@@ -412,7 +434,7 @@ OneJS provides two MonoBehaviours for running JavaScript: **JSRunner** (producti
 | **Primary Goal** | Production-ready application framework | Quick experimentation & prototyping |
 | **Developer Experience** | Full IDE workflow with external files | Zero-config with inline code editor |
 | **Team Collaboration** | Version-controllable files | Self-contained in scene |
-| **Iteration Speed** | Live reload on file save | Manual Build & Run |
+| **Iteration Speed** | Live reload on file save | Manual Build (Build & Reload in Play mode) |
 | **Build Complexity** | Developer manages npm/build | Editor handles everything |
 
 **Use JSRunner when:**
@@ -438,7 +460,7 @@ OneJS provides two MonoBehaviours for running JavaScript: **JSRunner** (producti
 |--------|----------|-------|
 | Source | External files | Inline TextArea |
 | Working Dir | `{InstanceFolder}/~/` (next to PanelSettings) | Hidden in `Temp/OneJSPad/` |
-| Live Reload | Yes (automatic file polling) | No (manual Build & Run) |
+| Live Reload | Yes (automatic file polling) | No (manual Build, or Build & Reload in Play mode) |
 | Build | Developer runs npm | Editor runs esbuild |
 | Scaffolding | Full project (package.json, tsconfig, etc.) | Minimal essentials |
 | npm Management | Developer responsibility | Automated by editor |
@@ -450,34 +472,28 @@ OneJS provides two MonoBehaviours for running JavaScript: **JSRunner** (producti
 `JSPad` is a simpler alternative to `JSRunner` for quick experimentation. Write TSX directly in the inspector with no external working directory.
 
 ### Usage
-1. Add `JSPad` component to a GameObject with `UIDocument`
-2. Write TSX code in the Source Code text area
-3. Enter Play Mode
-4. Click **Build & Run**
+1. Add `JSPad` to a GameObject (`UIDocument` is added with it: `[RequireComponent]`)
+2. Write TSX code in the Source Code field (a `CodeField`)
+3. Click **Build**: `npm install` if needed, then esbuild
+4. Enter Play Mode: `Start()` runs the saved bundle
 
 First build installs dependencies (~10s), subsequent builds are fast.
 
 ### Custom Inspector
-- **Build & Run**: Build and execute immediately
-- **Build Only**: Build without running
-- **Run**: Execute previously built output
-- **Stop**: Stop execution and clear UI
-- **Open Temp Folder**: Reveal build directory
-- **Clean**: Delete temp directory and node_modules
+- **Build** (edit mode): install if needed, build, save the bundle to the component
+- **Build & Reload** (Play mode): build without `npm install`, then reload
+- **⋮ menu**: **Open Folder** reveals the temp directory; **Clean** stops the pad and deletes the temp directory, `node_modules` included
+- Tabs: **UI**, **Cartridges**, **Modules**
 
 ### Standalone Build Support
 
 JSPad works in standalone builds without requiring npm/node at runtime:
 
-1. **Automatic Bundle Serialization**: When entering Play mode, the built JS bundle and source map are automatically saved to serialized fields on the JSPad component
-2. **Scene Auto-Save**: The scene is automatically saved to persist the bundle for builds
-3. **Runtime Loading**: In standalone, JSPad loads from the serialized bundle instead of the temp file
+1. **Bundle Serialization**: every successful build saves the bundle and source map to the component (`SaveBundleToSerializedFields`), GZip-compressed and Base64-encoded in hidden `_compressedBundle` / `_compressedSourceMap` fields
+2. **Scene Auto-Save**: outside Play mode the scene is saved right after, so the bundle persists for builds
+3. **Runtime Loading**: `Start()` (and re-enable) runs the serialized bundle whenever `HasBuiltBundle` is true, in the editor and in a player
 
-**How it works**:
-- `[InitializeOnLoad]` static handler builds all JSPad instances before entering Play mode
-- Bundle is stored in `_builtBundle` serialized field (hidden in inspector)
-- Source map stored in `_builtSourceMap` for error translation
-- Scene is saved immediately after bundle serialization
+A bundle built during Play mode is cached under `Temp/JSPadCache/` on exit, meant to be restored to the component in edit mode; the restore still targets the pre-compression `_builtBundle` field, so it currently restores nothing.
 
 **Error Messages**: Stack traces in standalone builds are translated using the embedded source map, showing original TypeScript line numbers instead of bundled JS locations.
 
@@ -490,7 +506,7 @@ Temp/OneJSPad/{instanceId}/
 ├── global.d.ts         # TypeScript declarations
 ├── index.tsx           # Written from Source Code
 ├── node_modules/       # npm install (cached)
-└── @outputs/app.js     # Build output (JSPad uses temp folder)
+└── @outputs/           # app.js, app.js.map, app.sl.json (shader programs, recorded after each build)
 ```
 
 ## QuickJSNative Partial Classes
@@ -556,7 +572,7 @@ Constructors are intercepted in the zero-alloc fast path (before any string allo
 ## 2D Particle Engine (`Particles/` folder)
 
 C#-owned particle systems rendered inside UI Toolkit elements. JS is a control
-plane only: config crosses once as a versioned wire JSON (`ParticleWire`, v3),
+plane only: config crosses once as a versioned wire JSON (`ParticleWire`, v4),
 imperative tweaks (`SetEmitterPos`, `Burst`, `SetEmitterRate`, ...) are single
 crossings, and steady-state emission costs zero JS work.
 
@@ -600,6 +616,9 @@ crossings, and steady-state emission costs zero JS work.
   byte per particle and only draws RNG when enabled. `Parse` resolves
   `sheetFrames` from the grid so JS never duplicates `cols*rows`. A 1x1 grid
   resolves to a single frame and takes the untouched v2 UV path.
+- **Pivot** (v4): `pivotX`/`pivotY` (normalized quad coords, `0,0` = center,
+  `0,0.5` = bottom edge) choose the sprite point that sits on the particle
+  position and that the quad rotates about, offset along the quad's own axes.
 - **Host ownership**: the system sets `style.unityMaterial` on its host element,
   which replaces the standard UI material for that element's draw. A host that
   also carries `borderWidth`/`borderRadius` therefore loses UIR's analytic
@@ -620,8 +639,9 @@ crossings, and steady-state emission costs zero JS work.
   call. If the shader is unavailable (e.g. a Unity upgrade renames the cginc
   entry points: fails loudly at import), the system falls back to the default
   material: straight tints, additiveness ignored, everything still renders.
-- **Ticking**: `ParticleBridge.TickAll()` is called from `QuickJSUIBridge.Tick()`
-  (one integration point: play mode, edit-mode preview, JSPad), dt clamped to
+- **Ticking**: `ParticleBridge.TickAll()` is called from `QuickJSUIBridge.TickSystems()`,
+  which `Tick()` runs (play mode, edit-mode preview, JSPad) and which a WebGL
+  player's `JSRunner.Update` runs on its own, since `Tick` never runs there; dt clamped to
   50ms and guarded against double-ticks when multiple bridges are alive.
 - **Lifecycle**: `ParticleBridge.Create(ve, json, texture)` returns the system
   (one handle). JS disposes via effect cleanup (runs on unmount and hot reload
@@ -629,7 +649,7 @@ crossings, and steady-state emission costs zero JS work.
   `QuickJSUIBridge.Dispose()` is the leak safety net. Bursts drop when at
   capacity (`max` is the budget knob).
 
-**Wire versioning**: the parser accepts v1..v3. Every added field defaults to the
+**Wire versioning**: the parser accepts v1..v4. Every added field defaults to the
 previous behavior, so an older onejs-react keeps working against a newer package;
 a newer document reaching an older package is rejected by the version check
 rather than silently losing the new fields. RNG draws added by v2/v3
@@ -764,6 +784,39 @@ no tick at all, explicit-resolution override, bridge registration, uniform
 marshalling contract, ramp/built-in texture caching). The panel fixture is shared
 with ParticleTests in `Tests/Fixtures/PanelHost.cs`.
 
+## 2D Physics (`Physics2D/` folder)
+
+JS side: `createPhysicsWorld(host, config)` from `onejs-unity/physics2d`.
+
+- **Shape**: the same as the particle engine. A world crosses once as a versioned wire JSON (`Physics2DWire`, v1), is ticked from `QuickJSUIBridge.TickSystems()` and disposed with the context (`Physics2DBridge.DisposeAll`).
+- **Bodies drive elements**: `PhysicsWorld2D` owns `Rigidbody2D`s under a hidden root and writes each body's element `transform.position` (render time, no relayout). A hundred bodies cost JS nothing per frame.
+- **Coordinates**: everything crossing the boundary is in panel units (Y down); this class is the only place they meet physics units (Y up).
+- **Contacts**: recorded as flat numbers (`EventStride`, 6 per contact) and handed to JS in one `DrainEvents()` call per frame.
+- **Simulation**: `Physics2D.simulationMode = Script`, stepped with `dt` clamped to 50ms.
+
+Tests: `Tests/Physics2DBodyTests.cs`; the wire is compared with onejs-unity's `src/physics2d/index.ts` by the container's `Physics2DWireContractTests`.
+
+## Audio (`Audio/` folder)
+
+JS side: `audio` from `onejs-unity/audio`. `AudioBridge` exists so sound works the same on QuickJS and WebGL instead of relying on WebAudio, which only exists in a browser.
+
+- `LoadClip(url)` is a Task (a Promise in JS) resolving to a clip handle; `UnloadClip` frees it.
+- `Play` / `PlayLooping(clip, volume, pitch)` are single primitive calls returning a voice id; `Stop`, `SetVoiceVolume`, `SetVoicePitch`, `PauseVoice`, `IsPlaying` act on it.
+- 24 pooled `AudioSource` voices. When all are busy the oldest non-looping voice is stolen; a playing looping voice never is. A paused voice reports not playing, so it counts as free and its slot can be reused.
+- Master controls go through `AudioListener` (`SetMasterVolume`, `SetPaused`). Static state resets at `SubsystemRegistration`.
+
+## Image Fx (`Fx/` folder)
+
+JS side: `onejs-unity/fx` (wire contract in `src/fx/ops.ts`; change both together). `FxBridge.Execute` / `ExecuteInto` replay a chain that crossed as one flat float buffer (the `__csArray` path PainterBridge uses). Runs of per-pixel ops fuse into one blit through `OneJS/FxOps` (up to `MaxFusedOps`, 16, matching the shader's `MAX_OPS`); spatial and neighbourhood ops take a pass of their own. Author colours are sRGB and converted to the linear working space on the way in. Targets and loaded textures are handles, released by `Release` or `DisposeAll` on context teardown.
+
+## WebSocket (`WebSocketBridge.cs`)
+
+The bootstrap installs a standard `WebSocket` class on native platforms (`onopen`/`onmessage`/`onclose`/`onerror`, `send` of strings or binary, `binaryType = "arraybuffer"`); on WebGL the browser's own is used. Behind it, `WebSocketBridge` runs `ClientWebSocket` I/O on background threads and queues events; each `QuickJSUIBridge` registers a context id so `ProcessEvents` in `Tick` delivers only that context's sockets, and `CloseAll` runs on dispose. Binary frames cross as base64. Tests: `Tests/QuickJSWebSocketTests.cs`.
+
+## Console Severity (`JsLog.cs`)
+
+The native console callback carries only a string, so the bootstrap prefixes a control-character level marker and `JsLog` routes the line to `Debug.Log`, `LogWarning` or `LogError`. A JS error therefore reaches `LogAssert` and CI gates as an error. `JsLog.ErrorCount` / `LastError` let a test assert that an interaction produced no JS error. Kept out of `QuickJSNative` so it needs no native library. Tests: `Tests/JsLogSeverityPlaymodeTests.cs`.
+
 ## VirtualClock (deterministic time)
 
 `VirtualClock` is a stand-in for `Time.realtimeSinceStartupAsDouble`. Inactive by
@@ -778,6 +831,8 @@ Unity's clock directly:
 |--------|----------------|
 | `QuickJSUIBridge.Tick()` | the timestamp handed to `__tick`, and therefore every `requestAnimationFrame` callback, JS timer and React scheduler wake-up |
 | `ParticleBridge.TickAll()` | particle `dt` |
+| `Physics2DBridge.TickAll()` | physics step `dt` |
+| `ShaderEffectBridge.TickAll()` | shader effect and program time |
 
 UI Toolkit's own panel clock (USS transitions, the panel scheduler) is separate and
 lives outside OneJS. `Editor/Recording/OffscreenPanelRenderer` redirects it per panel
@@ -960,95 +1015,15 @@ FastPath.Property<Transform, Vector3>("position", t => t.position, (t,v) => t.po
 
 ## Zero-Allocation Interop (QuickJSNative.ZeroAlloc.cs)
 
-For truly zero-allocation per-frame operations (e.g., GPU compute shader calls), the runtime provides specialized binding methods that bypass C# generics entirely.
+For per-frame calls (e.g. GPU compute uniforms and dispatch), a C# method can be bound once and called from JS with no managed allocation.
 
-### Why Specialized Bindings?
+1. Register at init: `int id = QuickJSNative.Bind<T0, ..., TResult>(delegate)` (`Action`/`Func` with up to 6 arguments), or `RegisterZeroAllocBinding(ZeroAllocHandler)` for a hand-written handler.
+2. Call from JS: `__zaInvokeN(id, arg0, ...)`, where N is the argument count. Arguments travel as a stack-allocated `InteropValue` array.
+3. `RegisterZeroAllocMethodBinding(typeName, methodName, argCount)` binds a public static method by reflection (what onejs-unity's `interop.bind()` calls); init time only.
 
-The generic `Bind<T>()` API causes boxing due to how C# generics work with value types:
+The generic `Bind<>` overloads are boxing-free: `GetArg<T>` and `SetResult<T>` convert through `UnsafeUtility.As`. Primitives, strings (valid during the call), object handles and `Vector3`/`Vector4`/`Color` arguments stay zero-alloc; a string, struct or object *return* allocates its buffer or handle the way the fast path does. Max 8 arguments per call.
 
-```csharp
-// Generic GetArg<T> boxes:
-static T GetArg<T>(InteropValue* v) {
-    return (T)(object)GetInt(v);  // ← Boxes int to object, then unboxes to T
-}
-
-// Generic SetResult<T> boxes:
-switch (value) {  // ← Pattern matching boxes value type to object
-    case int i: ...
-}
-```
-
-The specialized `BindGpu*` methods use direct primitive types: no generics, no boxing:
-
-```csharp
-// Truly zero-alloc:
-QuickJSNative.BindGpuSetFloatById((h, id, v) => GPUBridge.SetFloatById(h, id, v));
-// Internally uses: int handle = GetInt(&args[0]); // No boxing!
-```
-
-### Available Specialized Bindings
-
-| Method | Signature | Purpose |
-|--------|-----------|---------|
-| `BindGpuSetFloatById` | `(int, int, float) → void` | Set shader float by property ID |
-| `BindGpuSetIntById` | `(int, int, int) → void` | Set shader int by property ID |
-| `BindGpuSetVectorById` | `(int, int, float, float, float, float) → void` | Set shader vector by property ID |
-| `BindGpuSetTextureById` | `(int, int, int, int) → void` | Set shader texture by property ID |
-| `BindGpuDispatch` | `(int, int, int, int, int) → void` | Dispatch compute shader |
-| `BindGpuGetScreenWidth` | `() → int` | Get screen width |
-| `BindGpuGetScreenHeight` | `() → int` | Get screen height |
-
-### Property ID Caching
-
-To avoid string allocations, use Unity's `Shader.PropertyToID()` pattern:
-
-```typescript
-// JavaScript side - cache property IDs once at init
-const _propertyIdCache = new Map<string, number>()
-
-function getPropertyId(name: string): number {
-    let id = _propertyIdCache.get(name)
-    if (id === undefined) {
-        id = CS.OneJS.GPU.GPUBridge.PropertyToID(name)  // One-time allocation
-        _propertyIdCache.set(name, id)
-    }
-    return id
-}
-
-// Per-frame calls use cached ID - zero allocations
-const timeId = getPropertyId("_Time")
-setFloatById(shaderHandle, timeId, performance.now() / 1000)
-```
-
-### Two API Tiers
-
-| API | Allocation | Use Case |
-|-----|------------|----------|
-| Generic `Bind<T>()` | ~80B per call (boxing) | Prototyping, non-hot-path |
-| Specialized `BindGpu*()` | 0B | Per-frame GPU operations |
-
-The generic API remains for convenience. Use specialized bindings for hot paths.
-
-### Adding New Specialized Bindings
-
-To add a new zero-alloc binding:
-
-```csharp
-// 1. Add to QuickJSNative.ZeroAlloc.cs
-public static unsafe int BindMyMethod(Action<int, float> action) {
-    return RegisterZeroAllocBinding((InteropValue* args, int argCount, InteropValue* result) => {
-        int arg0 = GetInt(&args[0]);      // Direct int, no boxing
-        float arg1 = GetFloat(&args[1]);  // Direct float, no boxing
-        action(arg0, arg1);
-    });
-}
-
-// 2. Register in your initialization code
-int bindingId = QuickJSNative.BindMyMethod((a, b) => MyClass.MyMethod(a, b));
-
-// 3. Use from JavaScript via __zaInvoke2
-__zaInvoke2(bindingId, intValue, floatValue);
-```
+`GPUBridge.InitializeZeroAllocBindings()` registers the GPU set (`setFloatById`, `setIntById`, `setVectorById`, `setTextureById`, `dispatch`, `getScreenWidth`/`Height`, `propertyToId`, plus string-named convenience variants); JS reads the ids through `GetZeroAllocBindingIds()`. Uniform names are turned into ids once with `GPUBridge.PropertyToID` and cached JS-side, so per-frame calls pass only numbers. See `GPU/README.md`.
 
 ## JS Interop Features
 
@@ -1135,7 +1110,7 @@ async function loadData() {
 **How it works**:
 1. When a C# async method returns `Task`/`Task<T>`, it's registered with a unique ID
 2. JS receives a Promise keyed to that ID
-3. When the Task completes, `QuickJSUIBridge.Tick()` resolves/rejects the Promise
+3. When the Task completes, `QuickJSUIBridge.Tick()` resolves/rejects the Promise (on WebGL, `TickSystems()`, since `Tick` never runs there)
 4. The Promise result is wrapped as a C# object proxy if needed
 
 **Supported return types**:

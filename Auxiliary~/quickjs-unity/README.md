@@ -6,22 +6,24 @@ Native QuickJS engine with Unity C# interop wrapper.
 
 ```
 quickjs-unity/
-├── quickjs/                 # QuickJS source (Bellard's engine)
-│   ├── quickjs.c/h         # Core JS engine
-│   ├── libregexp.c         # Regex support
-│   ├── libunicode.c        # Unicode support
-│   └── Makefile
+├── quickjs/                 # Submodule: Bellard's QuickJS, used by every .sh build
+├── quickjs-ng/              # Submodule: quickjs-ng, used only by the MSVC/CMake path
 ├── src/
-│   └── quickjs_unity.c     # Unity wrapper: CS proxy, handles, callbacks
+│   └── quickjs_unity.c     # Unity wrapper: interop marshaling, callback table, exports
 ├── build.sh                # macOS build
 ├── build-linux.sh          # Linux x64 build
-├── build-windows.sh        # Windows cross-compile (MinGW)
-├── build-windows-msvc.bat  # Windows native (MSVC)
+├── build-windows.sh        # Windows cross-compile (MinGW), the shipped DLL
+├── build-windows-msvc.bat  # Windows native (MSVC, quickjs-ng)
+├── build-windows.bat       # Windows native (CMake, quickjs-ng)
 ├── build-ios.sh            # iOS build (static .a)
 ├── build-android.sh        # Android build (shared .so)
 ├── check-plugin-deps.py    # Verifies the shipped binaries' dynamic dependencies
+├── load-plugin-smoke.py    # Loads this platform's shipped binary and checks qjs_abi_version against the C#
+├── bench-dispatch.py       # Benchmarks __dispatchEvent on the shipped native engine
 └── CMakeLists.txt          # CMake build (Windows MSVC)
 ```
+
+Run `git submodule update --init` in the OneJS repo before building: both engine folders are submodules.
 
 ## Building
 
@@ -92,16 +94,15 @@ the build machine only surfaces at load time on someone else's machine.
 
 | Function | Purpose |
 |----------|---------|
-| `qjs_create()` | Create JS context |
-| `qjs_destroy()` | Destroy context |
+| `qjs_abi_version()` | ABI version the C# runtime checks at startup |
+| `qjs_create()` / `qjs_destroy()` | Create or destroy a JS context |
 | `qjs_eval()` | Evaluate JS code |
 | `qjs_execute_pending_jobs()` | Process Promise queue |
-| `qjs_set_cs_invoke_callback()` | Register C# dispatch handler |
-| `qjs_invoke_callback()` | Call JS callback from C# |
+| `qjs_run_gc()` | Run the QuickJS GC |
+| `qjs_invoke_callback()` | Call a registered JS callback from C# |
+| `qjs_set_cs_invoke_callback()` | Register the C# dispatch handler (also `_log_`, `_release_handle_`, `_zeroalloc_`, `_free_` variants) |
+| `qjs_free()` | Free memory the native side allocated for C# |
 
 ## Handle System
 
-C# objects are tracked via integer handles:
-- `qjs_register_object()`: Store C# object, get handle
-- `qjs_get_object()`: Retrieve C# object by handle
-- `qjs_release_handle()`: Release handle when JS object is GC'd
+The handle table lives in C# (`Runtime/QuickJSNative.Handles.cs`: `RegisterObject`, `GetObjectByHandle`). JS holds the integer handle; when the bootstrap's `FinalizationRegistry` collects a proxy it calls the native `__releaseHandle`, which forwards to the callback registered with `qjs_set_cs_release_handle_callback` so C# drops the entry.

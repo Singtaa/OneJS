@@ -4,14 +4,14 @@ Custom UI Toolkit controls for OneJS applications.
 
 ## CodeField
 
-A `TextField` with built-in syntax highlighting support. Uses UI Toolkit's `PostProcessTextVertices` callback to colorize individual glyphs without affecting cursor positioning or text editing.
+A `TextField` with built-in syntax highlighting support. The JSPad inspector's source editor is one. Uses UI Toolkit's `PostProcessTextVertices` callback to colorize individual glyphs without affecting cursor positioning or text editing.
 
 ### Features
 
 - **Per-glyph coloring** via vertex tint modification
 - **Correct cursor positioning**: colors are applied at render time, not via rich text tags
 - **Pluggable highlighters**: implement `ISyntaxHighlighter` for custom languages
-- **Built-in JavaScript highlighter**: keywords, strings, numbers, comments
+- **Built-in JavaScript highlighter** (`CodeField.SimpleKeywordHighlighter`, the default): keywords, strings, numbers, comments, JSX tags
 - **Monospace font**: automatically loads system monospace font (Menlo/Consolas/DejaVu Sans Mono)
 - **Horizontal scrolling**: trackpad/mouse wheel support for long lines
 - **Auto-height**: optionally resize based on content line count
@@ -116,6 +116,6 @@ PostProcessTextVertices callback ← Color32[] for visible glyphs only
    Rendered text with syntax highlighting
 ```
 
-### JS Interoperability (Future)
+### JS Interoperability (not implemented)
 
-The highlighter can run in JavaScript, returning token spans that are converted to colors in C#. This enables using existing JS syntax highlighting libraries.
+A possible extension: a highlighter running in JavaScript, returning token spans that C# converts to colors, so existing JS syntax highlighting libraries could be used. Nothing implements this today.

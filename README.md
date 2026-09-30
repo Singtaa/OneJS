@@ -90,15 +90,12 @@ runner.EnsureProjectSetup();
 
 Save the scene first; the app is created next to it. Run the script with
 `unity run <project> -- -nographics -executeMethod YourClass.Run`, then
-`npm install && npm run build` in the app's `~/` folder. Install with the git
-URL above and no branch suffix: `onejs-v1`, `onejs-v2` and `archive/onejs-v3`
-are frozen historical branches, and pinning one installs an old runtime that
-still compiles.
+`npm install && npm run build` in the app's `~/` folder.
 
 ## Quick Start
 
 1. Add the `JSRunner` component to a GameObject in a saved scene
-2. Click **Initialize Project** in the inspector (or just enter Play mode, since first-run setup happens automatically)
+2. Click **Initialize Project** in the inspector
 
 JSRunner creates PanelSettings, scaffolds a starter React app next to your scene, runs `npm install` and `npm run build`, and starts rendering in the Game view immediately. The editor manages the esbuild watcher from there: save a file, see the change.
 
@@ -107,8 +104,10 @@ Assets/Scenes/Level1.unity            # Your scene
 Assets/Scenes/Level1/App/             # App = the GameObject's name
 ├── ~/                                # TS/TSX source (~ = ignored by Unity)
 │   ├── index.tsx                     # Entry point
-│   └── package.json, tsconfig.json, esbuild.config.mjs
+│   ├── package.json, tsconfig.json, esbuild.config.mjs
+│   └── styles/main.uss, types/global.d.ts, AGENTS.md, .gitignore
 ├── PanelSettings.asset               # Project marker, assigned to JSRunner
+├── UIDocument.uxml
 └── app.js.txt                        # Built bundle
 ```
 

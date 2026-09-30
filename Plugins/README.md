@@ -18,9 +18,13 @@ Plugins/
 │   ├── arm64-v8a/libquickjs_unity.so
 │   ├── armeabi-v7a/libquickjs_unity.so
 │   └── x86_64/libquickjs_unity.so
-└── WebGL/                           # WebGL browser bridge (Unity 6+)
-    └── OneJSWebGL.jslib
+├── WebGL/                           # WebGL browser bridge (see WebGL/README.md)
+│   ├── OneJSWebGL.jslib             # qjs_* over the browser's JS engine
+│   └── OneJSSLWeb.jslib             # compiles and draws shader language programs on Unity's device
+└── link.xml                         # IL2CPP preservation of the UI Toolkit internals OneJS reflects on
 ```
+
+`link.xml` only takes effect under `Assets/`; when OneJS is installed as a package, `Editor/OneJSLinkXmlProcessor.cs` hands it to the linker.
 
 ## Platform Routing
 
@@ -102,7 +106,7 @@ fine. The load smoke check is what caught it; run it after every refresh.
 
 ## Dependency Check
 
-Every file here is a committed build artifact, and only the Linux .so is rebuilt
+Every native library here is a committed build artifact, and only the Linux .so is rebuilt
 by CI, so a dependency picked up from whichever machine produced a binary ships
 unnoticed and fails at load time on a clean one. Verify after refreshing any of
 them:
@@ -113,7 +117,8 @@ python3 Auxiliary~/quickjs-unity/check-plugin-deps.py
 
 It reads each binary's dependency list out of the container format itself and
 rejects anything an end user's machine would not already have. CI runs it on
-every push.
+every push, together with `load-plugin-smoke.py`, which opens each binary on a
+matching runner and checks its `qjs_abi_version` against the C# side.
 
 ## Linux glibc Baseline
 

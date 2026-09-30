@@ -66,11 +66,11 @@ The `BuildValidationRunner` outputs results in this format:
 
 ## Manual Testing
 
-To run the built player manually:
+The test builds into `Temp/OneJSBuildTest/` at the project root. To run that player manually:
 
 ```bash
-# macOS
-./BuildTest.app/Contents/MacOS/BuildTest -logFile output.log -batchmode
+# macOS (the executable inside the .app is named after Player Settings > Product Name)
+"./BuildTest.app/Contents/MacOS/<Product Name>" -logFile output.log -batchmode
 
 # Windows
 BuildTest.exe -logFile output.log -batchmode

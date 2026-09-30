@@ -10,21 +10,12 @@ var fixture = Resources.Load<TextAsset>("SimpleScript");
 var code = fixture.text;
 ```
 
-## Fixture Categories
+## Contents
 
-### Simple Scripts (No Dependencies)
-
-For basic tests that don't need React or npm packages:
-- **SimpleScript.txt**: Basic console.log and global assignment
-- **UICreation.txt**: Creates UI elements via CS proxy
-- **EventTest.txt**: Tests event registration and dispatch
-- **WebGLTest.txt**: WebGL bridge validation script
-
-### React Apps (Require npm build)
-
-For full integration tests that need React reconciler:
-- Would require `npm install` + `npm run build` before testing
-- Not currently implemented (use inline strings instead)
+- **`PanelHost.cs`**: a real UI Toolkit panel rendering into a RenderTexture, for tests that need resolved layout or readable pixels (`ParticleTests`, `ShaderFXTests`). Yield two frames after adding children before asserting on geometry.
+- **`Resources/*.txt`**: plain scripts with no dependencies: `SimpleScript` (console.log and a global), `UICreation` (UI elements via the CS proxy), `EventTest` (event registration and dispatch), `WebGLTest` (WebGL bridge validation). No test loads these four today; they are kept as starting points.
+- **`Resources/TestCustomElement.txt`**: prebuilt React bundle loaded by `CustomElementPlaymodeTests`.
+- **`CustomElement~/`**: the source of that bundle. Rebuild after changing it or onejs-react: `cd CustomElement~ && npm install && npm run build` (writes `../Resources/TestCustomElement.txt`). Its `onejs-react` dependency is a `file:` link to the container's `JSModules/onejs-react`, so it builds only inside the OneJSv3Container checkout.
 
 ## Design Decisions
 

@@ -6,27 +6,16 @@ Generates TypeScript declaration files (`.d.ts`) from C# types for use with OneJ
 
 ### Using the UI
 
-Open the Type Generator window via **OneJS > Type Generator** in the Unity menu.
+Open the Type Generator window via **Tools > OneJS > Type Generator** in the Unity menu.
 
 1. Select assemblies from the left panel
 2. Choose types from the middle panel
 3. Preview the generated TypeScript in the right panel
 4. Click **Generate** to write the `.d.ts` file
 
-### Using Menu Items
+### Per JSRunner
 
-Quick generation via **OneJS > Generate Typings**:
-
-| Menu Item | Description |
-|-----------|-------------|
-| Unity Core | Vector3, GameObject, Transform, etc. |
-| UI Toolkit | VisualElement, Button, Label, etc. |
-| Physics | Rigidbody, Collider, Physics, etc. |
-| Animation | Animator, AnimationClip, etc. |
-| Audio | AudioSource, AudioClip, etc. |
-| Input System | Input System package types |
-| All Unity Types | Combined preset |
-| Project Types | Assembly-CSharp types |
+Each JSRunner's Build tab has a Type Generation section: pick assemblies, and the typings are written to its output path (default `types/csharp.d.ts` inside `~/`). With **Auto Generate** on they regenerate after every domain reload (`TypeGeneratorService`); **Tools > OneJS > Regenerate All Project Typings** regenerates every runner's typings at once.
 
 ### Using the API
 
@@ -87,8 +76,10 @@ public static class TypeGenerator {
     // Quick generation
     static void Generate(string outputPath, params Type[] types);
     static void GenerateFromAssembly(string outputPath, string assemblyNamePattern);
+    static void GenerateFromAssemblies(string outputPath, params string[] assemblyNamePatterns);
     static void GenerateFromNamespace(string outputPath, string namespaceName);
-    static void GenerateProjectTypes(string outputPath = null);
+    static void GenerateProjectTypes(string outputPath = null);  // null: DefaultOutputPath
+    const string DefaultOutputPath = "Assets/Gen/Typings/csharp/index.d.ts";
     static TypeGeneratorResult GenerateToResult(params Type[] types);
 
     // Builder access
@@ -104,6 +95,7 @@ public static class TypeGenerator {
         static TypeGeneratorResult InputSystem { get; }
         static TypeGeneratorResult All { get; }
     }
+    static TypeGeneratorResult CombinePresets(params TypeGeneratorResult[] results);
 
     // Utilities
     static IEnumerable<Assembly> GetAssemblies(string namePattern);
@@ -120,6 +112,7 @@ public class TypeGeneratorBuilder {
     TypeGeneratorBuilder AddType<T>();
     TypeGeneratorBuilder AddType(Type type);
     TypeGeneratorBuilder AddTypes(params Type[] types);
+    TypeGeneratorBuilder AddTypes(IEnumerable<Type> types);
     TypeGeneratorBuilder AddTypeByName(string fullTypeName);
 
     // Add from sources
@@ -140,8 +133,10 @@ public class TypeGeneratorBuilder {
     TypeGeneratorBuilder IncludeDocumentation();
     TypeGeneratorBuilder ExcludeDocumentation();
     TypeGeneratorBuilder EmitModuleDeclaration();
+    TypeGeneratorBuilder EmitNamespaceModules(bool emit = true);
     TypeGeneratorBuilder EmitIncompatibilityMarker(bool emit = true);
     TypeGeneratorBuilder UseAccessorSyntax(bool use = true);
+    TypeGeneratorBuilder SkipHeader();
 
     // Build
     TypeGeneratorResult Build();
@@ -191,7 +186,7 @@ declare interface $Out<T> { __doNotAccess: T; }
 declare interface $Task<T> { __doNotAccess: T; }
 
 declare namespace CS {
-    const __keep_incompatibility: unique symbol;
+    const __keep_incompatibility: symbol;
 
     namespace UnityEngine {
         class Vector3 {
@@ -234,6 +229,7 @@ TypeGeneratorResult (Output + Metadata)
 | `TypeAnalyzer` | Reflection-based type analysis |
 | `TypeScriptEmitter` | TypeScript code generation |
 | `TypeMapper` | C# to TypeScript type mapping |
+| `TypeGeneratorService` | Per-JSRunner generation and auto-regeneration |
 
 ### Type Mappings
 
@@ -259,8 +255,8 @@ Assets/Singtaa/OneJS/Editor/TypeGenerator/
 ├── TypeGeneratorBuilder.cs       # Fluent builder
 ├── TypeGeneratorResult.cs        # Output container
 ├── TypeGeneratorPresets.cs       # Pre-configured presets
-├── TypeGeneratorMenus.cs         # Unity menu items
-├── TypeGeneratorWindow.cs        # Editor UI window
+├── TypeGeneratorService.cs       # Per-JSRunner typings, auto-generation, Regenerate All menu
+├── TypeGeneratorWindow.cs        # Editor UI window (Tools > OneJS > Type Generator)
 ├── TypeTreeView.cs               # TreeView for type selection
 ├── Analysis/
 │   ├── TypeAnalyzer.cs           # Reflection analysis
@@ -275,7 +271,7 @@ Assets/Singtaa/OneJS/Editor/TypeGenerator/
 │   ├── TsParameterInfo.cs        # Parameter model
 │   └── TsGenericConstraint.cs    # Generic constraints
 └── Tests/
-    └── TypeGeneratorTests.cs     # Unit tests (35 tests)
+    └── TypeGeneratorTests.cs     # EditMode unit tests
 ```
 
 ## Best Practices

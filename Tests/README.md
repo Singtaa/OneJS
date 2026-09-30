@@ -6,49 +6,11 @@ PlayMode and EditMode tests for the OneJS runtime. Run via Unity Test Runner (Wi
 
 ```
 Tests/
-├── OneJS.Tests.asmdef           # PlayMode test assembly
-├── QuickJSPlaymodeTests.cs      # Core QuickJS functionality
-├── QuickJSFastPathPlaymodeTests.cs
-├── QuickJSZeroAllocTests.cs     # Zero-allocation interop tests
-├── QuickJSUIBridgePlaymodeTests.cs
-├── UIToolkitJSPlaymodeTests.cs
-├── QuickJSStabilityTests.cs
-├── QuickJSNetworkTests.cs
-├── QuickJSStorageTests.cs
-├── QuickJSURLTests.cs
-├── QuickJSBase64Tests.cs
-├── QuickJSBootstrapScopeTests.cs   # Global-scope contract: polyfill guards + IIFE non-leakage (WebGL host-page safety)
-├── GPUBridgePlaymodeTests.cs
-├── GPUBridgeJSPlaymodeTests.cs
-├── ProcNoisePlaymodeTests.cs       # Procedural noise tests
-├── ProcTexturePlaymodeTests.cs     # Procedural texture tests
-├── JSRunnerPlaymodeTests.cs     # JSRunner MonoBehaviour tests
-├── JSPadPlaymodeTests.cs        # JSPad MonoBehaviour tests
-├── CartridgeUtilsPlaymodeTests.cs  # Cartridge injection and platform defines
-├── Physics2DBodyTests.cs        # 2D physics body setup: warnings and mass
-├── ControlAlignmentPlaymodeTests.cs # Each control's visible part centred in its box, so an align-items: center row lines up
-├── Editor/                      # EditMode tests
-│   ├── OneJS.Tests.Editor.asmdef
-│   ├── JSRunnerBuildProcessorTests.cs
-│   ├── JSRunnerBuildProcessorWindowsTests.cs # Read only handling; Windows only
-│   ├── JSRunnerBuildSceneListTests.cs  # Which scenes a build walks
-│   ├── JSRunnerInspectorListTests.cs   # The inspector's lists with a remove button: remove and undo
-│   ├── JSRunnerScaffoldOnceTests.cs    # Each default file written once: the record's states, deletions, shared folders
-│   ├── JSRunnerDefaultFilesTests.cs    # Initialize keeps the list, missing file message, Template newer, no Scaffolding X
-│   ├── CartridgeUtilsTests.cs
-│   ├── PremadeCartridgeTests.cs # Validates the shipped Premade/ cartridge assets
-│   └── BuildValidationTests.cs
-├── BuildValidation/             # Standalone build testing
-│   ├── BuildValidationRunner.cs
-│   └── README.md
-├── Fixtures/                    # Test fixtures (no GUIDs!)
-│   ├── README.md
-│   └── Resources/
-│       ├── SimpleScript.txt
-│       ├── UICreation.txt
-│       └── EventTest.txt
-└── Resources/
-    └── TestShaders/
+├── OneJS.Tests.asmdef           # PlayMode test assembly (runtime *.cs at this level)
+├── Editor/                      # EditMode test assembly (OneJS.Tests.Editor.asmdef)
+├── BuildValidation/             # Standalone player build test (see its README)
+├── Fixtures/                    # PanelHost, text fixtures in Resources/, CustomElement~ React fixture (see its README)
+└── Resources/TestShaders/       # SimpleCompute.compute for the GPU tests
 ```
 
 ## Running Tests
@@ -59,38 +21,72 @@ Tests/
 
 ## Test Files
 
-| File | Type | Purpose |
-|------|------|---------|
-| `QuickJSPlaymodeTests.cs` | PlayMode | Core eval, static calls, constructors, generics, async, array marshaling |
-| `QuickJSFastPathPlaymodeTests.cs` | PlayMode | Zero-allocation property access, method calls |
-| `QuickJSZeroAllocTests.cs` | PlayMode | Zero-allocation GPU bindings, property ID caching |
-| `QuickJSUIBridgePlaymodeTests.cs` | PlayMode | Event delegation, scheduling, Promises |
-| `UIToolkitJSPlaymodeTests.cs` | PlayMode | React component rendering |
-| `QuickJSStabilityTests.cs` | PlayMode | Handle monitoring, task queue, exceptions |
-| `JSRunnerPlaymodeTests.cs` | PlayMode | JSRunner scaffolding, init, reload, globals |
-| `JSPadPlaymodeTests.cs` | PlayMode | JSPad temp dirs, build state, execution |
-| `GPUBridgePlaymodeTests.cs` | PlayMode | GPU compute shaders, buffers, dispatch |
-| `GPUBridgeJSPlaymodeTests.cs` | PlayMode | GPU operations from JavaScript |
-| `ProcNoisePlaymodeTests.cs` | PlayMode | Procedural noise generation (Perlin, Value, FBM) |
-| `ProcTexturePlaymodeTests.cs` | PlayMode | Procedural texture generation (checkerboard, gradient) |
-| `CartridgeUtilsPlaymodeTests.cs` | PlayMode | Cartridge global injection, platform defines, `__cart()` API |
-| `CartridgeUtilsTests.cs` | EditMode | String escaping, path calculation, file extraction, stylesheets |
-| `PremadeCartridgeTests.cs` | EditMode | The shipped `Assets/Singtaa/Premade/` cartridge **assets**: metadata completeness, path-safe slugs, unique identities, resolvable payloads, extraction round-trip |
-| `Physics2DBodyTests.cs` | PlayMode | How a wire body becomes a Rigidbody2D: no engine warnings on build, and density driving mass |
-| `ShaderFXTests.cs` | PlayMode | ShaderFX render-target lifecycle against real layout, uniform marshalling, ramp/texture caching |
-| `JSRunnerBuildProcessorTests.cs` | EditMode | Asset copying, namespace detection |
-| `JSRunnerInspectorListTests.cs` | EditMode | The X button in the Stylesheets, Preloads, Globals and Cartridges lists removes the row clicked, after an undo and after another inspector changed the list |
-| `JSRunnerScaffoldOnceTests.cs` | EditMode | Default files are written once: a new app, an app with a record, an app from before the record, a deleted package.json or record, two runners on one folder |
-| `JSRunnerDefaultFilesTests.cs` | EditMode | Initialize keeps a customized list, a missing default file is named with Restore, Template newer status, the Scaffolding list has no X, the scaffolded .gitignore keeps `.onejs/` |
-| `BuildValidationTests.cs` | EditMode | Full build + run validation (slow) |
+PlayMode (`Tests/*.cs`):
+
+| File | Purpose |
+|------|---------|
+| `QuickJSPlaymodeTests.cs` | Core eval, static calls, constructors, generics, async, callbacks, array marshaling |
+| `QuickJSInteropPlaymodeTests.cs` | Proxy caching, property change detection, collection access through the bootstrap proxy |
+| `QuickJSFastPathPlaymodeTests.cs` | Zero-allocation fast path: correctness, allocations, performance |
+| `QuickJSZeroAllocTests.cs` | Zero-allocation bindings, GPU bindings, property ID caching (doubles as documentation) |
+| `QuickJSCallbackBindingTests.cs` | C# to JS calls: Func wrappers, array returns, `GetJSFunction`, stale handles across reloads |
+| `QuickJSExtensionDispatchTests.cs` | Extension methods with omitted optional arguments (`element.Q("name")`) |
+| `QuickJSTypeResolutionTests.cs` | CS paths to types, nested types, unresolvable paths |
+| `QuickJSMultiContextTests.cs` | Two live contexts at once (two JSRunners) |
+| `QuickJSUIBridgePlaymodeTests.cs` | Event delegation, scheduling, Promises |
+| `QuickJSSchedulerTests.cs` | Bounded scheduler passes and the WebGL timer teardown contract |
+| `QuickJSBootstrapScopeTests.cs` | Global-scope contract: install-if-missing polyfills, IIFE non-leakage (WebGL host-page safety) |
+| `QuickJSStabilityTests.cs` | Handle and task queue monitoring, buffer overflow detection |
+| `QuickJSNetworkTests.cs` | `fetch`, against a loopback HttpListener (hermetic) |
+| `QuickJSWebSocketTests.cs` | `WebSocket`, against the live `ws.postman-echo.com` echo service |
+| `QuickJSAbortTests.cs` | `AbortController`/`AbortSignal` polyfill |
+| `QuickJSStorageTests.cs` | `localStorage` over PlayerPrefs |
+| `QuickJSFileSystemTests.cs` | FileSystem API: read, write, exists, delete, list |
+| `QuickJSAssetLoaderTests.cs` | `loadResourceAsync` |
+| `QuickJSURLTests.cs` | `URL` and `URLSearchParams` |
+| `QuickJSBase64Tests.cs` | `atob`/`btoa` |
+| `UIToolkitJSPlaymodeTests.cs` | Element creation, properties, styles, hierarchy from JS |
+| `CustomElementPlaymodeTests.cs` | `registerElement`/`createComponent` end to end, using the prebuilt `TestCustomElement` fixture |
+| `ControlAlignmentPlaymodeTests.cs` | Each control's visible part centred in its box, so an `align-items: center` row lines up |
+| `TreeViewBridgeTests.cs` | `TreeViewBridge` parallel-array contract (mirrors onejs-react's `treeview.test.tsx`) |
+| `ShaderFXTests.cs` | ShaderFX render-target lifecycle against real layout, uniform marshalling, ramp/texture caching |
+| `ParticleTests.cs` | Particle wire parsing, deterministic simulation, imperative API, render smoke tests |
+| `Physics2DBodyTests.cs` | How a wire body becomes a Rigidbody2D: no engine warnings on build, density driving mass |
+| `GPUBridgePlaymodeTests.cs` | GPU compute shaders, buffers, dispatch, from C# and JS |
+| `ProcPlaymodeTests.cs` | Procedural noise and texture generators through QuickJS |
+| `JsLogSeverityPlaymodeTests.cs` | Console severity end to end through the real bootstrap and native callback |
+| `JSRunnerEventSystemPlaymodeTests.cs` | The EventSystem JSRunner creates, per input backend |
+| `JSPadPlaymodeTests.cs` | JSPad temp dirs, build state, execution |
+| `CartridgeUtilsPlaymodeTests.cs` | Cartridge global injection, platform defines, `__cart()` API |
+| `JSRunnerPlaymodeTests.cs` | A single `Assert.Pass` placeholder; the real JSRunner tests are disabled pending a scene-based rewrite |
+
+EditMode (`Tests/Editor/`):
+
+| File | Purpose |
+|------|---------|
+| `JSRunnerBuildProcessorTests.cs` | Asset copying, namespace detection |
+| `JSRunnerBuildProcessorWindowsTests.cs` | Read-only file handling; Windows only |
+| `JSRunnerBuildSceneListTests.cs` | Which scenes a build walks |
+| `JSRunnerBundleAssignmentTests.cs` | Which runners come out of a build with a bundle |
+| `JSRunnerPrefabAppTests.cs` | Apps a build reaches through a prefab, and Exclude From Build |
+| `JSRunnerInspectorListTests.cs` | The X button in the Stylesheets, Preloads, Globals and Cartridges lists removes the row clicked, after an undo and after another inspector changed the list |
+| `JSRunnerScaffoldOnceTests.cs` | Default files are written once: a new app, an app with a record, an app from before the record, a deleted package.json or record, two runners on one folder |
+| `JSRunnerDefaultFilesTests.cs` | Initialize keeps a customized list, a missing default file is named with Restore, Template newer status, the Scaffolding list has no X, the scaffolded .gitignore keeps `.onejs/` |
+| `JSRunnerInitializeReportingTests.cs` | What Initialize Project reports when it cannot create anything |
+| `JSRunnerUIDocumentOwnershipTests.cs` | Which UIDocument JSRunner may remove |
+| `CartridgeUtilsTests.cs` | String escaping, path calculation, file extraction, stylesheets |
+| `PremadeCartridgeTests.cs` | The shipped `Assets/Singtaa/Premade/` cartridge **assets**: metadata completeness, path-safe slugs, unique identities, resolvable payloads, extraction round-trip |
+| `EventIdContractTests.cs` | Event type ids agree between `QuickJSUIBridge.cs` and the bootstrap |
+| `StructSerializationTests.cs` | The JSON a data-only struct becomes in JS |
+| `StyleBridgeTests.cs` | One warning per unknown style key |
+| `UssCompilerDiagnosticsTests.cs` | Diagnostics for typo'd USS properties, and the reflected property table |
+| `JsLogSeverityTests.cs` | Splitting and routing of the console level the bootstrap encodes |
+| `InputBridgeNamingTests.cs` | The retired `GetKeyDown` names stay deprecated |
+| `AISkillContractTests.cs` | Shipped AI Skills' frontmatter versions match `package.json` |
+| `BuildValidationTests.cs` | Full build and run of a standalone player (`[Explicit]`, slow) |
+| `BuildValidationSceneSetup.cs` | Not a test: regenerates `BuildValidationScene`'s wiring (`-executeMethod`) |
 
 ## Test Categories
-
-### JSRunner Tests (JSRunnerPlaymodeTests)
-- **Scaffolding**: Working directory creation, default files
-- **Initialization**: UIDocument/PanelSettings auto-creation
-- **Execution**: Entry file execution, globals injection
-- **Reload**: Hot reload, UI clearing, state preservation
 
 ### JSPad Tests (JSPadPlaymodeTests)
 - **Temp Directory**: Instance ID generation, config file creation
@@ -157,43 +153,42 @@ var fixture = Resources.Load<TextAsset>("SimpleScript");
 var code = fixture.text;
 ```
 
-Available fixtures:
-- `SimpleScript.txt`: Basic execution validation
-- `UICreation.txt`: CS proxy and UI element creation
-- `EventTest.txt`: Event registration and dispatch
+See [Fixtures/README.md](Fixtures/README.md) for the list.
 
 ## Writing New Tests
 
 ### PlayMode Test Pattern
+
+There is no JSRunner test helper: most fixtures drive a `QuickJSContext` (or a `QuickJSUIBridge` over a runtime-created `UIDocument`) directly, as `UIToolkitJSPlaymodeTests` does:
+
 ```csharp
+[UnitySetUp]
+public IEnumerator SetUp() {
+    _panelSettings = ScriptableObject.CreateInstance<PanelSettings>();
+    _go = new GameObject("TestHost");
+    _go.AddComponent<UIDocument>().panelSettings = _panelSettings;
+    yield return null; // let UIDocument initialize
+    _ctx = new QuickJSContext();
+}
+
 [UnityTest]
-public IEnumerator MyTest_Condition_ExpectedResult() {
-    // Arrange
-    CreateJSRunner("console.log('test');");
+public IEnumerator Creation_VisualElement_Works() {
+    var result = _ctx.Eval("new CS.UnityEngine.UIElements.VisualElement().toString()");
+    StringAssert.Contains("VisualElement", result);
+    yield return null;
+}
 
-    // Act
-    yield return null; // Wait for Start()
-    yield return null; // Extra frame for initialization
-
-    // Assert
-    Assert.IsTrue(_runner.IsRunning);
+[UnityTearDown]
+public IEnumerator TearDown() {
+    _ctx?.Dispose();
+    Object.Destroy(_go);
+    Object.Destroy(_panelSettings);
+    QuickJSNative.ClearAllHandles();
+    yield return null;
 }
 ```
 
-### Using Inline Test Code (Preferred)
-```csharp
-const string TestScript = @"
-globalThis.__result = 'success';
-";
-
-CreateJSRunner(TestScript);
-```
-
-### Using Fixtures (For Complex Tests)
-```csharp
-var fixture = Resources.Load<TextAsset>("UICreation");
-CreateJSRunner(fixture.text);
-```
+Prefer inline `const string` scripts; a test that needs a real laid-out panel uses `Fixtures/PanelHost.cs`.
 
 ### Expected Log Messages
 ```csharp
@@ -209,13 +204,6 @@ LogAssert.Expect(LogType.Error, "exact message");
 4. **Proper Cleanup**: Always dispose bridge, destroy GameObjects, clear handles
 5. **Inline Code**: Prefer `const string` for simple test scripts
 
-## Build Validation Setup
+## Build Validation
 
-To run `BuildValidationTests`:
-1. Create `BuildValidation/BuildValidationScene.unity`
-2. Add `BuildValidationRunner` component to a GameObject
-3. Configure a JSRunner in the scene
-4. Add scene to Build Settings
-5. Run test from EditMode tab (marked Explicit)
-
-See `BuildValidation/README.md` for details.
+`BuildValidation/BuildValidationScene.unity` and its `TestApp/` already exist. Run `BuildValidationTests` from the EditMode tab (it is `[Explicit]` because it builds and runs a real player). See [BuildValidation/README.md](BuildValidation/README.md).

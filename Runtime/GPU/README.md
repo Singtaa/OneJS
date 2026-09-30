@@ -1,6 +1,6 @@
 # GPU Module Overview
 
-This module provides compute shader functionality accessible from JavaScript.
+Compute shaders from JavaScript (`GPUBridge`), plus the frosted glass element (`FrostedGlassElement`, `BackdropBlurManager`).
 
 ## Architecture
 
@@ -19,7 +19,9 @@ Unity ComputeShader API
 | File | Purpose |
 |------|---------|
 | `GPUBridge.cs` | Static bridge exposing compute APIs to JavaScript |
-| `ComputeShaderProvider.cs` | MonoBehaviour for registering shaders via inspector |
+| `ComputeShaderProvider.cs` | MonoBehaviour for registering shaders via inspector (`registerOnAwake`, or call `Register()`) |
+| `FrostedGlassElement.cs` | `[UxmlElement]` VisualElement (`ojs-frostedglass`, React `<FrostedGlass blur tint>`) showing the blurred scene behind it |
+| `BackdropBlurManager.cs` | Captures and blurs the scene for every FrostedGlassElement; users never touch it |
 
 ## Usage
 
@@ -79,18 +81,24 @@ shader.dispose()
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `Register(name, shader)` | `void` | Register a shader for JS access |
-| `Unregister(name)` | `void` | Remove a registered shader |
+| `Register(name, shader)` / `Unregister(name)` / `ClearRegistry()` | `void` | Named shader registry for JS access |
 | `LoadShader(name)` | `int` | Get handle for registered shader |
+| `RegisterShader(shader)` / `DisposeShader(handle)` | `int` / `void` | Handle for a shader object passed directly (`compute.register`) |
 | `FindKernel(handle, name)` | `int` | Get kernel index |
-| `SetFloat/Int/Bool/Vector/Matrix` | `void` | Set shader uniforms |
-| `CreateBuffer(count, stride)` | `int` | Create compute buffer |
+| `SetFloat/Int/Bool/Vector/Matrix` | `void` | Set shader uniforms by name |
+| `PropertyToID(name)` then `SetFloatById/SetIntById/SetVectorById` | `int` / `void` | Set uniforms by cached property id |
+| `CreateBuffer(count, stride)` / `DisposeBuffer(handle)` | `int` / `void` | Compute buffer lifetime |
 | `SetBufferData(handle, json)` | `void` | Upload data to buffer |
 | `BindBuffer(shader, kernel, name, buffer)` | `void` | Bind buffer to kernel |
+| `CreateRenderTexture(w, h, randomWrite)` / `ResizeRenderTexture` / `DisposeRenderTexture` | `int` / `bool` / `void` | Render targets for `textureRW` |
+| `SetTexture` / `SetTextureById(shader, kernel, name or id, rt)` | `void` | Bind a render texture to a kernel |
+| `SetElementBackgroundImage(element, rt)` / `ClearElementBackgroundImage(element)` | `void` | Show a render texture on a VisualElement |
 | `Dispatch(shader, kernel, x, y, z)` | `void` | Execute kernel |
 | `RequestReadback(buffer)` | `int` | Start async readback |
 | `IsReadbackComplete(id)` | `bool` | Check readback status |
 | `GetReadbackData(id)` | `string` | Get readback result as JSON |
+| `GetZeroAllocBindingIds()` | `ZeroAllocBindingIds` | Binding ids for `__zaInvokeN` (see below) |
+| `Cleanup()` | `void` | Dispose every buffer, texture and handle |
 
 ## Platform Support
 
@@ -122,7 +130,7 @@ import { compute, RenderTexture } from "onejs-unity/gpu"
 const shader = await compute.load("MyShader")
 const dispatch = shader.createDispatcher("CSMain")
 
-// Per-frame - truly zero allocations
+// Per frame: truly zero allocations
 function update(time: number) {
     dispatch
         .float("_Time", time)           // Uses cached property ID
@@ -136,13 +144,13 @@ function update(time: number) {
 
 1. **Property ID Caching**: First call to `.float("_Time", ...)` converts the string to an integer ID via `Shader.PropertyToID()`. Subsequent calls use the cached ID.
 
-2. **Specialized Bindings**: The `KernelDispatcher` uses `BindGpu*` methods that bypass C# generics entirely, no boxing, no allocations.
+2. **Zero-alloc bindings**: `GPUBridge.InitializeZeroAllocBindings()` registers each operation once through the generic `QuickJSNative.Bind<>` overloads, which convert arguments through `UnsafeUtility.As` and therefore never box. The `KernelDispatcher` calls them by binding id.
 
 3. **Native Dispatch**: Arguments are passed as primitives through native `__zaInvokeN` functions with stack-allocated arrays.
 
 ### Binding IDs
 
-GPUBridge exposes pre-registered binding IDs via `GetZeroAllocBindingIds()`:
+GPUBridge exposes pre-registered binding IDs via `GetZeroAllocBindingIds()` (registering them on first call):
 
 | Binding | Purpose |
 |---------|---------|
@@ -151,12 +159,22 @@ GPUBridge exposes pre-registered binding IDs via `GetZeroAllocBindingIds()`:
 | `setVectorById` | Set Vector4 uniform by property ID |
 | `setTextureById` | Set texture by property ID |
 | `dispatch` | Dispatch compute kernel |
-| `getScreenWidth` | Get screen width (cached per-frame) |
-| `getScreenHeight` | Get screen height (cached per-frame) |
+| `getScreenWidth` / `getScreenHeight` | `Screen.width` / `Screen.height` |
+| `propertyToId` | Name to property ID, for caching at init |
+| `setFloat` / `setInt` / `setBool` / `setVector` / `setTexture` | Name-based variants (the string argument allocates; setup only) |
 
 ### Profiling
 
 With zero-alloc bindings properly configured, `JSRunner.Update()` should show **0B GC Alloc** in Unity Profiler after warmup. The `QuickJSZeroAllocProfilerTest` demonstrates this pattern.
+
+## Frosted Glass
+
+`<FrostedGlass blur={10} tint="rgba(255,255,255,0.15)">` from onejs-react renders `FrostedGlassElement`. No camera or render texture setup:
+
+- The element registers with `BackdropBlurManager` on attach and unregisters on detach. The manager creates itself with the first element and destroys itself with the last.
+- The manager renders the 3D scene only (no UI) through a clone camera into a half-resolution target, then runs a two-pass Gaussian blur (`Hidden/OneJS/BackdropBlur`) sized for the largest `blur` in use. Pipeline-agnostic: Built-in, URP, HDRP.
+- The element shows that target through an internal background child, counter-rotated so it stays screen-aligned, with a tint overlay above it and below the user's children.
+- `blur` is in screen pixels (default 10). `tint` sets hue and opacity (default white at 0.15); the React wrapper parses only `rgb()`/`rgba()` strings.
 
 ## Notes
 

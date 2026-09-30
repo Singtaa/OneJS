@@ -71,8 +71,8 @@ Contract notes:
 
 ### Tick Loop (RAF)
 In WebGL, the tick loop uses browser's native `requestAnimationFrame` instead of Unity's Update:
-1. `__startWebGLTick()` called after script loads
-2. Browser RAF drives `__webglTick()` at 60fps
+1. `__startWebGLTick()` called after script loads (`JSRunner.RunScript`)
+2. Browser RAF drives `__webglTick()` every animation frame
 3. Processes RAF callbacks, timeouts, intervals
 4. Avoids PlayerLoop recursion (C# Update → JS → C# interop)
 
@@ -89,12 +89,11 @@ No special setup required:
 - Editor/Play Mode continues using native QuickJS
 - Just press Ctrl+B / Cmd+B to build
 
-### StreamingAssets Loading
-For WebGL, the app bundle is loaded from StreamingAssets using browser's native `fetch()`:
-1. JSRunner defers loading to Update (browser needs to be ready)
-2. Uses native `fetch()` instead of `UnityWebRequest` (more reliable in WebGL)
-3. Script executed directly in JS via `eval()` to avoid buffer size limits
-4. `__startWebGLTick()` called after successful execution
+### Bundle Loading
+The bundle ships as a TextAsset, as on every other platform (nothing goes through StreamingAssets):
+1. `JSRunner` passes `_bundleAsset.text` to `qjs_eval`
+2. The jslib runs it with indirect `eval()` in the page's global scope; only the result string goes back through the C# buffer
+3. `__startWebGLTick()` is called after it runs
 
 ## Implementation Status
 
@@ -118,7 +117,7 @@ For WebGL, the app bundle is loaded from StreamingAssets using browser's native 
 - [x] `qjs_dispatch_event`: Fast event dispatch (avoids eval)
 - [x] Native RAF tick loop (avoids PlayerLoop recursion)
 - [x] Platform defines injection (UNITY_WEBGL, etc.)
-- [x] StreamingAssets loading via native fetch
+- [x] Bundle evaluated from the embedded TextAsset
 
 ## Key Differences from Native QuickJS
 
@@ -142,7 +141,7 @@ For WebGL, the app bundle is loaded from StreamingAssets using browser's native 
 4. **performance.now()**: Don't override browser's `performance` object. Unity WebGL uses it.
 
 5. **Shared global scope**: `qjs_eval` uses indirect eval, so the bootstrap and app code run in the **embedding page's** global scope, there is no isolation from the host website. Two rules follow:
-   - All bootstrap polyfills (`URL`, `URLSearchParams`, `localStorage`, `sessionStorage`, `btoa`, `atob`, `queueMicrotask`, `performance`, `fetch`, `WebSocket`) are install-if-missing: on WebGL the browser natives win, the polyfills only exist for QuickJS. Never assign a polyfill to `globalThis` unconditionally, it would clobber the native for every script on the host page (e.g. a non-iterable `URLSearchParams` breaks Next.js routing).
+   - All bootstrap polyfills (`URL`, `URLSearchParams`, `localStorage`, `sessionStorage`, `btoa`, `atob`, `queueMicrotask`, `performance`, `fetch`, `Headers`, `Response`, `AbortController`, `WebSocket`) are install-if-missing: on WebGL the browser natives win, the polyfills only exist for QuickJS. Never assign a polyfill to `globalThis` unconditionally, it would clobber the native for every script on the host page (e.g. a non-iterable `URLSearchParams` breaks Next.js routing).
    - The whole bootstrap body lives inside an IIFE, because in sloppy-mode indirect eval **top-level `function`/`var` declarations also become own properties of the host page's `window`** (a top-level `function addEventListener(element, ...)` shadows `EventTarget.prototype.addEventListener` for the entire page). Keep every new declaration inside the IIFE; anything needed by the user bundle, C#, or the jslib must be exported explicitly via `globalThis.*`.
 
 6. **Timer overrides capture the host page** (known limitation, mitigated by teardown): `setTimeout`/`setInterval`/`requestAnimationFrame` are intentionally replaced with tick-queue versions (React must run on OneJS's tick), but because the global scope is shared, everything registered after boot is rerouted, **including Unity's own main loop**: Emscripten's `MainLoop.requestAnimationFrame` resolves the bare global at call time, so every Unity frame runs from inside `__webglTick`. While the app runs this is invisible; the sharp edge is context destruction. The last `qjs_destroy` (contexts are refcounted in the jslib) therefore calls the bootstrap's `__teardownTimers()`, which stops the RAF tick, migrates still-pending queue entries onto native timers, restores the native functions, and, when anything was migrated, leaves thin `clear*`/`cancel*` wrappers that route old override ids (always >= `1 << 30`, so they never collide with the browser's small sequential ids) to the migrated native timers; with nothing pending, the raw natives come back untouched. Additionally, `invokeCs`, the zero-alloc invoke, and `releaseHandle` refuse calls while `OneJS.contextPtr === 0` (one-time console warning): page-scope JS outlives the C# context, and after `Application.Quit` / `unityInstance.Quit()` a surviving module-level interval would otherwise dynCall into a shut-down IL2CPP runtime. Supporting mechanics: the true natives are stashed once per page in `globalThis.__onejsNativeTimers` so a bootstrap re-eval never captures a predecessor's overrides as "native"; a new bootstrap generation retires the previous one (stops its tick, migrates its queues) before installing itself; the scheduler clock seeds from `performance.now()` so pre-first-tick timers keep their real due times; and the override `clear*`/`cancel*` fall through to the natives for ids they do not own. All of this is pinned by `Tests/QuickJSSchedulerTests.cs`. A real fix for the capture itself still requires isolating OneJS execution in its own realm (iframe/ShadowRealm) or scoping the overrides to OneJS code only.
