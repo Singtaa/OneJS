@@ -331,21 +331,13 @@ namespace OneJS.Tests {
         public IEnumerator ReadTextFile_ThrowsError_ForNonexistent() {
             var testPath = Path.Combine(_testDir, "nonexistent.txt").Replace("\\", "/");
 
-            // Test that reading a non-existent file results in an error
-            // The error may come as a JS exception or as a __csError object
+            // Reading a non-existent file rejects, so the await throws
             _bridge.Eval($@"
                 globalThis.__testResult = 'not_set';
                 globalThis.__testError = null;
                 (async function() {{
                     try {{
-                        var content = await readTextFile('{testPath}');
-                        // Check if result contains error indicator
-                        if (content && typeof content === 'object' && content.__csError) {{
-                            globalThis.__testError = 'error_object';
-                            globalThis.__testResult = content.__csError;
-                        }} else {{
-                            globalThis.__testResult = content;
-                        }}
+                        globalThis.__testResult = await readTextFile('{testPath}');
                     }} catch(err) {{
                         globalThis.__testError = 'caught';
                         globalThis.__testResult = err.message || String(err);
@@ -358,12 +350,8 @@ namespace OneJS.Tests {
             var result = _bridge.Eval("globalThis.__testResult");
             var error = _bridge.Eval("globalThis.__testError");
 
-            // Should have an error (either caught as exception or returned as error object)
-            bool hasError = error == "caught" || error == "error_object" ||
-                            (result != null && result != "not_set" && result.Contains("not found"));
-
-            Assert.IsTrue(hasError,
-                $"Expected error for non-existent file. result={result}, error={error}");
+            Assert.AreEqual("caught", error,
+                $"Expected the await to throw for a non-existent file. result={result}");
         }
 
         // MARK: WriteTextFile Tests (Async)

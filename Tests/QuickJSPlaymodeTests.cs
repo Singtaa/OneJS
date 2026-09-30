@@ -38,6 +38,30 @@ namespace OneJS.Tests {
         }
 
         /// <summary>
+        /// A Task that has already faulted when it is returned.
+        /// </summary>
+        public static Task<int> AlreadyFaulted(string errorMessage) {
+            return Task.FromException<int>(new System.InvalidOperationException(errorMessage));
+        }
+
+        /// <summary>
+        /// A Task that has already been canceled when it is returned.
+        /// </summary>
+        public static Task<int> AlreadyCanceled() {
+            return Task.FromCanceled<int>(new System.Threading.CancellationToken(true));
+        }
+
+        /// <summary>
+        /// An async method that throws before its first real await, the common
+        /// way a C# method hands JS an already-faulted Task.
+        /// </summary>
+        public static async Task<int> ThrowsBeforeAwait(string errorMessage) {
+            if (errorMessage != null) throw new System.ArgumentException(errorMessage);
+            await Task.Yield();
+            return 0;
+        }
+
+        /// <summary>
         /// Async method that returns a complex object.
         /// </summary>
         public static Task<GameObject> CreateGameObjectAsync(string name) {
@@ -869,6 +893,48 @@ namespace OneJS.Tests {
             Assert.IsTrue(error.Contains("Test error message"), $"Error should contain the message, got: {error}");
 
             yield return null;
+        }
+
+        // An already-faulted or canceled Task used to come back as the string
+        // {"__csError":...}, which await took as a success value, so catch never ran.
+        const string AwaitAndRecord = @"
+            var __settledValue = null;
+            var __settledError = null;
+            var __settled = false;
+            (async function() {
+                try { __settledValue = String(await CALL); }
+                catch (e) { __settledError = e.message; }
+                __settled = true;
+            })();
+        ";
+
+        IEnumerator AwaitCall(string call) {
+            _ctx.Eval(AwaitAndRecord.Replace("CALL", call));
+            _ctx.ExecutePendingJobs();
+            yield return null;
+            QuickJSNative.ProcessCompletedTasks(_ctx);
+            _ctx.ExecutePendingJobs();
+        }
+
+        [UnityTest]
+        public IEnumerator Async_AlreadyFaultedTask_Rejects() {
+            yield return AwaitCall("CS.OneJS.Tests.AsyncTestHelper.AlreadyFaulted('faulted early')");
+            Assert.AreEqual("true", _ctx.Eval("__settled"), "The await should have settled");
+            Assert.AreEqual("faulted early", _ctx.Eval("__settledError"), $"Expected a rejection, got value {_ctx.Eval("__settledValue")}");
+        }
+
+        [UnityTest]
+        public IEnumerator Async_AlreadyCanceledTask_Rejects() {
+            yield return AwaitCall("CS.OneJS.Tests.AsyncTestHelper.AlreadyCanceled()");
+            Assert.AreEqual("true", _ctx.Eval("__settled"), "The await should have settled");
+            Assert.AreEqual("Task was canceled", _ctx.Eval("__settledError"), $"Expected a rejection, got value {_ctx.Eval("__settledValue")}");
+        }
+
+        [UnityTest]
+        public IEnumerator Async_ThrowBeforeFirstAwait_Rejects() {
+            yield return AwaitCall("CS.OneJS.Tests.AsyncTestHelper.ThrowsBeforeAwait('bad argument')");
+            Assert.AreEqual("true", _ctx.Eval("__settled"), "The await should have settled");
+            Assert.AreEqual("bad argument", _ctx.Eval("__settledError"), $"Expected a rejection, got value {_ctx.Eval("__settledValue")}");
         }
 
         [UnityTest]

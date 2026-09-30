@@ -688,21 +688,12 @@ namespace OneJS {
         /// Handle Task/Task&lt;T&gt; for async completion.
         /// </summary>
         static unsafe void SetReturnValueForTask(InteropInvokeResult* resPtr, Task task) {
-            if (task.IsCompleted) {
-                if (task.IsFaulted) {
-                    string errorMsg = task.Exception?.InnerException?.Message ??
-                                      task.Exception?.Message ?? "Task faulted";
-                    resPtr->returnValue.type = InteropType.String;
-                    resPtr->returnValue.str = StringToUtf8($"{{\"__csError\":\"{EscapeJsString(errorMsg)}\"}}");
-                    return;
-                }
-
-                if (task.IsCanceled) {
-                    resPtr->returnValue.type = InteropType.String;
-                    resPtr->returnValue.str = StringToUtf8("{\"__csError\":\"Task was canceled\"}");
-                    return;
-                }
-
+            // A faulted or canceled Task, finished or not, goes through the registration
+            // below so JS gets a Promise that rejects (via __rejectTask) with the same
+            // message a pending one would. Returning a value for it instead handed await a
+            // success and catch never ran. The continuation runs synchronously, so an
+            // already-finished Task is queued before this returns.
+            if (task.IsCompleted && !task.IsFaulted && !task.IsCanceled) {
                 // Task succeeded: return the result
                 object result = GetTaskResultDirect(task);
                 if (result == null) {
@@ -715,7 +706,7 @@ namespace OneJS {
                 return;
             }
 
-            // Task is still pending: register for async completion, owned by the context
+            // Task is still pending, or failed: register for async completion, owned by the context
             // that is mid-dispatch. Ownership is what keeps the completion from being
             // resolved into a different JSRunner's context, where the id means nothing and
             // the resolve is dropped in silence (issue #120).
