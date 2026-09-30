@@ -35,15 +35,13 @@ Or clone into Assets: `git clone https://github.com/Singtaa/OneJS.git`. Package 
 │   ├── index.tsx           # entry point
 │   ├── package.json, tsconfig.json, esbuild.config.mjs
 │   └── styles/main.uss, types/global.d.ts, AGENTS.md, .gitignore
-├── PanelSettings.asset     # project marker - the one mandatory JSRunner field
+├── PanelSettings.asset     # project marker: the one mandatory JSRunner field
 ├── UIDocument.uxml
 ├── app.js.txt              # built bundle (esbuild writes ../app.js.txt)
 └── app.js.map.txt
 ```
 
 then runs `npm install` and `npm run build` automatically.
-
-Alternative: skip the button and just enter Play mode. On first play, `JSRunnerAutoWatch` auto-creates and assigns PanelSettings, scaffolds a new app's files, runs `npm install` + `npm run build` in the background, and starts the watcher. The first run takes a moment while packages install.
 
 Key model:
 
@@ -168,6 +166,8 @@ Performance on QuickJS (an interpreter): every proxy access is a reflection cros
 | `Editor/` | Inspectors, build processor, scaffolding templates (`Editor/Templates/`), type generator |
 | `Resources/OneJS/QuickJSBootstrap.js.txt` | JS runtime core: CS proxy, events, timers, teardown hooks |
 | `Plugins/` | Native QuickJS libraries (Windows/macOS/Linux/Android/iOS) + WebGL jslib |
+| `AI/Skills/` | Shipped skill; Tools > OneJS > Install AI Skills copies it into `.claude/skills/` |
+| `DESIGN.md` | What belongs in JS vs C#, the four boundary rules |
 | `Tests/` | Unity PlayMode/EditMode tests |
 
 ## Docs map

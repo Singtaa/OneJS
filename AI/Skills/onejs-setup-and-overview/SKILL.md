@@ -5,7 +5,7 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.9.1"
-  skill-version: "1.12.0"
+  skill-version: "1.13.0"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
@@ -77,8 +77,6 @@ runner.EnsureProjectSetup();
 ```
 
 Save the scene before calling them, then run `npm install && npm run build` in the app's `~/` folder yourself, because only the button does that part for you. The full terminal recipe, including creating the Unity project and driving a live editor through the Unity MCP server, is at https://onejs.com/docs/ai-setup.
-
-There is a second path that skips the button: assign nothing and just enter Play mode. On first play, `JSRunnerAutoWatch` creates and assigns PanelSettings, scaffolds a new app's files, runs `npm install` and `npm run build` in the background, and starts the file watcher.
 
 ## Workflows
 
