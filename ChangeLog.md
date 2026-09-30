@@ -5,6 +5,7 @@ Two JSRunners in one scene no longer tear down each other's particles, physics a
 - Reloading, disabling or destroying one JSRunner no longer disposes another's particles, physics worlds, shader effects or fx textures
 - Awaiting a C# Task that already faulted or was canceled rejects instead of resolving
 - A new project depends on `onejs-react` `^0.2.2`, `onejs-ui` `^0.0.5` and `onejs-play` `^0.8.3`
+- Existing projects: update `onejs-react` to `^0.2.2` and `onejs-ui` to `^0.0.5` together; `onejs-ui` 0.0.4 on `onejs-react` 0.2.2 reopens a popover when its trigger is pressed
 
 # [2026-09-29] v3.9.1
 

@@ -170,7 +170,7 @@ The container shadows the globals a game must not reach. That list is a
 - **Given a seam** where a real need has no portable API: audio is the case, and
   `oj.audio` over Unity's `AudioSource` is the answer rather than WebAudio
 
-If a game runs on OneJS Play, it runs everywhere OneJS runs. That promise is
+If a game runs on OJPlay, it runs everywhere OneJS runs. That promise is
 worth more than any single browser convenience, and it is only true if the
 boundary is enforced rather than documented.
 

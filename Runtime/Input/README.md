@@ -30,7 +30,7 @@ whole method surface (66 methods) guarded by `#if`, which would have to be kept 
 forever, and would still be unable to mirror those methods.
 
 Without the package a game reads input through `setInputBackend` instead. That
-seam already exists for the OneJS Play container, which feeds input from browser
+seam already exists for the OJPlay container, which feeds input from browser
 events and never touches this class.
 
 ## What stays behind
@@ -44,7 +44,7 @@ JS API is unchanged.
 
 UI Toolkit pointer events do not come from this class, or from the Input System.
 Clicks, focus and hover reach a runtime panel through Unity's own input path.
-Verified both ways: with the package absent, clicking Wordle's on-screen keyboard
+Verified both ways: with the package absent, clicking Wordie's on-screen keyboard
 still puts a letter on the board.
 
 ## Keyboard and gamepad navigation

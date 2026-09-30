@@ -40,14 +40,14 @@ Save the file and the UI hot-reloads in the editor, in both Edit mode and Play m
 ## Requirements
 
 - Unity 6.3+
-- Node.js 18+ (development machine only)
+- Node.js 18+ (development machine only). `onejs-play`'s `oj run` and `oj test` need Node 22+; on older Node, `npm install` warns `EBADENGINE` for `onejs-play` and otherwise works
 
 ## Installation
 
 **Package Manager (recommended):**
 
-1. Open Window > Package Manager
-2. Click + > Add package from git URL
+1. Open Window > Package Management > Package Manager
+2. Click + > Install package from git URL...
 3. Enter: `https://github.com/Singtaa/OneJS.git`
 
 Use that URL with no branch suffix. `onejs-v1`, `onejs-v2` and
