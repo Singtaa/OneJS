@@ -33,6 +33,7 @@ PlayMode (`Tests/*.cs`):
 | `QuickJSExtensionDispatchTests.cs` | Extension methods with omitted optional arguments (`element.Q("name")`) |
 | `QuickJSTypeResolutionTests.cs` | CS paths to types, nested types, unresolvable paths |
 | `QuickJSMultiContextTests.cs` | Two live contexts at once (two JSRunners) |
+| `PerContextResourcePlaymodeTests.cs` | One context's teardown disposes only the particles, physics worlds, shader effects and fx textures it made; another JSRunner's keep running |
 | `QuickJSUIBridgePlaymodeTests.cs` | Event delegation, scheduling, Promises |
 | `QuickJSSchedulerTests.cs` | Bounded scheduler passes and the WebGL timer teardown contract |
 | `QuickJSBootstrapScopeTests.cs` | Global-scope contract: install-if-missing polyfills, IIFE non-leakage (WebGL host-page safety) |

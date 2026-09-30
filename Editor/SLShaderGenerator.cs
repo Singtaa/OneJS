@@ -46,10 +46,11 @@ namespace OneJS.Editor {
         /// </summary>
         public const string OutputDir = "Assets/OneJS.Generated/Shaders";
         /// <summary>
-        /// The manifest the running app writes, one entry per program it
-        /// interpreted. Outside <see cref="OutputDir"/> because it is a source,
-        /// not a product: a program built in code is known only from this file,
-        /// so it has to be committed for a teammate's build or CI to ship it.
+        /// The manifest the editor writes, one entry per program built in code
+        /// that it has drawn, plus JSPad's (<see cref="RecordManifest"/>).
+        /// Outside <see cref="OutputDir"/> because it is a source, not a product:
+        /// a program built in code is known only from this file, so it has to be
+        /// committed for a teammate's build or CI to ship it.
         /// </summary>
         public const string RecordedManifest = "Assets/OneJS/Recorded.sl.json";
         /// <summary>Where <see cref="RecordedManifest"/> lived before, inside the folder projects ignore.</summary>

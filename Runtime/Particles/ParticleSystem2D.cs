@@ -192,7 +192,7 @@ namespace OneJS {
 
         /// <summary>
         /// Detaches from the host element and stops all work. Safe to call twice.
-        /// Invoked from JS (effect cleanup / teardown) or ParticleBridge.DisposeAll.
+        /// Invoked from JS (effect cleanup / teardown) or ParticleBridge.DisposeOwnedBy / DisposeAll.
         /// </summary>
         public void Dispose() {
             if (_disposed) return;
