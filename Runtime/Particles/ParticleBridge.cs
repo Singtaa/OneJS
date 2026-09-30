@@ -28,7 +28,7 @@ namespace OneJS {
             if (ve == null)
                 throw new ArgumentException("[OneJS Particles] Create requires a VisualElement.");
             var doc = ParticleWire.Parse(json);
-            var sys = new ParticleSystem2D(ve, doc, texture);
+            var sys = new ParticleSystem2D(ve, doc, texture) { OwnerContextId = QuickJSNative.CurrentContextId };
             s_Systems.Add(sys);
             return sys;
         }
@@ -72,10 +72,20 @@ namespace OneJS {
         }
 
         /// <summary>
-        /// Safety net for context teardown (hot reload, stop): disposes any
-        /// systems the JS side leaked. Normal disposal happens via JS effect
-        /// cleanups during the teardown hooks, before this runs.
+        /// Safety net for one context's teardown (hot reload, stop): disposes
+        /// the systems that context leaked and leaves every other context's
+        /// running. Normal disposal happens via JS effect cleanups during the
+        /// teardown hooks, before this runs.
         /// </summary>
+        public static void DisposeOwnedBy(int contextId) {
+            for (int i = s_Systems.Count - 1; i >= 0; i--) {
+                if (s_Systems[i].OwnerContextId != contextId) continue;
+                s_Systems[i].Dispose();
+                s_Systems.RemoveAt(i);
+            }
+        }
+
+        /// <summary>Disposes every system, for the last context going away.</summary>
         public static void DisposeAll() {
             for (int i = 0; i < s_Systems.Count; i++)
                 s_Systems[i].Dispose();

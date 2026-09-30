@@ -81,12 +81,16 @@ namespace OneJS.Fx {
 
         static readonly Dictionary<int, Texture> s_Textures = new Dictionary<int, Texture>();
         static readonly HashSet<int> s_Pooled = new HashSet<int>();
+        // The context that asked for each handle, so one context's teardown
+        // releases its handles and no one else's.
+        static readonly Dictionary<int, int> s_Owners = new Dictionary<int, int>();
         static int s_NextHandle = 1;
 
         static int Track(Texture t, bool pooled) {
             int h = s_NextHandle++;
             s_Textures[h] = t;
             if (pooled) s_Pooled.Add(h);
+            s_Owners[h] = QuickJSNative.CurrentContextId;
             return h;
         }
 
@@ -107,6 +111,7 @@ namespace OneJS.Fx {
         public static void Release(int handle) {
             if (!s_Textures.TryGetValue(handle, out var t)) return;
             s_Textures.Remove(handle);
+            s_Owners.Remove(handle);
             if (s_Pooled.Remove(handle) && t is RenderTexture rt) ReturnToPool(rt);
         }
 
@@ -725,15 +730,29 @@ namespace OneJS.Fx {
 
         // MARK: teardown
 
+        static readonly List<int> s_Doomed = new List<int>();
+
         /// <summary>
-        /// Context teardown safety net. JS side disposal runs first through
-        /// __onTeardown; this catches whatever it missed.
+        /// Safety net for one context's teardown. JS side disposal runs first
+        /// through __onTeardown; this releases whatever handles that context
+        /// missed, leaving other contexts' handles, the pool and the materials
+        /// for the contexts still running.
         /// </summary>
+        public static void DisposeOwnedBy(int contextId) {
+            s_Doomed.Clear();
+            foreach (var kv in s_Owners)
+                if (kv.Value == contextId) s_Doomed.Add(kv.Key);
+            foreach (var h in s_Doomed) Release(h);
+            s_Doomed.Clear();
+        }
+
+        /// <summary>Frees every handle, the pool and the materials, for the last context going away.</summary>
         public static void DisposeAll() {
             foreach (var kv in s_Textures)
                 if (s_Pooled.Contains(kv.Key) && kv.Value is RenderTexture rt) Destroy(rt);
             s_Textures.Clear();
             s_Pooled.Clear();
+            s_Owners.Clear();
             foreach (var stack in s_Pool.Values)
                 while (stack.Count > 0) Destroy(stack.Pop());
             s_Pool.Clear();

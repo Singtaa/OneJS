@@ -275,6 +275,13 @@ namespace OneJS {
             if (_disposed) return;
             _disposed = true;
 
+            // The pending-task queue, the handle table and the C#-owned resource
+            // registries are shared by every live context (see QuickJSNative), so
+            // only wipe them wholesale when the FINAL bridge is going away.
+            // Decrement exactly once per bridge, and only if construction counted it.
+            bool lastBridge = _countedLive
+                && System.Threading.Interlocked.Decrement(ref _liveBridgeCount) <= 0;
+
             // Run JS-registered teardown hooks (e.g. React unmounts its roots, firing
             // useEffect/useLayoutEffect cleanups) while the context is still alive. This
             // is the single chokepoint for every teardown path (hot reload, play/edit
@@ -283,13 +290,23 @@ namespace OneJS {
             // back into QuickJS would be unsafe.
             if (disposing) {
                 RunTeardownHooks();
-                // Safety net: dispose particle systems the JS side leaked. Normal
-                // disposal already happened via effect cleanups inside the teardown
-                // hooks above. Not on the finalizer path (touches VisualElements).
-                ParticleBridge.DisposeAll();
-                Physics2DBridge.DisposeAll();
-                OneJS.ShaderFX.ShaderEffectBridge.DisposeAll();
-                OneJS.Fx.FxBridge.DisposeAll();
+                // Safety net: dispose the particle systems, physics worlds, shader
+                // effects and fx handles this context leaked, leaving another
+                // JSRunner's running. Normal disposal already happened via effect
+                // cleanups inside the teardown hooks above. The last bridge also
+                // sweeps anything made outside a JS call, plus the fx pool and
+                // materials. Not on the finalizer path (touches VisualElements).
+                int owner = _ctx?.Id ?? 0;
+                ParticleBridge.DisposeOwnedBy(owner);
+                Physics2DBridge.DisposeOwnedBy(owner);
+                OneJS.ShaderFX.ShaderEffectBridge.DisposeOwnedBy(owner);
+                OneJS.Fx.FxBridge.DisposeOwnedBy(owner);
+                if (lastBridge) {
+                    ParticleBridge.DisposeAll();
+                    Physics2DBridge.DisposeAll();
+                    OneJS.ShaderFX.ShaderEffectBridge.DisposeAll();
+                    OneJS.Fx.FxBridge.DisposeAll();
+                }
             }
 
             _tickCallbackHandle = -1;
@@ -301,12 +318,6 @@ namespace OneJS {
             ClearStyleSheets(); // Clean up JS-loaded stylesheets
             WebSocketBridge.CloseAll(_wsContextId);
             WebSocketBridge.UnregisterContext(_wsContextId);
-
-            // The pending-task queue and handle table are shared by every live context
-            // (see QuickJSNative), so only wipe them when the FINAL bridge is going away.
-            // Decrement exactly once per bridge, and only if construction counted it.
-            bool lastBridge = _countedLive
-                && System.Threading.Interlocked.Decrement(ref _liveBridgeCount) <= 0;
 
             if (lastBridge) QuickJSNative.ClearPendingTasks();
             _ctx?.Dispose();

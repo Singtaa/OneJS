@@ -65,6 +65,12 @@ namespace OneJS.ShaderFX {
         bool _cleared = true;      // the next frame is frame 0
         static bool s_WarnedHistoryFormat;
 
+        /// <summary>
+        /// The context that created this, so tearing that context down disposes
+        /// it without touching another JSRunner's. 0 when made outside a JS call.
+        /// </summary>
+        internal int OwnerContextId { get; set; }
+
         public ShaderEffectElement() {
             pickingMode = PickingMode.Ignore;
             ShaderEffectBridge.Register(this);

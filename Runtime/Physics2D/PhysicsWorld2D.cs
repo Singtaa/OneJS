@@ -44,6 +44,12 @@ namespace OneJS {
         public int BodyCount => _bodies.Count;
         public int PendingEventCount => _events.Count / EventStride;
 
+        /// <summary>
+        /// The context that created this, so tearing that context down disposes
+        /// it without touching another JSRunner's. 0 when made outside a JS call.
+        /// </summary>
+        internal int OwnerContextId { get; set; }
+
         class Body {
             public Rigidbody2D Rb;
             public VisualElement Element;

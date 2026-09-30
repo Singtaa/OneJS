@@ -22,7 +22,9 @@ namespace OneJS.ShaderFX {
         static double s_LastTick;
 
         internal static void Register(ShaderEffectElement e) {
-            if (!s_Elements.Contains(e)) s_Elements.Add(e);
+            if (s_Elements.Contains(e)) return;
+            e.OwnerContextId = QuickJSNative.CurrentContextId;
+            s_Elements.Add(e);
         }
 
         internal static void Unregister(ShaderEffectElement e) => s_Elements.Remove(e);
@@ -53,7 +55,17 @@ namespace OneJS.ShaderFX {
                 s_Elements[i]?.Tick(dt);
         }
 
-        /// <summary>Context teardown safety net: JS effect cleanups run first.</summary>
+        /// <summary>
+        /// Safety net for one context's teardown, after its JS effect cleanups:
+        /// disposes the effects that context made and leaves the rest animating.
+        /// </summary>
+        public static void DisposeOwnedBy(int contextId) {
+            // Walked backwards because Dispose unregisters the element.
+            for (int i = s_Elements.Count - 1; i >= 0; i--)
+                if (s_Elements[i]?.OwnerContextId == contextId) s_Elements[i].Dispose();
+        }
+
+        /// <summary>Disposes every effect, for the last context going away.</summary>
         public static void DisposeAll() {
             for (int i = s_Elements.Count - 1; i >= 0; i--)
                 s_Elements[i]?.Dispose();

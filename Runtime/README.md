@@ -43,7 +43,7 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `Particles/ParticleSystem2D.cs` | 2D particle system: C#-owned SoA sim + quad mesh write inside a host element |
 | `Particles/ParticleBridge.cs` | JS entry (`Create`), live-system registry, `TickAll` (driven from `QuickJSUIBridge.TickSystems()`) |
 | `Particles/ParticleWire.cs` | Versioned wire schema + validation (the C#-JS contract; parity with onejs-react particles.test.ts) |
-| `Physics2D/Physics2DBridge.cs` | JS entry for 2D physics worlds, `TickAll`, `DisposeAll` (same shape as `ParticleBridge`) |
+| `Physics2D/Physics2DBridge.cs` | JS entry for 2D physics worlds, `TickAll`, `DisposeOwnedBy` / `DisposeAll` (same shape as `ParticleBridge`) |
 | `Physics2D/PhysicsWorld2D.cs` | A script-simulated Unity 2D physics world (`Rigidbody2D`) whose bodies drive VisualElements by `transform.position`; contacts come back as one flat event buffer |
 | `Physics2D/Physics2DWire.cs` | Versioned wire schema (v1) shared with onejs-unity `src/physics2d/index.ts`, guarded by the container's `Physics2DWireContractTests` |
 | `Audio/AudioBridge.cs` | Sound on every platform: clips load once to a handle, plays are single calls on a pool of 24 `AudioSource` voices |
@@ -645,8 +645,12 @@ crossings, and steady-state emission costs zero JS work.
   50ms and guarded against double-ticks when multiple bridges are alive.
 - **Lifecycle**: `ParticleBridge.Create(ve, json, texture)` returns the system
   (one handle). JS disposes via effect cleanup (runs on unmount and hot reload
-  through the teardown hooks); `ParticleBridge.DisposeAll()` in
-  `QuickJSUIBridge.Dispose()` is the leak safety net. Bursts drop when at
+  through the teardown hooks); `ParticleBridge.DisposeOwnedBy(contextId)` in
+  `QuickJSUIBridge.Dispose()` is the leak safety net. Each system records the
+  context that created it, so tearing one JSRunner down leaves another's
+  running; the last bridge's `DisposeAll()` sweeps anything made outside a JS
+  call. Physics worlds, shader effects and fx handles follow the same
+  ownership rule. Bursts drop when at
   capacity (`max` is the budget knob).
 
 **Wire versioning**: the parser accepts v1..v4. Every added field defaults to the
@@ -788,7 +792,7 @@ with ParticleTests in `Tests/Fixtures/PanelHost.cs`.
 
 JS side: `createPhysicsWorld(host, config)` from `onejs-unity/physics2d`.
 
-- **Shape**: the same as the particle engine. A world crosses once as a versioned wire JSON (`Physics2DWire`, v1), is ticked from `QuickJSUIBridge.TickSystems()` and disposed with the context (`Physics2DBridge.DisposeAll`).
+- **Shape**: the same as the particle engine. A world crosses once as a versioned wire JSON (`Physics2DWire`, v1), is ticked from `QuickJSUIBridge.TickSystems()` and disposed with the context that created it (`Physics2DBridge.DisposeOwnedBy`).
 - **Bodies drive elements**: `PhysicsWorld2D` owns `Rigidbody2D`s under a hidden root and writes each body's element `transform.position` (render time, no relayout). A hundred bodies cost JS nothing per frame.
 - **Coordinates**: everything crossing the boundary is in panel units (Y down); this class is the only place they meet physics units (Y up).
 - **Contacts**: recorded as flat numbers (`EventStride`, 6 per contact) and handed to JS in one `DrainEvents()` call per frame.
@@ -807,7 +811,7 @@ JS side: `audio` from `onejs-unity/audio`. `AudioBridge` exists so sound works t
 
 ## Image Fx (`Fx/` folder)
 
-JS side: `onejs-unity/fx` (wire contract in `src/fx/ops.ts`; change both together). `FxBridge.Execute` / `ExecuteInto` replay a chain that crossed as one flat float buffer (the `__csArray` path PainterBridge uses). Runs of per-pixel ops fuse into one blit through `OneJS/FxOps` (up to `MaxFusedOps`, 16, matching the shader's `MAX_OPS`); spatial and neighbourhood ops take a pass of their own. Author colours are sRGB and converted to the linear working space on the way in. Targets and loaded textures are handles, released by `Release` or `DisposeAll` on context teardown.
+JS side: `onejs-unity/fx` (wire contract in `src/fx/ops.ts`; change both together). `FxBridge.Execute` / `ExecuteInto` replay a chain that crossed as one flat float buffer (the `__csArray` path PainterBridge uses). Runs of per-pixel ops fuse into one blit through `OneJS/FxOps` (up to `MaxFusedOps`, 16, matching the shader's `MAX_OPS`); spatial and neighbourhood ops take a pass of their own. Author colours are sRGB and converted to the linear working space on the way in. Targets and loaded textures are handles, released by `Release` or, on teardown, `DisposeOwnedBy` for the handles that context made; the pool and materials go with the last context (`DisposeAll`).
 
 ## WebSocket (`WebSocketBridge.cs`)
 

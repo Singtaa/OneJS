@@ -27,7 +27,7 @@ namespace OneJS {
             if (host == null)
                 throw new ArgumentException("[OneJS Physics2D] Create requires a VisualElement.");
             var doc = Physics2DWire.Parse(json);
-            var world = new PhysicsWorld2D(host, doc);
+            var world = new PhysicsWorld2D(host, doc) { OwnerContextId = QuickJSNative.CurrentContextId };
             s_Worlds.Add(world);
             return world;
         }
@@ -56,6 +56,19 @@ namespace OneJS {
             }
         }
 
+        /// <summary>
+        /// Safety net for one context's teardown: disposes the worlds that
+        /// context leaked and leaves every other context's simulating.
+        /// </summary>
+        public static void DisposeOwnedBy(int contextId) {
+            for (int i = s_Worlds.Count - 1; i >= 0; i--) {
+                if (s_Worlds[i].OwnerContextId != contextId) continue;
+                s_Worlds[i].Dispose();
+                s_Worlds.RemoveAt(i);
+            }
+        }
+
+        /// <summary>Disposes every world, for the last context going away.</summary>
         public static void DisposeAll() {
             for (int i = 0; i < s_Worlds.Count; i++) s_Worlds[i].Dispose();
             s_Worlds.Clear();
