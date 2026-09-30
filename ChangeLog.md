@@ -1,3 +1,11 @@
+# [2026-09-30] v3.9.2
+
+Two JSRunners in one scene no longer tear down each other's particles, physics and effects, and awaiting a C# Task that already failed now rejects. A new project depends on `onejs-react` `^0.2.2` and `onejs-ui` `^0.0.5`, whose popovers and menus close on a press outside them or on Escape inside a dialog.
+
+- Reloading, disabling or destroying one JSRunner no longer disposes another's particles, physics worlds, shader effects or fx textures
+- Awaiting a C# Task that already faulted or was canceled rejects instead of resolving
+- A new project depends on `onejs-react` `^0.2.2`, `onejs-ui` `^0.0.5` and `onejs-play` `^0.8.3`
+
 # [2026-09-29] v3.9.1
 
 A shader program can read the frame it drew before, and count frames and the time between them, for trails, feedback and effects that settle; bump `onejs-unity` to `^0.9.1` for them. Existing programs draw as they did.
