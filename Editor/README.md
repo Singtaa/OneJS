@@ -58,10 +58,10 @@ The inspector shows different UI depending on the PanelSettings configuration:
 
 ### Tabbed Layout
 
-When fully initialized, the inspector shows four tabs:
+When fully initialized, the Panel Settings field sits above the status section, outside the tabs, and the inspector shows four tabs:
 
-- **Project**: Panel Settings reference, tick mode, Don't Destroy On Load, live reload (poll interval, Janitor), preloads, globals
-- **UI**: Stylesheets, and the assigned PanelSettings asset's own inspector (the reference itself is on Project)
+- **Project**: tick mode, Don't Destroy On Load, live reload (poll interval, Janitor), preloads, globals
+- **UI**: Stylesheets, and the assigned PanelSettings asset's own inspector
 - **Cartridges**: UI Cartridge list with per-row Extract (**E**), Delete extracted (**D**) and remove (**X**), plus Extract All and Delete All Extracted
 - **Build**: Build output (bundle, source map, Include Source Map, Exclude From Build), type generation, scaffolding (default files with Restore)
 
@@ -86,6 +86,8 @@ Right-click the status section for:
 
 - **Run in Background**: Toggles the project's `PlayerSettings.runInBackground`
 - **Use Scene Name as Root Folder**: Toggle whether Initialize Project creates the folder under `{SceneDir}/{SceneName}/` or directly beside the scene (stored in `EditorPrefs`)
+
+The component header's context menu has **Toggle Dev Mode**: it shows the tabs and actions even without a valid PanelSettings, for debugging.
 
 ### Initialize Project Button
 
@@ -145,7 +147,7 @@ The inspector's watcher status label shows:
 ## JSPadEditor
 
 Custom inspector for the inline TSX runner:
-- **Status**: Ready, Not built, or Processing, plus the bundle size
+- **Status**: Processing, Running, Ready, or Not built, plus the bundle size
 - **Action button**: **Build** in Edit mode (writes `index.tsx`, runs `npm install` if `node_modules` is missing, then esbuild) and **Build & Reload** in Play mode (skips `npm install`, rebuilds, reloads)
 - **Overflow menu** (**⋮**): **Open Folder** reveals `Temp/OneJSPad/{id}/`; **Clean** deletes it, `node_modules` included
 - **Tabs**: UI, Cartridges, Modules (extra npm packages, with **Install**), and a Settings foldout

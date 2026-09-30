@@ -1021,7 +1021,7 @@ For per-frame calls (e.g. GPU compute uniforms and dispatch), a C# method can be
 2. Call from JS: `__zaInvokeN(id, arg0, ...)`, where N is the argument count. Arguments travel as a stack-allocated `InteropValue` array.
 3. `RegisterZeroAllocMethodBinding(typeName, methodName, argCount)` binds a public static method by reflection (what onejs-unity's `interop.bind()` calls); init time only.
 
-The generic `Bind<>` overloads are boxing-free: `GetArg<T>` and `SetResult<T>` convert through `UnsafeUtility.As`. Primitives, strings (valid during the call), object handles and `Vector3`/`Vector4`/`Color` arguments stay zero-alloc; a string, struct or object *return* allocates its buffer or handle the way the fast path does. Max 8 arguments per call.
+The generic `Bind<>` overloads are boxing-free: `GetArg<T>` and `SetResult<T>` convert through `UnsafeUtility.As`. Primitives, strings (valid during the call), object handles and `Vector3`/`Vector4`/`Color` arguments stay zero-alloc, and so do primitive, vector and `Color` returns; a string, data struct or object *return* allocates its buffer or handle the way the fast path does. Max 8 arguments per call.
 
 `GPUBridge.InitializeZeroAllocBindings()` registers the GPU set (`setFloatById`, `setIntById`, `setVectorById`, `setTextureById`, `dispatch`, `getScreenWidth`/`Height`, `propertyToId`, plus string-named convenience variants); JS reads the ids through `GetZeroAllocBindingIds()`. Uniform names are turned into ids once with `GPUBridge.PropertyToID` and cached JS-side, so per-frame calls pass only numbers. See `GPU/README.md`.
 

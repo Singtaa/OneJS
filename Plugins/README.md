@@ -117,8 +117,9 @@ python3 Auxiliary~/quickjs-unity/check-plugin-deps.py
 
 It reads each binary's dependency list out of the container format itself and
 rejects anything an end user's machine would not already have. CI runs it on
-every push, together with `load-plugin-smoke.py`, which opens each binary on a
-matching runner and checks its `qjs_abi_version` against the C# side.
+every push, together with `load-plugin-smoke.py`, which opens the Linux, Windows and macOS
+binaries on a runner of their own platform and checks each `qjs_abi_version`
+against the C# side. Android and iOS get the static check only.
 
 ## Linux glibc Baseline
 
