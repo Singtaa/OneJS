@@ -827,7 +827,7 @@ namespace OneJS {
         }
 
         [Obsolete("GetCartridgePath is now GetPackPath.")]
-        public string GetCartridgePath(Pack cartridge) => GetPackPath(cartridge);
+        public string GetCartridgePath(UICartridge cartridge) => GetPackPath(cartridge as Pack);
 #endif
 
         /// <summary>

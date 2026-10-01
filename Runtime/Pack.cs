@@ -47,7 +47,9 @@ namespace OneJS {
     /// Pack is accessible via: __pack('slug') or __pack('@namespace/slug')
     /// </summary>
     [CreateAssetMenu(fileName = "NewPack", menuName = "OneJS/Pack", order = 100)]
-    public class Pack : ScriptableObject {
+#pragma warning disable 0618 // The obsolete base is what keeps fields typed UICartridge holding packs
+    public class Pack : UICartridge {
+#pragma warning restore 0618
         [Tooltip("Optional namespace for organizing packs (e.g., 'myCompany' -> @packs/@myCompany/{slug})")]
         [SerializeField] string _namespace;
 

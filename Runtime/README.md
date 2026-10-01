@@ -38,7 +38,8 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `PackTypeGenerator.cs` | Generates TypeScript declarations for pack types (`__pack`, plus `__cart` marked deprecated) |
 | `PackUtils.cs` | Extracting packs to a runner's pack folder and exposing them to JS, used by JSRunner and JSPad |
 | `RunnerUtils.cs` | Context setup helpers JSRunner and JSPad share: JS string escaping, stylesheets, platform defines |
-| `UICartridge.cs`, `CartridgeUtils.cs`, `CartridgeTypeGenerator.cs` | Obsolete forwarders for the names from before cartridges became packs |
+| `UICartridge.cs` | Obsolete abstract base of `Pack`, so anything typed `UICartridge` still holds and finds a pack |
+| `CartridgeUtils.cs`, `CartridgeTypeGenerator.cs` | Obsolete forwarders for the names from before cartridges became packs |
 | `StyleBridge.cs` | Batched style + class-list application; typed IStyle setters for common props (no reflection), reflection fallback for the long tail |
 | `PainterBridge.cs` | Batched vector drawing: replays a Painter2D command buffer in one crossing |
 | `TreeViewBridge.cs` | TreeView data plumbing: wraps the generic `SetRootItems<T>` (generic methods are unreachable from JS) taking the tree as parallel pre-order int arrays with data kept JS-side, plus int[] selection getters (`IEnumerable<int>` cannot cross) |

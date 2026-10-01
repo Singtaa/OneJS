@@ -6,7 +6,7 @@ namespace OneJS {
     public static class CartridgeTypeGenerator {
         public const string VersionLinePrefix = PackTypeGenerator.VersionLinePrefix;
 
-        public static string Generate(Pack cartridge) => PackTypeGenerator.Generate(cartridge);
+        public static string Generate(UICartridge cartridge) => PackTypeGenerator.Generate(cartridge as Pack);
 
         public static string ParseVersion(string dtsText) => PackTypeGenerator.ParseVersion(dtsText);
     }

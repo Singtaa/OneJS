@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine.UIElements;
 
 namespace OneJS {
@@ -11,21 +12,23 @@ namespace OneJS {
     public static class CartridgeUtils {
         public static string EscapeJsString(string s) => RunnerUtils.EscapeJsString(s);
 
-        public static string GetCartridgePath(string baseDir, Pack cartridge) =>
-            PackUtils.GetPackPath(baseDir, PackUtils.LegacyFolder, cartridge);
+        public static string GetCartridgePath(string baseDir, UICartridge cartridge) =>
+            PackUtils.GetPackPath(baseDir, PackUtils.LegacyFolder, cartridge as Pack);
 
-        public static List<string> ExtractCartridges(string baseDir, IReadOnlyList<Pack> cartridges, bool overwriteExisting, string logPrefix = null) =>
-            PackUtils.ExtractPacks(baseDir, PackUtils.LegacyFolder, cartridges, overwriteExisting, logPrefix);
+        public static List<string> ExtractCartridges(string baseDir, IReadOnlyList<UICartridge> cartridges, bool overwriteExisting, string logPrefix = null) =>
+            PackUtils.ExtractPacks(baseDir, PackUtils.LegacyFolder, AsPacks(cartridges), overwriteExisting, logPrefix);
 
-        public static string GetExtractedVersion(string baseDir, Pack cartridge) =>
-            PackUtils.GetExtractedVersion(baseDir, PackUtils.LegacyFolder, cartridge);
+        public static string GetExtractedVersion(string baseDir, UICartridge cartridge) =>
+            PackUtils.GetExtractedVersion(baseDir, PackUtils.LegacyFolder, cartridge as Pack);
 
-        public static void InjectCartridgeGlobals(QuickJSUIBridge bridge, IReadOnlyList<Pack> cartridges) =>
-            PackUtils.InjectPackGlobals(bridge, cartridges);
+        public static void InjectCartridgeGlobals(QuickJSUIBridge bridge, IReadOnlyList<UICartridge> cartridges) =>
+            PackUtils.InjectPackGlobals(bridge, AsPacks(cartridges));
 
         public static void ApplyStylesheets(VisualElement root, IReadOnlyList<StyleSheet> stylesheets) =>
             RunnerUtils.ApplyStylesheets(root, stylesheets);
 
         public static void InjectPlatformDefines(QuickJSUIBridge bridge) => RunnerUtils.InjectPlatformDefines(bridge);
+
+        static List<Pack> AsPacks(IReadOnlyList<UICartridge> cartridges) => cartridges?.OfType<Pack>().ToList();
     }
 }

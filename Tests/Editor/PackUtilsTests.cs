@@ -535,6 +535,13 @@ namespace OneJS.Tests.Editor {
 
 #pragma warning disable 0618 // the obsolete forwarders are what these test
         [Test]
+        public void UICartridge_IsAnAbstractBaseOfPack() {
+            // A base, so anything typed UICartridge holds a pack; abstract, so nothing makes one.
+            Assert.IsTrue(typeof(UICartridge).IsAssignableFrom(typeof(Pack)));
+            Assert.IsTrue(typeof(UICartridge).IsAbstract);
+        }
+
+        [Test]
         public void CartridgeUtils_ForwardsToTheFolderItAlwaysUsed() {
             var pack = CreateTestPack("oldCart");
             SetPackVersion(pack, "1.0.0");
