@@ -7,6 +7,7 @@ Editor scripts for OneJS Unity integration.
 | File | Purpose |
 |------|---------|
 | `JSRunnerEditor.cs` | Custom inspector for JSRunner component |
+| `ProjectSetup.cs` | Initialize Project as a call: `Initialize()` for `-executeMethod` (picks or creates the scene and runner, saves in batch mode, throws on failure), `InitializeRunner(runner)` for one runner, which the inspector button also calls |
 | `JSRunnerAutoWatch.cs` | Auto-starts file watchers on Play mode entry |
 | `JSRunnerCleanup.cs` | Tracks JSRunner instances for cleanup bookkeeping |
 | `JSPadEditor.cs` | Custom inspector for JSPad inline runner |
@@ -91,7 +92,7 @@ The component header's context menu has **Toggle Dev Mode**: it shows the tabs a
 
 ### Initialize Project Button
 
-When PanelSettings is not assigned or the folder is not valid, the inspector shows an "Initialize Project" button. This calls `EnsureProjectFolderAndAssets()` which:
+When PanelSettings is not assigned or the folder is not valid, the inspector shows an "Initialize Project" button. It calls `ProjectSetup.InitializeRunner()`, the same call the headless `ProjectSetup.Initialize()` makes, and then runs `npm install` and `npm run build` in the background. `InitializeRunner()` calls `EnsureProjectFolderAndAssets()`, which:
 
 1. Creates the PanelSettings asset (if needed) in the appropriate scene folder
 2. Creates the `~/` working directory

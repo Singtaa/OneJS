@@ -51,7 +51,7 @@ Key model:
 - Scaffolding never overwrites existing files, and writes each default file once: `~/.onejs/scaffold` records what the app was given, so a deleted file stays deleted until Restore in the Build tab brings it back.
 - `~/.onejs/` holds small per-app OneJS state the project commits, never caches or machine-local files.
 
-Headless (no inspector click): the three methods the button calls are public on `JSRunner`, `AddMissingDefaultFiles()`, `EnsureProjectFolderAndAssets(true)`, `EnsureProjectSetup()`, callable from a small editor script (which `-executeMethod` can invoke); then run `npm install && npm run build` in `~/`.
+Headless (no inspector click): `unity run <project> -- -nographics -executeMethod OneJS.Editor.ProjectSetup.Initialize` does what the button does short of npm. Without Unity's CLI, call the editor binary: `<editor> -batchmode -nographics -quit -projectPath <project> -executeMethod OneJS.Editor.ProjectSetup.Initialize -logFile -` (`-quit` is required; without it the editor stays open). It sets up every JSRunner in the active scene (else the first build scene, else a new `Assets/Scenes/Main.unity`), adds one on `App` when there is none, saves, and logs the working directory; then run `npm install && npm run build` in that `~/`. Both forms exit non-zero when it cannot set a runner up. From editor code, `ProjectSetup.InitializeRunner(runner)` sets up one runner and returns its working directory.
 
 ## Build and live reload
 

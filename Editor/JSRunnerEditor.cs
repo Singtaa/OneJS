@@ -19,7 +19,6 @@ namespace OneJS.Editor {
     public class JSRunnerEditor : UnityEditor.Editor {
         const string TabPrefKey = "JSRunner.ActiveTab";
         const string CodeEditorPathPrefKey = "OneJS.CodeEditorPath";
-        const string UseSceneNameAsRootFolderPrefKey = "OneJS.Initialize.UseSceneNameAsRootFolder";
 
         JSRunner _target;
         bool _buildInProgress;
@@ -1393,8 +1392,8 @@ namespace OneJS.Editor {
                 menu.AddItem(new GUIContent("Run in Background"), PlayerSettings.runInBackground, () => {
                     PlayerSettings.runInBackground = !PlayerSettings.runInBackground;
                 });
-                menu.AddItem(new GUIContent("Use Scene Name as Root Folder"), EditorPrefs.GetBool(UseSceneNameAsRootFolderPrefKey, true), () => {
-                    EditorPrefs.SetBool(UseSceneNameAsRootFolderPrefKey, !EditorPrefs.GetBool(UseSceneNameAsRootFolderPrefKey, true));
+                menu.AddItem(new GUIContent("Use Scene Name as Root Folder"), EditorPrefs.GetBool(ProjectSetup.UseSceneNameAsRootFolderPrefKey, true), () => {
+                    EditorPrefs.SetBool(ProjectSetup.UseSceneNameAsRootFolderPrefKey, !EditorPrefs.GetBool(ProjectSetup.UseSceneNameAsRootFolderPrefKey, true));
                 });
                 menu.ShowAsContext();
                 evt.StopPropagation();
@@ -2034,42 +2033,23 @@ namespace OneJS.Editor {
         }
 
         void RunInitializeProject() {
-            Undo.RecordObject(_target, "JSRunner Initialize Project");
-            _target.AddMissingDefaultFiles();
-            _target.EnsureProjectFolderAndAssets(EditorPrefs.GetBool(UseSceneNameAsRootFolderPrefKey, true));
-            _target.EnsureProjectSetup();
-            EditorUtility.SetDirty(_target);
+            // The same call ProjectSetup.Initialize makes headless; the button adds only npm,
+            // which it can run in the background because the editor stays open.
+            var workingDir = ProjectSetup.InitializeRunner(_target);
             serializedObject.Update();
-            AssetDatabase.Refresh();
-
-            var workingDir = _target.WorkingDirFullPath;
-            if (string.IsNullOrEmpty(workingDir)) {
-                // No working directory means nothing was initialized, which is not the same as a project
-                // that simply has no package.json. Report the failure instead of claiming success.
-                // The assigned-but-invalid case is already reported by EnsureProjectFolderAndAssets,
-                // which names the folder and what it lacks; only the other case is left to report here.
-                if (_target.GetInvalidProjectFolderReason() == null)
-                    Debug.LogWarning("[JSRunner] Nothing was initialized: no project folder could be resolved. " +
-                        "Save the scene first, then Initialize Project again.", _target);
-            } else if (File.Exists(Path.Combine(workingDir, "package.json"))) {
-                RunNpmCommand(workingDir, "install", onSuccess: () => {
-                    RunNpmCommand(workingDir, "run build", onSuccess: () => {
-                        AssetDatabase.Refresh();
-                        Debug.Log("[JSRunner] Project initialized: dependencies installed and the bundle built.");
-                    }, onFailure: (code) => {
-                        Debug.LogWarning($"[JSRunner] Build step failed (exit code {code}). node_modules is ready; you can run 'npm run build' manually.");
-                        WarnMissingDefaultFiles();
-                    });
+            if (workingDir == null) return;
+            RunNpmCommand(workingDir, "install", onSuccess: () => {
+                RunNpmCommand(workingDir, "run build", onSuccess: () => {
+                    AssetDatabase.Refresh();
+                    Debug.Log("[JSRunner] Project initialized: dependencies installed and the bundle built.");
                 }, onFailure: (code) => {
-                    Debug.LogWarning($"[JSRunner] npm install failed (exit code {code}).");
+                    Debug.LogWarning($"[JSRunner] Build step failed (exit code {code}). node_modules is ready; you can run 'npm run build' manually.");
                     WarnMissingDefaultFiles();
                 });
-            } else {
-                // An app that already had its default files and has since lost package.json:
-                // Initialize Project writes default files only for a new app, so say which are gone.
-                Debug.LogWarning(_target.DescribeMissingDefaultFiles() ??
-                    $"[JSRunner] {_target.name} has no package.json, so nothing was installed or built.", _target);
-            }
+            }, onFailure: (code) => {
+                Debug.LogWarning($"[JSRunner] npm install failed (exit code {code}).");
+                WarnMissingDefaultFiles();
+            });
         }
 
         void OpenWorkingDirectory() {

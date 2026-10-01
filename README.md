@@ -78,19 +78,35 @@ skill into `.claude/skills/`. It never overwrites a skill you have edited.
 
 Full recipe, including the Unity MCP server: **https://onejs.com/docs/ai-setup**
 
-The **Initialize Project** button calls three public methods on `JSRunner`, so a
-script can do the same thing headlessly:
+One call does what **Initialize Project** does, with no editor window. With
+Unity's CLI:
 
-```csharp
-var runner = new GameObject("App").AddComponent<OneJS.JSRunner>();
-runner.AddMissingDefaultFiles();
-runner.EnsureProjectFolderAndAssets(true);
-runner.EnsureProjectSetup();
+```bash
+unity run <project> -- -nographics -executeMethod OneJS.Editor.ProjectSetup.Initialize
 ```
 
-Save the scene first; the app is created next to it. Run the script with
-`unity run <project> -- -nographics -executeMethod YourClass.Run`, then
-`npm install && npm run build` in the app's `~/` folder.
+With any Unity install, call the editor binary directly:
+
+```bash
+<editor> -batchmode -nographics -quit -projectPath <project> -executeMethod OneJS.Editor.ProjectSetup.Initialize -logFile -
+```
+
+`-quit` is required, because without it the editor stays open after the call.
+`<editor>` is the Unity binary, for example
+`/Applications/Unity/Hub/Editor/<version>/Unity.app/Contents/MacOS/Unity` on
+macOS or `C:\Program Files\Unity\Hub\Editor\<version>\Editor\Unity.exe` on
+Windows. `-logFile -` sends the log to standard output, so the working
+directory line reaches the terminal. Both forms exit 0 when the app is set up and non-zero when it
+cannot be.
+
+Then run `npm install && npm run build` in the `~/` folder it logs.
+
+It sets up every `JSRunner` in the active scene. If the scene has none, it adds
+one on a GameObject named `App`. A project with no saved scene gets
+`Assets/Scenes/Main.unity`, so an empty project ends up with
+`Assets/Scenes/Main/App/~/`. Calling it again is safe. From editor code, use
+`ProjectSetup.InitializeRunner(runner)` for one runner; it returns the working
+directory to build.
 
 ## Quick Start
 
