@@ -165,7 +165,7 @@ The container shadows the globals a game must not reach. That list is a
   `setTimeout`, `URL`, `btoa` and `atob`
 - **Shadowed**, because they exist only in a browser: `document`, `window`,
   `AudioContext`, `XMLHttpRequest`, `Worker`, `indexedDB`, `location`,
-  `navigator` (the full list is `BROWSER_ONLY_GLOBALS` in ojp's
+  `navigator` (the full list is `BROWSER_ONLY_GLOBALS` in ojplay's
   `src/sandbox.ts`)
 - **Given a seam** where a real need has no portable API: audio is the case, and
   `oj.audio` over Unity's `AudioSource` is the answer rather than WebAudio
