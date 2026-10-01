@@ -40,7 +40,7 @@ Save the file and the UI hot-reloads in the editor, in both Edit mode and Play m
 ## Requirements
 
 - Unity 6.3+
-- Node.js 18+ (development machine only). `onejs-play`'s `oj run` and `oj test` need Node 22+; on older Node, `npm install` warns `EBADENGINE` for `onejs-play` and otherwise works
+- Node.js 18+ (development machine only). `ojplay run` and `ojplay test` need Node 22+; on older Node, `npm install` warns `EBADENGINE` for `ojplay` and otherwise works
 
 ## Installation
 
