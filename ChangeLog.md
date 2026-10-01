@@ -1,3 +1,14 @@
+# [2026-10-01] v3.9.3
+
+An npm package's art now reaches player builds, and an agent or script can set a project up with one batch-mode call, no inspector needed. A new project depends on `ojplay`, the new name of `onejs-play`, and on `onejs-unity` `^0.9.2`.
+
+- `OneJS.Editor.ProjectSetup.Initialize` sets a project up from `-executeMethod`, with no inspector
+- npm packages' `assets/@namespace` folders ship in player builds
+- A struct that holds a class, such as `FillGradient`, assigns to `Painter2D.fillGradient` instead of throwing
+- A new project depends on `ojplay` `^0.9.1` in place of `onejs-play`, and on `onejs-unity` `^0.9.2`
+- The template's `global.d.ts` declares `onejs:themes`, which TypeScript 6 and newer require
+- Existing projects: `npm update onejs-unity` brings 0.9.2, which finds npm package assets in the Editor
+
 # [2026-09-30] v3.9.2
 
 Two JSRunners in one scene no longer tear down each other's particles, physics and effects, and awaiting a C# Task that already failed now rejects. A new project depends on `onejs-react` `^0.2.2` and `onejs-ui` `^0.0.5`, whose popovers and menus close on a press outside them or on Escape inside a dialog.
