@@ -5,14 +5,14 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.9.2"
-  skill-version: "1.13.0"
+  skill-version: "1.14.0"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-09-30"
+  last-verified: "2026-10-01"
 ---
 
 # Set Up a OneJS Project
@@ -67,16 +67,19 @@ Get a rendering, hot reloading component in a saved scene.
 
 **Expected observable result:** the Game view shows the rendered interface without entering Play mode, `app.js.txt` exists next to the scene folder's `PanelSettings.asset`, and the Console has no OneJS errors.
 
-**No editor to click in?** The button calls three public methods on `JSRunner`, so an editor script can do the same thing and `-executeMethod` can run it:
+**No editor to click in?** One call does what the button does, short of npm:
 
-```csharp
-var runner = new GameObject("App").AddComponent<OneJS.JSRunner>();
-runner.AddMissingDefaultFiles();
-runner.EnsureProjectFolderAndAssets(true);
-runner.EnsureProjectSetup();
+```bash
+unity run <project> -- -nographics -executeMethod OneJS.Editor.ProjectSetup.Initialize
 ```
 
-Save the scene before calling them, then run `npm install && npm run build` in the app's `~/` folder yourself, because only the button does that part for you. The full terminal recipe, including creating the Unity project and driving a live editor through the Unity MCP server, is at https://onejs.com/docs/ai-setup.
+Without Unity's CLI, call the editor binary directly. `-quit` is required; without it the editor stays open after the call:
+
+```bash
+<editor> -batchmode -nographics -quit -projectPath <project> -executeMethod OneJS.Editor.ProjectSetup.Initialize -logFile -
+```
+
+It uses the open scene (else the first build scene, else a new `Assets/Scenes/Main.unity`), adds a `JSRunner` on `App` when the scene has none, saves, and logs the working directory. Run `npm install && npm run build` there yourself. The full terminal recipe, including creating the Unity project and driving a live editor through the Unity MCP server, is at https://onejs.com/docs/ai-setup.
 
 ## Workflows
 
@@ -209,17 +212,9 @@ For a program built by code rather than written by hand, `sl.program` records th
 
 **Goal.** Initialize an app from a script, for CI or headless work.
 
-**Steps.** The three methods the Initialize Project button calls are public on `JSRunner`. Call them in this order from an editor script, which `-executeMethod` can then invoke:
+**Steps.** Run `unity run <project> -- -nographics -executeMethod OneJS.Editor.ProjectSetup.Initialize`, or without Unity's CLI `<editor> -batchmode -nographics -quit -projectPath <project> -executeMethod OneJS.Editor.ProjectSetup.Initialize -logFile -`. Then run `npm install` and `npm run build` in the working directory it logs.
 
-```csharp
-runner.AddMissingDefaultFiles();
-runner.EnsureProjectFolderAndAssets(true);
-runner.EnsureProjectSetup();
-```
-
-Then run `npm install` and `npm run build` inside the created `~/` folder.
-
-**Expected result.** The same layout as the button produces, with `app.js.txt` written.
+**Expected result.** Exit code 0, the log line `[OneJS] App in <scene> is set up. Working directory: <path>`, and after the build the same layout the button produces, with `app.js.txt` written. A non-zero exit means a runner could not be set up; the warnings above it say why.
 
 ## Verification
 
@@ -330,6 +325,8 @@ untested rather than guaranteed.
 |---|---|---|
 | `OneJS.JSRunner` | MonoBehaviour | Runs a JavaScript app from a project folder. The one component a scene needs. |
 | `JSRunner.PanelSettingsAsset` | Property | The assigned PanelSettings. Its folder is the project marker. |
+| `OneJS.Editor.ProjectSetup.Initialize()` | Static method | Initialize Project for `-executeMethod`: picks or creates the scene and runner, saves, throws when it cannot. |
+| `OneJS.Editor.ProjectSetup.InitializeRunner(JSRunner)` | Static method | What the button does to one runner, short of npm. Returns the working directory, or null after logging why. |
 | `JSRunner.AddMissingDefaultFiles()` | Method | Adds the scaffold templates the runner's default file list lacks, keeping every entry it has. What Initialize Project calls. |
 | `JSRunner.PopulateDefaultFiles()` | Method | Replaces the runner's default file list with the scaffold templates: Reset to Defaults. |
 | `JSRunner.EnsureProjectFolderAndAssets(bool)` | Method | Creates the project folder, PanelSettings, and UIDocument.uxml. |

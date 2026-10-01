@@ -78,11 +78,26 @@ skill into `.claude/skills/`. It never overwrites a skill you have edited.
 
 Full recipe, including the Unity MCP server: **https://onejs.com/docs/ai-setup**
 
-One call does what **Initialize Project** does, with no editor window:
+One call does what **Initialize Project** does, with no editor window. With
+Unity's CLI:
 
 ```bash
 unity run <project> -- -nographics -executeMethod OneJS.Editor.ProjectSetup.Initialize
 ```
+
+With any Unity install, call the editor binary directly:
+
+```bash
+<editor> -batchmode -nographics -quit -projectPath <project> -executeMethod OneJS.Editor.ProjectSetup.Initialize -logFile -
+```
+
+`-quit` is required, because without it the editor stays open after the call.
+`<editor>` is the Unity binary, for example
+`/Applications/Unity/Hub/Editor/<version>/Unity.app/Contents/MacOS/Unity` on
+macOS or `C:\Program Files\Unity\Hub\Editor\<version>\Editor\Unity.exe` on
+Windows. `-logFile -` sends the log to standard output, so the working
+directory line reaches the terminal. Both forms exit 0 when the app is set up and non-zero when it
+cannot be.
 
 Then run `npm install && npm run build` in the `~/` folder it logs.
 
