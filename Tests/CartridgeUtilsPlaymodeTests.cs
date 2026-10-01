@@ -361,7 +361,7 @@ namespace OneJS.Tests {
         /// Sets the slug field on a UICartridge via reflection.
         /// </summary>
         void SetCartridgeSlug(UICartridge cartridge, string slug) {
-            var field = typeof(UICartridge).GetField("_slug",
+            var field = typeof(Pack).GetField("_slug",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             field.SetValue(cartridge, slug);
         }
@@ -370,7 +370,7 @@ namespace OneJS.Tests {
         /// Adds an object entry to a UICartridge via reflection.
         /// </summary>
         void AddCartridgeObject(UICartridge cartridge, string key, Object value) {
-            var field = typeof(UICartridge).GetField("_objects",
+            var field = typeof(Pack).GetField("_objects",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             var objects = (List<CartridgeObjectEntry>)field.GetValue(cartridge);
             objects.Add(new CartridgeObjectEntry { key = key, value = value });
@@ -380,7 +380,7 @@ namespace OneJS.Tests {
         /// Sets the namespace field on a UICartridge via reflection.
         /// </summary>
         void SetCartridgeNamespace(UICartridge cartridge, string ns) {
-            var field = typeof(UICartridge).GetField("_namespace",
+            var field = typeof(Pack).GetField("_namespace",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             field.SetValue(cartridge, ns);
         }

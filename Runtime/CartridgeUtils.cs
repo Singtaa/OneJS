@@ -18,7 +18,7 @@ namespace OneJS {
         }
 
         /// <summary>
-        /// Convert a '/'-separated logical path (UICartridge.RelativePath, CartridgeFileEntry.path)
+        /// Convert a '/'-separated logical path (Pack.RelativePath, CartridgeFileEntry.path)
         /// into one using the platform's directory separator. No-op on Unix; on Windows it keeps
         /// Path.Combine from producing mixed separators like "C:\dir\@cartridges\@ns/slug".
         /// </summary>
@@ -34,7 +34,7 @@ namespace OneJS {
         /// <param name="baseDir">Base directory (WorkingDir for JSRunner, TempDir for JSPad)</param>
         /// <param name="cartridge">The cartridge to get path for</param>
         /// <returns>Full path to cartridge folder, or null if invalid</returns>
-        public static string GetCartridgePath(string baseDir, UICartridge cartridge) {
+        public static string GetCartridgePath(string baseDir, Pack cartridge) {
             if (string.IsNullOrEmpty(baseDir)) return null;
             if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) return null;
             return Path.Combine(baseDir, "@cartridges", ToNativePath(cartridge.RelativePath));
@@ -50,7 +50,7 @@ namespace OneJS {
         /// <param name="overwriteExisting">If true, deletes existing folders before extracting. If false, skips existing.</param>
         /// <param name="logPrefix">Prefix for log messages (e.g., "[JSRunner]" or "[JSPad]")</param>
         /// <returns>List of file paths that were created on disk.</returns>
-        public static List<string> ExtractCartridges(string baseDir, IReadOnlyList<UICartridge> cartridges, bool overwriteExisting, string logPrefix = null) {
+        public static List<string> ExtractCartridges(string baseDir, IReadOnlyList<Pack> cartridges, bool overwriteExisting, string logPrefix = null) {
             var createdFiles = new List<string>();
             if (cartridges == null || cartridges.Count == 0) return createdFiles;
             if (string.IsNullOrEmpty(baseDir)) return createdFiles;
@@ -103,7 +103,7 @@ namespace OneJS {
         /// Read the version recorded in an extracted cartridge's generated .d.ts header,
         /// or null if the folder, the .d.ts, or the version line is missing.
         /// </summary>
-        public static string GetExtractedVersion(string baseDir, UICartridge cartridge) {
+        public static string GetExtractedVersion(string baseDir, Pack cartridge) {
             var destPath = GetCartridgePath(baseDir, cartridge);
             if (string.IsNullOrEmpty(destPath)) return null;
             var dtsPath = Path.Combine(destPath, $"{cartridge.Slug}.d.ts");
@@ -115,7 +115,7 @@ namespace OneJS {
             }
         }
 
-        static void WarnIfOutdated(string baseDir, UICartridge cartridge, string logPrefix) {
+        static void WarnIfOutdated(string baseDir, Pack cartridge, string logPrefix) {
             if (string.IsNullOrEmpty(cartridge.Version)) return;
             var extracted = GetExtractedVersion(baseDir, cartridge);
             if (extracted == cartridge.Version) return;
@@ -132,7 +132,7 @@ namespace OneJS {
         /// </summary>
         /// <param name="bridge">The QuickJS bridge to inject globals into</param>
         /// <param name="cartridges">List of cartridges to inject</param>
-        public static void InjectCartridgeGlobals(QuickJSUIBridge bridge, IReadOnlyList<UICartridge> cartridges) {
+        public static void InjectCartridgeGlobals(QuickJSUIBridge bridge, IReadOnlyList<Pack> cartridges) {
             if (bridge == null) return;
 
             // Initialize __cartRegistry (internal storage) and __cart function

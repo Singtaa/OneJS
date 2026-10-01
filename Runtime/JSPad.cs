@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Text;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.UIElements;
 
 namespace OneJS {
@@ -75,7 +76,8 @@ namespace OneJS {
         [SerializeField, HideInInspector] PanelSettings _panelSettings;
 
         [Tooltip("UI Cartridges to load. Files are extracted to temp directory, accessible via __cart('slug') at runtime.")]
-        [SerializeField] List<UICartridge> _cartridges = new List<UICartridge>();
+        [FormerlySerializedAs("_cartridges")]
+        [SerializeField] List<Pack> _packs = new List<Pack>();
 
         [Tooltip("Additional npm modules to include in the build. These are added to package.json dependencies.")]
         [SerializeField] List<JSPadModuleEntry> _modules = new List<JSPadModuleEntry>();
@@ -224,7 +226,7 @@ namespace OneJS {
         }
 
         // Cartridge API
-        public IReadOnlyList<UICartridge> Cartridges => _cartridges;
+        public IReadOnlyList<Pack> Cartridges => _packs;
 
         // Modules API
         public IReadOnlyList<JSPadModuleEntry> Modules => _modules;
@@ -242,7 +244,7 @@ namespace OneJS {
             }
         }
 
-        public string GetCartridgePath(UICartridge cartridge) {
+        public string GetCartridgePath(Pack cartridge) {
             return CartridgeUtils.GetCartridgePath(TempDir, cartridge);
         }
 
@@ -511,7 +513,7 @@ namespace OneJS {
         /// Called before building.
         /// </summary>
         public void ExtractCartridges() {
-            CartridgeUtils.ExtractCartridges(TempDir, _cartridges, overwriteExisting: true);
+            CartridgeUtils.ExtractCartridges(TempDir, _packs, overwriteExisting: true);
         }
 
         /// <summary>
@@ -526,7 +528,7 @@ namespace OneJS {
         /// Access pattern: __cart('slug') or __cart('@namespace/slug')
         /// </summary>
         void InjectCartridgeGlobals() {
-            CartridgeUtils.InjectCartridgeGlobals(_bridge, _cartridges);
+            CartridgeUtils.InjectCartridgeGlobals(_bridge, _packs);
         }
 
         string GetPackageJsonContent() {

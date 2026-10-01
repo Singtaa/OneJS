@@ -539,7 +539,7 @@ namespace OneJS.Editor {
             headerRow.Add(headerLabel);
 
             var addButton = new Button(() => {
-                var prop = serializedObject.FindProperty("_cartridges");
+                var prop = serializedObject.FindProperty("_packs");
                 prop.arraySize++;
                 serializedObject.ApplyModifiedProperties();
                 RebuildCartridgeList();
@@ -988,7 +988,7 @@ namespace OneJS.Editor {
             _cartridgeListContainer.Clear();
             serializedObject.Update();
 
-            var cartridgesProp = serializedObject.FindProperty("_cartridges");
+            var cartridgesProp = serializedObject.FindProperty("_packs");
 
             if (cartridgesProp.arraySize == 0) {
                 var emptyLabel = new Label(OneJSEditorDesign.Texts.NoCartridges);
@@ -1010,7 +1010,7 @@ namespace OneJS.Editor {
 
         VisualElement CreateCartridgeItemRow(SerializedProperty arrayProp, int index) {
             var elementProp = arrayProp.GetArrayElementAtIndex(index);
-            var cartridge = elementProp.objectReferenceValue as UICartridge;
+            var cartridge = elementProp.objectReferenceValue as Pack;
 
             var row = new VisualElement();
             row.style.flexDirection = FlexDirection.Row;
@@ -1032,7 +1032,7 @@ namespace OneJS.Editor {
 
             // Object field
             var objectField = new ObjectField();
-            objectField.objectType = typeof(UICartridge);
+            objectField.objectType = typeof(Pack);
             objectField.value = cartridge;
             objectField.style.flexGrow = 1;
             objectField.style.marginLeft = 4;
@@ -1040,7 +1040,7 @@ namespace OneJS.Editor {
             objectField.RegisterValueChangedCallback(evt => {
                 elementProp.objectReferenceValue = evt.newValue;
                 serializedObject.ApplyModifiedProperties();
-                AutoExtractOnAssign(evt.newValue as UICartridge);
+                AutoExtractOnAssign(evt.newValue as Pack);
                 RebuildCartridgeList();
             });
             row.Add(objectField);
@@ -1103,7 +1103,7 @@ namespace OneJS.Editor {
             row.Add(deleteBtn);
 
             // Remove from list button
-            var removeBtn = new Button(() => RemoveCartridgeFromList(index, objectField.value as UICartridge)) { text = "X" };
+            var removeBtn = new Button(() => RemoveCartridgeFromList(index, objectField.value as Pack)) { text = "X" };
             removeBtn.style.width = 24;
             removeBtn.style.height = 20;
             removeBtn.style.marginLeft = 2;
@@ -1120,7 +1120,7 @@ namespace OneJS.Editor {
         /// hidden wait for the E button or the next Play). Never overwrites:
         /// an already-extracted folder is left alone.
         /// </summary>
-        void AutoExtractOnAssign(UICartridge cartridge) {
+        void AutoExtractOnAssign(Pack cartridge) {
             if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug) || !_target.IsSceneSaved) return;
 
             var destPath = _target.GetCartridgePath(cartridge);
@@ -1129,7 +1129,7 @@ namespace OneJS.Editor {
             try {
                 var created = CartridgeUtils.ExtractCartridges(
                     _target.WorkingDirFullPath,
-                    new List<UICartridge> { cartridge },
+                    new List<Pack> { cartridge },
                     overwriteExisting: false);
 
                 if (created.Count > 0) {
@@ -1188,7 +1188,7 @@ namespace OneJS.Editor {
             _cartridgeListContainer.Add(warning);
         }
 
-        void ExtractCartridge(UICartridge cartridge, int index) {
+        void ExtractCartridge(Pack cartridge, int index) {
             if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) return;
 
             var destPath = _target.GetCartridgePath(cartridge);
@@ -1207,7 +1207,7 @@ namespace OneJS.Editor {
             try {
                 var created = CartridgeUtils.ExtractCartridges(
                     _target.WorkingDirFullPath,
-                    new List<UICartridge> { cartridge },
+                    new List<Pack> { cartridge },
                     overwriteExisting: true);
 
                 Debug.Log($"[JSRunner] Extracted cartridge '{cartridge.DisplayName}' ({created.Count} files) to: {destPath}");
@@ -1220,7 +1220,7 @@ namespace OneJS.Editor {
             }
         }
 
-        void DeleteCartridge(UICartridge cartridge, int index) {
+        void DeleteCartridge(Pack cartridge, int index) {
             if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) return;
 
             var destPath = _target.GetCartridgePath(cartridge);
@@ -1256,7 +1256,7 @@ namespace OneJS.Editor {
             }
         }
 
-        void RemoveCartridgeFromList(int index, UICartridge cartridge) {
+        void RemoveCartridgeFromList(int index, Pack cartridge) {
             string name = cartridge != null ? cartridge.DisplayName : $"Item {index}";
 
             if (!s_Confirm(
@@ -1267,7 +1267,7 @@ namespace OneJS.Editor {
                 return;
             }
 
-            RemoveListEntry("_cartridges", index, e => e.objectReferenceValue == cartridge, RebuildCartridgeList);
+            RemoveListEntry("_packs", index, e => e.objectReferenceValue == cartridge, RebuildCartridgeList);
         }
 
         void ExtractAllCartridges() {
@@ -1312,7 +1312,7 @@ namespace OneJS.Editor {
                 try {
                     CartridgeUtils.ExtractCartridges(
                         _target.WorkingDirFullPath,
-                        new List<UICartridge> { cartridge },
+                        new List<Pack> { cartridge },
                         overwriteExisting: true);
                     extracted++;
                 } catch (Exception ex) {

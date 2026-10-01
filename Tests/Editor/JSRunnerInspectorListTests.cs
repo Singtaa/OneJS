@@ -42,7 +42,7 @@ namespace OneJS.Tests.Editor {
             ["_stylesheets"] = (1, "Remove this stylesheet"),
             ["_preloads"] = (0, "Remove this preload"),
             ["_globals"] = (0, "Remove this global"),
-            ["_cartridges"] = (2, "Remove from list"),
+            ["_packs"] = (2, "Remove from list"),
         };
 
         GameObject _go;
@@ -109,7 +109,7 @@ namespace OneJS.Tests.Editor {
                     Make(ScriptableObject.CreateInstance<StyleSheet>(), n);
                 so.FindProperty("_preloads").GetArrayElementAtIndex(i).objectReferenceValue = Make(new TextAsset(n), n);
                 so.FindProperty("_globals").GetArrayElementAtIndex(i).FindPropertyRelative("key").stringValue = n;
-                so.FindProperty("_cartridges").GetArrayElementAtIndex(i).objectReferenceValue =
+                so.FindProperty("_packs").GetArrayElementAtIndex(i).objectReferenceValue =
                     Make(ScriptableObject.CreateInstance<UICartridge>(), n);
             }
             so.ApplyModifiedPropertiesWithoutUndo();
@@ -176,7 +176,7 @@ namespace OneJS.Tests.Editor {
         [TestCase("_stylesheets")]
         [TestCase("_preloads")]
         [TestCase("_globals")]
-        [TestCase("_cartridges")]
+        [TestCase("_packs")]
         public void RemoveTakesOutOnlyTheRowClicked(string list) {
             Show(list);
             Undo.IncrementCurrentGroup();
@@ -189,7 +189,7 @@ namespace OneJS.Tests.Editor {
         [TestCase("_stylesheets")]
         [TestCase("_preloads")]
         [TestCase("_globals")]
-        [TestCase("_cartridges")]
+        [TestCase("_packs")]
         public void AfterUndoTheRemovedRowIsBackAndRemoveStillTakesTheRowClicked(string list) {
             Show(list);
             Undo.IncrementCurrentGroup();
@@ -213,7 +213,7 @@ namespace OneJS.Tests.Editor {
         [TestCase("_stylesheets")]
         [TestCase("_preloads")]
         [TestCase("_globals")]
-        [TestCase("_cartridges")]
+        [TestCase("_packs")]
         public void ARowDrawnBeforeTheListChangedRemovesItsOwnEntry(string list) {
             Show(list);
             // The list changes under rows that are already drawn, as it does when

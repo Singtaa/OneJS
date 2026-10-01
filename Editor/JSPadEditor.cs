@@ -639,7 +639,7 @@ namespace OneJS.Editor {
             headerRow.Add(headerLabel);
 
             var addButton = new Button(() => {
-                var prop = serializedObject.FindProperty("_cartridges");
+                var prop = serializedObject.FindProperty("_packs");
                 prop.arraySize++;
                 serializedObject.ApplyModifiedProperties();
                 RebuildCartridgeList();
@@ -997,7 +997,7 @@ namespace OneJS.Editor {
             _cartridgeListContainer.Clear();
             serializedObject.Update();
 
-            var cartridgesProp = serializedObject.FindProperty("_cartridges");
+            var cartridgesProp = serializedObject.FindProperty("_packs");
 
             if (cartridgesProp.arraySize == 0) {
                 var emptyLabel = new Label(OneJSEditorDesign.Texts.NoCartridges);
@@ -1018,7 +1018,7 @@ namespace OneJS.Editor {
 
         VisualElement CreateCartridgeItemRow(SerializedProperty arrayProp, int index) {
             var elementProp = arrayProp.GetArrayElementAtIndex(index);
-            var cartridge = elementProp.objectReferenceValue as UICartridge;
+            var cartridge = elementProp.objectReferenceValue as Pack;
 
             var row = new VisualElement();
             row.style.flexDirection = FlexDirection.Row;
@@ -1040,7 +1040,7 @@ namespace OneJS.Editor {
 
             // Object field for cartridge
             var objectField = new ObjectField();
-            objectField.objectType = typeof(UICartridge);
+            objectField.objectType = typeof(Pack);
             objectField.value = cartridge;
             objectField.style.flexGrow = 1;
             objectField.style.marginLeft = 4;
@@ -1086,10 +1086,10 @@ namespace OneJS.Editor {
         }
 
         void RemoveCartridgeFromList(int index) {
-            var cartridgesProp = serializedObject.FindProperty("_cartridges");
+            var cartridgesProp = serializedObject.FindProperty("_packs");
             if (index < 0 || index >= cartridgesProp.arraySize) return;
 
-            var cartridge = cartridgesProp.GetArrayElementAtIndex(index).objectReferenceValue as UICartridge;
+            var cartridge = cartridgesProp.GetArrayElementAtIndex(index).objectReferenceValue as Pack;
             string name = cartridge?.DisplayName ?? $"Item {index}";
 
             if (!EditorUtility.DisplayDialog(

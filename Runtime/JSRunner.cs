@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using OneJS.Utils;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.EventSystems;
 using UnityEngine.UIElements;
 
@@ -177,7 +178,8 @@ namespace OneJS {
         [SerializeField] List<GlobalEntry> _globals = new List<GlobalEntry>();
 
         [Tooltip("UI Cartridges to load. Files are extracted at build time, accessible via __cart('slug') at runtime.")]
-        [SerializeField] List<UICartridge> _cartridges = new List<UICartridge>();
+        [FormerlySerializedAs("_cartridges")]
+        [SerializeField] List<Pack> _packs = new List<Pack>();
 
         QuickJSUIBridge _bridge;
         bool _scriptLoaded;
@@ -720,8 +722,8 @@ namespace OneJS {
             if (ScaffoldDefaultFiles()) didScaffold = true;
 
             // Extract cartridges (skip existing, generates .d.ts)
-            if (_cartridges != null && _cartridges.Count > 0) {
-                var created = CartridgeUtils.ExtractCartridges(workingDir, _cartridges, overwriteExisting: false, "[JSRunner]");
+            if (_packs != null && _packs.Count > 0) {
+                var created = CartridgeUtils.ExtractCartridges(workingDir, _packs, overwriteExisting: false, "[JSRunner]");
                 if (created.Count > 0) didScaffold = true;
             }
 
@@ -801,10 +803,10 @@ namespace OneJS {
 #endif
 
         // Cartridge API
-        public IReadOnlyList<UICartridge> Cartridges => _cartridges;
+        public IReadOnlyList<Pack> Cartridges => _packs;
 
 #if UNITY_EDITOR
-        public string GetCartridgePath(UICartridge cartridge) {
+        public string GetCartridgePath(Pack cartridge) {
             return CartridgeUtils.GetCartridgePath(WorkingDirFullPath, cartridge);
         }
 #endif
@@ -1266,7 +1268,7 @@ namespace OneJS {
         /// Only extracts if the cartridge folder doesn't already exist.
         /// </summary>
         void ExtractCartridges() {
-            CartridgeUtils.ExtractCartridges(WorkingDirFullPath, _cartridges, overwriteExisting: false, "[JSRunner]");
+            CartridgeUtils.ExtractCartridges(WorkingDirFullPath, _packs, overwriteExisting: false, "[JSRunner]");
         }
 #endif // UNITY_EDITOR
 
@@ -1355,7 +1357,7 @@ namespace OneJS {
             }
 
             // Inject cartridge objects
-            CartridgeUtils.InjectCartridgeGlobals(_bridge, _cartridges);
+            CartridgeUtils.InjectCartridgeGlobals(_bridge, _packs);
         }
 
         /// <summary>

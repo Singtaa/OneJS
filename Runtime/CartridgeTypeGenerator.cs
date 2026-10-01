@@ -11,7 +11,7 @@ namespace OneJS {
     /// </summary>
     public static class CartridgeTypeGenerator {
         /// <summary>
-        /// Header line prefix that records UICartridge.Version in the generated .d.ts.
+        /// Header line prefix that records Pack.Version in the generated .d.ts.
         /// The .d.ts is rewritten on every extraction, so this line is how the editor
         /// tells whether extracted files match the current cartridge asset.
         /// </summary>
@@ -53,7 +53,7 @@ namespace OneJS {
         /// <summary>
         /// Generate TypeScript definitions for a cartridge's global objects.
         /// </summary>
-        public static string Generate(UICartridge cartridge) {
+        public static string Generate(Pack cartridge) {
             if (cartridge == null) return "// Error: null cartridge\nexport {};";
 
             var sb = new StringBuilder();

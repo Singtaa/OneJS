@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace OneJS.Tests.Editor {
     /// <summary>
-    /// Validates the UICartridge assets actually shipped in this project.
+    /// Validates the Pack assets actually shipped in this project.
     ///
     /// CartridgeUtilsTests covers the extraction machinery with synthetic cartridges.
     /// This covers the data: a cartridge is authored by hand in a .asset file, and the
@@ -33,7 +33,7 @@ namespace OneJS.Tests.Editor {
         const string kPremadeRoot = "Assets/Singtaa/Premade/";
 
         static string[] CartridgePaths() {
-            var paths = AssetDatabase.FindAssets("t:UICartridge")
+            var paths = AssetDatabase.FindAssets("t:Pack")
                 .Select(AssetDatabase.GUIDToAssetPath)
                 .Where(p => p.StartsWith(kPremadeRoot))
                 .OrderBy(p => p)
@@ -51,13 +51,13 @@ namespace OneJS.Tests.Editor {
             if (path != "<none found>") return;
             if (!AssetDatabase.IsValidFolder(kPremadeRoot.TrimEnd('/')))
                 Assert.Ignore($"{kPremadeRoot} does not exist in this project; premade content tests only run in the dev container.");
-            Assert.Fail($"No UICartridge assets under {kPremadeRoot}. Either the premades moved or FindAssets(\"t:UICartridge\") stopped matching.");
+            Assert.Fail($"No Pack assets under {kPremadeRoot}. Either the premades moved or FindAssets(\"t:Pack\") stopped matching.");
         }
 
-        static UICartridge Load(string path) {
+        static Pack Load(string path) {
             RequirePremadeEnvironment(path);
-            var c = AssetDatabase.LoadAssetAtPath<UICartridge>(path);
-            Assert.IsNotNull(c, $"{path} did not load as a UICartridge");
+            var c = AssetDatabase.LoadAssetAtPath<Pack>(path);
+            Assert.IsNotNull(c, $"{path} did not load as a Pack");
             return c;
         }
 
@@ -101,7 +101,7 @@ namespace OneJS.Tests.Editor {
             if (paths[0] == "<none found>") Assert.Ignore("no cartridges");
             var byId = new Dictionary<string, string>();
             foreach (var p in paths) {
-                var c = AssetDatabase.LoadAssetAtPath<UICartridge>(p);
+                var c = AssetDatabase.LoadAssetAtPath<Pack>(p);
                 if (c == null || string.IsNullOrEmpty(c.Slug)) continue;
                 // Two cartridges with the same identity extract to one folder and the
                 // second silently wins.
@@ -155,7 +155,7 @@ namespace OneJS.Tests.Editor {
             var c = Load(path);
             var dir = Path.Combine(Path.GetTempPath(), "OneJSPremadeTest", System.Guid.NewGuid().ToString("N"));
             try {
-                var written = CartridgeUtils.ExtractCartridges(dir, new List<UICartridge> { c }, true);
+                var written = CartridgeUtils.ExtractCartridges(dir, new List<Pack> { c }, true);
                 var root = CartridgeUtils.GetCartridgePath(dir, c);
 
                 foreach (var f in c.Files) {
@@ -180,7 +180,7 @@ namespace OneJS.Tests.Editor {
             var c = Load(path);
             var dir = Path.Combine(Path.GetTempPath(), "OneJSPremadeTest", System.Guid.NewGuid().ToString("N"));
             try {
-                CartridgeUtils.ExtractCartridges(dir, new List<UICartridge> { c }, true);
+                CartridgeUtils.ExtractCartridges(dir, new List<Pack> { c }, true);
                 // Samples import "./@cartridges/@ns/slug/file", so this path is API.
                 var expected = Path.Combine(dir, "@cartridges", $"@{c.Namespace}", c.Slug);
                 Assert.IsTrue(Directory.Exists(expected),
@@ -196,12 +196,12 @@ namespace OneJS.Tests.Editor {
             if (c.Files.Count == 0) Assert.Ignore("no files to probe with");
             var dir = Path.Combine(Path.GetTempPath(), "OneJSPremadeTest", System.Guid.NewGuid().ToString("N"));
             try {
-                CartridgeUtils.ExtractCartridges(dir, new List<UICartridge> { c }, true);
+                CartridgeUtils.ExtractCartridges(dir, new List<Pack> { c }, true);
                 var root = CartridgeUtils.GetCartridgePath(dir, c);
                 var probe = Path.Combine(root, c.Files[0].path.Replace('/', Path.DirectorySeparatorChar));
                 File.WriteAllText(probe, "// edited by the user");
 
-                CartridgeUtils.ExtractCartridges(dir, new List<UICartridge> { c }, false);
+                CartridgeUtils.ExtractCartridges(dir, new List<Pack> { c }, false);
 
                 Assert.AreEqual("// edited by the user", File.ReadAllText(probe),
                     $"{path}: a non-overwriting extract clobbered an existing folder");

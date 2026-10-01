@@ -614,7 +614,7 @@ namespace OneJS.Tests.Editor {
         /// Sets the slug field on a UICartridge via reflection (since it's private).
         /// </summary>
         void SetCartridgeSlug(UICartridge cartridge, string slug) {
-            var field = typeof(UICartridge).GetField("_slug",
+            var field = typeof(Pack).GetField("_slug",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             field.SetValue(cartridge, slug);
         }
@@ -623,7 +623,7 @@ namespace OneJS.Tests.Editor {
         /// Sets the namespace field on a UICartridge via reflection.
         /// </summary>
         void SetCartridgeNamespace(UICartridge cartridge, string ns) {
-            var field = typeof(UICartridge).GetField("_namespace",
+            var field = typeof(Pack).GetField("_namespace",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             field.SetValue(cartridge, ns);
         }
@@ -632,7 +632,7 @@ namespace OneJS.Tests.Editor {
         /// Sets the version field on a UICartridge via reflection.
         /// </summary>
         void SetCartridgeVersion(UICartridge cartridge, string version) {
-            var field = typeof(UICartridge).GetField("_version",
+            var field = typeof(Pack).GetField("_version",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             field.SetValue(cartridge, version);
         }
@@ -641,7 +641,7 @@ namespace OneJS.Tests.Editor {
         /// Adds a file entry to a UICartridge via reflection (backed by an in-memory TextAsset).
         /// </summary>
         void AddCartridgeFile(UICartridge cartridge, string path, string content) {
-            var field = typeof(UICartridge).GetField("_files",
+            var field = typeof(Pack).GetField("_files",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             var files = (List<CartridgeFileEntry>)field.GetValue(cartridge);
             files.Add(new CartridgeFileEntry { path = path, content = new TextAsset(content) });

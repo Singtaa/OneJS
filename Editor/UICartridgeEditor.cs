@@ -5,9 +5,9 @@ using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace OneJS.Editor {
-    [CustomEditor(typeof(UICartridge))]
+    [CustomEditor(typeof(Pack))]
     public class UICartridgeEditor : UnityEditor.Editor {
-        UICartridge _target;
+        Pack _target;
 
         // List containers
         VisualElement _filesListContainer;
@@ -17,7 +17,7 @@ namespace OneJS.Editor {
         Label _pathPreviewLabel;
 
         void OnEnable() {
-            _target = (UICartridge)target;
+            _target = (Pack)target;
         }
 
         public override VisualElement CreateInspectorGUI() {
