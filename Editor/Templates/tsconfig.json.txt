@@ -21,7 +21,7 @@
     "jsx": "react-jsx",
     "paths": {
       "onejs-react": ["./node_modules/onejs-react/src"],
-      "oj": ["./node_modules/onejs-play/src"]
+      "oj": ["./node_modules/ojp/src"]
     },
     "types": ["unity-types", "react"]
   },
