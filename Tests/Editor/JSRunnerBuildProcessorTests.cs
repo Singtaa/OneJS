@@ -415,5 +415,107 @@ namespace OneJS.Tests.Editor {
             Assert.IsFalse(File.Exists(Path.Combine(Dest, "a.png.meta")));
         }
 
+        // MARK: Assets in npm packages
+
+        // An app laid out the way a JSRunner project is: its source dir is
+        // {workingDir}/assets, and its packages sit in {workingDir}/node_modules.
+        string App(string name) => Path.Combine(_testBasePath, name);
+        string AppAssets(string name) => Path.Combine(App(name), "assets");
+        string Modules(string name) => Path.Combine(App(name), "node_modules");
+
+        void InvokeRecord(string workingDir, string runnerName, bool fromScene = true) {
+            var record = typeof(JSRunnerBuildProcessor).GetMethod(
+                "RecordAssetSource", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.IsNotNull(record, "JSRunnerBuildProcessor.RecordAssetSource(string, string, bool) was not found via reflection.");
+            record.Invoke(null, new object[] { workingDir, runnerName, fromScene });
+        }
+
+        /// <summary>
+        /// A package's assets/@namespace/ folder ships under @namespace/, the
+        /// path onejs-unity's loaders read in a build.
+        ///
+        /// onejs-unity's README has always promised this, and on a stock 3.9.2
+        /// scaffold it never happened: only {workingDir}/assets was copied, so a
+        /// package's art was missing from every player. Scoped packages count,
+        /// and only @-prefixed folders do: the rest of a package's assets folder
+        /// is not the convention and does not ship.
+        /// </summary>
+        [Test]
+        public void CommitAssets_PackageNamespaces_ShipUnderTheirNamespace() {
+            Write(AppAssets("app"), "logo.png", "app");
+            Write(Modules("app"), Path.Combine("hud", "assets", "@hud", "map.jpg"), "map");
+            Write(Modules("app"), Path.Combine("hud", "assets", "@hud", "icons", "a.png"), "icon");
+            Write(Modules("app"), Path.Combine("hud", "assets", "loose.png"), "not the convention");
+            Write(Modules("app"), Path.Combine("hud", "README.md"), "not an asset");
+            Write(Modules("app"), Path.Combine("@scope", "kit", "assets", "@kit", "theme.json"), "{}");
+            InvokeRecord(App("app"), "App");
+
+            InvokeCommitAssets(Dest);
+
+            Assert.AreEqual("app", File.ReadAllText(Path.Combine(Dest, "logo.png")));
+            Assert.AreEqual("map", File.ReadAllText(Path.Combine(Dest, "@hud", "map.jpg")));
+            Assert.IsTrue(File.Exists(Path.Combine(Dest, "@hud", "icons", "a.png")), "a nested package asset is missing");
+            Assert.IsTrue(File.Exists(Path.Combine(Dest, "@kit", "theme.json")), "a scoped package's asset is missing");
+            Assert.IsFalse(File.Exists(Path.Combine(Dest, "loose.png")), "a file outside an @namespace folder shipped");
+            Assert.IsFalse(File.Exists(Path.Combine(Dest, "README.md")));
+        }
+
+        /// <summary>
+        /// An app whose only assets come from a package is still an app that
+        /// ships assets. The recorder used to stop at "no assets folder".
+        /// </summary>
+        [Test]
+        public void CommitAssets_AppWithOnlyPackageAssets_IsRecordedAndShips() {
+            Directory.CreateDirectory(App("app"));
+            Write(Modules("app"), Path.Combine("hud", "assets", "@hud", "map.jpg"), "map");
+            InvokeRecord(App("app"), "App");
+
+            InvokeCommitAssets(Dest);
+
+            Assert.IsTrue(File.Exists(Path.Combine(Dest, "@hud", "map.jpg")),
+                "an app with package assets and no assets folder of its own shipped nothing");
+        }
+
+        /// <summary>
+        /// An app that has its own assets/@namespace/ keeps the whole namespace:
+        /// it is a copy the app made (fortnite-sample mirrors itself there) or a
+        /// customisation, and onejs-unity's Editor resolver reads it first too.
+        /// Merging file by file would ship a mix of two versions.
+        /// </summary>
+        [Test]
+        public void CommitAssets_AppsOwnNamespace_WinsOverThePackage() {
+            Write(AppAssets("app"), Path.Combine("@hud", "map.jpg"), "app's copy");
+            Write(Modules("app"), Path.Combine("hud", "assets", "@hud", "map.jpg"), "package");
+            Write(Modules("app"), Path.Combine("hud", "assets", "@hud", "extra.png"), "package only");
+            InvokeRecord(App("app"), "App");
+
+            Assert.DoesNotThrow(() => InvokeCommitAssets(Dest), "an app's own copy collided with its own package");
+
+            Assert.AreEqual("app's copy", File.ReadAllText(Path.Combine(Dest, "@hud", "map.jpg")));
+            Assert.IsFalse(File.Exists(Path.Combine(Dest, "@hud", "extra.png")),
+                "the namespace was merged file by file instead of left to the app");
+        }
+
+        /// <summary>
+        /// Two apps that install the same package reach the same files, which
+        /// is one package twice rather than two apps disagreeing, so it ships
+        /// once. The same path with different bytes (two versions) is still a
+        /// collision: one app would read the other's file.
+        /// </summary>
+        [Test]
+        public void CommitAssets_SamePackageInTwoApps_SharesOnlyWhenIdentical() {
+            Write(Modules("appA"), Path.Combine("hud", "assets", "@hud", "map.jpg"), "v1");
+            Write(Modules("appB"), Path.Combine("hud", "assets", "@hud", "map.jpg"), "v1");
+            InvokeRecord(App("appA"), "AppA");
+            InvokeRecord(App("appB"), "AppB");
+            Assert.DoesNotThrow(() => InvokeCommitAssets(Dest), "the same package in two apps failed the build");
+            Assert.AreEqual("v1", File.ReadAllText(Path.Combine(Dest, "@hud", "map.jpg")));
+
+            Write(Modules("appB"), Path.Combine("hud", "assets", "@hud", "map.jpg"), "v2");
+            var e = Assert.Throws<BuildFailedException>(() => InvokeCommitAssets(Dest));
+            StringAssert.Contains("@hud/map.jpg", e.Message);
+            StringAssert.Contains("install the same version", e.Message);
+        }
+
     }
 }

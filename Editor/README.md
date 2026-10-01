@@ -193,7 +193,8 @@ Implements `IPreprocessBuildWithReport` and `IPostprocessBuildWithReport` to han
    - Loads source map TextAsset if `Include Source Map` is enabled
    - Saves modified scenes
 3. Extracts Cartridge files, with overwrite, to `{WorkingDir}/@cartridges/{slug}/` (namespaced: `@cartridges/@{namespace}/{slug}/`)
-4. Logs status during build
+4. Copies each app's `{WorkingDir}/assets/` into `StreamingAssets/onejs/assets/`, and with it every `@{ns}/` folder the app's packages carry at `node_modules/{pkg}/assets/@{ns}/` (scoped packages too) that the app has no folder of its own for (`CommitAssetsTo`). The same package file in two apps ships once when the bytes match; any other shared path is a collision
+5. Logs status during build
 
 Since esbuild outputs directly to `app.js.txt`, the build processor just needs to load the existing file as a TextAsset.
 
