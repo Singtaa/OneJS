@@ -19,9 +19,9 @@ Editor scripts for OneJS Unity integration.
 | `OneJSEditorDesign.cs` | Centralized design tokens (colors, text labels) for editor UIs |
 | `DefaultFileEntryDrawer.cs` | Property drawer for default file entries in JSRunner |
 | `GlobalEntryDrawer.cs` | Property drawer for global entries in JSRunner |
-| `CartridgeFileEntryDrawer.cs` | Property drawer for cartridge file entries |
-| `CartridgeObjectEntryDrawer.cs` | Property drawer for cartridge object entries |
-| `UICartridgeEditor.cs` | Custom inspector for `UICartridge` assets |
+| `PackFileEntryDrawer.cs` | Property drawer for pack file entries |
+| `PackObjectEntryDrawer.cs` | Property drawer for pack object entries |
+| `PackEditor.cs` | Custom inspector for `Pack` assets |
 | `OneJSEditorOverlay.cs` | The Scene view **OneJS** overlay and its update modes, installed as `JSRunner.EditModeUpdateFilter`: decides which runners' edit-mode previews tick (default Auto: the selected runner, else the one closest to the Scene camera) |
 | `OneJSWslHelper.cs` | Windows only: runs Open Terminal and npm through WSL when chosen from Open Terminal's right-click menu |
 | `AISkillsInstaller.cs` | **Tools > OneJS > Install AI Skills**: copies `AI/Skills/` into the project's `.claude/skills/`, never overwriting an edited skill without asking |
@@ -41,7 +41,7 @@ Editor scripts for OneJS Unity integration.
 | Tools > OneJS > Regenerate All Project Typings | `TypeGenerator/TypeGeneratorService.cs` |
 | Tools > OneJS > Generate Shader Programs | `SLShaderGenerator.cs` |
 | Tools > OneJS > Install AI Skills | `AISkillsInstaller.cs` |
-| Assets > Create > OneJS > UI Cartridge | `Runtime/UICartridge.cs` |
+| Assets > Create > OneJS > Pack | `Runtime/Pack.cs` |
 
 ## JSRunnerEditor
 
@@ -63,7 +63,7 @@ When fully initialized, the Panel Settings field sits above the status section, 
 
 - **Project**: tick mode, Don't Destroy On Load, live reload (poll interval, Janitor), preloads, globals
 - **UI**: Stylesheets, and the assigned PanelSettings asset's own inspector
-- **Cartridges**: UI Cartridge list with per-row Extract (**E**), Delete extracted (**D**) and remove (**X**), plus Extract All and Delete All Extracted
+- **Packs**: Pack list with per-row Extract (**E**), Delete extracted (**D**) and remove (**X**), plus Extract All and Delete All Extracted
 - **Build**: Build output (bundle, source map, Include Source Map, Exclude From Build), type generation, scaffolding (default files with Restore)
 
 ### Status Section
@@ -151,7 +151,7 @@ Custom inspector for the inline TSX runner:
 - **Status**: Processing, Running, Ready, or Not built, plus the bundle size
 - **Action button**: **Build** in Edit mode (writes `index.tsx`, runs `npm install` if `node_modules` is missing, then esbuild) and **Build & Reload** in Play mode (skips `npm install`, rebuilds, reloads)
 - **Overflow menu** (**⋮**): **Open Folder** reveals `Temp/OneJSPad/{id}/`; **Clean** deletes it, `node_modules` included
-- **Tabs**: UI, Cartridges, Modules (extra npm packages, with **Install**), and a Settings foldout
+- **Tabs**: UI, Packs, Modules (extra npm packages, with **Install**), and a Settings foldout
 
 Entering Play mode does not build: `JSPad.Start()` runs the bundle already serialized on the component. Work done in Play mode survives the return to Edit mode: source edits are kept in `EditorPrefs`, and a bundle built in Play mode is cached to `Temp/JSPadCache/` on exit, restored onto the component, and the scene is saved so standalone builds pick it up.
 
@@ -193,7 +193,7 @@ Implements `IPreprocessBuildWithReport` and `IPostprocessBuildWithReport` to han
    - Loads it as a TextAsset and assigns to the JSRunner component
    - Loads source map TextAsset if `Include Source Map` is enabled
    - Saves modified scenes
-3. Extracts Cartridge files, with overwrite, to `{WorkingDir}/@cartridges/{slug}/` (namespaced: `@cartridges/@{namespace}/{slug}/`)
+3. Extracts Pack files, with overwrite, to `{WorkingDir}/{PackFolder}/{slug}/` (namespaced: `{PackFolder}/@{namespace}/{slug}/`). `PackFolder` is `@packs`, or `@cartridges` for a runner made before cartridges became packs
 4. Copies each app's `{WorkingDir}/assets/` into `StreamingAssets/onejs/assets/`, and with it every `@{ns}/` folder the app's packages carry at `node_modules/{pkg}/assets/@{ns}/` (scoped packages too) that the app has no folder of its own for (`CommitAssetsTo`). The same package file in two apps ships once when the bytes match; any other shared path is a collision
 5. Logs status during build
 
@@ -227,7 +227,7 @@ Centralized design tokens for all OneJS editor UIs (`OneJSEditorDesign.cs`). Pro
 - **`Colors`**: Color palette (surfaces, borders, text, status indicators, buttons, per-editor overrides)
 - **`Texts`**: Repeated string labels (status, actions, tabs, section headers, empty states, watcher labels)
 
-All editor scripts (JSRunnerEditor, JSPadEditor, UICartridgeEditor) reference these tokens instead of hardcoding colors or text strings. This ensures visual consistency and makes theme changes a single-file edit.
+All editor scripts (JSRunnerEditor, JSPadEditor, PackEditor) reference these tokens instead of hardcoding colors or text strings. This ensures visual consistency and makes theme changes a single-file edit.
 
 ## Recording (`Recording/` folder)
 

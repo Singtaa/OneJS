@@ -23,7 +23,7 @@ public static class OneJSEditorDesign {
         public static readonly Color TabInactive = new Color(0.2f, 0.2f, 0.2f);
         /// <summary>Tab hover state.</summary>
         public static readonly Color TabHover = new Color(0.26f, 0.26f, 0.26f);
-        /// <summary>Cartridge/row item background.</summary>
+        /// <summary>Pack/row item background.</summary>
         public static readonly Color RowBg = new Color(0.22f, 0.22f, 0.22f);
 
         // --- Borders ---
@@ -64,12 +64,12 @@ public static class OneJSEditorDesign {
         /// <summary>Danger/remove button background.</summary>
         public static readonly Color ButtonDanger = new Color(0.5f, 0.2f, 0.2f);
 
-        // --- UICartridgeEditor specific (blue theme) ---
-        public static readonly Color CartridgeHeaderBg = new Color(0.18f, 0.28f, 0.38f);
-        public static readonly Color CartridgePathPreview = new Color(0.7f, 0.85f, 1f);
-        public static readonly Color CartridgePathWarning = new Color(0.8f, 0.6f, 0.4f);
-        public static readonly Color CartridgeAddBtn = new Color(0.2f, 0.4f, 0.3f);
-        public static readonly Color CartridgeRemoveBtn = new Color(0.4f, 0.2f, 0.2f);
+        // --- PackEditor specific (blue theme) ---
+        public static readonly Color PackHeaderBg = new Color(0.18f, 0.28f, 0.38f);
+        public static readonly Color PackPathPreview = new Color(0.7f, 0.85f, 1f);
+        public static readonly Color PackPathWarning = new Color(0.8f, 0.6f, 0.4f);
+        public static readonly Color PackAddBtn = new Color(0.2f, 0.4f, 0.3f);
+        public static readonly Color PackRemoveBtn = new Color(0.4f, 0.2f, 0.2f);
 
         // --- JSPadEditor specific ---
         public static readonly Color TextInputBg = new Color(0.15f, 0.15f, 0.15f);
@@ -100,7 +100,7 @@ public static class OneJSEditorDesign {
         // --- Tabs ---
         public const string TabProject = "Project";
         public const string TabUI = "UI";
-        public const string TabCartridges = "Cartridges";
+        public const string TabPacks = "Packs";
         public const string TabBuild = "Build";
 
         // --- Section headers ---
@@ -112,13 +112,13 @@ public static class OneJSEditorDesign {
         public const string Preloads = "Preloads";
         public const string Globals = "Globals";
         public const string LiveReload = "Live Reload";
-        public const string UICartridges = "UI Cartridges";
+        public const string PackList = "Packs";
 
         // --- Empty states ---
         public const string NoStylesheets = "No stylesheets. Click + to add one.";
         public const string NoPreloads = "No preloads. Click + to add one.";
         public const string NoGlobals = "No globals. Click + to add one.";
-        public const string NoCartridges = "No cartridges. Click + to add one.";
+        public const string NoPacks = "No packs. Click + to add one.";
         public const string NoSettings = "No settings.";
 
         // --- Buttons ---

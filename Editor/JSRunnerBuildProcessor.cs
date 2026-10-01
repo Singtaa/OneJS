@@ -243,7 +243,7 @@ namespace OneJS.Editor {
 
                     _runnersSeen++;
                     ProcessJSRunner(runner);
-                    ExtractCartridges(runner);
+                    ExtractPacks(runner);
                     CopyAssets(runner, fromScene: true);
                 }
             }
@@ -313,7 +313,7 @@ namespace OneJS.Editor {
 
                     _runnersSeen++;
                     if (ProcessJSRunner(runner)) dirty = true;
-                    ExtractCartridges(runner);
+                    ExtractPacks(runner);
                     CopyAssets(runner, fromScene: false);
                 }
 
@@ -463,12 +463,12 @@ namespace OneJS.Editor {
             return true;
         }
 
-        void ExtractCartridges(JSRunner runner) {
-            var cartridges = runner.Cartridges;
-            if (cartridges == null || cartridges.Count == 0) return;
+        void ExtractPacks(JSRunner runner) {
+            var packs = runner.Packs;
+            if (packs == null || packs.Count == 0) return;
 
-            var created = CartridgeUtils.ExtractCartridges(
-                runner.WorkingDirFullPath, cartridges, overwriteExisting: true, "[JSRunner]");
+            var created = PackUtils.ExtractPacks(
+                runner.WorkingDirFullPath, runner.PackFolder, packs, overwriteExisting: true, "[JSRunner]");
 
             foreach (var path in created) {
                 _createdAssets.Add(path);

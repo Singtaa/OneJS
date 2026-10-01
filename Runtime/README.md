@@ -34,9 +34,11 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `AssetLoader.cs` | Async resource loading (loadResourceAsync) wrapping Resources.LoadAsync |
 | `SourceMapParser.cs` | Parses source maps for error stack trace translation |
 | `VirtualClock.cs` | Deterministic stand-in for engine realtime; lets an offline renderer frame-step the UI (see below) |
-| `UICartridge.cs` | Cartridge system for packaged UI modules (namespace/slug identity, optional content version) |
-| `CartridgeTypeGenerator.cs` | Generates TypeScript declarations for cartridge types |
-| `CartridgeUtils.cs` | Shared cartridge utilities used by JSRunner and JSPad |
+| `Pack.cs` | Pack asset for packaged UI modules (namespace/slug identity, optional content version). Keeps the script GUID `UICartridge.cs` had, so assets made as UICartridge load as Pack |
+| `PackTypeGenerator.cs` | Generates TypeScript declarations for pack types (`__pack`, plus `__cart` marked deprecated) |
+| `PackUtils.cs` | Extracting packs to a runner's pack folder and exposing them to JS, used by JSRunner and JSPad |
+| `RunnerUtils.cs` | Context setup helpers JSRunner and JSPad share: JS string escaping, stylesheets, platform defines |
+| `UICartridge.cs`, `CartridgeUtils.cs`, `CartridgeTypeGenerator.cs` | Obsolete forwarders for the names from before cartridges became packs |
 | `StyleBridge.cs` | Batched style + class-list application; typed IStyle setters for common props (no reflection), reflection fallback for the long tail |
 | `PainterBridge.cs` | Batched vector drawing: replays a Painter2D command buffer in one crossing |
 | `TreeViewBridge.cs` | TreeView data plumbing: wraps the generic `SetRootItems<T>` (generic methods are unreachable from JS) taking the tree as parallel pre-order int arrays with data kept JS-side, plus int[] selection getters (`IEnumerable<int>` cannot cross) |
@@ -294,7 +296,7 @@ The inspector adapts to the project state:
 
 **When PanelSettings is valid (normal state):**
 - Status block shows Running/Stopped, watcher state, project folder path
-- Four tabs: **Project**, **UI**, **Cartridges**, **Build**
+- Four tabs: **Project**, **UI**, **Packs**, **Build**
 - Action buttons: Reload, Rebuild, Open Folder, Open Terminal, Open Code Editor
 
 **Dev Mode** (right-click script header > Toggle Dev Mode): shows tabs and actions even without valid PanelSettings, useful for debugging.
@@ -318,8 +320,8 @@ The inspector adapts to the project state:
 | Bundle/Source Map status | Shows current TextAsset assignment state |
 | Type Generation | Generate `.d.ts` files from C# assemblies |
 | Scaffolding | Default Files list with Restore, and Reset to Defaults |
-| **Cartridges tab** | |
-| UI Cartridges | Packaged UI module assets; extracts on assignment (never overwriting), E/D re-extract and delete controls, flags stale extractions as Outdated via the version stamped in the generated `.d.ts` |
+| **Packs tab** | |
+| Packs | Packaged UI module assets; extracts on assignment (never overwriting), E/D re-extract and delete controls, flags stale extractions as Outdated via the version stamped in the generated `.d.ts` |
 
 ### Context Menu Options
 
@@ -483,7 +485,7 @@ First build installs dependencies (~10s), subsequent builds are fast.
 - **Build** (edit mode): install if needed, build, save the bundle to the component
 - **Build & Reload** (Play mode): build without `npm install`, then reload
 - **⋮ menu**: **Open Folder** reveals the temp directory; **Clean** stops the pad and deletes the temp directory, `node_modules` included
-- Tabs: **UI**, **Cartridges**, **Modules**
+- Tabs: **UI**, **Packs**, **Modules**
 
 ### Standalone Build Support
 

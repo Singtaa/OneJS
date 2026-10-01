@@ -1,6 +1,6 @@
 # Particles Demo
 
-A 2D particle engine showcase packaged as a UI Cartridge: a continuous additive
+A 2D particle engine showcase packaged as a pack: a continuous additive
 fountain, a click burst, and a pointer-following trail, all simulated and
 rendered in C#, configured from a single TSX component via `useParticles` from
 `onejs-react` (0.1.32+).
@@ -8,13 +8,14 @@ rendered in C#, configured from a single TSX component via `useParticles` from
 ## Usage
 
 1. Import this sample from the Package Manager (select OneJS, then the Samples tab).
-2. Drag `ParticlesDemo.asset` into your JSRunner's **Cartridges** tab. Assigning
-   it extracts the component to `~/@cartridges/@singtaa/particlesDemo/`.
+2. Drag `ParticlesDemo.asset` into your JSRunner's **Packs** tab. Assigning
+   it extracts the component to `~/@packs/@singtaa/particlesDemo/` (`~/@cartridges/` on a
+   runner made before cartridges became packs).
 3. Render the component from your app:
 
 ```tsx
 import { render } from "onejs-react"
-import { ParticlesDemo } from "./@cartridges/@singtaa/particlesDemo/particles-demo"
+import { ParticlesDemo } from "./@packs/@singtaa/particlesDemo/particles-demo"
 
 render(<ParticlesDemo />, __root)
 ```

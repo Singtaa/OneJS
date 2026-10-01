@@ -39,7 +39,7 @@
     "samples": [
         {
             "displayName": "Particles Demo",
-            "description": "2D particle engine showcase (fountain, click burst, pointer trail) packaged as a UI Cartridge. Drag the cartridge onto your JSRunner to extract the TSX component into your app.",
+            "description": "2D particle engine showcase (fountain, click burst, pointer trail) packaged as a pack. Drag the pack onto your JSRunner to extract the TSX component into your app.",
             "path": "Samples~/ParticlesDemo"
         }
     ]

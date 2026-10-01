@@ -32,12 +32,12 @@ namespace OneJS.Editor {
         VisualElement _tabContainer;
         VisualElement _tabContent;
         int _selectedTab = 0;
-        readonly string[] _tabNames = { "UI", "Cartridges", "Modules" };
+        readonly string[] _tabNames = { "UI", "Packs", "Modules" };
 
         // Lists
         VisualElement _moduleListContainer;
         VisualElement _stylesheetListContainer;
-        VisualElement _cartridgeListContainer;
+        VisualElement _packListContainer;
 
         // Track PanelSettings render mode to refresh UIDocument inspector
         int _lastRenderMode;
@@ -364,8 +364,8 @@ namespace OneJS.Editor {
                 case 0: // UI
                     BuildUITab();
                     break;
-                case 1: // Cartridges
-                    BuildCartridgesTab();
+                case 1: // Packs
+                    BuildPacksTab();
                     break;
                 case 2: // Modules
                     BuildModulesTab();
@@ -627,13 +627,13 @@ namespace OneJS.Editor {
             return row;
         }
 
-        void BuildCartridgesTab() {
+        void BuildPacksTab() {
             // Header with Add button
             var headerRow = new VisualElement();
             headerRow.style.flexDirection = FlexDirection.Row;
             headerRow.style.marginBottom = 6;
 
-            var headerLabel = new Label(OneJSEditorDesign.Texts.UICartridges);
+            var headerLabel = new Label(OneJSEditorDesign.Texts.PackList);
             headerLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
             headerLabel.style.flexGrow = 1;
             headerRow.Add(headerLabel);
@@ -642,28 +642,28 @@ namespace OneJS.Editor {
                 var prop = serializedObject.FindProperty("_packs");
                 prop.arraySize++;
                 serializedObject.ApplyModifiedProperties();
-                RebuildCartridgeList();
+                RebuildPackList();
             }) { text = "+" };
             addButton.style.width = 24;
             addButton.style.height = 20;
-            addButton.tooltip = "Add a new cartridge slot";
+            addButton.tooltip = "Add a new pack slot";
             headerRow.Add(addButton);
 
             _tabContent.Add(headerRow);
 
-            // Cartridge list container
-            _cartridgeListContainer = new VisualElement();
-            _tabContent.Add(_cartridgeListContainer);
+            // Pack list container
+            _packListContainer = new VisualElement();
+            _tabContent.Add(_packListContainer);
 
-            RebuildCartridgeList();
+            RebuildPackList();
 
             // Help box
-            var cartridgesHelp = new HelpBox(
-                "Files are auto-extracted to @cartridges/{path}/ on build. Access via __cart('slug') or __cart('@namespace/slug') at runtime.",
+            var packsHelp = new HelpBox(
+                $"Files are auto-extracted to {_target.PackFolder}/{{path}}/ on build. Access via __pack('slug') or __pack('@namespace/slug') at runtime.",
                 HelpBoxMessageType.Info
             );
-            cartridgesHelp.style.marginTop = 6;
-            _tabContent.Add(cartridgesHelp);
+            packsHelp.style.marginTop = 6;
+            _tabContent.Add(packsHelp);
         }
 
         void UpdateUI() {
@@ -762,7 +762,7 @@ namespace OneJS.Editor {
 
             _target.EnsureTempDirectory();
             _target.WriteSourceFile();
-            _target.ExtractCartridges();
+            _target.ExtractPacks();
 
             // Check if npm install is needed (unless skipped for play mode reload)
             if (!skipNpmInstall && _target.NeedsNpmInstall()) {
@@ -989,36 +989,36 @@ namespace OneJS.Editor {
 #endif
         }
 
-        // MARK: Cartridge Management
+        // MARK: Pack Management
 
-        void RebuildCartridgeList() {
-            if (_cartridgeListContainer == null) return;
+        void RebuildPackList() {
+            if (_packListContainer == null) return;
 
-            _cartridgeListContainer.Clear();
+            _packListContainer.Clear();
             serializedObject.Update();
 
-            var cartridgesProp = serializedObject.FindProperty("_packs");
+            var packsProp = serializedObject.FindProperty("_packs");
 
-            if (cartridgesProp.arraySize == 0) {
-                var emptyLabel = new Label(OneJSEditorDesign.Texts.NoCartridges);
+            if (packsProp.arraySize == 0) {
+                var emptyLabel = new Label(OneJSEditorDesign.Texts.NoPacks);
                 emptyLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
                 emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
                 emptyLabel.style.paddingLeft = 4;
                 emptyLabel.style.paddingTop = 4;
                 emptyLabel.style.paddingBottom = 4;
-                _cartridgeListContainer.Add(emptyLabel);
+                _packListContainer.Add(emptyLabel);
                 return;
             }
 
-            for (int i = 0; i < cartridgesProp.arraySize; i++) {
-                var itemRow = CreateCartridgeItemRow(cartridgesProp, i);
-                _cartridgeListContainer.Add(itemRow);
+            for (int i = 0; i < packsProp.arraySize; i++) {
+                var itemRow = CreatePackItemRow(packsProp, i);
+                _packListContainer.Add(itemRow);
             }
         }
 
-        VisualElement CreateCartridgeItemRow(SerializedProperty arrayProp, int index) {
+        VisualElement CreatePackItemRow(SerializedProperty arrayProp, int index) {
             var elementProp = arrayProp.GetArrayElementAtIndex(index);
-            var cartridge = elementProp.objectReferenceValue as Pack;
+            var pack = elementProp.objectReferenceValue as Pack;
 
             var row = new VisualElement();
             row.style.flexDirection = FlexDirection.Row;
@@ -1038,16 +1038,16 @@ namespace OneJS.Editor {
             indexLabel.style.color = OneJSEditorDesign.Colors.TextDim;
             row.Add(indexLabel);
 
-            // Object field for cartridge
+            // Object field for pack
             var objectField = new ObjectField();
             objectField.objectType = typeof(Pack);
-            objectField.value = cartridge;
+            objectField.value = pack;
             objectField.style.flexGrow = 1;
             objectField.style.marginLeft = 4;
             objectField.RegisterValueChangedCallback(evt => {
                 elementProp.objectReferenceValue = evt.newValue;
                 serializedObject.ApplyModifiedProperties();
-                RebuildCartridgeList();
+                RebuildPackList();
             });
             row.Add(objectField);
 
@@ -1058,9 +1058,9 @@ namespace OneJS.Editor {
             statusLabel.style.marginRight = 4;
             statusLabel.style.fontSize = 10;
 
-            if (cartridge != null && !string.IsNullOrEmpty(cartridge.Slug)) {
-                var cartridgePath = _target.GetCartridgePath(cartridge);
-                bool isExtracted = Directory.Exists(cartridgePath);
+            if (pack != null && !string.IsNullOrEmpty(pack.Slug)) {
+                var packPath = _target.GetPackPath(pack);
+                bool isExtracted = Directory.Exists(packPath);
 
                 if (isExtracted) {
                     statusLabel.text = "Extracted";
@@ -1070,13 +1070,13 @@ namespace OneJS.Editor {
                     statusLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
                 }
             } else {
-                statusLabel.text = cartridge == null ? "" : "No slug";
+                statusLabel.text = pack == null ? "" : "No slug";
                 statusLabel.style.color = new Color(0.8f, 0.6f, 0.2f);
             }
             row.Add(statusLabel);
 
             // Remove button
-            var removeBtn = new Button(() => RemoveCartridgeFromList(index)) { text = "X" };
+            var removeBtn = new Button(() => RemovePackFromList(index)) { text = "X" };
             removeBtn.style.width = 24;
             removeBtn.style.height = 20;
             removeBtn.tooltip = "Remove from list";
@@ -1085,25 +1085,25 @@ namespace OneJS.Editor {
             return row;
         }
 
-        void RemoveCartridgeFromList(int index) {
-            var cartridgesProp = serializedObject.FindProperty("_packs");
-            if (index < 0 || index >= cartridgesProp.arraySize) return;
+        void RemovePackFromList(int index) {
+            var packsProp = serializedObject.FindProperty("_packs");
+            if (index < 0 || index >= packsProp.arraySize) return;
 
-            var cartridge = cartridgesProp.GetArrayElementAtIndex(index).objectReferenceValue as Pack;
-            string name = cartridge?.DisplayName ?? $"Item {index}";
+            var pack = packsProp.GetArrayElementAtIndex(index).objectReferenceValue as Pack;
+            string name = pack?.DisplayName ?? $"Item {index}";
 
             if (!EditorUtility.DisplayDialog(
                 "Remove from List?",
-                $"Remove '{name}' from the cartridge list?\n\n" +
+                $"Remove '{name}' from the pack list?\n\n" +
                 "(Extracted files will be cleaned on next build or Clean)",
                 "Remove", "Cancel")) {
                 return;
             }
 
-            cartridgesProp.GetArrayElementAtIndex(index).objectReferenceValue = null;
-            cartridgesProp.DeleteArrayElementAtIndex(index);
+            packsProp.GetArrayElementAtIndex(index).objectReferenceValue = null;
+            packsProp.DeleteArrayElementAtIndex(index);
             serializedObject.ApplyModifiedProperties();
-            RebuildCartridgeList();
+            RebuildPackList();
         }
     }
 }

@@ -58,7 +58,7 @@ PlayMode (`Tests/*.cs`):
 | `JsLogSeverityPlaymodeTests.cs` | Console severity end to end through the real bootstrap and native callback |
 | `JSRunnerEventSystemPlaymodeTests.cs` | The EventSystem JSRunner creates, per input backend |
 | `JSPadPlaymodeTests.cs` | JSPad temp dirs, build state, execution |
-| `CartridgeUtilsPlaymodeTests.cs` | Cartridge global injection, platform defines, `__cart()` API |
+| `PackUtilsPlaymodeTests.cs` | Pack global injection, platform defines, `__pack()` API |
 | `JSRunnerPlaymodeTests.cs` | A single `Assert.Pass` placeholder; the real JSRunner tests are disabled pending a scene-based rewrite |
 
 EditMode (`Tests/Editor/`):
@@ -70,13 +70,13 @@ EditMode (`Tests/Editor/`):
 | `JSRunnerBuildSceneListTests.cs` | Which scenes a build walks |
 | `JSRunnerBundleAssignmentTests.cs` | Which runners come out of a build with a bundle |
 | `JSRunnerPrefabAppTests.cs` | Apps a build reaches through a prefab, and Exclude From Build |
-| `JSRunnerInspectorListTests.cs` | The X button in the Stylesheets, Preloads, Globals and Cartridges lists removes the row clicked, after an undo and after another inspector changed the list |
+| `JSRunnerInspectorListTests.cs` | The X button in the Stylesheets, Preloads, Globals and Packs lists removes the row clicked, after an undo and after another inspector changed the list |
 | `JSRunnerScaffoldOnceTests.cs` | Default files are written once: a new app, an app with a record, an app from before the record, a deleted package.json or record, two runners on one folder |
 | `JSRunnerDefaultFilesTests.cs` | Initialize keeps a customized list, a missing default file is named with Restore, Template newer status, the Scaffolding list has no X, the scaffolded .gitignore keeps `.onejs/` |
 | `JSRunnerInitializeReportingTests.cs` | What Initialize Project reports when it cannot create anything |
 | `JSRunnerUIDocumentOwnershipTests.cs` | Which UIDocument JSRunner may remove |
-| `CartridgeUtilsTests.cs` | String escaping, path calculation, file extraction, stylesheets |
-| `PremadeCartridgeTests.cs` | The shipped `Assets/Singtaa/Premade/` cartridge **assets**: metadata completeness, path-safe slugs, unique identities, resolvable payloads, extraction round-trip |
+| `PackUtilsTests.cs` | String escaping, path calculation, file extraction, stylesheets |
+| `PremadePackTests.cs` | The shipped `Assets/Singtaa/Premade/` pack **assets**: metadata completeness, path-safe slugs, unique identities, resolvable payloads, extraction round-trip |
 | `EventIdContractTests.cs` | Event type ids agree between `QuickJSUIBridge.cs` and the bootstrap |
 | `StructSerializationTests.cs` | The JSON a data-only struct becomes in JS |
 | `StyleBridgeTests.cs` | One warning per unknown style key |
@@ -95,12 +95,12 @@ EditMode (`Tests/Editor/`):
 - **Build State**: State transitions, output detection
 - **Execution**: Script execution, stop/cleanup
 
-### CartridgeUtils Tests (CartridgeUtilsTests + CartridgeUtilsPlaymodeTests)
+### PackUtils Tests (PackUtilsTests + PackUtilsPlaymodeTests)
 - **String Escaping**: JS string literal escaping for special characters
-- **Path Calculation**: Cartridge path resolution with/without namespaces
+- **Path Calculation**: Pack path resolution with/without namespaces
 - **File Extraction**: Folder creation, `.d.ts` generation, overwrite behavior, return value
 - **Stylesheet Application**: USS stylesheet application to root elements
-- **Cartridge Globals** (PlayMode): `__cart()` function, plain-object injection with individual object entries as properties, platform defines
+- **Pack Globals** (PlayMode): `__pack()` function, plain-object injection with individual object entries as properties, platform defines
 
 ### Build Processor Tests (JSRunnerBuildProcessorTests)
 - **File Copying**: Recursive copy, content preservation

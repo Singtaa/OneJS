@@ -75,9 +75,15 @@ namespace OneJS {
         [Tooltip("Embedded PanelSettings for the UIDocument. Edit directly in the Settings > UI tab.")]
         [SerializeField, HideInInspector] PanelSettings _panelSettings;
 
-        [Tooltip("UI Cartridges to load. Files are extracted to temp directory, accessible via __cart('slug') at runtime.")]
+        [Tooltip("Packs to load. Files are extracted to temp directory, accessible via __pack('slug') at runtime.")]
         [FormerlySerializedAs("_cartridges")]
         [SerializeField] List<Pack> _packs = new List<Pack>();
+
+        // Which folder this runner extracts its packs to. A runner saved before packs were renamed
+        // from cartridges has no such field and loads the initializer, so it keeps @cartridges for
+        // every pack, new ones included, and the imports its app already has keep resolving. Reset,
+        // which runs when the component is added in the editor, makes a new runner use @packs.
+        [SerializeField, HideInInspector] bool _legacyPackFolder = true;
 
         [Tooltip("Additional npm modules to include in the build. These are added to package.json dependencies.")]
         [SerializeField] List<JSPadModuleEntry> _modules = new List<JSPadModuleEntry>();
@@ -225,7 +231,17 @@ namespace OneJS {
             return Encoding.UTF8.GetString(outputStream.ToArray());
         }
 
-        // Cartridge API
+        // Pack API
+        public IReadOnlyList<Pack> Packs => _packs;
+
+        /// <summary>
+        /// The folder below the temp directory this runner extracts its packs to:
+        /// <see cref="PackUtils.Folder"/>, or <see cref="PackUtils.LegacyFolder"/> for a runner made
+        /// before packs were renamed from cartridges.
+        /// </summary>
+        public string PackFolder => _legacyPackFolder ? PackUtils.LegacyFolder : PackUtils.Folder;
+
+        [Obsolete("Cartridges is now Packs.")]
         public IReadOnlyList<Pack> Cartridges => _packs;
 
         // Modules API
@@ -244,9 +260,12 @@ namespace OneJS {
             }
         }
 
-        public string GetCartridgePath(Pack cartridge) {
-            return CartridgeUtils.GetCartridgePath(TempDir, cartridge);
+        public string GetPackPath(Pack pack) {
+            return PackUtils.GetPackPath(TempDir, PackFolder, pack);
         }
+
+        [Obsolete("GetCartridgePath is now GetPackPath.")]
+        public string GetCartridgePath(Pack cartridge) => GetPackPath(cartridge);
 
         void OnEnable() {
             // Get UIDocument (guaranteed by RequireComponent)
@@ -413,7 +432,7 @@ namespace OneJS {
                 InjectPlatformDefines();
 
                 // Expose the working directory to JS for asset path resolution
-                var escapedWorkingDir = CartridgeUtils.EscapeJsString(_bridge.WorkingDir);
+                var escapedWorkingDir = RunnerUtils.EscapeJsString(_bridge.WorkingDir);
                 _bridge.Eval($"globalThis.__workingDir = '{escapedWorkingDir}'");
 
                 // Expose root element
@@ -424,8 +443,8 @@ namespace OneJS {
                 var bridgeHandle = QuickJSNative.RegisterObject(_bridge);
                 _bridge.Eval($"globalThis.__bridge = __csHelpers.wrapObject('QuickJSUIBridge', {bridgeHandle})");
 
-                // Inject cartridge objects
-                InjectCartridgeGlobals();
+                // Inject pack objects
+                InjectPackGlobals();
 
                 // Apply stylesheets
                 ApplyStylesheets();
@@ -505,30 +524,33 @@ namespace OneJS {
         }
 
         void InjectPlatformDefines() {
-            CartridgeUtils.InjectPlatformDefines(_bridge);
+            RunnerUtils.InjectPlatformDefines(_bridge);
         }
 
         /// <summary>
-        /// Extract cartridge files to TempDir/@cartridges/{slug}/.
+        /// Extract pack files to TempDir/{PackFolder}/{slug}/.
         /// Called before building.
         /// </summary>
-        public void ExtractCartridges() {
-            CartridgeUtils.ExtractCartridges(TempDir, _packs, overwriteExisting: true);
+        public void ExtractPacks() {
+            PackUtils.ExtractPacks(TempDir, PackFolder, _packs, overwriteExisting: true);
         }
+
+        [Obsolete("ExtractCartridges is now ExtractPacks.")]
+        public void ExtractCartridges() => ExtractPacks();
 
         /// <summary>
         /// Apply USS StyleSheets to the root visual element.
         /// </summary>
         void ApplyStylesheets() {
-            CartridgeUtils.ApplyStylesheets(_uiDocument.rootVisualElement, _stylesheets);
+            RunnerUtils.ApplyStylesheets(_uiDocument.rootVisualElement, _stylesheets);
         }
 
         /// <summary>
-        /// Inject cartridges as JavaScript globals accessible via __cart(path).
-        /// Access pattern: __cart('slug') or __cart('@namespace/slug')
+        /// Inject packs as JavaScript globals accessible via __pack(path).
+        /// Access pattern: __pack('slug') or __pack('@namespace/slug')
         /// </summary>
-        void InjectCartridgeGlobals() {
-            CartridgeUtils.InjectCartridgeGlobals(_bridge, _packs);
+        void InjectPackGlobals() {
+            PackUtils.InjectPackGlobals(_bridge, _packs);
         }
 
         string GetPackageJsonContent() {
@@ -723,6 +745,7 @@ namespace OneJS {
 #if UNITY_EDITOR
         void Reset() {
             // Called when component is first added or reset
+            _legacyPackFolder = false;
             EnsureEmbeddedPanelSettings();
             PopulateDefaultFiles();
         }

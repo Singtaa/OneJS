@@ -63,7 +63,7 @@ whole terminal recipe: https://onejs.com/docs/ai-setup
 git clone https://github.com/Singtaa/OneJS.git Assets/OneJS
 ```
 
-The Asset Store package (linked from [onejs.com](https://onejs.com)) bundles this runtime with premade `onejs-ui` themes (Pixel, Kawaii, Sketch) and sample cartridges (Game HUD, Inventory, Shader Effects).
+The Asset Store package (linked from [onejs.com](https://onejs.com)) bundles this runtime with premade `onejs-ui` themes (Pixel, Kawaii, Sketch) and sample packs (Game HUD, Inventory, Shader Effects).
 
 ## AI Skills
 

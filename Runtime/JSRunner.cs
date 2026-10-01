@@ -177,9 +177,15 @@ namespace OneJS {
         [PairDrawer("→")]
         [SerializeField] List<GlobalEntry> _globals = new List<GlobalEntry>();
 
-        [Tooltip("UI Cartridges to load. Files are extracted at build time, accessible via __cart('slug') at runtime.")]
+        [Tooltip("Packs to load. Files are extracted at build time, accessible via __pack('slug') at runtime.")]
         [FormerlySerializedAs("_cartridges")]
         [SerializeField] List<Pack> _packs = new List<Pack>();
+
+        // Which folder this runner extracts its packs to. A runner saved before packs were renamed
+        // from cartridges has no such field and loads the initializer, so it keeps @cartridges for
+        // every pack, new ones included, and the imports its app already has keep resolving. Reset,
+        // which runs when the component is added in the editor, makes a new runner use @packs.
+        [SerializeField, HideInInspector] bool _legacyPackFolder = true;
 
         QuickJSUIBridge _bridge;
         bool _scriptLoaded;
@@ -693,7 +699,7 @@ namespace OneJS {
 
         /// <summary>
         /// Ensures the project is set up: the working directory exists, its default files have
-        /// been written once (<see cref="ScaffoldDefaultFiles"/>), and cartridges are extracted.
+        /// been written once (<see cref="ScaffoldDefaultFiles"/>), and packs are extracted.
         /// Called before entering Play mode. Returns true if it created anything.
         ///
         /// A default file is written once and never again, so one the user deletes stays
@@ -721,9 +727,9 @@ namespace OneJS {
 
             if (ScaffoldDefaultFiles()) didScaffold = true;
 
-            // Extract cartridges (skip existing, generates .d.ts)
+            // Extract packs (skip existing, generates .d.ts)
             if (_packs != null && _packs.Count > 0) {
-                var created = CartridgeUtils.ExtractCartridges(workingDir, _packs, overwriteExisting: false, "[JSRunner]");
+                var created = PackUtils.ExtractPacks(workingDir, PackFolder, _packs, overwriteExisting: false, "[JSRunner]");
                 if (created.Count > 0) didScaffold = true;
             }
 
@@ -802,13 +808,26 @@ namespace OneJS {
         public string TypingsFullPath => WorkingDirFullPath != null ? Path.Combine(WorkingDirFullPath, _typingsOutputPath) : null;
 #endif
 
-        // Cartridge API
+        // Pack API
+        public IReadOnlyList<Pack> Packs => _packs;
+
+        /// <summary>
+        /// The folder below the working directory this runner extracts its packs to:
+        /// <see cref="PackUtils.Folder"/>, or <see cref="PackUtils.LegacyFolder"/> for a runner made
+        /// before packs were renamed from cartridges.
+        /// </summary>
+        public string PackFolder => _legacyPackFolder ? PackUtils.LegacyFolder : PackUtils.Folder;
+
+        [Obsolete("Cartridges is now Packs.")]
         public IReadOnlyList<Pack> Cartridges => _packs;
 
 #if UNITY_EDITOR
-        public string GetCartridgePath(Pack cartridge) {
-            return CartridgeUtils.GetCartridgePath(WorkingDirFullPath, cartridge);
+        public string GetPackPath(Pack pack) {
+            return PackUtils.GetPackPath(WorkingDirFullPath, PackFolder, pack);
         }
+
+        [Obsolete("GetCartridgePath is now GetPackPath.")]
+        public string GetCartridgePath(Pack cartridge) => GetPackPath(cartridge);
 #endif
 
         /// <summary>
@@ -1096,7 +1115,7 @@ namespace OneJS {
             bool alreadyInitialized = HasPackageJson && HasNodeModules && File.Exists(entryFile);
             if (!alreadyInitialized) {
                 ScaffoldDefaultFiles();
-                ExtractCartridges();
+                ExtractPacks();
                 EnsureEntryFile();
                 UnityEditor.AssetDatabase.Refresh();
             }
@@ -1264,11 +1283,11 @@ namespace OneJS {
         }
 
         /// <summary>
-        /// Extract cartridge files to WorkingDir/@cartridges/{slug}/.
-        /// Only extracts if the cartridge folder doesn't already exist.
+        /// Extract pack files to WorkingDir/{PackFolder}/{slug}/.
+        /// Only extracts if the pack folder doesn't already exist.
         /// </summary>
-        void ExtractCartridges() {
-            CartridgeUtils.ExtractCartridges(WorkingDirFullPath, _packs, overwriteExisting: false, "[JSRunner]");
+        void ExtractPacks() {
+            PackUtils.ExtractPacks(WorkingDirFullPath, PackFolder, _packs, overwriteExisting: false, "[JSRunner]");
         }
 #endif // UNITY_EDITOR
 
@@ -1290,7 +1309,7 @@ namespace OneJS {
             _bridge.Eval($"globalThis.__isPlaying = {(Application.isPlaying ? "true" : "false")}");
 
             // Expose the working directory to JS for asset path resolution
-            var escapedWorkingDir = CartridgeUtils.EscapeJsString(_bridge.WorkingDir);
+            var escapedWorkingDir = RunnerUtils.EscapeJsString(_bridge.WorkingDir);
             _bridge.Eval($"globalThis.__workingDir = '{escapedWorkingDir}'");
 
             // Expose the root element to JS as globalThis.__root
@@ -1315,7 +1334,7 @@ namespace OneJS {
         /// Apply configured USS stylesheets to the root element.
         /// </summary>
         void ApplyStylesheets() {
-            CartridgeUtils.ApplyStylesheets(_uiDocument.rootVisualElement, _stylesheets);
+            RunnerUtils.ApplyStylesheets(_uiDocument.rootVisualElement, _stylesheets);
         }
 
         /// <summary>
@@ -1352,12 +1371,12 @@ namespace OneJS {
 
                     var handle = QuickJSNative.RegisterObject(entry.value);
                     var typeName = entry.value.GetType().FullName;
-                    _bridge.Eval($"globalThis['{CartridgeUtils.EscapeJsString(entry.key)}'] = __csHelpers.wrapObject('{typeName}', {handle})");
+                    _bridge.Eval($"globalThis['{RunnerUtils.EscapeJsString(entry.key)}'] = __csHelpers.wrapObject('{typeName}', {handle})");
                 }
             }
 
-            // Inject cartridge objects
-            CartridgeUtils.InjectCartridgeGlobals(_bridge, _packs);
+            // Inject pack objects
+            PackUtils.InjectPackGlobals(_bridge, _packs);
         }
 
         /// <summary>
@@ -1865,7 +1884,7 @@ namespace OneJS {
         /// These can be used for conditional code: if (UNITY_WEBGL) { ... }
         /// </summary>
         void InjectPlatformDefines() {
-            CartridgeUtils.InjectPlatformDefines(_bridge);
+            RunnerUtils.InjectPlatformDefines(_bridge);
         }
 
         void Update() {
@@ -1987,6 +2006,7 @@ namespace OneJS {
         /// </summary>
         void Reset() {
             // UIDocument is added at runtime only. Project folder and PanelSettings are created when user clicks Initialize.
+            _legacyPackFolder = false;
             PopulateDefaultFiles();
         }
 

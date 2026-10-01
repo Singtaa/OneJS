@@ -5,8 +5,8 @@ using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace OneJS.Editor {
-    [CustomEditor(typeof(Pack))]
-    public class UICartridgeEditor : UnityEditor.Editor {
+    [CustomEditor(typeof(Pack), true)]
+    public class PackEditor : UnityEditor.Editor {
         Pack _target;
 
         // List containers
@@ -23,7 +23,7 @@ namespace OneJS.Editor {
         public override VisualElement CreateInspectorGUI() {
             var root = new VisualElement();
 
-            // Header with cartridge icon feel
+            // Header with pack icon feel
             root.Add(CreateHeaderSection());
 
             // Identity section
@@ -42,7 +42,7 @@ namespace OneJS.Editor {
 
         VisualElement CreateHeaderSection() {
             var container = new VisualElement();
-            container.style.backgroundColor = OneJSEditorDesign.Colors.CartridgeHeaderBg;
+            container.style.backgroundColor = OneJSEditorDesign.Colors.PackHeaderBg;
             container.style.SetBorderRadius(4);
             container.style.paddingTop = container.style.paddingBottom = 12;
             container.style.paddingLeft = container.style.paddingRight = 14;
@@ -52,7 +52,7 @@ namespace OneJS.Editor {
             // Path preview
             _pathPreviewLabel = new Label();
             _pathPreviewLabel.style.fontSize = 11;
-            _pathPreviewLabel.style.color = OneJSEditorDesign.Colors.CartridgePathPreview;
+            _pathPreviewLabel.style.color = OneJSEditorDesign.Colors.PackPathPreview;
             _pathPreviewLabel.style.whiteSpace = WhiteSpace.Normal;
             container.Add(_pathPreviewLabel);
 
@@ -69,16 +69,16 @@ namespace OneJS.Editor {
 
             if (string.IsNullOrEmpty(slug)) {
                 _pathPreviewLabel.text = "Set a slug to see the extraction path";
-                _pathPreviewLabel.style.color = OneJSEditorDesign.Colors.CartridgePathWarning;
+                _pathPreviewLabel.style.color = OneJSEditorDesign.Colors.PackPathWarning;
             } else {
                 var relativePath = _target.RelativePath;
-                _pathPreviewLabel.text = $"@cartridges/{relativePath}/";
-                _pathPreviewLabel.style.color = OneJSEditorDesign.Colors.CartridgePathPreview;
+                _pathPreviewLabel.text = $"{PackUtils.Folder}/{relativePath}/";
+                _pathPreviewLabel.style.color = OneJSEditorDesign.Colors.PackPathPreview;
 
                 if (!string.IsNullOrEmpty(ns)) {
-                    _pathPreviewLabel.text += $"\n__cart('@{ns}/{slug}')";
+                    _pathPreviewLabel.text += $"\n__pack('@{ns}/{slug}')";
                 } else {
-                    _pathPreviewLabel.text += $"\n__cart('{slug}')";
+                    _pathPreviewLabel.text += $"\n__pack('{slug}')";
                 }
             }
         }
@@ -94,7 +94,7 @@ namespace OneJS.Editor {
             var namespaceField = new TextField("Namespace");
             namespaceField.value = namespaceProp.stringValue;
             namespaceField.style.flexGrow = 1;
-            namespaceField.tooltip = "Optional namespace for organizing cartridges (e.g., 'myCompany')";
+            namespaceField.tooltip = "Optional namespace for organizing packs (e.g., 'myCompany')";
             namespaceField.RegisterValueChangedCallback(evt => {
                 namespaceProp.stringValue = evt.newValue;
                 serializedObject.ApplyModifiedProperties();
@@ -138,7 +138,7 @@ namespace OneJS.Editor {
             var versionProp = serializedObject.FindProperty("_version");
             var versionField = new TextField("Version");
             versionField.value = versionProp.stringValue;
-            versionField.tooltip = "Optional content version (e.g., '1.0.0'). Recorded on extraction; the JSRunner inspector flags extracted files as Outdated when it no longer matches. Bump it whenever the cartridge's files change.";
+            versionField.tooltip = "Optional content version (e.g., '1.0.0'). Recorded on extraction; the JSRunner inspector flags extracted files as Outdated when it no longer matches. Bump it whenever the pack's files change.";
             versionField.RegisterValueChangedCallback(evt => {
                 versionProp.stringValue = evt.newValue;
                 serializedObject.ApplyModifiedProperties();
@@ -151,7 +151,7 @@ namespace OneJS.Editor {
             descField.value = descProp.stringValue;
             descField.multiline = true;
             descField.style.minHeight = 50;
-            descField.tooltip = "Description of what this cartridge provides";
+            descField.tooltip = "Description of what this pack provides";
             descField.RegisterValueChangedCallback(evt => {
                 descProp.stringValue = evt.newValue;
                 serializedObject.ApplyModifiedProperties();
@@ -170,7 +170,7 @@ namespace OneJS.Editor {
             var headerRow = CreateRow();
             headerRow.style.marginBottom = 6;
 
-            var headerLabel = new Label("Cartridge files to extract");
+            var headerLabel = new Label("Pack files to extract");
             headerLabel.style.flexGrow = 1;
             headerLabel.style.color = OneJSEditorDesign.Colors.TextNeutral;
             headerLabel.style.fontSize = 11;
@@ -304,7 +304,7 @@ namespace OneJS.Editor {
             RebuildObjectsList();
 
             // Help text
-            var helpLabel = new Label("key \u2192 __cart('slug').{key}");
+            var helpLabel = new Label("key \u2192 __pack('slug').{key}");
             helpLabel.style.color = OneJSEditorDesign.Colors.TextDim;
             helpLabel.style.fontSize = 10;
             helpLabel.style.marginTop = 4;
@@ -436,7 +436,7 @@ namespace OneJS.Editor {
             btn.style.height = 20;
             btn.style.fontSize = 14;
             btn.style.unityFontStyleAndWeight = FontStyle.Bold;
-            btn.style.backgroundColor = OneJSEditorDesign.Colors.CartridgeAddBtn;
+            btn.style.backgroundColor = OneJSEditorDesign.Colors.PackAddBtn;
             btn.style.SetBorderRadius(3);
             return btn;
         }
@@ -447,7 +447,7 @@ namespace OneJS.Editor {
             btn.style.height = 18;
             btn.style.marginLeft = 6;
             btn.style.fontSize = 12;
-            btn.style.backgroundColor = OneJSEditorDesign.Colors.CartridgeRemoveBtn;
+            btn.style.backgroundColor = OneJSEditorDesign.Colors.PackRemoveBtn;
             btn.style.SetBorderRadius(3);
             return btn;
         }

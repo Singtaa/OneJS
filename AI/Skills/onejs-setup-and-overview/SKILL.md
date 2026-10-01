@@ -5,7 +5,7 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.9.3"
-  skill-version: "1.14.0"
+  skill-version: "1.14.1"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
@@ -53,7 +53,7 @@ Or confirm on disk that one of these paths exists: `Assets/Singtaa/OneJS/` (Asse
 
 - Package Manager: `+` > **Add package from git URL** > `https://github.com/Singtaa/OneJS.git`
 - Clone: `git clone https://github.com/Singtaa/OneJS.git Assets/OneJS`
-- Asset Store: https://assetstore.unity.com/packages/tools/gui/onejs-221317 (bundles the runtime with premade themes and sample cartridges)
+- Asset Store: https://assetstore.unity.com/packages/tools/gui/onejs-221317 (bundles the runtime with premade themes and sample packs)
 
 ## Quick start
 

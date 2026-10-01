@@ -1,3 +1,12 @@
+# Unreleased
+
+- UI Cartridges are now Packs: `Pack`, the Packs tab, `__pack()` and `~/@packs/`
+- A runner made before the rename keeps extracting to `~/@cartridges/`
+- The old names still compile and run, marked obsolete
+- Breaking: an existing asset is a `Pack`, so `LoadAssetAtPath<UICartridge>`, `as UICartridge` and `t:UICartridge` find nothing
+- Breaking: a serialized field typed `UICartridge` loses its asset, and saving the scene clears it
+- Breaking: editor code reads the list as `"_packs"`, and `Pack.Files` holds `PackFileEntry`
+
 # [2026-10-01] v3.9.3
 
 An npm package's art now reaches player builds, and an agent or script can set a project up with one batch-mode call, no inspector needed. A new project depends on `ojplay`, the new name of `onejs-play`, and on `onejs-unity` `^0.9.2`.

@@ -92,7 +92,7 @@ namespace OneJS {
         static int ResolveHandle(QuickJSContext ctx, string name) {
             // EscapeJsString escapes for single-quoted JS strings, so the name
             // literal below must use single quotes.
-            var escaped = CartridgeUtils.EscapeJsString(name);
+            var escaped = RunnerUtils.EscapeJsString(name);
             var expr =
                 "(function(n){var p=n.split('.');var f=globalThis;" +
                 "for(var i=0;i<p.length&&f!=null;i++)f=f[p[i]];" +

@@ -54,8 +54,8 @@ namespace OneJS.Editor {
         // Default files
         VisualElement _defaultFilesListContainer;
 
-        // Cartridges
-        VisualElement _cartridgeListContainer;
+        // Packs
+        VisualElement _packListContainer;
 
         // Custom lists
         VisualElement _stylesheetsListContainer;
@@ -181,7 +181,7 @@ namespace OneJS.Editor {
             container.style.flexDirection = FlexDirection.Row;
             container.style.marginTop = 6; // with status marginBottom 2 → total 8 (matches space above status)
 
-            string[] tabNames = { OneJSEditorDesign.Texts.TabProject, OneJSEditorDesign.Texts.TabUI, OneJSEditorDesign.Texts.TabCartridges, OneJSEditorDesign.Texts.TabBuild };
+            string[] tabNames = { OneJSEditorDesign.Texts.TabProject, OneJSEditorDesign.Texts.TabUI, OneJSEditorDesign.Texts.TabPacks, OneJSEditorDesign.Texts.TabBuild };
             _tabButtons = new Button[tabNames.Length];
 
             var borderColor = OneJSEditorDesign.Colors.Border;
@@ -238,7 +238,7 @@ namespace OneJS.Editor {
             switch (index) {
                 case 0: BuildProjectTab(_tabContent); break;
                 case 1: BuildUITab(_tabContent); break;
-                case 2: BuildCartridgesTab(_tabContent); break;
+                case 2: BuildPacksTab(_tabContent); break;
                 case 3: BuildBuildTab(_tabContent); break;
             }
 
@@ -528,12 +528,12 @@ namespace OneJS.Editor {
             container.Add(scaffoldRow);
         }
 
-        void BuildCartridgesTab(VisualElement container) {
+        void BuildPacksTab(VisualElement container) {
             // Header with Add button
             var headerRow = CreateRow();
             headerRow.style.marginBottom = 4;
 
-            var headerLabel = new Label(OneJSEditorDesign.Texts.UICartridges);
+            var headerLabel = new Label(OneJSEditorDesign.Texts.PackList);
             headerLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
             headerLabel.style.flexGrow = 1;
             headerRow.Add(headerLabel);
@@ -542,25 +542,25 @@ namespace OneJS.Editor {
                 var prop = serializedObject.FindProperty("_packs");
                 prop.arraySize++;
                 serializedObject.ApplyModifiedProperties();
-                RebuildCartridgeList();
+                RebuildPackList();
             }) { text = "+" };
             addButton.style.width = 24;
             addButton.style.height = 20;
-            addButton.tooltip = "Add a new cartridge slot";
+            addButton.tooltip = "Add a new pack slot";
             headerRow.Add(addButton);
 
             container.Add(headerRow);
 
-            // Cartridge list container
-            _cartridgeListContainer = new VisualElement();
-            container.Add(_cartridgeListContainer);
+            // Pack list container
+            _packListContainer = new VisualElement();
+            container.Add(_packListContainer);
 
             // Initial build
-            RebuildCartridgeList();
+            RebuildPackList();
 
             // Help box (gray info style)
             var helpBox = CreateInfoBox(
-                "Cartridges extract to @cartridges/{path}/ when assigned (existing files are never overwritten). Objects are accessible via __cart('slug') or __cart('@namespace/slug') at runtime.\n" +
+                $"Packs extract to {_target.PackFolder}/{{path}}/ when assigned (existing files are never overwritten). Objects are accessible via __pack('slug') or __pack('@namespace/slug') at runtime.\n" +
                 "E = Extract again (overwrites existing), D = Delete extracted folder, X = Remove from list");
             helpBox.style.marginTop = 4;
             container.Add(helpBox);
@@ -569,16 +569,16 @@ namespace OneJS.Editor {
             var bulkRow = CreateRow();
             bulkRow.style.marginTop = 8;
 
-            var extractAllBtn = new Button(() => ExtractAllCartridges()) { text = OneJSEditorDesign.Texts.ExtractAll };
+            var extractAllBtn = new Button(() => ExtractAllPacks()) { text = OneJSEditorDesign.Texts.ExtractAll };
             extractAllBtn.style.flexGrow = 1;
             extractAllBtn.style.height = extractAllBtn.style.minHeight = 22;
-            extractAllBtn.tooltip = "Extract all cartridges (with confirmation)";
+            extractAllBtn.tooltip = "Extract all packs (with confirmation)";
             bulkRow.Add(extractAllBtn);
 
-            var deleteAllBtn = new Button(() => DeleteAllCartridges()) { text = OneJSEditorDesign.Texts.DeleteAllExtracted };
+            var deleteAllBtn = new Button(() => DeleteAllPacks()) { text = OneJSEditorDesign.Texts.DeleteAllExtracted };
             deleteAllBtn.style.flexGrow = 1;
             deleteAllBtn.style.height = deleteAllBtn.style.minHeight = 22;
-            deleteAllBtn.tooltip = "Delete all extracted cartridge folders (with confirmation)";
+            deleteAllBtn.tooltip = "Delete all extracted pack folders (with confirmation)";
             bulkRow.Add(deleteAllBtn);
 
             container.Add(bulkRow);
@@ -611,7 +611,7 @@ namespace OneJS.Editor {
 
         /// <summary>
         /// Redraws every list this inspector builds by hand: Stylesheets,
-        /// Preloads, Globals, Cartridges and Scaffolding. None of them is bound,
+        /// Preloads, Globals, Packs and Scaffolding. None of them is bound,
         /// so nothing else redraws them when an undo or redo changes the entries
         /// under them, and an entry brought back stayed invisible.
         /// </summary>
@@ -619,7 +619,7 @@ namespace OneJS.Editor {
             RebuildStylesheetsList();
             RebuildPreloadsList();
             RebuildGlobalsList();
-            RebuildCartridgeList();
+            RebuildPackList();
             RebuildDefaultFilesList();
         }
 
@@ -980,37 +980,37 @@ namespace OneJS.Editor {
             RebuildDefaultFilesList();
         }
 
-        // MARK: Cartridge Management
+        // MARK: Pack Management
 
-        void RebuildCartridgeList() {
-            if (_cartridgeListContainer == null) return;
+        void RebuildPackList() {
+            if (_packListContainer == null) return;
 
-            _cartridgeListContainer.Clear();
+            _packListContainer.Clear();
             serializedObject.Update();
 
-            var cartridgesProp = serializedObject.FindProperty("_packs");
+            var packsProp = serializedObject.FindProperty("_packs");
 
-            if (cartridgesProp.arraySize == 0) {
-                var emptyLabel = new Label(OneJSEditorDesign.Texts.NoCartridges);
+            if (packsProp.arraySize == 0) {
+                var emptyLabel = new Label(OneJSEditorDesign.Texts.NoPacks);
                 emptyLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
                 emptyLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
                 emptyLabel.style.paddingTop = 4;
                 emptyLabel.style.paddingBottom = 4;
-                _cartridgeListContainer.Add(emptyLabel);
+                _packListContainer.Add(emptyLabel);
                 return;
             }
 
-            for (int i = 0; i < cartridgesProp.arraySize; i++) {
-                var itemRow = CreateCartridgeItemRow(cartridgesProp, i);
-                _cartridgeListContainer.Add(itemRow);
+            for (int i = 0; i < packsProp.arraySize; i++) {
+                var itemRow = CreatePackItemRow(packsProp, i);
+                _packListContainer.Add(itemRow);
             }
 
             AppendOnejsUiWarningIfNeeded();
         }
 
-        VisualElement CreateCartridgeItemRow(SerializedProperty arrayProp, int index) {
+        VisualElement CreatePackItemRow(SerializedProperty arrayProp, int index) {
             var elementProp = arrayProp.GetArrayElementAtIndex(index);
-            var cartridge = elementProp.objectReferenceValue as Pack;
+            var pack = elementProp.objectReferenceValue as Pack;
 
             var row = new VisualElement();
             row.style.flexDirection = FlexDirection.Row;
@@ -1033,7 +1033,7 @@ namespace OneJS.Editor {
             // Object field
             var objectField = new ObjectField();
             objectField.objectType = typeof(Pack);
-            objectField.value = cartridge;
+            objectField.value = pack;
             objectField.style.flexGrow = 1;
             objectField.style.marginLeft = 4;
             objectField.style.marginRight = 4;
@@ -1041,7 +1041,7 @@ namespace OneJS.Editor {
                 elementProp.objectReferenceValue = evt.newValue;
                 serializedObject.ApplyModifiedProperties();
                 AutoExtractOnAssign(evt.newValue as Pack);
-                RebuildCartridgeList();
+                RebuildPackList();
             });
             row.Add(objectField);
 
@@ -1052,13 +1052,13 @@ namespace OneJS.Editor {
             statusLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
             statusLabel.style.marginRight = 4;
 
-            if (cartridge != null && !string.IsNullOrEmpty(cartridge.Slug) && _target.IsSceneSaved) {
-                var cartridgePath = _target.GetCartridgePath(cartridge);
-                bool isExtracted = !string.IsNullOrEmpty(cartridgePath) && Directory.Exists(cartridgePath);
+            if (pack != null && !string.IsNullOrEmpty(pack.Slug) && _target.IsSceneSaved) {
+                var packPath = _target.GetPackPath(pack);
+                bool isExtracted = !string.IsNullOrEmpty(packPath) && Directory.Exists(packPath);
 
                 if (isExtracted) {
-                    var assetVersion = cartridge.Version;
-                    var extractedVersion = CartridgeUtils.GetExtractedVersion(_target.WorkingDirFullPath, cartridge);
+                    var assetVersion = pack.Version;
+                    var extractedVersion = PackUtils.GetExtractedVersion(_target.WorkingDirFullPath, _target.PackFolder, pack);
                     bool outdated = !string.IsNullOrEmpty(assetVersion) && extractedVersion != assetVersion;
 
                     if (outdated) {
@@ -1077,33 +1077,33 @@ namespace OneJS.Editor {
                 statusLabel.text = OneJSEditorDesign.Texts.NonInitializedYet;
                 statusLabel.style.color = OneJSEditorDesign.Colors.StatusWarning;
             } else {
-                statusLabel.text = cartridge == null ? "" : OneJSEditorDesign.Texts.NoSlug;
+                statusLabel.text = pack == null ? "" : OneJSEditorDesign.Texts.NoSlug;
                 statusLabel.style.color = OneJSEditorDesign.Colors.StatusWarning;
             }
             row.Add(statusLabel);
 
             // Extract button
-            var extractBtn = new Button(() => ExtractCartridge(cartridge, index)) { text = "E" };
+            var extractBtn = new Button(() => ExtractPack(pack, index)) { text = "E" };
             extractBtn.style.width = 24;
             extractBtn.style.height = 20;
-            extractBtn.tooltip = "Extract cartridge files to @cartridges/" + (cartridge?.Slug ?? "");
-            extractBtn.SetEnabled(cartridge != null && !string.IsNullOrEmpty(cartridge?.Slug) && _target.IsSceneSaved);
+            extractBtn.tooltip = $"Extract pack files to {_target.PackFolder}/" + (pack?.RelativePath ?? "");
+            extractBtn.SetEnabled(pack != null && !string.IsNullOrEmpty(pack?.Slug) && _target.IsSceneSaved);
             row.Add(extractBtn);
 
             // Delete button
-            var deleteBtn = new Button(() => DeleteCartridge(cartridge, index)) { text = "D" };
+            var deleteBtn = new Button(() => DeletePack(pack, index)) { text = "D" };
             deleteBtn.style.width = 24;
             deleteBtn.style.height = 20;
             deleteBtn.style.marginLeft = 2;
-            deleteBtn.tooltip = "Delete the extracted folder. While the cartridge is listed it is extracted again on the next Play; X removes it from the list.";
-            var cartPath = _target.IsSceneSaved ? _target.GetCartridgePath(cartridge) : null;
-            bool canDelete = cartridge != null && !string.IsNullOrEmpty(cartridge?.Slug) &&
-                             !string.IsNullOrEmpty(cartPath) && Directory.Exists(cartPath);
+            deleteBtn.tooltip = "Delete the extracted folder. While the pack is listed it is extracted again on the next Play; X removes it from the list.";
+            var extractedPath = _target.IsSceneSaved ? _target.GetPackPath(pack) : null;
+            bool canDelete = pack != null && !string.IsNullOrEmpty(pack?.Slug) &&
+                             !string.IsNullOrEmpty(extractedPath) && Directory.Exists(extractedPath);
             deleteBtn.SetEnabled(canDelete);
             row.Add(deleteBtn);
 
             // Remove from list button
-            var removeBtn = new Button(() => RemoveCartridgeFromList(index, objectField.value as Pack)) { text = "X" };
+            var removeBtn = new Button(() => RemovePackFromList(index, objectField.value as Pack)) { text = "X" };
             removeBtn.style.width = 24;
             removeBtn.style.height = 20;
             removeBtn.style.marginLeft = 2;
@@ -1115,34 +1115,35 @@ namespace OneJS.Editor {
         }
 
         /// <summary>
-        /// Extract a cartridge the moment it is assigned to the list, so the
+        /// Extract a pack the moment it is assigned to the list, so the
         /// extracted files exist by the time the user writes the import (no
         /// hidden wait for the E button or the next Play). Never overwrites:
         /// an already-extracted folder is left alone.
         /// </summary>
-        void AutoExtractOnAssign(Pack cartridge) {
-            if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug) || !_target.IsSceneSaved) return;
+        void AutoExtractOnAssign(Pack pack) {
+            if (pack == null || string.IsNullOrEmpty(pack.Slug) || !_target.IsSceneSaved) return;
 
-            var destPath = _target.GetCartridgePath(cartridge);
+            var destPath = _target.GetPackPath(pack);
             if (string.IsNullOrEmpty(destPath) || Directory.Exists(destPath)) return;
 
             try {
-                var created = CartridgeUtils.ExtractCartridges(
+                var created = PackUtils.ExtractPacks(
                     _target.WorkingDirFullPath,
-                    new List<Pack> { cartridge },
+                    _target.PackFolder,
+                    new List<Pack> { pack },
                     overwriteExisting: false);
 
                 if (created.Count > 0) {
-                    Debug.Log($"[JSRunner] Extracted cartridge '{cartridge.DisplayName}' ({created.Count} files) to: {destPath}");
+                    Debug.Log($"[JSRunner] Extracted pack '{pack.DisplayName}' ({created.Count} files) to: {destPath}");
                     AssetDatabase.Refresh();
                 }
             } catch (Exception ex) {
-                Debug.LogWarning($"[JSRunner] Could not auto-extract cartridge '{cartridge.DisplayName}': {ex.Message}");
+                Debug.LogWarning($"[JSRunner] Could not auto-extract pack '{pack.DisplayName}': {ex.Message}");
             }
         }
 
         /// <summary>
-        /// Warn right in the tab when an assigned cartridge's source imports
+        /// Warn right in the tab when an assigned pack's source imports
         /// onejs-ui but the working directory's package.json does not list it
         /// (projects scaffolded before the template included onejs-ui). The
         /// alternative is a build error whose cause is three steps removed.
@@ -1155,13 +1156,13 @@ namespace OneJS.Editor {
             var packageJsonPath = Path.Combine(workingDir, "package.json");
             if (!File.Exists(packageJsonPath)) return; // not scaffolded yet; current templates include onejs-ui
 
-            var cartridges = _target.Cartridges;
-            if (cartridges == null) return;
+            var packs = _target.Packs;
+            if (packs == null) return;
 
             bool needsUi = false;
-            foreach (var cartridge in cartridges) {
-                if (cartridge?.Files == null) continue;
-                foreach (var file in cartridge.Files) {
+            foreach (var pack in packs) {
+                if (pack?.Files == null) continue;
+                foreach (var file in pack.Files) {
                     if (file?.content != null && file.content.text.Contains("onejs-ui")) {
                         needsUi = true;
                         break;
@@ -1178,54 +1179,55 @@ namespace OneJS.Editor {
             }
 
             var warning = new Label(
-                "A cartridge here imports onejs-ui, which is missing from this project's package.json. " +
+                "A pack here imports onejs-ui, which is missing from this project's package.json. " +
                 "Run: npm install onejs-ui (in the ~ working directory)");
             warning.style.whiteSpace = WhiteSpace.Normal;
             warning.style.color = OneJSEditorDesign.Colors.StatusWarning;
             warning.style.fontSize = 11;
             warning.style.marginTop = 4;
             warning.style.paddingLeft = 4;
-            _cartridgeListContainer.Add(warning);
+            _packListContainer.Add(warning);
         }
 
-        void ExtractCartridge(Pack cartridge, int index) {
-            if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) return;
+        void ExtractPack(Pack pack, int index) {
+            if (pack == null || string.IsNullOrEmpty(pack.Slug)) return;
 
-            var destPath = _target.GetCartridgePath(cartridge);
+            var destPath = _target.GetPackPath(pack);
             bool alreadyExists = Directory.Exists(destPath);
 
             string message = alreadyExists
-                ? $"Cartridge '{cartridge.DisplayName}' is already extracted at:\n\n{destPath}\n\nOverwrite existing files?"
-                : $"Extract cartridge '{cartridge.DisplayName}' to:\n\n{destPath}?";
+                ? $"Pack '{pack.DisplayName}' is already extracted at:\n\n{destPath}\n\nOverwrite existing files?"
+                : $"Extract pack '{pack.DisplayName}' to:\n\n{destPath}?";
 
-            string title = alreadyExists ? "Overwrite Cartridge?" : "Extract Cartridge?";
+            string title = alreadyExists ? "Overwrite Pack?" : "Extract Pack?";
 
             if (!EditorUtility.DisplayDialog(title, message, alreadyExists ? "Overwrite" : "Extract", "Cancel")) {
                 return;
             }
 
             try {
-                var created = CartridgeUtils.ExtractCartridges(
+                var created = PackUtils.ExtractPacks(
                     _target.WorkingDirFullPath,
-                    new List<Pack> { cartridge },
+                    _target.PackFolder,
+                    new List<Pack> { pack },
                     overwriteExisting: true);
 
-                Debug.Log($"[JSRunner] Extracted cartridge '{cartridge.DisplayName}' ({created.Count} files) to: {destPath}");
+                Debug.Log($"[JSRunner] Extracted pack '{pack.DisplayName}' ({created.Count} files) to: {destPath}");
                 AssetDatabase.Refresh();
-                RebuildCartridgeList();
+                RebuildPackList();
 
             } catch (Exception ex) {
-                Debug.LogError($"[JSRunner] Failed to extract cartridge '{cartridge.DisplayName}': {ex.Message}");
-                EditorUtility.DisplayDialog("Extract Failed", $"Failed to extract cartridge:\n\n{ex.Message}", "OK");
+                Debug.LogError($"[JSRunner] Failed to extract pack '{pack.DisplayName}': {ex.Message}");
+                EditorUtility.DisplayDialog("Extract Failed", $"Failed to extract pack:\n\n{ex.Message}", "OK");
             }
         }
 
-        void DeleteCartridge(Pack cartridge, int index) {
-            if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) return;
+        void DeletePack(Pack pack, int index) {
+            if (pack == null || string.IsNullOrEmpty(pack.Slug)) return;
 
-            var destPath = _target.GetCartridgePath(cartridge);
+            var destPath = _target.GetPackPath(pack);
             if (!Directory.Exists(destPath)) {
-                EditorUtility.DisplayDialog("Nothing to Delete", $"Cartridge folder does not exist:\n\n{destPath}", "OK");
+                EditorUtility.DisplayDialog("Nothing to Delete", $"Pack folder does not exist:\n\n{destPath}", "OK");
                 return;
             }
 
@@ -1235,8 +1237,8 @@ namespace OneJS.Editor {
             } catch { }
 
             if (!EditorUtility.DisplayDialog(
-                "Delete Extracted Cartridge?",
-                $"Delete the extracted cartridge folder for '{cartridge.DisplayName}'?\n\n" +
+                "Delete Extracted Pack?",
+                $"Delete the extracted pack folder for '{pack.DisplayName}'?\n\n" +
                 $"Path: {destPath}\n" +
                 $"Files: {fileCount}\n\n" +
                 "This cannot be undone.",
@@ -1246,101 +1248,102 @@ namespace OneJS.Editor {
 
             try {
                 Directory.Delete(destPath, true);
-                Debug.Log($"[JSRunner] Deleted cartridge folder: {destPath}");
+                Debug.Log($"[JSRunner] Deleted pack folder: {destPath}");
                 AssetDatabase.Refresh();
-                RebuildCartridgeList();
+                RebuildPackList();
 
             } catch (Exception ex) {
-                Debug.LogError($"[JSRunner] Failed to delete cartridge folder: {ex.Message}");
-                EditorUtility.DisplayDialog("Delete Failed", $"Failed to delete cartridge folder:\n\n{ex.Message}", "OK");
+                Debug.LogError($"[JSRunner] Failed to delete pack folder: {ex.Message}");
+                EditorUtility.DisplayDialog("Delete Failed", $"Failed to delete pack folder:\n\n{ex.Message}", "OK");
             }
         }
 
-        void RemoveCartridgeFromList(int index, Pack cartridge) {
-            string name = cartridge != null ? cartridge.DisplayName : $"Item {index}";
+        void RemovePackFromList(int index, Pack pack) {
+            string name = pack != null ? pack.DisplayName : $"Item {index}";
 
             if (!s_Confirm(
                 "Remove from List?",
-                $"Remove '{name}' from the cartridge list?\n\n" +
+                $"Remove '{name}' from the pack list?\n\n" +
                 "(This does not delete any extracted files)",
                 "Remove", "Cancel")) {
                 return;
             }
 
-            RemoveListEntry("_packs", index, e => e.objectReferenceValue == cartridge, RebuildCartridgeList);
+            RemoveListEntry("_packs", index, e => e.objectReferenceValue == pack, RebuildPackList);
         }
 
-        void ExtractAllCartridges() {
+        void ExtractAllPacks() {
             if (!_target.IsSceneSaved) {
-                EditorUtility.DisplayDialog("Scene Not Saved", "Save the scene before extracting cartridges.", "OK");
+                EditorUtility.DisplayDialog("Scene Not Saved", "Save the scene before extracting packs.", "OK");
                 return;
             }
 
-            var cartridges = _target.Cartridges;
-            if (cartridges == null || cartridges.Count == 0) {
-                EditorUtility.DisplayDialog("No Cartridges", "No cartridges to extract.", "OK");
+            var packs = _target.Packs;
+            if (packs == null || packs.Count == 0) {
+                EditorUtility.DisplayDialog("No Packs", "No packs to extract.", "OK");
                 return;
             }
 
             int validCount = 0;
             int existingCount = 0;
-            foreach (var c in cartridges) {
+            foreach (var c in packs) {
                 if (c != null && !string.IsNullOrEmpty(c.Slug)) {
                     validCount++;
-                    var path = _target.GetCartridgePath(c);
+                    var path = _target.GetPackPath(c);
                     if (!string.IsNullOrEmpty(path) && Directory.Exists(path)) existingCount++;
                 }
             }
 
             if (validCount == 0) {
-                EditorUtility.DisplayDialog("No Valid Cartridges", "No cartridges with valid slugs to extract.", "OK");
+                EditorUtility.DisplayDialog("No Valid Packs", "No packs with valid slugs to extract.", "OK");
                 return;
             }
 
             string message = existingCount > 0
-                ? $"Extract {validCount} cartridge(s)?\n\n{existingCount} already exist and will be overwritten."
-                : $"Extract {validCount} cartridge(s)?";
+                ? $"Extract {validCount} pack(s)?\n\n{existingCount} already exist and will be overwritten."
+                : $"Extract {validCount} pack(s)?";
 
-            if (!EditorUtility.DisplayDialog("Extract All Cartridges?", message, "Extract All", "Cancel")) {
+            if (!EditorUtility.DisplayDialog("Extract All Packs?", message, "Extract All", "Cancel")) {
                 return;
             }
 
             int extracted = 0;
-            foreach (var cartridge in cartridges) {
-                if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) continue;
+            foreach (var pack in packs) {
+                if (pack == null || string.IsNullOrEmpty(pack.Slug)) continue;
 
                 try {
-                    CartridgeUtils.ExtractCartridges(
+                    PackUtils.ExtractPacks(
                         _target.WorkingDirFullPath,
-                        new List<Pack> { cartridge },
+                        _target.PackFolder,
+                        new List<Pack> { pack },
                         overwriteExisting: true);
                     extracted++;
                 } catch (Exception ex) {
-                    Debug.LogError($"[JSRunner] Failed to extract '{cartridge.DisplayName}': {ex.Message}");
+                    Debug.LogError($"[JSRunner] Failed to extract '{pack.DisplayName}': {ex.Message}");
                 }
             }
 
-            Debug.Log($"[JSRunner] Extracted {extracted} cartridge(s)");
+            Debug.Log($"[JSRunner] Extracted {extracted} pack(s)");
             AssetDatabase.Refresh();
-            RebuildCartridgeList();
+            RebuildPackList();
         }
 
-        void DeleteAllCartridges() {
+        void DeleteAllPacks() {
             if (!_target.IsSceneSaved) {
                 EditorUtility.DisplayDialog("Scene Not Saved", "Save the scene first.", "OK");
                 return;
             }
 
-            var cartridges = _target.Cartridges;
-            if (cartridges == null || cartridges.Count == 0) {
-                EditorUtility.DisplayDialog("No Cartridges", "No cartridges in list.", "OK");
+            var packs = _target.Packs;
+            if (packs == null || packs.Count == 0) {
+                EditorUtility.DisplayDialog("No Packs", "No packs in list.", "OK");
                 return;
             }
 
             int existingCount = 0;
-            foreach (var c in cartridges) {
+            foreach (var c in packs) {
                 if (c != null && !string.IsNullOrEmpty(c.Slug)) {
-                    var path = _target.GetCartridgePath(c);
+                    var path = _target.GetPackPath(c);
                     if (!string.IsNullOrEmpty(path) && Directory.Exists(path)) {
                         existingCount++;
                     }
@@ -1348,35 +1351,35 @@ namespace OneJS.Editor {
             }
 
             if (existingCount == 0) {
-                EditorUtility.DisplayDialog("Nothing to Delete", "No extracted cartridge folders found.", "OK");
+                EditorUtility.DisplayDialog("Nothing to Delete", "No extracted pack folders found.", "OK");
                 return;
             }
 
             if (!EditorUtility.DisplayDialog(
-                "Delete All Extracted Cartridges?",
-                $"Delete {existingCount} extracted cartridge folder(s)?\n\nThis cannot be undone.",
+                "Delete All Extracted Packs?",
+                $"Delete {existingCount} extracted pack folder(s)?\n\nThis cannot be undone.",
                 "Delete All", "Cancel")) {
                 return;
             }
 
             int deleted = 0;
-            foreach (var cartridge in cartridges) {
-                if (cartridge == null || string.IsNullOrEmpty(cartridge.Slug)) continue;
+            foreach (var pack in packs) {
+                if (pack == null || string.IsNullOrEmpty(pack.Slug)) continue;
 
-                var destPath = _target.GetCartridgePath(cartridge);
+                var destPath = _target.GetPackPath(pack);
                 if (!Directory.Exists(destPath)) continue;
 
                 try {
                     Directory.Delete(destPath, true);
                     deleted++;
                 } catch (Exception ex) {
-                    Debug.LogError($"[JSRunner] Failed to delete '{cartridge.DisplayName}' folder: {ex.Message}");
+                    Debug.LogError($"[JSRunner] Failed to delete '{pack.DisplayName}' folder: {ex.Message}");
                 }
             }
 
-            Debug.Log($"[JSRunner] Deleted {deleted} cartridge folder(s)");
+            Debug.Log($"[JSRunner] Deleted {deleted} pack folder(s)");
             AssetDatabase.Refresh();
-            RebuildCartridgeList();
+            RebuildPackList();
         }
 
         // MARK: Status Section

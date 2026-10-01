@@ -16,7 +16,7 @@ using Object = UnityEngine.Object;
 namespace OneJS.Tests.Editor {
     /// <summary>
     /// EditMode tests for the lists in JSRunner's inspector that have a remove
-    /// button: Stylesheets, Preloads, Globals and Cartridges. Each test builds the
+    /// button: Stylesheets, Preloads, Globals and Packs. Each test builds the
     /// real inspector and clicks the real X button. (Scaffolding has no remove
     /// button: a default file is written once, see JSRunnerScaffoldOnceTests.)
     ///
@@ -75,7 +75,7 @@ namespace OneJS.Tests.Editor {
             _showTab = typeof(JSRunnerEditor).GetMethod("ShowTab", BindingFlags.NonPublic | BindingFlags.Instance);
             Assert.IsNotNull(_showTab, "JSRunnerEditor.ShowTab(int) was not found: these tests are out of sync with the inspector.");
             _confirm = typeof(JSRunnerEditor).GetField("s_Confirm", BindingFlags.NonPublic | BindingFlags.Static);
-            Assert.IsNotNull(_confirm, "JSRunnerEditor.s_Confirm was not found, so the Cartridges X would open a modal dialog.");
+            Assert.IsNotNull(_confirm, "JSRunnerEditor.s_Confirm was not found, so the Packs X would open a modal dialog.");
             _simulateClick = typeof(Clickable).GetMethod("SimulateSingleClick", BindingFlags.NonPublic | BindingFlags.Instance);
             Assert.IsNotNull(_simulateClick, "Clickable.SimulateSingleClick was not found: Unity renamed it, so these tests cannot click.");
 
@@ -110,7 +110,7 @@ namespace OneJS.Tests.Editor {
                 so.FindProperty("_preloads").GetArrayElementAtIndex(i).objectReferenceValue = Make(new TextAsset(n), n);
                 so.FindProperty("_globals").GetArrayElementAtIndex(i).FindPropertyRelative("key").stringValue = n;
                 so.FindProperty("_packs").GetArrayElementAtIndex(i).objectReferenceValue =
-                    Make(ScriptableObject.CreateInstance<UICartridge>(), n);
+                    Make(ScriptableObject.CreateInstance<Pack>(), n);
             }
             so.ApplyModifiedPropertiesWithoutUndo();
 
