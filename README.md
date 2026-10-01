@@ -78,19 +78,20 @@ skill into `.claude/skills/`. It never overwrites a skill you have edited.
 
 Full recipe, including the Unity MCP server: **https://onejs.com/docs/ai-setup**
 
-The **Initialize Project** button calls three public methods on `JSRunner`, so a
-script can do the same thing headlessly:
+One call does what **Initialize Project** does, with no editor window:
 
-```csharp
-var runner = new GameObject("App").AddComponent<OneJS.JSRunner>();
-runner.AddMissingDefaultFiles();
-runner.EnsureProjectFolderAndAssets(true);
-runner.EnsureProjectSetup();
+```bash
+unity run <project> -- -nographics -executeMethod OneJS.Editor.ProjectSetup.Initialize
 ```
 
-Save the scene first; the app is created next to it. Run the script with
-`unity run <project> -- -nographics -executeMethod YourClass.Run`, then
-`npm install && npm run build` in the app's `~/` folder.
+Then run `npm install && npm run build` in the `~/` folder it logs.
+
+It sets up every `JSRunner` in the active scene. If the scene has none, it adds
+one on a GameObject named `App`. A project with no saved scene gets
+`Assets/Scenes/Main.unity`, so an empty project ends up with
+`Assets/Scenes/Main/App/~/`. Calling it again is safe. From editor code, use
+`ProjectSetup.InitializeRunner(runner)` for one runner; it returns the working
+directory to build.
 
 ## Quick Start
 
