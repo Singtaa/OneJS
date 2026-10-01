@@ -475,13 +475,21 @@ namespace OneJS.Editor {
             }
         }
 
-        /// <summary>Records an app's asset folder. The copying happens in CommitAssets.</summary>
+        /// <summary>Records an app's asset sources. The copying happens in CommitAssets.</summary>
         void CopyAssets(JSRunner runner, bool fromScene) {
             var workingDir = runner.WorkingDirFullPath;
             if (string.IsNullOrEmpty(workingDir)) return;
+            RecordAssetSource(workingDir, runner.gameObject.name, fromScene);
+        }
 
+        /// <summary>
+        /// Records an app by its assets folder, which also names the app's
+        /// packages: CommitAssets reads node_modules beside it. Every app is
+        /// recorded, folder or not, because a package can give an app assets
+        /// it has no folder for; one with neither simply contributes nothing.
+        /// </summary>
+        static void RecordAssetSource(string workingDir, string runnerName, bool fromScene) {
             var assetsDir = Path.Combine(workingDir, "assets");
-            if (!Directory.Exists(assetsDir)) return;
 
             // The same folder twice is one app reached twice, not two apps: two
             // JSRunners can share a project, and a runner can sit in more than one
@@ -497,7 +505,7 @@ namespace OneJS.Editor {
                 }
                 return;
             }
-            _assetSources.Add((assetsDir, runner.gameObject.name, fromScene));
+            _assetSources.Add((assetsDir, runnerName, fromScene));
         }
 
         /// <summary>
@@ -547,7 +555,7 @@ namespace OneJS.Editor {
 
             // relative path (lowercased) -> what to copy and who owns it.
             var plan = new Dictionary<string,
-                (string file, string relative, string runner, string src, bool fromScene)>();
+                (string file, string relative, string runner, string src, bool fromScene, bool fromPackage)>();
 
             // Scene apps first, so that when a scene app and a prefab app want the
             // same path the scene app is always the one already holding it. That
@@ -559,12 +567,7 @@ namespace OneJS.Editor {
                 .ToList();
 
             foreach (var (srcDir, runnerName, fromScene) in ordered) {
-                foreach (var file in Directory.GetFiles(srcDir, "*", SearchOption.AllDirectories)) {
-                    if (file.EndsWith(".meta")) continue;
-
-                    var relative = file.Substring(srcDir.Length)
-                        .TrimStart(Path.DirectorySeparatorChar, '/')
-                        .Replace('\\', '/');
+                foreach (var (file, relative, fromPackage) in AppAssetFiles(srcDir)) {
                     // Case folded, because Windows and macOS both resolve
                     // Logo.png and logo.png to one file. Detecting this only on
                     // Linux would mean a build that passes CI and ships one app's
@@ -581,6 +584,14 @@ namespace OneJS.Editor {
                         // would otherwise fail a perfectly good build.
                         if (PathsEqual(owner.src, srcDir)) continue;
 
+                        // Two apps that install the same package reach the same
+                        // file, which is one package twice. Unlike an app's own
+                        // file, the path belongs to the package rather than to
+                        // either app, so neither can rename it, and identical
+                        // bytes are the same asset. Different bytes (two versions
+                        // of the package) fall through to the collision below.
+                        if (owner.fromPackage && fromPackage && SameBytes(owner.file, file)) continue;
+
                         // Identical bytes are refused too, deliberately. Sharing one
                         // copy happens to work today and silently stops working the
                         // day the two files diverge, and the build would then start
@@ -596,6 +607,13 @@ namespace OneJS.Editor {
                             $"cannot ship the same relative path. Rename one of them, put each app's files " +
                             $"under a folder of their own, or turn on Exclude From Build on the runner that " +
                             $"does not ship.";
+
+                        // A package's path is not either app's to rename, so the
+                        // useful advice is to make the two copies the same.
+                        if (owner.fromPackage || fromPackage) {
+                            shared += $" A path under an @ namespace from an npm package belongs to that " +
+                                $"package: install the same version of it in both apps.";
+                        }
 
                         // Both apps came from build scenes, so both certainly ship and
                         // one of them would silently get the other's file. Hard error,
@@ -623,7 +641,7 @@ namespace OneJS.Editor {
                             $"ship, the file it reads will be the other app's. {shared}");
                         continue;
                     }
-                    plan[key] = (file, relative, runnerName, srcDir, fromScene);
+                    plan[key] = (file, relative, runnerName, srcDir, fromScene, fromPackage);
                 }
             }
 
@@ -682,11 +700,12 @@ namespace OneJS.Editor {
                 var list = string.Join("\n  ", present
                     .Select(f => f.Substring(destDir.Length).TrimStart(Path.DirectorySeparatorChar, '/').Replace('\\', '/'))
                     .OrderBy(x => x, StringComparer.Ordinal));
+                var apps = plan.Values.Select(e => e.runner).Distinct().Count();
                 Debug.Log($"[JSRunner] StreamingAssets/onejs/assets now holds {present.Length} file(s) " +
-                    $"from {_assetSources.Count} app(s):\n  {list}");
-            } else if (_assetSources.Count == 0) {
-                Debug.Log("[JSRunner] No app in this build ships an assets folder; " +
-                    "StreamingAssets/onejs/assets is empty.");
+                    $"from {apps} app(s):\n  {list}");
+            } else {
+                Debug.Log("[JSRunner] No app in this build ships assets, from its own folder or a " +
+                    "package's; StreamingAssets/onejs/assets is empty.");
             }
 
             // The destination is under Assets, so Unity has to be told: without
@@ -709,6 +728,85 @@ namespace OneJS.Editor {
                 try { File.SetAttributes(f, FileAttributes.Normal); } catch { }
             }
             Directory.Delete(dir, true);
+        }
+
+        /// <summary>
+        /// Every file one app ships, as (file, path under StreamingAssets/onejs/assets,
+        /// whether a package supplied it): the app's own assets folder, then each
+        /// package namespace the app does not already have a folder for.
+        /// </summary>
+        static IEnumerable<(string file, string relative, bool fromPackage)> AppAssetFiles(string assetsDir) {
+            if (Directory.Exists(assetsDir)) {
+                foreach (var file in Directory.GetFiles(assetsDir, "*", SearchOption.AllDirectories)) {
+                    if (file.EndsWith(".meta")) continue;
+                    yield return (file, RelativeTo(assetsDir, file), false);
+                }
+            }
+
+            var workingDir = Path.GetDirectoryName(assetsDir);
+            foreach (var (ns, dir) in PackageAssetNamespaces(workingDir)) {
+                // The app's own folder for a namespace keeps all of it: it is a
+                // copy the app made or a customisation, and onejs-unity's Editor
+                // resolver reads it first. Merging file by file would ship a mix
+                // of two versions.
+                if (Directory.Exists(Path.Combine(assetsDir, ns))) continue;
+                foreach (var file in Directory.GetFiles(dir, "*", SearchOption.AllDirectories)) {
+                    if (file.EndsWith(".meta")) continue;
+                    yield return (file, ns + "/" + RelativeTo(dir, file), true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// The asset namespaces an app's packages carry: every
+        /// node_modules/{pkg}/assets/@{ns}/ and node_modules/@{scope}/{pkg}/assets/@{ns}/.
+        /// This is the folder convention onejs-unity's copyAssetsPlugin scans and its
+        /// README documents, so a package needs no configuration to ship assets.
+        /// Top level packages only, as in copyAssetsPlugin. When two packages claim
+        /// one namespace the first in ordinal path order keeps it, and the build
+        /// says which.
+        /// </summary>
+        static List<(string ns, string dir)> PackageAssetNamespaces(string workingDir) {
+            var found = new List<(string ns, string dir)>();
+            var modules = Path.Combine(workingDir, "node_modules");
+            if (!Directory.Exists(modules)) return found;
+
+            var packages = new List<string>();
+            foreach (var entry in Directory.GetDirectories(modules).OrderBy(d => d, StringComparer.Ordinal)) {
+                if (Path.GetFileName(entry).StartsWith("@")) {
+                    packages.AddRange(Directory.GetDirectories(entry).OrderBy(d => d, StringComparer.Ordinal));
+                } else {
+                    packages.Add(entry);
+                }
+            }
+
+            foreach (var pkg in packages) {
+                var assets = Path.Combine(pkg, "assets");
+                if (!Directory.Exists(assets)) continue;
+                foreach (var dir in Directory.GetDirectories(assets).OrderBy(d => d, StringComparer.Ordinal)) {
+                    var ns = Path.GetFileName(dir);
+                    if (!ns.StartsWith("@")) continue;
+                    var taken = found.FindIndex(f => f.ns == ns);
+                    if (taken >= 0) {
+                        Debug.LogWarning($"[JSRunner] Two packages ship the asset namespace {ns}: " +
+                            $"{found[taken].dir} keeps it and {dir} is not copied.");
+                        continue;
+                    }
+                    found.Add((ns, dir));
+                }
+            }
+            return found;
+        }
+
+        static string RelativeTo(string root, string file) {
+            return file.Substring(root.Length).TrimStart(Path.DirectorySeparatorChar, '/').Replace('\\', '/');
+        }
+
+        static bool SameBytes(string a, string b) {
+            var fa = new FileInfo(a);
+            var fb = new FileInfo(b);
+            if (fa.Length != fb.Length) return false;
+            return File.ReadAllBytes(a).AsSpan().SequenceEqual(File.ReadAllBytes(b));
         }
 
         /// <summary>Same folder on disk, whatever the separators and case say.</summary>
