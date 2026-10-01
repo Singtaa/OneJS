@@ -105,18 +105,18 @@ All four options embed in the bundle and work in player builds:
 
 Limits: no CSS grid, no `gap`, no `z-index` (paint order = sibling order), no shadows/filters.
 
-## Cartridges
+## Packs
 
-A `UICartridge` (ScriptableObject, **Create > OneJS > UI Cartridge**) packages source files and Unity object references as a drop-in content pack. This is how the Asset Store package ships its premade onejs-ui themes and samples (namespace `singtaa`).
+A `Pack` (ScriptableObject, **Create > OneJS > Pack**) packages source files and Unity object references as a drop-in content pack. This is how the Asset Store package ships its premade onejs-ui themes and samples (namespace `singtaa`).
 
 Consuming one:
 
-1. Add the asset to the JSRunner inspector's **Cartridges** tab. Assignment extracts it immediately to `~/@cartridges/{slug}/` (namespaced: `~/@cartridges/@{namespace}/{slug}/`); on OneJS 3.1.3 and older, extraction waits for the next preview/play or the tab's **E** button.
-2. Themes: `import "onejs:themes"` registers every extracted `*Theme.ts` module at build time (themesPlugin from `onejs-unity/esbuild` 0.2.19+, wired in scaffolded esbuild configs). A single theme can still be registered explicitly by relative path (`import "./@cartridges/@singtaa/kawaii/kawaiiTheme"`); component cartridges always use named relative imports (no alias/package exists). Premade themes need `onejs-ui` in the app's `package.json` (newly scaffolded projects include it; older ones need a one-time `npm install onejs-ui`, and the Cartridges tab warns when it is missing).
+1. Add the asset to the JSRunner inspector's **Packs** tab. Assignment extracts it immediately to `~/@packs/{slug}/` (namespaced: `~/@packs/@{namespace}/{slug}/`), or `~/@cartridges/` on a runner made before cartridges became packs; on OneJS 3.1.3 and older, extraction waits for the next preview/play or the tab's **E** button.
+2. Themes: `import "onejs:themes"` registers every extracted `*Theme.ts` module at build time (themesPlugin from `onejs-unity/esbuild` 0.2.19+, wired in scaffolded esbuild configs). A single theme can still be registered explicitly by relative path (`import "./@packs/@singtaa/kawaii/kawaiiTheme"`); component packs always use named relative imports (no alias/package exists). Premade themes need `onejs-ui` in the app's `package.json` (newly scaffolded projects include it; older ones need a one-time `npm install onejs-ui`, and the Packs tab warns when it is missing).
 
-Semantics worth knowing: editor extraction never overwrites (refresh via the tab's **D** then **E**), player builds always re-extract with overwrite (extracted files are generated output; edits belong in the consumer's own files). Object entries (key → UnityEngine.Object) are reachable as `__cart("@ns/slug").key` with a generated `.d.ts`; the premade themes use only the file channel, so their `__cart()` entry is empty.
+Semantics worth knowing: editor extraction never overwrites (refresh via the tab's **D** then **E**), player builds always re-extract with overwrite (extracted files are generated output; edits belong in the consumer's own files). Object entries (key → UnityEngine.Object) are reachable as `__pack("@ns/slug").key` with a generated `.d.ts`; the premade themes use only the file channel, so their `__pack()` entry is empty.
 
-Docs: https://onejs.com/docs/guides/cartridges and https://onejs.com/docs/onejs-ui/premade-themes. In the Asset Store package, `Assets/Singtaa/Premade/AGENTS.md` covers the premade content in depth.
+Docs: https://onejs.com/docs/guides/packs and https://onejs.com/docs/onejs-ui/premade-themes. In the Asset Store package, `Assets/Singtaa/Premade/AGENTS.md` covers the premade content in depth.
 
 ## C# interop
 
@@ -180,4 +180,4 @@ Performance on QuickJS (an interpreter): every proxy access is a reflection cros
 - Building and deployment (link.xml, WebGL): https://onejs.com/docs/guides/building
 - Component reference: https://onejs.com/docs/components/view (and siblings)
 - onejs-ui theming: https://onejs.com/docs/onejs-ui/theming
-- Cartridges and premade themes: https://onejs.com/docs/guides/cartridges, https://onejs.com/docs/onejs-ui/premade-themes
+- Packs and premade themes: https://onejs.com/docs/guides/packs, https://onejs.com/docs/onejs-ui/premade-themes
