@@ -532,8 +532,11 @@ Structs are automatically serialized between JS and C# without manual registrati
 // 1. Is it a value type (not primitive, not enum)?
 // 2. Does it have public fields or properties?
 // 3. Is it not a compiler-generated type?
+// 4. Does every member survive JSON (a value type, a string, or an array or List of those)?
 // Result: automatic serialization support
 ```
+
+A struct that fails check 4 holds a reference, such as `FontDefinition` (a `Font`) or `FillGradient` (a `Gradient`), and crosses as a handle instead, so the reference survives the round trip.
 
 **Pre-Registered Types**: Common Unity types are pre-registered at startup for performance:
 - Vectors: `Vector2`, `Vector3`, `Vector4`, `Vector2Int`, `Vector3Int`

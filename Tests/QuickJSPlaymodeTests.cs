@@ -107,6 +107,22 @@ namespace OneJS.Tests {
         public System.Collections.Generic.List<string> tags;
     }
 
+    public class TestRefPayload {
+        public string name;
+    }
+
+    // A struct holding a plain class instance, as FillGradient holds a Gradient.
+    public struct TestStructWithClassField {
+        public float weight;
+        public TestRefPayload payload;
+    }
+
+    public static class StructClassFieldHelper {
+        public static TestStructWithClassField Stored;
+        public static TestStructWithClassField Make(string name) =>
+            new TestStructWithClassField { weight = 2f, payload = new TestRefPayload { name = name } };
+    }
+
     /// <summary>
     /// Playmode tests for QuickJS core functionality.
     /// Tests basic eval, static calls, GameObject interop, callbacks, and struct serialization.
@@ -483,6 +499,46 @@ namespace OneJS.Tests {
 
             StringAssert.Contains("coords", json);
             StringAssert.Contains("7,8", json);
+            yield return null;
+        }
+
+        // MARK: Struct Class Member Tests
+
+        /// <summary>
+        /// A struct with a class member crosses as a handle, so the reference
+        /// survives. Serialized, the member was written with ToString(), and
+        /// handing the struct back failed converting a type name to the class.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Struct_WithAClassField_KeepsTheReference() {
+            var result = _ctx.Eval(@"
+                var H = CS.OneJS.Tests.StructClassFieldHelper;
+                var s = H.Make('kept');
+                H.Stored = s;
+                typeof s.payload + ',' + s.payload.name + ',' + s.weight;
+            ");
+            Assert.AreEqual("object,kept,2", result);
+            Assert.AreEqual("kept", StructClassFieldHelper.Stored.payload?.name);
+            yield return null;
+        }
+
+        /// <summary>
+        /// The documented gradient fill: FillGradient holds a Gradient, and
+        /// assigning one to Painter2D.fillGradient threw on 3.9.2.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Struct_FillGradient_AssignsToPainter2D() {
+            var result = _ctx.Eval(@"
+                var UIE = CS.UnityEngine.UIElements;
+                var g = UIE.FillGradient.MakeLinearGradient(
+                    new CS.UnityEngine.Color(1, 0, 0, 1), new CS.UnityEngine.Color(0, 0, 1, 1),
+                    new CS.UnityEngine.Vector2(0, 0), new CS.UnityEngine.Vector2(10, 0));
+                var p = new UIE.Painter2D();
+                p.fillGradient = g;
+                p.Dispose();
+                typeof g.gradient;
+            ");
+            Assert.AreEqual("object", result);
             yield return null;
         }
 

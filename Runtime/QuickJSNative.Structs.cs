@@ -128,20 +128,35 @@ namespace OneJS {
             var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
             if (fields.Length == 0 && props.Length == 0) return false;
 
-            // Skip structs containing UnityEngine.Object references (e.g., FontDefinition).
-            // These references cannot survive JSON round-tripping (ToString() destroys them).
-            // They must fall through to the ObjectHandle path to preserve C# references.
-            if (HasUnityObjectMembers(fields, props)) return false;
+            // Skip structs holding a reference JSON cannot carry: a UnityEngine.Object
+            // (FontDefinition) or any other class (FillGradient's Gradient). Serializing
+            // writes one with ToString(), so the struct came back from JS holding a type
+            // name where the reference was, and assigning it threw. They fall through to
+            // the ObjectHandle path, which keeps the C# reference.
+            if (HasMembersJsonCannotCarry(fields, props)) return false;
 
             return true;
         }
 
-        static bool HasUnityObjectMembers(FieldInfo[] fields, PropertyInfo[] props) {
+        static bool HasMembersJsonCannotCarry(FieldInfo[] fields, PropertyInfo[] props) {
             for (int i = 0; i < fields.Length; i++) {
-                if (typeof(UnityEngine.Object).IsAssignableFrom(fields[i].FieldType)) return true;
+                if (!JsonCarries(fields[i].FieldType)) return true;
             }
             for (int i = 0; i < props.Length; i++) {
-                if (typeof(UnityEngine.Object).IsAssignableFrom(props[i].PropertyType)) return true;
+                if (props[i].GetIndexParameters().Length > 0) continue;
+                if (!JsonCarries(props[i].PropertyType)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Whether a member of this type survives the trip to JSON and back: a value
+        /// type, a string, or an array or List of those (AppendJsonValue's cases).
+        /// </summary>
+        static bool JsonCarries(Type type) {
+            if (type.IsValueType || type == typeof(string)) return true;
+            if (TryGetCollectionElementType(type, out var element)) {
+                return element.IsValueType || element == typeof(string);
             }
             return false;
         }
