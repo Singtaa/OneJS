@@ -5,6 +5,8 @@
 - The old names still compile and run, marked obsolete
 - Breaking: `CreateInstance<UICartridge>()` returns null; create a `Pack`
 - Breaking: editor code reads the list as `"_packs"`, and `Pack.Files` holds `PackFileEntry`
+- The template's `global.d.ts` declares `fetch`, `URL`, `localStorage`, `AbortController` and the other web globals the runtime installs
+- Existing projects: replace `types/global.d.ts` with the package's `Editor/Templates/global.d.ts.txt`, keeping your own additions
 
 # [2026-10-01] v3.9.3
 

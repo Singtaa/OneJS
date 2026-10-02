@@ -334,7 +334,7 @@ speed. Disable with `ShowCursor = false`, resize with `CursorScale`.
 The `Templates/` directory contains TextAsset templates scaffolded by `Initialize Project`: `package.json`, `tsconfig.json`, `esbuild.config.mjs`, `index.tsx`, `main.uss`, `global.d.ts`, `gitignore` (written as `.gitignore`) and `AGENTS.md`. Notes on three of them:
 
 - `esbuild.config.mjs.txt` uses `format: "iife"` with `globalName: "__exports"` (not ESM). This is required for `onPlay()`/`onStop()` lifecycle hook support. QuickJS evaluates in global scope where ESM `export {}` would be a syntax error.
-- `global.d.ts.txt` declares runtime globals (`__root`, `__isPlaying`, `__eventAPI`, etc.)
+- `global.d.ts.txt` declares runtime globals (`__root`, `__isPlaying`, `__eventAPI`, etc.) and every web global the bootstrap installs (`fetch`, `URL`, `localStorage`, `AbortController`...), typed to what both the polyfills and the browser provide. The container's scaffold gate typechecks a probe that uses each one, read from the bootstrap, so a global added there without a declaration here fails the gate.
 - `AGENTS.md.txt` is scaffolded into the working dir as `AGENTS.md`: a condensed guide (commands, rules, interop quick reference) for AI coding agents working on the user's app. Keep it in sync with the repo-root `AGENTS.md`.
 
 ## TypeGenerator
