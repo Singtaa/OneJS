@@ -99,6 +99,49 @@ namespace OneJS.Tests.Models {
         }
 
         [UnityTest]
+        public IEnumerator Actors_MoveTurnAndScaleOneThingAtATime() {
+            int model = 0;
+            yield return Load(m => model = m);
+            ModelBridge.BeginScene();
+            int actor = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, true, true);
+            var t = ModelBridge.ActorObject(actor).transform;
+
+            ModelBridge.SetRotation(actor, 90, 30, 10);
+            Assert.That(Quaternion.Angle(t.rotation, Quaternion.Euler(30, 90, 10)), Is.LessThan(0.01f));
+
+            // Moving must not undo a pitch or a roll, which Place, carrying only a yaw, would.
+            ModelBridge.Move(actor, 1, 2, 3);
+            Assert.That(t.position, Is.EqualTo(new Vector3(1, 2, 3)));
+            Assert.That(Quaternion.Angle(t.rotation, Quaternion.Euler(30, 90, 10)), Is.LessThan(0.01f));
+
+            ModelBridge.SetScale(actor, 2);
+            Assert.That(t.localScale, Is.EqualTo(Vector3.one * 2));
+        }
+
+        [UnityTest]
+        public IEnumerator Speed_ScalesAnActorsClipAndZeroFreezesIt() {
+            int model = 0;
+            yield return Load(m => model = m);
+            ModelBridge.BeginScene();
+            int actor = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, true, true);
+            int other = ModelBridge.Spawn(model, 2, 0, 0, 0, 1, true, true);
+            var spin = ModelBridge.ActorObject(actor).GetComponentInChildren<Animation>()["spin"];
+            var otherSpin = ModelBridge.ActorObject(other).GetComponentInChildren<Animation>()["spin"];
+
+            // Set before the clip starts, so a clip played later takes the actor's speed too.
+            ModelBridge.SetSpeed(actor, 0);
+            ModelBridge.Play(actor, "spin", true, 0);
+            ModelBridge.Play(other, "spin", true, 0);
+            ModelBridge.Step(0.25f);
+            Assert.That(spin.time, Is.EqualTo(0f), "a speed of 0 is paused where it is");
+            Assert.That(otherSpin.time, Is.EqualTo(0.25f).Within(1e-4), "one actor's speed is its own");
+
+            ModelBridge.SetSpeed(actor, 2);
+            ModelBridge.Step(0.25f);
+            Assert.That(spin.time, Is.EqualTo(0.5f).Within(1e-4));
+        }
+
+        [UnityTest]
         public IEnumerator EditMode_LeavesTheScenesCameraLightAndLightingAlone() {
             var camera = new GameObject("Main Camera") { tag = "MainCamera" }.AddComponent<Camera>();
             camera.transform.position = new Vector3(0, 1, -10);

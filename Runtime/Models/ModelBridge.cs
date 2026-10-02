@@ -51,6 +51,8 @@ namespace OneJS.Models {
             public MaterialPropertyBlock block;
             public float dissolve;
             public bool receive = true;
+            // Applied to every clip, including one played after it was set.
+            public float speed = 1;
         }
 
         /// <summary>The lighting a play-mode scene changed, to put back.</summary>
@@ -212,9 +214,33 @@ namespace OneJS.Models {
             return id;
         }
 
+        /// <summary>Moves an actor and turns it about the up axis. Moving with Move keeps a pitch and a roll.</summary>
         public static void Place(int actor, float x, float y, float z, float yaw) {
             if (!_actors.TryGetValue(actor, out var a)) return;
             a.go.transform.SetPositionAndRotation(new Vector3(x, y, z), Quaternion.Euler(0, yaw, 0));
+        }
+
+        /// <summary>Moves an actor without turning it.</summary>
+        public static void Move(int actor, float x, float y, float z) {
+            if (_actors.TryGetValue(actor, out var a)) a.go.transform.position = new Vector3(x, y, z);
+        }
+
+        /// <summary>Turns an actor, in degrees: yaw about the up axis, pitch about its right, roll about its forward.</summary>
+        public static void SetRotation(int actor, float yaw, float pitch, float roll) {
+            if (_actors.TryGetValue(actor, out var a)) a.go.transform.rotation = Quaternion.Euler(pitch, yaw, roll);
+        }
+
+        /// <summary>Scales an actor evenly; 1 is the model's own size.</summary>
+        public static void SetScale(int actor, float scale) {
+            if (_actors.TryGetValue(actor, out var a)) a.go.transform.localScale = Vector3.one * scale;
+        }
+
+        /// <summary>How fast an actor's clips play: 1 as authored, 0 held where they are.</summary>
+        public static void SetSpeed(int actor, float speed) {
+            if (!_actors.TryGetValue(actor, out var a)) return;
+            a.speed = speed;
+            if (a.anim == null) return;
+            foreach (AnimationState state in a.anim) state.speed = speed;
         }
 
         /// <summary>Whether an actor casts shadows and has shadows cast on it.</summary>
@@ -228,6 +254,7 @@ namespace OneJS.Models {
             var state = a.anim[clip];
             if (state == null) return false;
             state.wrapMode = loop ? WrapMode.Loop : WrapMode.ClampForever;
+            state.speed = a.speed;
             // A crossfade only progresses in Animation's own update, which edit mode never runs.
             if (fade > 0 && Playing) a.anim.CrossFade(clip, fade);
             else a.anim.Play(clip);
