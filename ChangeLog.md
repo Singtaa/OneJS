@@ -1,4 +1,6 @@
-# Unreleased
+# [2026-10-01] v3.9.4
+
+UI Cartridges are now Packs, and a project made before the rename keeps working as it was. A new project's `global.d.ts` types `fetch`, `URL`, `localStorage` and the other web globals the runtime installs.
 
 - UI Cartridges are now Packs: `Pack`, the Packs tab, `__pack()` and `~/@packs/`
 - A runner made before the rename keeps extracting to `~/@cartridges/`
