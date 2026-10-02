@@ -525,6 +525,39 @@ namespace OneJS.Tests {
             Assert.IsTrue(resultJson.Contains("\"status\":404"), $"Expected status:404, got: {resultJson}");
         }
 
+        [UnityTest]
+        public IEnumerator Fetch_TransportFailure_Rejects() {
+            // Nothing listens on port 1: the request never gets a response, so
+            // fetch rejects with a TypeError as it does on the web, instead of
+            // resolving a status 0 that retry libraries take for an answer.
+            _bridge.Eval(@"
+                globalThis.__fetchTestDone = false;
+                globalThis.__fetchTestResult = null;
+                fetch('http://127.0.0.1:1/nothing')
+                    .then(function(response) {
+                        globalThis.__fetchTestResult = { resolved: true, status: response.status };
+                        globalThis.__fetchTestDone = true;
+                    })
+                    .catch(function(err) {
+                        globalThis.__fetchTestResult = { name: err.name, message: err.message };
+                        globalThis.__fetchTestDone = true;
+                    });
+            ");
+            _bridge.Context.ExecutePendingJobs();
+
+            float elapsed = 0f;
+            while (elapsed < 10f) {
+                _bridge.Tick();
+                if (_bridge.Eval("globalThis.__fetchTestDone") == "true") break;
+                yield return new WaitForSeconds(0.1f);
+                elapsed += 0.1f;
+            }
+
+            var resultJson = _bridge.Eval("JSON.stringify(globalThis.__fetchTestResult)");
+            StringAssert.Contains("\"name\":\"TypeError\"", resultJson);
+            StringAssert.Contains("127.0.0.1:1", resultJson);
+        }
+
         // MARK: Local Test Server
 
         /// <summary>

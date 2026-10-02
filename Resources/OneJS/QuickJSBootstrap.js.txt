@@ -159,12 +159,30 @@ function releaseObject(obj) {
 }
 
 // MARK: Args
+// The callback slot each function passed as a method argument holds. Passing
+// the same function again reuses its slot, so it reaches C# as the same
+// delegate: `RemoveListener(fn)` finds what `AddListener(fn)` added, and a
+// function passed every frame takes one slot, not one per call. Property
+// setters and add_/remove_ keep their own slots, which they free on reassign
+// and unsubscribe; these live until the context goes.
+const __argCallbackSlots = new WeakMap();
+
 function __resolveArgs(args) {
     if (!args || args.length === 0) return args;
-    
+
     const resolved = new Array(args.length);
     for (let i = 0; i < args.length; i++) {
-        resolved[i] = __resolveValue(args[i]);
+        const arg = args[i];
+        if (typeof arg === "function" && !arg.__csPathProxy && !arg.__csHandle) {
+            let slot = __argCallbackSlots.get(arg);
+            if (slot === undefined) {
+                slot = __resolveValue(arg);
+                if (slot && slot.__csCallbackHandle !== undefined) __argCallbackSlots.set(arg, slot);
+            }
+            resolved[i] = slot;
+        } else {
+            resolved[i] = __resolveValue(arg);
+        }
     }
     return resolved;
 }
@@ -483,6 +501,7 @@ function __wrapObject(typeName, handle) {
         __csType: typeName,
         __csHandle: handle
     };
+    const methods = __methodMembersOf(typeName);
 
     const proxy = new Proxy(target, {
         get(obj, prop) {
@@ -594,19 +613,18 @@ function __wrapObject(typeName, handle) {
                 };
             }
 
-            // For all members (uppercase or lowercase), try property access first
-            // C# returns "__oneJS_methodRef__" if it's a method, not a property
-            const value = __cs.invoke(typeName, propName, 2, 0, handle, []);
-
-            // If C# signals this is a method, return a function wrapper
-            if (value === "__oneJS_methodRef__") {
-                return function (...args) {
-                    const raw = __cs.invoke(typeName, propName, 1, 0, handle, __resolveArgs(args));
-                    return __wrapResultFromCs(null, raw);
-                };
+            // A member C# has reported as a method on this type is still one:
+            // call it without asking again. Otherwise read it as a property;
+            // C# returns "__oneJS_methodRef__" if it's a method.
+            if (!methods.has(propName)) {
+                const value = __cs.invoke(typeName, propName, 2, 0, handle, []);
+                if (value !== "__oneJS_methodRef__") return __wrapResultFromCs(null, value);
+                methods.add(propName);
             }
-
-            return __wrapResultFromCs(null, value);
+            return function (...args) {
+                const raw = __cs.invoke(typeName, propName, 1, 0, handle, __resolveArgs(args));
+                return __wrapResultFromCs(null, raw);
+            };
         },
         set(obj, prop, value) {
             if (typeof prop === "symbol") return false;
@@ -750,6 +768,20 @@ const __warnedNumericPaths = new Set();
 // Enum members are compile-time constants, so their resolved numeric values are
 // cached forever (keyed by "Type.Member"). See __resolveEnumMember.
 const __enumValueCache = new Map();
+// Type name to the members C# has reported as methods. A type's members do not
+// change while it runs, so a method call needs one crossing, not two.
+const __methodMembers = new Map();
+
+function __methodMembersOf(typeName) {
+    let members = __methodMembers.get(typeName);
+    if (members === undefined) {
+        members = new Set();
+        __methodMembers.set(typeName, members);
+    }
+    return members;
+}
+// One path proxy per path: they hold nothing but the path.
+const __pathProxyCache = new Map();
 
 function __typeExists(typeName) {
     if (!typeName) return false;
@@ -798,6 +830,14 @@ function __resolveEnumMember(path, typeName, memberName) {
 
 function __createCsPathProxy(path) {
     const typeName = path.join(".");
+    const cached = __pathProxyCache.get(typeName);
+    if (cached !== undefined) return cached;
+    const proxy = __newCsPathProxy(path, typeName);
+    __pathProxyCache.set(typeName, proxy);
+    return proxy;
+}
+
+function __newCsPathProxy(path, typeName) {
 
     function CsType(...args) {
         return newObject(typeName, ...args);
@@ -942,18 +982,20 @@ function __createCsPathProxy(path) {
             // Skip methods (__oneJS_methodRef__) so they keep the apply trap for calling.
             // Uses TryGetProp (10) instead of GetProp (2) to avoid error logging on miss;
             // a miss is "__oneJS_notFound__", so a static holding null reads as null.
-            if (__typeExists(typeName) && !__isEnumType(typeName)) {
+            const methods = __methodMembersOf(typeName);
+            if (!methods.has(propName) && __typeExists(typeName) && !__isEnumType(typeName)) {
                 const nextType = typeName + "." + propName;
                 if (!__typeExists(nextType)) {
                     const raw = __cs.invoke(typeName, propName, 10, 1, 0, []);
-                    if (raw !== "__oneJS_notFound__" && raw !== "__oneJS_methodRef__") {
+                    if (raw === "__oneJS_methodRef__") {
+                        methods.add(propName);
+                    } else if (raw !== "__oneJS_notFound__") {
                         return __wrapResultFromCs(null, raw);
                     }
                 }
             }
 
-            const nextPath = path.concat(propName);
-            return __createCsPathProxy(nextPath);
+            return __createCsPathProxy(path.concat(propName));
         },
         set(target, prop, value) {
             if (typeof prop === "symbol") return false;
@@ -1484,6 +1526,9 @@ globalThis.clearInterval = function(id) {
 //   re-basing when behind, so a long stall (background tab) cannot burst-fire
 //   the whole backlog in one pass.
 function __drainScheduledCallbacks(timestamp) {
+    // Immediates rescheduled during the last pass
+    __drainImmediates();
+
     // RAF callbacks
     const rafSnapshot = Array.from(__rafCallbacks.entries());
     __rafCallbacks.clear();
@@ -1954,19 +1999,27 @@ globalThis.__runTeardown = function() {
 };
 
 // MARK: setImmediate
-// setImmediate: executes callback via microtask queue (synchronously in same tick)
-// This is needed by React's scheduler as a priority over setTimeout
+// A macrotask, as in Node: an immediate set from ordinary code runs once the
+// current turn's microtasks settle (React's scheduler relies on that), and one
+// set while immediates are running waits for the next tick. So the Node idiom
+// `function step() { work(); setImmediate(step) }` yields to the frame instead
+// of freezing Unity. Installed only if missing: on WebGL this is the page's
+// global scope, and a page that already has one keeps it.
 const __immediateCallbacks = new Map();
 let __immediateId = 0;
+let __immediatesRunning = false;
+let __immediateDrainQueued = false;
 
-globalThis.setImmediate = function(callback, ...args) {
-    const id = ++__immediateId;
-    __immediateCallbacks.set(id, { callback, args });
-
-    // Schedule via microtask to run "immediately" but after current execution
-    queueMicrotask(() => {
-        const item = __immediateCallbacks.get(id);
-        if (item) {
+function __drainImmediates() {
+    __immediateDrainQueued = false;
+    if (__immediateCallbacks.size === 0) return;
+    // A snapshot: anything set while these run belongs to the next pass.
+    const ids = Array.from(__immediateCallbacks.keys());
+    __immediatesRunning = true;
+    try {
+        for (const id of ids) {
+            const item = __immediateCallbacks.get(id);
+            if (!item) continue;  // cleared by an earlier one in this pass
             __immediateCallbacks.delete(id);
             try {
                 item.callback(...item.args);
@@ -1974,14 +2027,26 @@ globalThis.setImmediate = function(callback, ...args) {
                 console.error("setImmediate callback error:", e);
             }
         }
-    });
+    } finally {
+        __immediatesRunning = false;
+    }
+}
 
-    return id;
-};
+if (typeof globalThis.setImmediate === "undefined") {
+    globalThis.setImmediate = function(callback, ...args) {
+        const id = ++__immediateId;
+        __immediateCallbacks.set(id, { callback, args });
+        if (!__immediatesRunning && !__immediateDrainQueued) {
+            __immediateDrainQueued = true;
+            queueMicrotask(__drainImmediates);
+        }
+        return id;
+    };
 
-globalThis.clearImmediate = function(id) {
-    __immediateCallbacks.delete(id);
-};
+    globalThis.clearImmediate = function(id) {
+        __immediateCallbacks.delete(id);
+    };
+}
 
 // MARK: StyleSheet API
 /**
@@ -2266,6 +2331,10 @@ if (__nativeFetch) {
         // Call C# FetchAsync and wrap result in Response object
         return Promise.resolve(CS.OneJS.Network.FetchAsync(url, method, body, headersJson))
             .then(function(result) {
+                if (typeof result === "string") result = JSON.parse(result);
+                // No response came back: reject as the web does, so a retry
+                // never mistakes a dead connection for an answer.
+                if (result.error) throw new TypeError("Failed to fetch " + url + ": " + result.error);
                 return new Response(result);
             });
     };
@@ -2717,97 +2786,134 @@ if (__nativeWebSocket) {
 
 // MARK: Storage API
 /**
- * localStorage implementation using Unity's PlayerPrefs.
- * Matches the web Storage API for compatibility with React and other libraries.
+ * localStorage on Unity's PlayerPrefs, matching the web Storage API.
  * Only installed when no native Storage exists (QuickJS): in WebGL the
  * browser's own localStorage/sessionStorage are used, and the embedding page's
  * storage must never be redirected into PlayerPrefs.
+ *
+ * Keys live under an `onejs:` prefix with an index of them, so `key()`,
+ * `length` and `clear()` work and `clear()` never touches PlayerPrefs the game
+ * wrote itself. A key saved before the prefix (OneJS 3.9.4 and earlier) is
+ * read once from its unprefixed name and moved under the prefix. Writes are
+ * saved to disk a second after the last one, and on teardown.
  *
  * @example
  * localStorage.setItem("theme", "dark");
  * const theme = localStorage.getItem("theme"); // "dark"
  * localStorage.removeItem("theme");
- * localStorage.clear();
- *
- * // Also supports index-based access (read-only)
- * const key = localStorage.key(0);
- * const len = localStorage.length;
+ * localStorage.clear(); // only what localStorage stored
  */
+const __storagePrefix = "onejs:";
+const __storageIndexKey = "onejs:__keys";
+let __storageSaveTimer = 0;
+
+function __storagePrefs() {
+    return CS.UnityEngine.PlayerPrefs;
+}
+
+// Read every time rather than cached: two JSRunners share PlayerPrefs.
+function __storageKeys() {
+    const raw = __storagePrefs().GetString(__storageIndexKey, "");
+    if (!raw) return [];
+    try {
+        const keys = JSON.parse(raw);
+        return Array.isArray(keys) ? keys : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function __storageWriteKeys(keys) {
+    if (keys.length === 0) __storagePrefs().DeleteKey(__storageIndexKey);
+    else __storagePrefs().SetString(__storageIndexKey, JSON.stringify(keys));
+}
+
+function __storageSaveSoon() {
+    if (__storageSaveTimer) clearTimeout(__storageSaveTimer);
+    __storageSaveTimer = setTimeout(__storageSaveNow, 1000);
+}
+
+function __storageSaveNow() {
+    if (__storageSaveTimer) clearTimeout(__storageSaveTimer);
+    __storageSaveTimer = 0;
+    __storagePrefs().Save();
+}
+
 const __playerPrefsStorage = {
-    /**
-     * Returns the value associated with the given key, or null if not found.
-     * @param {string} key: The key to look up
-     * @returns {string|null} The stored value or null
-     */
+    /** The value stored under `key`, or null. */
     getItem: function(key) {
-        if (!CS.UnityEngine.PlayerPrefs.HasKey(key)) {
-            return null;
-        }
-        return CS.UnityEngine.PlayerPrefs.GetString(key);
+        key = String(key);
+        const prefs = __storagePrefs();
+        const keys = __storageKeys();
+        if (keys.includes(key)) return prefs.GetString(__storagePrefix + key);
+        if (!prefs.HasKey(key)) return null;
+        // Saved before the prefix: move it under the prefix, once.
+        const value = prefs.GetString(key);
+        prefs.SetString(__storagePrefix + key, value);
+        keys.push(key);
+        __storageWriteKeys(keys);
+        __storageSaveSoon();
+        return value;
     },
 
-    /**
-     * Stores a value with the given key. Overwrites existing values.
-     * @param {string} key: The key to store under
-     * @param {string} value: The value to store (will be converted to string)
-     */
+    /** Stores `value`, as a string, under `key`. */
     setItem: function(key, value) {
-        CS.UnityEngine.PlayerPrefs.SetString(key, String(value));
-        CS.UnityEngine.PlayerPrefs.Save();
+        key = String(key);
+        __storagePrefs().SetString(__storagePrefix + key, String(value));
+        const keys = __storageKeys();
+        if (!keys.includes(key)) {
+            keys.push(key);
+            __storageWriteKeys(keys);
+        }
+        __storageSaveSoon();
     },
 
-    /**
-     * Removes the item with the given key.
-     * @param {string} key: The key to remove
-     */
+    /** Removes `key`, including a copy saved before the prefix. */
     removeItem: function(key) {
-        CS.UnityEngine.PlayerPrefs.DeleteKey(key);
-        CS.UnityEngine.PlayerPrefs.Save();
+        key = String(key);
+        const prefs = __storagePrefs();
+        prefs.DeleteKey(__storagePrefix + key);
+        prefs.DeleteKey(key);
+        const keys = __storageKeys();
+        const i = keys.indexOf(key);
+        if (i >= 0) {
+            keys.splice(i, 1);
+            __storageWriteKeys(keys);
+        }
+        __storageSaveSoon();
     },
 
-    /**
-     * Removes all items from storage.
-     * WARNING: This clears ALL PlayerPrefs, including those set by other systems.
-     */
+    /** Removes everything localStorage stored, and nothing else. */
     clear: function() {
-        CS.UnityEngine.PlayerPrefs.DeleteAll();
-        CS.UnityEngine.PlayerPrefs.Save();
+        const prefs = __storagePrefs();
+        for (const key of __storageKeys()) prefs.DeleteKey(__storagePrefix + key);
+        prefs.DeleteKey(__storageIndexKey);
+        __storageSaveSoon();
     },
 
-    /**
-     * Returns the key at the given index.
-     * Note: PlayerPrefs doesn't support enumeration, so this always returns null.
-     * @param {number} index: The index of the key
-     * @returns {string|null} Always returns null (not supported)
-     */
+    /** The key at `index` in the order keys were first stored, or null. */
     key: function(index) {
-        // PlayerPrefs doesn't support key enumeration
-        // This is a limitation compared to web localStorage
-        return null;
+        const key = __storageKeys()[index];
+        return key === undefined ? null : key;
     },
 
-    /**
-     * The number of stored items.
-     * Note: PlayerPrefs doesn't support counting, so this always returns 0.
-     */
+    /** How many keys are stored. */
     get length() {
-        // PlayerPrefs doesn't support counting keys
-        // This is a limitation compared to web localStorage
-        return 0;
+        return __storageKeys().length;
     }
 };
 
 if (typeof globalThis.localStorage === "undefined") {
     globalThis.localStorage = __playerPrefsStorage;
+    // A write still waiting for its save goes to disk before the context does.
+    __onTeardown(function() {
+        if (__storageSaveTimer) __storageSaveNow();
+    });
 }
 
 /**
- * sessionStorage implementation (alias to localStorage).
- * In Unity, there's no concept of browser sessions, so sessionStorage
- * behaves identically to localStorage (persists across app restarts).
- *
- * Note: Unlike web sessionStorage, this data persists permanently.
- * Use a prefix like "session_" if you need to manually clear on app start.
+ * sessionStorage: the same store as localStorage. Unity has no browser
+ * session, so it persists across app restarts like localStorage does.
  */
 if (typeof globalThis.sessionStorage === "undefined") {
     globalThis.sessionStorage = __playerPrefsStorage;
@@ -3284,5 +3390,54 @@ if (typeof globalThis.atob === "undefined") {
         return result;
     };
 }
+
+// MARK: onejs namespace
+// Every public OneJS global under one name, so nothing generic like
+// `readTextFile` or `listFiles` has to sit on a WebGL host page's window. The
+// older bare names (`__isPlaying`, `__root`, `readTextFile`, `loadStyleSheet`,
+// `$typeof`, `useExtensions`, `releaseObject`...) stay as deprecated aliases.
+// Getters, because C# sets `__isPlaying`, `__root` and `__workingDir` after
+// the bootstrap runs.
+globalThis.onejs = Object.freeze({
+    /** True in Play mode, false in edit-mode preview. */
+    get isPlaying() { return globalThis.__isPlaying === true; },
+    /** The root VisualElement the app renders into. */
+    get root() { return globalThis.__root; },
+    /** Folders a OneJS app reads and writes. */
+    paths: Object.freeze({
+        /** The app's working directory (`~/` in the Editor). */
+        get working() { return globalThis.__workingDir; },
+        get persistentData() { return CS.UnityEngine.Application.persistentDataPath; },
+        get streamingAssets() { return CS.UnityEngine.Application.streamingAssetsPath; },
+        get data() { return CS.UnityEngine.Application.dataPath; },
+        get temporaryCache() { return CS.UnityEngine.Application.temporaryCachePath; },
+    }),
+    /** Files by absolute path. */
+    fs: Object.freeze({
+        readText: globalThis.readTextFile,
+        writeText: globalThis.writeTextFile,
+        exists: globalThis.fileExists,
+        directoryExists: globalThis.directoryExists,
+        delete: globalThis.deleteFile,
+        list: globalThis.listFiles,
+    }),
+    /** Stylesheets on the root element. */
+    styles: Object.freeze({
+        load: globalThis.loadStyleSheet,
+        compile: globalThis.compileStyleSheet,
+        remove: globalThis.removeStyleSheet,
+        clear: globalThis.clearStyleSheets,
+    }),
+    /** The C# side: types, extension methods and object lifetimes. */
+    cs: Object.freeze({
+        typeOf: globalThis.$typeof,
+        /** Whether a C# type is loaded, by reference or full name. One crossing per name. */
+        typeExists: function(typeRef) {
+            return __typeExists(__getTypeName(typeRef));
+        },
+        extensions: globalThis.useExtensions,
+        release: releaseObject,
+    }),
+});
 
 })();

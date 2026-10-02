@@ -65,7 +65,7 @@ Inside the editor, the esbuild watcher is **managed automatically** (`JSRunnerAu
 
 JSRunner itself watches the **built bundle** (`app.js.txt`), not source files: an MD5 content poll every 0.5 s plus a FileSystemWatcher. So the loop is simply: save a source file, the watcher rebuilds the bundle, Unity hot-reloads, in both edit-mode preview and Play mode.
 
-Reload is a **hard reload** (fresh JS context, all JS state lost): `onStop()` (if playing) → Janitor destroys JS-created GameObjects → React teardown (`useEffect` cleanups DO run) → new context, globals re-injected → bundle re-runs → `onPlay()` (if playing).
+Reload is a **hard reload** (fresh JS context, all JS state lost), and re-enabling a JSRunner rebuilds the same way: `onStop()` (if playing) → Janitor destroys JS-created GameObjects → React teardown (`useEffect` cleanups DO run) → new context, globals re-injected → bundle re-runs → `onPlay()` (if playing).
 
 Player builds: `JSRunnerBuildProcessor` embeds the bundle as a TextAsset automatically. The bundle never goes through StreamingAssets.
 
@@ -143,7 +143,7 @@ Performance on QuickJS (an interpreter): every proxy access is a reflection cros
 - `e.value`, not `e.target.value`.
 - `console.log(csObject)` prints a handle, not fields: log fields directly. JS logs land in the Unity Console.
 - Naming a type from a new engine module means declaring `com.unity.modules.<name>` in `package.json`. CI builds its host project from that list, so an undeclared module fails there even though the dev project, which has every module, compiles fine.
-- Native callback table = 4096 slots (one per JS function bound to a C# delegate/event; freed on reassign/`remove_`).
+- Native callback table = 4096 slots (one per JS function bound to a C# delegate/event; freed on reassign/`remove_`). A function passed to a C# method keeps one slot however often it is passed, so hoist it rather than writing a fresh closure per call.
 - IL2CPP/AOT builds strip dynamically-accessed code: ship a `link.xml` preserving your game assemblies or you get `[QuickJS] Type/Method not found` in builds only. See https://onejs.com/docs/guides/building
 - Scene transitions destroy JSRunner before React cleanup runs: also clear static delegate subscriptions in `onStop`.
 - On Android/WebGL, `StreamingAssets` is a URL, not a directory: use the async asset loaders (`loadImageAsync` etc.) from `onejs-unity/assets`.

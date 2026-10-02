@@ -23,11 +23,7 @@ namespace OneJS.Tests {
         [UnitySetUp]
         public IEnumerator SetUp() {
             // Clean up any existing test keys
-            PlayerPrefs.DeleteKey(TestKeyPrefix + "key1");
-            PlayerPrefs.DeleteKey(TestKeyPrefix + "key2");
-            PlayerPrefs.DeleteKey(TestKeyPrefix + "theme");
-            PlayerPrefs.DeleteKey(TestKeyPrefix + "user");
-            PlayerPrefs.Save();
+            DeleteTestKeys();
 
             // Create PanelSettings at runtime
             _panelSettings = ScriptableObject.CreateInstance<PanelSettings>();
@@ -49,6 +45,18 @@ namespace OneJS.Tests {
             yield return null;
         }
 
+        static readonly string[] TestKeys = { "key1", "key2", "theme", "user" };
+
+        static void DeleteTestKeys() {
+            foreach (var key in TestKeys) {
+                PlayerPrefs.DeleteKey(TestKeyPrefix + key);
+                PlayerPrefs.DeleteKey("onejs:" + TestKeyPrefix + key);
+            }
+            // The index would otherwise name keys these tests deleted
+            PlayerPrefs.DeleteKey("onejs:__keys");
+            PlayerPrefs.Save();
+        }
+
         [UnityTearDown]
         public IEnumerator TearDown() {
             _bridge?.Dispose();
@@ -58,11 +66,7 @@ namespace OneJS.Tests {
             if (_panelSettings != null) Object.Destroy(_panelSettings);
 
             // Clean up test keys
-            PlayerPrefs.DeleteKey(TestKeyPrefix + "key1");
-            PlayerPrefs.DeleteKey(TestKeyPrefix + "key2");
-            PlayerPrefs.DeleteKey(TestKeyPrefix + "theme");
-            PlayerPrefs.DeleteKey(TestKeyPrefix + "user");
-            PlayerPrefs.Save();
+            DeleteTestKeys();
 
             QuickJSNative.ClearAllHandles();
             yield return null;
@@ -215,22 +219,19 @@ namespace OneJS.Tests {
         // MARK: Persistence (via PlayerPrefs)
 
         [UnityTest]
-        public IEnumerator LocalStorage_Persists_ToPlayerPrefs() {
+        public IEnumerator LocalStorage_Persists_ToPlayerPrefs_UnderItsPrefix() {
             _bridge.Eval($"localStorage.setItem('{TestKeyPrefix}key1', 'persisted')");
 
-            // Verify it's actually in PlayerPrefs
-            var playerPrefsValue = PlayerPrefs.GetString(TestKeyPrefix + "key1");
-            Assert.AreEqual("persisted", playerPrefsValue);
+            Assert.AreEqual("persisted", PlayerPrefs.GetString("onejs:" + TestKeyPrefix + "key1"));
+            Assert.IsFalse(PlayerPrefs.HasKey(TestKeyPrefix + "key1"),
+                "localStorage writes under its own prefix, never over the game's PlayerPrefs");
             yield return null;
         }
 
         [UnityTest]
-        public IEnumerator LocalStorage_Reads_FromPlayerPrefs() {
-            // Set directly via PlayerPrefs
+        public IEnumerator LocalStorage_Reads_AValueSavedBeforeThePrefix() {
             PlayerPrefs.SetString(TestKeyPrefix + "key1", "from_prefs");
-            PlayerPrefs.Save();
 
-            // Read via localStorage
             var result = _bridge.Eval($"localStorage.getItem('{TestKeyPrefix}key1')");
             Assert.AreEqual("from_prefs", result);
             yield return null;
@@ -239,18 +240,12 @@ namespace OneJS.Tests {
         // MARK: API Completeness
 
         [UnityTest]
-        public IEnumerator LocalStorage_Key_ReturnsNull() {
-            // PlayerPrefs doesn't support key enumeration
-            var result = _bridge.Eval("localStorage.key(0) === null ? 'null' : 'not null'");
-            Assert.AreEqual("null", result);
-            yield return null;
-        }
-
-        [UnityTest]
-        public IEnumerator LocalStorage_Length_ReturnsZero() {
-            // PlayerPrefs doesn't support counting keys
-            var result = _bridge.Eval("localStorage.length.toString()");
-            Assert.AreEqual("0", result);
+        public IEnumerator LocalStorage_KeyAndLength_CountWhatItStored() {
+            _bridge.Eval("localStorage.clear()");
+            _bridge.Eval($"localStorage.setItem('{TestKeyPrefix}key1', 'a'); localStorage.setItem('{TestKeyPrefix}key2', 'b')");
+            Assert.AreEqual("2", _bridge.Eval("localStorage.length.toString()"));
+            Assert.AreEqual(TestKeyPrefix + "key2", _bridge.Eval("localStorage.key(1)"));
+            Assert.AreEqual("null", _bridge.Eval("String(localStorage.key(2))"));
             yield return null;
         }
 

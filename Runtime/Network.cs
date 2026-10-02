@@ -42,14 +42,22 @@ namespace OneJS {
                 string responseUrl = request.url ?? "";
                 string responseBody = request.downloadHandler?.text ?? "";
                 var headers = ExtractHeaders(request);
+                // No response at all (refused, unreachable, timed out, unreadable):
+                // fetch rejects, as on the web. An HTTP error status is a response.
+                string error = request.result == UnityWebRequest.Result.ConnectionError ||
+                               request.result == UnityWebRequest.Result.DataProcessingError
+                    ? request.error ?? request.result.ToString()
+                    : null;
 
-                return BuildResponseJson(ok, status, statusText, responseUrl, responseBody, headers);
+                return BuildResponseJson(ok, status, statusText, responseUrl, responseBody, headers, error);
             }
         }
 
-        static string BuildResponseJson(bool ok, int status, string statusText, string url, string body, Dictionary<string, string> headers) {
+        static string BuildResponseJson(bool ok, int status, string statusText, string url, string body,
+            Dictionary<string, string> headers, string error = null) {
             var sb = new StringBuilder();
             sb.Append("{");
+            if (error != null) sb.Append($"\"error\":{EscapeJsonString(error)},");
             sb.Append($"\"ok\":{(ok ? "true" : "false")},");
             sb.Append($"\"status\":{status},");
             sb.Append($"\"statusText\":{EscapeJsonString(statusText)},");

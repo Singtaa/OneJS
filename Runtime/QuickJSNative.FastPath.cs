@@ -807,6 +807,10 @@ namespace OneJS {
                 return TryFastCtor(typeNamePtr, args, argCount, result);
             }
 
+            // A silent read is a read: a registered property getter answers it,
+            // and it can only miss when nothing is registered.
+            if (callKind == InteropInvokeCallKind.TryGetProp) callKind = InteropInvokeCallKind.GetProp;
+
             // Compute member hash from raw UTF8 bytes
             int memberHash = HashUtf8Ptr(memberNamePtr);
 

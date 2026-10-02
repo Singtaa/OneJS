@@ -21,10 +21,11 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `QuickJSUIBridge.cs` | UI Toolkit integration, event delegation, scheduling (RAF, timers) |
 | `JSRunner.cs` | MonoBehaviour entry point with auto-scaffolding and live reload |
 | `JSPad.cs` | Inline TSX runner with no external working directory |
+| `JsHost.cs` | The context, globals, onPlay/onStop, tick and rebuild JSRunner and JSPad share (internal) |
 | `ScaffoldRecord.cs` | `~/.onejs/scaffold`: the default files a working directory has been given (see Auto-Scaffolding) |
 | `JsFunctionBinding.cs` | Backs `GetJSFunction`: a named JS function as a typed C# delegate |
 | `JsLog.cs` | Routes JS console output to the matching Unity log level (the bootstrap encodes it); `ErrorCount`/`LastError` for tests |
-| `AssemblyInfo.cs` | `InternalsVisibleTo("OneJS.Runtime.InputSystem")` for `JSRunner.AddInputSystemModule` |
+| `AssemblyInfo.cs` | `InternalsVisibleTo` for `OneJS.Runtime.InputSystem` (`JSRunner.AddInputSystemModule`) and `OneJS.Tests` (`JsHost`) |
 | `Janitor.cs` | Marker component for live reload cleanup of JS-created GameObjects |
 | `Network.cs` | Fetch API implementation using UnityWebRequest; `LoadTextureFromUrl` for `<Image src>` on a URL |
 | `WebSocketBridge.cs` | WebSocket on native platforms (`ClientWebSocket` on background threads, events drained per context in `Tick`); WebGL uses the browser's |
@@ -187,7 +188,7 @@ The cause is structural, not a toggle:
 
 ### Lifecycle Hooks (`onPlay` / `onStop`)
 
-JSRunner supports `onPlay()` and `onStop()` lifecycle hooks exported from the user's entry file. These let users separate game logic (play mode only) from UI setup (runs in both edit-mode preview and play mode).
+JSRunner and JSPad support `onPlay()` and `onStop()` lifecycle hooks exported from the user's entry file. These let users separate game logic (play mode only) from UI setup (runs in both edit-mode preview and play mode).
 
 **User-facing API:**
 ```tsx
@@ -207,29 +208,25 @@ export function onStop() {
 }
 ```
 
-**How it works:**
+**How it works:** both components run their app through one internal `JsHost` (`JsHost.cs`), so the two behave the same.
 1. esbuild bundles with `format: "iife"` and `globalName: "__exports"`, so exported functions become `__exports.onPlay` / `__exports.onStop`
-2. After `RunScript()`, `CacheLifecycleCallbacks()` checks for these exports and registers them via `__registerCallback()` (same pattern as `CacheTickCallback()`)
-3. `InvokeOnPlay()` / `InvokeOnStop()` use `InvokeCallbackNoAlloc()` for zero-allocation invocation
+2. `JsHost.Run()` evaluates the bundle, then registers these exports via `__registerCallback()` alongside the tick and event callbacks
+3. `InvokeOnPlay()` / `InvokeOnStop()` use `InvokeCallbackNoAlloc()` for zero-allocation invocation, play mode only, and onStop at most once per onPlay
+4. Every rebuild of a running app goes through `JsHost.Recreate()` (JSRunner's `RecreateContext()`): onStop, the Janitor and panel clear, a fresh context, the bundle, onPlay, then JSRunner's `Reloaded`
 
 **Lifecycle flow:**
 
 | Context | onPlay | onStop |
 |---------|--------|--------|
 | Edit-mode preview | Never | Never |
-| Enter Play mode | After `RunScript()` | - |
+| Enter Play mode | After the bundle runs | - |
 | Live reload (play mode) | After rebuild | Before teardown |
+| Component re-enabled, panel rebuilt (play mode) | After rebuild | Before teardown |
+| JSPad disabled (play mode) | - | Before teardown |
 | Exit Play mode | - | On `ExitingPlayMode` |
 | `OnDestroy()` (play mode) | - | Before bridge disposal |
 
-**Implementation fields:**
-```csharp
-int _onPlayHandle = -1;    // Native callback handle for onPlay
-int _onStopHandle = -1;    // Native callback handle for onStop
-bool _onStopInvoked;       // Guard against double-invocation
-```
-
-**`__isPlaying` global:** Injected in `InitializeBridge()`, `true` in play mode, `false` in edit-mode preview. Useful for conditional rendering without lifecycle hooks.
+**`__isPlaying` global:** Injected by `JsHost.Create()` in both components, `true` in play mode, `false` in edit-mode preview. Also `onejs.isPlaying`.
 
 ### Teardown Hooks (framework cleanup before context destruction)
 
@@ -406,7 +403,7 @@ bool RestoreDefaultFile(string path);                      // Rewrite one defaul
 TDelegate GetJSFunction<TDelegate>(string globalName);     // Typed delegate for a JS function (survives hot reload)
 
 // Events
-event Action<JSRunner> Reloaded;                           // After each hot reload (Editor only in practice)
+event Action<JSRunner> Reloaded;                           // After each rebuild: hot reload, re-enable, rebuilt panel
 ```
 
 ### Calling JS from C# (`GetJSFunction`)
@@ -894,7 +891,12 @@ int count = QuickJSNative.GetHandleCount();       // Current handle count
 int peak = QuickJSNative.GetPeakHandleCount();    // Peak since last reset
 QuickJSNative.ResetHandleMonitoring();            // Reset peak and warnings
 QuickJSNative.ClearAllHandles();                  // Clear all (on context dispose)
+long calls = QuickJSNative.InteropCallCount;      // JS to C# crossings since the domain loaded
 ```
+
+`InteropCallCount` counts what a piece of JS costs: read it before and after.
+A method call is one crossing: the bootstrap remembers, per type, which
+members C# reported as methods, so only the first call asks.
 
 ### Task Queue Monitoring (QuickJSNative)
 Async C# methods create pending task completions. The queue is monitored:
@@ -955,6 +957,8 @@ When JS functions are assigned to C# delegate properties (e.g., `element.generat
 - **Reassignment**: Proxy setter frees old handle, stores new handle
 - **Object release**: `__cleanupHandle(handle)` iterates the map and frees all delegate handles with matching object handle prefix
 - **Context dispose**: Entire map is cleared when the QuickJS context is destroyed
+
+**Functions passed as method arguments:** `__resolveArgs` keeps one slot per function in a `WeakMap`, so passing the same function again reaches C# as the same delegate (`RemoveListener(fn)` finds what `AddListener(fn)` added) and a function passed every frame takes one slot. These slots live until the context goes; a fresh closure per call still takes a fresh slot.
 
 **Native callback table:**
 - Fixed 4096-slot array (`QJS_MAX_CALLBACKS`) in `quickjs_unity.c`
@@ -1024,8 +1028,12 @@ which ignores propagation, so a prevented one is handed to
 ```javascript
 requestAnimationFrame(cb)  // Called each Tick()
 setTimeout(cb, ms)         // Timer queue
-setImmediate(cb)           // Via queueMicrotask
+setImmediate(cb)           // A macrotask, as in Node (below)
 ```
+`setImmediate` runs a callback set from ordinary code once the turn's
+microtasks settle (React's scheduler relies on that), and one set while
+immediates are running on the next tick, so `function step() { work();
+setImmediate(step) }` yields to the frame. Installed only if missing.
 Every drain pass is bounded: callbacks scheduled during a pass run on the next
 pass (a `setTimeout(fn, 0)` chain cannot spin one tick forever), and an
 interval fires at most once per pass, re-basing after a stall instead of
@@ -1147,6 +1155,19 @@ async function loadData() {
 **Error handling**:
 - Faulted tasks reject the Promise with the exception message
 - Canceled tasks reject with "Task was canceled"
+- A rejection nobody has handled once `ExecutePendingJobs()` drains is logged at error level as `[OneJS] Unhandled promise rejection: <reason>`, as browsers report it. The native library's promise rejection tracker (`qjs_track_rejection` in `quickjs_unity.c`) holds rejections until the drain, so a handler attached a moment late still counts. A native library built before 3.9.5 reports nothing; on WebGL the browser reports them itself
+
+### The `onejs` namespace
+Every public OneJS global under one frozen name, so nothing generic has to sit on a WebGL host page's `window`. The older names stay as deprecated aliases.
+
+| `onejs.` | Old name |
+|----------|----------|
+| `isPlaying`, `root` | `__isPlaying`, `__root` |
+| `paths.working`, `.persistentData`, `.streamingAssets`, `.data`, `.temporaryCache` | `__workingDir`, `__persistentDataPath`, `__streamingAssetsPath`, `__dataPath`, `__temporaryCachePath` |
+| `fs.readText`, `.writeText`, `.exists`, `.directoryExists`, `.delete`, `.list` | `readTextFile`, `writeTextFile`, `fileExists`, `directoryExists`, `deleteFile`, `listFiles` |
+| `styles.load`, `.compile`, `.remove`, `.clear` | `loadStyleSheet`, `compileStyleSheet`, `removeStyleSheet`, `clearStyleSheets` |
+| `cs.typeOf`, `.extensions`, `.release` | `$typeof`, `useExtensions`, `releaseObject` |
+| `cs.typeExists(T or "Name")` | (new) whether a C# type is loaded; a `CS.` path proxy is never nullish, so this is the existence check |
 
 ### Fetch API
 The runtime provides a web-compatible `fetch()` API for making HTTP requests:
@@ -1182,6 +1203,7 @@ if (response.ok) {
 - Auto-stringifies object bodies and sets Content-Type header (unless the caller already set one, any casing)
 - Header inits are flattened to a plain object before the C# crossing (`Network.ParseHeadersJson` only reads flat `{"key":"value"}` JSON); libraries like supabase-js pass `Headers` instances, which would otherwise serialize as internal fields and drop every header
 - Response body is fetched as text; use `json()` to parse
+- A request that gets no response (refused, unreachable, timed out) rejects with `TypeError("Failed to fetch <url>: <reason>")`, as on the web and on WebGL; an HTTP error status still resolves with `ok: false`. `Network.FetchAsync` marks that case with an `error` field in its JSON
 
 ### Storage API (localStorage/sessionStorage)
 Web-compatible storage API using Unity's PlayerPrefs:
@@ -1196,18 +1218,12 @@ const user = JSON.parse(localStorage.getItem("user"));
 
 // Remove items
 localStorage.removeItem("theme");
-localStorage.clear(); // WARNING: Clears ALL PlayerPrefs
+localStorage.clear(); // only what localStorage stored
 ```
 
-**Supported methods**:
-- `getItem(key)`: Returns value or null
-- `setItem(key, value)`: Stores value (converted to string)
-- `removeItem(key)`: Removes item
-- `clear()`: Clears all PlayerPrefs (use with caution)
+**Supported methods**: `getItem`, `setItem`, `removeItem`, `clear`, `key(index)` and `length`.
 
-**Limitations** (due to PlayerPrefs):
-- `key(index)`: Always returns null (enumeration not supported)
-- `length`: Always returns 0 (counting not supported)
+Keys are stored as PlayerPrefs under an `onejs:` prefix, with an index of them in `onejs:__keys`, which is what gives `key()`, `length` and a `clear()` that leaves the game's own PlayerPrefs alone. A key written by OneJS 3.9.4 or earlier (unprefixed) is read once from its old name and copied under the prefix; `removeItem` deletes both.
 
 **sessionStorage**: Alias to localStorage. Unlike web browsers, data persists across app restarts since Unity has no session concept.
 
@@ -1215,7 +1231,7 @@ localStorage.clear(); // WARNING: Clears ALL PlayerPrefs
 - Uses `PlayerPrefs` under the hood (cross-platform)
 - Synchronous API (matches web localStorage)
 - Values are automatically converted to strings
-- `Save()` is called after each write for reliability
+- `PlayerPrefs.Save()` runs a second after the last write, and on teardown, rather than on every write
 - **WebGL**: the PlayerPrefs shim is not installed, the browser's native `localStorage`/`sessionStorage` are used (the bootstrap shares the embedding page's global scope and must not redirect its storage)
 
 ### URL API (URL/URLSearchParams)

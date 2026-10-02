@@ -1,5 +1,20 @@
 # Unreleased
 
+Migrating: `fetch` now rejects when no response arrives, so code checking `status === 0` moves to `try`/`catch`. `localStorage` keys live under `onejs:` in PlayerPrefs (old keys move over on first read), so C# reading them adds the prefix. Re-enabling a JSRunner calls `onStop` before `onPlay`. Unhandled promise rejections now log as errors. The API review's new names (`onejs.*`, `useFrame`, `drawing`, `toRGBA`, `open`/`onOpenChange`, `fx.useStill`) sit beside the old ones, which keep working.
+
+- Every public global is also under one `onejs` namespace
+- `onejs.cs.typeExists` says whether a C# type is loaded
+- Unhandled promise rejections log as errors on native platforms
+- Passing the same function to a C# method twice gives the same delegate, so `RemoveListener(fn)` works
+- A C# method call from JS crosses once instead of twice
+- `fetch` rejects with a `TypeError` when no response arrives
+- `localStorage` keeps to its own `onejs:` keys; `key()`, `length` and `clear()` work
+- `localStorage` saves to disk a second after the last write
+- `setImmediate` yields to the next frame when an immediate reschedules itself
+- Re-enabling a JSRunner calls `onStop` and fires `Reloaded`
+- JSPad sets `__isPlaying` and calls `onPlay` and `onStop`
+- Image fx chains start from a texture you hold
+- `QuickJSNative.InteropCallCount` counts JS to C# calls
 - 3D models from `.glb` files through glTFast, for ojplay's `useScene` and `useModel`
 - Models cast and receive soft shadows under a sun, sky and ground ambient, fog and point lights
 - glTF materials keep metallic, roughness, normal, occlusion, emission and alpha

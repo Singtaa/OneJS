@@ -1,5 +1,6 @@
 using System.Reflection;
 using NUnit.Framework;
+using UnityEngine;
 using UnityEngine.Networking;
 
 namespace OneJS.Tests {
@@ -15,6 +16,17 @@ namespace OneJS.Tests {
         public static NullStaticFixtureItem Missing { get; set; }
         public static NullStaticFixtureItem Present { get; set; } = new NullStaticFixtureItem();
         public static string NullField;
+    }
+
+    /// <summary>A UnityEvent-shaped listener list, for passing a JS function to a C# method.</summary>
+    public class CallbackListenerFixture {
+        readonly System.Collections.Generic.List<System.Action> _listeners = new System.Collections.Generic.List<System.Action>();
+        public void AddListener(System.Action listener) => _listeners.Add(listener);
+        public void RemoveListener(System.Action listener) => _listeners.Remove(listener);
+        public int Count => _listeners.Count;
+        public void Fire() {
+            foreach (var l in _listeners.ToArray()) l();
+        }
     }
 
     /// <summary>
@@ -58,6 +70,53 @@ namespace OneJS.Tests {
                 String(o.__csHandle)"));
         }
 
+        [Test]
+        public void AFunctionPassedToACSharpMethod_IsTheSameDelegateEachTime() {
+            // AddListener(fn) then RemoveListener(fn) has to find the listener it
+            // added, as it does in C#: one function, one callback slot, one delegate.
+            Assert.AreEqual("1,0", _ctx.Eval(@"
+                var list = new CS.OneJS.Tests.CallbackListenerFixture();
+                var calls = 0;
+                function onFire() { calls++; }
+                list.AddListener(onFire);
+                list.Fire();
+                list.RemoveListener(onFire);
+                calls + ',' + list.Count"));
+        }
+
+        // MARK: onejs namespace
+
+        [Test]
+        public void TheOnejsNamespace_ReachesTheSameGlobalsAsTheOldNames() {
+            _ctx.Eval("globalThis.__isPlaying = true; globalThis.__workingDir = '/app'");
+            Assert.AreEqual("true,/app,true,true,true,true", _ctx.Eval(@"
+                [onejs.isPlaying, onejs.paths.working,
+                 onejs.fs.readText === readTextFile, onejs.styles.load === loadStyleSheet,
+                 onejs.cs.release === releaseObject, onejs.cs.extensions === useExtensions].join(',')"));
+            Assert.AreEqual("true,true,false", _ctx.Eval(@"
+                [onejs.cs.typeExists(CS.UnityEngine.GameObject), onejs.cs.typeExists('UnityEngine.Vector3'),
+                 onejs.cs.typeExists('UnityEngine.NoSuchThing')].join(',')"));
+            Assert.AreEqual("true", _ctx.Eval("String(Object.isFrozen(onejs) && Object.isFrozen(onejs.cs))"));
+        }
+
+        // MARK: Crossings
+
+        [Test]
+        public void ARepeatedMethodCall_CrossesIntoCSharpOnce() {
+            // The first call asks C# whether the member is a property or a
+            // method; every later call on that type knows, and only invokes.
+            _ctx.Eval(@"
+                globalThis.__list = new CS.OneJS.Tests.CallbackListenerFixture();
+                __list.Fire();
+                CS.UnityEngine.Mathf.Abs(-1);");
+            long before = QuickJSNative.InteropCallCount;
+            _ctx.Eval("__list.Fire()");
+            Assert.AreEqual(1, QuickJSNative.InteropCallCount - before, "instance method");
+            before = QuickJSNative.InteropCallCount;
+            _ctx.Eval("CS.UnityEngine.Mathf.Abs(-1)");
+            Assert.AreEqual(1, QuickJSNative.InteropCallCount - before, "static method");
+        }
+
         // MARK: Timers
 
         [Test]
@@ -71,6 +130,77 @@ namespace OneJS.Tests {
             _ctx.Eval("__tick(50)");
             Assert.AreEqual("zero,five,ten", _ctx.Eval("__order.join(',')"),
                 "timeouts due in the same pass must run in due order, as on the web");
+        }
+
+        // MARK: setImmediate
+
+        [Test]
+        public void SetImmediate_RunsPromptly_ButARescheduleWaitsForTheNextTick() {
+            // The first immediate runs before the turn ends (React's scheduler
+            // relies on it); one scheduled from inside an immediate waits for
+            // the next tick, so `function step() { work(); setImmediate(step) }`
+            // yields instead of freezing Unity.
+            _ctx.Eval(@"
+                globalThis.__steps = 0;
+                globalThis.__order = [];
+                function step() { __steps++; if (__steps < 1000) setImmediate(step); }
+                setImmediate(step);
+                setImmediate(function () { __order.push('b'); });
+                var cancelled = setImmediate(function () { __order.push('never'); });
+                clearImmediate(cancelled);
+            ");
+            _ctx.ExecutePendingJobs();
+            Assert.AreEqual("1", _ctx.Eval("String(__steps)"));
+            Assert.AreEqual("b", _ctx.Eval("__order.join(',')"));
+            _ctx.Eval("__tick(16)");
+            _ctx.ExecutePendingJobs();
+            Assert.AreEqual("2", _ctx.Eval("String(__steps)"));
+        }
+
+        // MARK: localStorage
+
+        const string StorageKey = "onejs_test_storage_key";
+
+        static void ClearStorageKeys() {
+            PlayerPrefs.DeleteKey(StorageKey);
+            PlayerPrefs.DeleteKey("onejs:" + StorageKey);
+            PlayerPrefs.DeleteKey("onejs:__keys");
+            PlayerPrefs.DeleteKey("onejs_test_other");
+        }
+
+        [Test]
+        public void LocalStorage_IsScopedToOneJS_AndEnumerable() {
+            ClearStorageKeys();
+            try {
+                PlayerPrefs.SetString("onejs_test_other", "the game's own");
+                _ctx.Eval($"localStorage.setItem('{StorageKey}', 'dark')");
+                Assert.AreEqual("dark", _ctx.Eval($"localStorage.getItem('{StorageKey}')"));
+                Assert.AreEqual("1", _ctx.Eval("String(localStorage.length)"));
+                Assert.AreEqual(StorageKey, _ctx.Eval("localStorage.key(0)"));
+
+                _ctx.Eval("localStorage.clear()");
+                Assert.AreEqual("true", _ctx.Eval($"String(localStorage.getItem('{StorageKey}') === null)"));
+                Assert.AreEqual("the game's own", PlayerPrefs.GetString("onejs_test_other"),
+                    "clear() must leave PlayerPrefs that OneJS did not write");
+            } finally {
+                ClearStorageKeys();
+            }
+        }
+
+        [Test]
+        public void LocalStorage_ReadsAValueSavedBeforeTheScope_Once() {
+            ClearStorageKeys();
+            try {
+                PlayerPrefs.SetString(StorageKey, "saved by an older OneJS");
+                Assert.AreEqual("saved by an older OneJS", _ctx.Eval($"localStorage.getItem('{StorageKey}')"));
+                Assert.AreEqual("saved by an older OneJS", PlayerPrefs.GetString("onejs:" + StorageKey),
+                    "the old value moves into the scope when first read");
+                _ctx.Eval($"localStorage.removeItem('{StorageKey}')");
+                Assert.AreEqual("true", _ctx.Eval($"String(localStorage.getItem('{StorageKey}') === null)"),
+                    "a removed key does not come back from its old unscoped copy");
+            } finally {
+                ClearStorageKeys();
+            }
         }
 
         // MARK: Fetch polyfills

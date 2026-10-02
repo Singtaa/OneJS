@@ -127,9 +127,19 @@ namespace OneJS {
         }
 
         // MARK: Dispatch
+        static long _interopCallCount;
+
+        /// <summary>
+        /// Calls from JS into C# since the domain loaded: one per property read,
+        /// property write or method call that crossed. A profiling number; read
+        /// it before and after a piece of JS to count what that piece cost.
+        /// </summary>
+        public static long InteropCallCount => _interopCallCount;
+
         [MonoPInvokeCallback(typeof(CsInvokeCallback))]
         static unsafe void DispatchFromJs(IntPtr ctxPtr, InteropInvokeRequest* reqPtr,
             InteropInvokeResult* resPtr) {
+            _interopCallCount++;
             resPtr->errorCode = 0;
             resPtr->errorMsg = IntPtr.Zero;
             resPtr->returnValue = default;

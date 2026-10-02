@@ -5,7 +5,7 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.9.4"
-  skill-version: "1.15.0"
+  skill-version: "1.15.1"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
@@ -334,7 +334,7 @@ untested rather than guaranteed.
 | `JSRunner.DescribeMissingDefaultFiles()` | Method | Names the default files missing from `~/` and how to restore them, or null. |
 | `JSRunner.RestoreDefaultFile(string path)` | Method | Writes one default file from its template, overwriting what is there, and records it: the Restore button, for when you cannot click. Takes any path the missing-file warning names, e.g. `"index.tsx"`. |
 | `JSRunner.GetJSFunction<T>(string)` | Method | Binds a JavaScript global to a typed C# delegate that survives hot reload. |
-| `JSRunner.Reloaded` | Event | Fires after each hot reload, for C# code caching anything JavaScript side. |
+| `JSRunner.Reloaded` | Event | Fires after each rebuild of the JS context (hot reload, re-enabling the component), for C# code caching anything JavaScript side. |
 | `OneJS.JSPad` | MonoBehaviour | Prototyping alternative with an inline code editor and no npm project. No hot reload. |
 | `render(element, __root)` | JS, `onejs-react` | Mounts a React tree. The last line of `index.tsx`. |
 | `__root` | JS global | The root VisualElement to render into. |
