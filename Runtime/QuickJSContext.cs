@@ -97,7 +97,9 @@ namespace OneJS {
                 var str = System.Text.Encoding.UTF8.GetString(_buffer, 0, len);
 
                 if (result != 0) {
-                    throw new Exception("QuickJS error: " + str);
+                    // The JS error's text and its frames, kept apart so a log of
+                    // it links to the script (see JSException)
+                    throw JSException.FromText(str);
                 }
 
                 // Check for potential buffer overflow (output truncation)

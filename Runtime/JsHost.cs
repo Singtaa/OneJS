@@ -40,7 +40,7 @@ namespace OneJS {
         /// </summary>
         public QuickJSUIBridge Create(VisualElement root, string workingDir, Action<QuickJSUIBridge> configure = null) {
             Dispose();
-            var bridge = new QuickJSUIBridge(root, workingDir);
+            var bridge = new QuickJSUIBridge(root, workingDir) { TranslateError = _translateError };
             Bridge = bridge;
 
             RunnerUtils.InjectPlatformDefines(bridge);
@@ -87,7 +87,7 @@ namespace OneJS {
                 // The expression guards on __exports itself, so a throw means the
                 // registration primitive is broken (__registerCallback missing):
                 // say so rather than silently never calling onPlay or onStop.
-                Debug.LogWarning($"[{_name}] Lifecycle callback registration failed: {ex.Message} (expr: {expr})");
+                OneJSLog.Exception($"[{_name}] Lifecycle callback registration failed (expr: {expr})", ex, translate: _translateError);
                 return -1;
             }
         }
@@ -99,7 +99,7 @@ namespace OneJS {
                 Bridge.Context.InvokeCallbackNoAlloc(_onPlayHandle);
                 Bridge.Context.ExecutePendingJobs();
             } catch (Exception ex) {
-                Debug.LogError($"[{_name}] onPlay() error: {_translateError(ex.Message)}");
+                OneJSLog.Exception($"[{_name}] onPlay() error", ex, translate: _translateError);
             }
             _onStopInvoked = false;
         }
@@ -112,7 +112,7 @@ namespace OneJS {
                 Bridge.Context.InvokeCallbackNoAlloc(_onStopHandle);
                 Bridge.Context.ExecutePendingJobs();
             } catch (Exception ex) {
-                Debug.LogError($"[{_name}] onStop() error: {_translateError(ex.Message)}");
+                OneJSLog.Exception($"[{_name}] onStop() error", ex, translate: _translateError);
             }
         }
 

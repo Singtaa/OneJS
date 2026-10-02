@@ -132,6 +132,8 @@ namespace OneJS {
                     request.SetRequestHeader(kvp.Key, kvp.Value);
                 }
             } catch (Exception ex) {
+                // Expected failure: the headers are the script's input, and the
+                // request still goes out without them.
                 Debug.LogWarning($"[Network] Failed to parse headers: {ex.Message}");
             }
         }

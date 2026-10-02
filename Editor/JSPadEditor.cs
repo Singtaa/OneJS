@@ -125,7 +125,7 @@ namespace OneJS.Editor {
                     File.WriteAllText(SourceMapCacheFile, _target.BuiltSourceMap);
                 }
             } catch (Exception ex) {
-                Debug.LogWarning($"[JSPad] Failed to cache bundle: {ex.Message}");
+                OneJSLog.Exception("[JSPad] Failed to cache bundle", ex, _target);
             }
         }
 
@@ -163,7 +163,7 @@ namespace OneJS.Editor {
                     }
                 }
             } catch (Exception ex) {
-                Debug.LogWarning($"[JSPad] Failed to restore bundle from cache: {ex.Message}");
+                OneJSLog.Exception("[JSPad] Failed to restore bundle from cache", ex, _target);
             }
         }
 
@@ -822,6 +822,8 @@ namespace OneJS.Editor {
                 _isProcessing = false;
                 _statusMessage = null;
                 _target.SetBuildState(JSPad.BuildState.Error, error: ex.Message);
+                // Expected failure: npm could not be started (not installed, not on
+                // PATH), which the message names; the build state shows it too.
                 Debug.LogError($"[JSPad] npm install error: {ex.Message}");
             }
         }
@@ -888,6 +890,8 @@ namespace OneJS.Editor {
                 _isProcessing = false;
                 _statusMessage = null;
                 _target.SetBuildState(JSPad.BuildState.Error, error: ex.Message);
+                // Expected failure: npm could not be started (not installed, not on
+                // PATH), which the message names; the build state shows it too.
                 Debug.LogError($"[JSPad] Build error: {ex.Message}");
             }
         }
@@ -904,6 +908,7 @@ namespace OneJS.Editor {
                 try {
                     Directory.Delete(tempDir, recursive: true);
                 } catch (Exception ex) {
+                    // Expected failure: a file in the folder is locked.
                     Debug.LogError($"[JSPad] Failed to clean: {ex.Message}");
                 }
             }

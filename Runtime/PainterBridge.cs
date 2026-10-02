@@ -115,7 +115,7 @@ namespace OneJS {
             } catch (Exception ex) {
                 // A correct recorder never emits a truncated buffer; this guards
                 // against corruption without tearing down the whole repaint.
-                Debug.LogWarning($"[PainterBridge] Execute failed near index {i}: {ex.Message}");
+                OneJSLog.Exception($"[PainterBridge] Execute failed near index {i}", ex);
             }
         }
 

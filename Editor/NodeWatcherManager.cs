@@ -114,6 +114,7 @@ namespace OneJS.Editor {
                 ClearSavedState(key);
                 return false;
             } catch (Exception e) {
+                // Expected failure: the saved process is gone or no longer ours.
                 Debug.LogWarning($"[OneJS] Failed to reattach to watcher: {e.Message}");
                 ClearSavedState(key);
                 return false;
@@ -206,6 +207,7 @@ namespace OneJS.Editor {
 
                 return true;
             } catch (Exception e) {
+                // Expected failure: npm could not be started (not installed, not on PATH).
                 Debug.LogError($"[OneJS] Failed to start watcher: {e.Message}");
                 return false;
             } finally {
@@ -225,6 +227,7 @@ namespace OneJS.Editor {
                         OneJSProcessUtils.KillProcessTree(process);
                         process.WaitForExit(2000);
                     } catch (Exception e) {
+                        // Expected failure: the process exited while being stopped.
                         Debug.LogWarning($"[OneJS] Error stopping watcher: {e.Message}");
                     }
                 }

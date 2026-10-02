@@ -177,6 +177,7 @@ namespace OneJS.Editor {
                         Put(entry.keptMap, entry.map);
                     }
                 } catch (Exception e) {
+                    // Expected failure: the file is locked; the message names the recovery.
                     Debug.LogWarning($"[JSRunner] Could not put the editor's bundle back at {entry.bundle}: {e.Message}. " +
                         "The next build or watcher rebuild replaces it.");
                 }

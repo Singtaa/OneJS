@@ -33,17 +33,35 @@ namespace OneJS {
         }
 
         /// <summary>
-        /// Load and parse a source map from file path.
+        /// Load and parse a source map from file path. Sources come back as
+        /// paths from the project root (absolute outside it), which is what
+        /// Unity's Console needs to open them from a stack frame.
         /// </summary>
         public static SourceMapParser Load(string mapFilePath) {
             if (!File.Exists(mapFilePath)) return null;
 
             try {
                 var json = File.ReadAllText(mapFilePath);
-                return Parse(json);
+                var parser = Parse(json);
+                parser?.ResolveSources(Path.GetDirectoryName(Path.GetFullPath(mapFilePath)));
+                return parser;
             } catch (Exception ex) {
+                // Expected failure: an unreadable map only costs source positions,
+                // so a short warning without a C# stack is the right weight.
                 Debug.LogWarning($"[SourceMapParser] Failed to load source map: {ex.Message}");
                 return null;
+            }
+        }
+
+        void ResolveSources(string mapDir) {
+            var projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, "..")).Replace('\\', '/').TrimEnd('/') + "/";
+            for (int i = 0; i < _sources.Length; i++) {
+                var source = _sources[i];
+                if (string.IsNullOrEmpty(source) || source.Contains("://") || Path.IsPathRooted(source)) continue;
+                var full = Path.GetFullPath(Path.Combine(mapDir, source)).Replace('\\', '/');
+                _sources[i] = full.StartsWith(projectRoot, StringComparison.OrdinalIgnoreCase)
+                    ? full.Substring(projectRoot.Length)
+                    : full;
             }
         }
 

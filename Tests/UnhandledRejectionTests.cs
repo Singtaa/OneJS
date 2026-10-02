@@ -25,7 +25,8 @@ namespace OneJS.Tests {
 
         [Test]
         public void AnUnhandledRejection_IsLoggedAsAnError() {
-            LogAssert.Expect(LogType.Error, new Regex(@"\[OneJS\] Unhandled promise rejection: Error: lost"));
+            // An exception carrying the JS frames, so the Console links to the script
+            LogAssert.Expect(LogType.Exception, new Regex(@"JSException: .*\[OneJS\] Unhandled promise rejection: Error: lost"));
             _ctx.Eval("(async function () { throw new Error('lost') })()");
             _ctx.ExecutePendingJobs();
         }

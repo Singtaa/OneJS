@@ -102,9 +102,12 @@ namespace OneJS.Editor {
                     CopySkill(skillDir, dest);
                     result.Installed.Add(skillName);
                 } catch (IOException e) {
+                    // Expected failure: the disk or a lock refused the write; the
+                    // result lists the skill as failed.
                     Debug.LogError($"[OneJS] Could not write '{skillName}' to {dest}: {e.Message}");
                     result.Failed.Add(skillName);
                 } catch (System.UnauthorizedAccessException e) {
+                    // Expected failure: the folder is not writable for this user.
                     Debug.LogError($"[OneJS] No permission to write '{skillName}' to {dest}: {e.Message}");
                     result.Failed.Add(skillName);
                 }

@@ -442,13 +442,7 @@ namespace OneJS {
                         RunnerUtils.ApplyStylesheets(_uiDocument.rootVisualElement, _stylesheets);
                     });
             } catch (Exception ex) {
-                // Show full exception chain for TypeInitializationException and similar
-                var fullMessage = ex.ToString();
-                if (ex.InnerException != null) {
-                    fullMessage = $"{ex.Message}\nInner: {ex.InnerException}";
-                }
-                var message = TranslateErrorMessage(fullMessage);
-                Debug.LogError($"[JSPad] Reload error: {message}");
+                OneJSLog.Exception("[JSPad] Reload error", ex, this, TranslateErrorMessage);
                 Stop();
             }
         }

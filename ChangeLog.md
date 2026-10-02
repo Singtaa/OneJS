@@ -5,6 +5,7 @@ Migrating: copy the template's `esbuild.config.mjs` and build scripts, add `onej
 - Every public global is also under one `onejs` namespace
 - `onejs.cs.typeExists` says whether a C# type is loaded
 - Unhandled promise rejections log as errors on native platforms
+- Errors log with their stack, and a JS error's Console entry opens its source line
 - Passing the same function to a C# method twice gives the same delegate, so `RemoveListener(fn)` works
 - A C# method call from JS crosses once instead of twice
 - `fetch` rejects with a `TypeError` when no response arrives

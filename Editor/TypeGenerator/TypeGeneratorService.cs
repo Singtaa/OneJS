@@ -34,7 +34,7 @@ namespace OneJS.Editor.TypeGenerator {
                     try {
                         GenerateTypingsFor(runner, silent: true);
                     } catch (Exception ex) {
-                        Debug.LogWarning($"[TypeGeneratorService] Auto-generation failed for '{runner.name}': {ex.Message}");
+                        OneJSLog.Exception($"[TypeGeneratorService] Auto-generation failed for '{runner.name}'", ex, runner);
                     }
                 }
             }
@@ -100,7 +100,7 @@ namespace OneJS.Editor.TypeGenerator {
 
                 return true;
             } catch (Exception ex) {
-                Debug.LogError($"[TypeGeneratorService] Failed to generate typings for '{runner.name}': {ex.Message}");
+                OneJSLog.Exception($"[TypeGeneratorService] Failed to generate typings for '{runner.name}'", ex, runner);
                 return false;
             }
         }

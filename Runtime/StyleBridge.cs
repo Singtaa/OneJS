@@ -46,6 +46,8 @@ namespace OneJS {
                         ApplyReflective(style, kvp.Key, value);
                     }
                 } catch (Exception ex) {
+                    // Expected failure: the value is the script's style input, and
+                    // the other keys still apply.
                     Debug.LogWarning(
                         $"[StyleBridge] ApplyStyles failed for '{kvp.Key}': {ex.Message}");
                 }

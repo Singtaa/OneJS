@@ -91,7 +91,8 @@ namespace OneJS.Tests {
         // most common runtime failure, and it used to be logged as information.
         [UnityTest]
         public IEnumerator AThrowingCallbackIsReportedAsAnError() {
-            LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("kaboom"));
+            // An exception carrying the JS frames, so the Console links to the script
+            LogAssert.Expect(LogType.Exception, new System.Text.RegularExpressions.Regex("JSException: .*kaboom"));
             _bridge.Eval("setTimeout(function () { throw new Error('kaboom') }, 0)");
             yield return null;
             _bridge.Tick();

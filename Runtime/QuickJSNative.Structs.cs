@@ -358,7 +358,7 @@ namespace OneJS {
                     try {
                         fieldValue = field.Getter(value);
                     } catch (Exception e) {
-                        Debug.LogWarning($"[QuickJS] {type.FullName}.{field.Name} threw while being read: {e.Message}");
+                        OneJSLog.Exception($"[QuickJS] {type.FullName}.{field.Name} threw while being read", e);
                         fieldValue = null;
                     }
                     sb.Append(",\"");
@@ -1474,7 +1474,7 @@ namespace OneJS {
                         return null;
                 }
             } catch (Exception e) {
-                Debug.LogWarning($"[QuickJS] Failed to create callback wrapper for {delegateType.FullName}: {e}");
+                OneJSLog.Exception($"[QuickJS] Failed to create callback wrapper for {delegateType.FullName}", e);
                 return null;
             }
         }
@@ -1872,7 +1872,7 @@ namespace OneJS {
                 }
                 return Delegate.CreateDelegate(delegateType, invoker, mi);
             } catch (Exception e) {
-                Debug.LogError($"[QuickJS] Failed to create Func wrapper for {delegateType.FullName}: {e.Message}");
+                OneJSLog.Exception($"[QuickJS] Failed to create Func wrapper for {delegateType.FullName}", e);
                 return null;
             }
         }

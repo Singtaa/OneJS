@@ -184,6 +184,8 @@ namespace OneJS.ShaderFX {
                 return !native && SL.SLProgramBridge.WantsSource(hash);
             } catch (System.Exception e) {
                 _shaderMissing = true;
+                // Expected failure: CreateMaterial throws to say the program's shader
+                // was not generated, and its message names the fix.
                 Debug.LogWarning($"[OneJS sl] {e.Message}");
                 return false;
             }

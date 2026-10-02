@@ -49,6 +49,7 @@ namespace OneJS.Editor {
                 });
                 taskkill?.WaitForExit(2000);
             } catch (Exception ex) {
+                // Expected failure: taskkill is unavailable; the fallback below handles it.
                 Debug.LogWarning($"[OneJS] taskkill /T /F /PID {pid} failed: {ex.Message}. Falling back to Process.Kill().");
                 try { if (!fallback.HasExited) fallback.Kill(); } catch { }
             }

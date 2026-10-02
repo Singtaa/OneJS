@@ -252,6 +252,7 @@ namespace OneJS.Editor {
                 process.BeginErrorReadLine();
 
             } catch (Exception ex) {
+                // Expected failure: npm could not be started (not installed, not on PATH).
                 Debug.LogError($"[JSRunner] Failed to run npm {arguments}: {ex.Message}");
                 onFailure?.Invoke(-1);
             }

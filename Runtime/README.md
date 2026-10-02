@@ -24,7 +24,9 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `JsHost.cs` | The context, globals, onPlay/onStop, tick and rebuild JSRunner and JSPad share (internal) |
 | `ScaffoldRecord.cs` | `~/.onejs/scaffold`: the default files a working directory has been given (see Auto-Scaffolding) |
 | `JsFunctionBinding.cs` | Backs `GetJSFunction`: a named JS function as a typed C# delegate |
-| `JsLog.cs` | Routes JS console output to the matching Unity log level (the bootstrap encodes it); `ErrorCount`/`LastError` for tests |
+| `JsLog.cs` | Routes JS console output to the matching Unity log level (the bootstrap encodes it, and names the bridge on an error line); an error with JS frames logs as a `JSException` read through that bridge's source map; `ErrorCount`/`LastError` for tests |
+| `JSException.cs` | A JS error as C# sees it: `Message` is the JS text, `StackTrace` the (source-mapped) JS frames in Unity's form, so `Debug.LogException` links the Console entry to the script. `QuickJSContext.Eval` throws it |
+| `OneJSLog.cs` | `OneJSLog.Exception(message, ex, context, translate)`: how OneJS logs a caught exception, through `Debug.LogException` with its stack. A text log of a caught exception is an expected failure listed in `ExceptionLoggingGuardTests` with its reason |
 | `AssemblyInfo.cs` | `InternalsVisibleTo` for `OneJS.Runtime.InputSystem` (`JSRunner.AddInputSystemModule`) and `OneJS.Tests` (`JsHost`) |
 | `Janitor.cs` | Marker component for live reload cleanup of JS-created GameObjects |
 | `Network.cs` | Fetch API implementation using UnityWebRequest; `LoadTextureFromUrl` for `<Image src>` on a URL |
@@ -33,7 +35,7 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `PointerEvents.cs` | `MoveEventsEnabled`: whether pointermove reaches JS at all (off saves ~0.6KB/frame when polling) |
 | `FileSystem.cs` | File system access for runtime loading (readTextFile, writeTextFile, etc.) |
 | `AssetLoader.cs` | Async resource loading (loadResourceAsync) wrapping Resources.LoadAsync |
-| `SourceMapParser.cs` | Parses source maps for error stack trace translation |
+| `SourceMapParser.cs` | Parses source maps for error stack trace translation; `Load` resolves sources to paths from the project root, which the Console can open |
 | `VirtualClock.cs` | Deterministic stand-in for engine realtime; lets an offline renderer frame-step the UI (see below) |
 | `Pack.cs` | Pack asset for packaged UI modules (namespace/slug identity, optional content version). Keeps the script GUID `UICartridge.cs` had, so assets made as UICartridge load as Pack |
 | `PackTypeGenerator.cs` | Generates TypeScript declarations for pack types (`__pack`, plus `__cart` marked deprecated) |

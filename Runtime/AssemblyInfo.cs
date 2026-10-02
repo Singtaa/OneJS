@@ -6,3 +6,8 @@ using System.Runtime.CompilerServices;
 
 // The tests drive JsHost, the context and lifecycle JSRunner and JSPad share, directly.
 [assembly: InternalsVisibleTo("OneJS.Tests")]
+
+// Editor code and its tests log caught exceptions through OneJSLog.
+[assembly: InternalsVisibleTo("OneJS.Editor")]
+[assembly: InternalsVisibleTo("OneJS.Editor.TypeGenerator")]
+[assembly: InternalsVisibleTo("OneJS.Tests.Editor")]

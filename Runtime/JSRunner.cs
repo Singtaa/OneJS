@@ -587,6 +587,8 @@ namespace OneJS {
                         Directory.Move(oldWorkingDir, newWorkingDir);
                         Debug.Log($"[JSRunner] Migrated working directory to ~");
                     } catch (Exception ex) {
+                        // Expected failure: the folder is locked or the target exists;
+                        // the message says which, and the old name keeps working.
                         Debug.LogWarning($"[JSRunner] Could not rename {gameObject.name}~ to ~: {ex.Message}");
                     }
                 } else if (!Directory.Exists(newWorkingDir)) {
@@ -859,7 +861,7 @@ namespace OneJS {
             if (!Application.isPlaying) return; // [ExecuteAlways] guard
             if (_dontDestroyOnLoad) DontDestroyOnLoad(gameObject);
             try { TryInitializePlayMode(); }
-            catch (Exception ex) { Debug.LogError($"[JSRunner] Start() exception: {ex}"); }
+            catch (Exception ex) { OneJSLog.Exception("[JSRunner] Start() exception", ex, this, TranslateErrorMessage); }
         }
 
         void OnEnable() {
@@ -932,7 +934,7 @@ namespace OneJS {
                 RecreateContext(_bundleAsset.text, "app.js");
 #endif
             } catch (Exception ex) {
-                Debug.LogError($"[JSRunner] ReloadOnEnable failed: {TranslateErrorMessage(ex.Message)}");
+                OneJSLog.Exception("[JSRunner] ReloadOnEnable failed", ex, this, TranslateErrorMessage);
                 _host?.Dispose();
                 ResetPlayModeState();
             }
@@ -951,7 +953,7 @@ namespace OneJS {
             try {
                 Reloaded?.Invoke(this);
             } catch (Exception ex) {
-                Debug.LogError($"[JSRunner] Reloaded event handler threw: {ex}");
+                OneJSLog.Exception("[JSRunner] Reloaded event handler threw", ex, this);
             }
         }
 
@@ -1070,7 +1072,7 @@ namespace OneJS {
             try {
                 EditorLoadingBundle?.Invoke(entryFile);
             } catch (Exception ex) {
-                Debug.LogError($"[JSRunner] An EditorLoadingBundle handler threw: {ex}");
+                OneJSLog.Exception("[JSRunner] An EditorLoadingBundle handler threw", ex, this);
             }
             return File.ReadAllText(entryFile);
         }
@@ -1383,8 +1385,7 @@ namespace OneJS {
                     _bridge.Eval(preload.text, preload.name);
                     _bridge.Context.ExecutePendingJobs();
                 } catch (Exception ex) {
-                    var message = TranslateErrorMessage(ex.Message);
-                    Debug.LogError($"[JSRunner] Preload '{preload.name}' failed: {message}");
+                    OneJSLog.Exception($"[JSRunner] Preload '{preload.name}' failed", ex, this, TranslateErrorMessage);
                 }
             }
         }
@@ -1472,8 +1473,7 @@ namespace OneJS {
                 if (_editModePreviewActive)
                     UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
             } catch (Exception ex) {
-                var message = TranslateErrorMessage(ex.Message);
-                Debug.LogError($"[JSRunner] Reload failed: {message}");
+                OneJSLog.Exception("[JSRunner] Reload failed", ex, this, TranslateErrorMessage);
                 // If edit-mode preview is active, stop it to avoid a broken state
                 // (bridge may be disposed but EditModeTick still firing)
                 if (_editModePreviewActive)
@@ -1501,7 +1501,7 @@ namespace OneJS {
             } catch (IOException) {
                 // File might be locked by build process, skip this poll
             } catch (Exception ex) {
-                Debug.LogWarning($"[JSRunner] Error checking file: {ex.Message}");
+                OneJSLog.Exception("[JSRunner] Error checking file", ex, this);
             }
         }
 
@@ -1526,7 +1526,7 @@ namespace OneJS {
                     // _initialized guard in TryInitializePlayMode() prevents double init.
                     if (!_initialized) {
                         try { TryInitializePlayMode(); }
-                        catch (Exception ex) { Debug.LogError($"[JSRunner] Play mode init error: {ex}"); }
+                        catch (Exception ex) { OneJSLog.Exception("[JSRunner] Play mode init error", ex, this, TranslateErrorMessage); }
                     }
                     break;
 
@@ -1625,7 +1625,7 @@ namespace OneJS {
 
                 EditModePreviewStarted?.Invoke(this);
             } catch (Exception ex) {
-                Debug.LogError($"[JSRunner] Edit-mode preview failed: {ex.Message}");
+                OneJSLog.Exception("[JSRunner] Edit-mode preview failed", ex, this, TranslateErrorMessage);
                 // Clean up partial init
                 _host?.Dispose();
                 // A native ABI mismatch cannot heal until the editor restarts:
@@ -1788,7 +1788,7 @@ namespace OneJS {
             // keep trying each frame until it succeeds (silent: no log spam).
             if (!_initialized) {
                 try { TryInitializePlayMode(silent: true); }
-                catch (Exception ex) { Debug.LogError($"[JSRunner] Deferred init error: {ex.Message}"); }
+                catch (Exception ex) { OneJSLog.Exception("[JSRunner] Deferred init error", ex, this, TranslateErrorMessage); }
                 return;
             }
 

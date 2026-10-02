@@ -126,6 +126,24 @@ namespace OneJS {
         public string WorkingDir => _workingDir;
         public int WebSocketContextId => _wsContextId;
 
+        Func<string, string> _translateError;
+
+        /// <summary>
+        /// Maps JS positions in this bridge's errors to source lines (a runner's
+        /// source map), both in the exceptions it logs and in console.error lines
+        /// its scripts print. Null logs them as JS reported them.
+        /// </summary>
+        public Func<string, string> TranslateError {
+            get => _translateError;
+            set {
+                _translateError = value;
+                JsLog.SetTranslator(_wsContextId, value);
+            }
+        }
+
+        /// <summary>Logs an exception caught running this bridge's JS, its frames source-mapped.</summary>
+        void LogJsError(string message, Exception ex) => OneJSLog.Exception(message, ex, translate: _translateError);
+
         // MARK: Lifecycle
         public QuickJSUIBridge(VisualElement root, string workingDir = null, int bufferSize = 16 * 1024) {
             _root = root ?? throw new ArgumentNullException(nameof(root));
@@ -173,6 +191,8 @@ namespace OneJS {
                 string content = File.ReadAllText(fullPath);
                 return CompileStyleSheet(content, path);
             } catch (Exception ex) {
+                // Expected failure: the file could not be read (compiling has its
+                // own catch below), so the message is all a reader needs.
                 Debug.LogError($"[QuickJSUIBridge] LoadStyleSheet error: {ex.Message}");
                 return false;
             }
@@ -202,7 +222,7 @@ namespace OneJS {
                 _jsStyleSheets[name] = styleSheet;
                 return true;
             } catch (Exception ex) {
-                Debug.LogError($"[QuickJSUIBridge] CompileStyleSheet error ({name}): {ex.Message}");
+                OneJSLog.Exception($"[QuickJSUIBridge] CompileStyleSheet error ({name})", ex);
                 return false;
             }
         }
@@ -315,6 +335,7 @@ namespace OneJS {
             UnregisterEventDelegation();
             UnregisterAllPerElementHandlers();
             PerElementEventSupport.UnregisterBridge(_wsContextId);
+            JsLog.SetTranslator(_wsContextId, null);
             ClearStyleSheets(); // Clean up JS-loaded stylesheets
             WebSocketBridge.CloseAll(_wsContextId);
             WebSocketBridge.UnregisterContext(_wsContextId);
@@ -340,7 +361,7 @@ namespace OneJS {
                 _ctx.Eval("typeof globalThis.__runTeardown === 'function' && globalThis.__runTeardown()");
                 _ctx.ExecutePendingJobs();
             } catch (Exception ex) {
-                Debug.LogWarning($"[QuickJSUIBridge] Teardown hook error: {ex.Message}");
+                LogJsError("[QuickJSUIBridge] Teardown hook error", ex);
             }
         }
 
@@ -376,7 +397,7 @@ namespace OneJS {
                 var handleStr = _ctx.Eval("typeof __tick === 'function' ? __registerCallback(__tick) : -1");
                 _tickCallbackHandle = int.Parse(handleStr);
             } catch (Exception ex) {
-                Debug.LogWarning($"[QuickJSUIBridge] Failed to cache __tick callback: {ex.Message}");
+                LogJsError("[QuickJSUIBridge] Failed to cache __tick callback", ex);
                 _tickCallbackHandle = -1;
             }
 #endif
@@ -394,7 +415,7 @@ namespace OneJS {
                 var handleStr = _ctx.Eval("typeof __dispatchEventFast === 'function' ? __registerCallback(__dispatchEventFast) : -1");
                 _eventDispatchHandle = int.Parse(handleStr);
             } catch (Exception ex) {
-                Debug.LogWarning($"[QuickJSUIBridge] Failed to cache event dispatch callback: {ex.Message}");
+                LogJsError("[QuickJSUIBridge] Failed to cache event dispatch callback", ex);
                 _eventDispatchHandle = -1;
             }
 #endif
@@ -515,7 +536,7 @@ namespace OneJS {
                 // grown past a delta since the last GC, so idle UIs don't pay per-frame.
                 _ctx.MaybeRunGC();
             } catch (System.Exception ex) {
-                UnityEngine.Debug.LogError($"[QuickJSUIBridge] Tick error: {ex.Message}");
+                LogJsError("[QuickJSUIBridge] Tick error", ex);
             } finally {
                 _inEval = false;
             }
@@ -837,7 +858,7 @@ namespace OneJS {
                 _ctx.ExecutePendingJobs();
                 return (result != null && int.TryParse(result, out int flags)) ? flags : 0;
             } catch (Exception ex) {
-                Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error: {ex.Message}\nEval: {_sb}");
+                LogJsError($"[QuickJSUIBridge] Event dispatch error, evaluating: {_sb}", ex);
                 return 0;
             } finally {
                 _inEval = false;
@@ -858,7 +879,7 @@ namespace OneJS {
                 _ctx.InvokeCallbackNoAlloc(_eventDispatchHandle, eventTypeId, elemHandle, a0);
                 _ctx.ExecutePendingJobs();
             } catch (Exception ex) {
-                Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error ({eventTypeId}): {ex.Message}");
+                LogJsError($"[QuickJSUIBridge] Event dispatch error ({eventTypeId})", ex);
             } finally { _inEval = false; }
         }
 
@@ -870,7 +891,7 @@ namespace OneJS {
                 _ctx.ExecutePendingJobs();
                 return flags;
             } catch (Exception ex) {
-                Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error ({eventTypeId}): {ex.Message}");
+                LogJsError($"[QuickJSUIBridge] Event dispatch error ({eventTypeId})", ex);
                 return 0;
             } finally { _inEval = false; }
         }
@@ -885,7 +906,7 @@ namespace OneJS {
                 _ctx.ExecutePendingJobs();
                 return flags;
             } catch (Exception ex) {
-                Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error ({eventTypeId}): {ex.Message}");
+                LogJsError($"[QuickJSUIBridge] Event dispatch error ({eventTypeId})", ex);
                 return 0;
             } finally { _inEval = false; }
         }
@@ -897,7 +918,7 @@ namespace OneJS {
                 _ctx.InvokeCallbackNoAlloc(_eventDispatchHandle, EVT_VIEWPORT_CHANGE, elemHandle, width, height);
                 _ctx.ExecutePendingJobs();
             } catch (Exception ex) {
-                Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error (viewport): {ex.Message}");
+                LogJsError("[QuickJSUIBridge] Event dispatch error (viewport)", ex);
             } finally { _inEval = false; }
         }
 
@@ -927,7 +948,7 @@ namespace OneJS {
                 _ctx.InvokeCallbackNoAlloc(_eventDispatchHandle, EVT_FOCUSCHANGE, rootHandle, focusedHandle);
                 _ctx.ExecutePendingJobs();
             } catch (Exception ex) {
-                Debug.LogWarning($"[QuickJSUIBridge] Event dispatch error (focuschange): {ex.Message}");
+                LogJsError("[QuickJSUIBridge] Event dispatch error (focuschange)", ex);
             } finally { _inEval = false; }
         }
 

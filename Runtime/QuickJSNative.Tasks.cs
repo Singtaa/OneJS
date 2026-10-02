@@ -247,7 +247,7 @@ namespace OneJS {
                     }
                     processed++;
                 } catch (Exception ex) {
-                    Debug.LogError($"[QuickJS] Error processing task {info.TaskId}: {ex.Message}");
+                    OneJSLog.Exception($"[QuickJS] Error processing task {info.TaskId}", ex);
                 }
             }
 

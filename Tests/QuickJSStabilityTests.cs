@@ -451,8 +451,9 @@ namespace OneJS.Tests {
                 _ctx.Eval("CS.UnityEngine.Debug.NonExistentMethod()");
             } catch (System.Exception ex) {
                 exceptionThrown = true;
-                // Exception should contain QuickJS error info
-                Assert.IsTrue(ex.Message.Contains("QuickJS error"), "Exception should contain QuickJS error");
+                // A JS error arrives as a JSException carrying the JS text
+                Assert.IsInstanceOf<OneJS.JSException>(ex);
+                StringAssert.Contains("not found", ex.Message);
             }
 
             Assert.IsTrue(exceptionThrown, "Should have thrown an exception");
@@ -470,8 +471,9 @@ namespace OneJS.Tests {
                 _ctx.Eval("CS.NonExistent.FakeType.DoSomething()");
             } catch (System.Exception ex) {
                 exceptionThrown = true;
-                // Exception should contain QuickJS error info
-                Assert.IsTrue(ex.Message.Contains("QuickJS error"), "Exception should contain QuickJS error");
+                // A JS error arrives as a JSException carrying the JS text
+                Assert.IsInstanceOf<OneJS.JSException>(ex);
+                StringAssert.Contains("not found", ex.Message);
             }
 
             Assert.IsTrue(exceptionThrown, "Should have thrown an exception");
@@ -488,9 +490,8 @@ namespace OneJS.Tests {
             } catch (System.Exception ex) {
                 exceptionThrown = true;
                 // Exception should contain error info
-                Assert.IsTrue(
-                    ex.Message.Contains("QuickJS error") || ex.Message.Contains("SyntaxError"),
-                    $"Exception should contain error info, got: {ex.Message}");
+                Assert.IsInstanceOf<OneJS.JSException>(ex);
+                StringAssert.Contains("SyntaxError", ex.Message);
             }
 
             Assert.IsTrue(exceptionThrown, "Should have thrown an exception for syntax error");
@@ -506,9 +507,9 @@ namespace OneJS.Tests {
                 _ctx.Eval("throw new Error('Intentional test error');");
             } catch (System.Exception ex) {
                 exceptionThrown = true;
-                Assert.IsTrue(
-                    ex.Message.Contains("Intentional test error") || ex.Message.Contains("QuickJS error"),
-                    $"Exception should contain error message, got: {ex.Message}");
+                Assert.IsInstanceOf<OneJS.JSException>(ex);
+                Assert.AreEqual("Error: Intentional test error", ex.Message);
+                StringAssert.Contains("at ", ((OneJS.JSException)ex).JsStack, "the JS frames travel with it");
             }
 
             Assert.IsTrue(exceptionThrown, "Should have thrown an exception for runtime error");

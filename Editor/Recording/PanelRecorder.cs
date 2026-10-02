@@ -312,6 +312,7 @@ namespace OneJS.Editor {
             try {
                 if (File.Exists(path)) File.Delete(path);
             } catch (Exception e) {
+                // Expected failure: the file is locked or already gone.
                 Debug.LogWarning($"[OneJS] Could not remove partial recording '{path}': {e.Message}");
             }
         }

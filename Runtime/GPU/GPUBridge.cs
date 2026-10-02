@@ -261,6 +261,8 @@ namespace OneJS.GPU {
                     _bufferHandles[handle] = buffer;
                     return handle;
                 } catch (Exception ex) {
+                    // Expected failure: the sizes and formats come from the JS caller, which
+                    // gets -1 back; a C# stack would only point into this bridge.
                     Debug.LogError($"[GPUBridge] Failed to create buffer: {ex.Message}");
                     return -1;
                 }
@@ -350,6 +352,8 @@ namespace OneJS.GPU {
                     _renderTextureHandles[handle] = rt;
                     return handle;
                 } catch (Exception ex) {
+                    // Expected failure: the sizes and formats come from the JS caller, which
+                    // gets -1 back; a C# stack would only point into this bridge.
                     Debug.LogError($"[GPUBridge] Failed to create RenderTexture: {ex.Message}");
                     return -1;
                 }
@@ -384,6 +388,8 @@ namespace OneJS.GPU {
                     rt.Create();
                     return true;
                 } catch (Exception ex) {
+                    // Expected failure: the sizes and formats come from the JS caller, which
+                    // gets false back; a C# stack would only point into this bridge.
                     Debug.LogError($"[GPUBridge] Failed to resize RenderTexture: {ex.Message}");
                     return false;
                 }
@@ -573,6 +579,8 @@ namespace OneJS.GPU {
                     _readbackRequests[requestId] = request;
                     return requestId;
                 } catch (Exception ex) {
+                    // Expected failure: the sizes and formats come from the JS caller, which
+                    // gets -1 back; a C# stack would only point into this bridge.
                     Debug.LogError($"[GPUBridge] Failed to request readback: {ex.Message}");
                     return -1;
                 }

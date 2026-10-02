@@ -1138,7 +1138,7 @@ namespace OneJS.Editor {
                     AssetDatabase.Refresh();
                 }
             } catch (Exception ex) {
-                Debug.LogWarning($"[JSRunner] Could not auto-extract pack '{pack.DisplayName}': {ex.Message}");
+                OneJSLog.Exception($"[JSRunner] Could not auto-extract pack '{pack.DisplayName}'", ex, pack);
             }
         }
 
@@ -1217,7 +1217,7 @@ namespace OneJS.Editor {
                 RebuildPackList();
 
             } catch (Exception ex) {
-                Debug.LogError($"[JSRunner] Failed to extract pack '{pack.DisplayName}': {ex.Message}");
+                OneJSLog.Exception($"[JSRunner] Failed to extract pack '{pack.DisplayName}'", ex, pack);
                 EditorUtility.DisplayDialog("Extract Failed", $"Failed to extract pack:\n\n{ex.Message}", "OK");
             }
         }
@@ -1253,6 +1253,7 @@ namespace OneJS.Editor {
                 RebuildPackList();
 
             } catch (Exception ex) {
+                // Expected failure: a file in the folder is locked; the dialog says so.
                 Debug.LogError($"[JSRunner] Failed to delete pack folder: {ex.Message}");
                 EditorUtility.DisplayDialog("Delete Failed", $"Failed to delete pack folder:\n\n{ex.Message}", "OK");
             }
@@ -1319,7 +1320,7 @@ namespace OneJS.Editor {
                         overwriteExisting: true);
                     extracted++;
                 } catch (Exception ex) {
-                    Debug.LogError($"[JSRunner] Failed to extract '{pack.DisplayName}': {ex.Message}");
+                    OneJSLog.Exception($"[JSRunner] Failed to extract '{pack.DisplayName}'", ex, pack);
                 }
             }
 
@@ -1373,6 +1374,7 @@ namespace OneJS.Editor {
                     Directory.Delete(destPath, true);
                     deleted++;
                 } catch (Exception ex) {
+                    // Expected failure: a file in the folder is locked.
                     Debug.LogError($"[JSRunner] Failed to delete '{pack.DisplayName}' folder: {ex.Message}");
                 }
             }
@@ -1879,6 +1881,7 @@ namespace OneJS.Editor {
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
             } catch (Exception ex) {
+                // Expected failure: npm could not be started; the lines below name the fix.
                 Debug.LogError($"[JSRunner] npm error: {ex.Message}");
                 if (ex.Message.Contains("npm") || ex.Message.Contains("not found")) {
                     Debug.LogError("[JSRunner] npm not found. Make sure Node.js is installed and in your PATH.");
@@ -1930,6 +1933,7 @@ namespace OneJS.Editor {
                 } catch (Exception ex) {
                     _buildInProgress = false;
                     _buildOutput = $"Failed to delete node_modules: {ex.Message}";
+                    // Expected failure: a file is locked, usually by a running watcher.
                     Debug.LogError($"[JSRunner] Failed to delete node_modules: {ex.Message}");
                     RestartWatcherIfNeeded();
                     return;
@@ -2169,6 +2173,7 @@ namespace OneJS.Editor {
                     if (CodeEditor.OSOpenFile(editorPath, args))
                         return;
                 } catch (Exception ex) {
+                    // Expected failure: the external editor could not be launched.
                     Debug.LogWarning($"[JSRunner] Failed to open code editor: {ex.Message}");
                 }
             }
@@ -2217,6 +2222,7 @@ namespace OneJS.Editor {
                         openArgs += " \"" + pathToOpen2 + "\"";
                     Process.Start("open", $"-n -b com.microsoft.VSCode --args {openArgs}");
                 } catch (Exception ex) {
+                    // Expected failure: VS Code is not installed or could not be launched.
                     Debug.LogError($"[JSRunner] Failed to open code editor: {ex.Message}");
                 }
             }

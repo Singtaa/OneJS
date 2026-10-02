@@ -235,6 +235,7 @@ namespace OneJS.Tests.Editor {
                         }
                     }
                 } catch (Exception ex) {
+                    // Expected failure: diagnostics only, after the build already failed.
                     Debug.LogError($"[BuildValidation] Error listing .app contents: {ex.Message}");
                 }
 
@@ -310,6 +311,8 @@ namespace OneJS.Tests.Editor {
                         Debug.LogWarning($"[BuildValidation] Log file not found: {logFile}");
                     }
                 } catch (Exception ex) {
+                    // Expected failure: the built player could not be launched; the
+                    // message is returned to the test as its result.
                     Debug.LogError($"[BuildValidation] Process error: {ex.Message}");
                     return (-1, ex.Message);
                 }

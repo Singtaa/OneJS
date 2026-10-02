@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace OneJS {
@@ -28,6 +30,15 @@ namespace OneJS {
         /// </summary>
         public const char LevelMarker = '\u0001';
 
+        /// <summary>
+        /// Brackets the id of the bridge an error line came from, right after
+        /// its level ("\u0001E\u00023\u0002message"), so the line can be read
+        /// through that bridge's source map. Lines without it read untranslated.
+        /// </summary>
+        public const char SourceMarker = '\u0002';
+
+        static readonly Dictionary<int, Func<string, string>> _translators = new Dictionary<int, Func<string, string>>();
+
         static readonly object _lock = new object();
         static int _errorCount;
         static string _lastError;
@@ -46,6 +57,23 @@ namespace OneJS {
             get { lock (_lock) return _lastError; }
         }
 
+        /// <summary>
+        /// Sets how error lines from bridge <paramref name="sourceId"/> map JS
+        /// positions to source lines; null removes it. The bridge owns this:
+        /// it sets it from its runner and clears it when disposed.
+        /// </summary>
+        internal static void SetTranslator(int sourceId, Func<string, string> translate) {
+            lock (_lock) {
+                if (translate == null) _translators.Remove(sourceId);
+                else _translators[sourceId] = translate;
+            }
+        }
+
+        /// <summary>The translator bridge <paramref name="sourceId"/> set, or null.</summary>
+        internal static Func<string, string> TranslatorFor(int sourceId) {
+            lock (_lock) return _translators.TryGetValue(sourceId, out var t) ? t : null;
+        }
+
         /// <summary>Clears the error tally and the last-error message.</summary>
         public static void ResetErrorCount() {
             lock (_lock) {
@@ -60,7 +88,14 @@ namespace OneJS {
         /// older bootstrap, or WebGL, where the host page owns console) still
         /// prints in full rather than losing its first characters.
         /// </summary>
-        public static Level SplitLevel(string raw, out string body) {
+        public static Level SplitLevel(string raw, out string body) => SplitLevel(raw, out body, out _);
+
+        /// <summary>
+        /// <see cref="SplitLevel(string, out string)"/>, also returning the id of
+        /// the bridge the line names, or 0 when it names none.
+        /// </summary>
+        public static Level SplitLevel(string raw, out string body, out int sourceId) {
+            sourceId = 0;
             body = raw;
             if (raw == null || raw.Length < 2 || raw[0] != LevelMarker) return Level.Log;
             Level level;
@@ -70,18 +105,34 @@ namespace OneJS {
                 default: return Level.Log;
             }
             body = raw.Substring(2);
+            if (body.Length > 0 && body[0] == SourceMarker) {
+                var end = body.IndexOf(SourceMarker, 1);
+                if (end > 1 && int.TryParse(body.Substring(1, end - 1), out var id)) {
+                    sourceId = id;
+                    body = body.Substring(end + 1);
+                }
+            }
             return level;
         }
 
         /// <summary>Routes one line of console output to the matching Unity log level.</summary>
         public static void Route(string msg) {
-            switch (SplitLevel(msg, out var body)) {
+            switch (SplitLevel(msg, out var body, out var sourceId)) {
                 case Level.Error:
+                    Func<string, string> translate;
                     lock (_lock) {
                         _errorCount++;
                         _lastError = body;
+                        _translators.TryGetValue(sourceId, out translate);
                     }
-                    Debug.LogError("[QuickJS] " + body);
+                    // An error with JS frames (a thrown Error, an unhandled
+                    // rejection) goes out as an exception whose stack is those
+                    // frames, so the Console links to the script instead of to
+                    // this line. A plain message stays a plain error.
+                    if (JSException.HasFrames(body))
+                        Debug.LogException(JSException.FromText("[QuickJS] " + body).Translate(translate));
+                    else
+                        Debug.LogError("[QuickJS] " + body);
                     break;
                 case Level.Warn:
                     Debug.LogWarning("[QuickJS] " + body);

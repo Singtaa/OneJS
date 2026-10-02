@@ -128,6 +128,7 @@ namespace OneJS {
             try {
                 bytes = Convert.FromBase64String(base64Data);
             } catch (FormatException ex) {
+                // Expected failure: the data is the script's input.
                 Debug.LogError($"[WebSocketBridge] Invalid base64 data: {ex.Message}");
                 return;
             }
@@ -191,7 +192,7 @@ namespace OneJS {
                     DispatchToJs(ctx, evt);
                     processed++;
                 } catch (Exception ex) {
-                    Debug.LogError($"[WebSocketBridge] Error dispatching event: {ex.Message}");
+                    OneJSLog.Exception("[WebSocketBridge] Error dispatching event", ex, translate: JsLog.TranslatorFor(contextId));
                 }
             }
 

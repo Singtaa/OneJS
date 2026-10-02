@@ -86,7 +86,7 @@ namespace OneJS {
             try {
                 handler(args, argCount, outResult);
             } catch (Exception e) {
-                Debug.LogError($"[ZeroAlloc] Handler error for binding {bindingId}: {e}");
+                OneJSLog.Exception($"[ZeroAlloc] Handler error for binding {bindingId}", e);
             }
         }
 
@@ -160,7 +160,7 @@ namespace OneJS {
                 var handler = CreateReflectionHandler(targetMethod);
                 return RegisterZeroAllocBinding(handler);
             } catch (Exception e) {
-                Debug.LogError($"[ZeroAlloc] Failed to bind {typeName}.{methodName}: {e}");
+                OneJSLog.Exception($"[ZeroAlloc] Failed to bind {typeName}.{methodName}", e);
                 return 0;
             }
         }

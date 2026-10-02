@@ -347,6 +347,7 @@ namespace OneJS.Editor {
                     }
                 }
             } catch (Exception e) {
+                // Expected failure: the manifest is unreadable or not valid JSON.
                 Debug.LogWarning($"[OneJS sl] could not read {file}, so its programs are left out: {e.Message}");
             }
             return entries;
@@ -420,6 +421,7 @@ namespace OneJS.Editor {
                 try {
                     m = JsonUtility.FromJson<Manifest>(File.ReadAllText(path));
                 } catch (Exception e) {
+                    // Expected failure: the manifest is unreadable or not valid JSON.
                     Debug.LogError($"[OneJS sl] could not read the program manifest at {path}: {e.Message}");
                     continue;
                 }

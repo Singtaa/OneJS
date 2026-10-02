@@ -97,6 +97,8 @@ namespace OneJS.Editor.TypeGenerator {
                         results.Add(info);
                     }
                 } catch (Exception ex) {
+                    // Expected failure: a type in an arbitrary assembly will not load
+                    // (a missing dependency); it is skipped, one line each.
                     UnityEngine.Debug.LogWarning(
                         $"[TypeAnalyzer] Skipping '{TypeMapper.SafeTypeName(type)}': {ex.Message}");
                 }

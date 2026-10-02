@@ -63,7 +63,12 @@ if (!globalThis.requestAnimationFrame && globalThis.console && !globalThis.conso
         info: function () { __emitLog("", arguments); },
         debug: function () { __emitLog("", arguments); },
         warn: function () { __emitLog("W", arguments); },
-        error: function () { __emitLog("E", arguments); },
+        // An error also names its bridge (__wsContextId), so C# can read its
+        // frames through that runner's source map
+        error: function () {
+            const id = globalThis.__wsContextId;
+            __emitLog(typeof id === "number" ? "E\u0002" + id + "\u0002" : "E", arguments);
+        },
         // Guards against chaining a wrapper onto a wrapper if this file is
         // evaluated twice against one global.
         __ojsLeveled: true

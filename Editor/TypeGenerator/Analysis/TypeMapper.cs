@@ -71,6 +71,7 @@ namespace OneJS.Editor.TypeGenerator {
             try {
                 return MapTypeCore(type);
             } catch (Exception ex) {
+                // Expected failure: a type that will not load degrades to `any`.
                 UnityEngine.Debug.LogWarning(
                     $"[TypeMapper] Mapping '{SafeTypeName(type)}' failed, using 'any': {ex.Message}");
                 return AnyTypeRef(type);
