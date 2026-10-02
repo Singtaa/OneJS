@@ -483,7 +483,13 @@ var OneJSWebGLLib = {
     // quickjs_unity.c). The jslib ships inside the build so it always matches,
     // but the entry point must exist for the C# probe.
     qjs_abi_version: function() {
-        return 2;
+        return 3;
+    },
+
+    // A callback that throws is reported to the browser console where it
+    // throws (see qjs_invoke_callback below), so nothing is ever waiting here.
+    qjs_take_last_error: function(ctx, outBuf, outBufSize) {
+        return 0;
     },
 
     // Frees "native"-allocated buffers (on WebGL: _malloc'd wasm-heap memory

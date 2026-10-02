@@ -138,6 +138,7 @@ namespace OneJS {
             set {
                 _translateError = value;
                 JsLog.SetTranslator(_wsContextId, value);
+                QuickJSNative.SetContextTranslator(_ctx.NativePtr, value);
             }
         }
 

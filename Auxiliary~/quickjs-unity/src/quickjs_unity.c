@@ -23,7 +23,7 @@
 // C# checks this at init (qjs_abi_version) so a stale native binary fails
 // loudly instead of misbehaving. Bump on any change to exported signatures,
 // struct layouts, or handle/ownership semantics.
-#define QJS_ABI_VERSION 2
+#define QJS_ABI_VERSION 3
 
 // Callback handles encode the owning context's generation so a handle from a
 // destroyed context can never silently index into a newer context's table
@@ -68,6 +68,9 @@ typedef struct {
     JSValue rejection_reasons[QJS_MAX_PENDING_REJECTIONS];
     int rejection_count;
     int rejections_dropped;
+    // What the last callback that threw threw (message, then its frames),
+    // until C# takes it with qjs_take_last_error. Opaque to C#.
+    char last_error[QJS_EXCEPTION_BUF_SIZE];
 } QjsContext;
 
 typedef enum InteropType {
@@ -271,6 +274,31 @@ static int get_array_length(JSContext* ctx, JSValueConst arr, uint32_t* outLen) 
     if (result != 0) return -1;
     *outLen = len;
     return 0;
+}
+
+static void format_exception(JSContext* ctx, JSValue exc, char* outBuf, int outBufSize);
+
+// The bridge a context belongs to, as the bootstrap's console.error names it
+// (globalThis.__wsContextId), so C# reads the frames through that runner's
+// source map. 0 when the context has none.
+static int source_id(JSContext* ctx) {
+    JSValue global = JS_GetGlobalObject(ctx);
+    JSValue v = JS_GetPropertyStr(ctx, global, "__wsContextId");
+    int32_t id = 0;
+    if (JS_IsNumber(v)) JS_ToInt32(ctx, &id, v);
+    JS_FreeValue(ctx, v);
+    JS_FreeValue(ctx, global);
+    return id;
+}
+
+// Logs an error line the way console.error does (JsLog.cs): \001E for the
+// level across the string-only log callback, then the bridge id between
+// \002 marks, then the text.
+static void log_error(JSContext* ctx, const char* text) {
+    if (!g_callbacks.log) return;
+    char line[QJS_EXCEPTION_BUF_SIZE + 96];
+    snprintf(line, sizeof(line), "\001E\002%d\002%s", source_id(ctx), text);
+    g_callbacks.log(line);
 }
 
 static void format_exception(JSContext* ctx, JSValue exc, char* outBuf, int outBufSize) {
@@ -1286,21 +1314,20 @@ static void qjs_release_rejections(QjsContext* instance, int report) {
     JSContext* ctx = instance->ctx;
     for (int i = 0; i < instance->rejection_count; i++) {
         if (report && g_callbacks.log) {
-            // \001E carries error level across the string-only log callback (JsLog.cs)
             char reasonBuf[QJS_EXCEPTION_BUF_SIZE];
             char line[QJS_EXCEPTION_BUF_SIZE + 64];
             format_exception(ctx, instance->rejection_reasons[i], reasonBuf, sizeof(reasonBuf));
-            snprintf(line, sizeof(line), "\001E[OneJS] Unhandled promise rejection: %s", reasonBuf);
-            g_callbacks.log(line);
+            snprintf(line, sizeof(line), "[OneJS] Unhandled promise rejection: %s", reasonBuf);
+            log_error(ctx, line);
         }
         JS_FreeValue(ctx, instance->rejected_promises[i]);
         JS_FreeValue(ctx, instance->rejection_reasons[i]);
     }
     if (report && instance->rejections_dropped > 0 && g_callbacks.log) {
         char line[128];
-        snprintf(line, sizeof(line), "\001E[OneJS] ...and %d more unhandled promise rejections",
+        snprintf(line, sizeof(line), "[OneJS] ...and %d more unhandled promise rejections",
                  instance->rejections_dropped);
-        g_callbacks.log(line);
+        log_error(ctx, line);
     }
     instance->rejection_count = 0;
     instance->rejections_dropped = 0;
@@ -1331,11 +1358,12 @@ QJS_API QjsContext* qjs_create() {
     wrapper->ctx = ctx;
     wrapper->rejection_count = 0;
     wrapper->rejections_dropped = 0;
+    wrapper->last_error[0] = '\0';
 
     if (!live_context_add(wrapper)) {
         // Registry full: something is leaking contexts. Fail loudly rather
         // than hand out a context that every validity check would reject.
-        if (g_callbacks.log) g_callbacks.log("[QuickJS] qjs_create: live context registry full");
+        log_error(ctx, "[QuickJS] qjs_create: live context registry full");
         free(wrapper);
         JS_FreeContext(ctx);
         JS_FreeRuntime(rt);
@@ -1408,6 +1436,17 @@ QJS_API int qjs_eval(QjsContext* instance, const char* code, const char* filenam
     return QJS_OK;
 }
 
+// Copies what the last callback that threw on this context threw (message,
+// then its frames) into outBuf and clears it. Returns its length in bytes,
+// 0 when nothing is waiting or the context is gone.
+QJS_API int qjs_take_last_error(QjsContext* instance, char* outBuf, int outBufSize) {
+    if (!is_valid(instance) || !outBuf || outBufSize <= 0) return 0;
+    if (instance->last_error[0] == '\0') return 0;
+    copy_cstring(outBuf, outBufSize, instance->last_error);
+    instance->last_error[0] = '\0';
+    return (int)strlen(outBuf);
+}
+
 QJS_API int qjs_invoke_callback(QjsContext* instance, int callbackHandle, InteropValue* args, int argCount,
                                 InteropValue* outResult) {
     if (!is_valid(instance)) return QJS_ERR_INVALID_CTX;
@@ -1440,12 +1479,11 @@ QJS_API int qjs_invoke_callback(QjsContext* instance, int callbackHandle, Intero
     }
 
     if (JS_IsException(result)) {
+        // Kept for C#, which takes it with qjs_take_last_error and throws or
+        // logs it as the JS error it is, rather than printed here as a line
+        // with no level that only C# could have put in context.
         JSValue exc = JS_GetException(ctx);
-        if (g_callbacks.log) {
-            char errBuf[QJS_EXCEPTION_BUF_SIZE];
-            format_exception(ctx, exc, errBuf, sizeof(errBuf));
-            g_callbacks.log(errBuf);
-        }
+        format_exception(ctx, exc, instance->last_error, sizeof(instance->last_error));
         JS_FreeValue(ctx, exc);
         JS_FreeValue(ctx, result);
 
@@ -1482,7 +1520,7 @@ QJS_API int qjs_execute_pending_jobs(QjsContext* instance) {
             if (g_callbacks.log) {
                 char errBuf[QJS_EXCEPTION_BUF_SIZE];
                 format_exception(err_ctx, exc, errBuf, sizeof(errBuf));
-                g_callbacks.log(errBuf);
+                log_error(err_ctx, errBuf);
             }
             JS_FreeValue(err_ctx, exc);
             return -1;

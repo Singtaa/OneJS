@@ -25,7 +25,7 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `ScaffoldRecord.cs` | `~/.onejs/scaffold`: the default files a working directory has been given (see Auto-Scaffolding) |
 | `JsFunctionBinding.cs` | Backs `GetJSFunction`: a named JS function as a typed C# delegate |
 | `JsLog.cs` | Routes JS console output to the matching Unity log level (the bootstrap encodes it, and names the bridge on an error line); an error with JS frames logs as a `JSException` read through that bridge's source map; `ErrorCount`/`LastError` for tests |
-| `JSException.cs` | A JS error as C# sees it: `Message` is the JS text, `StackTrace` the (source-mapped) JS frames in Unity's form, so `Debug.LogException` links the Console entry to the script. `QuickJSContext.Eval` throws it |
+| `JSException.cs` | A JS error as C# sees it: `Message` is the JS text, `StackTrace` the (source-mapped) JS frames in Unity's form, so `Debug.LogException` links the Console entry to the script. `QuickJSContext.Eval` throws it, and so does a JS callback C# invokes (`onPlay`, a delegate handler), whose error the native library keeps for `qjs_take_last_error` |
 | `OneJSLog.cs` | `OneJSLog.Exception(message, ex, context, translate)`: how OneJS logs a caught exception, through `Debug.LogException` with its stack. A text log of a caught exception is an expected failure listed in `ExceptionLoggingGuardTests` with its reason |
 | `AssemblyInfo.cs` | `InternalsVisibleTo` for `OneJS.Runtime.InputSystem` (`JSRunner.AddInputSystemModule`) and `OneJS.Tests` (`JsHost`) |
 | `Janitor.cs` | Marker component for live reload cleanup of JS-created GameObjects |
@@ -840,7 +840,7 @@ The bootstrap installs a standard `WebSocket` class on native platforms (`onopen
 
 ## Console Severity (`JsLog.cs`)
 
-The native console callback carries only a string, so the bootstrap prefixes a control-character level marker and `JsLog` routes the line to `Debug.Log`, `LogWarning` or `LogError`. A JS error therefore reaches `LogAssert` and CI gates as an error. `JsLog.ErrorCount` / `LastError` let a test assert that an interaction produced no JS error. Kept out of `QuickJSNative` so it needs no native library. Tests: `Tests/JsLogSeverityPlaymodeTests.cs`.
+The native console callback carries only a string, so the bootstrap prefixes a control-character level marker (the native library marks its own error lines the same way, through `log_error`) and `JsLog` routes the line to `Debug.Log`, `LogWarning` or `LogError`. A JS error therefore reaches `LogAssert` and CI gates as an error. `JsLog.ErrorCount` / `LastError` let a test assert that an interaction produced no JS error. Kept out of `QuickJSNative` so it needs no native library. Tests: `Tests/JsLogSeverityPlaymodeTests.cs`.
 
 ## VirtualClock (deterministic time)
 

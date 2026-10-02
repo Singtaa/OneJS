@@ -228,7 +228,7 @@ namespace OneJS {
                     int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, nativeArgs, argCount, &result);
 
                     if (code != 0) {
-                        throw new Exception($"JS callback invocation failed: {QuickJSNative.DescribeError(code)}");
+                        throw QuickJSNative.CallbackFailure(_ptr, code);
                     }
 
                     try {
@@ -261,7 +261,7 @@ namespace OneJS {
 
         unsafe void InvokeAndCheck(int handle, QuickJSNative.InteropValue* args, int count) {
             int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, args, count, null);
-            if (code != 0) throw new Exception($"JS callback invocation failed: {QuickJSNative.DescribeError(code)}");
+            if (code != 0) throw QuickJSNative.CallbackFailure(_ptr, code);
         }
 
         // InteropValue helpers for common types
@@ -400,7 +400,7 @@ namespace OneJS {
         unsafe int InvokeAndGetInt(int handle, QuickJSNative.InteropValue* args, int count) {
             QuickJSNative.InteropValue result = default;
             int code = QuickJSNative.qjs_invoke_callback(_ptr, handle, args, count, &result);
-            if (code != 0) throw new Exception($"JS callback invocation failed: {QuickJSNative.DescribeError(code)}");
+            if (code != 0) throw QuickJSNative.CallbackFailure(_ptr, code);
 
             int value;
             switch (result.type) {

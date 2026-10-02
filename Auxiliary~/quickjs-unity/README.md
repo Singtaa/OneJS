@@ -100,6 +100,7 @@ the build machine only surfaces at load time on someone else's machine.
 | `qjs_execute_pending_jobs()` | Process Promise queue |
 | `qjs_run_gc()` | Run the QuickJS GC |
 | `qjs_invoke_callback()` | Call a registered JS callback from C# |
+| `qjs_take_last_error()` | Take the error a callback threw (message, then its frames); C# throws or logs it as a `JSException` |
 | `qjs_set_cs_invoke_callback()` | Register the C# dispatch handler (also `_log_`, `_release_handle_`, `_zeroalloc_`, `_free_` variants) |
 | `qjs_free()` | Free memory the native side allocated for C# |
 

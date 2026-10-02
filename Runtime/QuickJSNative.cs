@@ -131,13 +131,35 @@ namespace OneJS {
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern int qjs_abi_version();
 
+        // What the last callback that threw on ctx threw, copied out and cleared
+        // (ABI 3). Returns its length, 0 when nothing is waiting.
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        static extern unsafe int qjs_take_last_error(IntPtr ctx, byte* outBuf, int outBufSize);
+
+        // Matches QJS_EXCEPTION_BUF_SIZE in quickjs_unity.c
+        const int ExceptionBufferSize = 2048;
+
+        /// <summary>
+        /// A failed callback invoke as an exception: for a callback that threw,
+        /// the JSException it threw (frames as JS reported them; translate them
+        /// when logging), otherwise a description of the native failure.
+        /// </summary>
+        internal static unsafe Exception CallbackFailure(IntPtr ctx, int code) {
+            if (code == ErrException) {
+                var buffer = stackalloc byte[ExceptionBufferSize];
+                int length = qjs_take_last_error(ctx, buffer, ExceptionBufferSize);
+                if (length > 0) return JSException.FromText(System.Text.Encoding.UTF8.GetString(buffer, length));
+            }
+            return new Exception($"JS callback invocation failed: {DescribeError(code)}");
+        }
+
         /// <summary>
         /// The native ABI version this C# runtime was built against. Checked once
         /// at context creation; a mismatch (e.g. the editor still has an older
         /// dylib loaded after a package update) fails loudly instead of
         /// misbehaving at the first interop call.
         /// </summary>
-        internal const int ExpectedAbiVersion = 2;
+        internal const int ExpectedAbiVersion = 3;
 
         // MARK: Error Codes (mirror QjsError in quickjs_unity.c)
         internal const int ErrOk = 0;
@@ -171,7 +193,7 @@ namespace OneJS {
                 case ErrInvalidHandle: return "invalid callback handle";
                 case ErrNotFunction: return "callback handle does not refer to a function";
                 case ErrOutOfMemory: return "native out of memory";
-                case ErrException: return "the JS callback threw an exception (see log)";
+                case ErrException: return "the JS callback threw an exception";
                 case ErrStaleHandle: return "stale callback handle from a previous JS context (re-register after reload)";
                 default: return $"native error {code}";
             }

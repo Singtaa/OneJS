@@ -1297,7 +1297,7 @@ namespace OneJS {
         // Closure-based wrappers share this: a stale handle / dead context (a C#
         // object kept a JS-backed delegate across a hot reload) warns once via the
         // captured flag box and becomes a no-op; other failures are real errors.
-        static void LogWrapperInvokeError(string label, int code, bool[] deadWarned) {
+        static void LogWrapperInvokeError(string label, int code, bool[] deadWarned, IntPtr ctxPtr) {
             if (code == ErrStaleHandle || code == ErrInvalidCtx) {
                 if (deadWarned[0]) return;
                 deadWarned[0] = true;
@@ -1306,7 +1306,7 @@ namespace OneJS {
                     "(stale after hot reload). Reassign the delegate from the new JS context.");
                 return;
             }
-            Debug.LogError($"[QuickJS] {label} failed: {DescribeError(code)}");
+            OneJSLog.Exception($"[QuickJS] {label} failed", CallbackFailure(ctxPtr, code), translate: ContextTranslator(ctxPtr));
         }
 
         static Delegate CreateActionWrapper(Type delegateType, IntPtr ctxPtr, int callbackHandle, ParameterInfo[] parameters) {
@@ -1336,7 +1336,7 @@ namespace OneJS {
                     unsafe {
                         int code = qjs_invoke_callback(ctxPtr, callbackHandle, null, 0, null);
                         if (code != 0) {
-                            LogWrapperInvokeError("callback", code, deadWarned);
+                            LogWrapperInvokeError("callback", code, deadWarned, ctxPtr);
                         }
                     }
                 };
@@ -1373,7 +1373,7 @@ namespace OneJS {
                     int code = qjs_invoke_callback(ctxPtr, callbackHandle, args, 1, null);
 
                     if (code != 0) {
-                        LogWrapperInvokeError("generateVisualContent callback", code, deadWarned);
+                        LogWrapperInvokeError("generateVisualContent callback", code, deadWarned, ctxPtr);
                     }
 
                     // Note: We don't unregister the handle immediately as JS might still reference it
@@ -1409,7 +1409,7 @@ namespace OneJS {
                     int code = qjs_invoke_callback(ctxPtr, callbackHandle, args, 2, null);
 
                     if (code != 0) {
-                        LogWrapperInvokeError("bindItem callback", code, deadWarned);
+                        LogWrapperInvokeError("bindItem callback", code, deadWarned, ctxPtr);
                     }
                 }
             };
@@ -1437,7 +1437,7 @@ namespace OneJS {
                     int code = qjs_invoke_callback(ctxPtr, callbackHandle, args, 1, null);
 
                     if (code != 0) {
-                        LogWrapperInvokeError("destroyItem callback", code, deadWarned);
+                        LogWrapperInvokeError("destroyItem callback", code, deadWarned, ctxPtr);
                     }
                 }
             };
@@ -1502,7 +1502,8 @@ namespace OneJS {
                         "clear it in onStop.");
                     return;
                 }
-                Debug.LogError($"[QuickJS] Callback invocation failed: {DescribeError(code)}");
+                OneJSLog.Exception("[QuickJS] Callback invocation failed", CallbackFailure(_ctxPtr, code),
+                    translate: ContextTranslator(_ctxPtr));
             }
 
             static readonly ConcurrentDictionary<Type, MethodInfo> _invoke1Cache = new();

@@ -146,6 +146,31 @@ namespace OneJS.Tests.Editor {
             }
         }
 
+        /// <summary>
+        /// The native library reaches C# only through its string log callback, so
+        /// a line without the error marker arrives as information. Every log call
+        /// in quickjs_unity.c goes through log_error, which marks it, or through
+        /// js_console_log, whose lines the bootstrap's console already marks; a
+        /// callback's exception is not logged there at all but taken by C#.
+        /// </summary>
+        [Test]
+        public void NativeLogLines_GoThroughTheLevelledPaths() {
+            var path = Path.Combine(PackageRoot, "Auxiliary~", "quickjs-unity", "src", "quickjs_unity.c");
+            var source = File.ReadAllText(path);
+            var allowed = new[] { "static void log_error(", "static JSValue js_console_log(" };
+            var functionStart = new Regex(@"^(static |QJS_API )[^;{]*\(", RegexOptions.Multiline);
+            var offending = new List<string>();
+            foreach (Match call in Regex.Matches(source, @"g_callbacks\.log\(")) {
+                var enclosing = functionStart.Matches(source.Substring(0, call.Index)).Cast<Match>().LastOrDefault();
+                var name = enclosing?.Value ?? "(file scope)";
+                if (!allowed.Any(a => name.StartsWith(a))) {
+                    int line = source.Take(call.Index).Count(ch => ch == '\n') + 1;
+                    offending.Add($"  quickjs_unity.c:{line} in {name}");
+                }
+            }
+            Assert.IsEmpty(offending, "Log an error line through log_error so it carries the error marker:\n" + string.Join("\n", offending));
+        }
+
         [Test]
         public void Finder_CatchesATextLoggedException() {
             // The detector's own negative control: each of these must be found.

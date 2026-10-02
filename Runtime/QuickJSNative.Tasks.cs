@@ -61,6 +61,22 @@ namespace OneJS {
         static int _nextContextId;
         static readonly ConcurrentDictionary<IntPtr, int> _contextIdsByPtr = new();
         static readonly ConcurrentDictionary<int, byte> _liveContextIds = new();
+        static readonly ConcurrentDictionary<IntPtr, Func<string, string>> _translatorsByPtr = new();
+
+        /// <summary>
+        /// Sets how errors from the context at <paramref name="nativePtr"/> map
+        /// JS positions to source lines (its runner's source map), for callers
+        /// that hold only the pointer, such as the delegate wrappers. Null removes it.
+        /// </summary>
+        internal static void SetContextTranslator(IntPtr nativePtr, Func<string, string> translate) {
+            if (nativePtr == IntPtr.Zero) return;
+            if (translate == null) _translatorsByPtr.TryRemove(nativePtr, out _);
+            else _translatorsByPtr[nativePtr] = translate;
+        }
+
+        /// <summary>The translator set for the context at <paramref name="nativePtr"/>, or null.</summary>
+        internal static Func<string, string> ContextTranslator(IntPtr nativePtr) =>
+            _translatorsByPtr.TryGetValue(nativePtr, out var t) ? t : null;
 
         /// <summary>
         /// Allocate an ownership id for a newly created context and map its native pointer
@@ -80,7 +96,10 @@ namespace OneJS {
         /// be examined and put back by every surviving context on every tick.
         /// </summary>
         internal static void UnregisterContext(IntPtr nativePtr, int contextId) {
-            if (nativePtr != IntPtr.Zero) _contextIdsByPtr.TryRemove(nativePtr, out _);
+            if (nativePtr != IntPtr.Zero) {
+                _contextIdsByPtr.TryRemove(nativePtr, out _);
+                _translatorsByPtr.TryRemove(nativePtr, out _);
+            }
             if (contextId == 0) return;
             _liveContextIds.TryRemove(contextId, out _);
             DiscardCompletionsForContext(contextId);
