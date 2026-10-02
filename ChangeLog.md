@@ -1,6 +1,6 @@
 # Unreleased
 
-Migrating: `fetch` now rejects when no response arrives, so code checking `status === 0` moves to `try`/`catch`. `localStorage` keys live under `onejs:` in PlayerPrefs (old keys move over on first read), so C# reading them adds the prefix. Re-enabling a JSRunner calls `onStop` before `onPlay`. Unhandled promise rejections now log as errors. The API review's new names (`onejs.*`, `useFrame`, `drawing`, `toRGBA`, `open`/`onOpenChange`, `fx.useAnimation`) sit beside the old ones, which keep working.
+Migrating: copy the template's `esbuild.config.mjs` and build scripts, add `onejs-unity/globals` to tsconfig `types`, and delete the copied declarations from `types/global.d.ts`. `fetch` now rejects when no response arrives, so code checking `status === 0` moves to `try`/`catch`. `localStorage` keys live under `onejs:` in PlayerPrefs (old keys move over on first read), so C# reading them adds the prefix. Re-enabling a JSRunner calls `onStop` before `onPlay`. Unhandled promise rejections now log as errors. The API review's new names (`onejs.*`, `useFrame`, `drawing`, `toRGBA`, `open`/`onOpenChange`, `fx.useAnimation`) sit beside the old ones, which keep working.
 
 - Every public global is also under one `onejs` namespace
 - `onejs.cs.typeExists` says whether a C# type is loaded
@@ -13,6 +13,7 @@ Migrating: `fetch` now rejects when no response arrives, so code checking `statu
 - `setImmediate` yields to the next frame when an immediate reschedules itself
 - Re-enabling a JSRunner calls `onStop` and fires `Reloaded`
 - JSPad sets `__isPlaying` and calls `onPlay` and `onStop`
+- JSPad ships React's production build and keeps the development build for Play mode in the Editor
 - Image fx chains start from a texture you hold
 - `QuickJSNative.InteropCallCount` counts JS to C# calls
 - 3D models from `.glb` files through glTFast, for ojplay's `useScene` and `useModel`
@@ -29,7 +30,6 @@ Migrating: `fetch` now rejects when no response arrives, so code checking `statu
 - An app that does not build fails the player build instead of shipping a stale bundle
 - New projects build with `oneJSConfig` and `onejs-unity build`, from onejs-unity 0.10
 - New projects type the runtime's globals with `onejs-unity/globals` in tsconfig
-- Existing projects: copy the template's `esbuild.config.mjs` and build scripts, add `onejs-unity/globals` to tsconfig `types`, and delete the copied declarations from `types/global.d.ts`
 
 # [2026-10-01] v3.9.4
 
