@@ -10,6 +10,11 @@
 - `fetch` sends PATCH and other methods as themselves, with their body
 - `Headers` and `URLSearchParams` are iterable; an empty header reads as `""`
 - InputBridge reports Input System action phases, so `action.on()` in onejs-unity fires
+- Player builds rebuild each app with `NODE_ENV=production`, so players ship React's production build
+- An app that does not build fails the player build instead of shipping a stale bundle
+- New projects build with `oneJSConfig` and `onejs-unity build`, from onejs-unity 0.10
+- New projects type the runtime's globals with `onejs-unity/globals` in tsconfig
+- Existing projects: copy the template's `esbuild.config.mjs` and build scripts, add `onejs-unity/globals` to tsconfig `types`, and delete the copied declarations from `types/global.d.ts`
 
 # [2026-10-01] v3.9.4
 

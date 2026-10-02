@@ -50,6 +50,9 @@ namespace OneJS.Editor {
         /// </summary>
         static int _runnersSeen = 0;
 
+        /// <summary>Bundles already built for this player, so an app reached twice builds once.</summary>
+        static HashSet<string> _playerBundlesBuilt = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         /// <summary>
         /// fromScene says whether a build scene reached this app. It decides how
         /// loudly a path collision is reported: two scene apps colliding is a hard
@@ -174,6 +177,7 @@ namespace OneJS.Editor {
             _copiedAssetCount = 0;
             _assetSources.Clear();
             _runnersSeen = 0;
+            _playerBundlesBuilt.Clear();
         }
 
         public void OnPreprocessBuild(BuildReport report) {
@@ -242,6 +246,7 @@ namespace OneJS.Editor {
                     }
 
                     _runnersSeen++;
+                    BuildPlayerBundle(runner);
                     ProcessJSRunner(runner);
                     ExtractPacks(runner);
                     CopyAssets(runner, fromScene: true);
@@ -312,6 +317,7 @@ namespace OneJS.Editor {
                     }
 
                     _runnersSeen++;
+                    BuildPlayerBundle(runner);
                     if (ProcessJSRunner(runner)) dirty = true;
                     ExtractPacks(runner);
                     CopyAssets(runner, fromScene: false);
@@ -341,6 +347,41 @@ namespace OneJS.Editor {
                 if (t.gameObject == root) break;
             }
             return true;
+        }
+
+        /// <summary>
+        /// Rebuilds an app's bundle for the player before it is baked: npm run
+        /// build with NODE_ENV=production, so the player gets React's production
+        /// build and a bundle made from the source as it is now. See PlayerBundle.
+        ///
+        /// Only the runner's own app.js.txt. A bundle assigned by hand from
+        /// anywhere else is the project's to build, and ships as it is.
+        /// </summary>
+        void BuildPlayerBundle(JSRunner runner) {
+            var bundlePath = runner.EntryFileFullPath;
+            var folder = runner.InstanceFolderAssetPath?.Replace('\\', '/');
+            if (string.IsNullOrEmpty(bundlePath) || string.IsNullOrEmpty(folder)) return;
+            var bundleAsset = folder + "/" + Path.GetFileName(bundlePath);
+
+            if (runner.BundleAsset != null &&
+                !string.Equals(AssetDatabase.GetAssetPath(runner.BundleAsset), bundleAsset, StringComparison.OrdinalIgnoreCase)) {
+                return;
+            }
+            if (!_playerBundlesBuilt.Add(Path.GetFullPath(bundlePath))) return;
+
+            var name = runner.gameObject.name;
+            var result = PlayerBundle.BuildForPlayer(runner.WorkingDirFullPath, bundlePath, name);
+            if (result.Outcome == PlayerBundle.Outcome.Built) {
+                Debug.Log($"[JSRunner] Built {name} for the player with NODE_ENV=production: {bundleAsset}");
+                // The player packs the imported asset, not the file, so the new
+                // bundle has to be imported before the build reads it.
+                AssetDatabase.ImportAsset(bundleAsset, ImportAssetOptions.ForceSynchronousImport);
+                var mapAsset = folder + "/" + Path.GetFileName(runner.SourceMapFilePath ?? "");
+                if (File.Exists(runner.SourceMapFilePath ?? "")) AssetDatabase.ImportAsset(mapAsset, ImportAssetOptions.ForceSynchronousImport);
+            } else {
+                Debug.Log($"[JSRunner] {name} ships the bundle on disk, not rebuilt for the player: {result.Reason}.");
+            }
+            if (result.DevelopmentReact) Debug.LogWarning(PlayerBundle.DevelopmentReactAdvice(name), runner);
         }
 
         bool ProcessJSRunner(JSRunner runner) {
@@ -845,6 +886,9 @@ namespace OneJS.Editor {
             // stopped before the preprocess, which would otherwise leave the flag set
             // and make some later build skip its reset.
             _preparedThisBuild = false;
+
+            // The player has its production bundles; the editor gets its own back.
+            PlayerBundle.RestoreEditorBundles();
 
             if (_createdAssets.Count > 0) {
                 Debug.Log($"[JSRunner] Build complete. {_createdAssets.Count} asset(s) created/updated.");

@@ -12,6 +12,7 @@ Editor scripts for OneJS Unity integration.
 | `JSRunnerCleanup.cs` | Tracks JSRunner instances for cleanup bookkeeping |
 | `JSPadEditor.cs` | Custom inspector for JSPad inline runner |
 | `JSRunnerBuildProcessor.cs` | Build hook for auto-copying JS bundles |
+| `PlayerBundle.cs` | The production `npm run build` a player ships, and the editor's development bundle put back after |
 | `SLShaderGenerator.cs` | Turns `*.sl.json` manifests into generated shaders, records programs the editor draws into `Assets/OneJS/Recorded.sl.json` on the next editor update, generates from the manifest beside a bundle before every load (`JSRunner.EditorLoadingBundle`), records JSPad's manifest after its build, and holds `SLShaderBuildStep`, which ships every program compiled in a native player through `SLShaderRegistry` and fails a build whose recorded programs are under a hash scheme no app manifest produces (`CheckRecorded`); recording drops those programs |
 | `OneJSLinkXmlProcessor.cs` | Hands the linker `Plugins/link.xml` when OneJS is a package, since Unity reads a link.xml only under `Assets/`; without it IL2CPP strips the UI Toolkit internals OneJS reflects on |
 | `ModelShaderStripper.cs` | Leaves the built-in pipeline SubShader of `ModelLit` (the 3D models shader) out of builds where every quality level renders through a scriptable pipeline |
@@ -189,16 +190,16 @@ Only processes when:
 Implements `IPreprocessBuildWithReport` and `IPostprocessBuildWithReport` to handle TextAssets for builds, alongside its nested `PrefabAppBaker`, which is a `BuildPlayerProcessor`:
 
 1. `PrefabAppBaker.PrepareForBuild` bakes every prefab under `Assets/` that holds a JSRunner, before Addressables packs content; `OnPreprocessBuild` then walks the scenes this build is shipping
-2. For each JSRunner not marked Exclude From Build and without a bundle assigned:
-   - The bundle at `{InstanceFolder}/app.js.txt` (esbuild output) is already there
+2. For each JSRunner not marked Exclude From Build, rebuilds its own `app.js.txt` for the player (`PlayerBundle`): `npm run build` with `NODE_ENV=production`, so the player gets React's production build and a bundle made from the source as it is now. Once per app, and before anything is baked. The editor's development bundle and map are kept aside and put back in `OnPostprocessBuild` (and on the next editor tick, for a build that fails after them), unless a watcher rebuilt the file meanwhile. An app that does not build fails the player build with its output; one that cannot be rebuilt here (no build script, no `node_modules`, no npm) ships the bundle on disk as before, with a warning when that bundle carries React's development build
+3. For each JSRunner without a bundle assigned:
    - Loads it as a TextAsset and assigns to the JSRunner component
    - Loads source map TextAsset if `Include Source Map` is enabled
    - Saves modified scenes
-3. Extracts Pack files, with overwrite, to `{WorkingDir}/{PackFolder}/{slug}/` (namespaced: `{PackFolder}/@{namespace}/{slug}/`). `PackFolder` is `@packs`, or `@cartridges` for a runner made before cartridges became packs
-4. Copies each app's `{WorkingDir}/assets/` into `StreamingAssets/onejs/assets/`, and with it every `@{ns}/` folder the app's packages carry at `node_modules/{pkg}/assets/@{ns}/` (scoped packages too) that the app has no folder of its own for (`CommitAssetsTo`). The same package file in two apps ships once when the bytes match; any other shared path is a collision
-5. Logs status during build
+4. Extracts Pack files, with overwrite, to `{WorkingDir}/{PackFolder}/{slug}/` (namespaced: `{PackFolder}/@{namespace}/{slug}/`). `PackFolder` is `@packs`, or `@cartridges` for a runner made before cartridges became packs
+5. Copies each app's `{WorkingDir}/assets/` into `StreamingAssets/onejs/assets/`, and with it every `@{ns}/` folder the app's packages carry at `node_modules/{pkg}/assets/@{ns}/` (scoped packages too) that the app has no folder of its own for (`CommitAssetsTo`). The same package file in two apps ships once when the bytes match; any other shared path is a collision
+6. Logs status during build
 
-Since esbuild outputs directly to `app.js.txt`, the build processor just needs to load the existing file as a TextAsset.
+Since esbuild outputs directly to `app.js.txt`, assigning the bundle is loading that file as a TextAsset. A bundle assigned by hand from anywhere else is the project's own, and is neither rebuilt nor replaced.
 
 ### Which scenes it walks
 
@@ -332,10 +333,12 @@ speed. Disable with `ShowCursor = false`, resize with `CursorScale`.
 
 ## Templates
 
-The `Templates/` directory contains TextAsset templates scaffolded by `Initialize Project`: `package.json`, `tsconfig.json`, `esbuild.config.mjs`, `index.tsx`, `main.uss`, `global.d.ts`, `gitignore` (written as `.gitignore`) and `AGENTS.md`. Notes on three of them:
+The `Templates/` directory contains TextAsset templates scaffolded by `Initialize Project`: `package.json`, `tsconfig.json`, `esbuild.config.mjs`, `index.tsx`, `main.uss`, `global.d.ts`, `gitignore` (written as `.gitignore`) and `AGENTS.md`. Notes on four of them:
 
-- `esbuild.config.mjs.txt` uses `format: "iife"` with `globalName: "__exports"` (not ESM). This is required for `onPlay()`/`onStop()` lifecycle hook support. QuickJS evaluates in global scope where ESM `export {}` would be a syntax error.
-- `global.d.ts.txt` declares runtime globals (`__root`, `__isPlaying`, `__eventAPI`, etc.) and every web global the bootstrap installs (`fetch`, `URL`, `localStorage`, `AbortController`...), typed to what both the polyfills and the browser provide. The container's scaffold gate typechecks a probe that uses each one, read from the bootstrap, so a global added there without a declaration here fails the gate.
+- `esbuild.config.mjs.txt` is one `oneJSConfig({ entry: "index.tsx", plugins: [...] })` call from `onejs-unity/esbuild`, which holds the IIFE format, the `__exports` global, the React aliases, the plugins and the `NODE_ENV` define, so a fix to the build reaches existing projects through an npm update. Keep the multi-line `plugins: [` list: `ojplay init --unity` and `ojplay add` insert their plugins into it.
+- `package.json.txt` runs the config through `onejs-unity build` and `onejs-unity watch`.
+- `tsconfig.json.txt` names `onejs-unity/globals` in `types`, which declares the runtime's globals (`__root`, `__isPlaying`, timers, `fetch`, `URL`, `localStorage`...) and updates with the package. The container's scaffold gate typechecks a probe that uses every global the bootstrap installs, so one added there without a declaration in onejs-unity fails the gate.
+- `global.d.ts.txt` is the app's own declarations, empty but for a comment.
 - `AGENTS.md.txt` is scaffolded into the working dir as `AGENTS.md`: a condensed guide (commands, rules, interop quick reference) for AI coding agents working on the user's app. Keep it in sync with the repo-root `AGENTS.md`.
 
 ## TypeGenerator

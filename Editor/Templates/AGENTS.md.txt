@@ -5,7 +5,7 @@ This folder is a OneJS v3 app: React 19 + TypeScript, bundled by esbuild into `.
 ## Commands (run in this folder)
 
 - `npm install`: once, and after dependency changes
-- `npm run build`: bundle to `../app.js.txt`
+- `npm run build`: bundle to `../app.js.txt` (a player build runs it with `NODE_ENV=production`, for React's production build)
 - `npm run watch`: rebuild on save; Unity hot-reloads whenever the bundle changes (edit-mode preview and Play mode)
 - `npm run typecheck`: `tsc --noEmit`
 
@@ -16,7 +16,8 @@ Inside the Unity editor the watcher is started automatically (during Play mode a
 ## Rules
 
 - The entry point is `index.tsx` and it must end with `render(<App />, __root)`.
-- Do not change `format`/`globalName` in `esbuild.config.mjs` or remove its react aliases (ESM output breaks QuickJS; duplicate React copies break hooks).
+- `esbuild.config.mjs` is one `oneJSConfig({ entry: "index.tsx", ... })` call from `onejs-unity/esbuild`. Add plugins and esbuild options through that call; do not override `format` or `globalName` (ESM output breaks QuickJS) or replace its React aliases (duplicate React copies break hooks).
+- The runtime's globals (`__root`, `__isPlaying`, timers, `fetch`...) are typed by `onejs-unity/globals` in `tsconfig.json`'s `types`; the app's own declarations go in `types/global.d.ts`.
 - Generated files, never edit by hand: `../app.js.txt`, `../app.js.map.txt`, `*.module.uss.d.ts`, `types/csharp.d.ts`.
 - Change handlers receive `e.value`, not `e.target.value`.
 - Use `<Text text="..." />` for display text (raw string children become bare TextElements).

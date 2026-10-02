@@ -321,7 +321,7 @@ namespace OneJS.Editor {
 
         static string _cachedNpmPath;
 
-        static string GetNpmExecutable() {
+        internal static string GetNpmExecutable() {
             if (!string.IsNullOrEmpty(_cachedNpmPath)) return _cachedNpmPath;
 
 #if UNITY_EDITOR_WIN

@@ -23,7 +23,7 @@
       "onejs-react": ["./node_modules/onejs-react/src"],
       "oj": ["./node_modules/ojplay/src"]
     },
-    "types": ["unity-types", "react"]
+    "types": ["unity-types", "react", "onejs-unity/globals"]
   },
   "include": ["**/*", "types/**/*.d.ts"],
   "exclude": ["node_modules", "@outputs"]

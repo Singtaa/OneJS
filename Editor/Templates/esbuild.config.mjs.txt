@@ -1,92 +1,14 @@
-import * as esbuild from "esbuild"
-import fs from "fs"
-import path from "path"
-import { fileURLToPath } from "url"
+import { oneJSConfig } from "onejs-unity/esbuild"
 
-// Import plugins from onejs-unity
-import { importTransformPlugin, slPlugin, tailwindPlugin, themesPlugin, ussModulesPlugin } from "onejs-unity/esbuild"
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
-// Resolve react to the App's node_modules to prevent duplicate copies
-const reactPath = path.resolve(__dirname, "node_modules/react")
-const reactJsxPath = path.resolve(__dirname, "node_modules/react/jsx-runtime")
-const reactJsxDevPath = path.resolve(__dirname, "node_modules/react/jsx-dev-runtime")
-
-const isWatch = process.argv.includes("--watch")
-
-const config = {
-    entryPoints: ["index.tsx"],
-    bundle: true,
-    outfile: "../app.js.txt",
-    format: "iife",                // IIFE required for onPlay/onStop lifecycle hooks
-    globalName: "__exports",       // Exported functions available as __exports.onPlay, etc.
-    target: "es2022",
-    jsx: "automatic",
-    // Resolve .tsx/.ts files in node_modules (for packages that ship as TypeScript source)
-    resolveExtensions: [".tsx", ".ts", ".jsx", ".js", ".json"],
-    // Import plain .uss files as strings, so styles can be embedded in the bundle
-    // via compileStyleSheet(). Required for styles to work in builds: there
-    // loadStyleSheet() reads from persistentDataPath, and ~/ is not shipped.
-    // (.module.uss files are handled by ussModulesPlugin instead.)
-    loader: { ".uss": "text" },
-    // Generate source maps for better error messages
-    sourcemap: true,
-    alias: {
-        // Force all react imports to use the App's copy
-        "react": reactPath,
-        "react/jsx-runtime": reactJsxPath,
-        "react/jsx-dev-runtime": reactJsxDevPath,
-        // oj is the app-facing surface of ojplay. Aliased rather than
-        // imported by package name so the source is bundled and deduped the
-        // same way React is, and so it reads the same here as it does on
-        // play.onejs.com.
-        "oj": path.resolve(process.cwd(), "node_modules/ojplay/src/index.ts"),
-    },
-    // Ensure packages from node_modules are bundled, not externalized
-    packages: "bundle",
+// The whole build: index.tsx bundled into ../app.js.txt, where JSRunner reads it.
+// `npm run watch` rebuilds on every save, and Unity hot-reloads the new bundle.
+//
+// A player build runs `npm run build` with NODE_ENV=production, which ships
+// React's production build; the editor keeps the development one, with its warnings.
+// Any esbuild option can be added beside entry, for example alias or define.
+export default oneJSConfig({
+    entry: "index.tsx",
     plugins: [
-        // Transform `import { X } from "UnityEngine"` to `const { X } = CS.UnityEngine`
-        importTransformPlugin(),
-        // Tailwind support: use `import "onejs:tailwind"` to activate
-        tailwindPlugin({ content: ["./**/*.{tsx,ts,jsx,js}"] }),
-        // Pack theme registration: use `import "onejs:themes"` to activate
-        themesPlugin(),
-        // USS Modules support (scoped class names, auto-generates .d.ts files)
-        ussModulesPlugin({ generateTypes: true }),
-        // Shader programs: `import plasma from "./plasma.sl"`. Encodes at build
-        // time and writes app.sl.json beside the bundle, which an editor turns
-        // into compiled shaders on import.
-        slPlugin({ generateTypes: true }),
+        // Your own esbuild plugins go here; they run after OneJS's.
     ],
-}
-
-// Rename sourcemap from app.js.txt.map to app.js.map.txt (Unity TextAsset)
-function renameSourceMap() {
-    const oldPath = path.resolve(__dirname, "../app.js.txt.map")
-    const newPath = path.resolve(__dirname, "../app.js.map.txt")
-    if (fs.existsSync(oldPath)) {
-        fs.renameSync(oldPath, newPath)
-    }
-}
-
-if (isWatch) {
-    const ctx = await esbuild.context({
-        ...config,
-        plugins: [
-            ...(config.plugins || []),
-            {
-                name: "rename-sourcemap",
-                setup(build) {
-                    build.onEnd(() => renameSourceMap())
-                }
-            }
-        ]
-    })
-    await ctx.watch()
-    console.log("Watching for changes...")
-} else {
-    await esbuild.build(config)
-    renameSourceMap()
-    console.log("Build complete!")
-}
+})

@@ -5,14 +5,14 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.9.4"
-  skill-version: "1.14.1"
+  skill-version: "1.15.0"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-10-01"
+  last-verified: "2026-10-02"
 ---
 
 # Set Up a OneJS Project
@@ -174,7 +174,7 @@ float4 main() {
 }
 ```
 
-2. Confirm `slPlugin()` is in the project's `~/esbuild.config.mjs` plugin list. A project scaffolded by Initialize Project already has it:
+2. Confirm the project's `~/esbuild.config.mjs` builds `.sl` files. A project scaffolded by OneJS 3.9.5 or newer uses `oneJSConfig` from `onejs-unity/esbuild`, which includes `slPlugin()`. An older config lists its plugins itself and needs `slPlugin({ generateTypes: true })` among them:
 
 ```js
 import { importTransformPlugin, slPlugin, tailwindPlugin, themesPlugin, ussModulesPlugin } from "onejs-unity/esbuild"

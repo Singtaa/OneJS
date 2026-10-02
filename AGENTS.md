@@ -86,13 +86,13 @@ export function onPlay() {}   // Play mode start + after hot reload while playin
 export function onStop() {}   // Play mode exit + before hot reload while playing
 ```
 
-- `__root` (root VisualElement) and `__isPlaying` are ambient globals (declared in `types/global.d.ts`).
+- `__root` (root VisualElement) and `__isPlaying` are ambient globals (typed by `onejs-unity/globals`, named in the app's tsconfig `types`).
 - Module-level code also runs in **edit-mode preview**. Guard play-only logic with `__isPlaying` (play-mode C# singletons are null in preview).
 - Components: `View, Text, Label, Button, TextField, Toggle, Slider, ScrollView, Image, ListView, TreeView, FrostedGlass`, plus `ScreenProvider`, `Portal`, `ErrorBoundary`.
 - Change handlers receive `e.value` (NOT `e.target.value`).
 - Raw text children (`<View>Hi</View>`) create TextElements; prefer `<Text text="..." />`.
 
-The esbuild config must keep `format: "iife"` + `globalName: "__exports"` (QuickJS evals in global scope, so ESM output throws, and lifecycle exports are discovered via `__exports`) and the react/jsx-runtime aliases (duplicate React copies break hooks).
+The esbuild config is `oneJSConfig(...)` from `onejs-unity/esbuild`, which sets `format: "iife"` + `globalName: "__exports"` (QuickJS evals in global scope, so ESM output throws, and lifecycle exports are discovered via `__exports`) and the react/jsx-runtime aliases (duplicate React copies break hooks). Do not override those through it. A player build runs `npm run build` with `NODE_ENV=production` (`Editor/PlayerBundle.cs`).
 
 ### Styling
 
