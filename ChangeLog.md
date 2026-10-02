@@ -3,6 +3,7 @@
 - 3D models from `.glb` files through glTFast, for ojplay's `useScene` and `useModel`
 - Models cast and receive soft shadows under a sun, sky and ground ambient, fog and point lights
 - glTF materials keep metallic, roughness, normal, occlusion, emission and alpha
+- Models turn on all three axes, scale after spawning and play at their own speed
 - A C# static holding null reads as `null` instead of a path proxy
 - `releaseObject` works on any C# object
 - Timeouts due in the same frame run in due order
