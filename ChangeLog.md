@@ -1,6 +1,6 @@
 # Unreleased
 
-Migrating: `fetch` now rejects when no response arrives, so code checking `status === 0` moves to `try`/`catch`. `localStorage` keys live under `onejs:` in PlayerPrefs (old keys move over on first read), so C# reading them adds the prefix. Re-enabling a JSRunner calls `onStop` before `onPlay`. Unhandled promise rejections now log as errors. The API review's new names (`onejs.*`, `useFrame`, `drawing`, `toRGBA`, `open`/`onOpenChange`, `fx.useStill`) sit beside the old ones, which keep working.
+Migrating: `fetch` now rejects when no response arrives, so code checking `status === 0` moves to `try`/`catch`. `localStorage` keys live under `onejs:` in PlayerPrefs (old keys move over on first read), so C# reading them adds the prefix. Re-enabling a JSRunner calls `onStop` before `onPlay`. Unhandled promise rejections now log as errors. The API review's new names (`onejs.*`, `useFrame`, `drawing`, `toRGBA`, `open`/`onOpenChange`, `fx.useAnimation`) sit beside the old ones, which keep working.
 
 - Every public global is also under one `onejs` namespace
 - `onejs.cs.typeExists` says whether a C# type is loaded
