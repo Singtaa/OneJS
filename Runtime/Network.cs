@@ -95,41 +95,24 @@ namespace OneJS {
         }
 
         static UnityWebRequest CreateRequest(string url, string method, string body) {
-            UnityWebRequest request;
+            method = string.IsNullOrEmpty(method) ? "GET" : method.ToUpperInvariant();
 
             switch (method) {
-                case "POST":
-                    request = new UnityWebRequest(url, "POST");
-                    if (!string.IsNullOrEmpty(body)) {
-                        request.uploadHandler = new UploadHandlerRaw(System.Text.Encoding.UTF8.GetBytes(body));
-                    }
-                    request.downloadHandler = new DownloadHandlerBuffer();
-                    break;
-
-                case "PUT":
-                    request = new UnityWebRequest(url, "PUT");
-                    if (!string.IsNullOrEmpty(body)) {
-                        request.uploadHandler = new UploadHandlerRaw(System.Text.Encoding.UTF8.GetBytes(body));
-                    }
-                    request.downloadHandler = new DownloadHandlerBuffer();
-                    break;
-
-                case "DELETE":
-                    request = UnityWebRequest.Delete(url);
-                    request.downloadHandler = new DownloadHandlerBuffer();
-                    break;
-
-                case "HEAD":
-                    request = UnityWebRequest.Head(url);
-                    break;
-
                 case "GET":
+                    return UnityWebRequest.Get(url);
+                case "HEAD":
+                    return UnityWebRequest.Head(url);
                 default:
-                    request = UnityWebRequest.Get(url);
-                    break;
+                    // Every other method (POST, PUT, PATCH, DELETE, OPTIONS, ...)
+                    // goes out as itself, with its body when it has one
+                    var request = new UnityWebRequest(url, method) {
+                        downloadHandler = new DownloadHandlerBuffer()
+                    };
+                    if (!string.IsNullOrEmpty(body)) {
+                        request.uploadHandler = new UploadHandlerRaw(System.Text.Encoding.UTF8.GetBytes(body));
+                    }
+                    return request;
             }
-
-            return request;
         }
 
         static void ApplyHeaders(UnityWebRequest request, string headersJson) {

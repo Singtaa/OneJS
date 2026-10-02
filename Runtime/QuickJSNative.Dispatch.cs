@@ -480,7 +480,7 @@ namespace OneJS {
                     }
 
                     case InteropInvokeCallKind.TryGetProp: {
-                        // Silent variant of GetProp: returns null instead of logging on failure.
+                        // Silent variant of GetProp: returns "__oneJS_notFound__" instead of logging on failure.
                         // Used by the CS path proxy for speculative static property resolution.
                         PropertyInfo prop = FindPropertyCached(type, memberName, isStatic);
                         if (prop != null) {
@@ -502,8 +502,9 @@ namespace OneJS {
                             SetReturnValue(resPtr, "__oneJS_methodRef__");
                             return;
                         }
-                        // Not found: return null silently (no error log)
-                        resPtr->returnValue.type = InteropType.Null;
+                        // Not found: a sentinel, silently (no error log), so the
+                        // caller can tell a missing member from one holding null
+                        SetReturnValue(resPtr, "__oneJS_notFound__");
                         return;
                     }
 

@@ -610,6 +610,7 @@ function __wrapObject(typeName, handle) {
         },
         set(obj, prop, value) {
             if (typeof prop === "symbol") return false;
+            if (prop === "__csHandle") { obj.__csHandle = value; return true; }
 
             const propName = String(prop);
 
@@ -780,14 +781,14 @@ function __isEnumType(typeName) {
 //   `${CS.Type.Member}`             // prints the number
 // TryGetProp (10) reads the static field silently; if the name isn't a value
 // member (a rare static method on the enum type, or a typo) it returns the
-// method sentinel / null and we fall back to a path proxy, preserving the old
-// behavior for those cases.
+// method or not-found sentinel and we fall back to a path proxy, preserving
+// the old behavior for those cases.
 function __resolveEnumMember(path, typeName, memberName) {
     const key = typeName + "." + memberName;
     const cached = __enumValueCache.get(key);
     if (cached !== undefined) return cached;
     const raw = __cs.invoke(typeName, memberName, 10, 1, 0, []);
-    if (raw == null || raw === "__oneJS_methodRef__") {
+    if (raw == null || raw === "__oneJS_notFound__" || raw === "__oneJS_methodRef__") {
         return __createCsPathProxy(path.concat(memberName));
     }
     const value = __wrapResultFromCs(null, raw);
@@ -939,12 +940,13 @@ function __createCsPathProxy(path) {
             // This allows CS.Namespace.Type.StaticProp without whitelisting.
             // Skip enums (their values use the valueOf/apply path for proper resolution).
             // Skip methods (__oneJS_methodRef__) so they keep the apply trap for calling.
-            // Uses TryGetProp (10) instead of GetProp (2) to avoid error logging on miss.
+            // Uses TryGetProp (10) instead of GetProp (2) to avoid error logging on miss;
+            // a miss is "__oneJS_notFound__", so a static holding null reads as null.
             if (__typeExists(typeName) && !__isEnumType(typeName)) {
                 const nextType = typeName + "." + propName;
                 if (!__typeExists(nextType)) {
                     const raw = __cs.invoke(typeName, propName, 10, 1, 0, []);
-                    if (raw != null && raw !== "__oneJS_methodRef__") {
+                    if (raw !== "__oneJS_notFound__" && raw !== "__oneJS_methodRef__") {
                         return __wrapResultFromCs(null, raw);
                     }
                 }
@@ -1496,9 +1498,13 @@ function __drainScheduledCallbacks(timestamp) {
 
     // Timeouts (membership re-checked: an earlier callback may have cleared a
     // later entry during this pass)
-    const timeoutSnapshot = Array.from(__timeouts.entries());
-    for (const [id, t] of timeoutSnapshot) {
-        if (timestamp < t.due || !__timeouts.has(id)) continue;
+    const dueTimeouts = [];
+    for (const entry of __timeouts) {
+        if (timestamp >= entry[1].due) dueTimeouts.push(entry);
+    }
+    dueTimeouts.sort((a, b) => a[1].due - b[1].due || a[0] - b[0]);
+    for (const [id, t] of dueTimeouts) {
+        if (!__timeouts.has(id)) continue;
         __timeouts.delete(id);
         try {
             t.callback(...t.args);
@@ -2365,7 +2371,8 @@ class Headers {
     }
 
     get(name) {
-        return this._headers[name.toLowerCase()] || null;
+        var key = name.toLowerCase();
+        return key in this._headers ? this._headers[key] : null;
     }
 
     has(name) {
@@ -2407,6 +2414,10 @@ class Headers {
 
     entries() {
         return Object.entries(this._headers);
+    }
+
+    [Symbol.iterator]() {
+        return this.entries()[Symbol.iterator]();
     }
 }
 
@@ -2939,6 +2950,10 @@ class URLSearchParams {
 
     entries() {
         return this._params.slice();
+    }
+
+    [Symbol.iterator]() {
+        return this.entries()[Symbol.iterator]();
     }
 
     forEach(callback, thisArg) {
