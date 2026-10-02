@@ -19,11 +19,11 @@ namespace OneJS.Tests.Models {
     /// spawned model gets, which do not depend on the mode.
     /// </summary>
     public class ModelBridgeEditModeTests {
-        static string Fixture([CallerFilePath] string here = "") =>
-            Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(here)), "Fixtures~", "cubes.glb");
+        static string Fixture(string name = "cubes.glb", [CallerFilePath] string here = "") =>
+            Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(here)), "Fixtures~", name);
 
-        static IEnumerator Load(System.Action<int> done) {
-            Task<int> task = ModelBridge.Load(Fixture());
+        static IEnumerator Load(System.Action<int> done, string fixture = "cubes.glb") {
+            Task<int> task = ModelBridge.Load(Fixture(fixture));
             while (!task.IsCompleted) yield return null;
             if (task.IsFaulted) throw task.Exception;
             done(task.Result);
@@ -156,6 +156,49 @@ namespace OneJS.Tests.Models {
             while (!task.IsCompleted) yield return null;
             Assert.That(task.IsCanceled, Is.True, "a load the scene did not outlive must not hand back a model");
             Assert.That(InScene<Transform>(), Is.Empty);
+        }
+
+        // glTFast gives a skinned mesh with vertex colours four streams (colours and UVs apart, bones
+        // in the fourth), and Unity warns "Skinned mesh attributes use wrong streams" as it builds
+        // the mesh: an orange line in every cart's console on every Run. Unity skins from position,
+        // normal and tangent in stream 0, colours and UVs in 1, bones in 2. ModelLit reads no vertex
+        // colours, so they are not loaded, and the rest keeps its data.
+        [UnityTest]
+        public IEnumerator SkinnedModels_UseTheStreamsUnitySkinsFrom() {
+            var warned = new System.Collections.Generic.List<string>();
+            void Collect(string message, string stack, LogType type) { if (message.Contains("wrong streams")) warned.Add(message); }
+            Application.logMessageReceived += Collect;
+            var target = new RenderTexture(64, 64, 24);
+            var camera = new GameObject("Test Camera").AddComponent<Camera>();
+            try {
+                int model = 0;
+                yield return Load(m => model = m, "skinned.glb");
+                var actor = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, true, true);
+                var mesh = ModelBridge.ActorObject(actor).GetComponentInChildren<SkinnedMeshRenderer>(true).sharedMesh;
+                foreach (var a in mesh.GetVertexAttributes()) {
+                    var stream = a.attribute <= VertexAttribute.Tangent ? 0 : a.attribute >= VertexAttribute.BlendWeight ? 2 : 1;
+                    Assert.That(a.stream, Is.EqualTo(stream), a.attribute.ToString());
+                }
+                Assert.That(mesh.HasVertexAttribute(VertexAttribute.Color), Is.False);
+                // The fixture's four UV corners, and the top half on the second joint.
+                Assert.That(mesh.uv.Distinct().OrderBy(v => v.x).ThenBy(v => v.y),
+                    Is.EqualTo(new[] { new Vector2(0, 0), new Vector2(0, 1), new Vector2(1, 0), new Vector2(1, 1) }));
+                Assert.That(mesh.boneWeights.Count(w => w.boneIndex0 == 1), Is.EqualTo(mesh.vertices.Count(v => v.y > 0.5f)));
+                Assert.That(mesh.vertices.Count(v => v.y > 0.5f), Is.GreaterThan(0));
+                Assert.That(mesh.blendShapeCount, Is.EqualTo(1));
+                var deltas = new Vector3[mesh.vertexCount];
+                mesh.GetBlendShapeFrameVertices(0, 0, deltas, null, null);
+                Assert.That(deltas[0].magnitude, Is.EqualTo(0.25f).Within(1e-5f));
+
+                camera.transform.position = new Vector3(0, 0.5f, -3);
+                camera.targetTexture = target;
+                camera.Render();
+                Assert.That(warned, Is.Empty);
+            } finally {
+                Application.logMessageReceived -= Collect;
+                Object.DestroyImmediate(camera.gameObject);
+                target.Release();
+            }
         }
 
         [Test]

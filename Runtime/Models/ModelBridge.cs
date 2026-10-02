@@ -131,7 +131,7 @@ namespace OneJS.Models {
             // glTFast's default agent spreads work over frames from a DontDestroyOnLoad object,
             // which edit mode refuses; the edit-mode preview loads in one go instead.
             var defer = Playing ? null : new UninterruptedDeferAgent();
-            var import = new GltfImport(deferAgent: defer, materialGenerator: new ModelMaterialGenerator());
+            var import = new ModelImport(defer, new ModelMaterialGenerator());
             var settings = new ImportSettings { AnimationMethod = AnimationMethod.Legacy };
             var generation = _generation;
             var loaded = await import.Load(url, settings);
