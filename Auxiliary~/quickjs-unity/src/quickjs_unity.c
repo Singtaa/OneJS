@@ -16,6 +16,9 @@
 #define QJS_MAGIC 0x51534A53u // 'QSJS'
 #define QJS_MAX_CALLBACKS 4096
 #define QJS_EXCEPTION_BUF_SIZE 2048
+// Rejections still waiting for a handler when the job queue last drained.
+// More than this in one turn are counted, not kept.
+#define QJS_MAX_PENDING_REJECTIONS 64
 
 // C# checks this at init (qjs_abi_version) so a stale native binary fails
 // loudly instead of misbehaving. Bump on any change to exported signatures,
@@ -59,6 +62,12 @@ typedef struct {
     int callback_next;
     int callback_count;
     int callback_free_head;
+    // Unhandled rejections, reported once the job queue drains (see
+    // qjs_track_rejection). Opaque to C#, so growing it changes no ABI.
+    JSValue rejected_promises[QJS_MAX_PENDING_REJECTIONS];
+    JSValue rejection_reasons[QJS_MAX_PENDING_REJECTIONS];
+    int rejection_count;
+    int rejections_dropped;
 } QjsContext;
 
 typedef enum InteropType {
@@ -1239,6 +1248,64 @@ static void qjs_init_release_handle(JSContext* ctx) {
     JS_FreeValue(ctx, global_obj);
 }
 
+// MARK: Unhandled rejections
+
+// A promise rejected with no handler is held here rather than reported at
+// once: `p = Promise.reject(e); p.catch(...)` attaches its handler a moment
+// later, and quickjs then calls back with is_handled set. Whatever is still
+// held once the job queue drains is reported, as browsers do.
+static void qjs_track_rejection(JSContext* ctx, JSValue promise, JSValue reason,
+                                JS_BOOL is_handled, void* opaque) {
+    (void)opaque;
+    QjsContext* instance = (QjsContext*)JS_GetContextOpaque(ctx);
+    if (!instance) return;
+
+    if (is_handled) {
+        for (int i = 0; i < instance->rejection_count; i++) {
+            if (JS_VALUE_GET_PTR(instance->rejected_promises[i]) != JS_VALUE_GET_PTR(promise)) continue;
+            JS_FreeValue(ctx, instance->rejected_promises[i]);
+            JS_FreeValue(ctx, instance->rejection_reasons[i]);
+            instance->rejection_count--;
+            instance->rejected_promises[i] = instance->rejected_promises[instance->rejection_count];
+            instance->rejection_reasons[i] = instance->rejection_reasons[instance->rejection_count];
+            return;
+        }
+        return;
+    }
+
+    if (instance->rejection_count >= QJS_MAX_PENDING_REJECTIONS) {
+        instance->rejections_dropped++;
+        return;
+    }
+    instance->rejected_promises[instance->rejection_count] = JS_DupValue(ctx, promise);
+    instance->rejection_reasons[instance->rejection_count] = JS_DupValue(ctx, reason);
+    instance->rejection_count++;
+}
+
+static void qjs_release_rejections(QjsContext* instance, int report) {
+    JSContext* ctx = instance->ctx;
+    for (int i = 0; i < instance->rejection_count; i++) {
+        if (report && g_callbacks.log) {
+            // \001E carries error level across the string-only log callback (JsLog.cs)
+            char reasonBuf[QJS_EXCEPTION_BUF_SIZE];
+            char line[QJS_EXCEPTION_BUF_SIZE + 64];
+            format_exception(ctx, instance->rejection_reasons[i], reasonBuf, sizeof(reasonBuf));
+            snprintf(line, sizeof(line), "\001E[OneJS] Unhandled promise rejection: %s", reasonBuf);
+            g_callbacks.log(line);
+        }
+        JS_FreeValue(ctx, instance->rejected_promises[i]);
+        JS_FreeValue(ctx, instance->rejection_reasons[i]);
+    }
+    if (report && instance->rejections_dropped > 0 && g_callbacks.log) {
+        char line[128];
+        snprintf(line, sizeof(line), "\001E[OneJS] ...and %d more unhandled promise rejections",
+                 instance->rejections_dropped);
+        g_callbacks.log(line);
+    }
+    instance->rejection_count = 0;
+    instance->rejections_dropped = 0;
+}
+
 // MARK: Lifecycle
 
 QJS_API QjsContext* qjs_create() {
@@ -1262,6 +1329,8 @@ QJS_API QjsContext* qjs_create() {
     wrapper->generation = next_generation();
     wrapper->rt = rt;
     wrapper->ctx = ctx;
+    wrapper->rejection_count = 0;
+    wrapper->rejections_dropped = 0;
 
     if (!live_context_add(wrapper)) {
         // Registry full: something is leaking contexts. Fail loudly rather
@@ -1274,6 +1343,7 @@ QJS_API QjsContext* qjs_create() {
     }
 
     JS_SetContextOpaque(ctx, wrapper);
+    JS_SetHostPromiseRejectionTracker(rt, qjs_track_rejection, NULL);
 
     qjs_init_console(ctx);
     qjs_init_cs_bridge(ctx);
@@ -1297,6 +1367,9 @@ QJS_API void qjs_destroy(QjsContext* instance) {
 
     instance->magic = 0;
     qjs_cleanup_callbacks(instance);
+    // A context going away mid-turn drops what it was holding, unreported:
+    // its handlers could never have run.
+    qjs_release_rejections(instance, 0);
 
     instance->ctx = NULL;
     instance->rt = NULL;
@@ -1415,10 +1488,11 @@ QJS_API int qjs_execute_pending_jobs(QjsContext* instance) {
             return -1;
         }
         if (ret == 0) {
-            // No more jobs
+            // No more jobs: anything still unhandled now stays unhandled
             break;
         }
         total++;
     }
+    if (instance->rejection_count > 0) qjs_release_rejections(instance, 1);
     return total;
 }
