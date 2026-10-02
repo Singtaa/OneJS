@@ -187,13 +187,11 @@ namespace OneJS {
         // which runs when the component is added in the editor, makes a new runner use @packs.
         [SerializeField, HideInInspector] bool _legacyPackFolder = true;
 
-        QuickJSUIBridge _bridge;
-        bool _scriptLoaded;
-
-        // Lifecycle hook state
-        int _onPlayHandle = -1;
-        int _onStopHandle = -1;
-        bool _onStopInvoked;
+        // The context, the bundle's onPlay/onStop and the tick, shared with JSPad
+        JsHost _host;
+        JsHost Host => _host ??= new JsHost("JSRunner", TranslateErrorMessage);
+        QuickJSUIBridge _bridge => _host?.Bridge;
+        bool _scriptLoaded => _host != null && _host.ScriptLoaded;
 
         // Live reload state
         DateTime _lastModifiedTime;
@@ -260,11 +258,12 @@ namespace OneJS {
 #endif
 
         /// <summary>
-        /// Fired after a hot reload completes (fresh JS context, bundle re-run,
-        /// onPlay re-invoked in play mode). C# code that caches anything JS-side,
-        /// like raw callback handles from __registerCallback, should re-acquire it
-        /// here; delegates from GetJSFunction re-resolve themselves and don't need
-        /// this. Live reload is editor-only, so this never fires in player builds.
+        /// Fired after the JS context is rebuilt (fresh context, bundle re-run,
+        /// onPlay re-invoked in play mode): a hot reload, the component re-enabled,
+        /// or its panel rebuilt. Re-enabling rebuilds in player builds too. C# code
+        /// that caches anything JS-side, like raw callback handles from
+        /// __registerCallback, should re-acquire it here; delegates from
+        /// GetJSFunction re-resolve themselves and don't need this.
         /// </summary>
         public event Action<JSRunner> Reloaded;
 
@@ -903,56 +902,68 @@ namespace OneJS {
 #endif
         }
 
+        /// <summary>
+        /// Rebuilds a running app on the current root: re-enabling the
+        /// component, a rebuilt panel. The bundle comes from disk in the Editor
+        /// and from the embedded asset in a player.
+        /// </summary>
         void ReloadOnEnable() {
-            // Clean up GameObjects created by JS (if Janitor enabled)
-#if UNITY_EDITOR
-            if (_enableJanitor && _janitor != null) {
-                _janitor.Clean();
-            }
-#endif
-
-            // Clear UI and dispose old bridge
-            if (_uiDocument != null && _uiDocument.rootVisualElement != null) {
-                _uiDocument.rootVisualElement.Clear();
-                _uiDocument.rootVisualElement.styleSheets.Clear();
-            }
-
-            _bridge?.Dispose();
-            _bridge = null;
-            _scriptLoaded = false;
-            _initialFocusDone = false; // re-grab keyboard focus after the live reload
-
             // rootVisualElement may be transiently null (panel rebuilding).
             // If so, bail out: the deferred init retry in TickIfReady will pick it up.
             if (_uiDocument == null || _uiDocument.rootVisualElement == null) {
+                Host.Stop(afterOnStop: CleanUpAfterApp);
                 ResetPlayModeState();
                 return;
             }
 
             try {
-                // Recreate bridge with fresh __root
-                InitializeBridge();
-
 #if UNITY_EDITOR
-                // Editor: reload from file
                 var entryFile = EntryFileFullPath;
-                if (File.Exists(entryFile)) {
-                    var code = ReadBundleForEditor(entryFile);
-                    RunScript(code, Path.GetFileName(entryFile));
-                    if (Application.isPlaying) InvokeOnPlay();
+                if (!File.Exists(entryFile)) {
+                    Host.Stop(afterOnStop: CleanUpAfterApp);
+                    return;
                 }
+                RecreateContext(ReadBundleForEditor(entryFile), Path.GetFileName(entryFile));
 #else
-                // Build: reload from bundled asset
-                if (_bundleAsset != null) {
-                    RunScript(_bundleAsset.text, "app.js");
-                    InvokeOnPlay();
+                if (_bundleAsset == null) {
+                    Host.Stop(afterOnStop: CleanUpAfterApp);
+                    return;
                 }
+                RecreateContext(_bundleAsset.text, "app.js");
 #endif
             } catch (Exception ex) {
-                Debug.LogError($"[JSRunner] ReloadOnEnable failed: {ex.Message}");
-                _bridge?.Dispose();
-                _bridge = null;
+                Debug.LogError($"[JSRunner] ReloadOnEnable failed: {TranslateErrorMessage(ex.Message)}");
+                _host?.Dispose();
                 ResetPlayModeState();
+            }
+        }
+
+        /// <summary>
+        /// Every rebuild of a running app comes through here (hot reload,
+        /// re-enabling the component, a rebuilt panel): onStop, the janitor,
+        /// a fresh context with its globals, the bundle, onPlay, then Reloaded.
+        /// </summary>
+        void RecreateContext(string code, string filename) {
+            _initialFocusDone = false; // re-grab keyboard focus after the rebuild
+            Host.Recreate(_uiDocument.rootVisualElement, BridgeWorkingDir, code, filename,
+                afterOnStop: CleanUpAfterApp, configure: ConfigureBridge);
+            _reloadCount++;
+            try {
+                Reloaded?.Invoke(this);
+            } catch (Exception ex) {
+                Debug.LogError($"[JSRunner] Reloaded event handler threw: {ex}");
+            }
+        }
+
+        /// <summary>
+        /// What an app leaves behind once its onStop has run: the GameObjects
+        /// it made (when the Janitor is on), and its UI and stylesheets.
+        /// </summary>
+        void CleanUpAfterApp() {
+            if (_enableJanitor && _janitor != null) _janitor.Clean();
+            if (_uiDocument != null && _uiDocument.rootVisualElement != null) {
+                _uiDocument.rootVisualElement.Clear();
+                _uiDocument.rootVisualElement.styleSheets.Clear();
             }
         }
 
@@ -1292,41 +1303,21 @@ namespace OneJS {
 #endif // UNITY_EDITOR
 
         void InitializeBridge() {
+            Host.Create(_uiDocument.rootVisualElement, BridgeWorkingDir, ConfigureBridge);
+        }
+
 #if UNITY_EDITOR
-            _bridge = new QuickJSUIBridge(_uiDocument.rootVisualElement, WorkingDirFullPath);
+        string BridgeWorkingDir => WorkingDirFullPath;
 #else
-            // In builds, use persistent data path (bundle is self-contained)
-            _bridge = new QuickJSUIBridge(_uiDocument.rootVisualElement, Application.persistentDataPath);
+        // In builds, use persistent data path (bundle is self-contained)
+        string BridgeWorkingDir => Application.persistentDataPath;
 #endif
 
-            // Apply stylesheets first so styles are ready when JS runs
+        /// <summary>This runner's own globals, after the ones every app gets.</summary>
+        void ConfigureBridge(QuickJSUIBridge bridge) {
             ApplyStylesheets();
-
-            // Inject platform defines before any user code runs
-            InjectPlatformDefines();
-
-            // Expose play mode state so JS can check without lifecycle callbacks
-            _bridge.Eval($"globalThis.__isPlaying = {(Application.isPlaying ? "true" : "false")}");
-
-            // Expose the working directory to JS for asset path resolution
-            var escapedWorkingDir = RunnerUtils.EscapeJsString(_bridge.WorkingDir);
-            _bridge.Eval($"globalThis.__workingDir = '{escapedWorkingDir}'");
-
-            // Expose the root element to JS as globalThis.__root
-            var rootHandle = QuickJSNative.RegisterObject(_uiDocument.rootVisualElement);
-            _bridge.Eval($"globalThis.__root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle})");
-
-            // Expose the bridge to JS for USS loading
-            var bridgeHandle = QuickJSNative.RegisterObject(_bridge);
-            _bridge.Eval($"globalThis.__bridge = __csHelpers.wrapObject('QuickJSUIBridge', {bridgeHandle})");
-
-            // Register UI debugging utilities
             RegisterUIDebugUtilities();
-
-            // Inject custom globals
             InjectGlobals();
-
-            // Run preload scripts
             RunPreloads();
         }
 
@@ -1413,64 +1404,12 @@ namespace OneJS {
         }
 
         void RunScript(string code, string filename) {
-            _bridge.Eval(code, filename);
-            // Execute pending Promise jobs immediately to allow React's first render
-            _bridge.Context.ExecutePendingJobs();
-            _scriptLoaded = true;
-
-            // Cache callback handles for zero-allocation per-frame invocation
-            _bridge.CacheTickCallback();
-            _bridge.CacheEventDispatchCallback();
-            CacheLifecycleCallbacks();
-
-#if UNITY_WEBGL && !UNITY_EDITOR
-            // Start the native RAF tick loop for WebGL
-            StartWebGLTick();
-#endif
+            Host.Run(code, filename);
         }
 
-        void CacheLifecycleCallbacks() {
-            _onPlayHandle = ParseLifecycleHandle(
-                "typeof __exports !== 'undefined' && typeof __exports.onPlay === 'function' ? __registerCallback(__exports.onPlay) : -1");
-            _onStopHandle = ParseLifecycleHandle(
-                "typeof __exports !== 'undefined' && typeof __exports.onStop === 'function' ? __registerCallback(__exports.onStop) : -1");
-            _onStopInvoked = false;
-        }
+        void InvokeOnPlay() => _host?.InvokeOnPlay();
 
-        int ParseLifecycleHandle(string expr) {
-            try {
-                var result = _bridge.Eval(expr);
-                return int.TryParse(result, out var h) ? h : -1;
-            } catch (Exception ex) {
-                // The expr guards on __exports itself, so a throw here means the
-                // registration primitive is broken (e.g. __registerCallback missing) -
-                // surface it instead of silently disabling onPlay/onStop
-                Debug.LogWarning($"[JSRunner] Lifecycle callback registration failed: {ex.Message} (expr: {expr})");
-                return -1;
-            }
-        }
-
-        void InvokeOnPlay() {
-            if (_onPlayHandle < 0 || _bridge == null) return;
-            try {
-                _bridge.Context.InvokeCallbackNoAlloc(_onPlayHandle);
-                _bridge.Context.ExecutePendingJobs();
-            } catch (Exception ex) {
-                Debug.LogError($"[JSRunner] onPlay() error: {TranslateErrorMessage(ex.Message)}");
-            }
-            _onStopInvoked = false;
-        }
-
-        void InvokeOnStop() {
-            if (_onStopInvoked || _onStopHandle < 0 || _bridge == null) return;
-            _onStopInvoked = true;
-            try {
-                _bridge.Context.InvokeCallbackNoAlloc(_onStopHandle);
-                _bridge.Context.ExecutePendingJobs();
-            } catch (Exception ex) {
-                Debug.LogError($"[JSRunner] onStop() error: {TranslateErrorMessage(ex.Message)}");
-            }
-        }
+        void InvokeOnStop() => _host?.InvokeOnStop();
 
         /// <summary>
         /// Force a reload of the JavaScript context.
@@ -1505,11 +1444,7 @@ namespace OneJS {
 
         void ResetPlayModeState() {
             _initialized = false;
-            _scriptLoaded = false;
             _initialFocusDone = false;
-            _onPlayHandle = -1;
-            _onStopHandle = -1;
-            _onStopInvoked = false;
         }
 
 #if UNITY_EDITOR
@@ -1525,43 +1460,12 @@ namespace OneJS {
             }
 
             try {
-                // 0. Invoke onStop before teardown (play mode only)
-                if (Application.isPlaying) InvokeOnStop();
+                RecreateContext(ReadBundleForEditor(EntryFileFullPath), Path.GetFileName(EntryFileFullPath));
 
-                // 1. Clean up GameObjects created by JS (if Janitor enabled)
-                if (_enableJanitor && _janitor != null) {
-                    _janitor.Clean();
-                }
-
-                // 2. Clear UI and stylesheets
-                _uiDocument.rootVisualElement.Clear();
-                _uiDocument.rootVisualElement.styleSheets.Clear();
-
-                // 3. Dispose old bridge/context
-                _bridge?.Dispose();
-                _bridge = null;
-                _scriptLoaded = false;
-
-                // 4. Recreate bridge and globals
-                InitializeBridge();
-
-                // 5. Load and run script
-                var code = ReadBundleForEditor(EntryFileFullPath);
-                RunScript(code, Path.GetFileName(EntryFileFullPath));
-                if (Application.isPlaying) InvokeOnPlay();
-
-                // 6. Update state
                 _lastModifiedTime = File.GetLastWriteTime(EntryFileFullPath);
                 _lastContentHash = ComputeFileHash(EntryFileFullPath);
                 _lastReloadTime = DateTime.Now;
-                _reloadCount++;
                 Debug.Log($"[JSRunner] Reloaded ({_reloadCount})");
-
-                try {
-                    Reloaded?.Invoke(this);
-                } catch (Exception ex) {
-                    Debug.LogError($"[JSRunner] Reloaded event handler threw: {ex}");
-                }
 
                 // Force UI Toolkit to process layout so the Game view reflects
                 // the new content when the editor regains focus.
@@ -1635,14 +1539,8 @@ namespace OneJS {
                     // preview (started via OnEnable → SchedulePreviewAutoStart) gets
                     // a clean slate. Without this, the play-mode bridge leaks when
                     // domain/scene reload is disabled.
-                    if (_enableJanitor && _janitor != null)
-                        _janitor.Clean();
-                    if (_uiDocument != null && _uiDocument.rootVisualElement != null) {
-                        _uiDocument.rootVisualElement.Clear();
-                        _uiDocument.rootVisualElement.styleSheets.Clear();
-                    }
-                    _bridge?.Dispose();
-                    _bridge = null;
+                    // onStop already ran at ExitingPlayMode, so this only cleans up.
+                    Host.Stop(afterOnStop: CleanUpAfterApp);
                     ResetPlayModeState();
                     break;
             }
@@ -1729,9 +1627,7 @@ namespace OneJS {
             } catch (Exception ex) {
                 Debug.LogError($"[JSRunner] Edit-mode preview failed: {ex.Message}");
                 // Clean up partial init
-                _bridge?.Dispose();
-                _bridge = null;
-                _scriptLoaded = false;
+                _host?.Dispose();
                 // A native ABI mismatch cannot heal until the editor restarts:
                 // cancel the auto-start retry window instead of repeating the
                 // same error every quarter second. (Other failures keep retrying:
@@ -1755,9 +1651,7 @@ namespace OneJS {
                 _uiDocument.rootVisualElement.styleSheets.Clear();
             }
 
-            _bridge?.Dispose();
-            _bridge = null;
-            _scriptLoaded = false;
+            _host?.Dispose();
         }
 
         void EditModeTick() {
@@ -1879,14 +1773,6 @@ namespace OneJS {
         }
 #endif // UNITY_EDITOR
 
-        /// <summary>
-        /// Inject Unity platform defines as JavaScript globals.
-        /// These can be used for conditional code: if (UNITY_WEBGL) { ... }
-        /// </summary>
-        void InjectPlatformDefines() {
-            RunnerUtils.InjectPlatformDefines(_bridge);
-        }
-
         void Update() {
             if (_tickMode == TickMode.Update) TickIfReady();
         }
@@ -1931,20 +1817,12 @@ namespace OneJS {
                 TryInitialFocus();
                 CheckForFileChanges();
             }
-#elif !UNITY_WEBGL
-            // WebGL uses native RAF tick loop started in RunScript()
-            if (_scriptLoaded) {
-                _bridge?.Tick();
-                TryInitialFocus();
-            }
 #else
-            // WebGL drives the JS half from the browser's requestAnimationFrame,
-            // so Tick() is deliberately not called here. The C#-owned systems
-            // still need a frame and RAF never reaches them, which left
-            // particles frozen and physics unsimulated in every web build.
-            // Update does run here, so they are driven from it.
+            // On WebGL the browser's requestAnimationFrame drives the JS half and
+            // this drives only the C# systems (particles, physics); JsHost.Tick
+            // picks which.
             if (_scriptLoaded) {
-                _bridge?.TickSystems();
+                _host.Tick();
                 TryInitialFocus();
             }
 #endif
@@ -1966,11 +1844,6 @@ namespace OneJS {
             RunScript(DefaultEntryContent, "default.js");
         }
 
-#if UNITY_WEBGL
-        void StartWebGLTick() {
-            _bridge.Eval("if (typeof __startWebGLTick === 'function') __startWebGLTick();", "webgl-tick-start.js");
-        }
-#endif
 #endif // !UNITY_EDITOR
 
         string TranslateErrorMessage(string message) {
@@ -1994,8 +1867,7 @@ namespace OneJS {
             UnityEditor.EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
 #endif
             if (Application.isPlaying) InvokeOnStop();
-            _bridge?.Dispose();
-            _bridge = null;
+            _host?.Dispose();
             _initialized = false;
         }
 

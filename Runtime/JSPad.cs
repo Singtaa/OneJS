@@ -99,9 +99,8 @@ namespace OneJS {
         [SerializeField, HideInInspector] string _compressedBundle;
         [SerializeField, HideInInspector] string _compressedSourceMap;
 
-        QuickJSUIBridge _bridge;
+        JsHost _host;
         UIDocument _uiDocument;
-        bool _scriptLoaded;
         bool _tempDirInitialized;
         bool _startCalled;
 
@@ -124,8 +123,10 @@ namespace OneJS {
             set => _sourceCode = value;
         }
 
-        public QuickJSUIBridge Bridge => _bridge;
-        public bool IsRunning => _scriptLoaded && _bridge != null;
+        JsHost Host => _host ??= new JsHost("JSPad", TranslateErrorMessage);
+
+        public QuickJSUIBridge Bridge => _host?.Bridge;
+        public bool IsRunning => _host != null && _host.ScriptLoaded && _host.Bridge != null;
         public BuildState CurrentBuildState => _buildState;
         public string LastBuildError => _lastBuildError;
         public string LastBuildOutput => _lastBuildOutput;
@@ -338,9 +339,7 @@ namespace OneJS {
         }
 
         void Update() {
-            if (_scriptLoaded) {
-                _bridge?.Tick();
-            }
+            _host?.Tick();
         }
 
         void OnDestroy() {
@@ -419,41 +418,21 @@ namespace OneJS {
             }
 
             try {
-                // Stop any existing execution
-                Stop();
-
-                // Initialize bridge
 #if UNITY_EDITOR
-                _bridge = new QuickJSUIBridge(_uiDocument.rootVisualElement, TempDir);
+                var workingDir = TempDir;
 #else
                 // In standalone, use persistent data path (bundle is self-contained, no file access needed)
-                _bridge = new QuickJSUIBridge(_uiDocument.rootVisualElement, Application.persistentDataPath);
+                var workingDir = Application.persistentDataPath;
 #endif
-                InjectPlatformDefines();
-
-                // Expose the working directory to JS for asset path resolution
-                var escapedWorkingDir = RunnerUtils.EscapeJsString(_bridge.WorkingDir);
-                _bridge.Eval($"globalThis.__workingDir = '{escapedWorkingDir}'");
-
-                // Expose root element
-                var rootHandle = QuickJSNative.RegisterObject(_uiDocument.rootVisualElement);
-                _bridge.Eval($"globalThis.__root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle})");
-
-                // Expose bridge
-                var bridgeHandle = QuickJSNative.RegisterObject(_bridge);
-                _bridge.Eval($"globalThis.__bridge = __csHelpers.wrapObject('QuickJSUIBridge', {bridgeHandle})");
-
-                // Inject pack objects
-                InjectPackGlobals();
-
-                // Apply stylesheets
-                ApplyStylesheets();
-
-                // Decompress and evaluate the stored bundle
-                var bundle = DecompressString(_compressedBundle);
-                _bridge.Eval(bundle, "app.js");
-                _bridge.Context.ExecutePendingJobs();
-                _scriptLoaded = true;
+                // onStop for the run being replaced, a fresh context with the
+                // same globals JSRunner gives, the bundle, then onPlay
+                Host.Recreate(_uiDocument.rootVisualElement, workingDir,
+                    DecompressString(_compressedBundle), "app.js",
+                    afterOnStop: ClearPanel,
+                    configure: bridge => {
+                        PackUtils.InjectPackGlobals(bridge, _packs);
+                        RunnerUtils.ApplyStylesheets(_uiDocument.rootVisualElement, _stylesheets);
+                    });
             } catch (Exception ex) {
                 // Show full exception chain for TypeInitializationException and similar
                 var fullMessage = ex.ToString();
@@ -484,12 +463,12 @@ namespace OneJS {
         /// Stop execution and clear UI.
         /// </summary>
         public void Stop() {
-            if (_bridge != null) {
-                _uiDocument?.rootVisualElement?.Clear();
-                _bridge.Dispose();
-                _bridge = null;
-            }
-            _scriptLoaded = false;
+            if (_host?.Bridge == null) return;
+            _host.Stop(afterOnStop: ClearPanel);
+        }
+
+        void ClearPanel() {
+            _uiDocument?.rootVisualElement?.Clear();
         }
 
         /// <summary>
@@ -523,10 +502,6 @@ namespace OneJS {
             return File.GetLastWriteTimeUtc(packageJson) > File.GetLastWriteTimeUtc(lockFile);
         }
 
-        void InjectPlatformDefines() {
-            RunnerUtils.InjectPlatformDefines(_bridge);
-        }
-
         /// <summary>
         /// Extract pack files to TempDir/{PackFolder}/{slug}/.
         /// Called before building.
@@ -537,21 +512,6 @@ namespace OneJS {
 
         [Obsolete("ExtractCartridges is now ExtractPacks.")]
         public void ExtractCartridges() => ExtractPacks();
-
-        /// <summary>
-        /// Apply USS StyleSheets to the root visual element.
-        /// </summary>
-        void ApplyStylesheets() {
-            RunnerUtils.ApplyStylesheets(_uiDocument.rootVisualElement, _stylesheets);
-        }
-
-        /// <summary>
-        /// Inject packs as JavaScript globals accessible via __pack(path).
-        /// Access pattern: __pack('slug') or __pack('@namespace/slug')
-        /// </summary>
-        void InjectPackGlobals() {
-            PackUtils.InjectPackGlobals(_bridge, _packs);
-        }
 
         string GetPackageJsonContent() {
             // Build additional dependencies from _modules list
