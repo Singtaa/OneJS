@@ -3,6 +3,8 @@
     "rootNamespace": "OneJS.Tests",
     "references": [
         "OneJS.Runtime",
+        "OneJS.Runtime.InputSystem",
+        "Unity.InputSystem",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

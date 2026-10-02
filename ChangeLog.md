@@ -8,6 +8,7 @@
 - Timeouts due in the same frame run in due order
 - `fetch` sends PATCH and other methods as themselves, with their body
 - `Headers` and `URLSearchParams` are iterable; an empty header reads as `""`
+- InputBridge reports Input System action phases, so `action.on()` in onejs-unity fires
 
 # [2026-10-01] v3.9.4
 

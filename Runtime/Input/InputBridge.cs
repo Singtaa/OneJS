@@ -31,6 +31,8 @@ namespace OneJS.Input {
             _actionHandles.Clear();
             _nextDynamicMapHandle = 1;
             _dynamicMaps.Clear();
+            _actionWatchers.Clear();
+            _actionEvents.Clear();
             // Zero-alloc bindings (re-registered lazily)
             _bindingsRegistered = false;
             _bindingIds = default;
@@ -894,6 +896,76 @@ namespace OneJS.Input {
                 if (!_assetHandles.TryGetValue(assetHandle, out var asset)) return;
                 var map = asset.FindActionMap(mapName);
                 map?.Disable();
+            }
+        }
+
+        // ============ Action Events ============
+
+        // started/performed/canceled of each watched action, as "handle,code"
+        // with 0/1/2, in the order they happened. JS drains it once a frame
+        // while it has callbacks. Capped so a context that stops draining
+        // without unwatching (a crash mid-reload) cannot grow it forever.
+        const int MaxQueuedActionEvents = 1024;
+        static readonly Dictionary<int, Action<InputAction.CallbackContext>[]> _actionWatchers =
+            new Dictionary<int, Action<InputAction.CallbackContext>[]>();
+        static readonly Queue<(int handle, int code)> _actionEvents = new Queue<(int, int)>();
+        static readonly System.Text.StringBuilder _actionEventText = new System.Text.StringBuilder();
+
+        /// <summary>
+        /// Start queueing an action's started, performed and canceled phases
+        /// for <see cref="DrainActionEvents"/>. Watching twice is one watch.
+        /// </summary>
+        public static void WatchActionEvents(int actionHandle) {
+            lock (_lock) {
+                if (_actionWatchers.ContainsKey(actionHandle)) return;
+                if (!_actionHandles.TryGetValue(actionHandle, out var action)) return;
+                var watchers = new Action<InputAction.CallbackContext>[] {
+                    _ => QueueActionEvent(actionHandle, 0),
+                    _ => QueueActionEvent(actionHandle, 1),
+                    _ => QueueActionEvent(actionHandle, 2),
+                };
+                action.started += watchers[0];
+                action.performed += watchers[1];
+                action.canceled += watchers[2];
+                _actionWatchers[actionHandle] = watchers;
+            }
+        }
+
+        /// <summary>
+        /// Stop queueing an action's phases.
+        /// </summary>
+        public static void UnwatchActionEvents(int actionHandle) {
+            lock (_lock) {
+                if (!_actionWatchers.TryGetValue(actionHandle, out var watchers)) return;
+                _actionWatchers.Remove(actionHandle);
+                if (!_actionHandles.TryGetValue(actionHandle, out var action)) return;
+                action.started -= watchers[0];
+                action.performed -= watchers[1];
+                action.canceled -= watchers[2];
+            }
+        }
+
+        /// <summary>
+        /// The phases queued since the last drain, as "handle,code;handle,code",
+        /// or an empty string when nothing happened.
+        /// </summary>
+        public static string DrainActionEvents() {
+            lock (_lock) {
+                if (_actionEvents.Count == 0) return "";
+                _actionEventText.Clear();
+                while (_actionEvents.Count > 0) {
+                    var (handle, code) = _actionEvents.Dequeue();
+                    if (_actionEventText.Length > 0) _actionEventText.Append(';');
+                    _actionEventText.Append(handle).Append(',').Append(code);
+                }
+                return _actionEventText.ToString();
+            }
+        }
+
+        static void QueueActionEvent(int actionHandle, int code) {
+            lock (_lock) {
+                if (_actionEvents.Count >= MaxQueuedActionEvents) _actionEvents.Dequeue();
+                _actionEvents.Enqueue((actionHandle, code));
             }
         }
 
