@@ -140,8 +140,11 @@ namespace OneJS {
             }
         }
 
+        /// <summary>The production bundle: React's production build, the one saved to the component and shipped.</summary>
         public string OutputFile => Path.Combine(TempDir, "@outputs", "app.js");
         public string SourceMapFile => OutputFile + ".map";
+        /// <summary>The development bundle, with React's warnings, which Play mode in the Editor runs when it is there.</summary>
+        public string DevelopmentOutputFile => Path.Combine(TempDir, "@outputs", "app.dev.js");
         /// <summary>The shader program manifest the build writes beside the bundle, when it has any `.sl` imports.</summary>
         public string ProgramManifestFile => Path.Combine(TempDir, "@outputs", "app.sl.json");
 
@@ -420,14 +423,19 @@ namespace OneJS {
             try {
 #if UNITY_EDITOR
                 var workingDir = TempDir;
+                // React's warnings while prototyping; the component keeps the
+                // production bundle, which is what a player runs
+                var bundle = File.Exists(DevelopmentOutputFile)
+                    ? File.ReadAllText(DevelopmentOutputFile)
+                    : DecompressString(_compressedBundle);
 #else
+                var bundle = DecompressString(_compressedBundle);
                 // In standalone, use persistent data path (bundle is self-contained, no file access needed)
                 var workingDir = Application.persistentDataPath;
 #endif
                 // onStop for the run being replaced, a fresh context with the
                 // same globals JSRunner gives, the bundle, then onPlay
-                Host.Recreate(_uiDocument.rootVisualElement, workingDir,
-                    DecompressString(_compressedBundle), "app.js",
+                Host.Recreate(_uiDocument.rootVisualElement, workingDir, bundle, "app.js",
                     afterOnStop: ClearPanel,
                     configure: bridge => {
                         PackUtils.InjectPackGlobals(bridge, _packs);
@@ -449,7 +457,8 @@ namespace OneJS {
             if (string.IsNullOrEmpty(message)) return message;
 
 #if UNITY_EDITOR
-            var parser = SourceMapParser.Load(SourceMapFile);
+            // The map of whichever bundle Reload ran
+            var parser = SourceMapParser.Load(File.Exists(DevelopmentOutputFile) ? DevelopmentOutputFile + ".map" : SourceMapFile);
 #else
             var sourceMap = DecompressString(_compressedSourceMap);
             var parser = !string.IsNullOrEmpty(sourceMap) ? SourceMapParser.Parse(sourceMap) : null;
@@ -574,11 +583,15 @@ namespace OneJS {
     const reactJsxPath = path.resolve(__dirname, 'node_modules/react/jsx-runtime');
     const reactJsxDevPath = path.resolve(__dirname, 'node_modules/react/jsx-dev-runtime');
 
-    await esbuild.build({
+    // IIFE with globalName __exports, so JSPad finds onPlay and onStop. Built
+    // twice: a production bundle, saved to the component and shipped in
+    // players, and a development one with React's warnings for Play mode in
+    // the Editor.
+    const shared = {
       entryPoints: ['index.tsx'],
       bundle: true,
-      outfile: '@outputs/app.js',
-      format: 'esm',
+      format: 'iife',
+      globalName: '__exports',
       target: 'es2022',
       jsx: 'automatic',
       sourcemap: true,
@@ -588,12 +601,28 @@ namespace OneJS {
         'react/jsx-dev-runtime': reactJsxDevPath,
       },
       packages: 'bundle',
+    };
+
+    await esbuild.build({
+      ...shared,
+      outfile: '@outputs/app.js',
+      define: { 'process.env.NODE_ENV': '""production""' },
       plugins: [
         importTransformPlugin(),
         tailwindPlugin({ content: ['./**/*.{tsx,ts,jsx,js}'] }),
         // .sl shader programs; writes @outputs/app.sl.json, which the editor
         // records after each build so the programs compile
         slPlugin({ generateTypes: false }),
+      ],
+    });
+
+    await esbuild.build({
+      ...shared,
+      outfile: '@outputs/app.dev.js',
+      define: { 'process.env.NODE_ENV': '""development""' },
+      plugins: [
+        importTransformPlugin(),
+        tailwindPlugin({ content: ['./**/*.{tsx,ts,jsx,js}'] }),
       ],
     });
 

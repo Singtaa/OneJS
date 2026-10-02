@@ -495,6 +495,7 @@ JSPad works in standalone builds without requiring npm/node at runtime:
 1. **Bundle Serialization**: every successful build saves the bundle and source map to the component (`SaveBundleToSerializedFields`), GZip-compressed and Base64-encoded in hidden `_compressedBundle` / `_compressedSourceMap` fields
 2. **Scene Auto-Save**: outside Play mode the scene is saved right after, so the bundle persists for builds
 3. **Runtime Loading**: `Start()` (and re-enable) runs the serialized bundle whenever `HasBuiltBundle` is true, in the editor and in a player
+4. **Two bundles per build**: both IIFE with `globalName: "__exports"`, so `onPlay`/`onStop` are found. `@outputs/app.js` defines `NODE_ENV` as production and is the one serialized and shipped; `@outputs/app.dev.js` keeps React's development build and warnings, and Play mode in the Editor runs it when it exists
 
 A bundle built during Play mode is cached under `Temp/JSPadCache/` on exit, meant to be restored to the component in edit mode; the restore still targets the pre-compression `_builtBundle` field, so it currently restores nothing.
 
