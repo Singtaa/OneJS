@@ -85,6 +85,10 @@ namespace OneJS.Fx {
         // releases its handles and no one else's.
         static readonly Dictionary<int, int> s_Owners = new Dictionary<int, int>();
         static int s_NextHandle = 1;
+        // Handles minted by WrapTexture, keyed by context and texture, so a
+        // chain rebuilt every frame from the same texture reuses one handle.
+        static readonly Dictionary<(int context, Texture texture), int> s_Wrapped =
+            new Dictionary<(int, Texture), int>();
 
         static int Track(Texture t, bool pooled) {
             int h = s_NextHandle++;
@@ -107,9 +111,29 @@ namespace OneJS.Fx {
             return Track(tex, false);
         }
 
-        /// <summary>Returns a handle's target to the pool. Loaded textures are left alone.</summary>
+        /// <summary>
+        /// A handle for a texture the caller holds, for `image.texture(tex)`.
+        /// The same texture in the same context gets the same handle back, and
+        /// releasing it leaves the texture alone: it stays the caller's.
+        /// </summary>
+        public static int WrapTexture(Texture texture) {
+            if (texture == null)
+                throw new ArgumentNullException(nameof(texture), "[onejs fx] image.texture() was given no texture");
+            var key = (QuickJSNative.CurrentContextId, texture);
+            if (s_Wrapped.TryGetValue(key, out var h) && s_Textures.ContainsKey(h))
+                return h;
+            h = Track(texture, false);
+            s_Wrapped[key] = h;
+            return h;
+        }
+
+        /// <summary>Returns a handle's target to the pool. Loaded and wrapped textures are left alone.</summary>
         public static void Release(int handle) {
             if (!s_Textures.TryGetValue(handle, out var t)) return;
+            if (s_Owners.TryGetValue(handle, out var owner)) {
+                var key = (owner, t);
+                if (s_Wrapped.TryGetValue(key, out var w) && w == handle) s_Wrapped.Remove(key);
+            }
             s_Textures.Remove(handle);
             s_Owners.Remove(handle);
             if (s_Pooled.Remove(handle) && t is RenderTexture rt) ReturnToPool(rt);
@@ -753,6 +777,7 @@ namespace OneJS.Fx {
             s_Textures.Clear();
             s_Pooled.Clear();
             s_Owners.Clear();
+            s_Wrapped.Clear();
             foreach (var stack in s_Pool.Values)
                 while (stack.Count > 0) Destroy(stack.Pop());
             s_Pool.Clear();
