@@ -1,0 +1,25 @@
+{
+    "name": "OneJS.Runtime.Models",
+    "rootNamespace": "OneJS.Models",
+    "references": [
+        "OneJS.Runtime",
+        "glTFast"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "ONEJS_GLTFAST"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.cloud.gltfast",
+            "expression": "6.0.0",
+            "define": "ONEJS_GLTFAST"
+        }
+    ],
+    "noEngineReferences": false
+}
