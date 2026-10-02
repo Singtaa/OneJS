@@ -809,6 +809,9 @@ namespace OneJS {
         public string TypingsFullPath => WorkingDirFullPath != null ? Path.Combine(WorkingDirFullPath, _typingsOutputPath) : null;
 #endif
 
+        /// <summary>The Globals list: each object is injected as globalThis[key].</summary>
+        public IReadOnlyList<GlobalEntry> Globals => _globals;
+
         // Pack API
         public IReadOnlyList<Pack> Packs => _packs;
 

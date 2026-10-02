@@ -132,7 +132,7 @@ C# → JS:
 - C# `event` fields: subscribe with `obj.add_OnX(fn)` / `obj.remove_OnX(fn)` (pass the same fn reference to remove). Plain `OnX?.Invoke(...)` in C# then calls the JS handler. Invoke on Unity's main thread only.
 - Delegate fields (`public Action OnX;`): assign directly, `obj.OnX = fn` (single handler; assign `null` to clear).
 - Hooks from `onejs-react`: `useEventSync(source, "Health")` subscribes `add_OnHealthChanged` and re-reads `source.Health` (explicit form takes `[[source, "OnEvent"], ...]`); `useFrameSync(() => obj.Value)` polls per frame; `useThrottledSync(getter, ms)`.
-- The JSRunner `_globals` inspector list injects `UnityEngine.Object` references as `globalThis[key]`.
+- The JSRunner `_globals` inspector list injects `UnityEngine.Object` references as `globalThis[key]`, and OneJS declares each one in `types/jsrunner.d.ts` with its C# type, so do not hand-write `declare const` lines for them.
 
 Performance on QuickJS (an interpreter): every proxy access is a reflection crossing. For many values per frame, marshal one JSON string per frame and parse it in JS, or register `QuickJSNative.FastPath` accessors for zero-alloc reads. See https://onejs.com/docs/guides/zero-alloc
 

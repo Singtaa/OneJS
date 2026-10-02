@@ -348,6 +348,8 @@ namespace OneJS.Editor {
             _globalsListContainer = new VisualElement();
             container.Add(_globalsListContainer);
             RebuildGlobalsList();
+            // Any add, remove, rename or reassignment rewrites the app's jsrunner.d.ts
+            container.TrackPropertyValue(serializedObject.FindProperty("_globals"), _ => TypeGeneratorService.WriteGlobalsTypings(_target));
         }
 
         void BuildUITab(VisualElement container) {

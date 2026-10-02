@@ -8,5 +8,7 @@
 // Keep this file free of top-level import and export: either one makes it a
 // module, and its declarations stop being global.
 //
+// Objects in JSRunner's Globals list are declared for you, in jsrunner.d.ts.
+//
 // For example, a value your C# code puts on globalThis:
 // declare const gameVersion: string

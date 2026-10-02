@@ -17,6 +17,10 @@ Open the Type Generator window via **Tools > OneJS > Type Generator** in the Uni
 
 Each JSRunner's Build tab has a Type Generation section: pick assemblies, and the typings are written to its output path (default `types/csharp.d.ts` inside `~/`). With **Auto Generate** on they regenerate after every domain reload (`TypeGeneratorService`); **Tools > OneJS > Regenerate All Project Typings** regenerates every runner's typings at once.
 
+### A JSRunner's Globals
+
+`GlobalsTypings` declares each object in a runner's Globals list in `types/jsrunner.d.ts`, beside the output path's file: `declare const ghostPrefab: CS.UnityEngine.GameObject`. A type the app's typings do not declare falls back to its nearest declared base, ending at `CS.UnityEngine.Object`, never `any`. "Declared" is read from the `.d.ts` text the app compiles against (`node_modules/unity-types` and the runner's own typings), not assumed from assembly names, since unity-types' files do not map one to one onto assemblies. The file is written when the inspector's Globals list changes, on domain reload and after typings generate, only when its content changes, and is removed when the list empties. It needs no typing assemblies. The name says where the declarations come from, as `csharp.d.ts` does, and keeps clear of the app's own `global.d.ts`.
+
 ### Using the API
 
 #### One-Liners

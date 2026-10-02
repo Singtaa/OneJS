@@ -2,6 +2,7 @@
 
 Migrating: copy the template's `esbuild.config.mjs` and build scripts, add `onejs-unity/globals` to tsconfig `types`, and delete the copied declarations from `types/global.d.ts`. `fetch` now rejects when no response arrives, so code checking `status === 0` moves to `try`/`catch`. `localStorage` keys live under `onejs:` in PlayerPrefs (old keys move over on first read), so C# reading them adds the prefix. Re-enabling a JSRunner calls `onStop` before `onPlay`. Unhandled promise rejections now log as errors. The API review's new names (`onejs.*`, `useFrame`, `drawing`, `toRGBA`, `open`/`onOpenChange`, `fx.useAnimation`) sit beside the old ones, which keep working.
 
+- JSRunner's Globals are declared for TypeScript in `types/jsrunner.d.ts`, each with its C# type
 - Every public global is also under one `onejs` namespace
 - `onejs.cs.typeExists` says whether a C# type is loaded
 - Unhandled promise rejections log as errors on native platforms

@@ -37,6 +37,9 @@ namespace OneJS.Editor.TypeGenerator {
                         OneJSLog.Exception($"[TypeGeneratorService] Auto-generation failed for '{runner.name}'", ex, runner);
                     }
                 }
+                // After csharp.d.ts, which decides how exactly each global can be typed.
+                // Every runner, since a Globals list needs no typing assemblies.
+                WriteGlobalsTypings(runner);
             }
         }
 
@@ -93,6 +96,8 @@ namespace OneJS.Editor.TypeGenerator {
 
                 // Write the file
                 result.WriteTo(outputPath);
+                // The globals may name types the new csharp.d.ts declares
+                WriteGlobalsTypings(runner);
 
                 if (!silent) {
                     Debug.Log($"[TypeGeneratorService] Generated {result.TypeCount} types for '{runner.name}' at {outputPath}");
@@ -102,6 +107,17 @@ namespace OneJS.Editor.TypeGenerator {
             } catch (Exception ex) {
                 OneJSLog.Exception($"[TypeGeneratorService] Failed to generate typings for '{runner.name}'", ex, runner);
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Rewrites the runner's jsrunner.d.ts if its Globals list or typings changed it.
+        /// </summary>
+        public static void WriteGlobalsTypings(JSRunner runner) {
+            try {
+                GlobalsTypings.WriteFor(runner);
+            } catch (Exception ex) {
+                OneJSLog.Exception($"[TypeGeneratorService] Could not write {GlobalsTypings.FileName} for '{runner.name}'", ex, runner);
             }
         }
 
@@ -143,6 +159,8 @@ namespace OneJS.Editor.TypeGenerator {
                     if (GenerateTypingsFor(runner, silent: false)) {
                         successCount++;
                     }
+                } else {
+                    WriteGlobalsTypings(runner);
                 }
             }
 

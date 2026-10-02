@@ -314,7 +314,7 @@ The inspector adapts to the project state:
 | Poll Interval | How often to check for file changes (default 0.5s) |
 | Enable Janitor | Auto-cleanup of JS-created GameObjects on reload |
 | Preloads | TextAssets eval'd before entry file (e.g., polyfills) |
-| Globals | `key → Object` pairs injected as `globalThis[key]` |
+| Globals | `key → Object` pairs injected as `globalThis[key]`, and declared for TypeScript in `types/jsrunner.d.ts` |
 | **UI tab** | |
 | Stylesheets | USS StyleSheets applied on init/reload |
 | Panel Settings | Embedded PanelSettings inspector for inline configuration |
