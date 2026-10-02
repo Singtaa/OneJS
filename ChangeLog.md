@@ -1,3 +1,9 @@
+# Unreleased
+
+- 3D models from `.glb` files through glTFast, for ojplay's `useScene` and `useModel`
+- Models cast and receive soft shadows under a sun, sky and ground ambient, fog and point lights
+- glTF materials keep metallic, roughness, normal, occlusion, emission and alpha
+
 # [2026-10-01] v3.9.4
 
 UI Cartridges are now Packs, and a project made before the rename keeps working as it was. A new project's `global.d.ts` types `fetch`, `URL`, `localStorage` and the other web globals the runtime installs.

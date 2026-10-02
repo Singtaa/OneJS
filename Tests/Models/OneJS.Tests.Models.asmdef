@@ -1,0 +1,31 @@
+{
+    "name": "OneJS.Tests.Models",
+    "rootNamespace": "OneJS.Tests.Models",
+    "references": [
+        "OneJS.Runtime",
+        "OneJS.Runtime.Models",
+        "glTFast",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS",
+        "ONEJS_GLTFAST"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.cloud.gltfast",
+            "expression": "6.0.0",
+            "define": "ONEJS_GLTFAST"
+        }
+    ],
+    "noEngineReferences": false
+}

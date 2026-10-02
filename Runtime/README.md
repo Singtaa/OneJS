@@ -49,6 +49,8 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `Physics2D/Physics2DBridge.cs` | JS entry for 2D physics worlds, `TickAll`, `DisposeOwnedBy` / `DisposeAll` (same shape as `ParticleBridge`) |
 | `Physics2D/PhysicsWorld2D.cs` | A script-simulated Unity 2D physics world (`Rigidbody2D`) whose bodies drive VisualElements by `transform.position`; contacts come back as one flat event buffer |
 | `Physics2D/Physics2DWire.cs` | Versioned wire schema (v1) shared with onejs-unity `src/physics2d/index.ts`, guarded by the container's `Physics2DWireContractTests` |
+| `Models/ModelBridge.cs` | 3D models for ojplay's `useScene`: `.glb` loads, actors, sun, ambient, fog and point lights by handle (optional assembly, needs glTFast) |
+| `Models/ModelMaterialGenerator.cs` | glTF materials on `ModelLit`, falling back to glTFast's own where it has no SubShader |
 | `Audio/AudioBridge.cs` | Sound on every platform: clips load once to a handle, plays are single calls on a pool of 24 `AudioSource` voices |
 | `Fx/FxBridge.cs` | Image operation chains (onejs-unity `fx`): one flat float buffer per chain, per-pixel ops fused into one `OneJS/FxOps` blit |
 | `ShaderFX/ShaderEffectElement.cs` | Runs a shader into an element's `backgroundImage` via a per-frame blit to a RenderTexture |
@@ -805,6 +807,17 @@ JS side: `createPhysicsWorld(host, config)` from `onejs-unity/physics2d`.
 - **Simulation**: `Physics2D.simulationMode = Script`, stepped with `dt` clamped to 50ms.
 
 Tests: `Tests/Physics2DBodyTests.cs`; the wire is compared with onejs-unity's `src/physics2d/index.ts` by the container's `Physics2DWireContractTests`.
+
+## 3D Models (`Models/` folder)
+
+JS side: `useScene` and `useModel` from ojplay (`src/models.ts`). An optional assembly, `OneJS.Runtime.Models`, compiled only when glTFast (`com.unity.cloud.gltfast` 6.0 or newer) is installed; JS looks `ModelBridge` up by name and names the package when it is missing.
+
+- **Handles only**: `ModelBridge` loads a `.glb` as an inactive template (`Load` is a Task), spawns copies, moves, animates (legacy `Animation`, stepped by hand in edit mode), picks, dissolves and lights them, all through integer handles.
+- **One shader**: `ModelMaterialGenerator` builds every glTF material on `Resources/OneJS/ModelLit.shader`: URP's PBR lighting with soft main light shadows, plus a built-in pipeline SubShader on Standard lighting. Every SubShader requires glTFast (`PackageRequirements`), so a project without it builds nothing extra, and `Editor/ModelShaderStripper.cs` drops the built-in one from scriptable pipeline builds. Where neither SubShader runs (HDRP) glTFast's own materials are used and only the dissolve is lost.
+- **Two modes**: in play mode and players the bridge's camera, sun, ambient and fog replace the scene's (screen cameras and directional lights are switched off, `RenderSettings` saved) until `DisposeAll` restores them. In the edit-mode preview it only adds `DontSave` objects and changes nothing in the open scene, so the scene's own sun lights the models; it makes a sun only when the scene has none.
+- **Teardown**: the models module calls `DisposeAll` when its scene unmounts, which hot reload and leaving edit mode both do. A load still running then is cancelled and destroys what it made, so nothing outlives the domain reload.
+
+Tests: `Tests/Models/` (EditMode and PlayMode, both gated on glTFast) with the `Fixtures~/cubes.glb` fixture its `cubes.mjs` generates.
 
 ## Audio (`Audio/` folder)
 

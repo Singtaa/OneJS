@@ -14,6 +14,7 @@ Editor scripts for OneJS Unity integration.
 | `JSRunnerBuildProcessor.cs` | Build hook for auto-copying JS bundles |
 | `SLShaderGenerator.cs` | Turns `*.sl.json` manifests into generated shaders, records programs the editor draws into `Assets/OneJS/Recorded.sl.json` on the next editor update, generates from the manifest beside a bundle before every load (`JSRunner.EditorLoadingBundle`), records JSPad's manifest after its build, and holds `SLShaderBuildStep`, which ships every program compiled in a native player through `SLShaderRegistry` and fails a build whose recorded programs are under a hash scheme no app manifest produces (`CheckRecorded`); recording drops those programs |
 | `OneJSLinkXmlProcessor.cs` | Hands the linker `Plugins/link.xml` when OneJS is a package, since Unity reads a link.xml only under `Assets/`; without it IL2CPP strips the UI Toolkit internals OneJS reflects on |
+| `ModelShaderStripper.cs` | Leaves the built-in pipeline SubShader of `ModelLit` (the 3D models shader) out of builds where every quality level renders through a scriptable pipeline |
 | `NodeWatcherManager.cs` | Manages Node.js file watcher processes for live reload |
 | `OneJSProcessUtils.cs` | Process helpers (tree-kill on Windows via `taskkill /T /F`, Unix via `pgrep -P`) |
 | `OneJSEditorDesign.cs` | Centralized design tokens (colors, text labels) for editor UIs |
