@@ -974,6 +974,15 @@ namespace OneJS.Input {
         static int _nextDynamicMapHandle = 1;
         static readonly Dictionary<int, InputActionMap> _dynamicMaps = new Dictionary<int, InputActionMap>();
 
+        /// <summary>Dynamic action maps created and not yet disposed.</summary>
+        public static int LiveActionMapCount { get { lock (_lock) return _dynamicMaps.Count; } }
+
+        /// <summary>Action handles, from assets and dynamic maps.</summary>
+        public static int LiveActionCount { get { lock (_lock) return _actionHandles.Count; } }
+
+        /// <summary>Actions whose phases are being queued for JS.</summary>
+        public static int WatchedActionCount { get { lock (_lock) return _actionWatchers.Count; } }
+
         /// <summary>
         /// Create a new dynamic action map.
         /// </summary>

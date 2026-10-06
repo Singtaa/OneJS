@@ -501,6 +501,11 @@ namespace OneJS.Models {
 
         public static int ActorCount => _actors.Count;
 
+        public static int LightCount => _lights.Count;
+
+        /// <summary>True while the scene's root, camera and lights exist.</summary>
+        public static bool HasScene => _root != null;
+
         static void Shadows(Actor a, bool cast, bool receive) {
             a.receive = receive;
             foreach (var r in a.renderers) {

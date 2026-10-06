@@ -270,6 +270,9 @@ namespace OneJS.Audio {
 
         public static int GetVoiceCount() => VoiceCount;
 
+        /// <summary>True while the voice pool's host object exists.</summary>
+        public static bool HasVoicePool => _host != null;
+
         public static int GetActiveVoiceCount() {
             if (_voices == null) return 0;
             var active = 0;

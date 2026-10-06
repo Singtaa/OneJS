@@ -669,6 +669,12 @@ namespace OneJS.GPU {
             }
         }
 
+        /// <summary>Compute buffers created and not yet disposed.</summary>
+        public static int LiveBufferCount { get { lock (_lock) return _bufferHandles.Count; } }
+
+        /// <summary>Render textures created and not yet disposed.</summary>
+        public static int LiveRenderTextureCount { get { lock (_lock) return _renderTextureHandles.Count; } }
+
         /// <summary>
         /// Clean up all resources.
         /// </summary>
