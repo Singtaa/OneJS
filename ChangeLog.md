@@ -3,6 +3,8 @@
 - A destroyed or unassigned Unity object reads as `null` in JS
 - A C# exception that JS catches logs nothing; an uncaught one logs with its C# stack
 - A paused shader program shows the frame drawn into its new size on WebGPU
+- Compute buffers write about 5x and read about 2x faster
+- An `Int32Array` or `Uint32Array` compute buffer reaches the shader as integers
 
 # [2026-10-02] v3.9.5
 

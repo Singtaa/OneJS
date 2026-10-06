@@ -201,6 +201,44 @@ namespace OneJS.Tests {
             yield return null;
         }
 
+        [Test]
+        public void BufferBits_FormatThenParse_KeepsEveryBit() {
+            var words = new[] { 0, 1, -1, int.MaxValue, int.MinValue, 1065353216, -1082130432, unchecked((int)0x80000000u), 0x7fc00001 };
+            var floats = new float[words.Length];
+            System.Buffer.BlockCopy(words, 0, floats, 0, words.Length * 4);
+
+            string text = BufferBits.Format(floats);
+            Assert.AreEqual("0,1,-1,2147483647,-2147483648,1065353216,-1082130432,-2147483648,2143289345", text);
+
+            var back = new int[words.Length];
+            System.Buffer.BlockCopy(BufferBits.Parse(text), 0, back, 0, words.Length * 4);
+            CollectionAssert.AreEqual(words, back);
+
+            Assert.AreEqual("", BufferBits.Format(new float[0]));
+            Assert.AreEqual(0, BufferBits.Parse("").Length);
+        }
+
+        [UnityTest]
+        public IEnumerator SetBufferBits_ReadbackBits_ReturnsTheSameWords() {
+            if (!GPUBridge.SupportsCompute) {
+                Assert.Ignore("Compute shaders not supported on this platform");
+                yield break;
+            }
+
+            Assert.IsTrue(GPUBridge.HasBufferBits);
+            const string bits = "5,-7,2147483647,-2147483648,1065353216";
+            int handle = GPUBridge.CreateBuffer(5, sizeof(int));
+            GPUBridge.SetBufferBits(handle, bits);
+
+            int requestId = GPUBridge.RequestReadback(handle);
+            Assert.Greater(requestId, 0, "Readback request should succeed");
+            for (int i = 0; i < 60 && !GPUBridge.IsReadbackComplete(requestId); i++) yield return null;
+            Assert.IsTrue(GPUBridge.IsReadbackComplete(requestId), "Readback should complete");
+
+            Assert.AreEqual(bits, GPUBridge.GetReadbackBits(requestId));
+            GPUBridge.DisposeBuffer(handle);
+        }
+
         // MARK: Dispatch Tests
 
         [UnityTest]
