@@ -4,7 +4,9 @@ using System.IO;
 using NUnit.Framework;
 using OneJS.Audio;
 using OneJS.GPU;
+#if ENABLE_INPUT_SYSTEM && ONEJS_INPUT_SYSTEM_PACKAGE
 using OneJS.Input;
+#endif
 using OneJS.SL;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -138,6 +140,8 @@ namespace OneJS.Tests {
             yield return null;
         }
 
+#if ENABLE_INPUT_SYSTEM && ONEJS_INPUT_SYSTEM_PACKAGE
+        // InputBridge compiles only in a project with the Input System package.
         [UnityTest]
         public IEnumerator Input_MapsActionsAndWatchesGoWithTheirContext() {
             int maps = InputBridge.LiveActionMapCount;
@@ -168,5 +172,6 @@ namespace OneJS.Tests {
             Assert.AreEqual(watched, InputBridge.WatchedActionCount);
             yield return null;
         }
+#endif
     }
 }
