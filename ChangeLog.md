@@ -1,3 +1,7 @@
+# Unreleased
+
+- A React text or style update crosses to C# once instead of up to three times
+
 # [2026-10-06] v3.9.6
 
 Closing or reloading a OneJS UI now frees everything it made, compute buffers move about five times faster, and Tailwind `2xl:` classes work. A WebGL build at Medium or High stripping now renders.
