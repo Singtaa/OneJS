@@ -48,6 +48,8 @@ namespace OneJS.SL {
             public int[] UniformIds;
             /// <summary>The program hash, which is what links it to a generated shader.</summary>
             public string Hash;
+            /// <summary>The context it was registered from, for <see cref="DisposeOwnedBy"/>.</summary>
+            public int Owner;
             /// <summary>By slot, for the compiled web path, which binds them itself.</summary>
             public readonly Texture[] Textures = new Texture[MaxTextures];
             /// <summary>The browser compiled program, 0 when there is none. See <see cref="SLWeb"/>.</summary>
@@ -285,7 +287,7 @@ namespace OneJS.SL {
             var why = Unrunnable();
             if (why != null) throw new InvalidOperationException(why);
 
-            var c = new Compiled { UniformNames = uniformNames, Hash = hash };
+            var c = new Compiled { UniformNames = uniformNames, Hash = hash, Owner = QuickJSNative.CurrentContextId };
             Shader gen = FindGenerated(hash);
             if (gen != null) {
                 c.Native = true;
@@ -472,7 +474,18 @@ namespace OneJS.SL {
             s_Programs.Remove(handle);
         }
 
-        /// <summary>Context teardown safety net, matching the other bridges.</summary>
+        /// <summary>
+        /// Safety net for one context's teardown, after ShaderEffectBridge has disposed
+        /// that context's elements, which release their own: what is left was uploaded
+        /// directly and never released.
+        /// </summary>
+        public static void DisposeOwnedBy(int contextId) {
+            var owned = new List<int>();
+            foreach (var kv in s_Programs) if (kv.Value.Owner == contextId) owned.Add(kv.Key);
+            foreach (var handle in owned) Release(handle);
+        }
+
+        /// <summary>Disposes every program, for the last context going away.</summary>
         public static void DisposeAll() {
             foreach (var c in s_Programs.Values) c.Dispose();
             s_Programs.Clear();

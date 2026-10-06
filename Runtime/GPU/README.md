@@ -99,7 +99,9 @@ shader.dispose()
 | `IsReadbackComplete(id)` | `bool` | Check readback status |
 | `GetReadbackBits(id)` / `GetReadbackData(id)` | `string` | Get readback result as bit patterns / as JSON |
 | `GetZeroAllocBindingIds()` | `ZeroAllocBindingIds` | Binding ids for `__zaInvokeN` (see below) |
-| `Cleanup()` | `void` | Dispose every buffer, texture and handle |
+| `DisposeOwnedBy(contextId)` | `void` | Dispose the buffers, textures and shader handles one context made; its teardown calls it |
+| `Cleanup()` | `void` | Dispose every buffer, texture and handle; the last context's teardown calls it |
+| `LiveBufferCount` / `LiveRenderTextureCount` | `int` | Buffers and render textures not yet disposed |
 
 ## Platform Support
 

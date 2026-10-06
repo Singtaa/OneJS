@@ -242,6 +242,8 @@ The React reconciler registers `unmountAll` as a teardown hook (via `globalThis.
 3. The finalizer path (`Dispose(false)`, GC thread) skips this: calling back into QuickJS off the main thread would be unsafe.
 4. React's `unmount` tears the tree down synchronously (`updateContainerSync` + `flushSyncWork` + `flushPassiveEffects`) so cleanups run immediately rather than waiting for a scheduler tick that never comes before the context is destroyed.
 
+**Subsystem safety net.** Right after the hooks, every C#-owned subsystem gets `DisposeOwnedBy(contextId)` as a safety net: Particles, Physics2D, ShaderFX, Fx, SL, GPU and Audio by name, then Input and Models, which live in assemblies this one cannot name, through the internal `ContextTornDown` event they subscribe to on load. Each records the context that made each resource (`QuickJSNative.CurrentContextId`), so tearing one JSRunner down leaves another's running. The last bridge also calls each one's `DisposeAll` (`GPUBridge.Cleanup`, `AudioBridge.Dispose`), through `LastContextTornDown` for the two optional assemblies. `SubsystemTeardownPlaymodeTests` and `Tests/Models/ModelTeardownPlaymodeTests` hold Audio, GPU, SL, Input and Models to it.
+
 ### Platform Behavior
 
 | Context | JS Loading | Live Reload |
@@ -658,8 +660,8 @@ crossings, and steady-state emission costs zero JS work.
   `QuickJSUIBridge.Dispose()` is the leak safety net. Each system records the
   context that created it, so tearing one JSRunner down leaves another's
   running; the last bridge's `DisposeAll()` sweeps anything made outside a JS
-  call. Physics worlds, shader effects and fx handles follow the same
-  ownership rule. Bursts drop when at
+  call. Physics worlds, shader effects, fx handles, SL programs, GPU buffers,
+  sounds, input actions and the 3D scene follow the same ownership rule. Bursts drop when at
   capacity (`max` is the budget knob).
 
 **Wire versioning**: the parser accepts v1..v4. Every added field defaults to the

@@ -23,6 +23,12 @@ namespace OneJS.GPU {
         static readonly Dictionary<int, RenderTexture> _renderTextureHandles = new Dictionary<int, RenderTexture>();
         static readonly Dictionary<int, AsyncGPUReadbackRequest> _readbackRequests = new Dictionary<int, AsyncGPUReadbackRequest>();
         static readonly Dictionary<int, float[]> _readbackResults = new Dictionary<int, float[]>();
+
+        // The context each handle was made in (QuickJSNative.CurrentContextId), so a
+        // context's teardown releases what it made and leaves the rest (DisposeOwnedBy).
+        static readonly Dictionary<int, int> _shaderOwners = new Dictionary<int, int>();
+        static readonly Dictionary<int, int> _bufferOwners = new Dictionary<int, int>();
+        static readonly Dictionary<int, int> _renderTextureOwners = new Dictionary<int, int>();
         static readonly object _lock = new object();
 
         // Platform capability properties (as properties for C# usage)
@@ -85,6 +91,7 @@ namespace OneJS.GPU {
 
                 int handle = _nextShaderHandle++;
                 _shaderHandles[handle] = shader;
+                _shaderOwners[handle] = QuickJSNative.CurrentContextId;
                 return handle;
             }
         }
@@ -102,6 +109,7 @@ namespace OneJS.GPU {
             lock (_lock) {
                 int handle = _nextShaderHandle++;
                 _shaderHandles[handle] = shader;
+                _shaderOwners[handle] = QuickJSNative.CurrentContextId;
                 return handle;
             }
         }
@@ -112,6 +120,7 @@ namespace OneJS.GPU {
         public static void DisposeShader(int handle) {
             lock (_lock) {
                 _shaderHandles.Remove(handle);
+                _shaderOwners.Remove(handle);
             }
         }
 
@@ -259,6 +268,7 @@ namespace OneJS.GPU {
                     var buffer = new ComputeBuffer(count, stride);
                     int handle = _nextBufferHandle++;
                     _bufferHandles[handle] = buffer;
+                    _bufferOwners[handle] = QuickJSNative.CurrentContextId;
                     return handle;
                 } catch (Exception ex) {
                     // Expected failure: the sizes and formats come from the JS caller, which
@@ -278,6 +288,7 @@ namespace OneJS.GPU {
                     buffer.Release();
                     _bufferHandles.Remove(handle);
                 }
+                _bufferOwners.Remove(handle);
             }
         }
 
@@ -370,6 +381,7 @@ namespace OneJS.GPU {
 
                     int handle = _nextRenderTextureHandle++;
                     _renderTextureHandles[handle] = rt;
+                    _renderTextureOwners[handle] = QuickJSNative.CurrentContextId;
                     return handle;
                 } catch (Exception ex) {
                     // Expected failure: the sizes and formats come from the JS caller, which
@@ -423,9 +435,10 @@ namespace OneJS.GPU {
             lock (_lock) {
                 if (_renderTextureHandles.TryGetValue(handle, out var rt)) {
                     rt.Release();
-                    UnityEngine.Object.Destroy(rt);
+                    Kill(rt);
                     _renderTextureHandles.Remove(handle);
                 }
+                _renderTextureOwners.Remove(handle);
             }
         }
 
@@ -676,7 +689,25 @@ namespace OneJS.GPU {
         public static int LiveRenderTextureCount { get { lock (_lock) return _renderTextureHandles.Count; } }
 
         /// <summary>
-        /// Clean up all resources.
+        /// Safety net for one context's teardown, after its JS cleanups: releases the
+        /// buffers and render textures that context made, and leaves the rest.
+        /// </summary>
+        public static void DisposeOwnedBy(int contextId) {
+            lock (_lock) {
+                foreach (var handle in OwnedBy(_bufferOwners, contextId)) DisposeBuffer(handle);
+                foreach (var handle in OwnedBy(_renderTextureOwners, contextId)) DisposeRenderTexture(handle);
+                foreach (var handle in OwnedBy(_shaderOwners, contextId)) DisposeShader(handle);
+            }
+        }
+
+        static List<int> OwnedBy(Dictionary<int, int> owners, int contextId) {
+            var handles = new List<int>();
+            foreach (var kv in owners) if (kv.Value == contextId) handles.Add(kv.Key);
+            return handles;
+        }
+
+        /// <summary>
+        /// Clean up all resources. The last context's teardown calls it.
         /// </summary>
         public static void Cleanup() {
             lock (_lock) {
@@ -685,14 +716,23 @@ namespace OneJS.GPU {
                 }
                 foreach (var rt in _renderTextureHandles.Values) {
                     rt.Release();
-                    UnityEngine.Object.Destroy(rt);
+                    Kill(rt);
                 }
                 _bufferHandles.Clear();
                 _renderTextureHandles.Clear();
                 _shaderHandles.Clear();
+                _bufferOwners.Clear();
+                _renderTextureOwners.Clear();
+                _shaderOwners.Clear();
                 _readbackRequests.Clear();
                 _readbackResults.Clear();
             }
+        }
+
+        // Teardown also runs in edit-mode preview, where Destroy is refused.
+        static void Kill(UnityEngine.Object o) {
+            if (Application.isPlaying) UnityEngine.Object.Destroy(o);
+            else UnityEngine.Object.DestroyImmediate(o);
         }
 
         // ============ Zero-Alloc Bindings ============
