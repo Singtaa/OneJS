@@ -1042,12 +1042,28 @@ pass (a `setTimeout(fn, 0)` chain cannot spin one tick forever), and an
 interval fires at most once per pass, re-basing after a stall instead of
 burst-firing its backlog. Guarded by `Tests/QuickJSSchedulerTests.cs`.
 
+Every event dispatch drains the job queue (`ExecutePendingJobs`) before it
+returns, so a handler's React update has rendered by the time UI Toolkit acts on
+the event. Skipping or batching that drain was measured for #106 (finding A) and
+dropped. On the 2026-10-07 Windows editor (3 runs, `Tests/EventJobDrainBenchmark.cs`),
+an empty drain cost 6 to 10 ns on a 160 to 290 ns dispatch. Draining a
+microtask-queuing handler's jobs once per 10 events instead of after each moved
+the cost by +2%, -1% and -7%, which is noise: the time is the jobs themselves.
+At about one pointermove a frame, the most it could save is 10 ns a frame, and
+it would let a render land after the event it answers.
+
 ### Fast Path
 Pre-registered handlers for hot paths (Time.deltaTime, transform.position):
 ```csharp
 FastPath.StaticProperty<Time, float>("deltaTime", () => Time.deltaTime);
 FastPath.Property<Transform, Vector3>("position", t => t.position, (t,v) => t.position = v);
 ```
+Registration is by hand, in code. An attribute or a source generator that
+registered members (#106, finding F) would change how a member gets onto the
+fast path, not how fast it then runs, so it is a developer experience item with
+nothing to measure at runtime. It stays deferred until custom fast paths are
+common. A generator is also the AOT-safe way to broader fast member coverage,
+since `Expression.Compile` is not available under IL2CPP.
 
 ## Zero-Allocation Interop (QuickJSNative.ZeroAlloc.cs)
 

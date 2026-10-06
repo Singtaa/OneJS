@@ -60,6 +60,7 @@ PlayMode (`Tests/*.cs`):
 | `JSPadPlaymodeTests.cs` | JSPad temp dirs, build state, execution |
 | `PackUtilsPlaymodeTests.cs` | Pack global injection, platform defines, `__pack()` API |
 | `JSRunnerPlaymodeTests.cs` | A single `Assert.Pass` placeholder; the real JSRunner tests are disabled pending a scene-based rewrite |
+| `EventJobDrainBenchmark.cs` | What the job drain after each event dispatch costs against the dispatch (#106 A; `[Explicit]` benchmark, read its `[Bench106A]` line) |
 
 EditMode (`Tests/Editor/`):
 
