@@ -1062,6 +1062,9 @@ namespace OneJS {
             }
 
             if (value == null) return;
+            // Unity's null, as IsNullForJs reads it; the value type test first, so
+            // a struct is never boxed on this path
+            if (!typeof(T).IsValueType && value is UnityEngine.Object unityObject && unityObject == null) return;
 
             if (typeof(T) == typeof(string)) {
                 result->type = InteropType.String;

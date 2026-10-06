@@ -71,6 +71,17 @@ namespace OneJS {
         static bool _criticalWarningLogged;
         static int _peakHandleCount;
 
+        /// <summary>
+        /// True when JS should receive null for <paramref name="obj"/>: a C# null,
+        /// or a UnityEngine.Object that Unity's overloaded == calls null, which is
+        /// a destroyed object or the editor's placeholder for an unassigned
+        /// serialized field. A plain <c>obj == null</c> on an <c>object</c> never
+        /// runs Unity's operator, so those reached JS as proxies whose first read
+        /// threw. Every writer of a value into JS asks this, so <c>x === null</c>
+        /// in JS means what <c>x == null</c> means in C#.
+        /// </summary>
+        internal static bool IsNullForJs(object obj) => obj == null || (obj is UnityEngine.Object u && u == null);
+
         public static int RegisterObject(object obj) {
             if (obj == null) return 0;
 
