@@ -6,6 +6,7 @@
 - Compute buffers write about 5x and read about 2x faster
 - An `Int32Array` or `Uint32Array` compute buffer now reaches the shader as integers, not floats: declare it `int` or `uint`
 - An integer past Int32 in an object from JS, such as `Date.now()`, arrives whole instead of as 0
+- An integer too large for an `int` field throws instead of arriving as 0
 - A WebGL build with managed stripping at Medium or High renders instead of failing with "Type not found"
 - Tailwind `2xl:` classes apply
 
