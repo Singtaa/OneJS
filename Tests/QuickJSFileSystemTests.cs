@@ -504,5 +504,35 @@ namespace OneJS.Tests {
             var removed = _bridge.Eval("removeStyleSheet('test-theme') ? 'true' : 'false'");
             Assert.AreEqual("true", removed);
         }
+
+        // MARK: System.IO Overloads
+
+        // The System.IO overloads unity-types declares for app code
+        // (Singtaa/OneJS#134), called from JS through the bridge, so a declaration
+        // never promises an overload OneJS cannot reach.
+        [UnityTest]
+        public IEnumerator SystemIO_DeclaredOverloads_ResolveThroughTheBridge() {
+            var root = _testDir.Replace("\\", "/");
+            Directory.CreateDirectory(Path.Combine(_testDir, "assets", "ui"));
+            File.WriteAllText(Path.Combine(_testDir, "a.png"), "first");
+            File.WriteAllText(Path.Combine(_testDir, "b.png"), "second");
+            File.WriteAllText(Path.Combine(_testDir, "assets", "ui", "c.png"), "nested");
+
+            _bridge.Eval($"CS.System.IO.File.Copy('{root}/a.png', '{root}/b.png', true)");
+            Assert.AreEqual("first", File.ReadAllText(Path.Combine(_testDir, "b.png")), "File.Copy with overwrite");
+
+            Assert.AreEqual(Path.Combine(root, "assets", "a.png"),
+                _bridge.Eval($"CS.System.IO.Path.Combine('{root}', 'assets', 'a.png')"), "Path.Combine with three parts");
+            Assert.AreEqual(Path.Combine(root, "assets", "ui", "a.png"),
+                _bridge.Eval($"CS.System.IO.Path.Combine('{root}', 'assets', 'ui', 'a.png')"), "Path.Combine with four parts");
+
+            Assert.AreEqual("2", _bridge.Eval($"String(CS.System.IO.Directory.GetFiles('{root}', '*.png').Length)"));
+            Assert.AreEqual("3", _bridge.Eval(
+                $"String(CS.System.IO.Directory.GetFiles('{root}', '*.png', CS.System.IO.SearchOption.AllDirectories).Length)"));
+            Assert.AreEqual("1", _bridge.Eval($"String(CS.System.IO.Directory.GetDirectories('{root}', 'ass*').Length)"));
+            Assert.AreEqual("2", _bridge.Eval(
+                $"String(CS.System.IO.Directory.GetDirectories('{root}', '*', CS.System.IO.SearchOption.AllDirectories).Length)"));
+            yield return null;
+        }
     }
 }
