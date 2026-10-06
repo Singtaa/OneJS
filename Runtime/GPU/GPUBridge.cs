@@ -296,6 +296,26 @@ namespace OneJS.GPU {
         }
 
         /// <summary>
+        /// True in a runtime that has <see cref="SetBufferBits"/> and <see cref="GetReadbackBits"/>.
+        /// onejs-unity reads it, and keeps to the JSON pair against a runtime from before them.
+        /// </summary>
+        public static bool HasBufferBits => true;
+
+        /// <summary>
+        /// Set buffer data from its 32-bit words as comma-separated int32 bit patterns
+        /// (<see cref="BufferBits"/>): exact for float, int and uint buffers, and much cheaper
+        /// than <see cref="SetBufferData"/>'s JSON.
+        /// </summary>
+        public static void SetBufferBits(int handle, string bits) {
+            lock (_lock) {
+                if (!_bufferHandles.TryGetValue(handle, out var buffer)) {
+                    return;
+                }
+                buffer.SetData(BufferBits.Parse(bits));
+            }
+        }
+
+        /// <summary>
         /// Bind a buffer to a shader kernel.
         /// </summary>
         public static void BindBuffer(int shaderHandle, int kernelIndex, string name, int bufferHandle) {
@@ -631,6 +651,21 @@ namespace OneJS.GPU {
 
                 _readbackResults.Remove(requestId);
                 return FloatArrayToJson(data);
+            }
+        }
+
+        /// <summary>
+        /// Get readback data as <see cref="BufferBits"/> text, the counterpart of
+        /// <see cref="SetBufferBits"/>. Empty if not ready.
+        /// </summary>
+        public static string GetReadbackBits(int requestId) {
+            lock (_lock) {
+                if (!_readbackResults.TryGetValue(requestId, out var data)) {
+                    return "";
+                }
+
+                _readbackResults.Remove(requestId);
+                return BufferBits.Format(data);
             }
         }
 

@@ -88,7 +88,8 @@ shader.dispose()
 | `SetFloat/Int/Bool/Vector/Matrix` | `void` | Set shader uniforms by name |
 | `PropertyToID(name)` then `SetFloatById/SetIntById/SetVectorById` | `int` / `void` | Set uniforms by cached property id |
 | `CreateBuffer(count, stride)` / `DisposeBuffer(handle)` | `int` / `void` | Compute buffer lifetime |
-| `SetBufferData(handle, json)` | `void` | Upload data to buffer |
+| `SetBufferBits(handle, bits)` | `void` | Upload data as comma-joined int32 bit patterns (`BufferBits`); what onejs-unity uses when `HasBufferBits` is true |
+| `SetBufferData(handle, json)` | `void` | Upload data as a JSON array of floats, for an onejs-unity from before `SetBufferBits` |
 | `BindBuffer(shader, kernel, name, buffer)` | `void` | Bind buffer to kernel |
 | `CreateRenderTexture(w, h, randomWrite)` / `ResizeRenderTexture` / `DisposeRenderTexture` | `int` / `bool` / `void` | Render targets for `textureRW` |
 | `SetTexture` / `SetTextureById(shader, kernel, name or id, rt)` | `void` | Bind a render texture to a kernel |
@@ -96,7 +97,7 @@ shader.dispose()
 | `Dispatch(shader, kernel, x, y, z)` | `void` | Execute kernel |
 | `RequestReadback(buffer)` | `int` | Start async readback |
 | `IsReadbackComplete(id)` | `bool` | Check readback status |
-| `GetReadbackData(id)` | `string` | Get readback result as JSON |
+| `GetReadbackBits(id)` / `GetReadbackData(id)` | `string` | Get readback result as bit patterns / as JSON |
 | `GetZeroAllocBindingIds()` | `ZeroAllocBindingIds` | Binding ids for `__zaInvokeN` (see below) |
 | `Cleanup()` | `void` | Dispose every buffer, texture and handle |
 
@@ -180,6 +181,6 @@ With zero-alloc bindings properly configured, `JSRunner.Update()` should show **
 
 - Shaders must be registered before they can be loaded from JavaScript
 - Use `Resources.Load<ComputeShader>()` for test shaders
-- Buffer data is transferred as JSON arrays (simple but not zero-copy)
+- Buffer data crosses as text holding each 32-bit word's int32 bit pattern (`BufferBits.cs`): exact for float, int and uint buffers, and about 5x cheaper than JSON to write 4096 floats (`Tests/BufferTransportBenchmark.cs`). Raw bytes cannot cross, since a bridge string ends at its first NUL; a zero-copy path needs a native entry point
 - For high-performance scenarios, consider reducing readback frequency
 - Use `createDispatcher()` for zero-alloc per-frame GPU operations

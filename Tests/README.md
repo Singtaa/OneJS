@@ -54,6 +54,7 @@ PlayMode (`Tests/*.cs`):
 | `ParticleTests.cs` | Particle wire parsing, deterministic simulation, imperative API, render smoke tests |
 | `Physics2DBodyTests.cs` | How a wire body becomes a Rigidbody2D: no engine warnings on build, density driving mass |
 | `GPUBridgePlaymodeTests.cs` | GPU compute shaders, buffers, dispatch, from C# and JS |
+| `BufferTransportBenchmark.cs` | `[Explicit]` benchmark (#107): a 4096-float buffer written and read back as JSON against `BufferBits` text; prints `[Bench107]` lines |
 | `ProcPlaymodeTests.cs` | Procedural noise and texture generators through QuickJS |
 | `JsLogSeverityPlaymodeTests.cs` | Console severity end to end through the real bootstrap and native callback |
 | `JSRunnerEventSystemPlaymodeTests.cs` | The EventSystem JSRunner creates, per input backend |
