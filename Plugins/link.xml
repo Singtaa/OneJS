@@ -22,12 +22,18 @@
         <type fullname="UnityEngine.UIElements.PointerCaptureHelper" preserve="all"/>
     </assembly>
 
-    <!-- OneJS types reached only via the CS proxy from JS. RegisterBridge is
-         called statically (so the type itself survives), but per-call methods
-         like RegisterHandler/UnregisterHandler are stripped without this hint. -->
-    <assembly fullname="OneJS.Runtime">
-        <type fullname="OneJS.PerElementEventSupport" preserve="all"/>
-    </assembly>
+    <!-- OneJS's own runtime, whole. JS reaches it by name through the CS proxy
+         (StyleBridge, PainterBridge, ParticleBridge, QuickJSUIBridge's
+         CompileStyleSheet, Network and the rest), which the linker cannot see,
+         so at Medium or High stripping a WebGL build lost them and the app
+         rendered nothing ("Type not found: OneJS.StyleBridge"). Naming types
+         one at a time was how this broke: the next bridge is always the one
+         missing from the list. The optional assemblies are reached the same
+         way (onejs-play's models and host input) and are only there when their
+         package is, hence ignoreIfMissing. -->
+    <assembly fullname="OneJS.Runtime" preserve="all"/>
+    <assembly fullname="OneJS.Runtime.Models" preserve="all" ignoreIfMissing="1"/>
+    <assembly fullname="OneJS.Runtime.InputSystem" preserve="all" ignoreIfMissing="1"/>
 
     <!-- BCL IO types reached only via the CS proxy from JS (e.g. the
          onejs-react image/SVG asset loader: CS.System.IO.Path / CS.System.IO.File).
