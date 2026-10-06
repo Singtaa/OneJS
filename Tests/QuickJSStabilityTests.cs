@@ -442,10 +442,8 @@ namespace OneJS.Tests {
 
         [UnityTest]
         public IEnumerator ExceptionContext_MethodNotFound_ThrowsWithContext() {
-            // Try to call a non-existent method: should throw with error info
-            Debug.Log("[Test] The following red error is EXPECTED - testing error handling for non-existent methods");
-            LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex(@"\[QuickJS\] Method not found"));
-
+            // Try to call a non-existent method: should throw with error info. The
+            // bridge does not log it: the caller has the exception (#136).
             bool exceptionThrown = false;
             try {
                 _ctx.Eval("CS.UnityEngine.Debug.NonExistentMethod()");
@@ -462,10 +460,8 @@ namespace OneJS.Tests {
 
         [UnityTest]
         public IEnumerator ExceptionContext_TypeNotFound_ThrowsWithContext() {
-            // Try to access a non-existent type: should throw with error info
-            Debug.Log("[Test] The following red error is EXPECTED - testing error handling for non-existent types");
-            LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex(@"\[QuickJS\] Type not found"));
-
+            // Try to access a non-existent type: should throw with error info. The
+            // bridge does not log it: the caller has the exception (#136).
             bool exceptionThrown = false;
             try {
                 _ctx.Eval("CS.NonExistent.FakeType.DoSomething()");

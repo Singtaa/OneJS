@@ -41,10 +41,12 @@ namespace OneJS {
         /// <summary>
         /// Splits QuickJS's error text, the message followed by its "at" lines,
         /// into a JSException. Lines before the first frame are the message.
+        /// When the error is a C# exception the bridge threw into JS, that
+        /// exception is the inner one, so a log of this shows the C# stack too.
         /// </summary>
         public static JSException FromText(string text) {
             Split(text, out var message, out var stack);
-            return new JSException(message, stack);
+            return new JSException(message, stack, QuickJSNative.TakeDispatchCause(text));
         }
 
         /// <summary>True when <paramref name="text"/> carries at least one JS frame.</summary>

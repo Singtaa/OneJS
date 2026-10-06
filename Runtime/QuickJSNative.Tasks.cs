@@ -296,7 +296,7 @@ namespace OneJS {
         }
 
         static string ConvertResultToJson(object result) {
-            if (result == null) return "null";
+            if (IsNullForJs(result)) return "null";
 
             // Primitives
             switch (result) {

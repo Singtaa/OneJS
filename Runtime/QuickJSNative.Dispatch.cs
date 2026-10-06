@@ -109,9 +109,21 @@ namespace OneJS {
         const int ErrorMsgBufferSize = 1024;
         static IntPtr _errorMsgBuffer;
 
-        static unsafe void Fail(InteropInvokeResult* resPtr, string message, string logMessage = null) {
+        // The C# exception the last failed dispatch threw into JS, with the text
+        // JS received for it, so a report of that JS error can carry the C#
+        // stack (TakeDispatchCause). One slot: dispatch is synchronous, and an
+        // error JS caught is simply overwritten by the next failure.
+        [ThreadStatic] static string _lastFailureText;
+        [ThreadStatic] static Exception _lastFailureCause;
+
+        // Not logged here: JS may catch the error, and a script that guards a
+        // read should not put a red line in front of whoever pressed Play.
+        // Uncaught, it is reported where it surfaces: as an Eval's JSException,
+        // as a callback's failure, or through the bootstrap's handler guards,
+        // which console.error it. Each of those reads it through
+        // JSException.FromText, which attaches the C# exception.
+        static unsafe void Fail(InteropInvokeResult* resPtr, string message, Exception cause = null) {
             resPtr->errorCode = 1;
-            Debug.LogError(logMessage ?? message);
 
             if (_errorMsgBuffer == IntPtr.Zero) _errorMsgBuffer = Marshal.AllocHGlobal(ErrorMsgBufferSize);
             var bytes = System.Text.Encoding.UTF8.GetBytes(message ?? "C# invoke error");
@@ -124,6 +136,23 @@ namespace OneJS {
             Marshal.Copy(bytes, 0, _errorMsgBuffer, n);
             Marshal.WriteByte(_errorMsgBuffer, n, 0);
             resPtr->errorMsg = _errorMsgBuffer;
+
+            _lastFailureText = System.Text.Encoding.UTF8.GetString(bytes, 0, n);
+            _lastFailureCause = cause;
+        }
+
+        /// <summary>
+        /// The C# exception behind a JS error, given the error's text: the one the
+        /// last failed dispatch threw into JS, when that text contains what JS
+        /// received for it. Null otherwise. Taking it clears it, so one exception
+        /// is attached to one report.
+        /// </summary>
+        internal static Exception TakeDispatchCause(string jsErrorText) {
+            var cause = _lastFailureCause;
+            if (cause == null || string.IsNullOrEmpty(jsErrorText) || !jsErrorText.Contains(_lastFailureText)) return null;
+            _lastFailureCause = null;
+            _lastFailureText = null;
+            return cause;
         }
 
         // MARK: Dispatch
@@ -535,21 +564,21 @@ namespace OneJS {
             }
         }
 
-        // The thrown JS error carries the one-line summary; the console keeps the
-        // stack trace, which is where it is useful.
+        // The thrown JS error carries the one-line summary; the exception itself,
+        // stack and all, rides along to whichever report the error reaches.
         static unsafe void FailWithException(InteropInvokeResult* resPtr, InteropInvokeRequest* reqPtr, Exception ex) {
             string typeName = PtrToStringUtf8(reqPtr->typeName) ?? "<unknown>";
             string memberName = PtrToStringUtf8(reqPtr->memberName) ?? "<unknown>";
             string summary = $"[QuickJS Invoke Error] {reqPtr->callKind} on {typeName}.{memberName} failed: " +
                 $"{ex.GetType().Name}: {ex.Message}";
-            Fail(resPtr, summary, summary + $"\n  Stack trace:\n{ex.StackTrace}");
+            Fail(resPtr, summary, ex);
         }
 
         // MARK: Return Value
         static unsafe void SetReturnValue(InteropInvokeResult* resPtr, object value) {
             resPtr->returnValue = default;
 
-            if (value == null) {
+            if (IsNullForJs(value)) {
                 resPtr->returnValue.type = InteropType.Null;
                 return;
             }
@@ -836,7 +865,7 @@ namespace OneJS {
             InteropValue v = default;
             v.type = InteropType.Null;
 
-            if (obj == null) return v;
+            if (IsNullForJs(obj)) return v;
 
             switch (obj) {
                 case bool b:

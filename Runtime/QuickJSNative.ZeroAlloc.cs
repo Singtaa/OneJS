@@ -278,6 +278,10 @@ namespace OneJS {
                     result->vecW = c.a;
                     result->typeHint = ColorHint;
                     break;
+                case UnityEngine.Object obj when obj == null:
+                    // Destroyed, or an unassigned field's placeholder: Unity's null (see IsNullForJs)
+                    result->type = InteropType.Null;
+                    break;
                 case UnityEngine.Object obj:
                     result->type = InteropType.ObjectHandle;
                     result->handle = RegisterObject(obj);
