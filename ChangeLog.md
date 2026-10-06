@@ -1,4 +1,8 @@
-# Unreleased
+# [2026-10-06] v3.9.6
+
+Closing or reloading a OneJS UI now frees everything it made, compute buffers move about five times faster, and Tailwind `2xl:` classes work. A WebGL build at Medium or High stripping now renders.
+
+Migrating: an `Int32Array` or `Uint32Array` compute buffer now reaches the shader as integers, so declare it `int` or `uint` where the shader read it as `float`. An integer too large for an `int` field now throws instead of arriving as 0, so a field that takes large values becomes a `long`. Run `npm update` in your app for `onejs-react` 0.3.1 and `onejs-unity` 0.10.1, which carry the `2xl:` fix, the faster buffers and the colour fix.
 
 - A destroyed or unassigned Unity object reads as `null` in JS
 - A C# exception that JS catches logs nothing; an uncaught one logs with its C# stack
