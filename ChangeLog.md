@@ -7,6 +7,7 @@
 - An `Int32Array` or `Uint32Array` compute buffer now reaches the shader as integers, not floats: declare it `int` or `uint`
 - An integer past Int32 in an object from JS, such as `Date.now()`, arrives whole instead of as 0
 - A WebGL build with managed stripping at Medium or High renders instead of failing with "Type not found"
+- Tailwind `2xl:` classes apply
 
 # [2026-10-02] v3.9.5
 
