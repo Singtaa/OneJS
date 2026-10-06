@@ -1,3 +1,7 @@
+# Unreleased
+
+- A paused shader program shows the frame drawn into its new size on WebGPU
+
 # [2026-10-02] v3.9.5
 
 Errors now log with their stack and open the line that threw, players ship React's production build, and 3D models load from `.glb` files. The API review's new names arrive beside the old ones, and a new project builds with `onejs-unity build` on `onejs-react` `^0.3.0`, `onejs-ui` `^0.0.6`, `onejs-unity` `^0.10.0` and `ojplay` `^0.10.0`.
