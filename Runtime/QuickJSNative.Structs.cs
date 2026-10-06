@@ -716,7 +716,12 @@ namespace OneJS {
                     ? d
                     : 0.0;
             }
-            return int.TryParse(numStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : 0;
+            // An int when it fits, else a long (Date.now() is about 1.76e12), else a
+            // double: a JS number is a double, and JSON.stringify writes 1e20 in full.
+            if (int.TryParse(numStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n)) return n;
+            if (long.TryParse(numStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var l)) return l;
+            if (double.TryParse(numStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var big)) return big;
+            return 0;
         }
 
         /// <summary>

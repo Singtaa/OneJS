@@ -180,5 +180,25 @@ namespace OneJS.Tests.Editor {
             StringAssert.Contains("\"v\":9", json);
             StringAssert.DoesNotContain("Kids", json);
         }
+
+        struct Stamped {
+            public long at;
+            public double far;
+            public long below;
+        }
+
+        [Test]
+        public void AnIntegerPastInt32ArrivesWhole() {
+            // Date.now() is about 1.76e12. An integer that did not fit an int used
+            // to read as 0, so a timestamp in a struct from JS arrived as 0 with no
+            // error. 1e20 does not fit a long either; JSON.stringify writes it out
+            // in full.
+            var back = (Stamped)QuickJSNative.DeserializeStruct(
+                "{\"at\":1759781234567,\"far\":100000000000000000000,\"below\":-2147483649}",
+                typeof(Stamped));
+            Assert.AreEqual(1759781234567L, back.at);
+            Assert.AreEqual(1e20, back.far);
+            Assert.AreEqual(-2147483649L, back.below);
+        }
     }
 }

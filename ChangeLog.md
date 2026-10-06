@@ -5,6 +5,7 @@
 - A paused shader program shows the frame drawn into its new size on WebGPU
 - Compute buffers write about 5x and read about 2x faster
 - An `Int32Array` or `Uint32Array` compute buffer now reaches the shader as integers, not floats: declare it `int` or `uint`
+- An integer past Int32 in an object from JS, such as `Date.now()`, arrives whole instead of as 0
 
 # [2026-10-02] v3.9.5
 

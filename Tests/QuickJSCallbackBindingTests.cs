@@ -112,6 +112,19 @@ namespace OneJS.Tests {
             yield return null;
         }
 
+        [UnityTest]
+        public IEnumerator InvokeCallback_PlainObjectReturn_KeepsIntegersPastInt32() {
+            // A plain object crosses as JSON. Its integers past Int32, such as
+            // Date.now(), used to read as 0.
+            var handle = int.Parse(_ctx.Eval(
+                "__registerCallback(function() { return { at: 1759781234567, small: 7 }; });"));
+
+            var dict = (Dictionary<string, object>)_ctx.InvokeCallback(handle);
+            Assert.AreEqual(1759781234567L, Convert.ToInt64(dict["at"]));
+            Assert.AreEqual(7, dict["small"], "an integer that fits stays an int");
+            yield return null;
+        }
+
         // MARK: Stale handle safety
 
         [UnityTest]
