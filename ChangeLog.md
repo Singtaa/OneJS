@@ -9,6 +9,7 @@
 - An integer too large for an `int` field throws instead of arriving as 0
 - A WebGL build with managed stripping at Medium or High renders instead of failing with "Type not found"
 - Tailwind `2xl:` classes apply
+- Closing or reloading one OneJS UI now frees its GPU buffers, shaders, input bindings, sounds and 3D scene
 
 # [2026-10-02] v3.9.5
 

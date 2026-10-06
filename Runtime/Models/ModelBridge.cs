@@ -99,6 +99,8 @@ namespace OneJS.Models {
         // Bumped by DisposeAll, so a load that outlives its scene knows to throw its work away.
         static int _generation;
         static Transform _root;
+        // The context that made the root: the scene is one per player, and goes with it.
+        static int _sceneOwner;
         static Camera _camera;
         static Light _sun;
 
@@ -115,6 +117,7 @@ namespace OneJS.Models {
                     var go = new GameObject(RootName);
                     Mark(go);
                     _root = go.transform;
+                    _sceneOwner = QuickJSNative.CurrentContextId;
                 }
                 return _root;
             }
@@ -491,6 +494,7 @@ namespace OneJS.Models {
             _lights.Clear();
             if (_root != null) Kill(_root.gameObject);
             _root = null;
+            _sceneOwner = 0;
             _camera = null;
             _sun = null;
             foreach (var b in _switchedOff) if (b != null) b.enabled = true;
@@ -499,7 +503,32 @@ namespace OneJS.Models {
             _saved = null;
         }
 
+#if UNITY_EDITOR
+        [UnityEditor.InitializeOnLoadMethod]
+#endif
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void JoinTeardown() {
+            QuickJSUIBridge.ContextTornDown -= DisposeOwnedBy;
+            QuickJSUIBridge.ContextTornDown += DisposeOwnedBy;
+            QuickJSUIBridge.LastContextTornDown -= DisposeAll;
+            QuickJSUIBridge.LastContextTornDown += DisposeAll;
+        }
+
+        /// <summary>
+        /// Safety net for one context's teardown: the scene goes with the context that
+        /// made it, as it does when onejs-play's models module unmounts, and stays for
+        /// any other.
+        /// </summary>
+        public static void DisposeOwnedBy(int contextId) {
+            if (_root != null && _sceneOwner == contextId) DisposeAll();
+        }
+
         public static int ActorCount => _actors.Count;
+
+        public static int LightCount => _lights.Count;
+
+        /// <summary>True while the scene's root, camera and lights exist.</summary>
+        public static bool HasScene => _root != null;
 
         static void Shadows(Actor a, bool cast, bool receive) {
             a.receive = receive;

@@ -42,10 +42,12 @@ namespace OneJS.Audio {
         static AudioSource[] _voices;
         static int[] _voiceSerial;      // which play a voice is currently serving
         static bool[] _voiceLooping;
+        static int[] _voiceOwner;       // the context that started what a voice plays
         static int _nextSerial = 1;
         static int _roundRobin;
 
         static readonly Dictionary<int, AudioClip> _clips = new Dictionary<int, AudioClip>();
+        static readonly Dictionary<int, int> _clipOwners = new Dictionary<int, int>();
         static int _nextClipHandle = 1;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -57,9 +59,11 @@ namespace OneJS.Audio {
             _voices = null;
             _voiceSerial = null;
             _voiceLooping = null;
+            _voiceOwner = null;
             _nextSerial = 1;
             _roundRobin = 0;
             _clips.Clear();
+            _clipOwners.Clear();
             _nextClipHandle = 1;
         }
 
@@ -73,6 +77,7 @@ namespace OneJS.Audio {
             _voices = new AudioSource[VoiceCount];
             _voiceSerial = new int[VoiceCount];
             _voiceLooping = new bool[VoiceCount];
+            _voiceOwner = new int[VoiceCount];
             for (var i = 0; i < VoiceCount; i++) {
                 var source = _host.AddComponent<AudioSource>();
                 source.playOnAwake = false;
@@ -99,6 +104,8 @@ namespace OneJS.Audio {
         /// caller writes `await oj.audio.load(url)` and nothing polls.
         /// </summary>
         public static async Task<int> LoadClip(string url) {
+            // Read before the first await: the rest runs outside the JS call.
+            var owner = QuickJSNative.CurrentContextId;
             EnsurePool();
             using var request = UnityWebRequestMultimedia.GetAudioClip(url, AudioTypeFor(url));
             var operation = request.SendWebRequest();
@@ -112,6 +119,7 @@ namespace OneJS.Audio {
 
             var handle = _nextClipHandle++;
             _clips[handle] = clip;
+            _clipOwners[handle] = owner;
             return handle;
         }
 
@@ -144,7 +152,8 @@ namespace OneJS.Audio {
                 }
             }
             _clips.Remove(clip);
-            UnityEngine.Object.Destroy(loaded);
+            _clipOwners.Remove(clip);
+            Kill(loaded);
         }
 
         public static int GetClipCount() => _clips.Count;
@@ -180,6 +189,7 @@ namespace OneJS.Audio {
             source.Play();
 
             _voiceLooping[slot] = loop;
+            _voiceOwner[slot] = QuickJSNative.CurrentContextId;
             var serial = _nextSerial++;
             _voiceSerial[slot] = serial;
             return serial;
@@ -222,6 +232,7 @@ namespace OneJS.Audio {
             source.clip = null;
             _voiceSerial[slot] = 0;
             _voiceLooping[slot] = false;
+            _voiceOwner[slot] = 0;
         }
 
         public static void Stop(int voice) {
@@ -270,6 +281,9 @@ namespace OneJS.Audio {
 
         public static int GetVoiceCount() => VoiceCount;
 
+        /// <summary>True while the voice pool's host object exists.</summary>
+        public static bool HasVoicePool => _host != null;
+
         public static int GetActiveVoiceCount() {
             if (_voices == null) return 0;
             var active = 0;
@@ -279,18 +293,41 @@ namespace OneJS.Audio {
             return active;
         }
 
-        /// <summary>Drops every clip and voice. Called on teardown and hot reload.</summary>
+        /// <summary>
+        /// Safety net for one context's teardown: stops the voices it started and
+        /// drops the clips it loaded, leaving another context's sound playing.
+        /// </summary>
+        public static void DisposeOwnedBy(int contextId) {
+            if (_voices != null) {
+                for (var i = 0; i < _voices.Length; i++) {
+                    if (_voiceSerial[i] != 0 && _voiceOwner[i] == contextId) StopVoiceAt(i);
+                }
+            }
+            var owned = new List<int>();
+            foreach (var kv in _clipOwners) if (kv.Value == contextId) owned.Add(kv.Key);
+            foreach (var clip in owned) UnloadClip(clip);
+        }
+
+        /// <summary>Drops every clip and voice, and the pool's host. The last context's teardown calls it.</summary>
         public static void Dispose() {
             StopAll();
             foreach (var clip in _clips.Values) {
-                if (clip != null) UnityEngine.Object.Destroy(clip);
+                if (clip != null) Kill(clip);
             }
             _clips.Clear();
-            if (_host != null) UnityEngine.Object.Destroy(_host);
+            _clipOwners.Clear();
+            if (_host != null) Kill(_host);
             _host = null;
             _voices = null;
             _voiceSerial = null;
             _voiceLooping = null;
+            _voiceOwner = null;
+        }
+
+        // Teardown also runs in edit-mode preview, where Destroy is refused.
+        static void Kill(UnityEngine.Object o) {
+            if (Application.isPlaying) UnityEngine.Object.Destroy(o);
+            else UnityEngine.Object.DestroyImmediate(o);
         }
     }
 }

@@ -31,6 +31,9 @@ namespace OneJS.Input {
             _actionHandles.Clear();
             _nextDynamicMapHandle = 1;
             _dynamicMaps.Clear();
+            _assetOwners.Clear();
+            _actionOwners.Clear();
+            _mapOwners.Clear();
             _actionWatchers.Clear();
             _actionEvents.Clear();
             // Zero-alloc bindings (re-registered lazily)
@@ -755,6 +758,11 @@ namespace OneJS.Input {
         static readonly Dictionary<int, InputAction> _actionHandles = new Dictionary<int, InputAction>();
         static readonly object _lock = new object();
 
+        // The context each handle was made in, for DisposeOwnedBy.
+        static readonly Dictionary<int, int> _assetOwners = new Dictionary<int, int>();
+        static readonly Dictionary<int, int> _actionOwners = new Dictionary<int, int>();
+        static readonly Dictionary<int, int> _mapOwners = new Dictionary<int, int>();
+
         /// <summary>
         /// Register an InputActionAsset and return a handle.
         /// </summary>
@@ -767,6 +775,7 @@ namespace OneJS.Input {
             lock (_lock) {
                 int handle = _nextAssetHandle++;
                 _assetHandles[handle] = asset;
+                _assetOwners[handle] = QuickJSNative.CurrentContextId;
 
                 // Enable all action maps by default
                 asset.Enable();
@@ -784,6 +793,7 @@ namespace OneJS.Input {
                     asset.Disable();
                     _assetHandles.Remove(handle);
                 }
+                _assetOwners.Remove(handle);
             }
         }
 
@@ -804,6 +814,7 @@ namespace OneJS.Input {
 
                 int handle = _nextActionHandle++;
                 _actionHandles[handle] = action;
+                _actionOwners[handle] = QuickJSNative.CurrentContextId;
                 return handle;
             }
         }
@@ -974,6 +985,15 @@ namespace OneJS.Input {
         static int _nextDynamicMapHandle = 1;
         static readonly Dictionary<int, InputActionMap> _dynamicMaps = new Dictionary<int, InputActionMap>();
 
+        /// <summary>Dynamic action maps created and not yet disposed.</summary>
+        public static int LiveActionMapCount { get { lock (_lock) return _dynamicMaps.Count; } }
+
+        /// <summary>Action handles, from assets and dynamic maps.</summary>
+        public static int LiveActionCount { get { lock (_lock) return _actionHandles.Count; } }
+
+        /// <summary>Actions whose phases are being queued for JS.</summary>
+        public static int WatchedActionCount { get { lock (_lock) return _actionWatchers.Count; } }
+
         /// <summary>
         /// Create a new dynamic action map.
         /// </summary>
@@ -982,6 +1002,7 @@ namespace OneJS.Input {
                 var map = new InputActionMap(name);
                 int handle = _nextDynamicMapHandle++;
                 _dynamicMaps[handle] = map;
+                _mapOwners[handle] = QuickJSNative.CurrentContextId;
                 return handle;
             }
         }
@@ -996,6 +1017,7 @@ namespace OneJS.Input {
                 var action = map.AddAction(name, InputActionType.Button);
                 int handle = _nextActionHandle++;
                 _actionHandles[handle] = action;
+                _actionOwners[handle] = QuickJSNative.CurrentContextId;
                 return handle;
             }
         }
@@ -1010,6 +1032,7 @@ namespace OneJS.Input {
                 var action = map.AddAction(name, InputActionType.Value);
                 int handle = _nextActionHandle++;
                 _actionHandles[handle] = action;
+                _actionOwners[handle] = QuickJSNative.CurrentContextId;
                 return handle;
             }
         }
@@ -1056,7 +1079,56 @@ namespace OneJS.Input {
                     map.Dispose();
                     _dynamicMaps.Remove(mapHandle);
                 }
+                _mapOwners.Remove(mapHandle);
             }
+        }
+
+        // ============ Teardown ============
+
+#if UNITY_EDITOR
+        [UnityEditor.InitializeOnLoadMethod]
+#endif
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void JoinTeardown() {
+            QuickJSUIBridge.ContextTornDown -= DisposeOwnedBy;
+            QuickJSUIBridge.ContextTornDown += DisposeOwnedBy;
+            QuickJSUIBridge.LastContextTornDown -= DisposeAll;
+            QuickJSUIBridge.LastContextTornDown += DisposeAll;
+        }
+
+        /// <summary>
+        /// Safety net for one context's teardown: drops the watches, actions, maps and
+        /// asset registrations it made, so its bindings stop firing into a context
+        /// that is gone, and leaves another context's.
+        /// </summary>
+        public static void DisposeOwnedBy(int contextId) {
+            lock (_lock) {
+                foreach (var handle in OwnedBy(_actionOwners, contextId)) {
+                    UnwatchActionEvents(handle);
+                    _actionHandles.Remove(handle);
+                    _actionOwners.Remove(handle);
+                }
+                foreach (var handle in OwnedBy(_mapOwners, contextId)) DisposeDynamicMap(handle);
+                foreach (var handle in OwnedBy(_assetOwners, contextId)) DisposeActionAsset(handle);
+            }
+        }
+
+        /// <summary>Drops every handle, for the last context going away.</summary>
+        public static void DisposeAll() {
+            lock (_lock) {
+                foreach (var handle in new List<int>(_actionWatchers.Keys)) UnwatchActionEvents(handle);
+                foreach (var handle in new List<int>(_dynamicMaps.Keys)) DisposeDynamicMap(handle);
+                foreach (var handle in new List<int>(_assetHandles.Keys)) DisposeActionAsset(handle);
+                _actionHandles.Clear();
+                _actionOwners.Clear();
+                _actionEvents.Clear();
+            }
+        }
+
+        static List<int> OwnedBy(Dictionary<int, int> owners, int contextId) {
+            var handles = new List<int>();
+            foreach (var kv in owners) if (kv.Value == contextId) handles.Add(kv.Key);
+            return handles;
         }
 
         // ============ Zero-Alloc Bindings ============

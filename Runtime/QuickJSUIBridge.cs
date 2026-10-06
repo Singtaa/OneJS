@@ -292,6 +292,17 @@ namespace OneJS {
             GC.SuppressFinalize(this);
         }
 
+        /// <summary>
+        /// Teardown for subsystems in assemblies this one cannot name (Input, Models):
+        /// raised with the context's id right after the subsystems above dispose what
+        /// it made. Each subscribes on load, unsubscribing first, since a domain reload
+        /// clears the handler and play-mode entry without one does not.
+        /// </summary>
+        internal static event Action<int> ContextTornDown;
+
+        /// <summary>Raised when the last context goes, after <see cref="ContextTornDown"/>.</summary>
+        internal static event Action LastContextTornDown;
+
         void Dispose(bool disposing) {
             if (_disposed) return;
             _disposed = true;
@@ -311,22 +322,31 @@ namespace OneJS {
             // back into QuickJS would be unsafe.
             if (disposing) {
                 RunTeardownHooks();
-                // Safety net: dispose the particle systems, physics worlds, shader
-                // effects and fx handles this context leaked, leaving another
-                // JSRunner's running. Normal disposal already happened via effect
-                // cleanups inside the teardown hooks above. The last bridge also
-                // sweeps anything made outside a JS call, plus the fx pool and
-                // materials. Not on the finalizer path (touches VisualElements).
+                // Safety net: dispose what this context made in every C#-owned
+                // subsystem, leaving another JSRunner's running. Normal disposal
+                // already happened via effect cleanups inside the teardown hooks
+                // above. The last bridge also sweeps anything made outside a JS
+                // call, plus the fx pool and materials. Not on the finalizer path
+                // (touches VisualElements). Shader effects before SL: an effect
+                // releases its own program.
                 int owner = _ctx?.Id ?? 0;
                 ParticleBridge.DisposeOwnedBy(owner);
                 Physics2DBridge.DisposeOwnedBy(owner);
                 OneJS.ShaderFX.ShaderEffectBridge.DisposeOwnedBy(owner);
                 OneJS.Fx.FxBridge.DisposeOwnedBy(owner);
+                OneJS.SL.SLProgramBridge.DisposeOwnedBy(owner);
+                OneJS.GPU.GPUBridge.DisposeOwnedBy(owner);
+                OneJS.Audio.AudioBridge.DisposeOwnedBy(owner);
+                ContextTornDown?.Invoke(owner);
                 if (lastBridge) {
                     ParticleBridge.DisposeAll();
                     Physics2DBridge.DisposeAll();
                     OneJS.ShaderFX.ShaderEffectBridge.DisposeAll();
                     OneJS.Fx.FxBridge.DisposeAll();
+                    OneJS.SL.SLProgramBridge.DisposeAll();
+                    OneJS.GPU.GPUBridge.Cleanup();
+                    OneJS.Audio.AudioBridge.Dispose();
+                    LastContextTornDown?.Invoke();
                 }
             }
 
