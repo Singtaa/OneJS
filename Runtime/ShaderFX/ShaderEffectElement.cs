@@ -51,6 +51,7 @@ namespace OneJS.ShaderFX {
         bool _paused;
         bool _drawAtSetTime;   // SetTime's frame is still to be drawn, paused or not
         bool _paintingOnLayout;
+        bool _targetIsNew;     // the target's contents are undefined until its first draw or ClearIfNew
 
         // A program drawn frame after frame (Specs/SL_NEXT.md 4). A frame is
         // one step of this element's clock: the last result becomes the
@@ -411,10 +412,14 @@ namespace OneJS.ShaderFX {
             // Compiled by the page in a WebGL player, into the same target at the
             // same point in the frame a material would draw.
             if (_isProgram && SL.SLProgramBridge.TryRenderCompiled(_programHandle, drawInto, _seconds, frame, step, previous)) {
+                // The page wrote every pixel the target shows, or the history
+                // Drew copies in did, so a new target needs no clear.
+                _targetIsNew = false;
                 Drew(frame, step, into, keeps);
                 return;
             }
-            // Nothing to draw until then, and the target was cleared when it was made.
+            ClearIfNew();
+            // Nothing to draw until then, and the target is clear.
             if (_material == null) return;
             _material.SetFloat("_Secs", _seconds);
             // Never flipped. A Blit into a render target already puts v = 0 on
@@ -575,16 +580,33 @@ namespace OneJS.ShaderFX {
             _rt.Create();
             // A new size clears a program's previous frame: it is not resampled.
             _cleared = true;
-            // A new target's contents are undefined, and a program drawn only
-            // compiled leaves it untouched until the page has compiled it.
-            var active = RenderTexture.active;
-            RenderTexture.active = _rt;
-            GL.Clear(false, true, Color.clear);
-            RenderTexture.active = active;
+            _targetIsNew = true;
             _rtW = w;
             _rtH = h;
             style.backgroundImage = new StyleBackground(Background.FromRenderTexture(_rt));
             return true;
+        }
+
+        /// <summary>
+        /// Clears a target <see cref="EnsureTarget"/> has just made, whose
+        /// contents are undefined, when Unity rather than the page is the first
+        /// to write it: before a material draws it, or when nothing does, as
+        /// while the page is still compiling a program.
+        ///
+        /// Not done when the target is made (#131). In a WebGPU player Unity
+        /// submits its commands at the end of the frame and the page submits
+        /// its draw at once, so a clear issued with the target reached the GPU
+        /// after the page's draw and wiped the frame. A page's draw writes
+        /// every pixel, so a target it draws first needs no clear; a material
+        /// still gets one just before its first draw, as it always has.
+        /// </summary>
+        void ClearIfNew() {
+            if (!_targetIsNew) return;
+            _targetIsNew = false;
+            var active = RenderTexture.active;
+            RenderTexture.active = _rt;
+            GL.Clear(false, true, Color.clear);
+            RenderTexture.active = active;
         }
 
         void ReleaseTexture() {
