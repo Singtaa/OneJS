@@ -507,6 +507,14 @@ namespace OneJS.ShaderFX {
                     hideFlags = HideFlags.HideAndDontSave,
                     wrapMode = TextureWrapMode.Clamp,
                     filterMode = FilterMode.Bilinear,
+                    // Read texel for texel, by the program and by the display
+                    // copy, so never anisotropic. The default 1 becomes 9 under
+                    // Quality Settings' Forced On, and a renderer whose
+                    // anisotropic path is inexact at a 1:1 read (Mesa's llvmpipe,
+                    // up to a fifth of a texel) then blends in a neighbour every
+                    // frame, so a program that moves or fades its history drifts.
+                    // Only 0 is exempt from Forced On.
+                    anisoLevel = 0,
                 };
                 _history[i].Create();
             }

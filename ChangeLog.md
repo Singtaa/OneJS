@@ -2,6 +2,7 @@
 
 - A React text or style update crosses to C# once instead of up to three times
 - On WebGL, pointer, wheel and viewport values arrive at full precision, and focus change events fire
+- A shader program that reads its previous frame no longer drifts where anisotropic filtering is forced on
 
 # [2026-10-06] v3.9.6
 
