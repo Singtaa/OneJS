@@ -1,6 +1,8 @@
 # Unreleased
 
 - A React text or style update crosses to C# once instead of up to three times
+- WebGL events carry the same pointer, wheel, slider and viewport numbers as the editor
+- `focuschange` fires on WebGL
 
 # [2026-10-06] v3.9.6
 

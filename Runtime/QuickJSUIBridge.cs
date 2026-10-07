@@ -506,6 +506,13 @@ namespace OneJS {
                     _inEval = false;
                 }
             }
+
+            // Tick() is where every other platform notices a focus change, and
+            // Tick() never runs here, so focuschange never reached a web app and
+            // onejs-ui's focus ring missed programmatic focus. The dispatch runs
+            // handlers from Update, as every UI Toolkit input event already does
+            // on this platform.
+            CheckFocusChange();
 #endif
         }
 
@@ -806,7 +813,7 @@ namespace OneJS {
             if (_eventDispatchHandle >= 0) {
                 DispatchEventFast(EVT_CHANGE_FLOAT, FindElementHandle(e.target), e.newValue);
             } else {
-                DispatchEvent("change", e.target, BuildChangeData(e.newValue.ToString("G", CultureInfo.InvariantCulture)));
+                DispatchEvent("change", e.target, BuildChangeData(JsonFloat(e.newValue)));
             }
         }
 
@@ -835,9 +842,7 @@ namespace OneJS {
             if (_eventDispatchHandle >= 0) {
                 DispatchEventFastViewport(handle, newWidth, newHeight);
             } else {
-                int w = (int)newWidth;
-                int h = (int)newHeight;
-                string data = $"{{\"width\":{w},\"height\":{h}}}";
+                string data = "{\"width\":" + JsonFloat(newWidth) + ",\"height\":" + JsonFloat(newHeight) + "}";
                 DispatchEventInternal(handle, "viewportchange", data);
             }
         }
@@ -952,14 +957,14 @@ namespace OneJS {
         /// resolves handles + dispatches on an actual change.
         /// </summary>
         void CheckFocusChange() {
-            if (_eventDispatchHandle < 0) return;
             var fe = _root?.focusController?.focusedElement as VisualElement;
             if (fe == _lastFocusedElement) return;
             _lastFocusedElement = fe;
 
             int rootHandle = QuickJSNative.GetHandleForObject(_root);
             int focusedHandle = fe != null ? QuickJSNative.GetHandleForElementOrAncestor(fe) : 0;
-            DispatchEventFastFocusChange(rootHandle, focusedHandle);
+            if (_eventDispatchHandle >= 0) DispatchEventFastFocusChange(rootHandle, focusedHandle);
+            else DispatchEventInternal(rootHandle, "focuschange", "{}");
         }
 
         void DispatchEventFastFocusChange(int rootHandle, int focusedHandle) {
@@ -988,9 +993,9 @@ namespace OneJS {
             int handle = FindElementHandle(target);
             if (handle == 0) return 0;
 
-            string data = string.Format(CultureInfo.InvariantCulture,
-                "{{\"x\":{0:F2},\"y\":{1:F2},\"button\":{2},\"pointerId\":{3}}}",
-                position.x, position.y, button, pointerId);
+            string data = "{\"x\":" + JsonFloat(position.x) + ",\"y\":" + JsonFloat(position.y)
+                        + ",\"button\":" + button.ToString(CultureInfo.InvariantCulture)
+                        + ",\"pointerId\":" + pointerId.ToString(CultureInfo.InvariantCulture) + "}";
 
             return DispatchEventInternal(handle, eventType, data);
         }
@@ -1007,10 +1012,7 @@ namespace OneJS {
             // Avoid `string.Format` here: a trailing `{1:F4}}}` (format-spec placeholder
             // followed by `}}`) is parsed inconsistently on Mono and corrupts the final
             // field, same hazard documented in RectToJson. Plain `.ToString` sidesteps it.
-            var inv = CultureInfo.InvariantCulture;
-            string data = "{\"deltaX\":" + delta.x.ToString("F4", inv)
-                        + ",\"deltaY\":" + delta.y.ToString("F4", inv)
-                        + "}";
+            string data = "{\"deltaX\":" + JsonFloat(delta.x) + ",\"deltaY\":" + JsonFloat(delta.y) + "}";
 
             return DispatchEventInternal(handle, eventType, data);
         }
@@ -1213,6 +1215,15 @@ namespace OneJS {
 
         // MARK: Data Builders
         static string BuildChangeData(string valueJson) => $"{{\"value\":{valueJson}}}";
+
+        /// <summary>
+        /// A float as JSON, written as the double it widens to: the value the numeric dispatch
+        /// hands a handler, so an event carries the same number on WebGL as in the editor.
+        /// G17 rather than R, which does not always round-trip on Mono. JSON has no NaN or
+        /// infinity, so those go as null.
+        /// </summary>
+        static string JsonFloat(float f) =>
+            float.IsFinite(f) ? ((double)f).ToString("G17", CultureInfo.InvariantCulture) : "null";
 
         // MARK: String Escaping
         /// <summary>
