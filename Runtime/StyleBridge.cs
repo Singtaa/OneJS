@@ -30,6 +30,13 @@ namespace OneJS {
         /// </summary>
         public static bool ClearsNull => true;
 
+        /// <summary>
+        /// This runtime has <see cref="UpdateClasses"/>, so onejs-react sends a
+        /// className update as one call. It checks this first: an older runtime
+        /// gets a call per class.
+        /// </summary>
+        public static bool UpdatesClasses => true;
+
         public static void ApplyStyles(VisualElement element, object stylesObj) {
             if (element == null || stylesObj == null) return;
             if (stylesObj is not Dictionary<string, object> styles) return;
@@ -117,27 +124,41 @@ namespace OneJS {
         // absolute h-full" cost 4 __cs.invoke crossings. WebGL builds spend
         // ~3ms per crossing, so heavy className usage was a measurable share of
         // mount latency. One crossing per element here regardless of class
-        // count. Update path keeps the per-class add/remove flow since changes
-        // are usually small deltas.
+        // count, and UpdateClasses does the same for an update.
         //
         // JS arrays of strings come through the {__csArray, __csArrayType:"string"}
         // marshalling path and arrive as string[]. Untyped arrays would arrive
         // as List<object> - handle both for safety.
         public static void AddClassesBatch(VisualElement element, object classesObj) {
-            if (element == null || classesObj == null) return;
+            if (element == null) return;
+            EachClass(element, classesObj, add: true);
+        }
+
+        /// <summary>
+        /// A className update in one crossing: the classes it dropped, then the
+        /// ones it gained. The arrays arrive as <see cref="AddClassesBatch"/>'s
+        /// do, an empty one as an untyped list.
+        /// </summary>
+        public static void UpdateClasses(VisualElement element, object removedObj, object addedObj) {
+            if (element == null) return;
+            EachClass(element, removedObj, add: false);
+            EachClass(element, addedObj, add: true);
+        }
+
+        static void EachClass(VisualElement element, object classesObj, bool add) {
             switch (classesObj) {
                 case string[] arr:
-                    for (int i = 0; i < arr.Length; i++) {
-                        if (!string.IsNullOrEmpty(arr[i])) element.AddToClassList(arr[i]);
-                    }
+                    for (int i = 0; i < arr.Length; i++) Apply(arr[i]);
                     break;
                 case System.Collections.IList list:
-                    for (int i = 0; i < list.Count; i++) {
-                        if (list[i] is string s && !string.IsNullOrEmpty(s)) {
-                            element.AddToClassList(s);
-                        }
-                    }
+                    for (int i = 0; i < list.Count; i++) Apply(list[i] as string);
                     break;
+            }
+
+            void Apply(string cls) {
+                if (string.IsNullOrEmpty(cls)) return;
+                if (add) element.AddToClassList(cls);
+                else element.RemoveFromClassList(cls);
             }
         }
 

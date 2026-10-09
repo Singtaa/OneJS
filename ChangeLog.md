@@ -2,6 +2,7 @@
 
 - Shader effects and particles draw their first frame after leaving play mode
 - A React text or style update crosses to C# once instead of up to three times
+- A React class update crosses to C# once, and a text merged into its parent's text makes no element of its own
 - `filter` and `backdrop-filter` work in USS files, CSS Modules and inline styles
 - A style React removes falls back to the stylesheet's value instead of 0 or transparent
 - On WebGL, pointer, wheel and viewport values arrive at full precision, and focus change events fire

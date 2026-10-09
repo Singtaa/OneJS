@@ -103,5 +103,18 @@ namespace OneJS.Tests.Editor {
             StyleBridge.ApplyStyles(el, new Dictionary<string, object> { { "clearedUnknownKeyTest", null } });
             LogAssert.NoUnexpectedReceived();
         }
+
+        // onejs-react's className update: what went, then what came, in one call.
+        // A string array arrives typed; an empty JS array arrives as an untyped list.
+        [Test]
+        public void UpdateClasses_RemovesThenAdds() {
+            var el = new VisualElement();
+            StyleBridge.AddClassesBatch(el, new[] { "a", "b", "c" });
+            StyleBridge.UpdateClasses(el, new[] { "b", "c" }, new List<object> { "d", "" });
+            CollectionAssert.AreEquivalent(new[] { "a", "d" }, el.GetClasses());
+            StyleBridge.UpdateClasses(el, new List<object>(), new[] { "e" });
+            CollectionAssert.AreEquivalent(new[] { "a", "d", "e" }, el.GetClasses());
+            Assert.IsTrue(StyleBridge.UpdatesClasses);
+        }
     }
 }
