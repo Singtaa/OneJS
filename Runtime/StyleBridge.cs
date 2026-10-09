@@ -247,6 +247,16 @@ namespace OneJS {
                 }
                 return;
             }
+            // A filter list (filter from Unity 6.3, backdropFilter from 6.6) written as
+            // USS text: found by type, so a property a newer Unity adds needs no case here.
+            if (prop.PropertyType == typeof(StyleList<FilterFunction>) && value is string filterText) {
+                if (CustomStyleSheets.UssFilter.TryParse(filterText, out var filters, out var error)) {
+                    prop.SetValue(style, filters);
+                } else if (_warnedUnknownKeys.TryAdd(key + ":" + filterText, true)) {
+                    Debug.LogWarning($"[StyleBridge] {key}: {error}. The value was dropped. Warning once per value.");
+                }
+                return;
+            }
             var converted = QuickJSNative.ConvertToTargetType(value, prop.PropertyType);
             prop.SetValue(style, converted);
         }

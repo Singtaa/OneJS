@@ -21,6 +21,7 @@ namespace OneJS.CustomStyleSheets {
         readonly string _workingDir;
 
         int _currentLine;
+        string _currentProperty;
 
         /// <summary>
         /// One entry per problem the tolerant parse would otherwise swallow.
@@ -72,6 +73,33 @@ namespace OneJS.CustomStyleSheets {
                     "style property table was not found by reflection. Sheets still compile.");
             }
             return _knownProps;
+        }
+
+        // Unity's USS function names (StyleValueFunctionExtension.FromUssString,
+        // internal, hence reflected like the property table): the same lookup its
+        // importer uses, so a function a newer Unity adds needs nothing here.
+        static System.Reflection.MethodInfo _fromUssString;
+        static bool _fromUssStringProbed;
+
+        static bool TryUnityFunction(string name, out StyleFunction function) {
+            function = StyleFunction.Unknown;
+            if (!_fromUssStringProbed) {
+                _fromUssStringProbed = true;
+                _fromUssString = typeof(StyleSheet).Assembly
+                    .GetType("UnityEngine.UIElements.StyleValueFunctionExtension")
+                    ?.GetMethod("FromUssString", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+                if (_fromUssString == null) {
+                    Debug.LogWarning("[OneJS] USS functions such as filter's blur() cannot compile: Unity's function table was not found by reflection.");
+                }
+            }
+            if (_fromUssString == null) return false;
+            try {
+                int id = Convert.ToInt32(_fromUssString.Invoke(null, new object[] { name }));
+                function = (StyleFunction)id;
+                return function != StyleFunction.Unknown && function != StyleFunction.Var;
+            } catch (System.Reflection.TargetInvocationException) {
+                return false;
+            }
         }
 
         // Unit name to DimensionUnit mapping
@@ -352,6 +380,7 @@ namespace OneJS.CustomStyleSheets {
                 });
             }
 
+            _currentProperty = name;
             _builder.BeginProperty(name, _currentLine);
             ParseAndAddValue(value);
             _builder.EndProperty();
@@ -361,32 +390,38 @@ namespace OneJS.CustomStyleSheets {
         static readonly Regex ColorHexRegex = new Regex(@"^#([0-9a-fA-F]{3,8})$", RegexOptions.Compiled);
         static readonly Regex RgbRegex = new Regex(@"^rgba?\s*\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+))?\s*\)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         static readonly Regex NumberWithUnitRegex = new Regex(@"^(-?[\d.]+)(px|%|s|ms|deg|grad|rad|turn)?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        static readonly Regex FunctionRegex = new Regex(@"^([A-Za-z][A-Za-z0-9-]*)\s*\((.*)\)$", RegexOptions.Compiled | RegexOptions.Singleline);
         static readonly Regex UrlRegex = new Regex(@"^url\s*\(\s*['""]?(.+?)['""]?\s*\)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         static readonly Regex ResourceRegex = new Regex(@"^resource\s*\(\s*['""]?(.+?)['""]?\s*\)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         static readonly Regex VarRegex = new Regex(@"^var\s*\(\s*(.+)\s*\)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         void ParseAndAddValue(string value) {
             if (string.IsNullOrWhiteSpace(value)) return;
+            AddTokens(value.Trim());
+        }
 
-            value = value.Trim();
-
-            // Check for comma-separated values (e.g., font-family fallbacks, transitions)
-            if (value.Contains(",") && !value.StartsWith("rgb") && !value.StartsWith("rgba")) {
-                var parts = SplitCssValue(value);
-                for (int i = 0; i < parts.Count; i++) {
-                    if (i > 0) _builder.AddCommaSeparator();
-                    ParseSingleValue(parts[i].Trim());
-                }
-            } else {
-                // Check for space-separated values (e.g., margin: 10px 20px)
-                var parts = SplitSpaceSeparated(value);
-                foreach (var part in parts) {
-                    ParseSingleValue(part);
-                }
+        // Each top-level comma separates groups (font-family fallbacks, transitions)
+        // and each group is space-separated values (margin: 10px 20px; a filter
+        // list), as Unity's importer tokenizes them. Commas and spaces inside
+        // parentheses belong to the function they are in.
+        void AddTokens(string value) {
+            var groups = SplitCssValue(value);
+            for (int i = 0; i < groups.Count; i++) {
+                if (i > 0) _builder.AddCommaSeparator();
+                foreach (var part in SplitSpaceSeparated(groups[i])) ParseSingleValue(part);
             }
         }
 
-        List<string> SplitCssValue(string value) {
+        // How many tokens Unity's importer would count for this text: each value,
+        // and each top-level comma. A function value records it ahead of its arguments.
+        int CountTokens(string value) {
+            var groups = SplitCssValue(value);
+            int count = groups.Count - 1;
+            foreach (var group in groups) count += SplitSpaceSeparated(group).Count;
+            return count;
+        }
+
+        internal static List<string> SplitCssValue(string value) {
             var result = new List<string>();
             int depth = 0;
             int start = 0;
@@ -404,7 +439,7 @@ namespace OneJS.CustomStyleSheets {
             return result;
         }
 
-        List<string> SplitSpaceSeparated(string value) {
+        internal static List<string> SplitSpaceSeparated(string value) {
             var result = new List<string>();
             int depth = 0;
             int start = 0;
@@ -451,35 +486,10 @@ namespace OneJS.CustomStyleSheets {
                 return;
             }
 
-            // Try hex color
-            var hexMatch = ColorHexRegex.Match(value);
-            if (hexMatch.Success) {
-                if (ColorUtility.TryParseHtmlString(value, out var color)) {
-                    _builder.AddValue(color);
-                    return;
-                }
-            }
-
-            // Try rgb/rgba. The numeric groups permit multiple dots (e.g. "1.2.3"),
-            // so guard every parse and fall through to later cases on a malformed
-            // number rather than throwing (an uncaught throw aborts the whole sheet).
-            var rgbMatch = RgbRegex.Match(value);
-            if (rgbMatch.Success
-                && TryParseFloat(rgbMatch.Groups[1].Value, out float r)
-                && TryParseFloat(rgbMatch.Groups[2].Value, out float g)
-                && TryParseFloat(rgbMatch.Groups[3].Value, out float b)) {
-                float a = 1f;
-                if (!rgbMatch.Groups[4].Success || TryParseFloat(rgbMatch.Groups[4].Value, out a)) {
-                    // If values are > 1, assume 0-255 range
-                    if (r > 1 || g > 1 || b > 1) {
-                        r /= 255f;
-                        g /= 255f;
-                        b /= 255f;
-                    }
-
-                    _builder.AddValue(new UnityEngine.Color(r, g, b, a));
-                    return;
-                }
+            // Try hex color, then rgb/rgba
+            if (TryParseColorFunctionOrHex(value, out var color)) {
+                _builder.AddValue(color);
+                return;
             }
 
             // Try url()
@@ -493,6 +503,27 @@ namespace OneJS.CustomStyleSheets {
             var resourceMatch = ResourceRegex.Match(value);
             if (resourceMatch.Success) {
                 _builder.AddResourcePath(resourceMatch.Groups[1].Value);
+                return;
+            }
+
+            // Try any other function Unity's USS knows: filter functions (blur(),
+            // hue-rotate(), drop-shadow() from 6.6...), written the way Unity's
+            // importer writes them, function then argument count then arguments.
+            // Which names exist is Unity's own table for this editor, not a list here.
+            var fnMatch = FunctionRegex.Match(value);
+            if (fnMatch.Success && !RgbRegex.IsMatch(value)) {
+                string fnName = fnMatch.Groups[1].Value;
+                string inner = fnMatch.Groups[2].Value.Trim();
+                if (TryUnityFunction(fnName, out var function)) {
+                    _builder.AddValue(function);
+                    _builder.AddValue((float)CountTokens(inner));
+                    AddTokens(inner);
+                } else {
+                    Diagnostics.Add(new UssDiagnostic {
+                        Line = _currentLine, Property = _currentProperty,
+                        Message = $"'{fnName}()' is not a USS function in this Unity version; it was left out",
+                    });
+                }
                 return;
             }
 
@@ -526,6 +557,52 @@ namespace OneJS.CustomStyleSheets {
 
             // Default: treat as enum or string
             _builder.AddValue(value, StyleValueType.Enum);
+        }
+
+        /// <summary>A hex colour or rgb()/rgba(), as this compiler reads them. Shared with UssFilter.</summary>
+        internal static bool TryParseColorFunctionOrHex(string value, out UnityEngine.Color color) {
+            color = default;
+            if (ColorHexRegex.IsMatch(value) && ColorUtility.TryParseHtmlString(value, out color)) return true;
+
+            // The numeric groups permit multiple dots (e.g. "1.2.3"), so guard every
+            // parse and fall through on a malformed number rather than throwing (an
+            // uncaught throw aborts the whole sheet).
+            var rgbMatch = RgbRegex.Match(value);
+            if (rgbMatch.Success
+                && TryParseFloat(rgbMatch.Groups[1].Value, out float r)
+                && TryParseFloat(rgbMatch.Groups[2].Value, out float g)
+                && TryParseFloat(rgbMatch.Groups[3].Value, out float b)) {
+                float a = 1f;
+                if (!rgbMatch.Groups[4].Success || TryParseFloat(rgbMatch.Groups[4].Value, out a)) {
+                    // If values are > 1, assume 0-255 range
+                    if (r > 1 || g > 1 || b > 1) {
+                        r /= 255f;
+                        g /= 255f;
+                        b /= 255f;
+                    }
+                    color = new UnityEngine.Color(r, g, b, a);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>A number with an optional unit, as this compiler reads it. Shared with UssFilter.</summary>
+        internal static bool TryParseNumber(string value, out float number, out DimensionUnit? unit) {
+            unit = null;
+            number = 0;
+            var m = NumberWithUnitRegex.Match(value);
+            if (!m.Success || !TryParseFloat(m.Groups[1].Value, out number)) return false;
+            string u = m.Groups[2].Value;
+            if (u.Length > 0) unit = UnitMap.TryGetValue(u, out var d) ? d : DimensionUnit.Pixel;
+            return true;
+        }
+
+        internal static bool IsFunction(string value, out string name, out string inner) {
+            var m = FunctionRegex.Match(value);
+            name = m.Success ? m.Groups[1].Value : null;
+            inner = m.Success ? m.Groups[2].Value.Trim() : null;
+            return m.Success;
         }
 
         // Culture-invariant float parse that never throws. Returns false for malformed
@@ -580,7 +657,7 @@ namespace OneJS.CustomStyleSheets {
             }
         }
 
-        bool TryParseNamedColor(string name, out UnityEngine.Color color) {
+        internal static bool TryParseNamedColor(string name, out UnityEngine.Color color) {
             switch (name.ToLowerInvariant()) {
                 case "black": color = UnityEngine.Color.black; return true;
                 case "white": color = UnityEngine.Color.white; return true;
