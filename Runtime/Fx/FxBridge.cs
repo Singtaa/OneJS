@@ -165,6 +165,14 @@ namespace OneJS.Fx {
                 name = "[onejs fx] " + width + "x" + height,
                 wrapMode = TextureWrapMode.Clamp,
                 filterMode = FilterMode.Bilinear,
+                // Every pass reads the target before it texel for texel, so
+                // never anisotropic, like a shader element's history
+                // (ShaderEffectElement.EnsureHistory). The default 1 becomes 9
+                // under Quality Settings' Forced On, and Mesa's llvmpipe then
+                // reads a texel centre a third of a texel off, so one chain
+                // softens and a chain fed back into its target drifts. Only 0
+                // is exempt from Forced On.
+                anisoLevel = 0,
             };
             rt.Create();
             return rt;
