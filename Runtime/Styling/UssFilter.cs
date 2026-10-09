@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -11,8 +13,8 @@ namespace OneJS.CustomStyleSheets {
     /// value to Unity's own reader; an inline style has no such reader, so this
     /// builds the functions itself, with UssCompiler's tokenizer and value parsers.
     ///
-    /// Which functions exist is Unity's FilterFunctionType for the running editor,
-    /// matched by name (hue-rotate is HueRotate), so drop-shadow works where
+    /// Which functions exist is Unity's own function table for the running editor,
+    /// the one UssCompiler compiles a sheet through, so drop-shadow works where
     /// Unity has it and is refused where it does not. FilterStylePlaymodeTests
     /// holds every input to the result a compiled sheet gives.
     /// </summary>
@@ -64,13 +66,40 @@ namespace OneJS.CustomStyleSheets {
             return true;
         }
 
-        // "hue-rotate" is FilterFunctionType.HueRotate. None, Custom and Count are not functions.
+        // A function name as Unity's sheet reader resolves it: USS name to
+        // StyleValueFunction (UssCompiler's lookup), then StyleProperty.ToFilterFunctionType,
+        // both internal, hence reflected. One table for sheets and inline styles, so the
+        // two never disagree on which functions exist. Cached per name, so a value
+        // animated every frame reflects nothing after its first.
+        static readonly ConcurrentDictionary<string, FilterFunctionType?> _functionTypes = new(StringComparer.Ordinal);
+        static MethodInfo _toFilterFunctionType;
+        static bool _toFilterFunctionTypeProbed;
+
         static bool TryFunctionType(string name, out FilterFunctionType type) {
-            var pascal = string.Concat(Array.ConvertAll(name.Split('-'),
-                part => part.Length == 0 ? "" : char.ToUpperInvariant(part[0]) + part.Substring(1).ToLowerInvariant()));
-            // By name, not by member: FilterFunctionType.Count is an error to name on 6.6
-            type = default;
-            return pascal is not ("None" or "Custom" or "Count") && Enum.TryParse(pascal, out type) && Enum.IsDefined(typeof(FilterFunctionType), type);
+            var resolved = _functionTypes.GetOrAdd(name, ResolveFunctionType);
+            type = resolved.GetValueOrDefault();
+            return resolved.HasValue;
+        }
+
+        static FilterFunctionType? ResolveFunctionType(string name) {
+            if (!UssCompiler.TryUnityFunctionValue(name, out var function)) return null;
+            if (!_toFilterFunctionTypeProbed) {
+                _toFilterFunctionTypeProbed = true;
+                _toFilterFunctionType = typeof(StyleSheet).Assembly
+                    .GetType("UnityEngine.UIElements.StyleProperty")
+                    ?.GetMethod("ToFilterFunctionType", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+                if (_toFilterFunctionType == null) {
+                    Debug.LogWarning("[OneJS] Filters in inline styles cannot be read: Unity's filter function table was not found by reflection.");
+                }
+            }
+            if (_toFilterFunctionType == null) return null;
+            try {
+                // None and Custom are what a USS name such as none() maps to, not functions to draw
+                var type = (FilterFunctionType)_toFilterFunctionType.Invoke(null, new[] { function });
+                return type is FilterFunctionType.None or FilterFunctionType.Custom ? null : type;
+            } catch (TargetInvocationException) {
+                return null;
+            }
         }
 
         static bool TryParameter(string arg, out FilterParameter parameter) {
