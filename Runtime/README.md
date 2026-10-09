@@ -1001,13 +1001,24 @@ const __handleRegistry = new FinalizationRegistry((handle) => {
 });
 ```
 
-### Recursion Guard (QuickJSUIBridge)
-All JS execution is protected by a recursion guard (`_inEval` flag) to prevent:
-- Event handlers triggering during Tick()
-- Nested eval calls causing stack overflow
-- WebGL-specific recursion issues
+### Events Raised While JS Runs (QuickJSUIBridge)
+The bridge counts its JS as running (`JsRunning`) inside its own Tick() and event dispatches
+(the `_inEval` flag), and whenever a call from its context into C# is being dispatched
+(`QuickJSNative.CurrentContextPtr`), however that JS was entered: Eval, GetJSFunction, or a
+C# delegate holding a JS function. An event raised then is one the JS caused, and is
+delivered as a browser delivers it:
 
-Events dispatched during active JS execution are silently dropped.
+- Focus, click and the rest run their handler synchronously, nested in the JS that caused
+  them, as a browser runs one inside `el.focus()` or `el.click()`.
+- Microtasks are drained only by the outermost dispatch or the tick, as a browser's
+  microtask checkpoint waits for an empty stack. Draining mid-call ran React's scheduler
+  inside a flushSync commit made from C#.
+- A `ChangeEvent<string>` on a TextElement, Label or Button is never delivered, from JS or C#,
+  since a text changing is not a change. Any other ChangeEvent is: C#'s `value` setter and
+  `SendEvent` mean to notify. onejs-react writes a `value` prop with `SetValueWithoutNotify`,
+  so a value React sets fires no `onChange`, as in React DOM.
+
+Tick() does not run while the JS is running. `EventReentrancyPlaymodeTests` holds each family.
 
 ## Profiling (in `Profiling/` folder)
 
