@@ -7,6 +7,7 @@
 - A style React removes falls back to the stylesheet's value instead of 0 or transparent
 - On WebGL, pointer, wheel and viewport values arrive at full precision, and focus change events fire
 - `onGeometryChanged` rects arrive at full precision
+- On WebGL, a sideways wheel or trackpad swipe scrolls
 - A shader program that reads its previous frame no longer drifts where anisotropic filtering is forced on
 - An fx chain no longer softens or drifts where anisotropic filtering is forced on
 - A focus or click that JS causes runs its handler at once, and microtasks wait until the JS returns
