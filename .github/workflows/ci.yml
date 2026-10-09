@@ -94,12 +94,12 @@ jobs:
   unity-tests:
     name: Unity tests (EditMode + PlayMode)
     runs-on: ubuntu-latest
-    # The unity-ci environment holds the license secrets, and its branch policy
-    # refuses fork branches. Requesting it from a fork PR fails before any step
-    # runs and stamps the PR with a deployment error, so skip the job instead:
-    # fork PRs get the native plugin checks, and the Unity suite runs on main
-    # after merge.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # The unity-ci environment holds the Unity license secrets and admits main
+    # only, so no other branch's code runs with them. Any other ref, a pull
+    # request's (same repo or fork) or a dispatch on a branch, is refused before
+    # a step runs and shows as a failure, so the job is skipped there instead:
+    # PRs get the native plugin checks, and the Unity suite runs on main.
+    if: github.ref == 'refs/heads/main'
     environment: unity-ci
     env:
       HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
