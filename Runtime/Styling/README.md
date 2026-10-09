@@ -61,9 +61,10 @@ element.styleSheets.Add(styleSheet);
 - URLs: `url("path/to/image.png")`, loads from working directory
 - Resources: `resource("path")`. Unity resource paths
 - Custom properties and `var(--name)` / `var(--name, fallback)` (a `var()` can carry a font)
+- Functions the running Unity's USS knows, compiled as its importer compiles them: filter functions for `filter` (6.3+) and `backdrop-filter` (6.6+), `blur(4px) hue-rotate(90deg)`, with `drop-shadow()` from 6.6. Names resolve through Unity's own table, so a function it lacks is a diagnostic, not a guess. `UssFilter` reads the same values for an inline style
 
 ### Not Yet Supported
-- Complex functions (`linear-gradient()`, etc.)
+- `linear-gradient()` reaches Unity the way its importer writes it, untested
 - `@import` rules
 - Media queries
 

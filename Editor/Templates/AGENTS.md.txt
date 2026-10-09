@@ -34,7 +34,7 @@ Styling, all bundle-embedded (works in player builds):
 - Plain USS: `import uss from "./styles/main.uss"` + `compileStyleSheet(uss, "main.uss")` once at startup
 - CSS Modules: `import styles from "./x.module.uss"` → `className={styles.foo}`
 - Tailwind: `import "onejs:tailwind"` once, then utility classes (responsive prefixes need `<ScreenProvider>`)
-- Limits: no CSS grid, no `gap`, no `z-index` (paint order = sibling order), no shadows/filters
+- Limits: no CSS grid, no `gap`, no `z-index` (paint order = sibling order), no box shadows. `filter` (Unity 6.3+) and `backdrop-filter` (6.6+) take USS filter functions such as `blur(4px)`, in USS and inline styles
 
 C# interop:
 

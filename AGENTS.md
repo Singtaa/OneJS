@@ -103,7 +103,7 @@ All four options embed in the bundle and work in player builds:
 3. CSS Modules: `import styles from "./x.module.uss"` → `className={styles.container}`; `.d.ts` auto-generated.
 4. Tailwind: `import "onejs:tailwind"` once, then utility classNames. Built-in JIT generator, no npm dependency. Responsive prefixes need `<ScreenProvider>`.
 
-Limits: no CSS grid, no `gap`, no `z-index` (paint order = sibling order), no shadows/filters.
+Limits: no CSS grid, no `gap`, no `z-index` (paint order = sibling order), no box shadows. `filter` (Unity 6.3+) and `backdrop-filter` (6.6+) take USS filter functions, `blur(4px) grayscale(50%)`, in USS, CSS Modules and inline styles, but are not Tailwind utilities.
 
 ## Packs
 
