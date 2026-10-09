@@ -34,7 +34,25 @@ namespace OneJS {
         // hot-reload teardown. A fully isolated future design would partition the
         // handle table by context id and remove this counter entirely.
         static int _liveBridgeCount;
-        bool _inEval; // Recursion guard to prevent re-entrant JS execution (all platforms)
+        bool _inEval; // JS this bridge entered itself, the tick or an event, is running (all platforms)
+
+        // This bridge's JS is on the stack: in the tick or an event this bridge
+        // dispatched (_inEval), or in a call that JS made into C#, however the JS was
+        // entered (Eval, GetJSFunction, a C# delegate holding a JS function). That
+        // pointer is set while a call from JS is dispatched, which is where every
+        // event JS causes is raised.
+        bool JsRunning => _inEval || (_ctx != null && QuickJSNative.CurrentContextPtr == _ctx.NativePtr);
+
+        // Enters JS for an event. Inside JS that is already running, the handler runs
+        // there and then, as a browser runs one inside el.focus() or el.click(); the
+        // microtask checkpoint is left to the outermost JS, as a browser leaves it
+        // until the stack is empty. Returns whether this is the outermost.
+        bool EnterEvent(out bool wasInEval) {
+            bool outermost = !JsRunning;
+            wasInEval = _inEval;
+            _inEval = true;
+            return outermost;
+        }
         int _tickCallbackHandle = -1; // Cached handle for zero-alloc tick
         int _eventDispatchHandle = -1; // Cached handle for zero-alloc event dispatch
         readonly int _wsContextId; // WebSocketBridge context ID for per-context event routing
@@ -66,8 +84,8 @@ namespace OneJS {
         float _lastViewportHeight;
 
         // Focus tracking: the panel's focusController.focusedElement at the previous
-        // tick. Diffed each Tick to emit a reliable "focuschange" to JS (the event
-        // path drops programmatic focus during eval; this runs outside _inEval).
+        // tick. Diffed each Tick to emit one "focuschange" to JS for the settled focus,
+        // however it moved (this runs outside _inEval).
         VisualElement _lastFocusedElement;
 
         // Per-element C# handler registry for events that don't reach _root's
@@ -521,13 +539,13 @@ namespace OneJS {
         /// Uses zero-allocation path when tick callback is cached.
         /// </summary>
         public void Tick() {
-            if (_disposed || _inEval) return;
+            if (_disposed || JsRunning) return;
 
             TickSystems();
 
             // Detect focus changes before entering the eval block (CheckFocusChange
-            // dispatches, which sets _inEval itself). Runs outside _inEval so it
-            // captures programmatic focus that the event path drops.
+            // dispatches, which sets _inEval itself), so the settled focus is what
+            // focuschange reports.
             CheckFocusChange();
 
             _inEval = true;
@@ -794,6 +812,9 @@ namespace OneJS {
 
         // String change events stay on eval path (need string value)
         void OnChangeString(ChangeEvent<string> e) {
+            // A text's content changing is not a change: TextElement, Label and Button
+            // raise one for every text set, from JS or C#, and a browser reports none
+            if (e.target is TextElement) return;
             // Skip ChangeEvent<string> from controls that already fire typed change events
             // (ChangeEvent<float/int/bool>). Their internal text fields generate redundant
             // string change events that are expensive to dispatch via eval.
@@ -859,7 +880,7 @@ namespace OneJS {
         // Returns the suppression-flags bitmask from __dispatchEvent (bit0=propagationStopped,
         // bit1=defaultPrevented), or 0 if nothing was dispatched.
         int DispatchEventInternal(int handle, string eventType, string dataJson) {
-            if (handle == 0 || _inEval) return 0;
+            if (handle == 0) return 0;
 
 #if UNITY_WEBGL && !UNITY_EDITOR
             // qjs_dispatch_event returns the suppression-flags bitmask (bit0=propagationStopped,
@@ -875,19 +896,17 @@ namespace OneJS {
             _sb.Append(dataJson);
             _sb.Append(")");
 
-            // Hold _inEval through ExecutePendingJobs to prevent cascading events
-            // during React reconciliation (matches DispatchEventFast semantics).
-            _inEval = true;
+            bool outermost = EnterEvent(out bool wasInEval);
             try {
                 // __dispatchEvent returns the suppression-flags bitmask; the eval result carries it.
                 string result = _ctx.Eval(_sb.ToString());
-                _ctx.ExecutePendingJobs();
+                if (outermost) _ctx.ExecutePendingJobs();
                 return (result != null && int.TryParse(result, out int flags)) ? flags : 0;
             } catch (Exception ex) {
                 LogJsError($"[QuickJSUIBridge] Event dispatch error, evaluating: {_sb}", ex);
                 return 0;
             } finally {
-                _inEval = false;
+                _inEval = wasInEval;
             }
 #endif
         }
@@ -899,60 +918,59 @@ namespace OneJS {
         int DispatchEventFast(int eventTypeId, int elemHandle) => DispatchEventFast(eventTypeId, elemHandle, 0);
 
         void DispatchEventFast(int eventTypeId, int elemHandle, float a0) {
-            if (elemHandle == 0 || _inEval) return;
-            _inEval = true;
+            if (elemHandle == 0) return;
+            bool outermost = EnterEvent(out bool wasInEval);
             try {
                 _ctx.InvokeCallbackNoAlloc(_eventDispatchHandle, eventTypeId, elemHandle, a0);
-                _ctx.ExecutePendingJobs();
+                if (outermost) _ctx.ExecutePendingJobs();
             } catch (Exception ex) {
                 LogJsError($"[QuickJSUIBridge] Event dispatch error ({eventTypeId})", ex);
-            } finally { _inEval = false; }
+            } finally { _inEval = wasInEval; }
         }
 
         int DispatchEventFast(int eventTypeId, int elemHandle, int a0) {
-            if (elemHandle == 0 || _inEval) return 0;
-            _inEval = true;
+            if (elemHandle == 0) return 0;
+            bool outermost = EnterEvent(out bool wasInEval);
             try {
                 int flags = _ctx.InvokeCallbackReturnInt(_eventDispatchHandle, eventTypeId, elemHandle, a0);
-                _ctx.ExecutePendingJobs();
+                if (outermost) _ctx.ExecutePendingJobs();
                 return flags;
             } catch (Exception ex) {
                 LogJsError($"[QuickJSUIBridge] Event dispatch error ({eventTypeId})", ex);
                 return 0;
-            } finally { _inEval = false; }
+            } finally { _inEval = wasInEval; }
         }
 
         // Pointer/click fast path. Returns the suppression-flags bitmask from the JS dispatch
         // (bit0=propagationStopped, bit1=defaultPrevented), or 0.
         int DispatchEventFast(int eventTypeId, int elemHandle, float x, float y, int button, int pointerId) {
-            if (elemHandle == 0 || _inEval) return 0;
-            _inEval = true;
+            if (elemHandle == 0) return 0;
+            bool outermost = EnterEvent(out bool wasInEval);
             try {
                 int flags = _ctx.InvokeCallbackReturnInt(_eventDispatchHandle, eventTypeId, elemHandle, x, y, button, pointerId);
-                _ctx.ExecutePendingJobs();
+                if (outermost) _ctx.ExecutePendingJobs();
                 return flags;
             } catch (Exception ex) {
                 LogJsError($"[QuickJSUIBridge] Event dispatch error ({eventTypeId})", ex);
                 return 0;
-            } finally { _inEval = false; }
+            } finally { _inEval = wasInEval; }
         }
 
         void DispatchEventFastViewport(int elemHandle, float width, float height) {
-            if (elemHandle == 0 || _inEval) return;
-            _inEval = true;
+            if (elemHandle == 0) return;
+            bool outermost = EnterEvent(out bool wasInEval);
             try {
                 _ctx.InvokeCallbackNoAlloc(_eventDispatchHandle, EVT_VIEWPORT_CHANGE, elemHandle, width, height);
-                _ctx.ExecutePendingJobs();
+                if (outermost) _ctx.ExecutePendingJobs();
             } catch (Exception ex) {
                 LogJsError("[QuickJSUIBridge] Event dispatch error (viewport)", ex);
-            } finally { _inEval = false; }
+            } finally { _inEval = wasInEval; }
         }
 
         /// <summary>
         /// Emits a "focuschange" event to JS (targeted at the panel root) whenever the
         /// panel's focused element changes. Called once per Tick, outside _inEval, so it
-        /// observes the settled focus, including programmatic focus that the FocusIn/Out
-        /// event path drops. The JS focus-visible manager subscribes to this to keep the
+        /// observes the settled focus, however it moved. The JS focus-visible manager subscribes to this to keep the
         /// focus ring in sync with navigation. Diffs by element reference (cheap); only
         /// resolves handles + dispatches on an actual change.
         /// </summary>
@@ -968,14 +986,14 @@ namespace OneJS {
         }
 
         void DispatchEventFastFocusChange(int rootHandle, int focusedHandle) {
-            if (rootHandle == 0 || _inEval) return;
-            _inEval = true;
+            if (rootHandle == 0) return;
+            bool outermost = EnterEvent(out bool wasInEval);
             try {
                 _ctx.InvokeCallbackNoAlloc(_eventDispatchHandle, EVT_FOCUSCHANGE, rootHandle, focusedHandle);
-                _ctx.ExecutePendingJobs();
+                if (outermost) _ctx.ExecutePendingJobs();
             } catch (Exception ex) {
                 LogJsError("[QuickJSUIBridge] Event dispatch error (focuschange)", ex);
-            } finally { _inEval = false; }
+            } finally { _inEval = wasInEval; }
         }
 
         /// <summary>
@@ -1194,7 +1212,6 @@ namespace OneJS {
         }
 
         void DispatchGeometryEvent(string eventType, int handle, Rect oldRect, Rect newRect) {
-            if (_inEval) return;
             string data = "{\"oldRect\":" + RectToJson(oldRect)
                         + ",\"newRect\":" + RectToJson(newRect) + "}";
             DispatchEventInternal(handle, eventType, data);
