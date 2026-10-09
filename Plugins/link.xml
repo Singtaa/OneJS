@@ -16,6 +16,18 @@
         <type fullname="UnityEngine.UIElements.StyleValueFunction" preserve="all"/>
         <type fullname="UnityEngine.UIElements.StyleSelectorPart" preserve="all"/>
         <type fullname="UnityEngine.UIElements.StyleSelectorRelationship" preserve="all"/>
+        <!-- Unity's USS function table and its step from a function to a filter,
+             reached by reflection from Runtime/Styling: UssCompiler compiles blur()
+             in a sheet through the first, UssFilter reads an inline filter through
+             both. No player code calls FromUssString, so High stripping removed it
+             and every filter from compileStyleSheet, a CSS module or a JSX style
+             was dropped in a build (FilterStylesPlayerBuild in the container). -->
+        <type fullname="UnityEngine.UIElements.StyleValueFunctionExtension">
+            <method name="FromUssString"/>
+        </type>
+        <type fullname="UnityEngine.UIElements.StyleProperty">
+            <method name="ToFilterFunctionType"/>
+        </type>
         <!-- PointerCaptureHelper is reached from JS as a static class wrapping
              extension methods (CapturePointer/ReleasePointer). The methods can
              be stripped because no C# code references them. -->
