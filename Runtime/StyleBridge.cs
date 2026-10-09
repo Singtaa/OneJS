@@ -265,8 +265,9 @@ namespace OneJS {
             if (prop.PropertyType == typeof(StyleList<FilterFunction>) && value is string filterText) {
                 if (CustomStyleSheets.UssFilter.TryParse(filterText, out var filters, out var error)) {
                     prop.SetValue(style, filters);
-                } else if (_warnedUnknownKeys.TryAdd(key + ":" + filterText, true)) {
-                    Debug.LogWarning($"[StyleBridge] {key}: {error}. The value was dropped. Warning once per value.");
+                } else if (_warnedUnknownKeys.TryAdd(key + ":value", true)) {
+                    // Once per property: an animated value is a new string every frame
+                    Debug.LogWarning($"[StyleBridge] {key}: {error}. The value was dropped. Warning once per property.");
                 }
                 return;
             }
