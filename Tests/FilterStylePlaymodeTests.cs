@@ -71,7 +71,7 @@ namespace OneJS.Tests {
         // Every value a sheet and an inline style can both say, through both: the
         // inline parser (UssFilter) must give what Unity's own reader gives a sheet.
         static readonly string[] Shared = {
-            "blur(4px)", "blur(2.5px) grayscale(50%)", "hue-rotate(90deg)", "hue-rotate(0.25turn)", "hue-rotate(1.5rad)", "hue-rotate(100grad)",
+            "blur(4px)", "blur(2.5px) grayscale(50%)", "hue-rotate(90deg)", "hue-rotate(0.25turn)", "hue-rotate(1.5rad)", "hue-rotate(100grad)", "HUE-ROTATE(90deg) Blur(1px)",
             "opacity(0.3) invert(1)", "sepia(1) contrast(150%)", "tint(red)", "tint(#00ff0080)", "tint(rgba(255, 0, 0, 0.5))",
 #if UNITY_6000_6_OR_NEWER
             "drop-shadow(2px 3px 4px rgba(0, 0, 0, 0.5))", "drop-shadow(1px 1px 0px #ff0000) blur(1px)",
@@ -94,6 +94,21 @@ namespace OneJS.Tests {
             var expected = Describe(fromSheet.resolvedStyle.filter);
             Assert.IsNotEmpty(expected, "the sheet resolved no filter");
             Assert.AreEqual(expected, Describe(inline.resolvedStyle.filter));
+        }
+
+        // Names Unity's function table does not have. The inline parser once guessed
+        // the FilterFunctionType member from the name, dropping empty parts between
+        // dashes, so it took these where a sheet refuses them; both now ask the table.
+        static readonly string[] SheetRefuses = { "hue--rotate(90deg)", "blur-(4px)" };
+
+        [Test]
+        public void Inline_RefusesWhatASheetRefuses([ValueSource(nameof(SheetRefuses))] string value) {
+            _sheet = ScriptableObject.CreateInstance<StyleSheet>();
+            var compiler = new UssCompiler();
+            compiler.Compile(_sheet, ".f { filter: " + value + "; }");
+            Assert.IsNotEmpty(compiler.Diagnostics, "precondition: the sheet refuses it");
+            Assert.IsFalse(UssFilter.TryParse(value, out _, out var error), "the inline parser took it");
+            StringAssert.Contains("not a filter function", error);
         }
 
 #if !UNITY_6000_6_OR_NEWER
