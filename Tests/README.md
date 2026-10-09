@@ -83,6 +83,7 @@ EditMode (`Tests/Editor/`):
 | `EventIdContractTests.cs` | Event type ids agree between `QuickJSUIBridge.cs` and the bootstrap |
 | `StructSerializationTests.cs` | The JSON a data-only struct becomes in JS |
 | `StyleBridgeTests.cs` | One warning per unknown style key or unreadable filter; a null value clears the inline value |
+| `UssFilterTests.cs` | Without Unity's filter function table (a stripped build missing `link.xml`), inline filter names still resolve exactly as that table resolves them, with one warning |
 | `UssCompilerDiagnosticsTests.cs` | Diagnostics for typo'd USS properties, and the reflected property table |
 | `JsLogSeverityTests.cs` | Splitting and routing of the console level the bootstrap encodes |
 | `InputBridgeNamingTests.cs` | The retired `GetKeyDown` names stay deprecated |
