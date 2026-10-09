@@ -25,12 +25,12 @@ namespace OneJS.CustomStyleSheets {
             result = default;
             error = null;
             value = value?.Trim() ?? "";
-            if (value.Length == 0 || value.Equals("none", StringComparison.OrdinalIgnoreCase)) {
-                result = new StyleList<FilterFunction>(UnityEngine.UIElements.StyleKeyword.None);
-                return true;
-            }
-            if (value.Equals("initial", StringComparison.OrdinalIgnoreCase)) {
-                result = new StyleList<FilterFunction>(UnityEngine.UIElements.StyleKeyword.Initial);
+            // An empty list, not StyleKeyword.None: Unity 6.3's renderer throws
+            // ("Filter IEnumerable is not a List<FilterFunction>") when an element's
+            // filter goes from functions to a keyword. Both mean no filter.
+            // "initial" too: a filter's initial value is none.
+            if (value.Length == 0 || value.Equals("none", StringComparison.OrdinalIgnoreCase) || value.Equals("initial", StringComparison.OrdinalIgnoreCase)) {
+                result = new StyleList<FilterFunction>(new List<FilterFunction>());
                 return true;
             }
 

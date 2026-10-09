@@ -134,12 +134,26 @@ namespace OneJS.Tests {
             Assert.AreEqual("Blur(4) Grayscale(0.5)", Describe(el.resolvedStyle.filter));
         }
 
+        // React dropping filter from a style clears it to the Null keyword
+        // (host-config's clearRemovedStyles), on any Unity.
         [UnityTest]
-        public IEnumerator Inline_FilterNone_ClearsIt() {
+        public IEnumerator Inline_FilterRemoved_ClearsIt() {
             var el = new VisualElement();
             StyleBridge.ApplyStyles(el, new Dictionary<string, object> { { "filter", "blur(4px)" } });
             yield return Resolve(el);
-            StyleBridge.ApplyStyles(el, new Dictionary<string, object> { { "filter", "none" } });
+            el.style.filter = new StyleList<FilterFunction>(UnityEngine.UIElements.StyleKeyword.Null);
+            yield return null;
+            yield return null;
+            Assert.AreEqual("", Describe(el.resolvedStyle.filter));
+        }
+
+        // From functions back to none: Unity 6.3 threw on the keyword form of this.
+        [UnityTest]
+        public IEnumerator Inline_FilterNone_ClearsIt([Values("none", "initial")] string clear) {
+            var el = new VisualElement();
+            StyleBridge.ApplyStyles(el, new Dictionary<string, object> { { "filter", "blur(4px)" } });
+            yield return Resolve(el);
+            StyleBridge.ApplyStyles(el, new Dictionary<string, object> { { "filter", clear } });
             yield return null;
             yield return null;
             Assert.AreEqual("", Describe(el.resolvedStyle.filter));
