@@ -134,17 +134,27 @@ namespace OneJS.Tests {
             Assert.AreEqual("Blur(4) Grayscale(0.5)", Describe(el.resolvedStyle.filter));
         }
 
-        // React dropping filter from a style clears it to the Null keyword
-        // (host-config's clearRemovedStyles), on any Unity.
+        // React dropping filter from a style sends it as null (host-config's
+        // clearRemovedStyles), which clears the inline filter: the sheet's shows.
         [UnityTest]
-        public IEnumerator Inline_FilterRemoved_ClearsIt() {
+        public IEnumerator Inline_FilterRemoved_FallsBackToTheSheet() {
+            _sheet = ScriptableObject.CreateInstance<StyleSheet>();
+            new UssCompiler().Compile(_sheet, ".f { filter: grayscale(0.5); }");
+            _root.styleSheets.Add(_sheet);
             var el = new VisualElement();
+            el.AddToClassList("f");
+            var plain = new VisualElement();
             StyleBridge.ApplyStyles(el, new Dictionary<string, object> { { "filter", "blur(4px)" } });
+            StyleBridge.ApplyStyles(plain, new Dictionary<string, object> { { "filter", "blur(4px)" } });
             yield return Resolve(el);
-            el.style.filter = new StyleList<FilterFunction>(UnityEngine.UIElements.StyleKeyword.Null);
+            yield return Resolve(plain);
+            Assert.AreEqual("Blur(4)", Describe(el.resolvedStyle.filter), "precondition: the inline filter beats the sheet's");
+            StyleBridge.ApplyStyles(el, new Dictionary<string, object> { { "filter", null } });
+            StyleBridge.ApplyStyles(plain, new Dictionary<string, object> { { "filter", null } });
             yield return null;
             yield return null;
-            Assert.AreEqual("", Describe(el.resolvedStyle.filter));
+            Assert.AreEqual("Grayscale(0.5)", Describe(el.resolvedStyle.filter));
+            Assert.AreEqual("", Describe(plain.resolvedStyle.filter));
         }
 
         // From functions back to none: Unity 6.3 threw on the keyword form of this.

@@ -54,5 +54,42 @@ namespace OneJS.Tests.Editor {
             Assert.AreEqual(7f, el.style.unityParagraphSpacing.value.value);
             LogAssert.NoUnexpectedReceived();
         }
+
+        // onejs-react sends a key React removed from a style as null. It must clear
+        // the inline value (StyleKeyword.Null), so the sheet's shows again, on the
+        // fast path and the reflective one alike: the property's default would be
+        // width 0, opacity 0, a transparent background.
+        [Test]
+        public void NullValue_ClearsTheInlineValue() {
+            var el = new VisualElement();
+            StyleBridge.ApplyStyles(el, new Dictionary<string, object> {
+                { "width", 77 }, { "opacity", 0.9 }, { "backgroundColor", new Color(0, 1, 0) },
+                { "display", 1 }, { "unityParagraphSpacing", 7 }, { "letterSpacing", 2 },
+            });
+            StyleBridge.ApplyStyles(el, new Dictionary<string, object> {
+                { "width", null }, { "opacity", null }, { "backgroundColor", null },
+                { "display", null }, { "unityParagraphSpacing", null }, { "letterSpacing", null },
+            });
+
+            Assert.AreEqual(StyleKeyword.Null, el.style.width.keyword, "width");
+            Assert.AreEqual(StyleKeyword.Null, el.style.opacity.keyword, "opacity");
+            Assert.AreEqual(StyleKeyword.Null, el.style.backgroundColor.keyword, "backgroundColor");
+            Assert.AreEqual(StyleKeyword.Null, el.style.display.keyword, "display");
+            Assert.AreEqual(StyleKeyword.Null, el.style.unityParagraphSpacing.keyword, "unityParagraphSpacing");
+            Assert.AreEqual(StyleKeyword.Null, el.style.letterSpacing.keyword, "letterSpacing");
+            Assert.AreEqual(StyleKeyword.Null, el.style.unityTextGenerator.keyword, "letterSpacing's text generator");
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        // Clearing a key this Unity does not have (backdropFilter before 6.6) is
+        // what setting it is: warned about once, never thrown.
+        [Test]
+        public void NullValue_ForAnUnknownKey_WarnsLikeAValue() {
+            var el = new VisualElement();
+            LogAssert.Expect(LogType.Warning, new Regex("clearedUnknownKeyTest"));
+            StyleBridge.ApplyStyles(el, new Dictionary<string, object> { { "clearedUnknownKeyTest", "x" } });
+            StyleBridge.ApplyStyles(el, new Dictionary<string, object> { { "clearedUnknownKeyTest", null } });
+            LogAssert.NoUnexpectedReceived();
+        }
     }
 }
