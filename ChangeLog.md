@@ -1,4 +1,8 @@
-# Unreleased
+# [2026-10-09] v3.9.7
+
+`filter` and `backdrop-filter` now work in USS, CSS Modules and inline styles, React updates cross to C# fewer times, and events that JS causes arrive as they would in a browser. On WebGL, a sideways wheel scrolls and event values arrive at full precision.
+
+Migrating: a value React sets no longer fires `onChange`, as in React DOM, so act on the new value where you set it rather than in the handler. Run `npm update` in your app for `onejs-react` 0.3.2, `onejs-unity` 0.10.2 and `unity-types` 6000.5.3, which carry the style, text and event fixes.
 
 - Shader effects and particles draw their first frame after leaving play mode
 - A React text or style update crosses to C# once instead of up to three times
