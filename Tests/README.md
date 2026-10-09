@@ -50,6 +50,7 @@ PlayMode (`Tests/*.cs`):
 | `UIToolkitJSPlaymodeTests.cs` | Element creation, properties, styles, hierarchy from JS |
 | `CustomElementPlaymodeTests.cs` | `registerElement`/`createComponent` end to end, using the prebuilt `TestCustomElement` fixture |
 | `ControlAlignmentPlaymodeTests.cs` | Each control's visible part centred in its box, so an `align-items: center` row lines up |
+| `FilterStylePlaymodeTests.cs` | `filter` and `backdrop-filter` from a compiled sheet and an inline style, the inline parser held to Unity's sheet reader; `none`, and a removed inline filter falling back to the sheet's |
 | `TreeViewBridgeTests.cs` | `TreeViewBridge` parallel-array contract (mirrors onejs-react's `treeview.test.tsx`) |
 | `ShaderFXTests.cs` | ShaderFX render-target lifecycle against real layout, uniform marshalling, ramp/texture caching |
 | `ParticleTests.cs` | Particle wire parsing, deterministic simulation, imperative API, render smoke tests |
@@ -81,7 +82,7 @@ EditMode (`Tests/Editor/`):
 | `PremadePackTests.cs` | The shipped `Assets/Singtaa/Premade/` pack **assets**: metadata completeness, path-safe slugs, unique identities, resolvable payloads, extraction round-trip |
 | `EventIdContractTests.cs` | Event type ids agree between `QuickJSUIBridge.cs` and the bootstrap |
 | `StructSerializationTests.cs` | The JSON a data-only struct becomes in JS |
-| `StyleBridgeTests.cs` | One warning per unknown style key |
+| `StyleBridgeTests.cs` | One warning per unknown style key or unreadable filter; a null value clears the inline value |
 | `UssCompilerDiagnosticsTests.cs` | Diagnostics for typo'd USS properties, and the reflected property table |
 | `JsLogSeverityTests.cs` | Splitting and routing of the console level the bootstrap encodes |
 | `InputBridgeNamingTests.cs` | The retired `GetKeyDown` names stay deprecated |

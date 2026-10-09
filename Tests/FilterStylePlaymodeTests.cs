@@ -71,7 +71,7 @@ namespace OneJS.Tests {
         // Every value a sheet and an inline style can both say, through both: the
         // inline parser (UssFilter) must give what Unity's own reader gives a sheet.
         static readonly string[] Shared = {
-            "blur(4px)", "blur(2.5px) grayscale(50%)", "hue-rotate(90deg)", "hue-rotate(0.25turn)", "hue-rotate(1.5rad)",
+            "blur(4px)", "blur(2.5px) grayscale(50%)", "hue-rotate(90deg)", "hue-rotate(0.25turn)", "hue-rotate(1.5rad)", "hue-rotate(100grad)",
             "opacity(0.3) invert(1)", "sepia(1) contrast(150%)", "tint(red)", "tint(#00ff0080)", "tint(rgba(255, 0, 0, 0.5))",
 #if UNITY_6000_6_OR_NEWER
             "drop-shadow(2px 3px 4px rgba(0, 0, 0, 0.5))", "drop-shadow(1px 1px 0px #ff0000) blur(1px)",
