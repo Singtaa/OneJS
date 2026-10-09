@@ -93,18 +93,25 @@ namespace OneJS.CustomStyleSheets {
         /// internal. Shared with UssFilter, so an inline filter and a sheet know the
         /// same functions.
         /// </summary>
+        /// <summary>Whether reflection found Unity's USS function table (it warns once if not).</summary>
+        internal static bool HasUnityFunctionTable {
+            get {
+                if (!_fromUssStringProbed) {
+                    _fromUssStringProbed = true;
+                    _fromUssString = typeof(StyleSheet).Assembly
+                        .GetType("UnityEngine.UIElements.StyleValueFunctionExtension")
+                        ?.GetMethod("FromUssString", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+                    if (_fromUssString == null) {
+                        Debug.LogWarning("[OneJS] USS functions such as filter's blur() cannot compile: Unity's function table was not found by reflection.");
+                    }
+                }
+                return _fromUssString != null;
+            }
+        }
+
         internal static bool TryUnityFunctionValue(string name, out object function) {
             function = null;
-            if (!_fromUssStringProbed) {
-                _fromUssStringProbed = true;
-                _fromUssString = typeof(StyleSheet).Assembly
-                    .GetType("UnityEngine.UIElements.StyleValueFunctionExtension")
-                    ?.GetMethod("FromUssString", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
-                if (_fromUssString == null) {
-                    Debug.LogWarning("[OneJS] USS functions such as filter's blur() cannot compile: Unity's function table was not found by reflection.");
-                }
-            }
-            if (_fromUssString == null) return false;
+            if (!HasUnityFunctionTable) return false;
             try {
                 function = _fromUssString.Invoke(null, new object[] { name });
                 return true;

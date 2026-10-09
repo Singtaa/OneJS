@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -69,8 +70,10 @@ namespace OneJS.CustomStyleSheets {
         // A function name as Unity's sheet reader resolves it: USS name to
         // StyleValueFunction (UssCompiler's lookup), then StyleProperty.ToFilterFunctionType,
         // both internal, hence reflected. One table for sheets and inline styles, so the
-        // two never disagree on which functions exist. Cached per name, so a value
-        // animated every frame reflects nothing after its first.
+        // two never disagree on which functions exist. Should reflection not find it,
+        // FilterFunctionType's member names stand in, with a warning, rather than every
+        // inline filter being dropped. Cached per name, so a value animated every frame
+        // reflects nothing after its first.
         static readonly ConcurrentDictionary<string, FilterFunctionType?> _functionTypes = new(StringComparer.Ordinal);
         static MethodInfo _toFilterFunctionType;
         static bool _toFilterFunctionTypeProbed;
@@ -81,18 +84,27 @@ namespace OneJS.CustomStyleSheets {
             return resolved.HasValue;
         }
 
-        static FilterFunctionType? ResolveFunctionType(string name) {
-            if (!UssCompiler.TryUnityFunctionValue(name, out var function)) return null;
+        static FilterFunctionType? ResolveFunctionType(string name) =>
+            HasUnityTable() ? FromUnityTable(name) : FromMemberName(name);
+
+        static bool HasUnityTable() {
             if (!_toFilterFunctionTypeProbed) {
                 _toFilterFunctionTypeProbed = true;
                 _toFilterFunctionType = typeof(StyleSheet).Assembly
                     .GetType("UnityEngine.UIElements.StyleProperty")
                     ?.GetMethod("ToFilterFunctionType", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-                if (_toFilterFunctionType == null) {
-                    Debug.LogWarning("[OneJS] Filters in inline styles cannot be read: Unity's filter function table was not found by reflection.");
-                }
             }
-            if (_toFilterFunctionType == null || _withoutUnityTable) return null;
+            if (!_withoutUnityTable && _toFilterFunctionType != null && UssCompiler.HasUnityFunctionTable) return true;
+            if (!_warnedMemberNames) {
+                _warnedMemberNames = true;
+                Debug.LogWarning("[OneJS] Unity's filter function table was not found by reflection, so inline filters " +
+                    "match function names to FilterFunctionType's members instead. OneJS's link.xml keeps the table in a stripped build.");
+            }
+            return false;
+        }
+
+        static FilterFunctionType? FromUnityTable(string name) {
+            if (!UssCompiler.TryUnityFunctionValue(name, out var function)) return null;
             try {
                 // None and Custom are what a USS name such as none() maps to, not functions to draw
                 var type = (FilterFunctionType)_toFilterFunctionType.Invoke(null, new[] { function });
@@ -102,6 +114,24 @@ namespace OneJS.CustomStyleSheets {
             }
         }
 
+        // Without Unity's table: each FilterFunctionType member as USS spells it
+        // (HueRotate is hue-rotate), matched whole and ignoring case, as Unity's
+        // table matches. UssFilterTests holds it to that table name for name.
+        static FilterFunctionType? FromMemberName(string name) =>
+            _byMemberName.Value.TryGetValue(name, out var type) ? type : null;
+
+        static readonly Lazy<Dictionary<string, FilterFunctionType>> _byMemberName = new(() => {
+            var map = new Dictionary<string, FilterFunctionType>(StringComparer.OrdinalIgnoreCase);
+            foreach (FilterFunctionType type in Enum.GetValues(typeof(FilterFunctionType))) {
+                // By name, not by member: FilterFunctionType.Count is an error to name on 6.6
+                var member = type.ToString();
+                if (member is "None" or "Custom" or "Count") continue;
+                map[Regex.Replace(member, "(?<=.)([A-Z])", "-$1").ToLowerInvariant()] = type;
+            }
+            return map;
+        });
+
+        static bool _warnedMemberNames;
         static bool _withoutUnityTable;
 
         /// <summary>
@@ -111,6 +141,7 @@ namespace OneJS.CustomStyleSheets {
         /// </summary>
         internal static IDisposable WithoutUnityTableForTests() {
             _withoutUnityTable = true;
+            _warnedMemberNames = false;
             _functionTypes.Clear();
             return new Restore();
         }
@@ -118,6 +149,7 @@ namespace OneJS.CustomStyleSheets {
         sealed class Restore : IDisposable {
             public void Dispose() {
                 _withoutUnityTable = false;
+                _warnedMemberNames = false;
                 _functionTypes.Clear();
             }
         }
