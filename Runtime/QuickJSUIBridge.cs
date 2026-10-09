@@ -972,7 +972,8 @@ namespace OneJS {
         /// panel's focused element changes. Called once per Tick, outside _inEval, so it
         /// observes the settled focus, however it moved. The JS focus-visible manager subscribes to this to keep the
         /// focus ring in sync with navigation. Diffs by element reference (cheap); only
-        /// resolves handles + dispatches on an actual change.
+        /// resolves the root's handle + dispatches on an actual change. The event carries
+        /// nothing: a handler asks the panel what is focused.
         /// </summary>
         void CheckFocusChange() {
             var fe = _root?.focusController?.focusedElement as VisualElement;
@@ -980,20 +981,8 @@ namespace OneJS {
             _lastFocusedElement = fe;
 
             int rootHandle = QuickJSNative.GetHandleForObject(_root);
-            int focusedHandle = fe != null ? QuickJSNative.GetHandleForElementOrAncestor(fe) : 0;
-            if (_eventDispatchHandle >= 0) DispatchEventFastFocusChange(rootHandle, focusedHandle);
+            if (_eventDispatchHandle >= 0) DispatchEventFast(EVT_FOCUSCHANGE, rootHandle);
             else DispatchEventInternal(rootHandle, "focuschange", "{}");
-        }
-
-        void DispatchEventFastFocusChange(int rootHandle, int focusedHandle) {
-            if (rootHandle == 0) return;
-            bool outermost = EnterEvent(out bool wasInEval);
-            try {
-                _ctx.InvokeCallbackNoAlloc(_eventDispatchHandle, EVT_FOCUSCHANGE, rootHandle, focusedHandle);
-                if (outermost) _ctx.ExecutePendingJobs();
-            } catch (Exception ex) {
-                LogJsError("[QuickJSUIBridge] Event dispatch error (focuschange)", ex);
-            } finally { _inEval = wasInEval; }
         }
 
         /// <summary>
