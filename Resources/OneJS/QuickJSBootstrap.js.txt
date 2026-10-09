@@ -1836,8 +1836,27 @@ if (__nativeRequestAnimationFrame) {
      * built with; new ones follow.
      */
     if (typeof globalThis.__ojWheelNotch !== "number") globalThis.__ojWheelNotch = 4;
-    let __wheelCarried = 0;
+    let __wheelCarriedX = 0;
+    let __wheelCarriedY = 0;
     let __wheelNormaliser = null;
+
+    // Each axis carries its own travel, at the same notch, so a sideways
+    // gesture scrolls as the same gesture made vertically does, and a diagonal
+    // one moves each axis as if it were alone. Unity scales both axes alike.
+    //
+    // An event with nothing on an axis leaves that axis's carry alone: a
+    // trackpad moving one way sends zeros on the other, and a zero is not a
+    // reversal. A reversal starts over rather than spending credit built up in
+    // the other direction, which would swallow the first notch back.
+    function __wheelCarry(carried, delta) {
+        if (delta === 0) return carried;
+        return ((carried > 0) !== (delta > 0) ? 0 : carried) + delta;
+    }
+
+    /** One notch off an axis's carry, signed, or 0 while it holds less than one. */
+    function __wheelStep(carried, notch) {
+        return Math.abs(carried) >= notch ? (carried > 0 ? notch : -notch) : 0;
+    }
 
     // On `document`, not bare, and this is the whole reason the first build of
     // this failed to boot at all. The bootstrap declares its own
@@ -1850,7 +1869,8 @@ if (__nativeRequestAnimationFrame) {
         if (__wheelNormaliser === null) return;
         document.removeEventListener("wheel", __wheelNormaliser, { capture: true });
         __wheelNormaliser = null;
-        __wheelCarried = 0;
+        __wheelCarriedX = 0;
+        __wheelCarriedY = 0;
     }
 
     if (typeof document !== "undefined" && typeof WheelEvent !== "undefined" && __wheelNormaliser === null) {
@@ -1868,10 +1888,8 @@ if (__nativeRequestAnimationFrame) {
             // and Unity's was registered first.
             e.stopImmediatePropagation();
 
-            // A reversal starts over rather than spending credit built up in
-            // the other direction, which would swallow the first notch back.
-            if ((__wheelCarried > 0) !== (e.deltaY > 0)) __wheelCarried = 0;
-            __wheelCarried += e.deltaY;
+            __wheelCarriedX = __wheelCarry(__wheelCarriedX, e.deltaX);
+            __wheelCarriedY = __wheelCarry(__wheelCarriedY, e.deltaY);
 
             // Read now, not captured at install: a runtime change should take
             // effect on the next gesture. Guarded, because a page can set this
@@ -1879,11 +1897,16 @@ if (__nativeRequestAnimationFrame) {
             const notch = typeof globalThis.__ojWheelNotch === "number" && globalThis.__ojWheelNotch > 0
                 ? globalThis.__ojWheelNotch : 33;
 
-            while (Math.abs(__wheelCarried) >= notch) {
-                const step = __wheelCarried > 0 ? notch : -notch;
-                __wheelCarried -= step;
+            // A notch on both axes goes out as one diagonal event, as the
+            // browser sent it.
+            for (;;) {
+                const stepX = __wheelStep(__wheelCarriedX, notch);
+                const stepY = __wheelStep(__wheelCarriedY, notch);
+                if (stepX === 0 && stepY === 0) break;
+                __wheelCarriedX -= stepX;
+                __wheelCarriedY -= stepY;
                 const out = new WheelEvent("wheel", {
-                    deltaY: step, deltaX: 0, deltaMode: 0,
+                    deltaX: stepX, deltaY: stepY, deltaMode: 0,
                     bubbles: true, cancelable: true,
                     clientX: e.clientX, clientY: e.clientY,
                 });

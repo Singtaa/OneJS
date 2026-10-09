@@ -972,7 +972,8 @@ namespace OneJS {
         /// panel's focused element changes. Called once per Tick, outside _inEval, so it
         /// observes the settled focus, however it moved. The JS focus-visible manager subscribes to this to keep the
         /// focus ring in sync with navigation. Diffs by element reference (cheap); only
-        /// resolves handles + dispatches on an actual change.
+        /// resolves the root's handle + dispatches on an actual change. The event carries
+        /// nothing: a handler asks the panel what is focused.
         /// </summary>
         void CheckFocusChange() {
             var fe = _root?.focusController?.focusedElement as VisualElement;
@@ -980,20 +981,8 @@ namespace OneJS {
             _lastFocusedElement = fe;
 
             int rootHandle = QuickJSNative.GetHandleForObject(_root);
-            int focusedHandle = fe != null ? QuickJSNative.GetHandleForElementOrAncestor(fe) : 0;
-            if (_eventDispatchHandle >= 0) DispatchEventFastFocusChange(rootHandle, focusedHandle);
+            if (_eventDispatchHandle >= 0) DispatchEventFast(EVT_FOCUSCHANGE, rootHandle);
             else DispatchEventInternal(rootHandle, "focuschange", "{}");
-        }
-
-        void DispatchEventFastFocusChange(int rootHandle, int focusedHandle) {
-            if (rootHandle == 0) return;
-            bool outermost = EnterEvent(out bool wasInEval);
-            try {
-                _ctx.InvokeCallbackNoAlloc(_eventDispatchHandle, EVT_FOCUSCHANGE, rootHandle, focusedHandle);
-                if (outermost) _ctx.ExecutePendingJobs();
-            } catch (Exception ex) {
-                LogJsError("[QuickJSUIBridge] Event dispatch error (focuschange)", ex);
-            } finally { _inEval = wasInEval; }
         }
 
         /// <summary>
@@ -1027,9 +1016,6 @@ namespace OneJS {
             int handle = FindElementHandle(target);
             if (handle == 0) return 0;
 
-            // Avoid `string.Format` here: a trailing `{1:F4}}}` (format-spec placeholder
-            // followed by `}}`) is parsed inconsistently on Mono and corrupts the final
-            // field, same hazard documented in RectToJson. Plain `.ToString` sidesteps it.
             string data = "{\"deltaX\":" + JsonFloat(delta.x) + ",\"deltaY\":" + JsonFloat(delta.y) + "}";
 
             return DispatchEventInternal(handle, eventType, data);
@@ -1217,18 +1203,9 @@ namespace OneJS {
             DispatchEventInternal(handle, eventType, data);
         }
 
-        static string RectToJson(Rect r) {
-            // Avoid `string.Format` here: `{3:F2}}}` at the end of a format
-            // string is parsed inconsistently on Mono (the trailing `}}` gets
-            // partially absorbed into the format spec), corrupting the final
-            // field. Plain `.ToString` with the invariant culture sidesteps it.
-            var inv = CultureInfo.InvariantCulture;
-            return "{\"x\":" + r.x.ToString("F2", inv)
-                 + ",\"y\":" + r.y.ToString("F2", inv)
-                 + ",\"width\":" + r.width.ToString("F2", inv)
-                 + ",\"height\":" + r.height.ToString("F2", inv)
-                 + "}";
-        }
+        static string RectToJson(Rect r) =>
+            "{\"x\":" + JsonFloat(r.x) + ",\"y\":" + JsonFloat(r.y)
+            + ",\"width\":" + JsonFloat(r.width) + ",\"height\":" + JsonFloat(r.height) + "}";
 
         // MARK: Data Builders
         static string BuildChangeData(string valueJson) => $"{{\"value\":{valueJson}}}";
