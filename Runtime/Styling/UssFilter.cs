@@ -75,7 +75,7 @@ namespace OneJS.CustomStyleSheets {
         static MethodInfo _toFilterFunctionType;
         static bool _toFilterFunctionTypeProbed;
 
-        static bool TryFunctionType(string name, out FilterFunctionType type) {
+        internal static bool TryFunctionType(string name, out FilterFunctionType type) {
             var resolved = _functionTypes.GetOrAdd(name, ResolveFunctionType);
             type = resolved.GetValueOrDefault();
             return resolved.HasValue;
@@ -92,13 +92,33 @@ namespace OneJS.CustomStyleSheets {
                     Debug.LogWarning("[OneJS] Filters in inline styles cannot be read: Unity's filter function table was not found by reflection.");
                 }
             }
-            if (_toFilterFunctionType == null) return null;
+            if (_toFilterFunctionType == null || _withoutUnityTable) return null;
             try {
                 // None and Custom are what a USS name such as none() maps to, not functions to draw
                 var type = (FilterFunctionType)_toFilterFunctionType.Invoke(null, new[] { function });
                 return type is FilterFunctionType.None or FilterFunctionType.Custom ? null : type;
             } catch (TargetInvocationException) {
                 return null;
+            }
+        }
+
+        static bool _withoutUnityTable;
+
+        /// <summary>
+        /// For tests: resolve names as if reflection had not found Unity's table,
+        /// which is what a stripped player without OneJS's link.xml would see,
+        /// until the result is disposed.
+        /// </summary>
+        internal static IDisposable WithoutUnityTableForTests() {
+            _withoutUnityTable = true;
+            _functionTypes.Clear();
+            return new Restore();
+        }
+
+        sealed class Restore : IDisposable {
+            public void Dispose() {
+                _withoutUnityTable = false;
+                _functionTypes.Clear();
             }
         }
 
