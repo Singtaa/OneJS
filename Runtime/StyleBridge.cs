@@ -23,6 +23,13 @@ namespace OneJS {
         static readonly ConcurrentDictionary<string, PropertyInfo> _styleProps = new();
         static readonly Type _iStyleType = typeof(IStyle);
 
+        /// <summary>
+        /// A style value of null clears the inline value (StyleKeyword.Null), which
+        /// is how onejs-react sends a key React removed. It checks this first: an
+        /// older runtime read null as an error.
+        /// </summary>
+        public static bool ClearsNull => true;
+
         public static void ApplyStyles(VisualElement element, object stylesObj) {
             if (element == null || stylesObj == null) return;
             if (stylesObj is not Dictionary<string, object> styles) return;
@@ -224,14 +231,16 @@ namespace OneJS {
             }
         }
 
+        // null is a key React removed from the style: StyleKeyword.Null clears the
+        // inline value, so the sheet's shows again
         static StyleLength AsLength(object v) =>
-            (StyleLength)QuickJSNative.ConvertToTargetType(v, typeof(StyleLength));
+            v == null ? StyleKeyword.Null : (StyleLength)QuickJSNative.ConvertToTargetType(v, typeof(StyleLength));
         static StyleFloat AsFloat(object v) =>
-            (StyleFloat)QuickJSNative.ConvertToTargetType(v, typeof(StyleFloat));
+            v == null ? StyleKeyword.Null : (StyleFloat)QuickJSNative.ConvertToTargetType(v, typeof(StyleFloat));
         static StyleColor AsColor(object v) =>
-            (StyleColor)QuickJSNative.ConvertToTargetType(v, typeof(StyleColor));
+            v == null ? StyleKeyword.Null : (StyleColor)QuickJSNative.ConvertToTargetType(v, typeof(StyleColor));
         static StyleEnum<T> AsEnum<T>(object v) where T : struct, IConvertible =>
-            (StyleEnum<T>)QuickJSNative.ConvertToTargetType(v, typeof(StyleEnum<T>));
+            v == null ? StyleKeyword.Null : (StyleEnum<T>)QuickJSNative.ConvertToTargetType(v, typeof(StyleEnum<T>));
 
         // Styles reapply on every React commit, so an always-on warning for a
         // bad key would repeat 30 times a second; once per key is enough to
@@ -247,19 +256,31 @@ namespace OneJS {
                 }
                 return;
             }
+            if (value == null) {
+                prop.SetValue(style, Cleared(prop.PropertyType));
+                return;
+            }
             // A filter list (filter from Unity 6.3, backdropFilter from 6.6) written as
             // USS text: found by type, so a property a newer Unity adds needs no case here.
             if (prop.PropertyType == typeof(StyleList<FilterFunction>) && value is string filterText) {
                 if (CustomStyleSheets.UssFilter.TryParse(filterText, out var filters, out var error)) {
                     prop.SetValue(style, filters);
-                } else if (_warnedUnknownKeys.TryAdd(key + ":" + filterText, true)) {
-                    Debug.LogWarning($"[StyleBridge] {key}: {error}. The value was dropped. Warning once per value.");
+                } else if (_warnedUnknownKeys.TryAdd(key + ":value", true)) {
+                    // Once per property: an animated value is a new string every frame
+                    Debug.LogWarning($"[StyleBridge] {key}: {error}. The value was dropped. Warning once per property.");
                 }
                 return;
             }
             var converted = QuickJSNative.ConvertToTargetType(value, prop.PropertyType);
             prop.SetValue(style, converted);
         }
+
+        // Every IStyle property is a Style* struct constructed from a StyleKeyword;
+        // its Null form clears the inline value. Boxed once per type.
+        static readonly ConcurrentDictionary<Type, object> _cleared = new();
+
+        static object Cleared(Type styleType) =>
+            _cleared.GetOrAdd(styleType, t => Activator.CreateInstance(t, StyleKeyword.Null));
 
         static PropertyInfo FindStyleProperty(string name) {
             if (_styleProps.TryGetValue(name, out var cached)) return cached;

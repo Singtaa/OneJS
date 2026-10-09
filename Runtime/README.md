@@ -43,7 +43,7 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `RunnerUtils.cs` | Context setup helpers JSRunner and JSPad share: JS string escaping, stylesheets, platform defines |
 | `UICartridge.cs` | Obsolete abstract base of `Pack`, so anything typed `UICartridge` still holds and finds a pack |
 | `CartridgeUtils.cs`, `CartridgeTypeGenerator.cs` | Obsolete forwarders for the names from before cartridges became packs |
-| `StyleBridge.cs` | Batched style + class-list application; typed IStyle setters for common props (no reflection), reflection fallback for the long tail |
+| `StyleBridge.cs` | Batched style + class-list application; typed IStyle setters for common props (no reflection), reflection fallback for the long tail; a null value clears the inline value (`ClearsNull`), which is how onejs-react sends a removed key |
 | `PainterBridge.cs` | Batched vector drawing: replays a Painter2D command buffer in one crossing |
 | `TreeViewBridge.cs` | TreeView data plumbing: wraps the generic `SetRootItems<T>` (generic methods are unreachable from JS) taking the tree as parallel pre-order int arrays with data kept JS-side, plus int[] selection getters (`IEnumerable<int>` cannot cross) |
 | `Particles/ParticleSystem2D.cs` | 2D particle system: C#-owned SoA sim + quad mesh write inside a host element |
