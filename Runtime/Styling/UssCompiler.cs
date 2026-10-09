@@ -83,6 +83,18 @@ namespace OneJS.CustomStyleSheets {
 
         static bool TryUnityFunction(string name, out StyleFunction function) {
             function = StyleFunction.Unknown;
+            if (!TryUnityFunctionValue(name, out var value)) return false;
+            function = (StyleFunction)Convert.ToInt32(value);
+            return function != StyleFunction.Unknown && function != StyleFunction.Var;
+        }
+
+        /// <summary>
+        /// Unity's StyleValueFunction for a USS function name, boxed since the enum is
+        /// internal. Shared with UssFilter, so an inline filter and a sheet know the
+        /// same functions.
+        /// </summary>
+        internal static bool TryUnityFunctionValue(string name, out object function) {
+            function = null;
             if (!_fromUssStringProbed) {
                 _fromUssStringProbed = true;
                 _fromUssString = typeof(StyleSheet).Assembly
@@ -94,9 +106,8 @@ namespace OneJS.CustomStyleSheets {
             }
             if (_fromUssString == null) return false;
             try {
-                int id = Convert.ToInt32(_fromUssString.Invoke(null, new object[] { name }));
-                function = (StyleFunction)id;
-                return function != StyleFunction.Unknown && function != StyleFunction.Var;
+                function = _fromUssString.Invoke(null, new object[] { name });
+                return true;
             } catch (System.Reflection.TargetInvocationException) {
                 return false;
             }

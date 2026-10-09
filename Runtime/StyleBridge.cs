@@ -282,12 +282,9 @@ namespace OneJS {
         static object Cleared(Type styleType) =>
             _cleared.GetOrAdd(styleType, t => Activator.CreateInstance(t, StyleKeyword.Null));
 
-        static PropertyInfo FindStyleProperty(string name) {
-            if (_styleProps.TryGetValue(name, out var cached)) return cached;
-            var prop = _iStyleType.GetProperty(name,
-                BindingFlags.Instance | BindingFlags.Public);
-            if (prop != null) _styleProps[name] = prop;
-            return prop;
-        }
+        // Misses are cached too (as null): an unknown key, or one this Unity lacks
+        // such as backdropFilter before 6.6, is sent on every commit.
+        static PropertyInfo FindStyleProperty(string name) =>
+            _styleProps.GetOrAdd(name, n => _iStyleType.GetProperty(n, BindingFlags.Instance | BindingFlags.Public));
     }
 }
