@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Globalization;
 using System.Reflection;
 using NUnit.Framework;
 using UnityEditor;
@@ -517,6 +518,48 @@ namespace OneJS.Tests {
                 $"Real WheelEvent should reach JS via the bridge (elHandle={elHandle}).");
             Assert.AreEqual("true", _bridge.Eval("globalThis.__wheelDeltaY > 0"),
                 "The wheel deltaY should be forwarded to JS (positive for a downward scroll).");
+        }
+
+        // MARK: Geometry
+
+        [UnityTest]
+        public IEnumerator GeometryChanged_RectsReachJsAsTheDoublesTheyWiden() {
+            // geometrychanged has no numeric dispatch, so its rects reach JS as JSON in
+            // the editor as on WebGL. Each must arrive as the double the float widens to,
+            // the number every other event and every el.layout read hands JS, or
+            // onGeometryChanged disagrees with the element it describes.
+            var root = _uiDocument.rootVisualElement;
+            int rootHandle = QuickJSNative.RegisterObject(root);
+            _bridge.Eval($@"
+                var root = __csHelpers.wrapObject('UnityEngine.UIElements.VisualElement', {rootHandle});
+                var el = new CS.UnityEngine.UIElements.VisualElement();
+                root.Add(el);
+                globalThis.__geoEl = el;
+                globalThis.__geo = [];
+                __eventAPI.addEventListener(el, 'geometrychanged', (e) => {{ globalThis.__geo.push(e); }});
+            ");
+            yield return null;
+            yield return null; // the element's own first layout, which this does not read
+            _bridge.Eval("globalThis.__geo = []");
+
+            var el = QuickJSNative.GetObjectByHandle(int.Parse(_bridge.Eval("globalThis.__geoEl.__csHandle"))) as VisualElement;
+            var from = new Rect(1.234567f, 2.345678f, 99.87654f, 50.123456f);
+            var to = new Rect(3.456789f, 4.567891f, 120.33333f, 60.66667f);
+            using (var evt = GeometryChangedEvent.GetPooled(from, to)) {
+                evt.target = el;
+                el.SendEvent(evt);
+            }
+            yield return null;
+
+            Assert.AreEqual("1", _bridge.Eval("globalThis.__geo.length"), "one geometrychanged should reach JS");
+            foreach (var (rect, r) in new[] { ("oldRect", from), ("newRect", to) }) {
+                foreach (var (field, v) in new[] { ("x", r.x), ("y", r.y), ("width", r.width), ("height", r.height) }) {
+                    string want = ((double)v).ToString("G17", CultureInfo.InvariantCulture);
+                    string got = $"globalThis.__geo[0].{rect}.{field}";
+                    Assert.AreEqual("true", _bridge.Eval($"Object.is({got}, {want})"),
+                        $"{rect}.{field}: JS received {_bridge.Eval(got)}, expected {want}");
+                }
+            }
         }
 
         [UnityTest]
