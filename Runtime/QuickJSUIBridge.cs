@@ -1027,9 +1027,6 @@ namespace OneJS {
             int handle = FindElementHandle(target);
             if (handle == 0) return 0;
 
-            // Avoid `string.Format` here: a trailing `{1:F4}}}` (format-spec placeholder
-            // followed by `}}`) is parsed inconsistently on Mono and corrupts the final
-            // field, same hazard documented in RectToJson. Plain `.ToString` sidesteps it.
             string data = "{\"deltaX\":" + JsonFloat(delta.x) + ",\"deltaY\":" + JsonFloat(delta.y) + "}";
 
             return DispatchEventInternal(handle, eventType, data);
@@ -1217,18 +1214,9 @@ namespace OneJS {
             DispatchEventInternal(handle, eventType, data);
         }
 
-        static string RectToJson(Rect r) {
-            // Avoid `string.Format` here: `{3:F2}}}` at the end of a format
-            // string is parsed inconsistently on Mono (the trailing `}}` gets
-            // partially absorbed into the format spec), corrupting the final
-            // field. Plain `.ToString` with the invariant culture sidesteps it.
-            var inv = CultureInfo.InvariantCulture;
-            return "{\"x\":" + r.x.ToString("F2", inv)
-                 + ",\"y\":" + r.y.ToString("F2", inv)
-                 + ",\"width\":" + r.width.ToString("F2", inv)
-                 + ",\"height\":" + r.height.ToString("F2", inv)
-                 + "}";
-        }
+        static string RectToJson(Rect r) =>
+            "{\"x\":" + JsonFloat(r.x) + ",\"y\":" + JsonFloat(r.y)
+            + ",\"width\":" + JsonFloat(r.width) + ",\"height\":" + JsonFloat(r.height) + "}";
 
         // MARK: Data Builders
         static string BuildChangeData(string valueJson) => $"{{\"value\":{valueJson}}}";
