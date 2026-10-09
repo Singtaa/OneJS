@@ -132,7 +132,7 @@ with the same command CI uses (add `--platform linux/amd64` on Apple Silicon):
 
 ```bash
 cd <package root>
-docker run --rm -v "$PWD":/repo -w /repo ubuntu:22.04 bash -c \
+docker run --rm -v "$PWD":/repo -w /repo public.ecr.aws/docker/library/ubuntu:22.04 bash -c \
   "apt-get update -qq && apt-get install -y -qq gcc make > /dev/null && bash Auxiliary~/quickjs-unity/build-linux.sh"
 ```
 

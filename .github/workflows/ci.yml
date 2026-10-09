@@ -101,12 +101,27 @@ jobs:
     # after merge.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     environment: unity-ci
+    env:
+      HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
 
     steps:
       - uses: actions/checkout@v4
         with:
           # The QuickJS engine sources are submodules under Auxiliary~.
           submodules: recursive
+
+      # Docker Hub's anonymous pull limit is per runner IP, and busy days hit it
+      # (Singtaa/OneJSv3Container#14). The editor image the test runner pulls,
+      # unityci/editor, has no public mirror, so a login is what lifts the
+      # limit for it. Runs once DOCKERHUB_USERNAME and DOCKERHUB_TOKEN (a
+      # read-only access token) exist; until then it is skipped and the pull
+      # stays anonymous. No value is echoed.
+      - name: Log in to Docker Hub
+        if: env.HAS_DOCKERHUB == 'true'
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: echo "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
 
       # The repo ships a prebuilt Linux .so (produced in this same ubuntu:22.04
       # container: see Plugins/README.md). CI still rebuilds it from the
@@ -118,7 +133,9 @@ jobs:
           # than the unityci test container's (the runner's 24.04 glibc is not
           # available in there). This is also the pinned baseline for the
           # committed binary (glibc 2.35, Unity 6's own Ubuntu 22.04 floor).
-          docker run --rm -v "$PWD":/repo -w /repo ubuntu:22.04 bash -c \
+          # From Docker's official mirror on ECR, which has no anonymous pull
+          # limit, rather than Docker Hub, which does.
+          docker run --rm -v "$PWD":/repo -w /repo public.ecr.aws/docker/library/ubuntu:22.04 bash -c \
             "apt-get update -qq && apt-get install -y -qq gcc make > /dev/null && bash Auxiliary~/quickjs-unity/build-linux.sh"
 
       # OneJS is a package, so CI hosts it inside a throwaway project. The host's
