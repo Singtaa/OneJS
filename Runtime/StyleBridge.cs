@@ -23,6 +23,13 @@ namespace OneJS {
         static readonly ConcurrentDictionary<string, PropertyInfo> _styleProps = new();
         static readonly Type _iStyleType = typeof(IStyle);
 
+        /// <summary>
+        /// A style value of null clears the inline value (StyleKeyword.Null), which
+        /// is how onejs-react sends a key React removed. It checks this first: an
+        /// older runtime read null as an error.
+        /// </summary>
+        public static bool ClearsNull => true;
+
         public static void ApplyStyles(VisualElement element, object stylesObj) {
             if (element == null || stylesObj == null) return;
             if (stylesObj is not Dictionary<string, object> styles) return;
