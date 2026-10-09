@@ -19,7 +19,7 @@ namespace OneJS.ShaderFX {
     /// </summary>
     public static class ShaderEffectBridge {
         static readonly List<ShaderEffectElement> s_Elements = new List<ShaderEffectElement>();
-        static double s_LastTick;
+        static readonly TickClock s_Clock = new TickClock();
 
         internal static void Register(ShaderEffectElement e) {
             if (s_Elements.Contains(e)) return;
@@ -35,18 +35,7 @@ namespace OneJS.ShaderFX {
         public static void TickAll() {
             // Same clock as ParticleBridge, so shader effects step deterministically
             // under the offline panel recorder instead of following wall time.
-            double now = VirtualClock.RealtimeSeconds;
-            float dt = (float)(now - s_LastTick);
-            // The clock can step backwards when the recorder hands control back to
-            // engine realtime, or across a domain reload. Resync rather than stalling:
-            // a plain `return` here leaves every later frame failing the same test and
-            // wedges the effect permanently.
-            if (dt < 0f) {
-                s_LastTick = now;
-                return;
-            }
-            if (dt <= 0.0005f) return; // second bridge ticking the same frame
-            s_LastTick = now;
+            if (!s_Clock.Next(out var dt)) return;
             // Under a virtual clock dt is exactly what the renderer asked for, so the
             // hitch clamp would silently slow the effect at low frame rates.
             if (dt > 0.05f && !VirtualClock.IsActive) dt = 0.05f; // first tick / editor hitches

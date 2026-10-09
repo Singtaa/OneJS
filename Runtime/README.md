@@ -37,6 +37,7 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `AssetLoader.cs` | Async resource loading (loadResourceAsync) wrapping Resources.LoadAsync |
 | `SourceMapParser.cs` | Parses source maps for error stack trace translation; `Load` resolves sources to paths from the project root, which the Console can open |
 | `VirtualClock.cs` | Deterministic stand-in for engine realtime; lets an offline renderer frame-step the UI (see below) |
+| `TickClock.cs` | The dt shader effects, particles and 2D physics tick by, read from `VirtualClock` (see below) |
 | `Pack.cs` | Pack asset for packaged UI modules (namespace/slug identity, optional content version). Keeps the script GUID `UICartridge.cs` had, so assets made as UICartridge load as Pack |
 | `PackTypeGenerator.cs` | Generates TypeScript declarations for pack types (`__pack`, plus `__cart` marked deprecated) |
 | `PackUtils.cs` | Extracting packs to a runner's pack folder and exposing them to JS, used by JSRunner and JSPad |
@@ -867,9 +868,12 @@ for the duration of a recording so transitions stay in lockstep.
 
 Callers must pair `Begin()` with `End()` in a `finally`. A leaked active clock
 freezes every animation in the editor until the next domain reload, which is hard to
-diagnose from the symptom. Two related guards live in `ParticleBridge.TickAll`: a
-backwards clock step resyncs the baseline instead of stalling, and the hitch clamp is
-skipped while the clock is virtual (dt is then exactly what the renderer asked for).
+diagnose from the symptom. Shader effects, particles and 2D physics measure their dt
+through one `TickClock`, which refuses a second tick in the same frame and, when the
+clock is behind the last tick (engine realtime differs between play mode and edit
+mode, and the recorder hands back to realtime after running ahead), ticks with dt 0
+instead of dropping the tick. The particle and shader effect hitch clamp is skipped
+while the clock is virtual (dt is then exactly what the renderer asked for).
 
 ## Stability & Monitoring
 

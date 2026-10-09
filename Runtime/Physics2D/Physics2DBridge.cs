@@ -16,7 +16,7 @@ namespace OneJS {
     /// </summary>
     public static class Physics2DBridge {
         static readonly List<PhysicsWorld2D> s_Worlds = new List<PhysicsWorld2D>();
-        static double s_LastTick;
+        static readonly TickClock s_Clock = new TickClock();
 
         /// <summary>
         /// Creates a world bound to a host element. Throws ArgumentException with
@@ -44,10 +44,7 @@ namespace OneJS {
 
         /// <summary>Advances every live world. Safe to call more than once a frame.</summary>
         public static void TickAll() {
-            double now = VirtualClock.RealtimeSeconds;
-            float dt = (float)(now - s_LastTick);
-            s_LastTick = now;
-            if (dt <= 0f) return;
+            if (!s_Clock.Next(out var dt) || dt <= 0f) return;
 
             for (int i = s_Worlds.Count - 1; i >= 0; i--) {
                 var world = s_Worlds[i];
