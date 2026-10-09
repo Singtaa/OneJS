@@ -68,8 +68,9 @@ namespace OneJS.CustomStyleSheets {
         static bool TryFunctionType(string name, out FilterFunctionType type) {
             var pascal = string.Concat(Array.ConvertAll(name.Split('-'),
                 part => part.Length == 0 ? "" : char.ToUpperInvariant(part[0]) + part.Substring(1).ToLowerInvariant()));
-            return Enum.TryParse(pascal, out type)
-                && type != FilterFunctionType.None && type != FilterFunctionType.Custom && type != FilterFunctionType.Count;
+            // By name, not by member: FilterFunctionType.Count is an error to name on 6.6
+            type = default;
+            return pascal is not ("None" or "Custom" or "Count") && Enum.TryParse(pascal, out type) && Enum.IsDefined(typeof(FilterFunctionType), type);
         }
 
         static bool TryParameter(string arg, out FilterParameter parameter) {
