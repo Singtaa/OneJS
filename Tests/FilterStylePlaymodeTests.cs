@@ -157,6 +157,25 @@ namespace OneJS.Tests {
             Assert.AreEqual("", Describe(plain.resolvedStyle.filter));
         }
 
+        // The same move through a sheet: a class whose rule says none replaces one
+        // whose rule has functions. UssCompiler writes none as Unity's importer does.
+        [UnityTest]
+        public IEnumerator Sheet_FunctionsToNone_ClearsIt() {
+            _sheet = ScriptableObject.CreateInstance<StyleSheet>();
+            var compiler = new UssCompiler();
+            compiler.Compile(_sheet, ".f { filter: blur(4px); } .f.n { filter: none; }");
+            Assert.IsEmpty(compiler.Diagnostics, string.Join("\n", compiler.Diagnostics));
+            _root.styleSheets.Add(_sheet);
+            var el = new VisualElement();
+            el.AddToClassList("f");
+            yield return Resolve(el);
+            Assert.AreEqual("Blur(4)", Describe(el.resolvedStyle.filter), "precondition");
+            el.AddToClassList("n");
+            yield return null;
+            yield return null;
+            Assert.AreEqual("", Describe(el.resolvedStyle.filter));
+        }
+
         // From functions back to none: Unity 6.3 threw on the keyword form of this.
         [UnityTest]
         public IEnumerator Inline_FilterNone_ClearsIt([Values("none", "initial")] string clear) {
