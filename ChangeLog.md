@@ -5,6 +5,7 @@
 - A style React removes falls back to the stylesheet's value instead of 0 or transparent
 - On WebGL, pointer, wheel and viewport values arrive at full precision, and focus change events fire
 - A shader program that reads its previous frame no longer drifts where anisotropic filtering is forced on
+- An fx chain no longer softens or drifts where anisotropic filtering is forced on
 
 # [2026-10-06] v3.9.6
 
