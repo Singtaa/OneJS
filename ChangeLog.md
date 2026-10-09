@@ -8,6 +8,9 @@
 - On WebGL, pointer, wheel and viewport values arrive at full precision, and focus change events fire
 - A shader program that reads its previous frame no longer drifts where anisotropic filtering is forced on
 - An fx chain no longer softens or drifts where anisotropic filtering is forced on
+- A focus or click that JS causes runs its handler at once, and microtasks wait until the JS returns
+- A value React sets fires no `onChange`, and a text changing never fires one
+- A text inside `<Text>` that React reorders or Suspense hides shows once, or not at all
 
 # [2026-10-06] v3.9.6
 
