@@ -81,6 +81,18 @@ namespace OneJS.Tests.Editor {
             LogAssert.NoUnexpectedReceived();
         }
 
+        // A filter React animates sends a new string every frame. One it cannot read
+        // warns once for the property, not once per value, which would grow the
+        // warned set and the console without bound.
+        [Test]
+        public void UnreadableFilter_WarnsOncePerProperty_NotPerValue() {
+            var el = new VisualElement();
+            LogAssert.Expect(LogType.Warning, new Regex("filter"));
+            for (int i = 0; i < 5; i++)
+                StyleBridge.ApplyStyles(el, new Dictionary<string, object> { { "filter", $"nosuch({i}px)" } });
+            LogAssert.NoUnexpectedReceived();
+        }
+
         // Clearing a key this Unity does not have (backdropFilter before 6.6) is
         // what setting it is: warned about once, never thrown.
         [Test]
