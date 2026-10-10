@@ -19,6 +19,13 @@ namespace OneJS.Input {
             _lastGamepadFrame = -1;
             _keysPressed.Clear();
             _keysReleased.Clear();
+            _keysPressedInOrder.Clear();
+            _keysPressedInOrderFrame = -1;
+            _keysPressedText = "";
+            _keysPressedTextFrame = -1;
+            _keysPressedTextCount = 0;
+            _watchingKeyPresses = false;
+            WatchKeyPresses();
             _mouseButtonsPressed = 0;
             _mouseButtonsReleased = 0;
             Array.Clear(_gamepadButtonsPressed, 0, _gamepadButtonsPressed.Length);
@@ -322,6 +329,64 @@ namespace OneJS.Input {
         public static bool GetAnyKeyPressed() {
             var keyboard = Keyboard.current;
             return keyboard != null && keyboard.anyKey.wasPressedThisFrame;
+        }
+
+        // ============ Keys Pressed In Order ============
+
+        // Every key that went down this frame, in the order it went down. The
+        // per-key edges above cannot say which came first: a frame that took
+        // two letters reports both pressed, so a game spelling a word from
+        // them had to pick an order of its own. Read from the Input System's
+        // events, which arrive in order, before each one is applied.
+        static readonly List<Key> _keysPressedInOrder = new List<Key>();
+        static int _keysPressedInOrderFrame = -1;
+        static string _keysPressedText = "";
+        static int _keysPressedTextFrame = -1;
+        static int _keysPressedTextCount;
+        static bool _watchingKeyPresses;
+
+        static void WatchKeyPresses() {
+            if (_watchingKeyPresses) return;
+            _watchingKeyPresses = true;
+            InputSystem.onEvent -= RecordKeyPresses;
+            InputSystem.onEvent += RecordKeyPresses;
+        }
+
+        static void RecordKeyPresses(InputEventPtr eventPtr, InputDevice device) {
+            if (!(device is Keyboard)) return;
+            if (!eventPtr.IsA<StateEvent>() && !eventPtr.IsA<DeltaStateEvent>()) return;
+            int frame = Time.frameCount;
+            if (_keysPressedInOrderFrame != frame) {
+                _keysPressedInOrder.Clear();
+                _keysPressedInOrderFrame = frame;
+            }
+            // The event has not been applied yet, so isPressed is the state
+            // before it: a key that is up there and down in the event went
+            // down here. Several presses of one key in a frame are each one.
+            foreach (var control in eventPtr.EnumerateChangedControls(device)) {
+                if (!(control is KeyControl key) || key.isPressed) continue;
+                if (key.ReadValueFromEvent(eventPtr, out var value) && key.IsValueConsideredPressed(value)) {
+                    _keysPressedInOrder.Add(key.keyCode);
+                }
+            }
+        }
+
+        /// <summary>
+        /// The keys that went down this frame in the order they went down, as
+        /// key names joined by commas ("C,R,A,N,E"), or "" when none did. Built
+        /// once a frame, again only if another key goes down in the same frame.
+        ///
+        /// Recording starts with play mode, or with the first call outside it.
+        /// </summary>
+        public static string GetKeysPressed() {
+            WatchKeyPresses();
+            int frame = Time.frameCount;
+            int count = _keysPressedInOrderFrame == frame ? _keysPressedInOrder.Count : 0;
+            if (_keysPressedTextFrame == frame && _keysPressedTextCount == count) return _keysPressedText;
+            _keysPressedTextFrame = frame;
+            _keysPressedTextCount = count;
+            _keysPressedText = count == 0 ? "" : string.Join(",", _keysPressedInOrder);
+            return _keysPressedText;
         }
 
         // ============ Mouse ============
