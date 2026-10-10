@@ -1,3 +1,7 @@
+# Unreleased
+
+- Shader programs draw in a project that cloned OneJS into `Assets/OneJS`
+
 # [2026-10-09] v3.9.7
 
 `filter` and `backdrop-filter` now work in USS, CSS Modules and inline styles, React updates cross to C# fewer times, and events that JS causes arrive as they would in a browser. On WebGL, a sideways wheel scrolls and event values arrive at full precision.

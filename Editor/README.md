@@ -27,6 +27,7 @@ Editor scripts for OneJS Unity integration.
 | `OneJSEditorOverlay.cs` | The Scene view **OneJS** overlay and its update modes, installed as `JSRunner.EditModeUpdateFilter`: decides which runners' edit-mode previews tick (default Auto: the selected runner, else the one closest to the Scene camera) |
 | `OneJSWslHelper.cs` | Windows only: runs Open Terminal and npm through WSL when chosen from Open Terminal's right-click menu |
 | `AISkillsInstaller.cs` | **Tools > OneJS > Install AI Skills**: copies `AI/Skills/` into the project's `.claude/skills/`, never overwriting an edited skill without asking |
+| `OneJSPackage.cs` | `OneJSPackage.Root()`: where the package is, for every install shape (Package Manager, a clone anywhere under Assets, the Asset Store); editor code reading a file the package ships resolves it here |
 | `Recording/PanelRecorder.cs` | Renders a running JSRunner's UI to an mp4 by frame-stepping it on `VirtualClock` (see below) |
 | `Recording/OffscreenPanelRenderer.cs` | Draws a PanelSettings' panel into an offscreen RenderTexture at an exact size |
 | `Recording/InputTrack.cs` | Scripted pointer and keyboard input for a recording (see below) |

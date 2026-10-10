@@ -59,8 +59,21 @@ namespace OneJS.Editor {
         public const string RegistryAsset = "Assets/OneJS.Generated/Resources/" + SLShaderRegistry.ResourcePath + ".asset";
         /// <summary>The include every generated shader starts from.</summary>
         public const string RootInclude = "SLCommon.cginc";
-        const string PackageDir = "Packages/com.singtaa.onejs/Resources/OneJS";
-        const string AssetsDir = "Assets/Singtaa/OneJS/Resources/OneJS";
+
+        /// <summary>
+        /// The folder the includes are read from: the package's Resources/OneJS,
+        /// wherever OneJS is installed, or null when the package cannot be found.
+        ///
+        /// Resolved, not fixed. Two fixed folders, Packages/com.singtaa.onejs and
+        /// Assets/Singtaa/OneJS, missed the clone into Assets/OneJS that the
+        /// README gives, and there every program drew nothing.
+        /// </summary>
+        public static string IncludeDir() {
+            var root = OneJSPackage.Root();
+            if (string.IsNullOrEmpty(root)) return null;
+            var project = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            return Path.GetFullPath(Path.Combine(project, root, "Resources", "OneJS"));
+        }
 
         /// <summary>
         /// Every include a generated shader needs, copied beside it: the root
@@ -73,8 +86,10 @@ namespace OneJS.Editor {
         /// game rather than a broken build step. The test that should have
         /// caught it kept a list of its own.
         /// </summary>
-        public static string[] Includes() {
-            var root = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+        public static string[] Includes() => Includes(IncludeDir());
+
+        /// <summary>The same, read from <paramref name="includeDir"/>.</summary>
+        public static string[] Includes(string includeDir) {
             var ordered = new List<string>();
             var pending = new Queue<string>();
             pending.Enqueue(RootInclude);
@@ -82,7 +97,7 @@ namespace OneJS.Editor {
                 var name = pending.Dequeue();
                 if (ordered.Contains(name)) continue;
                 ordered.Add(name);
-                var from = IncludeSource(root, name);
+                var from = IncludeSource(includeDir, name);
                 if (from == null) continue;
                 foreach (System.Text.RegularExpressions.Match m in
                          System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(from), @"#include\s+""([^""]+)""")) {
@@ -92,10 +107,10 @@ namespace OneJS.Editor {
             return ordered.ToArray();
         }
 
-        static string IncludeSource(string root, string name) {
-            var pkg = Path.Combine(root, Path.Combine(PackageDir, name).Replace('/', Path.DirectorySeparatorChar));
-            var loc = Path.Combine(root, Path.Combine(AssetsDir, name).Replace('/', Path.DirectorySeparatorChar));
-            return File.Exists(pkg) ? pkg : File.Exists(loc) ? loc : null;
+        static string IncludeSource(string includeDir, string name) {
+            if (includeDir == null) return null;
+            var path = Path.Combine(includeDir, name);
+            return File.Exists(path) ? path : null;
         }
 
         [Serializable]
@@ -403,12 +418,14 @@ namespace OneJS.Editor {
             // noise means. Copying them beside the output keeps every include a
             // plain relative path, which resolves the same way on every Unity
             // version.
-            foreach (var inc in Includes()) {
-                var from = IncludeSource(root, inc);
+            var includeDir = IncludeDir();
+            foreach (var inc in Includes(includeDir)) {
+                var from = IncludeSource(includeDir, inc);
                 if (from == null) {
                     Debug.LogError(
-                        $"[OneJS sl] {inc} is missing, so generated shaders cannot compile and would " +
-                        "render magenta. A program would run on the site and break after an eject.");
+                        $"[OneJS sl] {inc} is missing from {includeDir ?? "the OneJS package, which was not found"}, " +
+                        "so generated shaders cannot compile and would render magenta. A program would run on " +
+                        "the site and break after an eject.");
                     return new string[0];
                 }
                 CopyIfDifferent(from, Path.Combine(outAbs, inc));
