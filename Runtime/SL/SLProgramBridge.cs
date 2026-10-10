@@ -181,7 +181,7 @@ namespace OneJS.SL {
                 $"[OneJS sl] program {name} has no compiled shader in this player, so it draws nothing. The " +
                 "build compiles every program listed in a *.sl.json manifest: a .sl file is listed in " +
                 "app.sl.json when the app is built, and a program built in code is listed in " +
-                "Assets/OneJS/Recorded.sl.json once the editor has drawn it. Run the app in the editor, then " +
+                "Assets/OneJS.Recorded.sl.json once the editor has drawn it. Run the app in the editor, then " +
                 "build again.");
         }
 

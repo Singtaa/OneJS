@@ -51,10 +51,23 @@ namespace OneJS.Editor {
         /// Outside <see cref="OutputDir"/> because it is a source, not a product:
         /// a program built in code is known only from this file, so it has to be
         /// committed for a teammate's build or CI to ship it.
+        ///
+        /// Beside Assets/OneJS.Generated, the other path OneJS writes for the
+        /// whole project, and like it outside every folder OneJS installs to.
+        /// It was Assets/OneJS/Recorded.sl.json, which is the clone the README
+        /// gives, so there it landed in OneJS's own repository and the project
+        /// could not commit it.
         /// </summary>
-        public const string RecordedManifest = "Assets/OneJS/Recorded.sl.json";
-        /// <summary>Where <see cref="RecordedManifest"/> lived before, inside the folder projects ignore.</summary>
-        public const string LegacyRecordedManifest = OutputDir + "/Recorded.sl.json";
+        public const string RecordedManifest = "Assets/OneJS.Recorded.sl.json";
+        /// <summary>
+        /// Where <see cref="RecordedManifest"/> lived before, oldest first:
+        /// inside the folder projects ignore, then inside the clone install's
+        /// folder. <see cref="MigrateRecorded()"/> moves either one here.
+        /// </summary>
+        public static readonly string[] LegacyRecordedManifests = {
+            OutputDir + "/Recorded.sl.json",
+            "Assets/OneJS/Recorded.sl.json",
+        };
         /// <summary>The registry a player loads its generated shaders from (<see cref="SLShaderRegistry"/>).</summary>
         public const string RegistryAsset = "Assets/OneJS.Generated/Resources/" + SLShaderRegistry.ResourcePath + ".asset";
         /// <summary>The include every generated shader starts from.</summary>
@@ -227,21 +240,41 @@ namespace OneJS.Editor {
         }
 
         /// <summary>
-        /// Moves a recorded manifest from where older versions wrote it, inside
-        /// the ignored folder, to <see cref="RecordedManifest"/>, merging when
-        /// both exist. Returns true when there was one to move.
+        /// Moves a recorded manifest from wherever older versions wrote it
+        /// (<see cref="LegacyRecordedManifests"/>) to <see cref="RecordedManifest"/>,
+        /// merging when more than one exists. Returns true when there was one to move.
         /// </summary>
-        public static bool MigrateRecorded() {
-            if (!File.Exists(Abs(LegacyRecordedManifest))) return false;
-            var entries = ReadEntries(RecordedManifest);
-            foreach (var kv in ReadEntries(LegacyRecordedManifest)) {
-                if (!entries.ContainsKey(kv.Key)) entries[kv.Key] = kv.Value;
+        public static bool MigrateRecorded() => MigrateRecorded(RecordedManifest, LegacyRecordedManifests);
+
+        /// <summary>
+        /// The same, between any two places. An entry already at `to` is kept.
+        /// A folder the move leaves empty goes too, so a package install is not
+        /// left an empty Assets/OneJS; a clone install's Assets/OneJS is the
+        /// package and is never empty.
+        /// </summary>
+        public static bool MigrateRecorded(string to, string[] from) {
+            var found = Array.FindAll(from, f => File.Exists(Abs(f)));
+            if (found.Length == 0) return false;
+            var entries = ReadEntries(to);
+            foreach (var legacy in found) {
+                foreach (var kv in ReadEntries(legacy)) {
+                    if (!entries.ContainsKey(kv.Key)) entries[kv.Key] = kv.Value;
+                }
             }
-            WriteEntries(RecordedManifest, entries);
-            if (!AssetDatabase.DeleteAsset(LegacyRecordedManifest)) File.Delete(Abs(LegacyRecordedManifest));
-            AssetDatabase.ImportAsset(RecordedManifest, ImportAssetOptions.ForceSynchronousImport);
-            Debug.Log($"[OneJS sl] moved {LegacyRecordedManifest} to {RecordedManifest}, where it can be committed " +
-                      "so every build of this project ships the programs it lists.");
+            WriteEntries(to, entries);
+            foreach (var legacy in found) {
+                if (!AssetDatabase.DeleteAsset(legacy)) {
+                    File.Delete(Abs(legacy));
+                    File.Delete(Abs(legacy) + ".meta");
+                }
+                var dir = Path.GetDirectoryName(legacy).Replace('\\', '/');
+                if (Directory.Exists(Abs(dir)) && Directory.GetFileSystemEntries(Abs(dir)).Length == 0) {
+                    AssetDatabase.DeleteAsset(dir);
+                }
+                Debug.Log($"[OneJS sl] moved {legacy} to {to}, where it can be committed so every build of " +
+                          "this project ships the programs it lists.");
+            }
+            AssetDatabase.ImportAsset(to, ImportAssetOptions.ForceSynchronousImport);
             return true;
         }
 
@@ -267,13 +300,12 @@ namespace OneJS.Editor {
 
         /// <summary>The manifests apps write, which is every one but the recorded manifest.</summary>
         public static string[] AppManifests(string[] manifests) {
-            var recorded = Path.GetFullPath(Abs(RecordedManifest));
-            var legacy = Path.GetFullPath(Abs(LegacyRecordedManifest));
+            var recorded = new List<string> { Path.GetFullPath(Abs(RecordedManifest)) };
+            foreach (var legacy in LegacyRecordedManifests) recorded.Add(Path.GetFullPath(Abs(legacy)));
             var apps = new List<string>();
             foreach (var m in manifests) {
                 var full = Path.GetFullPath(m);
-                if (!string.Equals(full, recorded, StringComparison.OrdinalIgnoreCase) &&
-                    !string.Equals(full, legacy, StringComparison.OrdinalIgnoreCase)) apps.Add(m);
+                if (!recorded.Exists(r => string.Equals(full, r, StringComparison.OrdinalIgnoreCase))) apps.Add(m);
             }
             return apps.ToArray();
         }

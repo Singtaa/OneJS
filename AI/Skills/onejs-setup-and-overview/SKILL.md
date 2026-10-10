@@ -5,14 +5,14 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.9.7"
-  skill-version: "1.15.1"
+  skill-version: "1.15.2"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-10-09"
+  last-verified: "2026-10-10"
 ---
 
 # Set Up a OneJS Project
@@ -206,7 +206,7 @@ The traps, all of which are refused at build time with a message rather than ren
 
 `if` is a real branch and `return` works anywhere. A `for` with a known count of 64 or fewer and nothing leaving early unrolls; any other loop (a uniform bound, `while`, `break`) runs as a loop and stops at its constant count, its uniform bound's `[Range]` maximum, or 1024 turns, so it can never hang the GPU.
 
-For a program built by code rather than written by hand, `sl.program` records the same graph from TypeScript. No build can see one, so the editor records it the first time it draws it, into `Assets/OneJS/Recorded.sl.json`. Until its shader exists, a moment after it first draws, the element is blank. Commit that file, or a player built on another machine draws nothing for that program and logs an error with its hash. After an onejs-sl update that changes how programs are hashed, a native build stops with a message saying to run the app in the editor once: do that, which records the programs again and drops the old ones, and commit the file. Full reference: https://onejs.com/docs/guides/shader-language
+For a program built by code rather than written by hand, `sl.program` records the same graph from TypeScript. No build can see one, so the editor records it the first time it draws it, into `Assets/OneJS.Recorded.sl.json`. Until its shader exists, a moment after it first draws, the element is blank. Commit that file, or a player built on another machine draws nothing for that program and logs an error with its hash. After an onejs-sl update that changes how programs are hashed, a native build stops with a message saying to run the app in the editor once: do that, which records the programs again and drops the old ones, and commit the file. Full reference: https://onejs.com/docs/guides/shader-language
 
 ### Workflow: Set up a project without clicking the inspector
 

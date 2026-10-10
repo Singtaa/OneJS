@@ -7,6 +7,7 @@
 - `onTransitionRun`, `onTransitionStart`, `onTransitionEnd` and `onTransitionCancel` fire, and bubble as in a browser
 - The Type Generator declares generic types under the `$N` name their subclasses extend, so inherited members are typed
 - A JSRunner without Panel Settings warns once in Play mode instead of doing nothing silently
+- Programs recorded from code go to `Assets/OneJS.Recorded.sl.json`, moved from `Assets/OneJS/` on the next recording or build
 
 # [2026-10-09] v3.9.7
 
