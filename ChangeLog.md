@@ -1,4 +1,6 @@
-# Unreleased
+# [2026-10-10] v3.9.8
+
+Mouse, input and transition events now fire, a project that cloned OneJS into `Assets/OneJS` draws its shader programs, and new projects start with Tailwind's preflight on. Programs recorded from code now live in `Assets/OneJS.Recorded.sl.json`, and the editor moves an existing recording there by itself.
 
 - `InputBridge.GetKeysPressed` lists the keys that went down this frame in the order they did
 - On WebGL, a second JSRunner warns that it takes over the first
@@ -9,6 +11,9 @@
 - The Type Generator declares generic types under the `$N` name their subclasses extend, so inherited members are typed
 - A JSRunner without Panel Settings warns once in Play mode instead of doing nothing silently
 - Programs recorded from code go to `Assets/OneJS.Recorded.sl.json`, moved from `Assets/OneJS/` on the next recording or build
+- New projects start with Tailwind's preflight on; existing projects keep their build config
+- The Type Generator leaves test assemblies out unless asked
+- The scaffold installs `onejs-react` 0.4, which drops the drag, tooltip and context click props that fired only in Editor windows
 
 # [2026-10-09] v3.9.7
 

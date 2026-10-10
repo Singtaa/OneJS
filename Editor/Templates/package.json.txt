@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "react": "^19.0.0",
-    "onejs-react": "^0.3.0",
+    "onejs-react": "^0.4.0",
     "onejs-ui": "^0.0.6",
     "onejs-unity": "^0.10.0",
     "ojplay": "^0.10.0"
