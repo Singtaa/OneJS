@@ -1,6 +1,9 @@
 # Unreleased
 
 - Shader programs draw in a project that cloned OneJS into `Assets/OneJS`
+- `onMouseDown`, `onMouseUp`, `onMouseMove`, `onMouseEnter`, `onMouseLeave`, `onMouseOver` and `onMouseOut` fire
+- `onInput` fires as a TextField's text is typed
+- `onTransitionRun`, `onTransitionStart`, `onTransitionEnd` and `onTransitionCancel` fire, and bubble as in a browser
 
 # [2026-10-09] v3.9.7
 

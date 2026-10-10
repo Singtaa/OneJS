@@ -78,6 +78,15 @@ namespace OneJS {
         const int EVT_NAVIGATION_MOVE = 40;
         const int EVT_NAVIGATION_SUBMIT = 41;
         const int EVT_NAVIGATION_CANCEL = 42;
+        // UI Toolkit's mouse events, which it raises from the primary pointer beside the
+        // pointer events: { x, y, button }
+        const int EVT_MOUSE_DOWN = 50;
+        const int EVT_MOUSE_UP = 51;
+        const int EVT_MOUSE_MOVE = 52;
+        const int EVT_MOUSE_ENTER = 53;
+        const int EVT_MOUSE_LEAVE = 54;
+        const int EVT_MOUSE_OVER = 55;
+        const int EVT_MOUSE_OUT = 56;
 
         // Viewport tracking for responsive design
         float _lastViewportWidth;
@@ -110,6 +119,10 @@ namespace OneJS {
         ulong _lastDispatchedPointerCancelId = ulong.MaxValue;
         ulong _lastDispatchedPointerCaptureId = ulong.MaxValue;
         ulong _lastDispatchedPointerCaptureOutId = ulong.MaxValue;
+        // The per-element events below reach C# once for each element along the path that
+        // JS listens on, so each remembers the last event of its type it sent to JS. Keyed by
+        // event type, because a handler can raise an event of another type mid-dispatch.
+        readonly Dictionary<long, ulong> _lastPerElementEventIds = new();
 
         // Open delegate over the internal getter: no allocation per event. Looked up
         // by method name because stripping can drop property metadata while keeping
@@ -1097,6 +1110,18 @@ namespace OneJS {
                 case "geometrychanged":
                     element.RegisterCallback<GeometryChangedEvent>(OnPerElementGeometryChanged);
                     break;
+                case "mousedown": element.RegisterCallback<MouseDownEvent>(OnPerElementMouseDown); break;
+                case "mouseup": element.RegisterCallback<MouseUpEvent>(OnPerElementMouseUp); break;
+                case "mousemove": element.RegisterCallback<MouseMoveEvent>(OnPerElementMouseMove); break;
+                case "mouseenter": element.RegisterCallback<MouseEnterEvent>(OnPerElementMouseEnter); break;
+                case "mouseleave": element.RegisterCallback<MouseLeaveEvent>(OnPerElementMouseLeave); break;
+                case "mouseover": element.RegisterCallback<MouseOverEvent>(OnPerElementMouseOver); break;
+                case "mouseout": element.RegisterCallback<MouseOutEvent>(OnPerElementMouseOut); break;
+                case "input": element.RegisterCallback<InputEvent>(OnPerElementInput); break;
+                case "transitionrun": element.RegisterCallback<TransitionRunEvent>(OnPerElementTransitionRun); break;
+                case "transitionstart": element.RegisterCallback<TransitionStartEvent>(OnPerElementTransitionStart); break;
+                case "transitionend": element.RegisterCallback<TransitionEndEvent>(OnPerElementTransitionEnd); break;
+                case "transitioncancel": element.RegisterCallback<TransitionCancelEvent>(OnPerElementTransitionCancel); break;
             }
         }
 
@@ -1134,6 +1159,18 @@ namespace OneJS {
                 case "geometrychanged":
                     element.UnregisterCallback<GeometryChangedEvent>(OnPerElementGeometryChanged);
                     break;
+                case "mousedown": element.UnregisterCallback<MouseDownEvent>(OnPerElementMouseDown); break;
+                case "mouseup": element.UnregisterCallback<MouseUpEvent>(OnPerElementMouseUp); break;
+                case "mousemove": element.UnregisterCallback<MouseMoveEvent>(OnPerElementMouseMove); break;
+                case "mouseenter": element.UnregisterCallback<MouseEnterEvent>(OnPerElementMouseEnter); break;
+                case "mouseleave": element.UnregisterCallback<MouseLeaveEvent>(OnPerElementMouseLeave); break;
+                case "mouseover": element.UnregisterCallback<MouseOverEvent>(OnPerElementMouseOver); break;
+                case "mouseout": element.UnregisterCallback<MouseOutEvent>(OnPerElementMouseOut); break;
+                case "input": element.UnregisterCallback<InputEvent>(OnPerElementInput); break;
+                case "transitionrun": element.UnregisterCallback<TransitionRunEvent>(OnPerElementTransitionRun); break;
+                case "transitionstart": element.UnregisterCallback<TransitionStartEvent>(OnPerElementTransitionStart); break;
+                case "transitionend": element.UnregisterCallback<TransitionEndEvent>(OnPerElementTransitionEnd); break;
+                case "transitioncancel": element.UnregisterCallback<TransitionCancelEvent>(OnPerElementTransitionCancel); break;
             }
         }
 
@@ -1195,6 +1232,71 @@ namespace OneJS {
             int handle = FindElementHandle(e.target);
             if (handle == 0) return;
             DispatchGeometryEvent("geometrychanged", handle, e.oldRect, e.newRect);
+        }
+
+        // MARK: Per-Element Mouse, Input and Transition Handlers
+        // Registered only on elements JS listens on, so an app that never asks for these
+        // pays nothing for them. Each is sent to JS once, from its target; the bootstrap
+        // then bubbles it as UI Toolkit does. Mouse events are the ones UI Toolkit raises
+        // from the primary pointer beside the pointer events (MouseOver/Out and Down/Up/Move
+        // bubble, Enter/Leave reach only the element entered or left); an InputEvent is a
+        // TextField's text changing as the user types, and bubbles; the transition events
+        // bubble too. preventDefault() on a mouse event is mirrored as on a pointer event.
+        bool IsNewPerElementDispatch(EventBase e) {
+            ulong id = s_eventId != null ? s_eventId(e) : (ulong)e.timestamp;
+            if (_lastPerElementEventIds.TryGetValue(e.eventTypeId, out var last) && last == id) return false;
+            _lastPerElementEventIds[e.eventTypeId] = id;
+            return true;
+        }
+
+        void OnPerElementMouseDown(MouseDownEvent e) => DispatchMouse(e, EVT_MOUSE_DOWN, "mousedown");
+        void OnPerElementMouseUp(MouseUpEvent e) => DispatchMouse(e, EVT_MOUSE_UP, "mouseup");
+        void OnPerElementMouseMove(MouseMoveEvent e) {
+            if (PointerEvents.MoveEventsEnabled) DispatchMouse(e, EVT_MOUSE_MOVE, "mousemove");
+        }
+        void OnPerElementMouseEnter(MouseEnterEvent e) => DispatchMouse(e, EVT_MOUSE_ENTER, "mouseenter");
+        void OnPerElementMouseLeave(MouseLeaveEvent e) => DispatchMouse(e, EVT_MOUSE_LEAVE, "mouseleave");
+        void OnPerElementMouseOver(MouseOverEvent e) => DispatchMouse(e, EVT_MOUSE_OVER, "mouseover");
+        void OnPerElementMouseOut(MouseOutEvent e) => DispatchMouse(e, EVT_MOUSE_OUT, "mouseout");
+
+        void DispatchMouse<T>(MouseEventBase<T> e, int fastId, string eventType) where T : MouseEventBase<T>, new() {
+            if (!IsNewPerElementDispatch(e)) return;
+            int handle = FindElementHandle(e.target);
+            if (handle == 0) return;
+            int flags;
+            if (_eventDispatchHandle >= 0) {
+                flags = DispatchEventFast(fastId, handle, e.mousePosition.x, e.mousePosition.y, e.button, 0);
+            } else {
+                string data = "{\"x\":" + JsonFloat(e.mousePosition.x) + ",\"y\":" + JsonFloat(e.mousePosition.y)
+                            + ",\"button\":" + e.button.ToString(CultureInfo.InvariantCulture) + "}";
+                flags = DispatchEventInternal(handle, eventType, data);
+            }
+            ApplyNativeSuppression(e, flags);
+        }
+
+        void OnPerElementInput(InputEvent e) {
+            if (!IsNewPerElementDispatch(e)) return;
+            DispatchEvent("input", e.target,
+                "{\"value\":\"" + EscapeForJson(e.newData ?? "") + "\",\"previousValue\":\"" + EscapeForJson(e.previousData ?? "") + "\"}");
+        }
+
+        void OnPerElementTransitionRun(TransitionRunEvent e) => DispatchTransition(e, "transitionrun");
+        void OnPerElementTransitionStart(TransitionStartEvent e) => DispatchTransition(e, "transitionstart");
+        void OnPerElementTransitionEnd(TransitionEndEvent e) => DispatchTransition(e, "transitionend");
+        void OnPerElementTransitionCancel(TransitionCancelEvent e) => DispatchTransition(e, "transitioncancel");
+
+        // One JS event per property, as a browser sends one per property: UI Toolkit raises
+        // one per property too, though its event can name several. propertyName is the USS
+        // name ("background-color"), elapsedTime the seconds the transition had run.
+        void DispatchTransition<T>(TransitionEventBase<T> e, string eventType) where T : TransitionEventBase<T>, new() {
+            if (!IsNewPerElementDispatch(e)) return;
+            int handle = FindElementHandle(e.target);
+            if (handle == 0) return;
+            foreach (var name in e.stylePropertyNames) {
+                DispatchEventInternal(handle, eventType,
+                    "{\"propertyName\":\"" + EscapeForJson(name.ToString()) + "\",\"elapsedTime\":"
+                    + e.elapsedTime.ToString("R", CultureInfo.InvariantCulture) + "}");
+            }
         }
 
         void DispatchGeometryEvent(string eventType, int handle, Rect oldRect, Rect newRect) {
