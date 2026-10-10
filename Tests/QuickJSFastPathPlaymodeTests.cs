@@ -14,13 +14,6 @@ namespace OneJS.Tests {
     /// </summary>
     [TestFixture]
     public class QuickJSFastPathPlaymodeTests {
-        // Per call, Eval's own result string included. Measured in the 6000.5
-        // editor on 10 Oct 2026: the fast path 64 (a float property's get), 24
-        // (a set) and 52 (new Vector2); with it switched off at the dispatch,
-        // 178, 262 and 470. Between the two, so a fast path that stops
-        // engaging fails here.
-        const long MaxBytesPerCall = 120;
-
         QuickJSContext _ctx;
 
         [UnitySetUp]
@@ -434,55 +427,68 @@ namespace OneJS.Tests {
         // MARK: Allocation Tests
 
         /// <summary>
-        /// Bytes the managed heap handed out per call, counted by Unity's
-        /// "GC Allocated In Frame" over a frame that does nothing else. These
-        /// tests used to call GC.Collect before reading GC.GetTotalMemory,
-        /// which measures what is still alive, so everything the calls
-        /// allocated and dropped had just been freed and they read near zero
-        /// for any path (audit H5). GC.GetAllocatedBytesForCurrentThread reads
-        /// 0 on Unity's Mono, and the heap's size moves in 64 KB blocks, so
-        /// neither can tell the paths apart either.
+        /// Managed bytes per fast-path call, counted by Unity's "GC Allocated In
+        /// Frame". The calls loop inside one Eval and an Eval of the same loop
+        /// with an empty body is subtracted, so what is left is the crossings
+        /// alone: every Eval allocates its result string, which is what these
+        /// tests measured while they made one Eval per call (24 B for "1", 64 B
+        /// for a float printed in full). Measured in the 6000.5 editor on 10 Oct
+        /// 2026: 0 B per call for each case here; with the fast path switched off
+        /// at the dispatch, 114 (get), 238 (set) and 418 (new Vector2).
+        ///
+        /// Before this they called GC.Collect and read GC.GetTotalMemory, which
+        /// measures what is still alive, so they read near zero for any path
+        /// (audit H5). GC.GetAllocatedBytesForCurrentThread reads 0 on Unity's
+        /// Mono, and the heap's size moves in 64 KB blocks, so neither can tell
+        /// the paths apart.
         /// </summary>
-        IEnumerator MeasureAllocation(string code, Action<long> perCall) {
+        IEnumerator AssertAllocatesNothing(string call) {
+            const int calls = 1000;
+            var loop = $"for (let i = 0; i < {calls}; i++) {{ {call} }}; 0";
+            var empty = $"for (let i = 0; i < {calls}; i++) {{ }}; 0";
+            // First use registers types, caches and handles: not what is measured
+            _ctx.Eval(loop);
+            _ctx.Eval(empty);
+            yield return null;
+
+            long withCalls = 0, withoutCalls = 0;
+            yield return AllocatedInFrame(loop, b => withCalls = b);
+            yield return AllocatedInFrame(empty, b => withoutCalls = b);
+            double perCall = (withCalls - withoutCalls) / (double)calls;
+            Debug.Log($"[FastPathAlloc] {call}: {perCall:0.##} bytes per call ({withCalls} with the calls, {withoutCalls} without)");
+            Assert.Less(withCalls - withoutCalls, calls, $"{call} allocates {perCall:0.##} bytes per call through the fast path");
+        }
+
+        IEnumerator AllocatedInFrame(string code, Action<long> bytes) {
             using var allocated = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");
             Assert.IsTrue(allocated.Valid, "This editor does not record GC Allocated In Frame, so nothing can be measured");
-            for (int i = 0; i < 100; i++) _ctx.Eval(code);
             yield return null;
-            const int calls = 1000;
-            for (int i = 0; i < calls; i++) _ctx.Eval(code);
+            _ctx.Eval(code);
             yield return null;
-            long bytes = allocated.LastValue / calls;
-            Debug.Log($"[FastPathAlloc] {code}: {bytes} bytes per call");
-            perCall(bytes);
+            bytes(allocated.LastValue);
         }
 
         [UnityTest]
-        public IEnumerator FastPath_PropertyGet_LowAllocation() {
-            long bytes = 0;
-            yield return MeasureAllocation("CS.UnityEngine.Time.deltaTime", b => bytes = b);
-            Assert.Less(bytes, MaxBytesPerCall, "Allocation should be low for fast path");
+        public IEnumerator FastPath_PropertyGet_AllocatesNothing() {
+            yield return AssertAllocatesNothing("CS.UnityEngine.Time.deltaTime");
         }
 
         [UnityTest]
-        public IEnumerator FastPath_PropertySet_LowAllocation() {
+        public IEnumerator FastPath_PropertySet_AllocatesNothing() {
             float original = Time.timeScale;
-            long bytes = 0;
             try {
-                yield return MeasureAllocation("CS.UnityEngine.Time.timeScale = 1.0", b => bytes = b);
+                yield return AssertAllocatesNothing("CS.UnityEngine.Time.timeScale = 1.0");
             } finally {
                 Time.timeScale = original;
             }
-            Assert.Less(bytes, MaxBytesPerCall, "Allocation should be low for fast path");
         }
 
         // The reflection ctor path allocates an object[], boxes each arg, builds
         // ConstructorInfo[]/ParameterInfo[], and boxes the result: per call. The
-        // fast ctor path does none of that, so allocation stays at eval overhead.
+        // fast ctor path does none of that.
         [UnityTest]
-        public IEnumerator FastCtor_Construction_LowAllocation() {
-            long bytes = 0;
-            yield return MeasureAllocation("new CS.UnityEngine.Vector2(3, 4)", b => bytes = b);
-            Assert.Less(bytes, MaxBytesPerCall, "Allocation should be low for the fast ctor path");
+        public IEnumerator FastCtor_Construction_AllocatesNothing() {
+            yield return AssertAllocatesNothing("new CS.UnityEngine.Vector2(3, 4)");
         }
 
         [UnityTest]
