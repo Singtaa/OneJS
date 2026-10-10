@@ -1,6 +1,7 @@
 # Unreleased
 
 - Shader programs draw in a project that cloned OneJS into `Assets/OneJS`
+- The Type Generator declares generic types under the `$N` name their subclasses extend, so inherited members are typed
 
 # [2026-10-09] v3.9.7
 

@@ -251,6 +251,8 @@ TypeGeneratorResult (Output + Metadata)
 | `T[]` | `System.Array$1<T>` |
 | `List<T>` | `System.Collections.Generic.List$1<T>` |
 
+A generic type is declared and referenced under one name, its C# name plus `$N` for its N type parameters (`class BaseField$1<TValueType>`, `extends BaseField$1<number>`), so `UnityEvent` and `UnityEvent$1` stay apart. A type nested in a generic one counts its parent's parameters too. `TypeMapper.TsTypeName` is the one place that name is made, for declarations and references alike.
+
 ## File Structure
 
 ```

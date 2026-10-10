@@ -120,15 +120,7 @@ namespace OneJS.Editor.TypeGenerator {
             };
         }
 
-        private string GetTypeName(Type type) {
-            var name = type.Name;
-            // Replace backtick for generic types
-            var tickIndex = name.IndexOf('`');
-            if (tickIndex > 0) {
-                name = name.Substring(0, tickIndex);
-            }
-            return name;
-        }
+        private string GetTypeName(Type type) => TypeMapper.TsTypeName(type);
 
         private string GetTypeNamespace(Type type) {
             if (type.IsNested) {
