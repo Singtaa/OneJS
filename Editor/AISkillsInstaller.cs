@@ -117,37 +117,8 @@ namespace OneJS.Editor {
             return result;
         }
 
-        /// <summary>
-        /// Resolves the OneJS package root for every install shape: Package Manager
-        /// (Packages/ or the package cache), a git clone into Assets, and the Asset Store
-        /// package. Mirrors how JSRunner locates its Editor/Templates folder.
-        ///
-        /// Public so guards and tooling resolve the package the same way this does.
-        /// A second copy of this logic is how the two quietly start disagreeing.
-        /// </summary>
-        public static string FindPackageRoot() {
-            var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(
-                typeof(AISkillsInstaller).Assembly);
-
-            if (packageInfo != null && Directory.Exists(packageInfo.resolvedPath))
-                return packageInfo.resolvedPath;
-
-            // Installed under Assets. Locate this script, then walk up out of Editor/.
-            var guids = AssetDatabase.FindAssets($"{nameof(AISkillsInstaller)} t:MonoScript");
-            foreach (var guid in guids) {
-                var assetPath = AssetDatabase.GUIDToAssetPath(guid);
-                if (!assetPath.EndsWith($"{nameof(AISkillsInstaller)}.cs")) continue;
-
-                var editorDir = Path.GetDirectoryName(assetPath);
-                var packageRoot = Path.GetDirectoryName(editorDir);
-                if (!string.IsNullOrEmpty(packageRoot)) return packageRoot;
-            }
-
-            return null;
-        }
-
         static string FindShippedSkillsFolder() {
-            var root = FindPackageRoot();
+            var root = OneJSPackage.Root();
             if (string.IsNullOrEmpty(root)) return null;
 
             var candidate = Path.Combine(root, SkillsSubPath);

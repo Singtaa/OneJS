@@ -18,10 +18,10 @@ namespace OneJS.Tests.Editor {
     public class AISkillContractTests {
         static string PackageRoot {
             get {
-                var root = AISkillsInstaller.FindPackageRoot();
+                var root = OneJSPackage.Root();
                 Assert.IsFalse(string.IsNullOrEmpty(root),
                     "Could not resolve the OneJS package root. If the layout moved, fix " +
-                    "AISkillsInstaller.FindPackageRoot rather than deleting this test.");
+                    "OneJSPackage.Root rather than deleting this test.");
                 return root;
             }
         }

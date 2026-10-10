@@ -68,7 +68,7 @@ namespace OneJS.Tests.Editor {
 
         static string PackageRoot {
             get {
-                var root = AISkillsInstaller.FindPackageRoot();
+                var root = OneJSPackage.Root();
                 Assert.IsNotNull(root, "Could not find the OneJS package root.");
                 return root;
             }

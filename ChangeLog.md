@@ -11,6 +11,7 @@
 - A focus or click that JS causes runs its handler at once, and microtasks wait until the JS returns
 - A value React sets fires no `onChange`, and a text changing never fires one
 - A text inside `<Text>` that React reorders or Suspense hides shows once, or not at all
+- Shader programs draw in a project that cloned OneJS into `Assets/OneJS`
 
 # [2026-10-06] v3.9.6
 
