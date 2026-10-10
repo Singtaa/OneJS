@@ -96,12 +96,14 @@ namespace OneJS.Editor.TypeGenerator {
         #region Add from Assembly
 
         /// <summary>
-        /// Adds all public types from assemblies matching the name pattern.
+        /// Adds all public types from assemblies matching the name pattern, test assemblies
+        /// (those referencing NUnit) aside unless asked for.
         /// </summary>
         /// <param name="assemblyNamePattern">Assembly name or prefix (e.g., "UnityEngine")</param>
+        /// <param name="includeTestAssemblies">Match test assemblies too</param>
         /// <returns>This builder for chaining</returns>
-        public TypeGeneratorBuilder AddAssemblyByName(string assemblyNamePattern) {
-            var types = TypeGenerator.GetTypesFromAssembly(assemblyNamePattern);
+        public TypeGeneratorBuilder AddAssemblyByName(string assemblyNamePattern, bool includeTestAssemblies = false) {
+            var types = TypeGenerator.GetTypesFromAssembly(assemblyNamePattern, includeTestAssemblies);
             return AddTypes(types);
         }
 
@@ -148,12 +150,14 @@ namespace OneJS.Editor.TypeGenerator {
         #region Add from Namespace
 
         /// <summary>
-        /// Adds all public types from the specified namespace (prefix match).
+        /// Adds all public types from the specified namespace (prefix match), test assemblies
+        /// (those referencing NUnit) aside unless asked for.
         /// </summary>
         /// <param name="namespaceName">Namespace name or prefix</param>
+        /// <param name="includeTestAssemblies">Look in test assemblies too</param>
         /// <returns>This builder for chaining</returns>
-        public TypeGeneratorBuilder AddNamespace(string namespaceName) {
-            var types = TypeGenerator.GetTypesFromNamespace(namespaceName);
+        public TypeGeneratorBuilder AddNamespace(string namespaceName, bool includeTestAssemblies = false) {
+            var types = TypeGenerator.GetTypesFromNamespace(namespaceName, includeTestAssemblies);
             return AddTypes(types);
         }
 

@@ -119,10 +119,11 @@ public class TypeGeneratorBuilder {
     TypeGeneratorBuilder AddTypes(IEnumerable<Type> types);
     TypeGeneratorBuilder AddTypeByName(string fullTypeName);
 
-    // Add from sources
-    TypeGeneratorBuilder AddAssemblyByName(string assemblyNamePattern);
+    // Add from sources. The two by name leave out test assemblies (those referencing
+    // NUnit) unless includeTestAssemblies is true.
+    TypeGeneratorBuilder AddAssemblyByName(string assemblyNamePattern, bool includeTestAssemblies = false);
     TypeGeneratorBuilder AddAssembly(Assembly assembly);
-    TypeGeneratorBuilder AddNamespace(string namespaceName);
+    TypeGeneratorBuilder AddNamespace(string namespaceName, bool includeTestAssemblies = false);
     TypeGeneratorBuilder AddTypesWhere(Func<Type, bool> predicate);
     TypeGeneratorBuilder AddAssembliesWhere(Func<Assembly, bool> predicate);
 

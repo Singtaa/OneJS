@@ -178,23 +178,35 @@ namespace OneJS.Editor.TypeGenerator {
         #region Utility Methods
 
         /// <summary>
-        /// Gets all loaded assemblies matching the specified pattern.
+        /// Whether an assembly holds tests: it references NUnit, as every Unity test assembly does.
+        /// </summary>
+        public static bool IsTestAssembly(Assembly assembly) =>
+            assembly.GetReferencedAssemblies().Any(r => r.Name == "nunit.framework");
+
+        /// <summary>
+        /// Gets all loaded assemblies matching the specified pattern. Test assemblies are left
+        /// out unless asked for: a name like "OneJS" also matches "OneJS.Tests", whose fixtures
+        /// are no API anyone calls.
         /// </summary>
         /// <param name="namePattern">Name or prefix to match</param>
+        /// <param name="includeTestAssemblies">Match test assemblies too</param>
         /// <returns>Matching assemblies</returns>
-        public static IEnumerable<Assembly> GetAssemblies(string namePattern) {
+        public static IEnumerable<Assembly> GetAssemblies(string namePattern, bool includeTestAssemblies = false) {
             return AppDomain.CurrentDomain.GetAssemblies()
                 .Where(a => !a.IsDynamic)
-                .Where(a => a.GetName().Name.StartsWith(namePattern, StringComparison.OrdinalIgnoreCase));
+                .Where(a => a.GetName().Name.StartsWith(namePattern, StringComparison.OrdinalIgnoreCase))
+                .Where(a => includeTestAssemblies || !IsTestAssembly(a));
         }
 
         /// <summary>
-        /// Gets all public types from assemblies matching the pattern.
+        /// Gets all public types from assemblies matching the pattern, test assemblies aside
+        /// unless asked for.
         /// </summary>
         /// <param name="assemblyPattern">Assembly name pattern</param>
+        /// <param name="includeTestAssemblies">Match test assemblies too</param>
         /// <returns>Public types from matching assemblies</returns>
-        public static IEnumerable<Type> GetTypesFromAssembly(string assemblyPattern) {
-            return GetAssemblies(assemblyPattern)
+        public static IEnumerable<Type> GetTypesFromAssembly(string assemblyPattern, bool includeTestAssemblies = false) {
+            return GetAssemblies(assemblyPattern, includeTestAssemblies)
                 .SelectMany(a => {
                     try {
                         return a.GetTypes().Where(t => t.IsPublic && !TypeMapper.ShouldSkipType(t));
@@ -205,13 +217,16 @@ namespace OneJS.Editor.TypeGenerator {
         }
 
         /// <summary>
-        /// Gets all public types from the specified namespace.
+        /// Gets all public types from the specified namespace, from every assembly but the
+        /// test assemblies unless asked for.
         /// </summary>
         /// <param name="namespaceName">Namespace name (prefix match)</param>
+        /// <param name="includeTestAssemblies">Look in test assemblies too</param>
         /// <returns>Types in the namespace</returns>
-        public static IEnumerable<Type> GetTypesFromNamespace(string namespaceName) {
+        public static IEnumerable<Type> GetTypesFromNamespace(string namespaceName, bool includeTestAssemblies = false) {
             return AppDomain.CurrentDomain.GetAssemblies()
                 .Where(a => !a.IsDynamic)
+                .Where(a => includeTestAssemblies || !IsTestAssembly(a))
                 .SelectMany(a => {
                     try {
                         return a.GetTypes()

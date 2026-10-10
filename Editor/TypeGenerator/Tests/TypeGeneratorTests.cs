@@ -49,6 +49,24 @@ namespace OneJS.Editor.TypeGenerator.Tests {
             Assert.IsTrue(types.Any(t => t.Name == "Vector3"));
         }
 
+        // A test assembly's fixtures are no API: OneJS.d.ts carried OneJS.Tests and its fixtures
+        // because "OneJS" matched them, until test assemblies were left out by default
+        [Test]
+        public void TestAssemblies_AreLeftOutUnlessAskedFor() {
+            var fixture = typeof(TypeGeneratorTests);
+            var assembly = fixture.Assembly.GetName().Name;
+            Assert.IsTrue(TypeGenerator.IsTestAssembly(fixture.Assembly), "Test setup is wrong: this assembly does not read as a test assembly.");
+            Assert.IsFalse(TypeGenerator.IsTestAssembly(typeof(TypeGenerator).Assembly), "The generator's own assembly reads as a test assembly.");
+
+            CollectionAssert.DoesNotContain(TypeGenerator.GetTypesFromAssembly(assembly).ToList(), fixture);
+            CollectionAssert.DoesNotContain(TypeGenerator.GetTypesFromNamespace(fixture.Namespace).ToList(), fixture);
+            CollectionAssert.DoesNotContain(TypeGenerator.Create().AddNamespace(fixture.Namespace).Types.ToList(), fixture);
+
+            CollectionAssert.Contains(TypeGenerator.GetTypesFromAssembly(assembly, includeTestAssemblies: true).ToList(), fixture);
+            CollectionAssert.Contains(TypeGenerator.GetTypesFromNamespace(fixture.Namespace, includeTestAssemblies: true).ToList(), fixture);
+            CollectionAssert.Contains(TypeGenerator.Create().AddAssemblyByName(assembly, includeTestAssemblies: true).Types.ToList(), fixture);
+        }
+
         #endregion
 
         #region TypeGeneratorBuilder
