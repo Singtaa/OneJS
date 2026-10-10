@@ -1,5 +1,6 @@
 # Unreleased
 
+- On WebGL, a second JSRunner warns that it takes over the first
 - Shader programs draw in a project that cloned OneJS into `Assets/OneJS`
 
 # [2026-10-09] v3.9.7

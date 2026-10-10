@@ -57,9 +57,10 @@ var OneJSWebGLLib = {
 
         // Live context refcount. contextPtr, callbackRegistry and the
         // bootstrap's timer overrides are page-level singletons, so global
-        // teardown must only run when the LAST context is destroyed; C#
-        // supports multiple bridges even though WebGL is effectively
-        // single-context today.
+        // teardown must only run when the LAST context is destroyed. WebGL is
+        // single-context: every context is 1 and every bootstrap runs in the
+        // page's realm, so a second one takes over the first's event dispatch,
+        // tick and teardown. qjs_create says so rather than letting it pass.
         liveContexts: 0,
 
         // One-time warning for JS->C# calls arriving after qjs_destroy. Page-
@@ -514,6 +515,12 @@ var OneJSWebGLLib = {
     qjs_create: function() {
         OneJS.init();
         OneJS.liveContexts++;
+        if (OneJS.liveContexts > 1) {
+            console.warn("[OneJS] A second JSRunner started while another is running. On WebGL every JSRunner " +
+                "shares the page's one JavaScript realm, so the newer one takes over the older one's events, " +
+                "timers and teardown, and the older one stops responding. Use one JSRunner on WebGL, with each " +
+                "screen a component inside it.");
+        }
         OneJS.contextPtr = 1; // Dummy context pointer
         OneJS.deadContextWarned = false;
         return 1;
