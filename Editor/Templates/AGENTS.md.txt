@@ -33,7 +33,7 @@ Styling, all bundle-embedded (works in player builds):
 - Inline: `style={{ padding: 8, backgroundColor: "#222" }}`, numbers are px, flexbox layout, shorthands like `padding`/`margin`/`borderRadius` auto-expand
 - Plain USS: `import uss from "./styles/main.uss"` + `compileStyleSheet(uss, "main.uss")` once at startup
 - CSS Modules: `import styles from "./x.module.uss"` → `className={styles.foo}`
-- Tailwind: `import "onejs:tailwind"` once, then utility classes (responsive prefixes need `<ScreenProvider>`)
+- Tailwind: `import "onejs:tailwind"` once, then utility classes (responsive prefixes need `<ScreenProvider>`). Preflight is on in `esbuild.config.mjs`, so Button and TextField start bare and utilities style them from nothing
 - Limits: no CSS grid, no `gap`, no `z-index` (paint order = sibling order), no box shadows. `filter` (Unity 6.3+) and `backdrop-filter` (6.6+) take USS filter functions such as `blur(4px)`, in USS and inline styles
 
 C# interop:

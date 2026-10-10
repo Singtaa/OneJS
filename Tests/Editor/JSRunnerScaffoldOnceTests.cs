@@ -257,6 +257,54 @@ namespace OneJS.Tests.Editor {
             return parts.Length > 1 ? parts[1] : null;
         }
 
+        // esbuild.config.mjs as OneJS 3.9.7 scaffolded it, before new apps had Tailwind's preflight on
+        const string BuildConfigBeforePreflight = @"import { oneJSConfig } from ""onejs-unity/esbuild""
+
+// The whole build: index.tsx bundled into ../app.js.txt, where JSRunner reads it.
+// `npm run watch` rebuilds on every save, and Unity hot-reloads the new bundle.
+//
+// A player build runs `npm run build` with NODE_ENV=production, which ships
+// React's production build; the editor keeps the development one, with its warnings.
+// Any esbuild option can be added beside entry, for example alias or define.
+export default oneJSConfig({
+    entry: ""index.tsx"",
+    plugins: [
+        // Your own esbuild plugins go here; they run after OneJS's.
+    ],
+})
+";
+
+        static readonly Regex PreflightOn = new Regex(@"^\s*tailwind:\s*\{\s*preflight:\s*true\s*\}", RegexOptions.Multiline);
+
+        [Test]
+        public void ANewAppStartsWithTailwindPreflightOn() {
+            var runner = MakeRunner();
+            runner.EnsureProjectSetup();
+
+            Assert.IsTrue(PreflightOn.IsMatch(File.ReadAllText(InWorkingDir("esbuild.config.mjs"))),
+                "A new app's build config does not turn Tailwind's preflight on.");
+        }
+
+        // An upgrade gives an existing app nothing it already has: its build config keeps
+        // preflight off, and only the user's own Restore would bring the new template in
+        [Test]
+        public void AnAppScaffoldedBeforePreflightKeepsItsBuildConfigThroughAnUpgrade() {
+            var runner = MakeRunner();
+            ChangeTemplate(runner, "esbuild.config.mjs", BuildConfigBeforePreflight);
+            runner.EnsureProjectSetup();
+            Assert.AreEqual(BuildConfigBeforePreflight, File.ReadAllText(InWorkingDir("esbuild.config.mjs")),
+                "Test setup is wrong: the app was not scaffolded with the old build config.");
+
+            // The upgrade: this OneJS's templates, then the setup every Play and preview runs
+            runner.PopulateDefaultFiles();
+            runner.EnsureProjectSetup();
+
+            Assert.AreEqual(BuildConfigBeforePreflight, File.ReadAllText(InWorkingDir("esbuild.config.mjs")),
+                "An upgrade rewrote an existing app's build config.");
+            Assert.AreEqual(DefaultFileStatus.TemplateUpdated, runner.GetDefaultFileStatus("esbuild.config.mjs"),
+                "The Scaffolding list does not offer the newer template to an app that never changed its build config.");
+        }
+
         [Test]
         public void EveryMissingFileTheWarningNamesHasARowRestoreWorksOn() {
             var runner = MakeRunner();
