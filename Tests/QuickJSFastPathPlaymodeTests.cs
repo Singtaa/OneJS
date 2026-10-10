@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Diagnostics;
 using NUnit.Framework;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.TestTools;
 using Debug = UnityEngine.Debug;
@@ -13,6 +14,13 @@ namespace OneJS.Tests {
     /// </summary>
     [TestFixture]
     public class QuickJSFastPathPlaymodeTests {
+        // Per call, Eval's own result string included. Measured in the 6000.5
+        // editor on 10 Oct 2026: the fast path 64 (a float property's get), 24
+        // (a set) and 52 (new Vector2); with it switched off at the dispatch,
+        // 178, 262 and 470. Between the two, so a fast path that stops
+        // engaging fails here.
+        const long MaxBytesPerCall = 120;
+
         QuickJSContext _ctx;
 
         [UnitySetUp]
@@ -425,83 +433,56 @@ namespace OneJS.Tests {
 
         // MARK: Allocation Tests
 
+        /// <summary>
+        /// Bytes the managed heap handed out per call, counted by Unity's
+        /// "GC Allocated In Frame" over a frame that does nothing else. These
+        /// tests used to call GC.Collect before reading GC.GetTotalMemory,
+        /// which measures what is still alive, so everything the calls
+        /// allocated and dropped had just been freed and they read near zero
+        /// for any path (audit H5). GC.GetAllocatedBytesForCurrentThread reads
+        /// 0 on Unity's Mono, and the heap's size moves in 64 KB blocks, so
+        /// neither can tell the paths apart either.
+        /// </summary>
+        IEnumerator MeasureAllocation(string code, Action<long> perCall) {
+            using var allocated = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");
+            Assert.IsTrue(allocated.Valid, "This editor does not record GC Allocated In Frame, so nothing can be measured");
+            for (int i = 0; i < 100; i++) _ctx.Eval(code);
+            yield return null;
+            const int calls = 1000;
+            for (int i = 0; i < calls; i++) _ctx.Eval(code);
+            yield return null;
+            long bytes = allocated.LastValue / calls;
+            Debug.Log($"[FastPathAlloc] {code}: {bytes} bytes per call");
+            perCall(bytes);
+        }
+
         [UnityTest]
         public IEnumerator FastPath_PropertyGet_LowAllocation() {
-            // Warm up
-            for (int i = 0; i < 100; i++) {
-                _ctx.Eval("CS.UnityEngine.Time.deltaTime");
-            }
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            GC.Collect();
-
-            long before = GC.GetTotalMemory(false);
-
-            for (int i = 0; i < 1000; i++) {
-                _ctx.Eval("CS.UnityEngine.Time.deltaTime");
-            }
-
-            GC.Collect();
-            long bytes = GC.GetTotalMemory(false) - before;
-
-            Debug.Log($"FastPath property get: ~{bytes} bytes for 1000 calls (~{bytes / 1000} per call)");
-            Assert.Less(bytes, 50000, "Allocation should be low for fast path");
-            yield return null;
+            long bytes = 0;
+            yield return MeasureAllocation("CS.UnityEngine.Time.deltaTime", b => bytes = b);
+            Assert.Less(bytes, MaxBytesPerCall, "Allocation should be low for fast path");
         }
 
         [UnityTest]
         public IEnumerator FastPath_PropertySet_LowAllocation() {
             float original = Time.timeScale;
+            long bytes = 0;
             try {
-                // Warm up
-                for (int i = 0; i < 100; i++) {
-                    _ctx.Eval("CS.UnityEngine.Time.timeScale = 1.0");
-                }
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-                GC.Collect();
-
-                long before = GC.GetTotalMemory(false);
-
-                for (int i = 0; i < 1000; i++) {
-                    _ctx.Eval("CS.UnityEngine.Time.timeScale = 1.0");
-                }
-
-                GC.Collect();
-                long bytes = GC.GetTotalMemory(false) - before;
-
-                Debug.Log($"FastPath property set: ~{bytes} bytes for 1000 calls (~{bytes / 1000} per call)");
-                Assert.Less(bytes, 50000, "Allocation should be low for fast path");
+                yield return MeasureAllocation("CS.UnityEngine.Time.timeScale = 1.0", b => bytes = b);
             } finally {
                 Time.timeScale = original;
             }
-            yield return null;
+            Assert.Less(bytes, MaxBytesPerCall, "Allocation should be low for fast path");
         }
 
+        // The reflection ctor path allocates an object[], boxes each arg, builds
+        // ConstructorInfo[]/ParameterInfo[], and boxes the result: per call. The
+        // fast ctor path does none of that, so allocation stays at eval overhead.
         [UnityTest]
         public IEnumerator FastCtor_Construction_LowAllocation() {
-            // The reflection ctor path allocates an object[], boxes each arg, builds
-            // ConstructorInfo[]/ParameterInfo[], and boxes the result: per call. The
-            // fast ctor path does none of that, so allocation stays at eval overhead.
-            for (int i = 0; i < 100; i++) {
-                _ctx.Eval("new CS.UnityEngine.Vector2(3, 4)");
-            }
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            GC.Collect();
-
-            long before = GC.GetTotalMemory(false);
-
-            for (int i = 0; i < 1000; i++) {
-                _ctx.Eval("new CS.UnityEngine.Vector2(3, 4)");
-            }
-
-            GC.Collect();
-            long bytes = GC.GetTotalMemory(false) - before;
-
-            Debug.Log($"FastCtor Vector2: ~{bytes} bytes for 1000 calls (~{bytes / 1000} per call)");
-            Assert.Less(bytes, 50000, "Allocation should be low for the fast ctor path");
-            yield return null;
+            long bytes = 0;
+            yield return MeasureAllocation("new CS.UnityEngine.Vector2(3, 4)", b => bytes = b);
+            Assert.Less(bytes, MaxBytesPerCall, "Allocation should be low for the fast ctor path");
         }
 
         [UnityTest]

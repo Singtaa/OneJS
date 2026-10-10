@@ -13,6 +13,19 @@ namespace OneJS.Tests {
     [TestFixture]
     [Category("RequiresGraphics")]
     public class GPUBridgePlaymodeTests {
+        /// <summary>A readback's JSON float array, held to every expected value.</summary>
+        internal static void AssertReadback(float[] expected, string json) {
+            var text = json?.Trim() ?? "";
+            Assert.IsTrue(text.StartsWith("[") && text.EndsWith("]"), $"Readback is not a JSON array: {json}");
+            var items = text.Substring(1, text.Length - 2).Split(',');
+            Assert.AreEqual(expected.Length, items.Length, $"Readback length: {json}");
+            for (int i = 0; i < expected.Length; i++) {
+                Assert.IsTrue(float.TryParse(items[i], System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var actual), $"Element {i} is not a number: {json}");
+                Assert.AreEqual(expected[i], actual, 1e-5f, $"Element {i}: {json}");
+            }
+        }
+
         ComputeShader _testShader;
 
         [UnitySetUp]
@@ -283,9 +296,9 @@ namespace OneJS.Tests {
             string resultJson = GPUBridge.GetReadbackData(requestId);
             Debug.Log($"[GPUBridgePlaymodeTests] Result: {resultJson}");
 
-            // Parse and verify
-            // Expected: [2.0, 4.0, 6.0, 8.0]
-            Assert.IsTrue(resultJson.Contains("2"), "First element should be multiplied");
+            // Every element, multiplied: a check that the text merely contains
+            // a "2" passed for the unmultiplied input too (audit H4)
+            AssertReadback(new[] { 2f, 4f, 6f, 8f }, resultJson);
 
             // Cleanup
             GPUBridge.DisposeBuffer(bufferHandle);
@@ -550,8 +563,9 @@ namespace OneJS.Tests {
             var data = _ctx.Eval("CS.OneJS.GPU.GPUBridge.GetReadbackData(globalThis.testRequestId)");
             Debug.Log($"[GPUBridgeJSPlaymodeTests] Readback data: {data}");
 
-            // Verify data contains expected values (1*3=3, 2*3=6, 3*3=9, 4*3=12)
-            Assert.IsTrue(data.Contains("3"), "Should contain multiplied values");
+            // Every element, multiplied by 3: "contains a 3" passed for the
+            // unmultiplied input too (audit H4)
+            GPUBridgePlaymodeTests.AssertReadback(new[] { 3f, 6f, 9f, 12f }, data);
 
             // Cleanup
             _ctx.Eval(@"
