@@ -173,15 +173,37 @@ namespace OneJS.Editor.TypeGenerator {
 
             // Handle nested types
             if (type.IsNested) {
-                typeRef.Name = type.Name.Replace('`', '$');
+                typeRef.Name = TsTypeName(type);
                 typeRef.Namespace = GetNestedTypeNamespace(type);
                 return typeRef;
             }
 
             // Regular type
-            typeRef.Name = type.Name.Replace('`', '$');
+            typeRef.Name = TsTypeName(type);
             typeRef.Namespace = type.Namespace;
             return typeRef;
+        }
+
+        /// <summary>
+        /// The name a type is declared under, and the one every reference to it
+        /// uses: the C# name, plus <c>$N</c> for a generic type with N type
+        /// parameters (<c>BaseField$1</c>, <c>Dictionary$2</c>). The arity keeps
+        /// <c>UnityEvent</c> and <c>UnityEvent$1</c> apart, which TypeScript
+        /// cannot overload. N counts every parameter, the ones a nested type
+        /// takes from the type it is nested in included, because that is how
+        /// many arguments a reference to it carries.
+        ///
+        /// Declarations and references both come through here. When they were
+        /// written separately, declarations dropped the arity that references
+        /// kept, and every class extending a generic one lost what it inherits.
+        /// </summary>
+        public static string TsTypeName(Type type) {
+            var name = type.Name;
+            var tickIndex = name.IndexOf('`');
+            if (tickIndex > 0) {
+                name = name.Substring(0, tickIndex);
+            }
+            return type.IsGenericType ? $"{name}${type.GetGenericArguments().Length}" : name;
         }
 
         /// <summary>
@@ -245,7 +267,8 @@ namespace OneJS.Editor.TypeGenerator {
                 return MapActionOrFunc(type, delegateKind);
             }
 
-            // Regular generic type
+            // Regular generic type. The name carries no arity: ToTypeScript appends
+            // $N from the arguments, which is TsTypeName's N.
             var baseName = genericDef.Name;
             var tickIndex = baseName.IndexOf('`');
             if (tickIndex > 0) {
@@ -270,7 +293,7 @@ namespace OneJS.Editor.TypeGenerator {
             var current = type.DeclaringType;
 
             while (current != null) {
-                parts.Insert(0, current.Name.Replace('`', '$'));
+                parts.Insert(0, TsTypeName(current));
                 current = current.DeclaringType;
             }
 

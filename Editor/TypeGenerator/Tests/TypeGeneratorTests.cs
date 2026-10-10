@@ -549,5 +549,63 @@ namespace OneJS.Editor.TypeGenerator.Tests {
         }
 
         #endregion
+
+        #region Generic Type Names
+
+        /// <summary>
+        /// A generic class is declared under the name its references use. The
+        /// declaration once dropped the $N the references kept, so Slider extended
+        /// a BaseSlider$1 declared nowhere and lost value, lowValue and the rest.
+        /// </summary>
+        [Test]
+        public void Generate_GenericClass_IsDeclaredUnderTheNameItsSubclassesExtend() {
+            var result = TypeGenerator.GenerateToResult(
+                typeof(UnityEngine.UIElements.BaseSlider<>), typeof(UnityEngine.UIElements.Slider));
+
+            StringAssert.Contains("class BaseSlider$1<TValueType", result.Content);
+            StringAssert.Contains("extends UnityEngine.UIElements.BaseSlider$1<number>", result.Content);
+            StringAssert.DoesNotContain("class BaseSlider<", result.Content);
+        }
+
+        /// <summary>
+        /// TypeScript has no overloading by arity, so UnityEvent and UnityEvent<T0>
+        /// under one name were five declarations of the same class.
+        /// </summary>
+        [Test]
+        public void Generate_GenericFamily_DeclaresEachArityApart() {
+            var result = TypeGenerator.GenerateToResult(
+                typeof(UnityEngine.Events.UnityEvent), typeof(UnityEngine.Events.UnityEvent<>),
+                typeof(UnityEngine.Events.UnityEvent<,>));
+
+            StringAssert.Contains("class UnityEvent extends", result.Content);
+            StringAssert.Contains("class UnityEvent$1<T0>", result.Content);
+            StringAssert.Contains("class UnityEvent$2<T0, T1>", result.Content);
+        }
+
+        /// <summary>
+        /// A type nested in a generic one takes its parent's parameters, so a
+        /// reference to it carries them and its declaration must count them.
+        /// </summary>
+        [Test]
+        public void Generate_TypeNestedInAGenericOne_MatchesItsReferences() {
+            var result = TypeGenerator.GenerateToResult(
+                typeof(GenericOuter<>), typeof(GenericOuter<>.Inner), typeof(GenericOuterUser));
+
+            StringAssert.Contains("namespace GenericOuter$1 {", result.Content);
+            StringAssert.Contains("class Inner$1<T>", result.Content);
+            StringAssert.Contains("OneJS.Editor.TypeGenerator.Tests.GenericOuter$1.Inner$1<string>", result.Content);
+        }
+
+        #endregion
+    }
+
+    public class GenericOuter<T> {
+        public class Inner {
+            public T value;
+        }
+    }
+
+    public class GenericOuterUser {
+        public GenericOuter<string>.Inner inner;
     }
 }
