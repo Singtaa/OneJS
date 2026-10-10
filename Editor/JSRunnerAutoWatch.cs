@@ -29,8 +29,6 @@ namespace OneJS.Editor {
         static void OnPlayModeStateChanged(PlayModeStateChange state) {
             switch (state) {
                 case PlayModeStateChange.ExitingEditMode:
-                    // Create PanelSettings assets for JSRunners that don't have one
-                    EnsurePanelSettingsAssets();
                     // Scaffold files and run initial build if needed
                     EnsureProjectsReady();
                     // Prepare watchers before entering play mode
@@ -91,45 +89,6 @@ namespace OneJS.Editor {
             }
 
             AssetDatabase.Refresh();
-        }
-
-        /// <summary>
-        /// Creates PanelSettings assets for JSRunners that don't have one assigned.
-        /// Called before entering Play mode so the assignment persists.
-        /// </summary>
-        static void EnsurePanelSettingsAssets() {
-            var runners = FindCompat.FindObjectsByType<JSRunner>();
-            bool anyCreated = false;
-
-            foreach (var runner in runners) {
-                if (runner == null || !runner.enabled || !runner.gameObject.activeInHierarchy) continue;
-                if (!runner.IsSceneSaved) continue;
-                if (runner.InstanceFolder == null) continue;
-
-                // Check if PanelSettings already assigned
-                var panelSettingsProp = new SerializedObject(runner).FindProperty("_panelSettings");
-                if (panelSettingsProp.objectReferenceValue != null) continue;
-
-                // Try to load existing asset
-                var psPath = runner.PanelSettingsAssetPath;
-                if (string.IsNullOrEmpty(psPath)) continue;
-
-                var existingPS = AssetDatabase.LoadAssetAtPath<PanelSettings>(psPath);
-                if (existingPS != null) {
-                    // Assign existing asset
-                    panelSettingsProp.objectReferenceValue = existingPS;
-                    panelSettingsProp.serializedObject.ApplyModifiedProperties();
-                    continue;
-                }
-
-                // Create new PanelSettings asset
-                runner.CreateDefaultPanelSettingsAsset();
-                anyCreated = true;
-            }
-
-            if (anyCreated) {
-                AssetDatabase.SaveAssets();
-            }
         }
 
         static void StartWatchersAsync() {

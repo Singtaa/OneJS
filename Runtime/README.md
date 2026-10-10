@@ -259,7 +259,7 @@ The React reconciler registers `unmountAll` as a teardown hook (via `globalThis.
 Unlike previous versions where project setup happened automatically on first Play mode, initialization is now **explicit**:
 
 1. **Initialize Project** button creates the instance folder, PanelSettings asset, VisualTreeAsset, working directory, scaffolds default files, and runs `npm install` + `npm run build`
-2. **Play mode** runs the project if PanelSettings is assigned and valid. Entering Play mode also creates and assigns a PanelSettings for a runner in a saved scene that has none (`JSRunnerAutoWatch.EnsurePanelSettingsAssets`), then scaffolds and builds it
+2. **Play mode** runs the project if PanelSettings is assigned and valid, scaffolding and building it first if needed. It creates nothing: a runner without PanelSettings logs one warning that it runs nothing and names Initialize Project
 3. **Assigning PanelSettings** manually (drag & drop) syncs the VisualTreeAsset from the same folder and adds a UIDocument component in the editor
 
 The "Use Scene Name as Root Folder" option (right-click the status block) controls whether the instance folder is created under `{SceneDir}/{SceneName}/` (default) or directly under `{SceneDir}/`.

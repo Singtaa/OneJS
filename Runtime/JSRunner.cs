@@ -631,43 +631,6 @@ namespace OneJS {
         }
 
         /// <summary>
-        /// Creates a default PanelSettings asset in the instance folder.
-        /// Called automatically on first Play mode if no PanelSettings is assigned.
-        /// </summary>
-        public void CreateDefaultPanelSettingsAsset() {
-            var instanceFolder = InstanceFolder;
-            if (string.IsNullOrEmpty(instanceFolder)) return;
-
-            // Ensure instance folder exists
-            if (!Directory.Exists(instanceFolder)) {
-                Directory.CreateDirectory(instanceFolder);
-            }
-
-            // Create PanelSettings with sensible defaults
-            var ps = ScriptableObject.CreateInstance<PanelSettings>();
-            ps.scaleMode = PanelScaleMode.ScaleWithScreenSize;
-            ps.referenceResolution = new Vector2Int(1920, 1080);
-            ps.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight;
-            ps.match = 0.5f;
-
-            // Apply theme stylesheet if set
-            if (_defaultThemeStylesheet != null) {
-                ps.themeStyleSheet = _defaultThemeStylesheet;
-            }
-
-            // Save as asset
-            var assetPath = PanelSettingsAssetPath;
-            UnityEditor.AssetDatabase.CreateAsset(ps, assetPath);
-            UnityEditor.AssetDatabase.SaveAssets();
-
-            // Auto-assign to this JSRunner
-            _panelSettings = ps;
-            UnityEditor.EditorUtility.SetDirty(this);
-
-            Debug.Log($"[JSRunner] Created PanelSettings asset: {assetPath}");
-        }
-
-        /// <summary>
         /// Creates a default VisualTreeAsset (UXML) in the instance folder.
         /// Called automatically on first Play mode if no VisualTreeAsset is assigned.
         /// </summary>
@@ -1428,9 +1391,23 @@ namespace OneJS {
 #endif
         }
 
+#if UNITY_EDITOR
+        bool _warnedNoPanelSettings;
+#endif
+
         bool TryInitializePlayMode(bool silent = false) {
             if (_initialized) return true;
 #if UNITY_EDITOR
+            // In the editor Panel Settings is the project, and entering Play mode does
+            // not make one: say so once, rather than retrying silently every frame
+            if (_panelSettings == null) {
+                if (!_warnedNoPanelSettings) {
+                    _warnedNoPanelSettings = true;
+                    Debug.LogWarning($"[JSRunner] '{name}' has no Panel Settings, so it runs nothing. " +
+                        "Click Initialize Project in its inspector to create its project.", this);
+                }
+                return false;
+            }
             if (_panelSettings != null && !IsPanelSettingsInValidProjectFolder()) {
                 if (!silent)
                     Debug.LogError("[JSRunner] Panel Settings is not valid: its folder must contain a '~' subfolder or an 'app.js' file.");
@@ -1448,6 +1425,9 @@ namespace OneJS {
 
         void ResetPlayModeState() {
             _initialized = false;
+#if UNITY_EDITOR
+            _warnedNoPanelSettings = false;
+#endif
             _initialFocusDone = false;
         }
 

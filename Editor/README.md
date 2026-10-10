@@ -125,7 +125,6 @@ Automatically manages file watchers and project readiness for JSRunner instances
 
 1. Uses `[InitializeOnLoad]` to register `playModeStateChanged` callback
 2. On `ExitingEditMode` (before Play starts):
-   - `EnsurePanelSettingsAssets()`: Walks only runners that already resolve a project folder, which requires an assigned PanelSettings, so it creates nothing; a runner without one must go through Initialize Project
    - `EnsureProjectsReady()`: Calls `EnsureProjectSetup()` on each valid runner, which writes each default file once (see Runtime/README, Auto-Scaffolding)
    - `PrepareWatchers()`: Clears the session tracking set
 3. On `EnteredPlayMode`:

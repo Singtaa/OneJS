@@ -1,36 +1,47 @@
-using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.IO;
-using System.Reflection;
 using NUnit.Framework;
-using UnityEditor;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.TestTools;
-using UnityEngine.UIElements;
 
 namespace OneJS.Tests {
     /// <summary>
-    /// PlayMode tests for JSRunner MonoBehaviour.
-    /// NOTE: These tests are currently disabled pending update for the new scene-based path system.
-    /// The new JSRunner design auto-creates working directories based on scene location,
-    /// which requires tests to run with saved scenes.
+    /// PlayMode tests for JSRunner. A runner's project comes from its Panel Settings,
+    /// and a real project needs a saved scene, so these cover what a runner does
+    /// without one.
     /// </summary>
     [TestFixture]
     public class JSRunnerPlaymodeTests {
-        // Tests temporarily disabled: JSRunner now uses scene-based auto paths
-        // which require tests to be run in the context of a saved scene.
-        //
-        // TODO: Update tests to work with new scene-based path system:
-        // - Create test scenes in Assets/
-        // - Use EditorSceneManager to load test scenes
-        // - Test the new WorkingDirFullPath, BundleAssetPath, etc. properties
+        GameObject _host;
+        int _warnings;
 
-        [Test]
-        public void Placeholder_JSRunnerTestsNeedUpdate() {
-            // This placeholder test ensures the test file compiles
-            // Real tests are disabled pending update for new scene-based system
-            Assert.Pass("JSRunner tests need to be updated for new scene-based path system");
+        void Count(string message, string stackTrace, LogType type) {
+            if (type == LogType.Warning && message.Contains("has no Panel Settings, so it runs nothing")) _warnings++;
+        }
+
+        [SetUp]
+        public void SetUp() {
+            _warnings = 0;
+            Application.logMessageReceived += Count;
+        }
+
+        [TearDown]
+        public void TearDown() {
+            Application.logMessageReceived -= Count;
+            if (_host != null) Object.DestroyImmediate(_host);
+            foreach (var es in Object.FindObjectsByType<EventSystem>(FindObjectsSortMode.None))
+                Object.DestroyImmediate(es.gameObject);
+        }
+
+        // Entering Play mode creates no Panel Settings (it did nothing at all from
+        // February to October 2026 while the README said it did), so a runner
+        // without one must say so, once, rather than retry silently every frame.
+        [UnityTest]
+        public IEnumerator NoPanelSettings_WarnsOnce() {
+            _host = new GameObject("RunnerWithoutPanelSettings");
+            _host.AddComponent<JSRunner>();
+            for (int i = 0; i < 10; i++) yield return null;
+            Assert.AreEqual(1, _warnings, "a runner without Panel Settings should warn exactly once");
         }
     }
 }
