@@ -1,5 +1,6 @@
 # Unreleased
 
+- `InputBridge.GetKeysPressed` lists the keys that went down this frame in the order they did
 - On WebGL, a second JSRunner warns that it takes over the first
 - Shader programs draw in a project that cloned OneJS into `Assets/OneJS`
 - `onMouseDown`, `onMouseUp`, `onMouseMove`, `onMouseEnter`, `onMouseLeave`, `onMouseOver` and `onMouseOut` fire
