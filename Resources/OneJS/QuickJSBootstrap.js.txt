@@ -1052,11 +1052,18 @@ if (typeof globalThis.CS === "undefined") {
 //    only sees root's own geometry changes (which dispatch as
 //    "viewportchange"). Per-element registration lets descendants receive
 //    their own geometry change events as "geometrychanged".
+//  - Mouse, input and transition events: the bridge listens for them only
+//    on elements JS listens on, so an app that never asks pays nothing.
+//    QuickJSUIBridge sends each once, from its target, and __dispatchEvent
+//    bubbles it from there.
 const __perElementEventTypes = new Set([
     "pointerdown", "pointerup", "pointermove",
     "pointercancel",
     "pointercapture", "pointercaptureout",
     "geometrychanged",
+    "mousedown", "mouseup", "mousemove", "mouseenter", "mouseleave", "mouseover", "mouseout",
+    "input",
+    "transitionrun", "transitionstart", "transitionend", "transitioncancel",
 ]);
 
 /**
@@ -1165,8 +1172,10 @@ function removeAllEventListeners(element) {
 }
 
 /**
- * Events that should NOT bubble up the parent chain.
- * These are element-specific events that only make sense on the target.
+ * Events that should NOT bubble up the parent chain: the ones UI Toolkit does
+ * not bubble either (its enter and leave events trickle down only, and geometry
+ * changes reach their own element only). Every other event the bridge sends
+ * bubbles in UI Toolkit, the transition events included, as in the DOM.
  * focus and blur are here and focusin and focusout are not, as in the DOM:
  * the bridge sends both pairs for every focus change, so an ancestor that
  * wants to hear about a descendant listens for focusin/focusout.
@@ -1176,7 +1185,6 @@ const __nonBubblingEvents = new Set([
     "mouseenter", "mouseleave",
     "focus", "blur",
     "geometrychanged",
-    "transitionrun", "transitionstart", "transitionend", "transitioncancel"
 ]);
 
 /**
@@ -1341,6 +1349,13 @@ const __EVT_VIEWPORT_CHANGE = 30;
 const __EVT_NAVIGATION_MOVE = 40;
 const __EVT_NAVIGATION_SUBMIT = 41;
 const __EVT_NAVIGATION_CANCEL = 42;
+const __EVT_MOUSE_DOWN = 50;
+const __EVT_MOUSE_UP = 51;
+const __EVT_MOUSE_MOVE = 52;
+const __EVT_MOUSE_ENTER = 53;
+const __EVT_MOUSE_LEAVE = 54;
+const __EVT_MOUSE_OVER = 55;
+const __EVT_MOUSE_OUT = 56;
 
 const __EVT_TYPE_NAMES = {
     [__EVT_CHANGE_FLOAT]: "change",
@@ -1362,6 +1377,13 @@ const __EVT_TYPE_NAMES = {
     [__EVT_NAVIGATION_MOVE]: "navigationmove",
     [__EVT_NAVIGATION_SUBMIT]: "navigationsubmit",
     [__EVT_NAVIGATION_CANCEL]: "navigationcancel",
+    [__EVT_MOUSE_DOWN]: "mousedown",
+    [__EVT_MOUSE_UP]: "mouseup",
+    [__EVT_MOUSE_MOVE]: "mousemove",
+    [__EVT_MOUSE_ENTER]: "mouseenter",
+    [__EVT_MOUSE_LEAVE]: "mouseleave",
+    [__EVT_MOUSE_OVER]: "mouseover",
+    [__EVT_MOUSE_OUT]: "mouseout",
 };
 
 // Mirrors UnityEngine.UIElements.NavigationMoveEvent.Direction
@@ -1391,6 +1413,9 @@ globalThis.__dispatchEventFast = function(eventTypeId, elementHandle, a0, a1, a2
     } else if (eventTypeId === __EVT_NAVIGATION_MOVE) {
         // Navigation move: a0 = direction enum value (0=None..6=Previous)
         eventData = { direction: __NAV_DIRECTION_NAMES[a0] || "none" };
+    } else if (eventTypeId >= __EVT_MOUSE_DOWN) {
+        // Mouse events: a0=x, a1=y, a2=button
+        eventData = { x: a0, y: a1, button: a2 };
     } else {
         // Navigation submit/cancel: no payload
         eventData = {};

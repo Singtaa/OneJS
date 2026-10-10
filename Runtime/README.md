@@ -31,7 +31,7 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `Janitor.cs` | Marker component for live reload cleanup of JS-created GameObjects |
 | `Network.cs` | Fetch API implementation using UnityWebRequest; `LoadTextureFromUrl` for `<Image src>` on a URL |
 | `WebSocketBridge.cs` | WebSocket on native platforms (`ClientWebSocket` on background threads, events drained per context in `Tick`); WebGL uses the browser's |
-| `PerElementEventSupport.cs` | Per-element C# handlers for events that never pass the root: captured pointer events and non-bubbling ones like `GeometryChangedEvent` |
+| `PerElementEventSupport.cs` | Per-element C# handlers for events that never pass the root (captured pointer events, `GeometryChangedEvent`) and for ones registered only where JS listens (mouse, input, transition) |
 | `PointerEvents.cs` | `MoveEventsEnabled`: whether pointermove reaches JS at all (off saves ~0.6KB/frame when polling) |
 | `FileSystem.cs` | File system access for runtime loading (readTextFile, writeTextFile, etc.) |
 | `AssetLoader.cs` | Async resource loading (loadResourceAsync) wrapping Resources.LoadAsync |
