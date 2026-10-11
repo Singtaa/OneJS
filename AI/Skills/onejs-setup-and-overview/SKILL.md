@@ -5,7 +5,7 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.9.8"
-  skill-version: "1.15.2"
+  skill-version: "1.15.3"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
@@ -200,7 +200,7 @@ What a program is given as free identifiers: `uv` (0 to 1 across the element, or
 
 The traps, all of which are refused at build time with a message rather than rendered wrong:
 
-- **Sixteen uniforms and four textures.** Pack related values into a `float4`. Length has no limit: a long program costs what the same shader written by hand would.
+- **64 uniforms and 8 textures** (onejs-sl 0.9; 16 and 4 before). Pack related values into a `float4`. Length has no limit: a long program costs what the same shader written by hand would.
 - **A `switch` case never falls through.** Each ends in `break` or `return`; stack labels to share a body.
 - **HLSL spellings only.** `mix`, `fract`, `mod` and `vec3` are refused by name, with the HLSL word in the message.
 

@@ -247,7 +247,7 @@ namespace OneJS.ShaderFX {
         /// </summary>
         /// <remarks>
         /// By SLOT, for the same reason uniforms are. A program's textures are
-        /// _Tex0 to _Tex3 on every backend, so a host handed the name an author
+        /// _Tex0 to _Tex7 on every backend, so a host handed the name an author
         /// wrote ("grain") set a material property nothing declares and bound
         /// nothing at all, in the browser and after an eject alike.
         /// </remarks>

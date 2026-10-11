@@ -1,3 +1,8 @@
+# Unreleased
+
+- Shader programs take 64 uniforms and 8 textures
+- A shader program can set a texture's wrap and filter, and read its size and its texels unfiltered
+
 # [2026-10-10] v3.9.8
 
 Mouse, input and transition events now fire, a project that cloned OneJS into `Assets/OneJS` draws its shader programs, and new projects start with Tailwind's preflight on. Programs recorded from code now live in `Assets/OneJS.Recorded.sl.json`, and the editor moves an existing recording there by itself.

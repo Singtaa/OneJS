@@ -18,17 +18,25 @@ namespace OneJS.SL {
     /// slider does not rebuild a program.
     /// </summary>
     public static class SLProgramBridge {
-        const int MaxUniforms = 16;
-        const int MaxTextures = 4;
+        /// <summary>
+        /// A program's uniform slots and texture slots: onejs-sl's
+        /// `UNIFORM_SLOTS` and `TEXTURE_SLOTS`, which the container's
+        /// SLCapsContractTests holds these to.
+        /// </summary>
+        public const int MaxUniforms = 64;
+        public const int MaxTextures = 8;
 
         static readonly int s_Secs = Shader.PropertyToID("_Secs");
         static readonly int s_FlipY = Shader.PropertyToID("_FlipY");
         static readonly int s_Res = Shader.PropertyToID("_Res");
         static readonly int s_Prev = Shader.PropertyToID("_Prev");
-        static readonly int[] s_TexIds = {
-            Shader.PropertyToID("_Tex0"), Shader.PropertyToID("_Tex1"),
-            Shader.PropertyToID("_Tex2"), Shader.PropertyToID("_Tex3"),
-        };
+        static readonly int[] s_TexIds = TextureIds();
+
+        static int[] TextureIds() {
+            var ids = new int[MaxTextures];
+            for (int i = 0; i < MaxTextures; i++) ids[i] = Shader.PropertyToID("_Tex" + i);
+            return ids;
+        }
 
         static readonly Dictionary<int, Compiled> s_Programs = new Dictionary<int, Compiled>();
         static int s_NextHandle = 1;
@@ -322,7 +330,7 @@ namespace OneJS.SL {
             if (slot < 0 || slot >= MaxTextures) {
                 throw new ArgumentException(
                     $"[OneJS sl] texture slot {slot} is outside 0..{MaxTextures - 1}. " +
-                    "A program's textures are _Tex0 to _Tex3 on every backend, so this is a fixed set rather than a budget.");
+                    $"A program's textures are _Tex0 to _Tex{MaxTextures - 1} on every backend, so this is a fixed set rather than a budget.");
             }
             if (c.Material != null) c.Material.SetTexture(s_TexIds[slot], tex);
             c.Textures[slot] = tex;

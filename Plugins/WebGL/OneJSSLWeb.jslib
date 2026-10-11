@@ -40,6 +40,13 @@
  * `sl_Prev` (GLSL) or `sl_prev` (WGSL), which the emitter declares only for a
  * program that samples it. The element keeps that frame and passes it in;
  * it is bound bilinear and clamped, and is never the target.
+ *
+ * A texture is sampled as the texture is set (its wrap and filter come from
+ * C#), unless the program sets its own sampler (onejs-sl 0.9, `[Wrap(Repeat)]`
+ * and `[Filter(Point)]`): then the slot's declaration line ends
+ * `// sampler <wrap> <filter>`, read here at compile time, and that wins. A
+ * texture the program only measures or fetches from declares no WGSL sampler,
+ * so none is bound for it.
  */
 var OneJSSLWebLibrary = {
     $OJSL: {
@@ -58,8 +65,11 @@ var OneJSSLWebLibrary = {
         loggedFail: {},
         // Cleared only by the negative control (SLWeb.SetRestoreGLState).
         restore: true,
-        // The unit the previous frame is bound on, after the four texture slots'.
-        prevUnit: 4,
+        // onejs-sl's TEXTURE_SLOTS and four floats per UNIFORM_SLOTS, which
+        // the container's SLCapsContractTests holds these to. The previous
+        // frame is bound on the unit after the texture slots'.
+        textureSlots: 8,
+        uniformFloats: 256,
 
         gl: function () {
             return typeof GLctx !== "undefined" && GLctx ? GLctx : null
@@ -121,6 +131,16 @@ var OneJSSLWebLibrary = {
             return s
         },
 
+        // The program's own samplers, by slot, as Unity's enums: wrap Repeat 0,
+        // Clamp 1, Mirror 2, and filter Point 0, Bilinear 1.
+        samplerNotes: function (source) {
+            var out = {}
+            var wraps = { repeat: 0, clamp: 1, mirror: 2 }
+            var re = /sl_(?:samp|Tex)(\d+)\b[^\n]*\/\/ sampler (repeat|clamp|mirror) (point|linear)/g, m
+            while ((m = re.exec(source)) !== null) out[+m[1]] = [wraps[m[2]], m[3] === "point" ? 0 : 1]
+            return out
+        },
+
         // ------------------------------------------------------------ WebGL2
         // Unity caches GL state and never re-reads it, so every piece of state
         // this touches is saved first and put back after. A missed one shows
@@ -143,7 +163,7 @@ var OneJSSLWebLibrary = {
             gl.attachShader(prog, OJSL.vs)
             gl.attachShader(prog, fs)
             gl.linkProgram(prog)
-            return { prog: prog, fs: fs, ext: ext, loc: null }
+            return { prog: prog, fs: fs, ext: ext, loc: null, notes: OJSL.samplerNotes(glsl) }
         },
         glReady: function (gl, p) {
             var g = p.gl
@@ -160,7 +180,7 @@ var OneJSSLWebLibrary = {
                 u: gl.getUniformLocation(g.prog, "sl_U"),
                 tex: [],
             }
-            for (var i = 0; i < 16; i++) g.loc.tex.push(gl.getUniformLocation(g.prog, "sl_Tex" + i))
+            for (var i = 0; i < OJSL.textureSlots; i++) g.loc.tex.push(gl.getUniformLocation(g.prog, "sl_Tex" + i))
             g.loc.prev = gl.getUniformLocation(g.prog, "sl_Prev")
             return 1
         },
@@ -185,7 +205,7 @@ var OneJSSLWebLibrary = {
                 at: gl.getParameter(gl.ACTIVE_TEXTURE), en: [], units: [],
             }
             var c, u
-            var PU = OJSL.prevUnit
+            var PU = OJSL.textureSlots
             if (restore) {
                 for (c = 0; c < caps.length; c++) s.en.push(gl.isEnabled(caps[c]))
                 for (u = 0; u < tex.length; u++) {
@@ -221,7 +241,10 @@ var OneJSSLWebLibrary = {
                     var gt = t ? OJSL.glTexture(t[0]) : null
                     gl.activeTexture(gl.TEXTURE0 + u)
                     gl.bindTexture(gl.TEXTURE_2D, gt)
-                    gl.bindSampler(u, t ? OJSL.glSampler(gl, t[1], t[2], t[3], t[4]) : null)
+                    var own = g.notes[u]
+                    gl.bindSampler(u, !t ? null : own
+                        ? OJSL.glSampler(gl, own[0], own[0], own[1], t[4])
+                        : OJSL.glSampler(gl, t[1], t[2], t[3], t[4]))
                     if (g.loc.tex[u]) gl.uniform1i(g.loc.tex[u], u)
                 }
                 if (g.loc.prev) {
@@ -262,12 +285,16 @@ var OneJSSLWebLibrary = {
         // submitted before Unity submits its frame, so the UI samples this
         // frame's picture.
         gpuCompile: function (dev, p, wgsl) {
-            var g = { module: dev.createShaderModule({ code: wgsl, label: "sl " + p.id }), ready: 0, pipelines: {}, buf: null, slots: [] }
+            var g = { module: dev.createShaderModule({ code: wgsl, label: "sl " + p.id }), ready: 0, pipelines: {}, buf: null, slots: [],
+                sampled: {}, notes: OJSL.samplerNotes(wgsl) }
             // The emitter declares only the texture slots the program samples,
             // and the automatic layout has exactly those bindings, so they are
             // read back from the source rather than assumed from the C# side.
             var re = /var sl_tex(\d+)\s*:/g, m
             while ((m = re.exec(wgsl)) !== null) g.slots.push(+m[1])
+            // A slot the program only measures or fetches from has no sampler.
+            var rs = /var sl_samp(\d+)\s*:/g
+            while ((m = rs.exec(wgsl)) !== null) g.sampled[+m[1]] = true
             // The previous frame's sampler and texture, declared only when the
             // program samples it.
             var ps = /@binding\((\d+)\)\s*var\s+sl_prevSamp\s*:/.exec(wgsl)
@@ -306,8 +333,8 @@ var OneJSSLWebLibrary = {
             }
             if (pl === null) return 0
 
-            if (!g.buf) g.buf = dev.createBuffer({ size: 72 * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST })
-            if (!OJSL.data) OJSL.data = new Float32Array(72)
+            if (!g.buf) g.buf = dev.createBuffer({ size: (8 + OJSL.uniformFloats) * 4, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST })
+            if (!OJSL.data) OJSL.data = new Float32Array(8 + OJSL.uniformFloats)
             var d = OJSL.data
             d[0] = w; d[1] = h; d[2] = secs; d[3] = frame
             d[4] = linear; d[5] = 0; d[6] = step; d[7] = 0
@@ -323,7 +350,10 @@ var OneJSSLWebLibrary = {
                 if (!gt) return OJSL.fail(p, "texture slot " + u + " has no GPU texture")
                 var view = OJSL.views.get(gt)
                 if (!view) { view = gt.createView(); OJSL.views.set(gt, view) }
-                entries.push({ binding: 1 + 2 * u, resource: OJSL.gpuSampler(dev, t[1], t[2], t[3]) })
+                var own = g.notes[u]
+                if (g.sampled[u]) {
+                    entries.push({ binding: 1 + 2 * u, resource: own ? OJSL.gpuSampler(dev, own[0], own[0], own[1]) : OJSL.gpuSampler(dev, t[1], t[2], t[3]) })
+                }
                 entries.push({ binding: 2 + 2 * u, resource: view })
             }
             if (g.prev) {
@@ -413,7 +443,7 @@ var OneJSSLWebLibrary = {
 
     /**
      * Draws program `id` into the RenderTexture whose native pointer is
-     * `target`. `uniforms` is 64 floats (16 slots of vec4); `textures` is 5
+     * `target`. `uniforms` is `uniformFloats` floats (a vec4 per slot); `textures` is 5
      * ints per slot: native pointer (0 for none), wrapU, wrapV, filter, has
      * mips. `frame` and `step` are the frame count and the seconds since the
      * frame before; `previous` is that frame's native pointer, 0 for none.
@@ -424,7 +454,7 @@ var OneJSSLWebLibrary = {
         if (!p) return -1
         if (p.failed) return -1
         try {
-            var uniforms = HEAPF32.subarray(uniformsPtr >> 2, (uniformsPtr >> 2) + 64)
+            var uniforms = HEAPF32.subarray(uniformsPtr >> 2, (uniformsPtr >> 2) + OJSL.uniformFloats)
             var tex = []
             for (var i = 0; i < textureCount; i++) {
                 var o = (texturesPtr >> 2) + i * 5

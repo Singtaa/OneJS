@@ -20,8 +20,8 @@ namespace OneJS.SL {
     /// drawing wrong.
     /// </summary>
     public static class SLWeb {
-        /// <summary>Uniform slots, each a float4. Must match WEB_UNIFORM_SLOTS in onejs-unity.</summary>
-        public const int UniformFloats = 16 * 4;
+        /// <summary>Uniform slots, each a float4: onejs-sl's WEB_UNIFORM_SLOTS, and the jslib's `uniformFloats`.</summary>
+        public const int UniformFloats = SLProgramBridge.MaxUniforms * 4;
         /// <summary>Ints per texture slot handed to the host: native pointer, wrapU, wrapV, filter, has mips.</summary>
         const int TextureInts = 5;
 
@@ -36,7 +36,7 @@ namespace OneJS.SL {
 
         static string s_Description;
         static bool s_Available;
-        static readonly int[] s_Textures = new int[16 * TextureInts];
+        static readonly int[] s_Textures = new int[SLProgramBridge.MaxTextures * TextureInts];
 
         static bool IsWebGPU => SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.WebGPU;
 
@@ -86,7 +86,8 @@ namespace OneJS.SL {
         /// <summary>
         /// 1 drew, 0 not ready yet (the element draws nothing this frame), -1 never will (the host said why; stop asking).
         /// `frame` and `step` go to `sl_Res.w` and `sl_Opt.z`, and `previous`, when the program reads it, is bound
-        /// bilinear and clamped at the binding the program declares for it.
+        /// bilinear and clamped at the binding the program declares for it. Each texture is sampled as it is set,
+        /// unless the program's source names its own sampler for that slot, which the host reads from it.
         /// </summary>
         internal static int Draw(int id, RenderTexture target, float seconds, float[] uniforms, Texture[] textures,
                                  int frame, float step, Texture previous) {
