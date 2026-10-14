@@ -124,7 +124,14 @@ namespace OneJS.Editor {
         /// <summary>
         /// Start a watcher for the given working directory.
         /// </summary>
-        public static bool StartWatcher(string workingDir) {
+        public static bool StartWatcher(string workingDir) => StartWatcher(workingDir, "run watch");
+
+        /// <summary>
+        /// Start a watcher for the given working directory that runs these npm arguments, for a
+        /// working directory whose watch is not its package.json's watch script: a root cart's
+        /// is its own ojplay's Unity build.
+        /// </summary>
+        public static bool StartWatcher(string workingDir, string npmArguments) {
             var key = GetKey(workingDir);
 
             // Try reattaching first
@@ -155,7 +162,7 @@ namespace OneJS.Editor {
             _starting.Add(key);
 
             try {
-                var startInfo = OneJSWslHelper.CreateNpmProcessStartInfo(workingDir, "run watch", GetNpmExecutable());
+                var startInfo = OneJSWslHelper.CreateNpmProcessStartInfo(workingDir, npmArguments, GetNpmExecutable());
 
                 var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
 

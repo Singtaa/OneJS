@@ -53,6 +53,17 @@ namespace OneJS.Editor {
         /// <summary>Bundles already built for this player, so an app reached twice builds once.</summary>
         static HashSet<string> _playerBundlesBuilt = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>Root carts already built for this player, by folder, so two runners of one cart build it once.</summary>
+        static HashSet<string> _cartsBuilt = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Every root cart file the player ships, from each cart's files.json: the source under
+        /// the cart, and its path under StreamingAssets (onejs/carts/{folder}/...). Committed
+        /// with the apps' assets, in CommitAssets.
+        /// </summary>
+        static List<(string source, string destination, string cart)> _cartFiles =
+            new List<(string source, string destination, string cart)>();
+
         /// <summary>
         /// fromScene says whether a build scene reached this app. It decides how
         /// loudly a path collision is reported: two scene apps colliding is a hard
@@ -178,6 +189,9 @@ namespace OneJS.Editor {
             _assetSources.Clear();
             _runnersSeen = 0;
             _playerBundlesBuilt.Clear();
+            _cartsBuilt.Clear();
+            _cartFiles.Clear();
+            RootCarts.Invalidate();
         }
 
         public void OnPreprocessBuild(BuildReport report) {
@@ -220,6 +234,7 @@ namespace OneJS.Editor {
             }
 
             var assetMsg = _copiedAssetCount > 0 ? $", copied {_copiedAssetCount} asset file(s) to StreamingAssets" : "";
+            if (_cartsBuilt.Count > 0) assetMsg += $", built {_cartsBuilt.Count} root cart(s)";
             Debug.Log($"[JSRunner] Build preprocessing complete. Processed {_processedRunners.Count} runner(s), created {_createdAssets.Count} asset(s){assetMsg}.");
         }
 
@@ -246,6 +261,10 @@ namespace OneJS.Editor {
                     }
 
                     _runnersSeen++;
+                    if (runner.IsCart) {
+                        BuildCart(runner);
+                        continue;
+                    }
                     BuildPlayerBundle(runner);
                     ProcessJSRunner(runner);
                     ExtractPacks(runner);
@@ -317,6 +336,10 @@ namespace OneJS.Editor {
                     }
 
                     _runnersSeen++;
+                    if (runner.IsCart) {
+                        if (BuildCart(runner)) dirty = true;
+                        continue;
+                    }
                     BuildPlayerBundle(runner);
                     if (ProcessJSRunner(runner)) dirty = true;
                     ExtractPacks(runner);
@@ -504,6 +527,60 @@ namespace OneJS.Editor {
             return true;
         }
 
+        /// <summary>
+        /// A cart runner's part of a player build (Specs/ROOT_CARTS.md, 5.6): the name resolved
+        /// by the scan, the cart built once with its own ojplay into
+        /// Assets/OneJS.Generated/Carts/{folder}, the bundle assigned to the runner as an app's is,
+        /// and the cart's files recorded for StreamingAssets/onejs/carts/{folder}. A name that
+        /// resolves to no cart or to two fails the build in the inspector's words. Returns whether
+        /// the runner's bundle reference changed.
+        ///
+        /// No packs and no app assets: packs are not offered to a cart, and its files go under
+        /// its own folder, so two carts can both ship a glow.png.
+        /// </summary>
+        bool BuildCart(JSRunner runner) {
+            var resolution = runner.ResolveCart();
+            if (resolution.Outcome != RootCarts.Outcome.Found) {
+                throw new BuildFailedException($"[JSRunner] '{runner.gameObject.name}': {resolution.Problem}");
+            }
+            var cart = resolution.Cart;
+            var dir = RootCarts.PlayerBuildAssetDir(cart);
+            var bundleAsset = dir + "/app.js.txt";
+            var mapAsset = dir + "/app.js.map.txt";
+
+            if (_cartsBuilt.Add(cart.FullPath)) {
+                var fullDir = Path.Combine(Path.GetDirectoryName(Application.dataPath), dir);
+                CartRunners.BuildForPlayer(cart, fullDir);
+                IgnoreGeneratedCarts();
+                // The player packs the imported assets, not the files, so the build imports them
+                // before it reads them, as an app's production bundle is.
+                AssetDatabase.ImportAsset(bundleAsset, ImportAssetOptions.ForceSynchronousImport);
+                if (File.Exists(Path.Combine(fullDir, "app.js.map.txt"))) AssetDatabase.ImportAsset(mapAsset, ImportAssetOptions.ForceSynchronousImport);
+                // The shader step that follows finds app.sl.json by scanning Assets.
+                if (File.Exists(Path.Combine(fullDir, "app.sl.json"))) AssetDatabase.ImportAsset(dir + "/app.sl.json", ImportAssetOptions.ForceSynchronousImport);
+                foreach (var (source, destination) in CartRunners.ReadFiles(cart, Path.Combine(fullDir, "files.json"))) {
+                    _cartFiles.Add((source, destination, cart.Name));
+                }
+                Debug.Log($"[JSRunner] Built the cart {cart.Name} for the player: {bundleAsset}");
+            }
+
+            var bundle = AssetDatabase.LoadAssetAtPath<TextAsset>(bundleAsset);
+            var map = AssetDatabase.LoadAssetAtPath<TextAsset>(mapAsset);
+            // Assigned again only when it changed, so a build does not rewrite every scene it reads.
+            if (bundle != null && runner.BundleAsset == bundle && (!runner.IncludeSourceMap || map == null || runner.SourceMapAsset == map)) return false;
+            return AssignBundle(runner, bundleAsset, mapAsset);
+        }
+
+        /// <summary>
+        /// The player builds of carts are derived, so the folder carries a .gitignore that keeps
+        /// all of it out of the project's repository. Unity does not import dot files.
+        /// </summary>
+        static void IgnoreGeneratedCarts() {
+            var file = Path.Combine(Path.GetDirectoryName(Application.dataPath), RootCarts.PlayerBuildRoot, ".gitignore");
+            if (File.Exists(file)) return;
+            File.WriteAllText(file, "# Player builds of root carts, written by every player build. Derived: never committed.\n*\n");
+        }
+
         void ExtractPacks(JSRunner runner) {
             var packs = runner.Packs;
             if (packs == null || packs.Count == 0) return;
@@ -577,6 +654,64 @@ namespace OneJS.Editor {
         void CommitAssets(bool hadRunners) {
             if (!hadRunners) return;
             CommitAssetsTo(Path.Combine(Application.dataPath, "StreamingAssets", "onejs", "assets"));
+            CommitCartsTo(Path.Combine(Application.dataPath, "StreamingAssets", RootCarts.PlayerFilesRoot.Replace('/', Path.DirectorySeparatorChar)));
+        }
+
+        /// <summary>
+        /// Builds StreamingAssets/onejs/carts from every root cart in the build, once, the way
+        /// CommitAssetsTo builds onejs/assets: staged beside the destination and swapped in
+        /// whole, rebuilt on every build so a cart no longer in it leaves nothing behind. A
+        /// build with no cart and no folder from an earlier one touches nothing.
+        /// </summary>
+        void CommitCartsTo(string destDir) {
+            if (_cartFiles.Count == 0 && !Directory.Exists(destDir)) return;
+
+            var staging = destDir + ".staging";
+            try { DeleteTree(staging); } catch { }
+
+            var plan = new Dictionary<string, (string source, string destination, string cart)>();
+            foreach (var file in _cartFiles) {
+                // Each cart has its own folder, so a clash can only come from one cart's own
+                // files.json naming a path twice, case aside, which a case insensitive disk
+                // would turn into one file.
+                var key = file.destination.Normalize(NormalizationForm.FormC).ToLowerInvariant();
+                if (plan.TryGetValue(key, out var owner)) {
+                    if (PathsEqual(owner.source, file.source)) continue;
+                    throw new BuildFailedException($"[JSRunner] The cart {file.cart} ships two files at " +
+                        $"\"{file.destination}\": {owner.source} and {file.source}.");
+                }
+                plan[key] = file;
+            }
+
+            try {
+                foreach (var entry in plan.Values) {
+                    // destination is under StreamingAssets and starts with onejs/carts/.
+                    var relative = entry.destination.Substring(RootCarts.PlayerFilesRoot.Length + 1);
+                    var destFile = Path.Combine(staging, relative.Replace('/', Path.DirectorySeparatorChar));
+                    Directory.CreateDirectory(Path.GetDirectoryName(destFile));
+                    File.Copy(entry.source, destFile, true);
+                    File.SetAttributes(destFile, FileAttributes.Normal);
+                }
+
+                DeleteTree(destDir);
+                if (plan.Count > 0) {
+                    Directory.CreateDirectory(Path.GetDirectoryName(destDir));
+                    Directory.Move(staging, destDir);
+                }
+                if (File.Exists(destDir + ".meta") && !Directory.Exists(destDir)) File.Delete(destDir + ".meta");
+            } catch (Exception e) {
+                try { DeleteTree(staging); } catch { }
+                if (e is BuildFailedException) throw;
+                throw new BuildFailedException(
+                    $"[JSRunner] Could not rebuild StreamingAssets/{RootCarts.PlayerFilesRoot}: {e.Message} " +
+                    $"The destination may be partly deleted, so delete it and build again.");
+            }
+
+            Debug.Log(plan.Count > 0
+                ? $"[JSRunner] StreamingAssets/{RootCarts.PlayerFilesRoot} now holds {plan.Count} file(s) from " +
+                  $"{plan.Values.Select(e => e.cart).Distinct().Count()} cart(s)."
+                : $"[JSRunner] No root cart in this build; StreamingAssets/{RootCarts.PlayerFilesRoot} removed.");
+            AssetDatabase.Refresh();
         }
 
         /// <summary>

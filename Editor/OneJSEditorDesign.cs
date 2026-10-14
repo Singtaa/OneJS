@@ -152,6 +152,25 @@ public static class OneJSEditorDesign {
         public const string NoSlug = "No slug";
         public const string NotGenerated = "Not generated";
 
+        // --- Cart runners (Specs/ROOT_CARTS.md). The legacy inspector keeps "Project". ---
+        public const string TabCart = "Cart";
+        public const string Cart = "Cart";
+        public const string CartsAtRoot = "Carts at the project root";
+        public const string NoCart = "No Cart";
+        public const string TwoCarts = "Two Carts";
+        public const string NotSetUp = "Not Set Up";
+        public const string NoPanelSettings = "No Panel Settings";
+        public const string SetUp = "Set Up";
+        public const string SettingUp = "Setting Up...";
+        public const string CreatePanelSettings = "Create";
+        public const string CartWatcherCommand = " (ojplay build --watch)";
+        public const string PickCartOrInitialize = "Pick a cart from the project root, or Initialize Project to make an app beside a Panel Settings asset under Assets.";
+        public const string CartPanelSettingsNote = "Scale, resolution and theme. Any Panel Settings works, shared or not: its folder means nothing here.";
+        public const string CartBuildNote = "A cart builds with its own ojplay, the builder the site uses. Type generation and the Scaffolding list belong to apps under Assets and are not shown for a cart.";
+        public const string CartBuildEditor = "Editor";
+        public const string CartBuildPlayer = "Player";
+        public const string CartBuildFiles = "Files in player";
+
         // --- JSPad specific ---
         public const string Processing = "Processing...";
         public const string Ready = "Ready";

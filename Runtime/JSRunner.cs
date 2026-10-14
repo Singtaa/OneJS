@@ -114,6 +114,14 @@ namespace OneJS {
         [Tooltip("PanelSettings asset for the UI. Assigned to the runtime UIDocument. Auto-created in instance folder on Initialize if not set.")]
         [SerializeField] PanelSettings _panelSettings;
 
+        // The oj.json name of the root cart this runner runs (Specs/ROOT_CARTS.md). Empty is an app
+        // under Assets anchored by its PanelSettings, exactly as before carts; every cart code path
+        // is behind IsCart. A name, never a path: a folder outside Assets has no GUID, and a path
+        // string breaks when the folder moves. ojplay finds this declaration to tell whether the
+        // installed OneJS has cart runners, so keep its name and type.
+        [Tooltip("The oj.json name of a cart at the project root to run. Empty runs the app beside the Panel Settings asset.")]
+        [SerializeField] string _cart;
+
         [Tooltip("VisualTreeAsset (UXML) for the UI. Assigned to the runtime UIDocument. Auto-synced from project folder when Panel Settings is set.")]
         [SerializeField] VisualTreeAsset _visualTreeAsset;
 
@@ -245,6 +253,15 @@ namespace OneJS {
         /// </summary>
         public bool ExcludeFromBuild => _excludeFromBuild;
         public PanelSettings PanelSettingsAsset => _panelSettings;
+
+        /// <summary>The oj.json name of the root cart this runner runs, or empty for an app under Assets.</summary>
+        public string Cart => _cart;
+
+        /// <summary>
+        /// Whether this runner runs a root cart rather than the app beside its Panel Settings.
+        /// A runner is one kind or the other; with a cart set, the Panel Settings is only settings.
+        /// </summary>
+        public bool IsCart => !string.IsNullOrWhiteSpace(_cart);
         public TextAsset BundleAsset => _bundleAsset;
         public TextAsset SourceMapAsset => _sourceMapAsset;
 #if UNITY_EDITOR
@@ -368,6 +385,8 @@ namespace OneJS {
         public string InstanceFolder {
             get {
 #if UNITY_EDITOR
+                // A cart has no folder under Assets: its files are at the root and its builds in Library.
+                if (IsCart) return null;
                 if (_panelSettings == null) return null;
                 if (!IsPanelSettingsInValidProjectFolder()) return null;
                 var assetPath = UnityEditor.AssetDatabase.GetAssetPath(_panelSettings);
@@ -388,6 +407,7 @@ namespace OneJS {
         /// </summary>
         public string InstanceFolderAssetPath {
             get {
+                if (IsCart) return null;
                 if (_panelSettings == null) return null;
                 if (!IsPanelSettingsInValidProjectFolder()) return null;
                 var assetPath = UnityEditor.AssetDatabase.GetAssetPath(_panelSettings);
@@ -462,6 +482,7 @@ namespace OneJS {
         /// </summary>
         public string WorkingDirFullPath {
             get {
+                if (IsCart) return CartFolder?.FullPath;
                 var instanceFolder = InstanceFolder;
                 if (string.IsNullOrEmpty(instanceFolder)) return null;
                 return Path.Combine(instanceFolder, "~");
@@ -474,6 +495,10 @@ namespace OneJS {
         /// </summary>
         public string EntryFileFullPath {
             get {
+                if (IsCart) {
+                    var cart = CartFolder;
+                    return cart == null ? null : Path.Combine(RootCarts.EditorBuildDir(cart), DefaultBundleFile);
+                }
                 var instanceFolder = InstanceFolder;
                 if (string.IsNullOrEmpty(instanceFolder)) return null;
                 return Path.Combine(instanceFolder, DefaultBundleFile);
@@ -607,12 +632,7 @@ namespace OneJS {
                 return;
             }
 
-            var ps = ScriptableObject.CreateInstance<PanelSettings>();
-            ps.scaleMode = PanelScaleMode.ScaleWithScreenSize;
-            ps.referenceResolution = new Vector2Int(1920, 1080);
-            ps.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight;
-            ps.match = 0.5f;
-            if (_defaultThemeStylesheet != null) ps.themeStyleSheet = _defaultThemeStylesheet;
+            var ps = NewPanelSettings();
             UnityEditor.AssetDatabase.CreateAsset(ps, psAssetPath);
             _panelSettings = ps;
 
@@ -628,6 +648,43 @@ namespace OneJS {
             UnityEditor.AssetDatabase.SaveAssets();
             EnsureUIDocumentInEditor();
             Debug.Log($"[JSRunner] Created project folder and PanelSettings: {psAssetPath}");
+        }
+
+        /// <summary>The Panel Settings a new runner gets: scaled with the screen from 1920x1080, with the default theme.</summary>
+        PanelSettings NewPanelSettings() {
+            var ps = ScriptableObject.CreateInstance<PanelSettings>();
+            ps.scaleMode = PanelScaleMode.ScaleWithScreenSize;
+            ps.referenceResolution = new Vector2Int(1920, 1080);
+            ps.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight;
+            ps.match = 0.5f;
+            if (_defaultThemeStylesheet != null) ps.themeStyleSheet = _defaultThemeStylesheet;
+            return ps;
+        }
+
+        /// <summary>
+        /// Gives a cart runner a Panel Settings at Assets/{folder}/PanelSettings.asset, the cart's
+        /// folder name, where `ojplay add` writes one; an asset already there is assigned rather
+        /// than replaced. Returns it, or null when this runner runs no cart that resolves.
+        /// </summary>
+        public PanelSettings CreateCartPanelSettings() {
+            var cart = CartFolder;
+            if (cart == null) return null;
+            var folder = "Assets/" + cart.Folder;
+            var psAssetPath = folder + "/PanelSettings.asset";
+            var ps = UnityEditor.AssetDatabase.LoadAssetAtPath<PanelSettings>(psAssetPath);
+            if (ps == null) {
+                Directory.CreateDirectory(Path.Combine(ProjectRoot, folder));
+                ps = NewPanelSettings();
+                UnityEditor.AssetDatabase.CreateAsset(ps, psAssetPath);
+                UnityEditor.AssetDatabase.SaveAssets();
+                Debug.Log($"[JSRunner] Created {psAssetPath} for the cart {cart.Name}.");
+            }
+            UnityEditor.Undo.RecordObject(this, "Create Panel Settings");
+            _panelSettings = ps;
+            UnityEditor.EditorUtility.SetDirty(this);
+            EnsureUIDocumentInEditor();
+            SchedulePreviewAutoStart();
+            return ps;
         }
 
         /// <summary>
@@ -762,6 +819,53 @@ namespace OneJS {
             if (string.IsNullOrEmpty(dir)) return $"'{assetPath}' has no containing folder";
             return $"its folder '{dir.Replace('\\', '/')}' holds no ~ working directory and no app.js.txt";
         }
+
+        // MARK: Root carts
+
+        /// <summary>The root cart this runner's name resolves to, or null: no cart set, none by that name, or two.</summary>
+        public RootCarts.Cart CartFolder => IsCart ? RootCarts.Resolve(_cart).Cart : null;
+
+        /// <summary>The cart name looked up in the current scan. Only meaningful when <see cref="IsCart"/>.</summary>
+        public RootCarts.Resolution ResolveCart() => RootCarts.Resolve(_cart ?? "");
+
+        /// <summary>
+        /// Whether this runner has what it needs to run: an app under Assets in a valid project
+        /// folder, or a Panel Settings and a cart name that resolves to exactly one cart.
+        /// </summary>
+        bool CanRun => IsCart
+            ? _panelSettings != null && CartFolder != null
+            : _panelSettings != null && IsPanelSettingsInValidProjectFolder();
+
+        /// <summary>
+        /// Whether the UIDocument should carry this runner's Panel Settings. For a cart any
+        /// assigned Panel Settings does, since its folder means nothing there.
+        /// </summary>
+        bool UsesPanelSettings => IsCart
+            ? _panelSettings != null
+            : _panelSettings != null && IsPanelSettingsInValidProjectFolder();
+
+        /// <summary>
+        /// Links this runner to the root cart with this oj.json name, or back to the app beside
+        /// its Panel Settings with null or empty. Recorded for undo.
+        /// </summary>
+        public void SetCart(string name) {
+            UnityEditor.Undo.RecordObject(this, "Set Cart");
+            _cart = string.IsNullOrWhiteSpace(name) ? "" : name.Trim();
+            UnityEditor.EditorUtility.SetDirty(this);
+            if (!Application.isPlaying) {
+                StopEditModePreview();
+                SchedulePreviewAutoStart();
+            }
+        }
+
+        /// <summary>
+        /// Starts the edit-mode preview if it is not running and the runner is ready. For editor
+        /// tooling that has just produced the bundle, such as a cart's first build, which can
+        /// land after the preview's own retry window has closed.
+        /// </summary>
+        public void StartEditModePreviewIfReady() {
+            if (!Application.isPlaying && !_editModePreviewActive) TryStartEditModePreview();
+        }
 #endif
 
         // Type Generation properties
@@ -769,7 +873,7 @@ namespace OneJS {
         public bool AutoGenerateTypings => _autoGenerateTypings;
         public string TypingsOutputPath => _typingsOutputPath;
 #if UNITY_EDITOR
-        public string TypingsFullPath => WorkingDirFullPath != null ? Path.Combine(WorkingDirFullPath, _typingsOutputPath) : null;
+        public string TypingsFullPath => !IsCart && WorkingDirFullPath != null ? Path.Combine(WorkingDirFullPath, _typingsOutputPath) : null;
 #endif
 
         /// <summary>The Globals list: each object is injected as globalThis[key].</summary>
@@ -808,7 +912,7 @@ namespace OneJS {
                 }
             }
 #if UNITY_EDITOR
-            bool valid = _panelSettings != null && IsPanelSettingsInValidProjectFolder();
+            bool valid = UsesPanelSettings;
             if (!valid) return false;
             if (_uiDocument.panelSettings != _panelSettings)
                 _uiDocument.panelSettings = _panelSettings;
@@ -1044,6 +1148,12 @@ namespace OneJS {
         }
 
         void InitializeEditor() {
+            // A cart is found by name, not from the scene's folder, so it needs no saved scene.
+            if (IsCart) {
+                InitializeCartEditor();
+                return;
+            }
+
             if (!IsSceneSaved) {
                 Debug.LogError("[JSRunner] Scene must be saved before JSRunner can initialize. Save the scene and enter Play mode again.");
                 return;
@@ -1121,6 +1231,39 @@ namespace OneJS {
         }
 
         /// <summary>
+        /// Play mode for a cart runner. Nothing is written into the cart or beside the Panel
+        /// Settings: the bundle is the editor build in Library, which the cart's own ojplay
+        /// writes. When that build is not there yet the bridge starts empty, and the build that
+        /// Play starts (CartRunners in the editor assembly) reloads the runner when it lands.
+        /// </summary>
+        void InitializeCartEditor() {
+            EnsureUIDocument();
+            var entryFile = EntryFileFullPath;
+            if (string.IsNullOrEmpty(entryFile)) return;
+
+            InitializeBridge();
+
+            if (_enableJanitor && _janitor == null) {
+                var janitorGO = new GameObject("Janitor");
+                _janitor = janitorGO.AddComponent<Janitor>();
+            }
+
+            if (!File.Exists(entryFile)) {
+                Debug.Log($"[JSRunner] {name}: {_cart} has not been built yet, so it runs once its build lands.", this);
+                return;
+            }
+
+            RunScript(ReadBundleForEditor(entryFile), Path.GetFileName(entryFile));
+            if (Application.isPlaying) InvokeOnPlay();
+
+            if (_liveReload) {
+                _lastModifiedTime = File.GetLastWriteTime(entryFile);
+                _lastContentHash = ComputeFileHash(entryFile);
+                _nextPollTime = Time.realtimeSinceStartup + _pollInterval;
+            }
+        }
+
+        /// <summary>
         /// Writes each default file once. The working directory's <see cref="ScaffoldRecord"/>
         /// lists every default path it has been given, and a recorded path is never written
         /// again, so a file the user deletes stays deleted. Existing files are never overwritten.
@@ -1135,6 +1278,8 @@ namespace OneJS {
         /// Returns true if it wrote a file.
         /// </summary>
         bool ScaffoldDefaultFiles() {
+            // Nothing is written into a cart: its files are the cart's, and its tooling is ojplay's.
+            if (IsCart) return false;
             var workingDir = WorkingDirFullPath;
             if (string.IsNullOrEmpty(workingDir)) return false;
 
@@ -1232,6 +1377,7 @@ namespace OneJS {
         /// start: default files are written once, so a deleted one never reappears by itself.
         /// </summary>
         public string DescribeMissingDefaultFiles() {
+            if (IsCart) return null;
             var workingDir = WorkingDirFullPath;
             if (string.IsNullOrEmpty(workingDir)) return null;
             var missing = DefaultFilesToGive()
@@ -1334,8 +1480,8 @@ namespace OneJS {
                 }
             }
 
-            // Inject pack objects
-            PackUtils.InjectPackGlobals(_bridge, _packs);
+            // Inject pack objects. Packs are not offered to a cart (Specs/ROOT_CARTS.md, 5.10).
+            if (!IsCart) PackUtils.InjectPackGlobals(_bridge, _packs);
         }
 
         /// <summary>
@@ -1393,14 +1539,38 @@ namespace OneJS {
 
 #if UNITY_EDITOR
         bool _warnedNoPanelSettings;
+        string _warnedCart;
+
+        /// <summary>
+        /// Whether a cart runner can start in Play mode: a Panel Settings, and a name that
+        /// resolves to one cart. Says what is wrong once, in the inspector's own words, rather
+        /// than every frame of the retry.
+        /// </summary>
+        bool CartReadyForPlay() {
+            string problem = null;
+            if (_panelSettings == null) {
+                problem = $"[JSRunner] '{name}' runs the cart {_cart} but has no Panel Settings, so it runs nothing. " +
+                    "Assign one in its UI tab, or press Create there.";
+            } else {
+                var resolution = ResolveCart();
+                if (resolution.Outcome != RootCarts.Outcome.Found) problem = $"[JSRunner] '{name}': {resolution.Problem}";
+            }
+            if (problem == null) return true;
+            if (_warnedCart != problem) {
+                _warnedCart = problem;
+                Debug.LogError(problem, this);
+            }
+            return false;
+        }
 #endif
 
         bool TryInitializePlayMode(bool silent = false) {
             if (_initialized) return true;
 #if UNITY_EDITOR
+            if (IsCart && !CartReadyForPlay()) return false;
             // In the editor Panel Settings is the project, and entering Play mode does
             // not make one: say so once, rather than retrying silently every frame
-            if (_panelSettings == null) {
+            if (!IsCart && _panelSettings == null) {
                 if (!_warnedNoPanelSettings) {
                     _warnedNoPanelSettings = true;
                     Debug.LogWarning($"[JSRunner] '{name}' has no Panel Settings, so it runs nothing. " +
@@ -1408,7 +1578,7 @@ namespace OneJS {
                 }
                 return false;
             }
-            if (_panelSettings != null && !IsPanelSettingsInValidProjectFolder()) {
+            if (!IsCart && _panelSettings != null && !IsPanelSettingsInValidProjectFolder()) {
                 if (!silent)
                     Debug.LogError("[JSRunner] Panel Settings is not valid: its folder must contain a '~' subfolder or an 'app.js' file.");
                 return false;
@@ -1427,6 +1597,7 @@ namespace OneJS {
             _initialized = false;
 #if UNITY_EDITOR
             _warnedNoPanelSettings = false;
+            _warnedCart = null;
 #endif
             _initialFocusDone = false;
         }
@@ -1561,7 +1732,7 @@ namespace OneJS {
         void TryStartEditModePreview() {
             if (this == null || Application.isPlaying) return;
             if (_editModePreviewActive) return;
-            if (_panelSettings == null || !IsPanelSettingsInValidProjectFolder()) return;
+            if (!CanRun) return;
 
             // Need a built bundle to preview
             var entryFile = EntryFileFullPath;
@@ -1871,7 +2042,7 @@ namespace OneJS {
         /// In Play mode: push to UIDocument so both use the same assets.
         /// </summary>
         void OnValidate() {
-            bool shouldUsePanelSettings = _panelSettings != null && IsPanelSettingsInValidProjectFolder();
+            bool shouldUsePanelSettings = UsesPanelSettings;
             if (_panelSettings == null || !shouldUsePanelSettings) {
                 if (_panelSettings == null && _visualTreeAsset != null) {
                     _visualTreeAsset = null;
@@ -1895,7 +2066,7 @@ namespace OneJS {
                 // Defer so we never AddComponent during OnValidate (SendMessage not allowed there)
                 UnityEditor.EditorApplication.delayCall += () => {
                     if (this == null) return;
-                    if (_panelSettings != null && IsPanelSettingsInValidProjectFolder())
+                    if (UsesPanelSettings)
                         EnsureUIDocumentInEditor();
                 };
                 // Also try to start edit-mode preview when PanelSettings changes
@@ -1916,7 +2087,7 @@ namespace OneJS {
         void RemoveUIDocumentIfOwned() {
             if (this == null || Application.isPlaying) return;
             if (!_uiDocumentAddedByRunner) return;
-            if (_panelSettings != null && IsPanelSettingsInValidProjectFolder()) return;
+            if (UsesPanelSettings) return;
             var toRemove = GetComponent<UIDocument>();
             if (toRemove == null) {
                 _uiDocumentAddedByRunner = false;
@@ -1934,7 +2105,7 @@ namespace OneJS {
 
         /// <summary>Adds UIDocument if missing and syncs Panel Settings / Visual Tree. Call after assigning _panelSettings (e.g. from Initialize). Only runs when Panel Settings is in a valid project folder.</summary>
         void EnsureUIDocumentInEditor() {
-            if (_panelSettings == null || !IsPanelSettingsInValidProjectFolder()) return;
+            if (!UsesPanelSettings) return;
             SyncVisualTreeAssetFromPanelSettingsFolder();
             var udoc = GetComponent<UIDocument>();
             if (udoc == null) {
@@ -1953,6 +2124,8 @@ namespace OneJS {
         }
 
         void SyncVisualTreeAssetFromPanelSettingsFolder() {
+            // A cart's Panel Settings folder means nothing, so no UXML is read from beside it.
+            if (IsCart) return;
             if (_panelSettings == null) return;
             var assetPath = UnityEditor.AssetDatabase.GetAssetPath(_panelSettings);
             if (string.IsNullOrEmpty(assetPath)) return;
@@ -2084,6 +2257,7 @@ namespace OneJS {
         /// and it is <see cref="DefaultFileStatus.Differs"/>.
         /// </summary>
         public DefaultFileStatus GetDefaultFileStatus(string path) {
+            if (IsCart) return DefaultFileStatus.Invalid;
             var entry = ScaffoldingEntry(path);
             if (entry == null) return DefaultFileStatus.Invalid;
             var workingDir = WorkingDirFullPath;
@@ -2115,6 +2289,7 @@ namespace OneJS {
         /// templates this runner's list lacks included.
         /// </summary>
         public bool RestoreDefaultFile(string path) {
+            if (IsCart) return false;
             var entry = ScaffoldingEntry(path);
             if (entry == null) return false;
             var workingDir = WorkingDirFullPath;

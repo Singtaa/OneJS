@@ -58,6 +58,8 @@ namespace OneJS.Editor {
         /// </summary>
         static void OnEditModePreviewStarted(JSRunner runner) {
             if (Application.isPlaying) return;
+            // A cart's watcher is its own ojplay's, started by CartRunners.
+            if (runner.IsCart) return;
 
             var workingDir = runner.WorkingDirFullPath;
             if (string.IsNullOrEmpty(workingDir) || !Directory.Exists(workingDir)) return;
@@ -96,6 +98,8 @@ namespace OneJS.Editor {
 
             foreach (var runner in runners) {
                 if (runner == null || !runner.enabled || !runner.gameObject.activeInHierarchy) continue;
+                // CartRunners sets up, builds and watches a cart.
+                if (runner.IsCart) continue;
 
                 var workingDir = runner.WorkingDirFullPath;
                 if (string.IsNullOrEmpty(workingDir) || !Directory.Exists(workingDir)) continue;

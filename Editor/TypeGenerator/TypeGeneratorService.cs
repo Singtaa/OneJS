@@ -55,6 +55,12 @@ namespace OneJS.Editor.TypeGenerator {
                 return false;
             }
 
+            // Type generation belongs to apps under Assets: nothing is written into a cart.
+            if (runner.IsCart) {
+                if (!silent) Debug.LogWarning($"[TypeGeneratorService] '{runner.name}' runs a cart, which gets no generated typings.");
+                return false;
+            }
+
             if (runner.TypingAssemblies == null || runner.TypingAssemblies.Count == 0) {
                 if (!silent) {
                     Debug.LogWarning($"[TypeGeneratorService] No assemblies configured for '{runner.name}'");

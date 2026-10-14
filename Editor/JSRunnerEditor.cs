@@ -16,7 +16,7 @@ using Debug = UnityEngine.Debug;
 
 namespace OneJS.Editor {
     [CustomEditor(typeof(JSRunner))]
-    public class JSRunnerEditor : UnityEditor.Editor {
+    public partial class JSRunnerEditor : UnityEditor.Editor {
         const string TabPrefKey = "JSRunner.ActiveTab";
         const string CodeEditorPathPrefKey = "OneJS.CodeEditorPath";
 
@@ -111,8 +111,17 @@ namespace OneJS.Editor {
         }
 
         public override VisualElement CreateInspectorGUI() {
-            var root = new VisualElement();
+            // The scan runs when an inspector opens (Specs/ROOT_CARTS.md, 5.2).
+            RootCarts.Invalidate();
+            _root = new VisualElement();
+            _cartMode = _target.IsCart;
+            if (_cartMode) BuildCartInspector(_root);
+            else BuildLegacyInspector(_root);
+            return _root;
+        }
 
+        /// <summary>The inspector of an app under Assets, anchored by its Panel Settings.</summary>
+        void BuildLegacyInspector(VisualElement root) {
             // Panel Settings + Initialize (above everything, including status)
             root.Add(CreatePanelSettingsSection());
 
@@ -125,16 +134,7 @@ namespace OneJS.Editor {
             root.Add(_tabBarContainer);
 
             // Tab content container
-            _tabContent = new VisualElement();
-            _tabContent.style.backgroundColor = OneJSEditorDesign.Colors.ContentBg;
-            _tabContent.style.borderTopWidth = 0;
-            _tabContent.style.borderLeftWidth = _tabContent.style.borderRightWidth = _tabContent.style.borderBottomWidth = 1;
-            _tabContent.style.borderLeftColor = _tabContent.style.borderRightColor = _tabContent.style.borderBottomColor = OneJSEditorDesign.Colors.Border;
-            _tabContent.style.borderTopLeftRadius = _tabContent.style.borderTopRightRadius = 0;
-            _tabContent.style.borderBottomLeftRadius = _tabContent.style.borderBottomRightRadius = 3;
-            _tabContent.style.paddingTop = _tabContent.style.paddingBottom = 10;
-            _tabContent.style.paddingLeft = _tabContent.style.paddingRight = 10;
-            _tabContent.style.minHeight = 100;
+            _tabContent = CreateTabContent();
             root.Add(_tabContent);
 
             // Show initial tab
@@ -154,8 +154,21 @@ namespace OneJS.Editor {
             _tabBarContainer.style.display = showTabsAndActions ? DisplayStyle.Flex : DisplayStyle.None;
             _tabContent.style.display = showTabsAndActions ? DisplayStyle.Flex : DisplayStyle.None;
             _actionsContainer.style.display = showTabsAndActions ? DisplayStyle.Flex : DisplayStyle.None;
+        }
 
-            return root;
+        /// <summary>The box a tab's content goes in, joined to the tab bar above it.</summary>
+        static VisualElement CreateTabContent() {
+            var content = new VisualElement();
+            content.style.backgroundColor = OneJSEditorDesign.Colors.ContentBg;
+            content.style.borderTopWidth = 0;
+            content.style.borderLeftWidth = content.style.borderRightWidth = content.style.borderBottomWidth = 1;
+            content.style.borderLeftColor = content.style.borderRightColor = content.style.borderBottomColor = OneJSEditorDesign.Colors.Border;
+            content.style.borderTopLeftRadius = content.style.borderTopRightRadius = 0;
+            content.style.borderBottomLeftRadius = content.style.borderBottomRightRadius = 3;
+            content.style.paddingTop = content.style.paddingBottom = 10;
+            content.style.paddingLeft = content.style.paddingRight = 10;
+            content.style.minHeight = 100;
+            return content;
         }
 
         // MARK: Panel Settings (above tabs)
@@ -182,13 +195,18 @@ namespace OneJS.Editor {
             container.style.marginTop = 6; // with status marginBottom 2 → total 8 (matches space above status)
 
             string[] tabNames = { OneJSEditorDesign.Texts.TabProject, OneJSEditorDesign.Texts.TabUI, OneJSEditorDesign.Texts.TabPacks, OneJSEditorDesign.Texts.TabBuild };
+            return CreateTabBar(container, tabNames, ShowTab);
+        }
+
+        /// <summary>The tab bar's buttons, for the tabs named, each showing its tab through `show`.</summary>
+        VisualElement CreateTabBar(VisualElement container, string[] tabNames, Action<int> show) {
             _tabButtons = new Button[tabNames.Length];
 
             var borderColor = OneJSEditorDesign.Colors.Border;
 
             for (int i = 0; i < tabNames.Length; i++) {
                 int tabIndex = i;
-                var btn = new Button(() => ShowTab(tabIndex)) { text = tabNames[i] };
+                var btn = new Button(() => show(tabIndex)) { text = tabNames[i] };
                 btn.style.flexGrow = 1;
                 btn.style.height = 26;
                 btn.style.marginTop = btn.style.marginBottom = btn.style.marginLeft = btn.style.marginRight = 0;
@@ -1456,7 +1474,7 @@ namespace OneJS.Editor {
             _statusLabelNotInit.style.color = OneJSEditorDesign.Colors.TextNeutral;
             notInitStatusRow.Add(_statusLabelNotInit);
             notInitLeft.Add(notInitStatusRow);
-            var notInitMsg = new Label("Initialize a new OneJS project, or assign a Panel Settings asset. The assigned asset’s folder becomes the active project folder for this runner.");
+            var notInitMsg = _notInitMessage = new Label(NotInitializedMessage);
             notInitMsg.style.marginTop = 4;
             notInitMsg.style.whiteSpace = WhiteSpace.Normal;
             notInitMsg.style.fontSize = 11;
@@ -1478,6 +1496,13 @@ namespace OneJS.Editor {
             initBtnColumn.Add(initBtn);
             _statusNotInitializedContainer.Add(initBtnColumn);
             container.Add(_statusNotInitializedContainer);
+
+            // Shown only when the project root holds carts, so a project without any sees the
+            // inspector it always had.
+            _emptyCartPicker = CreateCartPickerRow();
+            _emptyCartPicker.style.marginTop = 8;
+            _emptyCartPicker.style.display = DisplayStyle.None;
+            container.Add(_emptyCartPicker);
 
             // When Panel Settings invalid: one row with [ status+message column | button column ] so button centers in full height
             _statusNotValidContainer = new VisualElement();
@@ -1710,6 +1735,16 @@ namespace OneJS.Editor {
         // MARK: Dynamic UI Updates
 
         void UpdateDynamicUI() {
+            if (_target == null) return;
+            // Picking a cart, or None, turns this into the other inspector.
+            if (_root != null && _target.IsCart != _cartMode) {
+                RebuildInspector();
+                return;
+            }
+            if (_cartMode) {
+                UpdateCartUI();
+                return;
+            }
             // Check if target was destroyed (e.g., user deleted the GameObject)
             if (_target == null || _statusLabel == null) return;
             serializedObject.Update();
@@ -1739,12 +1774,14 @@ namespace OneJS.Editor {
                 if (_statusNotInitializedContainer != null) _statusNotInitializedContainer.style.display = (hasPanelSettings && !validFolder) ? DisplayStyle.None : DisplayStyle.Flex;
                 if (_statusNotValidContainer != null) _statusNotValidContainer.style.display = (hasPanelSettings && !validFolder) ? DisplayStyle.Flex : DisplayStyle.None;
                 if (_reloadCountLabel != null) _reloadCountLabel.style.display = DisplayStyle.None;
+                UpdateEmptyCartPicker(!hasPanelSettings);
             } else {
                 if (_statusRow != null) _statusRow.style.display = DisplayStyle.Flex;
                 if (_watcherRow != null) _watcherRow.style.display = DisplayStyle.Flex;
                 if (_workingDirLabel != null) _workingDirLabel.style.display = DisplayStyle.Flex;
                 if (_statusNotInitializedContainer != null) _statusNotInitializedContainer.style.display = DisplayStyle.None;
                 if (_statusNotValidContainer != null) _statusNotValidContainer.style.display = DisplayStyle.None;
+                UpdateEmptyCartPicker(false);
 
                 // Status text (normal)
                 if (Application.isPlaying) {
