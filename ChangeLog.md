@@ -6,6 +6,7 @@ A JSRunner can now run a play.onejs.com cart from its own folder at the project 
 - Saved scenes gain an empty `_cart` line on each JSRunner, the new field's default
 - Shader programs take 64 uniforms and 8 textures
 - A shader program can set a texture's wrap and filter, and read its size and its texels unfiltered
+- New projects get onejs-unity 0.11, onejs-react 0.4.1 and ojplay 0.11
 
 # [2026-10-10] v3.9.8
 
