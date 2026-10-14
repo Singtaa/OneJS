@@ -1,5 +1,6 @@
 # Unreleased
 
+- A JSRunner can run a root cart, linked by its `oj.json` name
 - Shader programs take 64 uniforms and 8 textures
 - A shader program can set a texture's wrap and filter, and read its size and its texels unfiltered
 

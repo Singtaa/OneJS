@@ -20,6 +20,7 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `QuickJSContext.cs` | Managed wrapper for QuickJS context (Eval, ExecutePendingJobs, callbacks) |
 | `QuickJSUIBridge.cs` | UI Toolkit integration, event delegation, scheduling (RAF, timers) |
 | `JSRunner.cs` | MonoBehaviour entry point with auto-scaffolding and live reload |
+| `RootCarts.cs` | Editor only: the root carts a runner can link by name (`<root>/*/oj.json`), name resolution and its refusals, and the paths a cart builds to |
 | `JSPad.cs` | Inline TSX runner with no external working directory |
 | `JsHost.cs` | The context, globals, onPlay/onStop, tick and rebuild JSRunner and JSPad share (internal) |
 | `ScaffoldRecord.cs` | `~/.onejs/scaffold`: the default files a working directory has been given (see Auto-Scaffolding) |

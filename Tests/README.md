@@ -63,12 +63,14 @@ PlayMode (`Tests/*.cs`):
 | `JSPadPlaymodeTests.cs` | JSPad temp dirs, build state, execution |
 | `PackUtilsPlaymodeTests.cs` | Pack global injection, platform defines, `__pack()` API |
 | `JSRunnerPlaymodeTests.cs` | A single `Assert.Pass` placeholder; the real JSRunner tests are disabled pending a scene-based rewrite |
+| `CartRunnerPlaymodeTests.cs` | A runner linked to a real root cart: the Library build runs with the cart as working directory and hot reloads; a missing or duplicate name does not start |
 
 EditMode (`Tests/Editor/`):
 
 | File | Purpose |
 |------|---------|
 | `JSRunnerBuildProcessorTests.cs` | Asset copying, namespace detection |
+| `RootCartsTests.cs` | The root scan, name resolution and its refusals, `files.json`, a cart runner's paths beside a runner with no cart, and the player build's refusals |
 | `JSRunnerBuildProcessorWindowsTests.cs` | Read-only file handling; Windows only |
 | `JSRunnerBuildSceneListTests.cs` | Which scenes a build walks |
 | `JSRunnerBundleAssignmentTests.cs` | Which runners come out of a build with a bundle |

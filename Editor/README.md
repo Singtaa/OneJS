@@ -7,6 +7,8 @@ Editor scripts for OneJS Unity integration.
 | File | Purpose |
 |------|---------|
 | `JSRunnerEditor.cs` | Custom inspector for JSRunner component |
+| `JSRunnerEditor.Cart.cs` | The inspector of a runner linked to a root cart (see Cart runners below) |
+| `CartRunners.cs` | A cart runner's editor loop: Set Up, the editor build and its watcher, the player build (see Cart runners below) |
 | `ProjectSetup.cs` | Initialize Project as a call: `Initialize()` for `-executeMethod` (picks or creates the scene and runner, saves in batch mode, throws on failure), `InitializeRunner(runner)` for one runner, which the inspector button also calls |
 | `JSRunnerAutoWatch.cs` | Auto-starts file watchers on Play mode entry |
 | `JSRunnerCleanup.cs` | Tracks JSRunner instances for cleanup bookkeeping |
@@ -108,6 +110,15 @@ On macOS/Linux, Unity doesn't inherit terminal PATH. The editor searches for npm
 2. `/opt/homebrew/bin/npm` (Homebrew Apple Silicon)
 3. `~/.nvm/versions/node/*/bin/npm` (nvm)
 4. Fallback: `bash -l -c "which npm"`
+
+## Cart runners
+
+A runner with `_cart` set runs a root cart: a folder at the project root holding an `oj.json`, linked by the name in it (`Runtime/RootCarts.cs` scans one level down, case-insensitively). A runner with no cart is the runner described above, and none of this code runs for it. Specs/ROOT_CARTS.md in the container is the design.
+
+- **Inspector** (`JSRunnerEditor.Cart.cs`): tabs Cart, UI and Build, with no Packs. The status reads No Cart (with Link to, when a cart was renamed), Two Carts, No Panel Settings (Create), Not Set Up (Set Up) or the running state. Open Folder and Open Terminal are off while the name resolves to nothing. The legacy inspector's empty state offers a cart picker only when the project has root carts.
+- **Set Up** (`CartRunners.SetUp`): `npm exec --yes -- ojplay init` when the cart has no `package.json`, then `npm install`, then `npm install --save-dev ojplay@latest` when its ojplay is older than `RootCarts.MinOjplayVersion`.
+- **Editor build**: `npm exec --no -- ojplay build --unity --out Library/OneJS/Carts/{folder}`, kept running with `--watch` for every set-up cart a runner links; the runner hot reloads on `app.js.txt`, which the watcher writes last. Unity writes nothing inside the cart.
+- **Player build** (`JSRunnerBuildProcessor.BuildCart`): `--production` into `Assets/OneJS.Generated/Carts/{folder}` (ignored by a `.gitignore` it writes), the bundle assigned as a TextAsset, and the files `files.json` lists copied to `StreamingAssets/onejs/carts/{folder}`. A missing or duplicate name fails the build.
 
 ## JSRunnerAutoWatch
 
