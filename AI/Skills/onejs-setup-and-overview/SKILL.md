@@ -125,7 +125,7 @@ Scaffolding never overwrites files that already exist, so running Initialize Pro
 
 **Steps.**
 
-1. At the project root, clone the cart, `git clone https://play.onejs.com/@<handle>/<name>.git`, or make one, `npx ojplay new "Name"`. In a project that is a git repository, `git submodule add` keeps the cart its own repository. `npx ojplay add @<handle>/<name>` at the root does this and steps 2 and 3 in one line, with a prefab.
+1. At the project root, make a cart or clone one. `npx ojplay new "Name"` makes the cart in `./<name>` on this machine, with no account; the first `ojplay push` creates it on play.onejs.com. `git clone https://play.onejs.com/@<handle>/<name>.git` takes an existing one, and in a project that is a git repository `git submodule add` keeps it its own repository. `npx ojplay add @<handle>/<name>` at the root takes an existing cart and does steps 2 and 3 in one line, with a prefab.
 2. Add a JSRunner and pick the cart in its inspector's **Cart** dropdown, which lists every `<root>/*/oj.json` by the `name` in it. From an editor script: `runner.SetCart("Name")`.
 3. Assign any PanelSettings asset, or click **Create**. For a cart runner it is only panel settings, and its folder means nothing.
 4. Click **Set Up** if the status reads Not Set Up. It runs `ojplay init` when the cart has no `package.json`, then `npm install`, and updates ojplay to 0.11.0 or newer.

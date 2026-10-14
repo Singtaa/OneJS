@@ -136,7 +136,7 @@ When PanelSettings points to a folder that doesn't meet this criteria, the inspe
 
 ### Root Carts
 
-A runner with `_cart` set runs a **root cart** instead: a folder at the project root, beside `Assets`, holding an `oj.json` whose `name` matches (`RootCarts.cs`, editor only). The user clones the cart or runs `ojplay new` at the root, then picks it on the runner. Everything in this section from Panel Settings as Project Marker down describes a runner with no cart, which is unchanged.
+A runner with `_cart` set runs a **root cart** instead: a folder at the project root, beside `Assets`, holding an `oj.json` whose `name` matches (`RootCarts.cs`, editor only). The user runs `ojplay new` (which makes the cart locally) or clones one at the root, then picks it on the runner. Everything in this section from Panel Settings as Project Marker down describes a runner with no cart, which is unchanged.
 
 | | App under `Assets` | Root cart |
 |---|---|---|
