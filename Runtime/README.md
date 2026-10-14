@@ -134,6 +134,22 @@ A PanelSettings folder is considered **valid** when it contains:
 
 When PanelSettings points to a folder that doesn't meet this criteria, the inspector shows a "Not Valid" status and hides the project tabs.
 
+### Root Carts
+
+A runner with `_cart` set runs a **root cart** instead: a folder at the project root, beside `Assets`, holding an `oj.json` whose `name` matches (`RootCarts.cs`, editor only). The user clones the cart or runs `ojplay new` at the root, then picks it on the runner. Everything in this section from Panel Settings as Project Marker down describes a runner with no cart, which is unchanged.
+
+| | App under `Assets` | Root cart |
+|---|---|---|
+| Identity | The PanelSettings asset's folder | The `oj.json` name, resolved by a one-level scan of the root |
+| PanelSettings | Project marker | Panel settings only; any asset |
+| Working directory (`__workingDir`) | `{instance}/~` | The cart folder |
+| Editor bundle | `{instance}/app.js.txt` | `Library/OneJS/Carts/{folder}/app.js.txt`, built by the cart's own ojplay |
+| Player bundle | `{instance}/app.js.txt` | `Assets/OneJS.Generated/Carts/{folder}/app.js.txt`, made only by a build of a cart |
+| Shipped files | `StreamingAssets/onejs/assets/` | `StreamingAssets/onejs/carts/{folder}/` |
+| Scaffolding, packs, type generation | Yes | No: Unity writes nothing inside a cart |
+
+A name that resolves to no cart, or to two, does not run, logs once, and fails a player build. The editor side (Set Up, the watcher, the player build) is in `Editor/CartRunners.cs`; see the Editor README.
+
 ### Edit-Mode Preview (Editor Only)
 
 JSRunner supports rendering UI in the Game view **without entering Play mode**. This is driven by `[ExecuteAlways]` (conditionally applied via `#if UNITY_EDITOR`) and `EditorApplication.update`.

@@ -1,6 +1,7 @@
 # Unreleased
 
 - A JSRunner can run a root cart, linked by its `oj.json` name
+- Saved scenes gain an empty `_cart` line on each JSRunner, the new field's default
 - Shader programs take 64 uniforms and 8 textures
 - A shader program can set a texture's wrap and filter, and read its size and its texels unfiltered
 

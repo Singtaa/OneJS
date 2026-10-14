@@ -1,18 +1,18 @@
 ---
 name: onejs-setup-and-overview
-description: "Use this skill whenever the user wants to build or set up user interface in a Unity project using OneJS, React, TypeScript, or JSX, e.g. 'add a main menu to my game', 'build a settings screen', 'make a HUD', 'set up OneJS', 'my OneJS panel is blank', 'the UI is not hot reloading'. Covers confirming OneJS is installed, creating a project with the JSRunner component, the folder layout it scaffolds, the npm build loop, and the traps that make a panel render nothing. Do NOT use for per-component API detail, which lives at https://onejs.com/docs, and do NOT use for UI Toolkit, uGUI, or IMGUI work in a project where OneJS is not installed. When in doubt whether a Unity UI request could involve OneJS, use this skill: Prerequisites shows how to confirm the asset is installed in a single check."
+description: "Use this skill whenever the user wants to build or set up user interface in a Unity project using OneJS, React, TypeScript, or JSX, e.g. 'add a main menu to my game', 'build a settings screen', 'make a HUD', 'set up OneJS', 'my OneJS panel is blank', 'the UI is not hot reloading'. Covers confirming OneJS is installed, creating a project with the JSRunner component, the folder layout it scaffolds, running a play.onejs.com cart from the project root, the npm build loop, and the traps that make a panel render nothing. Do NOT use for per-component API detail, which lives at https://onejs.com/docs, and do NOT use for UI Toolkit, uGUI, or IMGUI work in a project where OneJS is not installed. When in doubt whether a Unity UI request could involve OneJS, use this skill: Prerequisites shows how to confirm the asset is installed in a single check."
 metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.9.8"
-  skill-version: "1.15.3"
+  skill-version: "1.16.0"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-10-10"
+  last-verified: "2026-10-14"
 ---
 
 # Set Up a OneJS Project
@@ -26,6 +26,7 @@ OneJS runs React 19 and TypeScript user interfaces inside Unity. TSX source comp
 - "write this UI in React instead of C#", "use TypeScript for my Unity UI"
 - "my OneJS panel is blank", "nothing renders in the Game view", "hot reload stopped working"
 - "where does the UI code live", "why is there a folder with a tilde in it"
+- "run this ojplay cart in Unity", "I cloned a cart next to Assets", "the runner says No Cart"
 
 Not for:
 
@@ -117,6 +118,29 @@ Two rules that matter here:
 - **Do not add a UIDocument component yourself.** JSRunner adds and wires one at runtime, plus an EventSystem if the scene lacks one. On Unity 6.5 and newer, do not substitute the newer `PanelRenderer` either: it never attaches a panel outside Play mode, so edit-mode preview would silently render nothing.
 
 Scaffolding never overwrites files that already exist, so running Initialize Project again on a set-up project is safe. Each default file is written once: `~/.onejs/scaffold` records it, and a file the user deletes stays deleted. To bring one back, click **Restore** on its row in the Build tab's Scaffolding list. Do not delete a file expecting Play to regenerate it.
+
+### Workflow: Run a cart from the project root
+
+**Goal.** Run a play.onejs.com cart, a folder holding an `oj.json`, from the Unity project root beside `Assets`, without moving it into `Assets`.
+
+**Steps.**
+
+1. At the project root, clone the cart, `git clone https://play.onejs.com/@<handle>/<name>.git`, or make one, `npx ojplay new "Name"`. In a project that is a git repository, `git submodule add` keeps the cart its own repository. `npx ojplay add @<handle>/<name>` at the root does this and steps 2 and 3 in one line, with a prefab.
+2. Add a JSRunner and pick the cart in its inspector's **Cart** dropdown, which lists every `<root>/*/oj.json` by the `name` in it. From an editor script: `runner.SetCart("Name")`.
+3. Assign any PanelSettings asset, or click **Create**. For a cart runner it is only panel settings, and its folder means nothing.
+4. Click **Set Up** if the status reads Not Set Up. It runs `ojplay init` when the cart has no `package.json`, then `npm install`, and updates ojplay to 0.11.0 or newer.
+
+**Expected result.** The editor's build of the cart is at `Library/OneJS/Carts/{folder}/app.js.txt`, the Game view renders it in edit mode, and saving a cart file hot reloads. Nothing is added inside the cart folder.
+
+Rules that matter here:
+
+- **The runner stores the cart's `name`, never its folder.** Renaming or moving the folder is free. Renaming the cart in `oj.json` breaks the link, and the inspector offers **Link to** the new name. Two carts with one name run neither.
+- **Do not put OneJS files into a root cart.** No `esbuild.config.mjs`, PanelSettings or `app.js.txt` goes in the cart: it builds with its own ojplay, the same as anywhere else.
+- **No Packs tab** on a cart runner. Its tabs are Cart, UI and Build.
+- A player build builds each linked cart for production into `Assets/OneJS.Generated/Carts/{folder}`, which keeps itself out of git, and ships the cart's files under `StreamingAssets/onejs/carts/{folder}/`.
+- A cart in `Assets/{Name}/~`, from an older `ojplay add`, is an ordinary app beside its PanelSettings and keeps working. Do not move it by hand.
+
+Details: https://onejs.com/docs/guides/project-setup and https://play.onejs.com/docs/unity
 
 ### Workflow: Add a UI component
 
@@ -220,7 +244,7 @@ For a program built by code rather than written by hand, `sl.program` records th
 
 Confirm the work without asking a human to look at the screen:
 
-- `app.js.txt` exists in the project folder (next to `PanelSettings.asset`) and its length is greater than zero.
+- `app.js.txt` exists in the project folder (next to `PanelSettings.asset`) and its length is greater than zero. For a cart runner it is `Library/OneJS/Carts/{folder}/app.js.txt`, and `npx ojplay typecheck` in the cart is the typecheck.
 - `npm run build` in `~/` exits with code 0.
 - `npm run typecheck` in `~/` exits with code 0. This is `tsc --noEmit` and is the fastest way to catch TSX mistakes without the editor.
 - The Unity Console contains no entries prefixed `[JSRunner]` at error level, and no JavaScript exceptions. JavaScript runtime errors surface in the Console, not in a browser devtools panel.
@@ -324,7 +348,9 @@ untested rather than guaranteed.
 | Entry point | Type | What it does |
 |---|---|---|
 | `OneJS.JSRunner` | MonoBehaviour | Runs a JavaScript app from a project folder. The one component a scene needs. |
-| `JSRunner.PanelSettingsAsset` | Property | The assigned PanelSettings. Its folder is the project marker. |
+| `JSRunner.PanelSettingsAsset` | Property | The assigned PanelSettings. Its folder is the project marker, except on a cart runner. |
+| `JSRunner.Cart` / `JSRunner.IsCart` | Property | The `oj.json` name of the root cart the runner runs, and whether it runs one. Empty for an app under `Assets`. |
+| `JSRunner.SetCart(string)` | Method | Links the runner to a root cart by name, or back to its app with null. Editor only. |
 | `OneJS.Editor.ProjectSetup.Initialize()` | Static method | Initialize Project for `-executeMethod`: picks or creates the scene and runner, saves, throws when it cannot. |
 | `OneJS.Editor.ProjectSetup.InitializeRunner(JSRunner)` | Static method | What the button does to one runner, short of npm. Returns the working directory, or null after logging why. |
 | `JSRunner.AddMissingDefaultFiles()` | Method | Adds the scaffold templates the runner's default file list lacks, keeping every entry it has. What Initialize Project calls. |
@@ -358,6 +384,14 @@ Fix: assign PanelSettings (or click Initialize Project), then run `npm run build
 **The JSRunner inspector has no tabs, and Initialize Project appears to do nothing.**
 Cause: the assigned PanelSettings is not in a project folder, so Status reads "Not Valid" and the whole tab bar is hidden, Build and its scaffolding Restore buttons included. A project folder is one holding a `~` working directory or an `app.js.txt` beside the PanelSettings asset. The folder's name never matters.
 Fix: press **Remove Settings** to clear the field, then **Initialize Project**. Or assign the `PanelSettings.asset` that sits beside the `~` folder. Unity hides `~` folders in the Project window, so check on disk rather than in the Project view.
+
+**A cart runner reads No Cart or Two Carts.**
+Cause: no folder at the project root has an `oj.json` with the runner's name, or two do. Names compare trimmed and ignoring case.
+Fix: pick the cart again from the dropdown, press **Link to** when the cart was renamed, or rename one of the two carts in its `oj.json`. A player build refuses both cases with the same sentence.
+
+**A cart runner reads Not Set Up, or a player build says the cart has no node_modules.**
+Cause: the cart has not been installed on this machine, or its ojplay is older than 0.11.0.
+Fix: press **Set Up** on the runner, or run `ojplay init` and `npm install` in the cart folder.
 
 **Text does not appear where expected.**
 Cause: a raw string child was used instead of the `text` prop.
