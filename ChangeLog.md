@@ -1,4 +1,6 @@
-# Unreleased
+# [2026-10-14] v3.9.9
+
+A JSRunner can now run a play.onejs.com cart from its own folder at the project root, picked by name in the inspector, and apps under `Assets` work exactly as before. Shader programs take up to 64 uniforms and 8 textures, and choose how each texture wraps and filters.
 
 - A JSRunner can run a root cart, linked by its `oj.json` name
 - Saved scenes gain an empty `_cart` line on each JSRunner, the new field's default
