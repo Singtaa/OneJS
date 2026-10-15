@@ -77,6 +77,33 @@ namespace OneJS.Tests {
         }
 
         [Test]
+        public void Raf_CancelledDuringPass_DoesNotRun() {
+            // As in a browser: an animation frame cancelled by an earlier
+            // callback in the same pass does not run (#142).
+            _ctx.Eval(@"
+                globalThis.__ran = false;
+                globalThis.__late = 0;
+                requestAnimationFrame(function() { cancelAnimationFrame(__late); });
+                __late = requestAnimationFrame(function() { __ran = true; });
+                __tick(100);
+            ");
+            Assert.AreEqual("false", _ctx.Eval("String(__ran)"),
+                "an animation frame cancelled by an earlier callback in the same pass still ran");
+        }
+
+        [Test]
+        public void Raf_RegisteredDuringPass_RunsNextPass() {
+            _ctx.Eval(@"
+                globalThis.__n = 0;
+                requestAnimationFrame(function again() { __n++; requestAnimationFrame(again); });
+                __tick(10);
+            ");
+            Assert.AreEqual("1", _ctx.Eval("String(__n)"), "a frame registered during a pass ran in that pass");
+            _ctx.Eval("__tick(20)");
+            Assert.AreEqual("2", _ctx.Eval("String(__n)"), "a frame registered during a pass did not run on the next");
+        }
+
+        [Test]
         public void Interval_StalledPass_FiresOnceAndRebases() {
             _ctx.Eval(@"
                 globalThis.__c = 0;
@@ -228,6 +255,60 @@ namespace OneJS.Tests {
                 __fakeTimers[parseInt(mig.split(':')[1], 10)]();
             ");
             Assert.AreEqual("a,b", _ctx.Eval("__order.join(',')"), "the mid-pass-migrated timeout did not fire");
+        }
+
+        [Test]
+        public void WebGLTick_RunnerDestroyedMidPass_StopsItsFrameLoop() {
+            // A JSRunner destroyed from Unity code on WebGL (#142). Unity's frame
+            // rides the OneJS tick as an animation frame, so the destroy runs
+            // inside a pass: React's cleanup cancels the app's loop, then
+            // qjs_destroy tears the timers down. The cancelled loop must not run
+            // in that pass, where it would re-register on the restored native
+            // requestAnimationFrame and never stop.
+            ReEvalWithSentinels();
+            _ctx.Eval(@"
+                __startWebGLTick();
+                globalThis.__frames = 0;
+                globalThis.__loop = 0;
+                requestAnimationFrame(function unityFrame() {
+                    cancelAnimationFrame(__loop);
+                    __teardownTimers();
+                });
+                __loop = requestAnimationFrame(function frame() { __frames++; __loop = requestAnimationFrame(frame); });
+                globalThis.__tickRafId = parseInt(__fakeLog[0].split(':')[1], 10);
+                __fakeLog.length = 0;
+                __fakeTimers[__tickRafId](2000);
+            ");
+            Assert.AreEqual("0", _ctx.Eval("String(__frames)"),
+                "the app's cancelled frame loop ran in the pass that destroyed its runner");
+            Assert.AreEqual("", _ctx.Eval("__fakeLog.filter(function(e) { return e.indexOf('raf:') === 0; }).join(',')"),
+                "something registered on the restored native requestAnimationFrame after the runner was destroyed");
+        }
+
+        [Test]
+        public void WebGLTick_MidPassTeardown_MigratesPendingFramesOnce() {
+            // A frame still pending when a teardown lands mid-pass moves to the
+            // native requestAnimationFrame, as a pending timeout does, and runs
+            // there exactly once rather than also in the torn-down pass.
+            ReEvalWithSentinels();
+            _ctx.Eval(@"
+                __startWebGLTick();
+                globalThis.__order = [];
+                requestAnimationFrame(function() { __order.push('a'); __teardownTimers(); });
+                requestAnimationFrame(function() { __order.push('b'); });
+                globalThis.__tickRafId = parseInt(__fakeLog[0].split(':')[1], 10);
+                __fakeLog.length = 0;
+                __fakeTimers[__tickRafId](2000);
+            ");
+            Assert.AreEqual("a", _ctx.Eval("__order.join(',')"),
+                "a frame pending in the torn-down pass still ran inside that pass");
+            _ctx.Eval(@"
+                var mig = __fakeLog.filter(function(e) { return e.indexOf('raf:') === 0; });
+                globalThis.__migrated = mig.length;
+                __fakeTimers[parseInt(mig[0].split(':')[1], 10)](2016);
+            ");
+            Assert.AreEqual("1", _ctx.Eval("String(__migrated)"), "the pending frame was not moved to the native requestAnimationFrame once");
+            Assert.AreEqual("a,b", _ctx.Eval("__order.join(',')"), "the migrated frame did not run");
         }
 
         [Test]

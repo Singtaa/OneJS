@@ -1559,11 +1559,13 @@ function __drainScheduledCallbacks(timestamp) {
     // Immediates rescheduled during the last pass
     __drainImmediates();
 
-    // RAF callbacks
+    // RAF callbacks (membership re-checked, as for timeouts: a callback
+    // cancelled by an earlier one in this pass does not run, as in a browser,
+    // and neither does one a mid-pass teardown has moved to a native frame)
     const rafSnapshot = Array.from(__rafCallbacks.entries());
-    __rafCallbacks.clear();
 
     for (const [id, cb] of rafSnapshot) {
+        if (!__rafCallbacks.delete(id)) continue;
         try {
             cb(timestamp);
         } catch (e) {
