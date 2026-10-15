@@ -1542,18 +1542,18 @@ namespace OneJS {
         string _warnedCart;
 
         /// <summary>
-        /// Whether a cart runner can start in Play mode: a Panel Settings, and a name that
-        /// resolves to one cart. Says what is wrong once, in the inspector's own words, rather
-        /// than every frame of the retry.
+        /// Whether a cart runner can start in Play mode: a name that resolves to one cart, and a
+        /// Panel Settings. Says what is wrong once, in the inspector's own words and in its
+        /// order, the cart before the Panel Settings, rather than every frame of the retry.
         /// </summary>
         bool CartReadyForPlay() {
             string problem = null;
-            if (_panelSettings == null) {
+            var resolution = ResolveCart();
+            if (resolution.Outcome != RootCarts.Outcome.Found) {
+                problem = $"[JSRunner] '{name}': {resolution.Problem}";
+            } else if (_panelSettings == null) {
                 problem = $"[JSRunner] '{name}' runs the cart {_cart} but has no Panel Settings, so it runs nothing. " +
                     "Assign one in its UI tab, or press Create there.";
-            } else {
-                var resolution = ResolveCart();
-                if (resolution.Outcome != RootCarts.Outcome.Found) problem = $"[JSRunner] '{name}': {resolution.Problem}";
             }
             if (problem == null) return true;
             if (_warnedCart != problem) {

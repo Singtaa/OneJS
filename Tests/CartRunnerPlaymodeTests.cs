@@ -73,14 +73,14 @@ namespace OneJS.Tests {
             Delete();
         }
 
-        void StartRunner(string cart) {
+        void StartRunner(string cart, bool panelSettings = true) {
             _host = new GameObject("CartRunner");
             _host.SetActive(false);
             _runner = _host.AddComponent<JSRunner>();
             var field = typeof(JSRunner).GetField("_cart", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             Assert.IsNotNull(field, "JSRunner._cart was not found: ojplay finds this field by name, so it must not move.");
             field.SetValue(_runner, cart);
-            _runner.SetPanelSettings(ScriptableObject.CreateInstance<PanelSettings>());
+            if (panelSettings) _runner.SetPanelSettings(ScriptableObject.CreateInstance<PanelSettings>());
             _host.SetActive(true);
         }
 
@@ -136,6 +136,34 @@ namespace OneJS.Tests {
             StartRunner(Name);
             for (var i = 0; i < 30; i++) yield return null;
             Assert.IsFalse(_runner.IsRunning, "A name two carts answer to runs neither.");
+        }
+
+        // With no Panel Settings as well, the cart's problem is the one said, as the inspector
+        // puts it first. Any other error, the Panel Settings one included, fails the test.
+
+        [UnityTest]
+        public IEnumerator AMissingName_WithNoPanelSettings_SaysTheCartProblem() {
+            LogAssert.Expect(LogType.Error, new Regex("No cart named No Such Cart in this project\\."));
+            StartRunner("No Such Cart", panelSettings: false);
+            for (var i = 0; i < 30; i++) yield return null;
+            Assert.IsFalse(_runner.IsRunning);
+        }
+
+        [UnityTest]
+        public IEnumerator TwoCartsWithTheName_WithNoPanelSettings_SaysTheCartProblem() {
+            WriteCart(Twin, Name.ToLowerInvariant());
+            LogAssert.Expect(LogType.Error, new Regex($"Two carts are named {Name}: {Folder}/oj\\.json and {Twin}/oj\\.json\\."));
+            StartRunner(Name, panelSettings: false);
+            for (var i = 0; i < 30; i++) yield return null;
+            Assert.IsFalse(_runner.IsRunning);
+        }
+
+        [UnityTest]
+        public IEnumerator AFoundCart_WithNoPanelSettings_SaysPanelSettings() {
+            LogAssert.Expect(LogType.Error, new Regex($"runs the cart {Name} but has no Panel Settings"));
+            StartRunner(Name, panelSettings: false);
+            for (var i = 0; i < 30; i++) yield return null;
+            Assert.IsFalse(_runner.IsRunning);
         }
     }
 }
