@@ -59,6 +59,30 @@ namespace OneJS.Editor {
         /// <summary>Whether a Set Up or a one-shot build is running for this cart.</summary>
         public static bool IsBusy(RootCarts.Cart cart) => cart != null && _busy.Contains(cart.FullPath);
 
+        /// <summary>
+        /// The carts Move to Project Root moved whose <c>ojplay init --from-unity</c> failed, so
+        /// OneJS's setup files are still in them. No watcher starts on one: its esbuild would run
+        /// out of the node_modules the cleanup deletes, and on Windows a running exe cannot be
+        /// deleted. Set Up runs the cleanup again. In SessionState so a domain reload keeps it;
+        /// after an editor restart such a cart is treated as the set-up cart it still is.
+        /// </summary>
+        const string AwaitingCleanupKey = "OneJS.CartRunners.AwaitingCleanup";
+
+        static HashSet<string> AwaitingCleanup() =>
+            new HashSet<string>(SessionState.GetString(AwaitingCleanupKey, "").Split('\n', StringSplitOptions.RemoveEmptyEntries));
+
+        static void SetAwaitingCleanup(RootCarts.Cart cart, bool awaiting) {
+            var set = AwaitingCleanup();
+            if (awaiting ? set.Add(cart.FullPath) : set.Remove(cart.FullPath))
+                SessionState.SetString(AwaitingCleanupKey, string.Join("\n", set));
+        }
+
+        /// <summary>Whether this cart's cleanup after Move to Project Root failed and has not run since.</summary>
+        public static bool AwaitsCleanup(RootCarts.Cart cart) => cart != null && AwaitingCleanup().Contains(cart.FullPath);
+
+        /// <summary>Whether Set Up has something to do: the cart is not installed, or its move's cleanup has not run.</summary>
+        public static bool NeedsSetUp(RootCarts.Cart cart) => !RootCarts.IsSetUp(cart) || AwaitsCleanup(cart);
+
         // MARK: Commands
 
         /// <summary>The npm arguments that run the cart's ojplay's Unity build into `outDir`.</summary>
@@ -95,7 +119,7 @@ namespace OneJS.Editor {
             foreach (var runner in JSRunner.Instances.ToArray()) {
                 if (runner == null || !runner.IsCart || !runner.enabled || !runner.gameObject.activeInHierarchy) continue;
                 var cart = runner.CartFolder;
-                if (cart == null || IsBusy(cart) || !RootCarts.IsSetUp(cart)) continue;
+                if (cart == null || IsBusy(cart) || NeedsSetUp(cart)) continue;
                 EnsureWatcher(cart);
                 if (runner.PanelSettingsAsset != null && File.Exists(runner.EntryFileFullPath ?? "")) runner.StartEditModePreviewIfReady();
             }
@@ -136,7 +160,7 @@ namespace OneJS.Editor {
                 if (!hadBundle) runner.ForceReload();
                 EnsureWatcher(cart);
             }
-            if (!RootCarts.IsSetUp(cart)) {
+            if (NeedsSetUp(cart)) {
                 SetUp(cart, onDone: ok => { if (ok) BuildOnce(cart, ok2 => { if (ok2) WatchAndReload(); }); });
             } else if (!hadBundle) {
                 BuildOnce(cart, ok => { if (ok) WatchAndReload(); });
@@ -151,8 +175,13 @@ namespace OneJS.Editor {
         /// Installs the cart's tooling: <c>ojplay init</c> when it has no package.json (init
         /// never overwrites a file), <c>npm install</c>, and an ojplay new enough for the Unity
         /// target when the installed one is older. Asynchronous; `onDone` runs on the main thread.
+        /// A cart whose cleanup after Move to Project Root failed gets that cleanup first.
         /// </summary>
         public static void SetUp(RootCarts.Cart cart, Action<bool> onDone = null) {
+            if (AwaitsCleanup(cart)) {
+                SetUpMoved(cart, onDone);
+                return;
+            }
             if (!_busy.Add(cart.FullPath)) return;
             var steps = new List<(string args, string what)>();
             if (!File.Exists(Path.Combine(cart.FullPath, "package.json")))
@@ -200,16 +229,19 @@ namespace OneJS.Editor {
         /// there and writes a cart's tooling, then Set Up. Run with the newest ojplay through
         /// <c>npm exec --package</c>, because the cart's own copy is the one init --unity
         /// installed and predates the flag. The cart stays busy throughout, so no watcher starts
-        /// on the half-converted folder.
+        /// on the half-converted folder, and after a failure it awaits cleanup (above), which
+        /// keeps it that way until Set Up succeeds.
         /// </summary>
         public static void SetUpMoved(RootCarts.Cart cart, Action<bool> onDone = null) {
             if (!_busy.Add(cart.FullPath)) return;
             Debug.Log($"[JSRunner] {cart.Name}: ojplay init --from-unity in {cart.Folder}/...");
             RunNpm(cart.FullPath, $"exec --yes --package={MoveToProjectRoot.Ojplay} -- ojplay init --from-unity", code => {
                 _busy.Remove(cart.FullPath);
+                SetAwaitingCleanup(cart, code != 0);
                 if (code != 0) {
                     Debug.LogError($"[JSRunner] {cart.Name}: ojplay init --from-unity failed in {cart.Folder}/ (exit code {code}), so the files " +
-                        $"OneJS's setup wrote are still in it. Run npx {MoveToProjectRoot.Ojplay} init --from-unity there, then press Set Up.");
+                        "OneJS's setup wrote are still in it, and no watcher runs on it until they are gone. Press Set Up on its runner to try " +
+                        $"again, or run npx {MoveToProjectRoot.Ojplay} init --from-unity there yourself and then press Set Up.");
                     RootCarts.Invalidate();
                     onDone?.Invoke(false);
                     return;

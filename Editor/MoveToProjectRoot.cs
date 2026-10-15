@@ -117,7 +117,13 @@ namespace OneJS.Editor {
                 how = MoveFolder(runner.ProjectRoot, plan.From, plan.To);
             } catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || e is InvalidOperationException || e is Win32Exception) {
                 // Expected failure: a handle still open in the folder, or git refusing the move.
-                Debug.LogError($"[JSRunner] Could not move {plan.Shown} to {plan.Folder}/, so nothing was changed: {e.Message}");
+                // The editor's own watcher was stopped above, so on Windows a held handle is
+                // nearly always one the editor did not start: measured on Win 002, an
+                // `npm run watch` in a terminal fails the move with a sharing violation.
+                var held = e is IOException || e is UnauthorizedAccessException
+                    ? $" Something outside the editor may still have files open in {plan.Shown}, such as npm run watch in a terminal: stop it and press Move again."
+                    : "";
+                Debug.LogError($"[JSRunner] Could not move {plan.Shown} to {plan.Folder}/, so nothing was changed: {e.Message}{held}");
                 return false;
             }
 
