@@ -171,6 +171,9 @@ public static class OneJSEditorDesign {
         public const string CartBuildEditor = "Editor";
         public const string CartBuildPlayer = "Player";
         public const string CartBuildFiles = "Files in player";
+        public const string MoveToProjectRoot = "Move to Project Root";
+        public const string Moving = "Moving...";
+        public const string MoveOffer = "This app is a cart (it has oj.json). It can live at the project root, where it needs no OneJS files inside it.";
 
         // --- JSPad specific ---
         public const string Processing = "Processing...";

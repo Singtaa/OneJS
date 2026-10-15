@@ -1483,6 +1483,7 @@ namespace OneJS.Editor {
             _workingDirLabel.style.color = OneJSEditorDesign.Colors.TextMuted;
             _workingDirLabel.style.whiteSpace = WhiteSpace.Normal;
             container.Add(_workingDirLabel);
+            container.Add(CreateMoveOffer());
 
             // When Panel Settings not set: one row with [ status+message column | button column ] so button centers in full height
             _statusNotInitializedContainer = new VisualElement();
@@ -1802,6 +1803,7 @@ namespace OneJS.Editor {
                 if (_statusNotValidContainer != null) _statusNotValidContainer.style.display = (hasPanelSettings && !validFolder) ? DisplayStyle.Flex : DisplayStyle.None;
                 if (_reloadCountLabel != null) _reloadCountLabel.style.display = DisplayStyle.None;
                 UpdateEmptyCartPicker(!hasPanelSettings);
+                UpdateMoveOffer(false);
             } else {
                 if (_statusRow != null) _statusRow.style.display = DisplayStyle.Flex;
                 if (_watcherRow != null) _watcherRow.style.display = DisplayStyle.Flex;
@@ -1809,6 +1811,7 @@ namespace OneJS.Editor {
                 if (_statusNotInitializedContainer != null) _statusNotInitializedContainer.style.display = DisplayStyle.None;
                 if (_statusNotValidContainer != null) _statusNotValidContainer.style.display = DisplayStyle.None;
                 UpdateEmptyCartPicker(false);
+                UpdateMoveOffer(true);
 
                 // Status text (normal)
                 if (Application.isPlaying) {

@@ -854,10 +854,18 @@ namespace OneJS {
             UnityEditor.Undo.RecordObject(this, "Set Cart");
             _cart = string.IsNullOrWhiteSpace(name) ? "" : name.Trim();
             UnityEditor.EditorUtility.SetDirty(this);
-            if (!Application.isPlaying) {
-                StopEditModePreview();
-                SchedulePreviewAutoStart();
-            }
+            RestartEditModePreview();
+        }
+
+        /// <summary>
+        /// Stops the edit-mode preview and starts it again from what the runner names now. For
+        /// editor tooling that changed the runner some way other than SetCart, such as a prefab
+        /// whose runner was linked to a cart and whose instances follow it.
+        /// </summary>
+        public void RestartEditModePreview() {
+            if (Application.isPlaying) return;
+            StopEditModePreview();
+            SchedulePreviewAutoStart();
         }
 
         /// <summary>

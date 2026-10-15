@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -34,12 +35,25 @@ namespace OneJS.Editor {
         static double _nextTick;
         const double TickInterval = 1.0;
 
+        /// <summary>
+        /// What npm's exit hands back to the main thread. The exit arrives on a worker thread,
+        /// and it used to go through delayCall, which is not safe to add to from one and which
+        /// an unfocused editor leaves waiting while update still runs: Set Up stalled after npm
+        /// had finished until somebody clicked into Unity.
+        /// </summary>
+        static readonly ConcurrentQueue<Action> _onMainThread = new ConcurrentQueue<Action>();
+
         static CartRunners() {
+            EditorApplication.update += RunQueued;
             EditorApplication.update += Tick;
             EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
             // The scan is cheap and has no cache that matters, but a folder renamed or an
             // oj.json edited outside Unity should show the moment the editor is looked at.
             EditorApplication.focusChanged += _ => RootCarts.Invalidate();
+        }
+
+        static void RunQueued() {
+            while (_onMainThread.TryDequeue(out var action)) action();
         }
 
         /// <summary>Whether a Set Up or a one-shot build is running for this cart.</summary>
@@ -180,6 +194,30 @@ namespace OneJS.Editor {
             Next(0);
         }
 
+        /// <summary>
+        /// Set Up for a cart Move to Project Root has just moved out of an app's ~: first
+        /// <c>ojplay init --from-unity</c>, which takes out what <c>ojplay init --unity</c> wrote
+        /// there and writes a cart's tooling, then Set Up. Run with the newest ojplay through
+        /// <c>npm exec --package</c>, because the cart's own copy is the one init --unity
+        /// installed and predates the flag. The cart stays busy throughout, so no watcher starts
+        /// on the half-converted folder.
+        /// </summary>
+        public static void SetUpMoved(RootCarts.Cart cart, Action<bool> onDone = null) {
+            if (!_busy.Add(cart.FullPath)) return;
+            Debug.Log($"[JSRunner] {cart.Name}: ojplay init --from-unity in {cart.Folder}/...");
+            RunNpm(cart.FullPath, $"exec --yes --package={MoveToProjectRoot.Ojplay} -- ojplay init --from-unity", code => {
+                _busy.Remove(cart.FullPath);
+                if (code != 0) {
+                    Debug.LogError($"[JSRunner] {cart.Name}: ojplay init --from-unity failed in {cart.Folder}/ (exit code {code}), so the files " +
+                        $"OneJS's setup wrote are still in it. Run npx {MoveToProjectRoot.Ojplay} init --from-unity there, then press Set Up.");
+                    RootCarts.Invalidate();
+                    onDone?.Invoke(false);
+                    return;
+                }
+                SetUp(cart, onDone);
+            });
+        }
+
         /// <summary>What Set Up would fix, phrased for a log line, or null when the cart is set up.</summary>
         public static string SetUpProblem(RootCarts.Cart cart) {
             if (!Directory.Exists(Path.Combine(cart.FullPath, "node_modules"))) return $"{cart.Name} has no node_modules yet.";
@@ -211,7 +249,7 @@ namespace OneJS.Editor {
                 var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
                 process.OutputDataReceived += (_, e) => { if (!string.IsNullOrEmpty(e.Data)) Debug.Log($"[npm] {e.Data}"); };
                 process.ErrorDataReceived += (_, e) => { if (!string.IsNullOrEmpty(e.Data)) Debug.Log($"[npm] {e.Data}"); };
-                process.Exited += (_, _) => EditorApplication.delayCall += () => onExit(process.ExitCode);
+                process.Exited += (_, _) => _onMainThread.Enqueue(() => onExit(process.ExitCode));
                 process.Start();
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
