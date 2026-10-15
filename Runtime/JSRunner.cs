@@ -241,6 +241,8 @@ namespace OneJS {
         public QuickJSUIBridge Bridge => _bridge;
         public bool IsRunning => _scriptLoaded && _bridge != null;
         public bool IsLiveReloadEnabled => _liveReload;
+        /// <summary>Seconds between the editor's checks of the bundle for changes (Editor only).</summary>
+        public float PollInterval => _pollInterval;
         public int ReloadCount => _reloadCount;
         public DateTime LastModifiedTime => _lastModifiedTime;
         public DateTime LastReloadTime => _lastReloadTime;

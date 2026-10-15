@@ -233,14 +233,13 @@ namespace OneJS {
                 var body = _bodies[i];
                 if (body.Element == null || body.Rb == null) continue;
                 var p = body.Rb.position;
-                // transform.position is relative to where layout already put the
-                // element, so the body's centre becomes an offset from its own
-                // top-left corner.
-                body.Element.transform.position = new Vector3(
+                // translate is relative to where layout already put the element,
+                // so the body's centre becomes an offset from its own top-left
+                // corner.
+                body.Element.style.translate = new Translate(
                     p.x * ppu - body.HalfW,
-                    -p.y * ppu - body.HalfH,
-                    0f);
-                body.Element.transform.rotation = Quaternion.Euler(0f, 0f, -body.Rb.rotation);
+                    -p.y * ppu - body.HalfH);
+                body.Element.style.rotate = new Rotate(Angle.Degrees(-body.Rb.rotation));
             }
         }
 
@@ -391,7 +390,7 @@ namespace OneJS {
         /// them, and it does no work beyond forwarding.
         /// </summary>
         class ContactReporter : MonoBehaviour {
-            public PhysicsWorld2D World;
+            [System.NonSerialized] public PhysicsWorld2D World;
             public int Index;
 
             void OnCollisionEnter2D(Collision2D collision) {

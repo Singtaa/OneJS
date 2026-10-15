@@ -90,7 +90,7 @@ namespace OneJS.Audio {
 
             // Nothing is audible without a listener, and a scene built for UI
             // often has no camera at all.
-            if (UnityEngine.Object.FindFirstObjectByType<AudioListener>() == null) {
+            if (UnityEngine.Object.FindAnyObjectByType<AudioListener>() == null) {
                 _host.AddComponent<AudioListener>();
             }
         }
