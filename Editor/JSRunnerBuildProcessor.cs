@@ -183,6 +183,8 @@ namespace OneJS.Editor {
         }
 
         static void ResetForBuild() {
+            // A build that failed or was killed may have left the last one's copy behind.
+            RemoveCartFilesFromProject();
             _createdAssets.Clear();
             _processedRunners.Clear();
             _copiedAssetCount = 0;
@@ -200,6 +202,9 @@ namespace OneJS.Editor {
             // place in the asset commit and their claim in the collision check.
             if (!_preparedThisBuild) ResetForBuild();
             _preparedThisBuild = false;
+            // OnPostprocessBuild removes the carts' copy after a build that succeeds; this
+            // covers one that fails, once Unity is done with it.
+            ScheduleCartFilesRemoval();
 
             Debug.Log("[JSRunner] Processing JSRunner components in build scenes...");
 
@@ -661,7 +666,9 @@ namespace OneJS.Editor {
         /// Builds StreamingAssets/onejs/carts from every root cart in the build, once, the way
         /// CommitAssetsTo builds onejs/assets: staged beside the destination and swapped in
         /// whole, rebuilt on every build so a cart no longer in it leaves nothing behind. A
-        /// build with no cart and no folder from an earlier one touches nothing.
+        /// build with no cart and no folder from an earlier one touches nothing. Unlike
+        /// onejs/assets, the folder is in the project only while a build runs: see
+        /// RemoveCartFilesFromProject.
         /// </summary>
         void CommitCartsTo(string destDir) {
             if (_cartFiles.Count == 0 && !Directory.Exists(destDir)) return;
@@ -695,6 +702,8 @@ namespace OneJS.Editor {
 
                 DeleteTree(destDir);
                 if (plan.Count > 0) {
+                    var streamingAssets = Path.GetDirectoryName(Path.GetDirectoryName(destDir));
+                    if (!Directory.Exists(streamingAssets)) _madeStreamingAssets = true;
                     Directory.CreateDirectory(Path.GetDirectoryName(destDir));
                     Directory.Move(staging, destDir);
                 }
@@ -712,6 +721,79 @@ namespace OneJS.Editor {
                   $"{plan.Values.Select(e => e.cart).Distinct().Count()} cart(s)."
                 : $"[JSRunner] No root cart in this build; StreamingAssets/{RootCarts.PlayerFilesRoot} removed.");
             AssetDatabase.Refresh();
+        }
+
+        // MARK: The carts' copy is the build's alone
+
+        /// <summary>Whether this session's cart commit made Assets/StreamingAssets, so its removal may take it too.</summary>
+        static bool _madeStreamingAssets;
+
+        static bool _cartFilesRemovalScheduled;
+
+        /// <summary>
+        /// Removes Assets/StreamingAssets/onejs/carts, the copy of the carts' files a player
+        /// build packs. The files belong to the carts' own folders (Specs/ROOT_CARTS.md, section 4:
+        /// in the player, "Not in the project at all"), so the copy lasts only as long as the
+        /// build that needs it: removed when a build ends, pass or fail, and again when one
+        /// starts, for a build that never got to end. onejs/assets is left as it always was.
+        /// </summary>
+        static void RemoveCartFilesFromProject() {
+            var streamingAssets = Path.Combine(Application.dataPath, "StreamingAssets");
+            if (!RemoveCartFiles(streamingAssets, _madeStreamingAssets)) return;
+            _madeStreamingAssets = false;
+            Debug.Log($"[JSRunner] Removed StreamingAssets/{RootCarts.PlayerFilesRoot} from the project: the player has its own copy.");
+            AssetDatabase.Refresh();
+        }
+
+        /// <summary>
+        /// The removal itself, against a given StreamingAssets folder so the tests can drive it
+        /// outside the project: the carts folder, its staging folder and their .meta files, then
+        /// onejs/ when that left it empty, then StreamingAssets itself when it is empty and the
+        /// commit made it. Returns whether anything was removed.
+        /// </summary>
+        internal static bool RemoveCartFiles(string streamingAssets, bool madeStreamingAssets) {
+            var carts = Path.Combine(streamingAssets, RootCarts.PlayerFilesRoot.Replace('/', Path.DirectorySeparatorChar));
+            var removed = false;
+            foreach (var path in new[] { carts, carts + ".staging" }) {
+                if (Directory.Exists(path)) {
+                    DeleteTree(path);
+                    removed = true;
+                }
+                if (File.Exists(path + ".meta")) {
+                    File.Delete(path + ".meta");
+                    removed = true;
+                }
+            }
+            if (!removed) return false;
+            var onejs = Path.GetDirectoryName(carts);
+            if (IsEmptyFolder(onejs)) DeleteFolderAndMeta(onejs);
+            if (madeStreamingAssets && IsEmptyFolder(streamingAssets)) DeleteFolderAndMeta(streamingAssets);
+            return true;
+        }
+
+        static bool IsEmptyFolder(string dir) => Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any();
+
+        static void DeleteFolderAndMeta(string dir) {
+            Directory.Delete(dir);
+            if (File.Exists(dir + ".meta")) File.Delete(dir + ".meta");
+        }
+
+        /// <summary>
+        /// Removes the carts' copy once Unity has finished the build in progress, however it
+        /// ended. A batch mode build that fails quits before this runs; the next build's start
+        /// removes it instead.
+        /// </summary>
+        static void ScheduleCartFilesRemoval() {
+            if (_cartFilesRemovalScheduled) return;
+            _cartFilesRemovalScheduled = true;
+            EditorApplication.update += RemoveCartFilesAfterBuild;
+        }
+
+        static void RemoveCartFilesAfterBuild() {
+            if (BuildPipeline.isBuildingPlayer) return;
+            EditorApplication.update -= RemoveCartFilesAfterBuild;
+            _cartFilesRemovalScheduled = false;
+            RemoveCartFilesFromProject();
         }
 
         /// <summary>
@@ -1024,6 +1106,9 @@ namespace OneJS.Editor {
 
             // The player has its production bundles; the editor gets its own back.
             PlayerBundle.RestoreEditorBundles();
+
+            // The player has the carts' files too, so the project's copy goes.
+            RemoveCartFilesFromProject();
 
             if (_createdAssets.Count > 0) {
                 Debug.Log($"[JSRunner] Build complete. {_createdAssets.Count} asset(s) created/updated.");

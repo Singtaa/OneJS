@@ -290,5 +290,45 @@ namespace OneJS.Tests.Editor {
             commit.Invoke(new JSRunnerBuildProcessor(), new object[] { dest });
             Assert.IsFalse(Directory.Exists(dest), "A build of apps under Assets alone creates no onejs/carts.");
         }
+
+        static void Touch(string file) {
+            Directory.CreateDirectory(Path.GetDirectoryName(file));
+            File.WriteAllText(file, "x");
+        }
+
+        [Test]
+        public void AfterABuild_TheCartsCopyLeavesTheProject_AndAppAssetsStay() {
+            var streaming = Path.Combine(_temp, "StreamingAssets");
+            var onejs = Path.Combine(streaming, "onejs");
+            Touch(Path.Combine(onejs, "carts", CartFolder, "glow.png"));
+            Touch(Path.Combine(onejs, "carts", CartFolder + ".meta"));
+            Touch(Path.Combine(onejs, "carts.meta"));
+            Touch(Path.Combine(onejs, "carts.staging", CartFolder, "glow.png"));
+            Touch(Path.Combine(onejs, "assets", "glow.png"));
+            Touch(Path.Combine(onejs, "assets.meta"));
+
+            Assert.IsTrue(JSRunnerBuildProcessor.RemoveCartFiles(streaming, madeStreamingAssets: true));
+
+            Assert.IsFalse(Directory.Exists(Path.Combine(onejs, "carts")), "The build's copy of the carts' files is removed.");
+            Assert.IsFalse(File.Exists(Path.Combine(onejs, "carts.meta")), "Its .meta goes with it.");
+            Assert.IsFalse(Directory.Exists(Path.Combine(onejs, "carts.staging")), "A staging folder left by a failed build is removed too.");
+            FileAssert.Exists(Path.Combine(onejs, "assets", "glow.png"), "The apps' onejs/assets is not the carts' to remove.");
+            Assert.IsFalse(JSRunnerBuildProcessor.RemoveCartFiles(streaming, madeStreamingAssets: true), "A second removal finds nothing.");
+        }
+
+        [Test]
+        public void TheCartsCopy_TakesTheFoldersItLeftEmpty_ButNotAStreamingAssetsItDidNotMake() {
+            var streaming = Path.Combine(_temp, "StreamingAssets");
+            Touch(Path.Combine(streaming, "onejs", "carts", CartFolder, "glow.png"));
+            Touch(Path.Combine(streaming, "onejs.meta"));
+            JSRunnerBuildProcessor.RemoveCartFiles(streaming, madeStreamingAssets: false);
+            Assert.IsFalse(Directory.Exists(Path.Combine(streaming, "onejs")), "An onejs/ the removal left empty goes.");
+            Assert.IsFalse(File.Exists(Path.Combine(streaming, "onejs.meta")), "Its .meta goes with it.");
+            Assert.IsTrue(Directory.Exists(streaming), "A StreamingAssets the project already had stays, even empty.");
+
+            Touch(Path.Combine(streaming, "onejs", "carts", CartFolder, "glow.png"));
+            JSRunnerBuildProcessor.RemoveCartFiles(streaming, madeStreamingAssets: true);
+            Assert.IsFalse(Directory.Exists(streaming), "A StreamingAssets the cart commit made goes once it is empty.");
+        }
     }
 }

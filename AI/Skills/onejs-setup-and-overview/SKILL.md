@@ -137,7 +137,7 @@ Rules that matter here:
 - **The runner stores the cart's `name`, never its folder.** Renaming or moving the folder is free. Renaming the cart in `oj.json` breaks the link, and the inspector offers **Link to** the new name. Two carts with one name run neither.
 - **Do not put OneJS files into a root cart.** No `esbuild.config.mjs`, PanelSettings or `app.js.txt` goes in the cart: it builds with its own ojplay, the same as anywhere else.
 - **No Packs tab** on a cart runner. Its tabs are Cart, UI and Build.
-- A player build builds each linked cart for production into `Assets/OneJS.Generated/Carts/{folder}`, which keeps itself out of git, and ships the cart's files under `StreamingAssets/onejs/carts/{folder}/`.
+- A player build builds each linked cart for production into `Assets/OneJS.Generated/Carts/{folder}`, which keeps itself out of git, and ships the cart's files under `StreamingAssets/onejs/carts/{folder}/` in the player; the project's copy is removed once the build ends.
 - A cart in `Assets/{Name}/~`, from an older `ojplay add`, is an ordinary app beside its PanelSettings and keeps working. Do not move it by hand.
 
 Details: https://onejs.com/docs/guides/project-setup and https://play.onejs.com/docs/unity
