@@ -587,7 +587,7 @@ namespace OneJS.Tests {
         public IEnumerator Render_Sheet_AdvancesFrameOverLife() {
             LogAssert.ignoreFailingMessages = true;
             const int W = 256, H = 256;
-            const int CX = W / 2, CY = H / 2;
+            const int CY = H / 2;
 
             // 2x1 sheet: frame 0 red (left cell), frame 1 green (right cell).
             var sheet = new Texture2D(64, 32, TextureFormat.RGBA32, false) {
@@ -648,7 +648,7 @@ namespace OneJS.Tests {
         public IEnumerator Render_Pivot_BottomAnchorsTheQuadAboveTheSpawnPoint() {
             LogAssert.ignoreFailingMessages = true;
             const int W = 256, H = 256;
-            const int CX = W / 2, CY = H / 2;
+            const int CY = H / 2;
 
             var ph = PanelHost.Create(W, H);
             ph.AddRect(W, H, new Color(0f, 0f, 0f, 1f));
