@@ -65,6 +65,9 @@ namespace OneJS.Editor {
         // Track PanelSettings render mode to refresh UIDocument inspector
         int _lastRenderMode;
 
+        // Unity 6.5+: the line answering UI Document's Panel Renderer suggestion
+        VisualElement _keepUIDocumentNote;
+
         void OnEnable() {
             _target = (JSRunner)target;
             _activeTab = EditorPrefs.GetInt(TabPrefKey, 0);
@@ -117,7 +120,30 @@ namespace OneJS.Editor {
             _cartMode = _target.IsCart;
             if (_cartMode) BuildCartInspector(_root);
             else BuildLegacyInspector(_root);
+            AddKeepUIDocumentNote(_root);
             return _root;
+        }
+
+        /// <summary>
+        /// Unity 6.5's UI Document inspector suggests migrating to Panel Renderer. JSRunner owns
+        /// that UI Document and cannot run on Panel Renderer, which never attaches a panel outside
+        /// Play mode, so the edit-mode preview would draw nothing (Runtime/README.md, "UIDocument
+        /// vs PanelRenderer"). This answers the suggestion from the runner's own inspector.
+        /// </summary>
+        void AddKeepUIDocumentNote(VisualElement root) {
+#if UNITY_6000_5_OR_NEWER
+            _keepUIDocumentNote = CreateInfoBox(OneJSEditorDesign.Texts.KeepUIDocument);
+            _keepUIDocumentNote.style.marginTop = 8;
+            root.Add(_keepUIDocumentNote);
+            UpdateKeepUIDocumentNote();
+#endif
+        }
+
+        /// <summary>Shows the note only while the GameObject has the UI Document it is about.</summary>
+        void UpdateKeepUIDocumentNote() {
+            if (_keepUIDocumentNote == null) return;
+            bool show = _target.GetComponent<UIDocument>() != null;
+            _keepUIDocumentNote.style.display = show ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
         /// <summary>The inspector of an app under Assets, anchored by its Panel Settings.</summary>
@@ -1741,6 +1767,7 @@ namespace OneJS.Editor {
                 RebuildInspector();
                 return;
             }
+            UpdateKeepUIDocumentNote();
             if (_cartMode) {
                 UpdateCartUI();
                 return;

@@ -151,6 +151,7 @@ public static class OneJSEditorDesign {
         public const string Outdated = "Outdated";
         public const string NoSlug = "No slug";
         public const string NotGenerated = "Not generated";
+        public const string KeepUIDocument = "Keep the UI Document on this GameObject, and do not migrate it to Panel Renderer as its inspector suggests: JSRunner manages it, and Panel Renderer cannot draw the edit-mode preview.";
 
         // --- Cart runners (Specs/ROOT_CARTS.md). The legacy inspector keeps "Project". ---
         public const string TabCart = "Cart";

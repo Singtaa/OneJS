@@ -115,7 +115,7 @@ It uses the open scene (else the first build scene, else a new `Assets/Scenes/Ma
 Two rules that matter here:
 
 - **PanelSettings is the project marker.** The folder containing the assigned PanelSettings asset defines the project, and the bundle is always loaded from `{that folder}/app.js.txt`. Moving or reassigning that asset moves the project.
-- **Do not add a UIDocument component yourself.** JSRunner adds and wires one at runtime, plus an EventSystem if the scene lacks one. On Unity 6.5 and newer, do not substitute the newer `PanelRenderer` either: it never attaches a panel outside Play mode, so edit-mode preview would silently render nothing.
+- **Do not add a UIDocument component yourself.** JSRunner adds and wires one at runtime, plus an EventSystem if the scene lacks one. On Unity 6.5 and newer, do not substitute the newer `PanelRenderer` either, although the UIDocument's inspector suggests it: it never attaches a panel outside Play mode, so edit-mode preview would silently render nothing.
 
 Scaffolding never overwrites files that already exist, so running Initialize Project again on a set-up project is safe. Each default file is written once: `~/.onejs/scaffold` records it, and a file the user deletes stays deleted. To bring one back, click **Restore** on its row in the Build tab's Scaffolding list. Do not delete a file expecting Play to regenerate it.
 

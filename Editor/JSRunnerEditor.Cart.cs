@@ -57,6 +57,7 @@ namespace OneJS.Editor {
                 _activeTab = EditorPrefs.GetInt(TabPrefKey, 0);
                 BuildLegacyInspector(_root);
             }
+            AddKeepUIDocumentNote(_root);
             _root.Bind(serializedObject);
         }
 

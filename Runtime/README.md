@@ -187,6 +187,8 @@ Unity 6.5 introduced `UnityEngine.UIElements.PanelRenderer` as the successor to 
 - `UIDocument` is **not** marked `[Obsolete]` in 6.5. It compiles clean with no warnings, and Unity has announced no removal.
 - `PanelRenderer` **cannot drive edit-mode preview.** Verified on 6000.5.2f1: with a valid PanelSettings assigned, `root.panel` stays null in edit mode and the registered `UIReloadCallback` never fires. The same GameObject in Play mode fires immediately with a live panel; `UIDocument` under identical conditions is live in edit mode.
 
+Unity 6.5's UIDocument inspector suggests migrating to Panel Renderer, with an Add Component button. JSRunner's inspector answers it on 6.5 and newer with one line, shown while the GameObject has a UIDocument: keep it, do not migrate (`OneJSEditorDesign.Texts.KeepUIDocument`). Unity's own inspector is left as it is.
+
 The cause is structural, not a toggle:
 
 | Component | Attach path |
