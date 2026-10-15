@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
+using OneJS.Utils;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.TestTools;
@@ -68,7 +69,7 @@ namespace OneJS.Tests {
             if (_host != null) Object.DestroyImmediate(_host);
             var janitor = GameObject.Find("Janitor");
             if (janitor != null) Object.DestroyImmediate(janitor);
-            foreach (var es in Object.FindObjectsByType<EventSystem>(FindObjectsSortMode.None))
+            foreach (var es in FindCompat.FindObjectsByType<EventSystem>())
                 if (es.gameObject.name == "EventSystem (OneJS)") Object.DestroyImmediate(es.gameObject);
             Delete();
         }

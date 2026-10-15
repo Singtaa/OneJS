@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using GLTFast;
+using OneJS.Utils;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.UIElements;
@@ -374,7 +375,7 @@ namespace OneJS.Models {
             BeginScene();
             if (Playing) {
                 Save();
-                foreach (var light in Object.FindObjectsByType<Light>(FindObjectsSortMode.None)) {
+                foreach (var light in FindCompat.FindObjectsByType<Light>()) {
                     if (light != _sun && light.type == LightType.Directional && light.enabled) SwitchOff(light);
                 }
             } else if (SceneHasASun()) {
@@ -553,7 +554,7 @@ namespace OneJS.Models {
 
         static bool SceneHasASun() {
             // FindObjectsByType skips objects marked DontSave, so this sees the scene's lights, not ours.
-            foreach (var light in Object.FindObjectsByType<Light>(FindObjectsSortMode.None)) {
+            foreach (var light in FindCompat.FindObjectsByType<Light>()) {
                 if (light.type == LightType.Directional && light.isActiveAndEnabled) return true;
             }
             return false;

@@ -1,5 +1,6 @@
 using System.Collections;
 using NUnit.Framework;
+using OneJS.Utils;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.TestTools;
@@ -29,7 +30,7 @@ namespace OneJS.Tests {
         public void TearDown() {
             Application.logMessageReceived -= Count;
             if (_host != null) Object.DestroyImmediate(_host);
-            foreach (var es in Object.FindObjectsByType<EventSystem>(FindObjectsSortMode.None))
+            foreach (var es in FindCompat.FindObjectsByType<EventSystem>())
                 Object.DestroyImmediate(es.gameObject);
         }
 

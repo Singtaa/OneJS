@@ -2,6 +2,7 @@ using System.Collections;
 using System.Linq;
 using System.Reflection;
 using NUnit.Framework;
+using OneJS.Utils;
 using UnityEngine;
 using UnityEngine.EventSystems;
 #if !ENABLE_LEGACY_INPUT_MANAGER && !(ENABLE_INPUT_SYSTEM && ONEJS_INPUT_SYSTEM_PACKAGE)
@@ -65,7 +66,7 @@ namespace OneJS.Tests {
             target.GetType().GetProperty(property, BindingFlags.Public | BindingFlags.Instance).GetValue(target);
 
         static void DestroyEventSystems() {
-            foreach (var es in Object.FindObjectsByType<EventSystem>(FindObjectsSortMode.None))
+            foreach (var es in FindCompat.FindObjectsByType<EventSystem>())
                 Object.DestroyImmediate(es.gameObject);
         }
     }
