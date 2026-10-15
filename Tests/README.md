@@ -63,19 +63,20 @@ PlayMode (`Tests/*.cs`):
 | `JSPadPlaymodeTests.cs` | JSPad temp dirs, build state, execution |
 | `PackUtilsPlaymodeTests.cs` | Pack global injection, platform defines, `__pack()` API |
 | `JSRunnerPlaymodeTests.cs` | A single `Assert.Pass` placeholder; the real JSRunner tests are disabled pending a scene-based rewrite |
-| `CartRunnerPlaymodeTests.cs` | A runner linked to a real root cart: the Library build runs with the cart as working directory and hot reloads; a missing or duplicate name does not start |
+| `CartRunnerPlaymodeTests.cs` | A runner linked to a real root cart: the Library build runs with the cart as working directory and hot reloads; a missing or duplicate name does not start, and is what it logs even with no Panel Settings |
 
 EditMode (`Tests/Editor/`):
 
 | File | Purpose |
 |------|---------|
 | `JSRunnerBuildProcessorTests.cs` | Asset copying, namespace detection |
-| `RootCartsTests.cs` | The root scan, name resolution and its refusals, `files.json`, a cart runner's paths beside a runner with no cart, and the player build's refusals |
+| `RootCartsTests.cs` | The root scan, name resolution and its refusals, `files.json`, a cart runner's paths beside a runner with no cart, the player build's refusals, and the carts' copy leaving the project after a build |
 | `JSRunnerBuildProcessorWindowsTests.cs` | Read-only file handling; Windows only |
 | `JSRunnerBuildSceneListTests.cs` | Which scenes a build walks |
 | `JSRunnerBundleAssignmentTests.cs` | Which runners come out of a build with a bundle |
 | `JSRunnerPrefabAppTests.cs` | Apps a build reaches through a prefab, and Exclude From Build |
 | `JSRunnerInspectorListTests.cs` | The X button in the Stylesheets, Preloads, Globals and Packs lists removes the row clicked, after an undo and after another inspector changed the list |
+| `JSRunnerKeepUIDocumentNoteTests.cs` | On Unity 6.5+, the inspector's line saying not to migrate the UIDocument to Panel Renderer shows only while there is a UIDocument |
 | `JSRunnerScaffoldOnceTests.cs` | Default files are written once: a new app, an app with a record, an app from before the record, a deleted package.json or record, two runners on one folder |
 | `JSRunnerDefaultFilesTests.cs` | Initialize keeps a customized list, a missing default file is named with Restore, Template newer status, the Scaffolding list has no X, the scaffolded .gitignore keeps `.onejs/` |
 | `JSRunnerInitializeReportingTests.cs` | What Initialize Project reports when it cannot create anything |
