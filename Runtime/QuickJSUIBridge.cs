@@ -898,7 +898,7 @@ namespace OneJS {
 #if UNITY_WEBGL && !UNITY_EDITOR
             // qjs_dispatch_event returns the suppression-flags bitmask (bit0=propagationStopped,
             // bit1=defaultPrevented), so preventDefault() suppresses native behavior on WebGL too.
-            return QuickJSNative.qjs_dispatch_event(handle, eventType, dataJson);
+            return QuickJSNative.qjs_dispatch_event(_ctx.NativePtr, handle, eventType, dataJson);
 #else
             _sb.Clear();
             _sb.Append("globalThis.__dispatchEvent && __dispatchEvent(");

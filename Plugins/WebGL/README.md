@@ -47,13 +47,14 @@ In WebGL builds, JavaScript runs directly in the browser's JS engine (V8/SpiderM
 ### JS → C# Delegate Callbacks (events, delegate props)
 When JS passes a function to C# (event subscription via `add_X`, delegate-typed
 argument, or delegate property assignment):
-1. Bootstrap's `__resolveValue` calls the page-global `__registerCallback(fn)`
-   (installed by `OneJS.init()`), which stores the function in
-   `OneJS.callbackRegistry` and returns an integer handle
+1. Bootstrap's `__resolveValue` calls its realm's `__registerCallback(fn)`
+   (installed by `OneJS.init()` on the page and by `OneJS.createRealm` in an
+   iframe realm), which stores the function in its context's `registry` and
+   returns an integer handle (one page counter, so handles never repeat)
 2. The `{ __csCallbackHandle: N }` marker crosses the bridge as JSON;
    C# `ConvertToTargetType` wraps it in a cached delegate (`CreateDelegateWrapper`)
-3. When C# raises the event, the delegate calls `qjs_invoke_callback`, which looks
-   up the registry, unmarshals args, and invokes the JS function
+3. When C# raises the event, the delegate calls `qjs_invoke_callback` with the
+   context it was made in, which looks up that context's registry, unmarshals args, and invokes the JS function
 4. `__unregisterCallback(id)` frees the entry (bootstrap's `add_`/`remove_` and
    delegate-reassignment bookkeeping call it automatically)
 
@@ -65,8 +66,8 @@ Contract notes:
   so one broken JS handler can't abort remaining C# listeners on the same event
 
 ### Event Dispatch (optimized)
-1. C# calls `qjs_dispatch_event()` directly (not eval)
-2. jslib calls `__dispatchEvent()` with parsed JSON
+1. C# calls `qjs_dispatch_event(ctx, ...)` directly (not eval)
+2. jslib calls the context's realm's `__dispatchEvent()` with JSON parsed by that realm
 3. Avoids eval overhead for high-frequency events
 
 ### Tick Loop (RAF)
@@ -92,7 +93,7 @@ No special setup required:
 ### Bundle Loading
 The bundle ships as a TextAsset, as on every other platform (nothing goes through StreamingAssets):
 1. `JSRunner` passes `_bundleAsset.text` to `qjs_eval`
-2. The jslib runs it with indirect `eval()` in the page's global scope; only the result string goes back through the C# buffer
+2. The jslib runs it with indirect `eval()` in its context's global scope (the page's, or its iframe's; see gotcha 9); only the result string goes back through the C# buffer
 3. `__startWebGLTick()` is called after it runs
 
 ## Implementation Status
@@ -128,7 +129,7 @@ The bundle ships as a TextAsset, as on every other platform (nothing goes throug
 | Microtasks | `ExecutePendingJobs()` | Browser handles natively |
 | GC | QuickJS GC | Browser GC |
 | Event Dispatch | `qjs_eval()` | `qjs_dispatch_event()` (fast path) |
-| Delegate Callbacks | Native callback table (4096 slots) | Page-global `Map` registry (unbounded) |
+| Delegate Callbacks | Native callback table (4096 slots) | Per-context `Map` registry (unbounded) |
 
 ## Gotchas
 
@@ -144,10 +145,10 @@ The bundle ships as a TextAsset, as on every other platform (nothing goes throug
    - All bootstrap polyfills (`URL`, `URLSearchParams`, `localStorage`, `sessionStorage`, `btoa`, `atob`, `queueMicrotask`, `performance`, `fetch`, `Headers`, `Response`, `AbortController`, `WebSocket`) are install-if-missing: on WebGL the browser natives win, the polyfills only exist for QuickJS. Never assign a polyfill to `globalThis` unconditionally, it would clobber the native for every script on the host page (e.g. a non-iterable `URLSearchParams` breaks Next.js routing).
    - The whole bootstrap body lives inside an IIFE, because in sloppy-mode indirect eval **top-level `function`/`var` declarations also become own properties of the host page's `window`** (a top-level `function addEventListener(element, ...)` shadows `EventTarget.prototype.addEventListener` for the entire page). Keep every new declaration inside the IIFE; anything needed by the user bundle, C#, or the jslib must be exported explicitly via `globalThis.*`.
 
-6. **Timer overrides capture the host page** (known limitation, mitigated by teardown): `setTimeout`/`setInterval`/`requestAnimationFrame` are intentionally replaced with tick-queue versions (React must run on OneJS's tick), but because the global scope is shared, everything registered after boot is rerouted, **including Unity's own main loop**: Emscripten's `MainLoop.requestAnimationFrame` resolves the bare global at call time, so every Unity frame runs from inside `__webglTick`. While the app runs this is invisible; the sharp edge is context destruction. The last `qjs_destroy` (contexts are refcounted in the jslib) therefore calls the bootstrap's `__teardownTimers()`, which stops the RAF tick, migrates still-pending queue entries onto native timers, restores the native functions, and, when anything was migrated, leaves thin `clear*`/`cancel*` wrappers that route old override ids (always >= `1 << 30`, so they never collide with the browser's small sequential ids) to the migrated native timers; with nothing pending, the raw natives come back untouched. Additionally, `invokeCs`, the zero-alloc invoke, and `releaseHandle` refuse calls while `OneJS.contextPtr === 0` (one-time console warning): page-scope JS outlives the C# context, and after `Application.Quit` / `unityInstance.Quit()` a surviving module-level interval would otherwise dynCall into a shut-down IL2CPP runtime. Supporting mechanics: the true natives are stashed once per page in `globalThis.__onejsNativeTimers` so a bootstrap re-eval never captures a predecessor's overrides as "native"; a new bootstrap generation retires the previous one (stops its tick, migrates its queues) before installing itself; the scheduler clock seeds from `performance.now()` so pre-first-tick timers keep their real due times; and the override `clear*`/`cancel*` fall through to the natives for ids they do not own. All of this is pinned by `Tests/QuickJSSchedulerTests.cs`. A real fix for the capture itself still requires isolating OneJS execution in its own realm (iframe/ShadowRealm) or scoping the overrides to OneJS code only.
+6. **Timer overrides capture the host page** (known limitation, mitigated by teardown): `setTimeout`/`setInterval`/`requestAnimationFrame` are intentionally replaced with tick-queue versions (React must run on OneJS's tick), but because the global scope is shared, everything registered after boot is rerouted, **including Unity's own main loop**: Emscripten's `MainLoop.requestAnimationFrame` resolves the bare global at call time, so every Unity frame runs from inside `__webglTick`. While the app runs this is invisible; the sharp edge is context destruction. Destroying a context therefore calls its realm's `__teardownTimers()`, which stops the RAF tick, migrates still-pending queue entries onto native timers, restores the native functions, and, when anything was migrated, leaves thin `clear*`/`cancel*` wrappers that route old override ids (always >= `1 << 30`, so they never collide with the browser's small sequential ids) to the migrated native timers; with nothing pending, the raw natives come back untouched. Additionally, `invokeCs`, the zero-alloc invoke, and `releaseHandle` refuse calls once their realm's context is destroyed (one-time console warning): page-scope JS outlives the C# context, and after `Application.Quit` / `unityInstance.Quit()` a surviving module-level interval would otherwise dynCall into a shut-down IL2CPP runtime. Supporting mechanics: the true natives are stashed once per page in `globalThis.__onejsNativeTimers` so a bootstrap re-eval never captures a predecessor's overrides as "native"; a new bootstrap generation retires the previous one (stops its tick, migrates its queues) before installing itself; the scheduler clock seeds from `performance.now()` so pre-first-tick timers keep their real due times; and the override `clear*`/`cancel*` fall through to the natives for ids they do not own. All of this is pinned by `Tests/QuickJSSchedulerTests.cs`. A real fix for the capture itself still requires isolating OneJS execution in its own realm (iframe/ShadowRealm) or scoping the overrides to OneJS code only.
 
 7. **`marshalValue` ordering and duck-typing**: `marshalValue` re-implements the native C marshaler's JS→C# conversion, so any classification difference is a platform-specific bug. Two hard rules: (a) objects carrying `__type` (JSON-round-tripped C# structs, e.g. `Translate` returned by a data-only-struct ctor) must cross as `TYPE_JSON_OBJECT` **before** any vector duck-typing, their `x`/`y`/`z` members can be nested structs, and `HEAPF32` writes would mangle them into NaN; (b) the Vector3/Vector4/Color duck-checks require `typeof === "number"` members, never just `!== undefined`. C# rebuilds `__type` payloads via `DeserializeFromDict`.
 
 8. **A Color's type hint is a shared buffer**: C# marks a Vector4-packed `Color` with the `"color"` typeHint that `unmarshalValue` (and the native `interop_value_to_js`) turn into `{r, g, b, a}`. That hint is one process-wide buffer registered through `qjs_set_shared_type_hint`, because a Color crosses on paths that promise no allocation. The two places that free a C#-allocated result hint (`invokeCs` and the zero-alloc invoke) must skip that pointer; freeing it once leaves every later Color reading from freed heap.
 
-9. **One context per page**: `qjs_create` returns 1 for every context and every bootstrap runs in the page's realm, so a second JSRunner overwrites the first's `__dispatchEvent`, `__eventAPI`, `__tick` and `__onTeardown`/`__runTeardown`: the first stops receiving events, and disposing it runs the second's teardown. `qjs_create` warns whenever a context starts while another is live. A real fix needs distinct context ids and a per-context table on the JS side.
+9. **One realm per context**: a context's bootstrap and app own their realm's globals (`__dispatchEvent`, `__eventAPI`, the timer overrides, `__onTeardown`/`__runTeardown`, `__root`), so two contexts cannot share one. `qjs_create` hands out a fresh id per context, never reused, and C# passes it back on every call. The first context, or any created while no other holds the page, runs in the page's realm exactly as a single runner always has. One created while the page realm is taken gets a hidden same-origin iframe (`data-onejs-context` = its id): `OneJS.createRealm` installs that realm's bridge globals bound to the context, gives it the page's `performance` and pre-seeds `__onejsNativeTimers` with the page's true natives, so its tick runs on the page's animation frames and clock (a `display:none` iframe gets none of its own). `qjs_eval`, `qjs_dispatch_event` and `qjs_invoke_callback` route by id; destroying an iframe context tears down its timers and removes the iframe, and leaves the page's alone. What follows the page realm only: the wheel normaliser, which listens on the page's `document` and so goes when the page realm's context does, and any app code that reaches the DOM, which in an iframe realm sees the iframe's empty document. The container's `Tools/webgl-multi-runner` checks two runners in a real browser.

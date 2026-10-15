@@ -11,6 +11,8 @@
  * - C# calls qjs_* functions via [DllImport("__Internal")]
  * - jslib implements these functions, delegating to browser JS
  * - JS->C# callbacks use makeDynCall to invoke C# delegates
+ * - Each context runs in a realm of its own: the page's for the first, a
+ *   hidden iframe's for any created while that one lives (see $OneJS.contexts)
  *
  * Struct Layouts (WASM32: all pointers are 4 bytes):
  *
@@ -53,14 +55,24 @@ var OneJSWebGLLib = {
     $OneJS: {
         // Runtime state
         initialized: false,
-        contextPtr: 0,
 
-        // Live context refcount. contextPtr, callbackRegistry and the
-        // bootstrap's timer overrides are page-level singletons, so global
-        // teardown must only run when the LAST context is destroyed. WebGL is
-        // single-context: every context is 1 and every bootstrap runs in the
-        // page's realm, so a second one takes over the first's event dispatch,
-        // tick and teardown. qjs_create says so rather than letting it pass.
+        // Contexts by id. qjs_create hands out a fresh id per context, never
+        // reused, and C# passes it back on every call, so each call reaches its
+        // own context's realm and callbacks.
+        //
+        // A context's bootstrap and app own their realm's globals: dispatch,
+        // the event API, the timer overrides and teardown are all page-level
+        // names. So only one context can live in the page's realm. The first
+        // one does, exactly as a single runner always has. A context created
+        // while the page realm is taken gets a realm of its own, a hidden
+        // same-origin iframe, where its globals cannot meet anyone else's.
+        //
+        // A record: { id, alive, isPage, win, frame, registry }, where win is
+        // the realm's global object, frame the iframe (null for the page) and
+        // registry the realm's __registerCallback functions by handle.
+        contexts: {},
+        nextContextId: 1,
+        pageCtx: null,
         liveContexts: 0,
 
         // One-time warning for JS->C# calls arriving after qjs_destroy. Page-
@@ -74,9 +86,10 @@ var OneJSWebGLLib = {
             console.warn("[OneJS] Ignoring " + what + " after context destruction. JS code that outlives the context should clean up via __onTeardown.");
         },
 
-        // JS->C# delegate callbacks, registered via the global __registerCallback
-        // (WebGL counterpart of the native callback table in quickjs_unity.c)
-        callbackRegistry: null,   // Map<int, function>
+        // JS->C# delegate callbacks, registered via each realm's
+        // __registerCallback (WebGL counterpart of the native callback table in
+        // quickjs_unity.c) into its context's registry. Ids come from one page
+        // counter, so they never collide across contexts or generations.
         nextCallbackId: 1,
 
         // Callback function pointers (set by C#)
@@ -131,19 +144,74 @@ var OneJSWebGLLib = {
 
             // Callback registry so the bootstrap's __resolveValue can convert JS
             // functions into { __csCallbackHandle: N } markers (same contract as the
-            // native __registerCallback provided by quickjs_unity.c). The bootstrap
-            // runs in the page's global scope, so these must be globals.
-            OneJS.callbackRegistry = new Map();
+            // native __registerCallback provided by quickjs_unity.c). The page
+            // realm's bootstrap reads these as globals, and they belong to
+            // whichever context holds the page realm at the time of the call.
             var global = typeof window !== "undefined" ? window : globalThis;
             global.__registerCallback = function(fn) {
-                if (typeof fn !== "function") return -1;
-                var id = OneJS.nextCallbackId++;
-                OneJS.callbackRegistry.set(id, fn);
-                return id;
+                return OneJS.registerCallback(OneJS.pageCtx, fn);
             };
             global.__unregisterCallback = function(id) {
-                if (OneJS.callbackRegistry) OneJS.callbackRegistry.delete(id);
+                if (OneJS.pageCtx) OneJS.pageCtx.registry.delete(id);
             };
+        },
+
+        // A registration with no live context still takes an id, as it always
+        // has, but nothing can ever invoke it.
+        registerCallback: function(ctx, fn) {
+            if (typeof fn !== "function") return -1;
+            var id = OneJS.nextCallbackId++;
+            if (ctx) ctx.registry.set(id, fn);
+            return id;
+        },
+
+        // The page's true timer natives. Once a page-realm bootstrap has run it
+        // stashes them before overriding, so the stash wins over whatever the
+        // page's globals hold now.
+        pageNativeTimers: function() {
+            var g = typeof window !== "undefined" ? window : globalThis;
+            if (g.__onejsNativeTimers) return g.__onejsNativeTimers;
+            return {
+                setTimeout: g.setTimeout,
+                clearTimeout: g.clearTimeout,
+                setInterval: g.setInterval,
+                clearInterval: g.clearInterval,
+                requestAnimationFrame: g.requestAnimationFrame,
+                cancelAnimationFrame: g.cancelAnimationFrame
+            };
+        },
+
+        // A realm for a context created while another holds the page's: a
+        // hidden same-origin iframe, with the bridge globals its bootstrap
+        // expects, bound to this context. It keeps the page's clock and frame
+        // loop: the bootstrap captures timers from __onejsNativeTimers when it
+        // finds one, and a display:none iframe has no frames of its own to give,
+        // so its tick runs on the page's requestAnimationFrame, against the
+        // page's performance.now() that those timestamps come from.
+        createRealm: function(ctx) {
+            var frame = document.createElement("iframe");
+            frame.style.display = "none";
+            frame.setAttribute("aria-hidden", "true");
+            frame.setAttribute("data-onejs-context", String(ctx.id));
+            (document.body || document.documentElement).appendChild(frame);
+            var w = frame.contentWindow;
+            w.performance = (typeof window !== "undefined" ? window : globalThis).performance;
+            w.__onejsNativeTimers = OneJS.pageNativeTimers();
+            w.onerror = window.onerror;
+            w.onunhandledrejection = window.onunhandledrejection;
+            w.__registerCallback = function(fn) {
+                return OneJS.registerCallback(ctx.alive ? ctx : null, fn);
+            };
+            w.__unregisterCallback = function(id) {
+                ctx.registry.delete(id);
+            };
+            w.__cs_invoke = function(typeName, memberName, callKind, isStatic, targetHandle, args) {
+                return OneJS.invokeCsFor(ctx, typeName, memberName, callKind, isStatic, targetHandle, args);
+            };
+            w.__releaseHandle = OneJS.releaseHandle;
+            if (OneJS.callbacks.zeroalloc) OneJS.defineZaInvokes(w, function() { return ctx; });
+            ctx.win = w;
+            ctx.frame = frame;
         },
 
         // =====================================================================
@@ -370,8 +438,14 @@ var OneJSWebGLLib = {
         // =====================================================================
         // Main invoke function: called from JS to invoke C# methods
         // =====================================================================
+        // The page realm's __cs_invoke, for whichever context holds the page
+        // realm. An iframe realm's binds its own context (createRealm).
         invokeCs: function(typeName, memberName, callKind, isStatic, targetHandle, args) {
-            if (!OneJS.contextPtr) {
+            return OneJS.invokeCsFor(OneJS.pageCtx, typeName, memberName, callKind, isStatic, targetHandle, args);
+        },
+
+        invokeCsFor: function(ctx, typeName, memberName, callKind, isStatic, targetHandle, args) {
+            if (!ctx || !ctx.alive) {
                 OneJS.warnDeadContext("C# invoke " + typeName + "." + memberName);
                 return null;
             }
@@ -421,7 +495,7 @@ var OneJSWebGLLib = {
             // Call C# dispatch function
             // Signature: void(IntPtr ctx, InteropInvokeRequest*, InteropInvokeResult*)
             {{{ makeDynCall("viii", "OneJS.callbacks.invoke") }}}(
-                OneJS.contextPtr,
+                ctx.id,
                 reqPtr,
                 resPtr
             );
@@ -469,10 +543,75 @@ var OneJSWebGLLib = {
             return result;
         },
 
-        // Called from JS to release a C# handle
+        // Called from JS to release a C# handle. The handle table is one per
+        // process, shared by every context, so any live context will do.
         releaseHandle: function(handle) {
-            if (!OneJS.contextPtr || !OneJS.callbacks.releaseHandle || !handle) return;
+            if (!OneJS.liveContexts || !OneJS.callbacks.releaseHandle || !handle) return;
             {{{ makeDynCall("vi", "OneJS.callbacks.releaseHandle") }}}(handle);
+        },
+
+        // Zero-alloc fast path (see qjs_set_cs_zeroalloc_callback): installs
+        // __zaInvoke0..8 on a realm, refusing calls once getCtx() has no live
+        // context.
+        defineZaInvokes: function(g, getCtx) {
+            var invoke = function(bindingId, args) {
+                var ctx = getCtx();
+                if (!ctx || !ctx.alive) {
+                    OneJS.warnDeadContext("zero-alloc C# invoke");
+                    return null;
+                }
+                if (!OneJS.callbacks.zeroalloc) return null;
+
+                var argCount = args.length;
+                var argsPtr = argCount > 0 ? _malloc(argCount * OneJS.SIZEOF_INTEROP_VALUE) : 0;
+                var resultPtr = _malloc(OneJS.SIZEOF_INTEROP_VALUE);
+
+                // Zero result struct
+                for (var i = 0; i < OneJS.SIZEOF_INTEROP_VALUE; i += 4) {
+                    HEAP32[(resultPtr + i) >> 2] = 0;
+                }
+
+                for (var i = 0; i < argCount; i++) {
+                    OneJS.marshalValue(args[i], argsPtr + i * OneJS.SIZEOF_INTEROP_VALUE);
+                }
+
+                // Signature: void(int bindingId, InteropValue* args, int argCount, InteropValue* outResult)
+                {{{ makeDynCall("viiii", "OneJS.callbacks.zeroalloc") }}}(
+                    bindingId, argsPtr, argCount, resultPtr
+                );
+
+                var result = OneJS.unmarshalValue(resultPtr);
+
+                if (argsPtr) {
+                    for (var i = 0; i < argCount; i++) {
+                        OneJS.freeValueMemory(argsPtr + i * OneJS.SIZEOF_INTEROP_VALUE);
+                    }
+                    _free(argsPtr);
+                }
+                // Free strings/JSON allocated by C# in the result (mirrors invokeCs)
+                var rt = HEAP32[resultPtr >> 2];
+                if (rt === OneJS.TYPE_STRING || rt === OneJS.TYPE_JSON_OBJECT) {
+                    var sp = HEAPU32[(resultPtr + 8) >> 2];
+                    if (sp) _free(sp);
+                }
+                var hp = HEAPU32[(resultPtr + 24) >> 2];
+                if (hp && hp !== OneJS.sharedTypeHint) _free(hp);
+                _free(resultPtr);
+
+                return result;
+            };
+
+            // One implementation services all arities: JS doesn't enforce param
+            // counts, and the variadic form keeps the shim small.
+            g.__zaInvoke0 = function(bindingId) { return invoke(bindingId, []); };
+            g.__zaInvoke1 = function(bindingId, a0) { return invoke(bindingId, [a0]); };
+            g.__zaInvoke2 = function(bindingId, a0, a1) { return invoke(bindingId, [a0, a1]); };
+            g.__zaInvoke3 = function(bindingId, a0, a1, a2) { return invoke(bindingId, [a0, a1, a2]); };
+            g.__zaInvoke4 = function(bindingId, a0, a1, a2, a3) { return invoke(bindingId, [a0, a1, a2, a3]); };
+            g.__zaInvoke5 = function(bindingId, a0, a1, a2, a3, a4) { return invoke(bindingId, [a0, a1, a2, a3, a4]); };
+            g.__zaInvoke6 = function(bindingId, a0, a1, a2, a3, a4, a5) { return invoke(bindingId, [a0, a1, a2, a3, a4, a5]); };
+            g.__zaInvoke7 = function(bindingId, a0, a1, a2, a3, a4, a5, a6) { return invoke(bindingId, [a0, a1, a2, a3, a4, a5, a6]); };
+            g.__zaInvoke8 = function(bindingId, a0, a1, a2, a3, a4, a5, a6, a7) { return invoke(bindingId, [a0, a1, a2, a3, a4, a5, a6, a7]); };
         }
     },
 
@@ -514,42 +653,45 @@ var OneJSWebGLLib = {
     qjs_create__deps: ["$OneJS"],
     qjs_create: function() {
         OneJS.init();
-        OneJS.liveContexts++;
-        if (OneJS.liveContexts > 1) {
-            console.warn("[OneJS] A second JSRunner started while another is running. On WebGL every JSRunner " +
-                "shares the page's one JavaScript realm, so the newer one takes over the older one's events, " +
-                "timers and teardown, and the older one stops responding. Use one JSRunner on WebGL, with each " +
-                "screen a component inside it.");
+        var ctx = { id: OneJS.nextContextId++, alive: true, isPage: false, win: null, frame: null, registry: new Map() };
+        if (OneJS.pageCtx) {
+            OneJS.createRealm(ctx);
+        } else {
+            ctx.isPage = true;
+            ctx.win = typeof window !== "undefined" ? window : globalThis;
+            OneJS.pageCtx = ctx;
         }
-        OneJS.contextPtr = 1; // Dummy context pointer
+        OneJS.contexts[ctx.id] = ctx;
+        OneJS.liveContexts++;
         OneJS.deadContextWarned = false;
-        return 1;
+        return ctx.id;
     },
 
     qjs_destroy__deps: ["$OneJS"],
     qjs_destroy: function(ctx) {
-        if (OneJS.liveContexts > 0) OneJS.liveContexts--;
-        // Page-level teardown only when the last context goes: another live
-        // context still depends on the registry, the guards and the tick.
-        if (OneJS.liveContexts > 0) return;
-        OneJS.contextPtr = 0;
-        // Drop all registered callbacks (mirrors C#'s ClearDelegateCache). Keep
-        // nextCallbackId monotonic so stale C#-side delegate caches can never
-        // alias a handle from a new context.
-        if (OneJS.callbackRegistry) OneJS.callbackRegistry.clear();
-        // Stop the RAF tick loop and hand the page's timers back to the
-        // browser. The bootstrap's overrides captured them, Unity's own main
-        // loop included; without this, Application.Quit / unityInstance.Quit()
-        // leaves a hijacked half-dead runtime behind. See __teardownTimers in
-        // QuickJSBootstrap.js.txt.
-        var g = typeof window !== "undefined" ? window : globalThis;
-        if (typeof g.__teardownTimers === "function") {
+        var c = OneJS.contexts[ctx];
+        if (!c) return;
+        delete OneJS.contexts[ctx];
+        c.alive = false;
+        OneJS.liveContexts--;
+        // Drop its registered callbacks (mirrors C#'s ClearDelegateCache).
+        // nextCallbackId stays monotonic so a stale C#-side delegate cache can
+        // never alias a handle from a newer context.
+        c.registry.clear();
+        if (c.isPage) OneJS.pageCtx = null;
+        // Stop the RAF tick loop and hand the realm's timers back to the
+        // browser. On the page realm the bootstrap's overrides captured the
+        // page's own timers, Unity's main loop included; without this,
+        // Application.Quit / unityInstance.Quit() leaves a hijacked half-dead
+        // runtime behind. See __teardownTimers in QuickJSBootstrap.js.txt.
+        if (typeof c.win.__teardownTimers === "function") {
             try {
-                g.__teardownTimers();
+                c.win.__teardownTimers();
             } catch (e) {
                 console.error("[OneJS] Timer teardown failed:", e);
             }
         }
+        if (c.frame && c.frame.parentNode) c.frame.parentNode.removeChild(c.frame);
     },
 
     // =========================================================================
@@ -560,9 +702,12 @@ var OneJSWebGLLib = {
     qjs_eval: function(ctx, codePtr, filenamePtr, flags, outBuf, outBufSize) {
         var code = UTF8ToString(codePtr);
         var filename = UTF8ToString(filenamePtr);
+        var c = OneJS.contexts[ctx];
 
         try {
-            var result = (0, eval)(code);
+            // Global-scope eval in the context's realm: an iframe realm's own
+            // eval, called as a member, is indirect in that realm.
+            var result = c && !c.isPage ? c.win.eval(code) : (0, eval)(code);
 
             var resultStr = "";
             if (result !== undefined && result !== null) {
@@ -653,65 +798,12 @@ var OneJSWebGLLib = {
     qjs_set_cs_zeroalloc_callback__deps: ["$OneJS"],
     qjs_set_cs_zeroalloc_callback: function(callbackPtr) {
         OneJS.callbacks.zeroalloc = callbackPtr;
-
-        var invoke = function(bindingId, args) {
-            if (!OneJS.contextPtr) {
-                OneJS.warnDeadContext("zero-alloc C# invoke");
-                return null;
-            }
-            if (!OneJS.callbacks.zeroalloc) return null;
-
-            var argCount = args.length;
-            var argsPtr = argCount > 0 ? _malloc(argCount * OneJS.SIZEOF_INTEROP_VALUE) : 0;
-            var resultPtr = _malloc(OneJS.SIZEOF_INTEROP_VALUE);
-
-            // Zero result struct
-            for (var i = 0; i < OneJS.SIZEOF_INTEROP_VALUE; i += 4) {
-                HEAP32[(resultPtr + i) >> 2] = 0;
-            }
-
-            for (var i = 0; i < argCount; i++) {
-                OneJS.marshalValue(args[i], argsPtr + i * OneJS.SIZEOF_INTEROP_VALUE);
-            }
-
-            // Signature: void(int bindingId, InteropValue* args, int argCount, InteropValue* outResult)
-            {{{ makeDynCall("viiii", "OneJS.callbacks.zeroalloc") }}}(
-                bindingId, argsPtr, argCount, resultPtr
-            );
-
-            var result = OneJS.unmarshalValue(resultPtr);
-
-            if (argsPtr) {
-                for (var i = 0; i < argCount; i++) {
-                    OneJS.freeValueMemory(argsPtr + i * OneJS.SIZEOF_INTEROP_VALUE);
-                }
-                _free(argsPtr);
-            }
-            // Free strings/JSON allocated by C# in the result (mirrors invokeCs)
-            var rt = HEAP32[resultPtr >> 2];
-            if (rt === OneJS.TYPE_STRING || rt === OneJS.TYPE_JSON_OBJECT) {
-                var sp = HEAPU32[(resultPtr + 8) >> 2];
-                if (sp) _free(sp);
-            }
-            var hp = HEAPU32[(resultPtr + 24) >> 2];
-            if (hp && hp !== OneJS.sharedTypeHint) _free(hp);
-            _free(resultPtr);
-
-            return result;
-        };
-
         var g = typeof window !== "undefined" ? window : globalThis;
-        // One implementation services all arities: JS doesn't enforce param
-        // counts, and the variadic form keeps the shim small.
-        g.__zaInvoke0 = function(bindingId) { return invoke(bindingId, []); };
-        g.__zaInvoke1 = function(bindingId, a0) { return invoke(bindingId, [a0]); };
-        g.__zaInvoke2 = function(bindingId, a0, a1) { return invoke(bindingId, [a0, a1]); };
-        g.__zaInvoke3 = function(bindingId, a0, a1, a2) { return invoke(bindingId, [a0, a1, a2]); };
-        g.__zaInvoke4 = function(bindingId, a0, a1, a2, a3) { return invoke(bindingId, [a0, a1, a2, a3]); };
-        g.__zaInvoke5 = function(bindingId, a0, a1, a2, a3, a4) { return invoke(bindingId, [a0, a1, a2, a3, a4]); };
-        g.__zaInvoke6 = function(bindingId, a0, a1, a2, a3, a4, a5) { return invoke(bindingId, [a0, a1, a2, a3, a4, a5]); };
-        g.__zaInvoke7 = function(bindingId, a0, a1, a2, a3, a4, a5, a6) { return invoke(bindingId, [a0, a1, a2, a3, a4, a5, a6]); };
-        g.__zaInvoke8 = function(bindingId, a0, a1, a2, a3, a4, a5, a6, a7) { return invoke(bindingId, [a0, a1, a2, a3, a4, a5, a6, a7]); };
+        OneJS.defineZaInvokes(g, function() { return OneJS.pageCtx; });
+        for (var id in OneJS.contexts) {
+            var c = OneJS.contexts[id];
+            if (c.alive && !c.isPage) OneJS.defineZaInvokes(c.win, (function(ctx) { return function() { return ctx; }; })(c));
+        }
     },
 
     // =========================================================================
@@ -728,10 +820,13 @@ var OneJSWebGLLib = {
         // Error codes mirror QjsError in quickjs_unity.c: -1 dead context,
         // -5 handler exception, -6 stale handle. The C# wrappers treat -1/-6 as
         // a warn-once no-op, so returning them here doesn't abort event chains.
-        if (!OneJS.contextPtr) {
-            return -1; // QJS_ERR_INVALID_CTX: page-level teardown already ran
+        var c = OneJS.contexts[ctx];
+        if (!c) {
+            // A destroyed context's handle while another lives is stale, as on
+            // native; with none alive, teardown already ran.
+            return OneJS.liveContexts ? -6 : -1; // QJS_ERR_STALE_HANDLE : QJS_ERR_INVALID_CTX
         }
-        var fn = OneJS.callbackRegistry ? OneJS.callbackRegistry.get(callbackHandle) : undefined;
+        var fn = c.registry.get(callbackHandle);
         if (!fn) {
             // Handle ids are monotonic across contexts (never reused), so a miss
             // means a handle from a destroyed context
@@ -765,13 +860,21 @@ var OneJSWebGLLib = {
     // =========================================================================
 
     qjs_dispatch_event__deps: ["$OneJS"],
-    qjs_dispatch_event: function(elementHandle, eventTypePtr, eventDataPtr) {
+    qjs_dispatch_event: function(ctx, elementHandle, eventTypePtr, eventDataPtr) {
         // Fast path for event dispatch: avoids eval overhead. Returns the suppression-flags
         // bitmask from __dispatchEvent (bit0=propagationStopped, bit1=defaultPrevented), or 0.
         var eventType = UTF8ToString(eventTypePtr);
         var eventDataJson = UTF8ToString(eventDataPtr);
+        var c = OneJS.contexts[ctx];
 
         try {
+            if (c && !c.isPage) {
+                // Parsed by the realm's own JSON, so the handler sees its own
+                // realm's Object and Array.
+                var w = c.win;
+                var data = eventDataJson ? w.JSON.parse(eventDataJson) : new w.Object();
+                return typeof w.__dispatchEvent === "function" ? w.__dispatchEvent(elementHandle, eventType, data) | 0 : 0;
+            }
             var eventData = eventDataJson ? JSON.parse(eventDataJson) : {};
             if (typeof __dispatchEvent === "function") {
                 return __dispatchEvent(elementHandle, eventType, eventData) | 0;

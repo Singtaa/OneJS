@@ -210,6 +210,7 @@ namespace OneJS {
         // bitmask from __dispatchEvent (bit0=propagationStopped, bit1=defaultPrevented), or 0.
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern int qjs_dispatch_event(
+            IntPtr ctx,
             int elementHandle,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string eventType,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string eventDataJson
