@@ -4,8 +4,8 @@ description: "Use this skill whenever the user wants to build or set up user int
 metadata:
   asset: "OneJS"
   publisher: "DragonGround"
-  asset-version: "3.9.9"
-  skill-version: "1.16.0"
+  asset-version: "3.9.10"
+  skill-version: "1.16.1"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"

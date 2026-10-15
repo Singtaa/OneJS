@@ -1,3 +1,12 @@
+# [2026-10-14] v3.9.10
+
+A player build no longer leaves the carts' files in the project, a cart runner names its cart problem before a missing Panel Settings, and OneJS builds without compiler warnings. On Unity 6.5, JSRunner's inspector says to keep the UIDocument rather than migrate it to Panel Renderer.
+
+- A player build removes `StreamingAssets/onejs/carts` from the project when it ends, passed or failed
+- A cart runner with no Panel Settings logs a missing or duplicate cart name first
+- No compiler warnings from OneJS in a player build
+- On Unity 6.5+, JSRunner's inspector says not to migrate its UIDocument to Panel Renderer
+
 # [2026-10-14] v3.9.9
 
 A JSRunner can now run a play.onejs.com cart from its own folder at the project root, picked by name in the inspector, and apps under `Assets` work exactly as before. Shader programs take up to 64 uniforms and 8 textures, and choose how each texture wraps and filters.
