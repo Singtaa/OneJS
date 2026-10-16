@@ -4,7 +4,8 @@ using UnityEngine;
 
 namespace OneJS.ShaderFX {
     /// <summary>
-    /// Registry, clock and shared-resource provider for ShaderEffectElement.
+    /// Registry, clock and shared-resource provider for ShaderEffectElement
+    /// and ShaderPass.
     ///
     /// TickAll is driven from QuickJSUIBridge.Tick(), the same integration point
     /// the particle engine uses, so effects animate in play mode, edit-mode
@@ -19,7 +20,17 @@ namespace OneJS.ShaderFX {
     /// </summary>
     public static class ShaderEffectBridge {
         static readonly List<ShaderEffectElement> s_Elements = new List<ShaderEffectElement>();
+        static readonly List<ShaderPass> s_Passes = new List<ShaderPass>();
         static readonly TickClock s_Clock = new TickClock();
+        static int s_Draws;
+
+        /// <summary>
+        /// Counts draws: a tick of every effect, a Step, a paint on layout. A pass
+        /// read by several things draws once in each, before the first of them.
+        /// </summary>
+        internal static int Draws => s_Draws;
+
+        internal static void BeginDraw() => s_Draws++;
 
         internal static void Register(ShaderEffectElement e) {
             if (s_Elements.Contains(e)) return;
@@ -31,6 +42,20 @@ namespace OneJS.ShaderFX {
 
         public static int LiveEffectCount => s_Elements.Count;
 
+        /// <summary>
+        /// A pass made on its own, kept only so its context's teardown disposes
+        /// it. It is drawn by what reads it, never ticked from here.
+        /// </summary>
+        internal static void RegisterPass(ShaderPass p) {
+            if (s_Passes.Contains(p)) return;
+            p.OwnerContextId = QuickJSNative.CurrentContextId;
+            s_Passes.Add(p);
+        }
+
+        internal static void UnregisterPass(ShaderPass p) => s_Passes.Remove(p);
+
+        public static int LivePassCount => s_Passes.Count;
+
         /// <summary>Advances every live effect. Safe to call from multiple bridges per frame.</summary>
         public static void TickAll() {
             // Same clock as ParticleBridge, so shader effects step deterministically
@@ -40,6 +65,7 @@ namespace OneJS.ShaderFX {
             // hitch clamp would silently slow the effect at low frame rates.
             if (dt > 0.05f && !VirtualClock.IsActive) dt = 0.05f; // first tick / editor hitches
 
+            BeginDraw();
             for (int i = s_Elements.Count - 1; i >= 0; i--)
                 s_Elements[i]?.Tick(dt);
         }
@@ -49,9 +75,11 @@ namespace OneJS.ShaderFX {
         /// disposes the effects that context made and leaves the rest animating.
         /// </summary>
         public static void DisposeOwnedBy(int contextId) {
-            // Walked backwards because Dispose unregisters the element.
+            // Walked backwards because Dispose unregisters the element or pass.
             for (int i = s_Elements.Count - 1; i >= 0; i--)
                 if (s_Elements[i]?.OwnerContextId == contextId) s_Elements[i].Dispose();
+            for (int i = s_Passes.Count - 1; i >= 0; i--)
+                if (s_Passes[i]?.OwnerContextId == contextId) s_Passes[i].Dispose();
         }
 
         /// <summary>Disposes every effect, for the last context going away.</summary>
@@ -59,6 +87,9 @@ namespace OneJS.ShaderFX {
             for (int i = s_Elements.Count - 1; i >= 0; i--)
                 s_Elements[i]?.Dispose();
             s_Elements.Clear();
+            for (int i = s_Passes.Count - 1; i >= 0; i--)
+                s_Passes[i]?.Dispose();
+            s_Passes.Clear();
         }
 
         // MARK: built-in procedural textures (lazy, shared, recreated after domain reload)

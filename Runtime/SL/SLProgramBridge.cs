@@ -464,7 +464,7 @@ namespace OneJS.SL {
                 return;
             }
             c.Material.SetFloat(s_Secs, seconds);
-            // Never flipped, as in ShaderEffectElement: a Blit into a render
+            // Never flipped, as in ShaderPass: a Blit into a render
             // target puts v = 0 on texel row 0 on every API. Flipping where
             // graphicsUVStartsAtTop is true drew upside down on WebGPU (#127).
             c.Material.SetFloat(s_FlipY, 0f);

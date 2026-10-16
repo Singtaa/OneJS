@@ -14,7 +14,7 @@ namespace OneJS.Tests.Editor {
     /// With anisotropic filtering forced on, a pooled target filtered at the
     /// default anisoLevel of 1 is filtered at 9, and Mesa's llvmpipe (the CI
     /// renderer) then reads a texel centre off by up to a fifth of a texel, as
-    /// it did a shader element's history (ShaderEffectElement.EnsureHistory).
+    /// it did a shader element's history (ShaderPass.CreateRaw).
     /// A GPU reads it exactly either way. EditMode, so CI runs it on llvmpipe.
     /// </summary>
     [TestFixture]

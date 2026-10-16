@@ -26,7 +26,7 @@ namespace OneJS.Tests.Editor {
             ("Runtime/JSRunner.cs", "Could not rename"),
             ("Runtime/Network.cs", "Failed to parse headers"),
             ("Runtime/QuickJSUIBridge.cs", "LoadStyleSheet error"),
-            ("Runtime/ShaderFX/ShaderEffectElement.cs", "[OneJS sl]"),
+            ("Runtime/ShaderFX/ShaderPass.cs", "[OneJS sl]"),
             ("Runtime/SourceMapParser.cs", "Failed to load source map"),
             ("Runtime/StyleBridge.cs", "ApplyStyles failed"),
             ("Runtime/WebSocketBridge.cs", "Invalid base64 data"),

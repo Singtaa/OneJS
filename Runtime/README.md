@@ -59,7 +59,8 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `Models/ModelMaterialGenerator.cs` | glTF materials on `ModelLit`, falling back to glTFast's own where it has no SubShader |
 | `Audio/AudioBridge.cs` | Sound on every platform: clips load once to a handle, plays are single calls on a pool of 24 `AudioSource` voices |
 | `Fx/FxBridge.cs` | Image operation chains (onejs-unity `fx`): one flat float buffer per chain, per-pixel ops fused into one `OneJS/FxOps` blit |
-| `ShaderFX/ShaderEffectElement.cs` | Runs a shader into an element's `backgroundImage` via a per-frame blit to a RenderTexture |
+| `ShaderFX/ShaderEffectElement.cs` | Runs a shader into an element's `backgroundImage` via a per-frame blit to a RenderTexture; the drawing is its `ShaderPass`'s |
+| `ShaderFX/ShaderPass.cs` | A shader or program drawn into a texture every frame: the program, clock, previous frame and drawing behind every element, and on its own a pass (`usePass`) that another program reads |
 | `ShaderFX/ShaderEffectBridge.cs` | Live-effect registry, `TickAll` (driven from `QuickJSUIBridge.TickSystems()`), built-in procedural textures and ramp cache |
 | `SL/SLProgramBridge.cs` | Shader language programs: finds the shader generated from a program, or hands a WebGL page its WGSL and GLSL; uniforms and textures by slot |
 | `SL/SLShaderRegistry.cs` | Every generated shader by program hash, as the Resources asset a native build writes so the player packs them |
@@ -781,7 +782,7 @@ asserts on in a real player.
 program draws nothing:
 `CreateMaterial` returns no material, the host hands its HLSL to the recorder,
 the next editor update generates the shader, and `AdoptGenerated` gives the
-program a material, which `ShaderEffectElement` picks up through
+program a material, which the element's `ShaderPass` picks up through
 `SLProgramBridge.CurrentMaterial` on its next tick. A program still waiting after
 a few seconds warns once. A `.sl` program never waits: `JSRunner` raises
 `EditorLoadingBundle` before every editor load, and the generator builds the
@@ -807,6 +808,24 @@ so a program the page is still compiling steps by all the time that passed
 meanwhile. `AcceptsSteppedPrograms` is what a host checks before sending a
 program that reads `previous`, `frame` or `deltaTime`; the container's
 `SLSteppedProgramTests` holds the native path to onejs-sl's stepped goldens.
+
+**A program reads another through a pass.** `ShaderPass` is the drawing
+behind every element (program, clock, previous frame, target); the element
+sizes it from its layout and shows its target. Made on its own (onejs-react's
+`usePass`), a pass is drawn for whatever reads it: `SetProgramPass(slot, pass)`
+binds it to a texture slot, and every draw first draws the passes it reads
+that have not drawn in this draw (`ShaderEffectBridge.Draws`, counted by
+`TickAll`, `Step` and the paint on layout), then binds their `Output`. So a
+reader sees this frame's picture, and a pass read twice draws once. `Output`
+is wherever the last frame is, a history half included, rebound every draw,
+because a Unity side copy would reach a WebGPU player's GPU after the page's
+draw. A pass keeps its picture raw like the previous frame (`ARGBHalf`,
+linear), sizes itself as a fraction (`Scale`) of the picture it ends up in,
+and follows its reader's `SetTime`, `ResetTime` and `Step`. A binding that
+would close a cycle is refused with an error, so drawing never loops.
+Standalone passes register only to be disposed with their context. The
+container's `PassesPlaymodeTests` holds the ordering, the refusal and a bloom
+against a CPU reference.
 
 `ShaderEffectElement.SetProgram` keeps the shape it had when a program also
 carried the shader language VM's encoding, and ignores that part, so an
