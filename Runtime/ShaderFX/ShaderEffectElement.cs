@@ -49,6 +49,7 @@ namespace OneJS.ShaderFX {
         int _rtW, _rtH;
         float _seconds;
         bool _paused;
+        bool _pixelated;
         bool _drawAtSetTime;   // SetTime's frame is still to be drawn, paused or not
         bool _paintingOnLayout;
         bool _targetIsNew;     // the target's contents are undefined until its first draw or ClearIfNew
@@ -322,6 +323,25 @@ namespace OneJS.ShaderFX {
 
         public void Pause() => _paused = true;
         public void Resume() => _paused = false;
+
+        /// <summary>
+        /// Shows the picture as hard-edged pixels when it is smaller than the
+        /// element, as CSS's image-rendering: pixelated does, so a program drawn
+        /// at 32x32 shows each pixel as a crisp block. Off by default, which
+        /// smooths it. Only how the picture is shown: a program reading its
+        /// previous frame reads it as before.
+        /// </summary>
+        public bool Pixelated {
+            get => _pixelated;
+            set {
+                if (_pixelated == value) return;
+                _pixelated = value;
+                if (_rt != null) _rt.filterMode = DisplayFilter;
+                MarkDirtyRepaint();
+            }
+        }
+
+        FilterMode DisplayFilter => _pixelated ? FilterMode.Point : FilterMode.Bilinear;
         /// <summary>
         /// Resets the effect clock, so a restarted effect looks the same every
         /// time. A program's previous frame clears and its count restarts at 0.
@@ -583,7 +603,7 @@ namespace OneJS.ShaderFX {
                 name = $"OneJS_ShaderFX_{w}x{h}",
                 hideFlags = HideFlags.HideAndDontSave,
                 wrapMode = TextureWrapMode.Clamp,
-                filterMode = FilterMode.Bilinear,
+                filterMode = DisplayFilter,
             };
             _rt.Create();
             // A new size clears a program's previous frame: it is not resampled.
