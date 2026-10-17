@@ -15,10 +15,18 @@ namespace OneJS.Editor {
     ///
     /// Uses EditorPrefs to persist PIDs across domain reloads, allowing reattachment
     /// to running watcher processes.
+    ///
+    /// InitializeOnLoad so that after every domain reload it reattaches to each watcher this
+    /// session started, and registers its quit handler, whether or not a runner asks for its
+    /// watcher again. A watcher whose scene was closed when a reload happened used to be
+    /// forgotten, and outlived the editor (#143).
     /// </summary>
+    [InitializeOnLoad]
     public static class NodeWatcherManager {
         const string PidPrefKeyPrefix = "OneJS.Watcher.Pid.";
         const string OutputPrefKeyPrefix = "OneJS.Watcher.Output.";
+        /// <summary>The working directories this session's watchers run in, one per line. SessionState, so a domain reload keeps it and a new session starts empty.</summary>
+        const string WatchedDirsKey = "OneJS.Watcher.Dirs";
 
         static readonly Dictionary<string, Process> _watchers = new();
         static readonly Dictionary<string, StringBuilder> _outputBuffers = new();
@@ -33,6 +41,34 @@ namespace OneJS.Editor {
             // Register for domain reload and editor quit
             AssemblyReloadEvents.beforeAssemblyReload += OnBeforeReload;
             EditorApplication.quitting += OnEditorQuitting;
+            ReattachAll();
+        }
+
+        /// <summary>
+        /// Reattaches to every watcher this session started that is still running, so StopAll
+        /// knows about it when the editor quits.
+        /// </summary>
+        internal static void ReattachAll() {
+            foreach (var dir in WatchedDirs()) TryReattach(dir);
+        }
+
+        static List<string> WatchedDirs() =>
+            SessionState.GetString(WatchedDirsKey, "").Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
+
+        /// <summary>Whether this session has a watcher on record in this working directory, running or not yet reattached.</summary>
+        internal static bool IsTracked(string workingDir) => WatchedDirs().Contains(workingDir);
+
+        /// <summary>Takes a started watcher under management: the one place it is recorded for reattaching.</summary>
+        internal static void Track(string workingDir, Process process) {
+            var key = GetKey(workingDir);
+            _watchers[key] = process;
+            // Save PID for reattachment after domain reload
+            EditorPrefs.SetInt(PidPrefKeyPrefix + key, process.Id);
+            var dirs = WatchedDirs();
+            if (!dirs.Contains(workingDir)) {
+                dirs.Add(workingDir);
+                SessionState.SetString(WatchedDirsKey, string.Join("\n", dirs));
+            }
         }
 
         // MARK: Public API
@@ -94,7 +130,8 @@ namespace OneJS.Editor {
                     return false;
                 }
 
-                _watchers[key] = process;
+                // Tracked again, also for a watcher an earlier session left running.
+                Track(workingDir, process);
 
                 // Re-register exit handler
                 process.EnableRaisingEvents = true;
@@ -205,10 +242,7 @@ namespace OneJS.Editor {
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
 
-                _watchers[key] = process;
-
-                // Save PID for reattachment after domain reload
-                EditorPrefs.SetInt(PidPrefKeyPrefix + key, process.Id);
+                Track(workingDir, process);
 
                 OnWatcherStarted?.Invoke(workingDir);
 
@@ -279,6 +313,8 @@ namespace OneJS.Editor {
         static void ClearSavedState(string key) {
             EditorPrefs.DeleteKey(PidPrefKeyPrefix + key);
             EditorPrefs.DeleteKey(OutputPrefKeyPrefix + key);
+            var dirs = WatchedDirs();
+            if (dirs.RemoveAll(dir => GetKey(dir) == key) > 0) SessionState.SetString(WatchedDirsKey, string.Join("\n", dirs));
             _outputBuffers.Remove(key);
             _outputPendingCount.Remove(key);
         }
