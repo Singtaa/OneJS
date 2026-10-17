@@ -1,3 +1,16 @@
+# [2026-10-17] v3.9.11
+
+Shader programs can now read what another program drew this frame, for bloom, blur and other effects in passes, and can show a low resolution as crisp pixels. An app holding a play.onejs.com cart moves to the project root with one button, and on WebGL a second JSRunner no longer breaks the first.
+
+- Shader programs read other programs' output this frame through passes (`usePass`)
+- ShaderEffect and ShaderProgram take `pixelated` for hard-edged pixels at a low resolution
+- **Move to Project Root** on an app whose `~` holds an `oj.json` makes it a root cart
+- On WebGL, each JSRunner runs in its own realm, so a second no longer takes over the first (#140)
+- On WebGL, an animation frame cancelled in the same pass no longer runs after its runner is destroyed (#142)
+- An app's watcher stops when the editor quits, even after a domain reload with its scene closed (#143)
+- Set Up and one-shot builds finish in an unfocused editor
+- New projects get onejs-react 0.4.2 and ojplay 0.12
+
 # [2026-10-14] v3.9.10
 
 A player build no longer leaves the carts' files in the project, a cart runner names its cart problem before a missing Panel Settings, and OneJS builds without compiler warnings. On Unity 6.5, JSRunner's inspector says to keep the UIDocument rather than migrate it to Panel Renderer.
