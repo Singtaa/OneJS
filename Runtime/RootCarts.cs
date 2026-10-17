@@ -25,6 +25,9 @@ namespace OneJS {
             "Assets", "Packages", "ProjectSettings", "Library", "Temp", "Logs", "UserSettings", "node_modules",
         };
 
+        /// <summary>Whether the scan never looks in a root folder of this name, dot folders aside.</summary>
+        public static bool IsSkipped(string folder) => Skipped.Contains(folder);
+
         /// <summary>Where the editor's build of a cart goes, under the project.</summary>
         public const string EditorBuildRoot = "Library/OneJS/Carts";
 
@@ -146,6 +149,13 @@ namespace OneJS {
             public string version;
             public string entry;
         }
+
+        /// <summary>
+        /// The oj.json in `dir` read as the scan reads one, with `shown` as its folder in what
+        /// it says. For a cart that is not at the root yet: Move to Project Root reads the
+        /// name of the one in an app's ~ before moving it.
+        /// </summary>
+        public static Cart ReadAt(string dir, string shown) => Read(shown, dir, Path.Combine(dir, "oj.json"));
 
         static Cart Read(string folder, string dir, string ojJson) {
             var cart = new Cart { Folder = folder, FullPath = dir };

@@ -5,14 +5,14 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.9.10"
-  skill-version: "1.16.1"
+  skill-version: "1.17.0"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-10-14"
+  last-verified: "2026-10-15"
 ---
 
 # Set Up a OneJS Project
@@ -138,7 +138,7 @@ Rules that matter here:
 - **Do not put OneJS files into a root cart.** No `esbuild.config.mjs`, PanelSettings or `app.js.txt` goes in the cart: it builds with its own ojplay, the same as anywhere else.
 - **No Packs tab** on a cart runner. Its tabs are Cart, UI and Build.
 - A player build builds each linked cart for production into `Assets/OneJS.Generated/Carts/{folder}`, which keeps itself out of git, and ships the cart's files under `StreamingAssets/onejs/carts/{folder}/` in the player; the project's copy is removed once the build ends.
-- A cart in `Assets/{Name}/~`, from an older `ojplay add`, is an ordinary app beside its PanelSettings and keeps working. Do not move it by hand.
+- A cart in `Assets/{Name}/~`, from an older `ojplay add`, is an ordinary app beside its PanelSettings and keeps working. To make it a root cart, press **Move to Project Root** on its runner rather than moving it by hand: it moves the folder (with `git mv` when git tracks it), links the runner by name, deletes the app's bundle, and removes the OneJS files setup wrote into it, leaving and listing in the Console any somebody changed.
 
 Details: https://onejs.com/docs/guides/project-setup and https://play.onejs.com/docs/unity
 

@@ -367,11 +367,16 @@ namespace OneJS.Editor {
                 lines.Add($"A cart runner needs a Panel Settings for its panel. Create makes Assets/{cart.Folder}/PanelSettings.asset, or assign any in the UI tab.");
                 action = OneJSEditorDesign.Texts.CreatePanelSettings;
                 run = () => { _target.CreateCartPanelSettings(); serializedObject.Update(); };
-            } else if (!RootCarts.IsSetUp(cart)) {
+            } else if (CartRunners.NeedsSetUp(cart)) {
                 status = OneJSEditorDesign.Texts.NotSetUp;
                 color = OneJSEditorDesign.Colors.StatusWarning;
                 var problem = CartRunners.SetUpProblem(cart);
-                lines.Add($"{problem.Replace(cart.Name, $"<b>{cart.Name}</b>")} Set Up runs npx ojplay init and npm install in {cart.Folder}/, which is what any machine does with a cart.");
+                if (problem != null) {
+                    lines.Add($"{problem.Replace(cart.Name, $"<b>{cart.Name}</b>")} Set Up runs npx ojplay init and npm install in {cart.Folder}/, which is what any machine does with a cart.");
+                } else {
+                    lines.Add($"<b>{cart.Name}</b> still holds the files OneJS's setup wrote into it before it moved to the project root. " +
+                        $"Set Up runs npx {MoveToProjectRoot.Ojplay} init --from-unity in {cart.Folder}/ to take them out, then npm install.");
+                }
                 action = CartRunners.IsBusy(cart) ? OneJSEditorDesign.Texts.SettingUp : OneJSEditorDesign.Texts.SetUp;
                 var c = cart;
                 if (!CartRunners.IsBusy(cart)) run = () => CartRunners.SetUp(c);
