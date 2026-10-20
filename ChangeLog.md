@@ -1,3 +1,10 @@
+# [2026-10-20] v3.9.12
+
+Updating from 3.9.3 or earlier left the old `UICartridgeEditor.cs` in the project, where it no longer compiles. Updates now replace it and every other file a release renamed or removed, including in a project an earlier update already broke.
+
+- Updating from 3.9.3 or earlier no longer leaves `UICartridgeEditor.cs` and five other renamed files behind
+- An update replaces every file a v3 release renamed or removed
+
 # [2026-10-17] v3.9.11
 
 Shader programs can now read what another program drew this frame, for bloom, blur and other effects in passes, and can show a low resolution as crisp pixels. An app holding a play.onejs.com cart moves to the project root with one button, and on WebGL a second JSRunner no longer breaks the first.
