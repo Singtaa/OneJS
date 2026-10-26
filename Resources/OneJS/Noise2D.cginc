@@ -15,7 +15,7 @@
 // is the kind of thing nobody notices until two effects that should match do
 // not.
 
-// MARK: hash
+// hash
 //
 // The lattice hash is integer arithmetic, and has to stay integer arithmetic.
 // A float hash, frac of a large product as most shader noise is written, is
@@ -114,7 +114,7 @@ float onejsFbm(float2 p, float seed, int octaves)
     return onejsFbm(p, seed, octaves, 2.0, 0.5);
 }
 
-// MARK: simplex
+// simplex
 //
 // Ashima/McEwan 2D simplex. Worth carrying next to the value noise because the
 // two fail differently: value noise interpolates a square grid, so at high
@@ -173,7 +173,7 @@ float onejsFbmSimplex(float2 p, float seed, int octaves, float lacunarity, float
     return sum / max(norm, 1e-4);
 }
 
-// MARK: turbulence and ridged
+// turbulence and ridged
 //
 // fBm above sums signed octaves, so octaves cancel as often as they add and the
 // field reads as cloud. Turbulence sums the ABSOLUTE value of each octave: the
