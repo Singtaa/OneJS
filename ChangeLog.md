@@ -1,6 +1,7 @@
 # Unreleased
 
 - On WebGL, `onPlay` and `onStop` run for a strict bundle, as every scaffolded app's is
+- `compute.struct`'s stride is the HLSL struct's size, with no rounding to 16 bytes
 
 # [2026-10-20] v3.9.12
 
