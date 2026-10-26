@@ -568,6 +568,32 @@ namespace OneJS.Editor.TypeGenerator.Tests {
 
         #endregion
 
+        #region Extension Methods
+
+        /// <summary>
+        /// An extension method is a static method whose first parameter is the
+        /// extended object, and the static call is the one that works without
+        /// useExtensions(). Its declaration once dropped that parameter, so
+        /// CapturePointer(element, id) could not typecheck and the two
+        /// ReleasePointer overloads were the same line twice (#149).
+        /// </summary>
+        [Test]
+        public void Generate_ExtensionMethod_KeepsItsThisParameter() {
+            var result = TypeGenerator.GenerateToResult(typeof(UnityEngine.UIElements.PointerCaptureHelper));
+
+            StringAssert.Contains(
+                "static CapturePointer($handler: UnityEngine.UIElements.IEventHandler, $pointerId: number): void;",
+                result.Content);
+            StringAssert.Contains(
+                "static ReleasePointer($handler: UnityEngine.UIElements.IEventHandler, $pointerId: number): void;",
+                result.Content);
+            StringAssert.Contains(
+                "static ReleasePointer($panel: UnityEngine.UIElements.IPanel, $pointerId: number): void;",
+                result.Content);
+        }
+
+        #endregion
+
         #region Generic Type Names
 
         /// <summary>
