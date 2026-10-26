@@ -10,6 +10,7 @@ Tests/
 ├── Editor/                      # EditMode test assembly (OneJS.Tests.Editor.asmdef)
 ├── BuildValidation/             # Standalone player build test (see its README)
 ├── Fixtures/                    # PanelHost, text fixtures in Resources/, CustomElement~ React fixture (see its README)
+├── WebGL~/                      # node tests for OneJSWebGL.jslib: node --test "Tests/WebGL~/qjs-eval.test.mjs"
 └── Resources/TestShaders/       # SimpleCompute.compute for the GPU tests
 ```
 
