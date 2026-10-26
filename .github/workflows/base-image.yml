@@ -1,0 +1,41 @@
+name: CI base image
+
+# ci.yml builds the Linux QuickJS library inside Ubuntu 22.04 (its unity-tests
+# job says why), and pulling that image anonymously on every run kept failing:
+# Docker Hub's per-IP limit first, then ECR Public's "Data limit exceeded" on
+# 26 October 2026. This copies the image once into this repository's own
+# package on ghcr.io, which CI pulls with GITHUB_TOKEN and pins by digest, so a
+# refresh here changes nothing until ci.yml moves to the new digest.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/base-image.yml
+
+jobs:
+  copy:
+    name: Copy ubuntu:22.04 to ghcr.io
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ghcr.io/singtaa/onejs-ci-ubuntu:22.04
+        run: |
+          echo "$TOKEN" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+          # One source is enough, and each has refused anonymous pulls on a busy day.
+          src=""
+          for s in docker.io/library/ubuntu:22.04 mirror.gcr.io/library/ubuntu:22.04 public.ecr.aws/docker/library/ubuntu:22.04; do
+            if docker pull "$s"; then src="$s"; break; fi
+          done
+          if [ -z "$src" ]; then echo "::error::every source refused ubuntu:22.04"; exit 1; fi
+          # The source label links the package to this repository, which is what
+          # lets ci.yml's GITHUB_TOKEN pull it.
+          echo "FROM $src" | docker build --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" -t "$IMAGE" -
+          docker run --rm "$IMAGE" ldd --version | head -1
+          docker push "$IMAGE"
+          digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE")
+          echo "Copied from $src: $digest" | tee -a "$GITHUB_STEP_SUMMARY"
