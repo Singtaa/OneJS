@@ -220,7 +220,7 @@ namespace OneJS.Editor.TypeGenerator {
         private void AnalyzeDelegate(Type type, TsTypeInfo info) {
             var invokeMethod = type.GetMethod("Invoke");
             if (invokeMethod != null) {
-                info.DelegateSignature = AnalyzeMethod(invokeMethod, isDelegate: true);
+                info.DelegateSignature = AnalyzeMethod(invokeMethod);
             }
         }
 
@@ -400,7 +400,7 @@ namespace OneJS.Editor.TypeGenerator {
                 .ToList();
         }
 
-        private TsMethodInfo AnalyzeMethod(MethodInfo method, bool isDelegate = false) {
+        private TsMethodInfo AnalyzeMethod(MethodInfo method) {
             var info = new TsMethodInfo {
                 Name = method.Name,
                 ReturnType = TypeMapper.MapType(method.ReturnType),
@@ -431,14 +431,10 @@ namespace OneJS.Editor.TypeGenerator {
                 info.GenericConstraints = AnalyzeGenericConstraints(method.GetGenericArguments());
             }
 
-            // Parameters (skip 'this' for extension methods when analyzing for the extended type)
-            var parameters = method.GetParameters();
-            if (isDelegate || !info.IsExtensionMethod) {
-                info.Parameters = parameters.Select(AnalyzeParameter).ToList();
-            } else {
-                // For extension methods, skip the first 'this' parameter
-                info.Parameters = parameters.Skip(1).Select(AnalyzeParameter).ToList();
-            }
+            // Every parameter, an extension method's 'this' one included: it is
+            // declared on its static class, where the extended object is the
+            // first argument (#149).
+            info.Parameters = method.GetParameters().Select(AnalyzeParameter).ToList();
 
             return info;
         }
