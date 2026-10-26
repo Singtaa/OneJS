@@ -17,12 +17,14 @@ namespace OneJS.Editor.TypeGenerator {
         public ParameterInfo OriginalParameter { get; set; }
 
         /// <summary>
-        /// Gets the TypeScript representation of this parameter
+        /// Gets the TypeScript representation of this parameter. `widen: false`
+        /// declares the C# type itself, for a parameter C# fills, as in the call
+        /// signature of a delegate that C# invokes on a JS function.
         /// </summary>
-        public string ToTypeScript(bool useFullTypeName = true) {
+        public string ToTypeScript(bool useFullTypeName = true, bool widen = true) {
             var name = IsParams ? $"...{Name}" : $"${Name}";
             var optional = IsOptional ? "?" : "";
-            var typeName = Widen(Type) ?? Type?.ToTypeScript(useFullTypeName) ?? "any";
+            var typeName = (widen ? Widen(Type, useFullTypeName, IsParams) : null) ?? Type?.ToTypeScript(useFullTypeName) ?? "any";
 
             // For params, use array syntax
             if (IsParams && !typeName.EndsWith("[]")) {
@@ -39,7 +41,10 @@ namespace OneJS.Editor.TypeGenerator {
         }
 
         /// <summary>
-        /// `System.TypeLike` for a parameter that wants a `System.Type`, else null.
+        /// What a parameter accepts when that is wider than the C# type it
+        /// declares, else null.
+        ///
+        /// `System.TypeLike` for a parameter that wants a `System.Type`.
         ///
         /// JS hands C# a class reference (`CS.UnityEngine.Vector3`, a path proxy)
         /// where C# declares a `Type`, so a `Type` parameter typed as `System.Type`
@@ -49,13 +54,25 @@ namespace OneJS.Editor.TypeGenerator {
         /// Parameters only. A member that RETURNS a `Type` returns a real one, and
         /// widening that would lie to the caller in the other direction. This was
         /// applied by hand to ~118 signatures in unity-types before it lived here.
+        ///
+        /// `System.ArrayInput<T>` for a one-dimensional array passed in (#150).
+        /// The bootstrap sends a JS array or typed array as an `__csArray` marker
+        /// that the runtime converts to the parameter's `T[]`, so `System.Array$1`
+        /// alone rejected a `Float32Array` the call accepts. A `ref` or `out` array
+        /// is written back as a C# array, a multidimensional one is not carried by
+        /// the marker, and a `params` array is spread, so those keep their type.
         /// </summary>
-        static string Widen(TsTypeRef type) {
+        static string Widen(TsTypeRef type, bool useFullTypeName, bool isParams) {
             if (type == null) return null;
             if (type.OriginalType == typeof(System.Type)) return "System.TypeLike";
-            if (type.IsArray && type.GenericArguments.Count == 1
-                && type.GenericArguments[0].OriginalType == typeof(System.Type)) {
-                return "System.Array$1<System.TypeLike>";
+            if (type.IsArray && type.GenericArguments.Count == 1) {
+                var element = type.GenericArguments[0];
+                var isType = element.OriginalType == typeof(System.Type);
+                if (!isParams && type.ArrayRank == 1 && !type.IsByRef && !type.IsOut) {
+                    var elementName = isType ? "System.TypeLike" : element.ToTypeScript(useFullTypeName);
+                    return $"System.ArrayInput<{elementName}>";
+                }
+                if (isType) return "System.Array$1<System.TypeLike>";
             }
             return null;
         }

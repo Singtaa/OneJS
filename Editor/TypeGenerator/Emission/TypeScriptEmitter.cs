@@ -206,11 +206,14 @@ namespace OneJS.Editor.TypeGenerator {
 
             if (type.DelegateSignature != null) {
                 var sig = type.DelegateSignature;
-                var paramList = string.Join(", ", sig.Parameters.Select(p => p.ToTypeScript()));
+                // The call signature is C# invoking a JS function with C# values;
+                // Invoke is JS calling into C#, so it takes what any call takes.
+                var received = string.Join(", ", sig.Parameters.Select(p => p.ToTypeScript(widen: false)));
+                var passed = string.Join(", ", sig.Parameters.Select(p => p.ToTypeScript()));
                 var returnType = sig.ReturnType?.ToTypeScript() ?? "void";
 
-                AppendLine($"({paramList}): {returnType};");
-                AppendLine($"Invoke?: ({paramList}) => {returnType};");
+                AppendLine($"({received}): {returnType};");
+                AppendLine($"Invoke?: ({passed}) => {returnType};");
             }
 
             _indent--;
@@ -219,10 +222,10 @@ namespace OneJS.Editor.TypeGenerator {
             // Emit constructor for non-generic delegates
             if (!type.IsGenericTypeDefinition && type.DelegateSignature != null) {
                 var sig = type.DelegateSignature;
-                var paramList = string.Join(", ", sig.Parameters.Select(p => p.ToTypeScript()));
+                var received = string.Join(", ", sig.Parameters.Select(p => p.ToTypeScript(widen: false)));
                 var returnType = sig.ReturnType?.ToTypeScript() ?? "void";
 
-                AppendLine($"var {type.Name}: {{ new (func: ({paramList}) => {returnType}): {type.Name}; }};");
+                AppendLine($"var {type.Name}: {{ new (func: ({received}) => {returnType}): {type.Name}; }};");
             }
         }
 
