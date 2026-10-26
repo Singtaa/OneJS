@@ -254,6 +254,8 @@ TypeGeneratorResult (Output + Metadata)
 
 A generic type is declared and referenced under one name, its C# name plus `$N` for its N type parameters (`class BaseField$1<TValueType>`, `extends BaseField$1<number>`), so `UnityEvent` and `UnityEvent$1` stay apart. A type nested in a generic one counts its parent's parameters too. `TypeMapper.TsTypeName` is the one place that name is made, for declarations and references alike.
 
+Each arity of a generic class is also callable under its bare name, the way OneJS binds one at runtime: `function List<T extends System.TypeLike>($T: T): typeof List$1<System.BoundType<T>>`, so `new (List(Int32))()` is a `List$1<number>`. A class with constrained parameters binds to its unbound constructor, and interfaces, delegates and types nested in a generic one get no binder. `System.BoundType` comes from unity-types.
+
 ## File Structure
 
 ```

@@ -615,6 +615,65 @@ namespace OneJS.Editor.TypeGenerator.Tests {
         }
 
         #endregion
+
+        #region Generic Binders
+
+        /// <summary>
+        /// OneJS binds a generic type by calling it with its type arguments,
+        /// UnityEvent(Int32), so each arity is also a function of the bare name
+        /// returning the bound constructor (#148). The non-generic twin stays a
+        /// class: an ambient function merges with it.
+        /// </summary>
+        [Test]
+        public void Generate_GenericClass_IsCallableUnderItsBareName() {
+            var result = TypeGenerator.GenerateToResult(
+                typeof(UnityEngine.Events.UnityEvent), typeof(UnityEngine.Events.UnityEvent<>),
+                typeof(UnityEngine.Events.UnityEvent<,>));
+
+            StringAssert.Contains("class UnityEvent extends", result.Content);
+            StringAssert.Contains(
+                "function UnityEvent<T0 extends System.TypeLike>($T0: T0): typeof UnityEvent$1<System.BoundType<T0>>;",
+                result.Content);
+            StringAssert.Contains(
+                "function UnityEvent<T0 extends System.TypeLike, T1 extends System.TypeLike>($T0: T0, $T1: T1): " +
+                "typeof UnityEvent$2<System.BoundType<T0>, System.BoundType<T1>>;",
+                result.Content);
+        }
+
+        /// <summary>
+        /// A constrained parameter cannot be bound to an arbitrary type argument
+        /// without breaking its constraint, so its binder returns the unbound
+        /// constructor, which still constructs.
+        /// </summary>
+        [Test]
+        public void Generate_ConstrainedGenericClass_BindsToItsUnboundConstructor() {
+            var result = TypeGenerator.GenerateToResult(typeof(UnityEngine.UIElements.BaseSlider<>));
+
+            StringAssert.Contains(
+                "function BaseSlider<TValueType extends System.TypeLike>($TValueType: TValueType): typeof BaseSlider$1;",
+                result.Content);
+        }
+
+        /// <summary>
+        /// Only a type that declares parameters of its own is called with them: a
+        /// type nested in a generic one is reached through its bound parent, and an
+        /// interface has no constructor to return.
+        /// </summary>
+        [Test]
+        public void Generate_NestedInGenericOrInterface_HasNoBinder() {
+            var result = TypeGenerator.GenerateToResult(
+                typeof(GenericOuter<>), typeof(GenericOuter<>.Inner), typeof(IGenericFixture<>));
+
+            StringAssert.Contains("function GenericOuter<T extends System.TypeLike>", result.Content);
+            StringAssert.DoesNotContain("function Inner", result.Content);
+            StringAssert.DoesNotContain("function IGenericFixture", result.Content);
+        }
+
+        #endregion
+    }
+
+    public interface IGenericFixture<T> {
+        T Value { get; }
     }
 
     public class GenericOuter<T> {
