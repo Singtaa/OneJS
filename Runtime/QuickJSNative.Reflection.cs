@@ -182,17 +182,34 @@ namespace OneJS {
                         bool match = true;
                         for (int j = 0; j < args.Length && match; j++)
                             match = IsArgCompatible(parameters[j].ParameterType, args[j]);
-                        if (match) {
-                            for (int j = args.Length; j < parameters.Length && match; j++)
-                                match = parameters[j].HasDefaultValue;
-                            if (match) optionalParamFallback = m;
-                        }
+                        if (match && TrailingParametersHaveDefaults(parameters, args.Length))
+                            optionalParamFallback = m;
                     }
                 }
                 type = type.BaseType;
             }
 
             return optionalParamFallback;
+        }
+
+        /// <summary>
+        /// True when every parameter from <paramref name="first"/> on declares a C# default, so a
+        /// call may leave those trailing arguments out. Methods, extension methods and constructors
+        /// all bind omitted optionals by this rule, after an exact arity match has had its chance.
+        /// </summary>
+        static bool TrailingParametersHaveDefaults(ParameterInfo[] parms, int first) {
+            for (int i = first; i < parms.Length; i++)
+                if (!parms[i].HasDefaultValue) return false;
+            return true;
+        }
+
+        /// <summary>
+        /// Fill the invoke slots from <paramref name="first"/> on with the declared defaults, for a
+        /// call bound by <see cref="TrailingParametersHaveDefaults"/> that left them out.
+        /// </summary>
+        static void FillOmittedDefaults(ParameterInfo[] parms, object[] invokeArgs, int first) {
+            for (int i = first; i < parms.Length; i++)
+                invokeArgs[i] = parms[i].HasDefaultValue ? parms[i].DefaultValue : Type.Missing;
         }
 
         static PropertyInfo FindProperty(Type type, string name, BindingFlags flags) {
@@ -319,10 +336,8 @@ namespace OneJS {
                     for (int i = 0; i < args.Length && match; i++) {
                         match = IsArgCompatible(parms[i + 1].ParameterType, args[i]);
                     }
-                    for (int i = args.Length + 1; i < parms.Length && match; i++) {
-                        match = parms[i].HasDefaultValue;
-                    }
-                    if (match) optionalParamFallback = method;
+                    if (match && TrailingParametersHaveDefaults(parms, args.Length + 1))
+                        optionalParamFallback = method;
                 }
             }
 

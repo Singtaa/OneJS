@@ -311,14 +311,19 @@ namespace OneJS {
                         return;
                     }
 
-                    var ctors = type.GetConstructors();
-                    foreach (var ctor in ctors) {
+                    // The rule FindMethod follows: an exact arity match wins, else the first
+                    // constructor whose omitted trailing parameters all declare defaults (#146).
+                    ConstructorInfo fallbackCtor = null;
+                    object[] fallbackArgs = null;
+                    foreach (var ctor in type.GetConstructors()) {
                         var parms = ctor.GetParameters();
-                        if (parms.Length != args.Length) continue;
+                        bool exact = parms.Length == args.Length;
+                        if (!exact && (parms.Length < args.Length || fallbackCtor != null ||
+                                       !TrailingParametersHaveDefaults(parms, args.Length))) continue;
 
                         bool match = true;
-                        object[] convertedArgs = new object[args.Length];
-                        for (int i = 0; i < parms.Length; i++) {
+                        object[] convertedArgs = new object[parms.Length];
+                        for (int i = 0; i < args.Length; i++) {
                             var pType = parms[i].ParameterType;
                             var converted = ConvertToTargetType(args[i], pType);
 
@@ -335,11 +340,19 @@ namespace OneJS {
                             convertedArgs[i] = converted;
                         }
 
-                        if (match) {
-                            object instance = ctor.Invoke(convertedArgs);
-                            SetReturnValue(resPtr, instance);
+                        if (!match) continue;
+                        if (exact) {
+                            SetReturnValue(resPtr, ctor.Invoke(convertedArgs));
                             return;
                         }
+                        FillOmittedDefaults(parms, convertedArgs, args.Length);
+                        fallbackCtor = ctor;
+                        fallbackArgs = convertedArgs;
+                    }
+
+                    if (fallbackCtor != null) {
+                        SetReturnValue(resPtr, fallbackCtor.Invoke(fallbackArgs));
+                        return;
                     }
 
                     Fail(resPtr, $"[QuickJS] No matching ctor for {typeName} with {args.Length} args");
@@ -366,10 +379,7 @@ namespace OneJS {
                                 extArgs[0] = ConvertToTargetType(target, extParms[0].ParameterType);
                                 for (int i = 0; i < args.Length; i++)
                                     extArgs[i + 1] = ConvertToTargetType(args[i], extParms[i + 1].ParameterType);
-                                for (int i = args.Length + 1; i < extParms.Length; i++)
-                                    extArgs[i] = extParms[i].HasDefaultValue
-                                        ? extParms[i].DefaultValue
-                                        : Type.Missing;
+                                FillOmittedDefaults(extParms, extArgs, args.Length + 1);
                                 object extResult = extMethod.Invoke(null, extArgs);
                                 SetReturnValue(resPtr, extResult);
                                 return;
@@ -421,11 +431,7 @@ namespace OneJS {
                             for (int i = 0; i < args.Length; i++) {
                                 invokeArgs[i] = ConvertToTargetType(args[i], parms[i].ParameterType);
                             }
-                            for (int i = args.Length; i < parms.Length; i++) {
-                                invokeArgs[i] = parms[i].HasDefaultValue
-                                    ? parms[i].DefaultValue
-                                    : Type.Missing;
-                            }
+                            FillOmittedDefaults(parms, invokeArgs, args.Length);
                         }
 
                         object result = method.Invoke(isStatic ? null : target, invokeArgs);
