@@ -20,7 +20,7 @@ namespace OneJS {
     ///   rather than in QuickJS compiled to WASM.
     /// </summary>
     public static partial class QuickJSNative {
-        // MARK: Native Library Name
+        // Native Library Name
         // Editor always uses the native library (even when build target is iOS/WebGL)
         // WebGL builds use __Internal which routes to OneJSWebGL.jslib
         // iOS builds use __Internal for static linking
@@ -36,7 +36,7 @@ namespace OneJS {
             "quickjs_unity";
 #endif
 
-        // MARK: Delegate Types
+        // Delegate Types
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate void CsLogCallback(IntPtr msg);
 
@@ -76,7 +76,7 @@ namespace OneJS {
             InteropValue* outResult
         );
 
-        // MARK: DllImports
+        // DllImports
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         static extern void qjs_set_cs_log_callback(CsLogCallback cb);
 
@@ -161,7 +161,7 @@ namespace OneJS {
         /// </summary>
         internal const int ExpectedAbiVersion = 3;
 
-        // MARK: Error Codes (mirror QjsError in quickjs_unity.c)
+        // Error Codes (mirror QjsError in quickjs_unity.c)
         internal const int ErrOk = 0;
         internal const int ErrInvalidCtx = -1;
         internal const int ErrInvalidHandle = -2;
@@ -217,7 +217,7 @@ namespace OneJS {
         );
 #endif
 
-        // MARK: Interop Enums
+        // Interop Enums
         public enum InteropType : int {
             Null = 0,
             Bool = 1,
@@ -249,7 +249,7 @@ namespace OneJS {
             TryGetProp = 10
         }
 
-        // MARK: Interop Structs
+        // Interop Structs
         // Layout must match C struct exactly:
         // - type (4) + pad (4) + union (16) + typeHint (8) = 32 bytes
         [StructLayout(LayoutKind.Explicit, Size = 32)]
@@ -318,7 +318,7 @@ namespace OneJS {
             public IntPtr errorMsg;
         }
 
-        // MARK: String Helpers
+        // String Helpers
         internal static IntPtr StringToUtf8(string s) {
             if (s == null) return IntPtr.Zero;
             return Marshal.StringToCoTaskMemUTF8(s);

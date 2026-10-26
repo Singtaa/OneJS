@@ -31,7 +31,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Handle Monitoring Tests
+        // Handle Monitoring Tests
 
         [UnityTest]
         public IEnumerator HandleMonitoring_GetHandleCount_ReturnsCorrectCount() {
@@ -205,7 +205,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Proxy Cache Refcount Fix Tests
+        // Proxy Cache Refcount Fix Tests
         // Verifies that proxy cache hits correctly counteract RegisterObject refcount increments.
         // Without the fix, each interop return of the same C# object increments the refcount
         // in RegisterObject, but the JS proxy cache reuses the existing proxy (no new
@@ -310,7 +310,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Task Queue Monitoring Tests
+        // Task Queue Monitoring Tests
 
         [UnityTest]
         public IEnumerator TaskQueueMonitoring_GetPendingTaskCount_ReturnsCorrectCount() {
@@ -395,7 +395,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Buffer Overflow Detection Tests
+        // Buffer Overflow Detection Tests
 
         [UnityTest]
         public IEnumerator BufferOverflow_SmallOutput_NoWarning() {
@@ -419,7 +419,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Context Dispose Tests
+        // Context Dispose Tests
 
         [UnityTest]
         public IEnumerator ContextDispose_ClearsPendingTasks() {
@@ -438,7 +438,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Exception Context Tests
+        // Exception Context Tests
 
         [UnityTest]
         public IEnumerator ExceptionContext_MethodNotFound_ThrowsWithContext() {

@@ -201,7 +201,7 @@ namespace OneJS.Editor {
             "Build with oneJSConfig from onejs-unity/esbuild, as new projects do, or add " +
             "define: { \"process.env.NODE_ENV\": JSON.stringify(process.env.NODE_ENV || \"development\") } to the config.";
 
-        // MARK: Helpers
+        // Helpers
 
         static Result Skip(string reason, string bundlePath) =>
             new Result(Outcome.Skipped, reason, CarriesDevelopmentReact(ReadOrEmpty(bundlePath)));
@@ -246,7 +246,7 @@ namespace OneJS.Editor {
                 AssetDatabase.ImportAsset(relative, ImportAssetOptions.ForceSynchronousImport);
         }
 
-        // MARK: Kept bundles
+        // Kept bundles
 
         [Serializable]
         class Entry {

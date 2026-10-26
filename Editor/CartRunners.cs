@@ -83,7 +83,7 @@ namespace OneJS.Editor {
         /// <summary>Whether Set Up has something to do: the cart is not installed, or its move's cleanup has not run.</summary>
         public static bool NeedsSetUp(RootCarts.Cart cart) => !RootCarts.IsSetUp(cart) || AwaitsCleanup(cart);
 
-        // MARK: Commands
+        // Commands
 
         /// <summary>The npm arguments that run the cart's ojplay's Unity build into `outDir`.</summary>
         public static string BuildArguments(string outDir, bool watch, bool production) {
@@ -102,7 +102,7 @@ namespace OneJS.Editor {
             return "\"" + path + "\"";
         }
 
-        // MARK: Edit mode
+        // Edit mode
 
         /// <summary>
         /// Once a second in edit mode: every cart runner that is set up gets its watcher, and a
@@ -133,7 +133,7 @@ namespace OneJS.Editor {
             return NodeWatcherManager.StartWatcher(cart.FullPath, BuildArguments(outDir, watch: true, production: false));
         }
 
-        // MARK: Play mode
+        // Play mode
 
         static void OnPlayModeStateChanged(PlayModeStateChange state) {
             if (state != PlayModeStateChange.EnteredPlayMode) return;
@@ -169,7 +169,7 @@ namespace OneJS.Editor {
             }
         }
 
-        // MARK: Set Up and one-shot builds
+        // Set Up and one-shot builds
 
         /// <summary>
         /// Installs the cart's tooling: <c>ojplay init</c> when it has no package.json (init
@@ -292,7 +292,7 @@ namespace OneJS.Editor {
             }
         }
 
-        // MARK: Player builds
+        // Player builds
 
         /// <summary>How long a cart's production build may take.</summary>
         const int PlayerBuildTimeoutMs = 5 * 60 * 1000;
@@ -356,7 +356,7 @@ namespace OneJS.Editor {
             return string.Join("\n", lines.Skip(Math.Max(0, lines.Length - 40)));
         }
 
-        // MARK: files.json
+        // files.json
 
         [Serializable]
         class FilesJson {

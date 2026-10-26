@@ -723,7 +723,7 @@ namespace OneJS.Editor {
             AssetDatabase.Refresh();
         }
 
-        // MARK: The carts' copy is the build's alone
+        // The carts' copy is the build's alone
 
         /// <summary>Whether this session's cart commit made Assets/StreamingAssets, so its removal may take it too.</summary>
         static bool _madeStreamingAssets;

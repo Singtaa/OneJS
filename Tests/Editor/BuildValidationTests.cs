@@ -119,7 +119,7 @@ namespace OneJS.Tests.Editor {
             Assert.AreEqual(0, processor.callbackOrder);
         }
 
-        // MARK: Helper Methods
+        // Helper Methods
 
         void AddTestSceneToBuildSettings() {
             var scenes = EditorBuildSettings.scenes.ToList();

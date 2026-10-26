@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace OneJS {
     public static partial class QuickJSNative {
-        // MARK: Current Context (for delegate wrapper creation during dispatch)
+        // Current Context (for delegate wrapper creation during dispatch)
         [ThreadStatic]
         static IntPtr _currentContextPtr;
 
@@ -19,13 +19,13 @@ namespace OneJS {
         /// </summary>
         internal static IntPtr CurrentContextPtr => _currentContextPtr;
 
-        // MARK: Callback Delegates
+        // Callback Delegates
         static readonly CsLogCallback _logCallback = HandleLogFromJs;
         static readonly unsafe CsInvokeCallback _invokeCallback = DispatchFromJs;
         static readonly CsReleaseHandleCallback _releaseHandleCallback = HandleReleaseFromJs;
         static readonly CsFreeCallback _freeCallback = HandleFreeFromNative;
 
-        // MARK: Callback GC Roots
+        // Callback GC Roots
         static GCHandle _logCallbackHandle;
         static GCHandle _invokeCallbackHandle;
         static GCHandle _releaseCallbackHandle;
@@ -100,7 +100,7 @@ namespace OneJS {
             JsLog.Route(msg);
         }
 
-        // MARK: Dispatch errors
+        // Dispatch errors
         // The message travels to JS through errorMsg, which the native library
         // turns into the thrown error's text and the WebGL jslib throws
         // directly. Neither side frees it, so it lives in one static buffer
@@ -155,7 +155,7 @@ namespace OneJS {
             return cause;
         }
 
-        // MARK: Dispatch
+        // Dispatch
         static long _interopCallCount;
 
         /// <summary>
@@ -580,7 +580,7 @@ namespace OneJS {
             Fail(resPtr, summary, ex);
         }
 
-        // MARK: Return Value
+        // Return Value
         static unsafe void SetReturnValue(InteropInvokeResult* resPtr, object value) {
             resPtr->returnValue = default;
 
@@ -770,7 +770,7 @@ namespace OneJS {
             resPtr->returnValue.str = StringToUtf8($"{{\"__csTaskId\":{taskId}}}");
         }
 
-        // MARK: Task Result Extraction
+        // Task Result Extraction
         /// <summary>
         /// Extract result from a completed Task for direct return (not async).
         /// Returns null for void tasks or non-generic tasks.
@@ -806,7 +806,7 @@ namespace OneJS {
                 .Replace("\t", "\\t");
         }
 
-        // MARK: Value Conversion
+        // Value Conversion
         internal static object InteropValueToObject(InteropValue v) {
             switch (v.type) {
                 case InteropType.Null:
@@ -934,7 +934,7 @@ namespace OneJS {
             return v;
         }
 
-        // MARK: Array Conversion
+        // Array Conversion
         /// <summary>
         /// Convert JS array data to C# array based on type hint.
         /// </summary>

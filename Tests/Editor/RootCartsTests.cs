@@ -60,7 +60,7 @@ namespace OneJS.Tests.Editor {
             File.WriteAllText(path, text);
         }
 
-        // MARK: The scan
+        // The scan
 
         [Test]
         public void Scan_ReadsOneLevel_AndSkipsUnitysFoldersDotFoldersAndNodeModules() {
@@ -95,7 +95,7 @@ namespace OneJS.Tests.Editor {
                 "An unusable cart is never linked, even by its folder's name.");
         }
 
-        // MARK: The name link
+        // The name link
 
         [Test]
         public void Resolve_ComparesTheName_TrimmedAndIgnoringCase() {
@@ -141,7 +141,7 @@ namespace OneJS.Tests.Editor {
             Assert.Greater(RootCarts.CompareVersions("1.0.0-beta.1", "0.11.0"), 0);
         }
 
-        // MARK: files.json
+        // files.json
 
         static RootCarts.Cart TempCart(string root, string folder) =>
             new RootCarts.Cart { Name = folder, Folder = folder, FullPath = Path.Combine(root, folder) };
@@ -179,7 +179,7 @@ namespace OneJS.Tests.Editor {
             Assert.Throws<BuildFailedException>(() => CartRunners.ReadFiles(cart, Path.Combine(_temp, "c/files.json")));
         }
 
-        // MARK: A cart runner
+        // A cart runner
 
         JSRunner Runner(string cart, PanelSettings panelSettings = null) {
             var go = new GameObject("CartRunner");
@@ -254,7 +254,7 @@ namespace OneJS.Tests.Editor {
                 "Nothing is written beside the Panel Settings.");
         }
 
-        // MARK: Player build refusals
+        // Player build refusals
 
         static void BuildCart(JSRunner runner) {
             var method = typeof(JSRunnerBuildProcessor).GetMethod("BuildCart", BindingFlags.NonPublic | BindingFlags.Instance);

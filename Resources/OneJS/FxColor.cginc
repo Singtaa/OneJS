@@ -66,7 +66,7 @@ float3 onejsLevels(float3 c, float inBlack, float inWhite, float gamma, float ou
     return outBlack + t * (outWhite - outBlack);
 }
 
-// MARK: blend helpers
+// blend helpers
 
 float onejsBurn(float b, float s) { return s <= 0.0 ? 0.0 : 1.0 - min(1.0, (1.0 - b) / s); }
 float onejsDodge(float b, float s) { return s >= 1.0 ? 1.0 : min(1.0, b / (1.0 - s)); }
@@ -101,7 +101,7 @@ float3 onejsHardLight3(float3 b, float3 s)
                   s.b <= 0.5 ? mul.b : scr.b);
 }
 
-// MARK: non separable helpers, from the PDF blend spec
+// non separable helpers, from the PDF blend spec
 
 float3 onejsSetLum(float3 c, float l)
 {

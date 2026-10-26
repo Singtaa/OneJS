@@ -206,7 +206,7 @@ namespace OneJS {
             return new Resolution(name, Outcome.Missing, null, matches, RenamedFrom(name, carts));
         }
 
-        // MARK: Which folder last answered each name, on this machine
+        // Which folder last answered each name, on this machine
 
         /// <summary>
         /// The record that lets the inspector say a cart was renamed: name to folder, as
@@ -270,7 +270,7 @@ namespace OneJS {
             return now != null && now.Usable && !SameName(now.Name, name) ? now : null;
         }
 
-        // MARK: Paths and tooling
+        // Paths and tooling
 
         /// <summary>The editor build's folder for a cart: <c>Library/OneJS/Carts/&lt;folder&gt;</c>, full path.</summary>
         public static string EditorBuildDir(Cart cart) =>

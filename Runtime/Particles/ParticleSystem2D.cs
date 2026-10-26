@@ -28,7 +28,7 @@ namespace OneJS {
         const int MaxQuadsPerAlloc = 16000; // 4 verts/quad under the 65535 ushort limit
         const byte FlagStuck = 1;
 
-        // MARK: Particle state (SoA, capacity fixed at creation)
+        // Particle state (SoA, capacity fixed at creation)
         readonly float[] _posX, _posY, _velX, _velY, _life, _lifetime, _size, _aspect, _rot, _angVel;
         readonly int[] _emitterIdx;
         readonly byte[] _tintIdx;    // index into the emitter's tintPalette
@@ -78,7 +78,7 @@ namespace OneJS {
         /// </summary>
         internal int OwnerContextId { get; set; }
 
-        // MARK: Shared resources (lazy statics; recreated after domain reload)
+        // Shared resources (lazy statics; recreated after domain reload)
 
         static Material s_Material;
         static bool s_MaterialResolved;
@@ -133,7 +133,7 @@ namespace OneJS {
             return cached;
         }
 
-        // MARK: Lifecycle
+        // Lifecycle
 
         internal ParticleSystem2D(VisualElement ve, ParticleWireDoc doc, Texture2D texture) {
             _ve = ve;
@@ -205,7 +205,7 @@ namespace OneJS {
                 _ve.MarkDirtyRepaint();
         }
 
-        // MARK: JS-facing imperative API (each call is a single interop crossing)
+        // JS-facing imperative API (each call is a single interop crossing)
 
         public void SetEmitterPos(int index, float x, float y) {
             var e = GetEmitter(index);
@@ -317,7 +317,7 @@ namespace OneJS {
             }
         }
 
-        // MARK: Simulation
+        // Simulation
 
         /// <summary>
         /// Advances the simulation by dt seconds and requests a repaint while
@@ -584,7 +584,7 @@ namespace OneJS {
             }
         }
 
-        // MARK: Rendering
+        // Rendering
 
         void OnGenerateVisualContent(MeshGenerationContext mgc) {
             if (_disposed || _alive == 0) return;

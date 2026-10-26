@@ -132,7 +132,7 @@ namespace OneJS.ShaderFX {
                 string.IsNullOrEmpty(_el.name) ? $"the element drawing {Drawing}" : $"the element \"{_el.name}\" drawing {Drawing}";
         }
 
-        // MARK: JS-facing API (each call is a single interop crossing), the pass's
+        // JS-facing API (each call is a single interop crossing), the pass's
 
         /// <summary>Shader to run, e.g. "OneJS/Fire". Resolved through Resources so it survives builds.</summary>
         public void SetShader(string shaderName) => _pass.SetShader(shaderName);

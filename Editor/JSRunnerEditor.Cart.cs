@@ -61,7 +61,7 @@ namespace OneJS.Editor {
             _root.Bind(serializedObject);
         }
 
-        // MARK: The cart inspector
+        // The cart inspector
 
         void BuildCartInspector(VisualElement root) {
             _activeTab = Mathf.Clamp(EditorPrefs.GetInt(CartTabPrefKey, 0), 0, 2);
@@ -218,7 +218,7 @@ namespace OneJS.Editor {
             container.Add(row);
         }
 
-        // MARK: The picker
+        // The picker
 
         /// <summary>The Cart field: a menu of what the scan found, each name with its folder.</summary>
         VisualElement CreateCartPickerRow() {
@@ -329,7 +329,7 @@ namespace OneJS.Editor {
             if (offer) UpdateCartPicker();
         }
 
-        // MARK: Status
+        // Status
 
         void UpdateCartUI() {
             if (_cartStatusLabel == null) return;
@@ -475,7 +475,7 @@ namespace OneJS.Editor {
             });
         }
 
-        // MARK: Small helpers
+        // Small helpers
 
         static Label SmallLabel() {
             var label = new Label();

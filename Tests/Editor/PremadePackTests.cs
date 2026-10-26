@@ -61,7 +61,7 @@ namespace OneJS.Tests.Editor {
             return c;
         }
 
-        // MARK: metadata
+        // metadata
 
         [Test]
         public void AtLeastOnePremadePackExists() {
@@ -111,7 +111,7 @@ namespace OneJS.Tests.Editor {
             }
         }
 
-        // MARK: payload
+        // payload
 
         [Test]
         public void Files_AllResolveToNonEmptyContent([ValueSource(nameof(PackPaths))] string path) {
@@ -148,7 +148,7 @@ namespace OneJS.Tests.Editor {
             }
         }
 
-        // MARK: extraction round-trip
+        // extraction round-trip
 
         [Test]
         public void Extract_WritesEveryDeclaredFileVerbatim([ValueSource(nameof(PackPaths))] string path) {

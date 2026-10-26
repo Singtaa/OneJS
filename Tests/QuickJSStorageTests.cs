@@ -72,7 +72,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Existence Tests
+        // Existence Tests
 
         [UnityTest]
         public IEnumerator LocalStorage_GlobalExists() {
@@ -116,7 +116,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Basic Operations
+        // Basic Operations
 
         [UnityTest]
         public IEnumerator LocalStorage_SetAndGetItem_Works() {
@@ -160,7 +160,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Value Type Handling
+        // Value Type Handling
 
         [UnityTest]
         public IEnumerator LocalStorage_SetItem_ConvertsNumberToString() {
@@ -201,7 +201,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Multiple Keys
+        // Multiple Keys
 
         [UnityTest]
         public IEnumerator LocalStorage_MultipleKeys_Independent() {
@@ -216,7 +216,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Persistence (via PlayerPrefs)
+        // Persistence (via PlayerPrefs)
 
         [UnityTest]
         public IEnumerator LocalStorage_Persists_ToPlayerPrefs_UnderItsPrefix() {
@@ -237,7 +237,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: API Completeness
+        // API Completeness
 
         [UnityTest]
         public IEnumerator LocalStorage_KeyAndLength_CountWhatItStored() {
@@ -249,7 +249,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: SessionStorage
+        // SessionStorage
 
         [UnityTest]
         public IEnumerator SessionStorage_SetAndGetItem_Works() {

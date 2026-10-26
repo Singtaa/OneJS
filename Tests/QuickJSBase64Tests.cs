@@ -50,7 +50,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Existence Tests
+        // Existence Tests
 
         [UnityTest]
         public IEnumerator Btoa_GlobalExists() {
@@ -66,7 +66,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: btoa Tests
+        // btoa Tests
 
         [UnityTest]
         public IEnumerator Btoa_EmptyString_Works() {
@@ -161,7 +161,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: atob Tests
+        // atob Tests
 
         [UnityTest]
         public IEnumerator Atob_EmptyString_Works() {
@@ -255,7 +255,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Round-trip Tests
+        // Round-trip Tests
 
         [UnityTest]
         public IEnumerator RoundTrip_SimpleString_Works() {
@@ -297,7 +297,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Practical Use Cases
+        // Practical Use Cases
 
         [UnityTest]
         public IEnumerator Base64_JsonRoundTrip_Works() {

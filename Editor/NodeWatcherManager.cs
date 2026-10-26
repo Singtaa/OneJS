@@ -71,7 +71,7 @@ namespace OneJS.Editor {
             }
         }
 
-        // MARK: Public API
+        // Public API
 
         /// <summary>
         /// Check if a watcher is running for the given working directory.
@@ -303,7 +303,7 @@ namespace OneJS.Editor {
             _outputPendingCount.Clear();
         }
 
-        // MARK: Internal
+        // Internal
 
         static string GetKey(string workingDir) {
             // Use a hash of the path to create a valid EditorPrefs key
@@ -363,7 +363,7 @@ namespace OneJS.Editor {
             StopAll();
         }
 
-        // MARK: npm Resolution
+        // npm Resolution
 
         static string _cachedNpmPath;
 

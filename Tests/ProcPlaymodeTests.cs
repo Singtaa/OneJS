@@ -201,7 +201,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Perlin Noise Tests
+        // Perlin Noise Tests
 
         [UnityTest]
         public IEnumerator PerlinNoise_ReturnsNumberInValidRange() {
@@ -317,7 +317,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Value Noise Tests
+        // Value Noise Tests
 
         [UnityTest]
         public IEnumerator ValueNoise_ReturnsValuesInZeroToOneRange() {
@@ -370,7 +370,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: FBM Tests
+        // FBM Tests
 
         [UnityTest]
         public IEnumerator FBM_CombinesOctavesCorrectly() {
@@ -423,7 +423,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Smoothness/Continuity Tests
+        // Smoothness/Continuity Tests
 
         [UnityTest]
         public IEnumerator PerlinNoise_IsContinuous() {
@@ -600,7 +600,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Color Map Tests
+        // Color Map Tests
 
         [UnityTest]
         public IEnumerator Grayscale_ReturnsCorrectValues() {
@@ -657,7 +657,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Checkerboard Tests
+        // Checkerboard Tests
 
         [UnityTest]
         public IEnumerator Checkerboard_GeneratesCorrectDimensions() {
@@ -734,7 +734,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Gradient Tests
+        // Gradient Tests
 
         [UnityTest]
         public IEnumerator Gradient_Horizontal_LeftDarkRightLight() {
@@ -808,7 +808,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: RGBA Format Tests
+        // RGBA Format Tests
 
         [UnityTest]
         public IEnumerator TextureData_HasValidRGBAFormat() {

@@ -6,7 +6,7 @@ using UnityEngine;
 using UnityEngine.TestTools;
 
 namespace OneJS.Tests {
-    // MARK: Fixtures for JS -> C# delegate assignment
+    // Fixtures for JS -> C# delegate assignment
     public static class CallbackBindingFixture {
         public static Action OnPing;
         public static Action<int> OnScore;
@@ -50,7 +50,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Func delegate wrappers (JS returns a value to C#)
+        // Func delegate wrappers (JS returns a value to C#)
 
         [UnityTest]
         public IEnumerator FuncDelegate_IntReturn_MarshalsBack() {
@@ -85,7 +85,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: InvokeCallback return values
+        // InvokeCallback return values
 
         [UnityTest]
         public IEnumerator InvokeCallback_ArrayReturn_MarshalsAsArray() {
@@ -125,7 +125,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Stale handle safety
+        // Stale handle safety
 
         [UnityTest]
         public IEnumerator StaleHandle_FromDisposedContext_FailsLoudlyOnNewContext() {
@@ -159,7 +159,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: GetJSFunction
+        // GetJSFunction
 
         [UnityTest]
         public IEnumerator GetJSFunction_FuncWithArgs_CallsAndReturns() {

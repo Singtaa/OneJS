@@ -127,7 +127,7 @@ namespace OneJS.Models {
         /// <summary>The camera the scene draws through. Null before BeginScene.</summary>
         public static Camera SceneCamera => _camera;
 
-        // MARK: Models
+        // Models
 
         /// <summary>
         /// Loads a .glb or .gltf from a URL or a file path and keeps it as an inactive template.
@@ -188,7 +188,7 @@ namespace OneJS.Models {
         /// <summary>The model's height in its own units, for placing a label above it.</summary>
         public static float Height(int model) => _models.TryGetValue(model, out var m) ? m.bounds.size.y : 0;
 
-        // MARK: Actors
+        // Actors
 
         /// <summary>A copy of a model in the world. Returns the actor's handle.</summary>
         public static int Spawn(int model, float x, float y, float z, float yaw, float scale, bool castShadows, bool receiveShadows) {
@@ -293,7 +293,7 @@ namespace OneJS.Models {
 
         internal static GameObject ActorObject(int actor) => _actors.TryGetValue(actor, out var a) ? a.go : null;
 
-        // MARK: Screen
+        // Screen
 
         /// <summary>
         /// Where a point `lift` units above the actor lands in `element`, in its own coordinates:
@@ -326,7 +326,7 @@ namespace OneJS.Models {
             return 0;
         }
 
-        // MARK: Stage
+        // Stage
 
         /// <summary>
         /// Makes the camera the scene draws through, above every other. In play mode the cameras

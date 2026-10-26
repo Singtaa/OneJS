@@ -208,7 +208,7 @@ namespace OneJS.Tests.Editor {
             Assert.IsFalse(File.Exists(InWorkingDir("index.tsx")), "The second runner brought back a file the first had already given the folder.");
         }
 
-        // MARK: Restore and status
+        // Restore and status
 
         /// <summary>A OneJS template's text, from a fresh runner's list.</summary>
         string TemplateText(string path) {

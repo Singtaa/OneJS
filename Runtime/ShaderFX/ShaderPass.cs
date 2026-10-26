@@ -81,7 +81,7 @@ namespace OneJS.ShaderFX {
             if (standalone) ShaderEffectBridge.RegisterPass(this);
         }
 
-        // MARK: what an element changes
+        // what an element changes
 
         /// <summary>
         /// The size this draws at with no resolution set: for a pass, the
@@ -146,7 +146,7 @@ namespace OneJS.ShaderFX {
         /// <summary>Whether a resolution is set, rather than taken from the layout or a reader.</summary>
         protected bool HasResolution => _resW > 0 && _resH > 0;
 
-        // MARK: JS-facing API (each call is a single interop crossing)
+        // JS-facing API (each call is a single interop crossing)
 
         /// <summary>Shader to run, e.g. "OneJS/Fire". Resolved through Resources so it survives builds.</summary>
         public void SetShader(string shaderName) {
@@ -502,7 +502,7 @@ namespace OneJS.ShaderFX {
             return HasResolution;
         }
 
-        // MARK: frame
+        // frame
 
         /// <summary>Advances the clock by `dt` and draws, after the passes this reads.</summary>
         internal void Tick(float dt) {

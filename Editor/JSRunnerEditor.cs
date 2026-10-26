@@ -197,7 +197,7 @@ namespace OneJS.Editor {
             return content;
         }
 
-        // MARK: Panel Settings (above tabs)
+        // Panel Settings (above tabs)
 
         VisualElement CreatePanelSettingsSection() {
             var section = new VisualElement();
@@ -213,7 +213,7 @@ namespace OneJS.Editor {
             return section;
         }
 
-        // MARK: Tab System
+        // Tab System
 
         VisualElement CreateTabBar() {
             var container = new VisualElement();
@@ -309,7 +309,7 @@ namespace OneJS.Editor {
             }
         }
 
-        // MARK: Tab Content Builders
+        // Tab Content Builders
 
         void BuildProjectTab(VisualElement container) {
             // Tick Mode
@@ -630,7 +630,7 @@ namespace OneJS.Editor {
             container.Add(bulkRow);
         }
 
-        // MARK: Section Helpers
+        // Section Helpers
 
         void AddSectionHeader(VisualElement container, string title) {
             var header = new Label(title);
@@ -647,7 +647,7 @@ namespace OneJS.Editor {
             container.Add(spacer);
         }
 
-        // MARK: Hand Built Lists
+        // Hand Built Lists
 
         /// <summary>
         /// Asks before a destructive list change. A field rather than a direct
@@ -707,7 +707,7 @@ namespace OneJS.Editor {
             return -1;
         }
 
-        // MARK: List Management (Stylesheets, Preloads, Globals)
+        // List Management (Stylesheets, Preloads, Globals)
 
         void RebuildStylesheetsList() {
             if (_stylesheetsListContainer == null) return;
@@ -899,7 +899,7 @@ namespace OneJS.Editor {
             return row;
         }
 
-        // MARK: Default Files Management
+        // Default Files Management
 
         void RebuildDefaultFilesList() {
             if (_defaultFilesListContainer == null) return;
@@ -1026,7 +1026,7 @@ namespace OneJS.Editor {
             RebuildDefaultFilesList();
         }
 
-        // MARK: Pack Management
+        // Pack Management
 
         void RebuildPackList() {
             if (_packListContainer == null) return;
@@ -1430,7 +1430,7 @@ namespace OneJS.Editor {
             RebuildPackList();
         }
 
-        // MARK: Status Section
+        // Status Section
 
         VisualElement CreateStatusSection() {
             var container = CreateStyledBox();
@@ -1573,7 +1573,7 @@ namespace OneJS.Editor {
             return container;
         }
 
-        // MARK: Actions Section
+        // Actions Section
 
         VisualElement CreateActionsSection() {
             var container = new VisualElement { style = { marginTop = 12, marginBottom = 10 } };
@@ -1636,7 +1636,7 @@ namespace OneJS.Editor {
             return container;
         }
 
-        // MARK: UI Helpers
+        // UI Helpers
 
         VisualElement CreateStyledBox() {
             var box = new VisualElement();
@@ -1716,7 +1716,7 @@ namespace OneJS.Editor {
             return time.ToString("MMM d, HH:mm");
         }
 
-        // MARK: Type Generation
+        // Type Generation
 
         void GenerateTypings() {
             if (TypeGeneratorService.GenerateTypingsFor(_target, silent: false)) {
@@ -1759,7 +1759,7 @@ namespace OneJS.Editor {
             }
         }
 
-        // MARK: Dynamic UI Updates
+        // Dynamic UI Updates
 
         void UpdateDynamicUI() {
             if (_target == null) return;
@@ -1922,7 +1922,7 @@ namespace OneJS.Editor {
             }
         }
 
-        // MARK: Build
+        // Build
 
         void RunNpmCommand(string workingDir, string arguments, Action onSuccess, Action<int> onFailure) {
             try {
@@ -2040,7 +2040,7 @@ namespace OneJS.Editor {
             if (missing != null) Debug.LogWarning(missing, _target);
         }
 
-        // MARK: npm Resolution
+        // npm Resolution
 
         string _cachedNpmPath;
 
@@ -2095,7 +2095,7 @@ namespace OneJS.Editor {
 #endif
         }
 
-        // MARK: Utilities
+        // Utilities
 
         void RunRemovePanelSettings() {
             serializedObject.Update();
@@ -2352,7 +2352,7 @@ namespace OneJS.Editor {
 #endif
     }
 
-    // MARK: Style Extensions
+    // Style Extensions
 
     static class StyleExtensions {
         public static void SetBorderWidth(this IStyle style, float width) {

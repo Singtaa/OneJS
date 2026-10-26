@@ -103,7 +103,7 @@ namespace OneJS.Tests {
             }
         }
 
-        // MARK: Teardown Robustness
+        // Teardown Robustness
 
         /// <summary>True where an open handle actually blocks a delete.</summary>
         static bool MandatoryFileLocking =>
@@ -175,7 +175,7 @@ namespace OneJS.Tests {
             Assert.DoesNotThrow(() => DeleteDirectoryWithRetry(dir));
         }
 
-        // MARK: Path Globals Tests
+        // Path Globals Tests
 
         [UnityTest]
         public IEnumerator PathGlobals_PersistentDataPath_Exists() {
@@ -219,7 +219,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Function Existence Tests
+        // Function Existence Tests
 
         [UnityTest]
         public IEnumerator ReadTextFile_FunctionExists() {
@@ -263,7 +263,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: FileExists Tests
+        // FileExists Tests
 
         [UnityTest]
         public IEnumerator FileExists_ReturnsFalse_ForNonexistent() {
@@ -283,7 +283,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: DirectoryExists Tests
+        // DirectoryExists Tests
 
         [UnityTest]
         public IEnumerator DirectoryExists_ReturnsFalse_ForNonexistent() {
@@ -301,7 +301,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: ReadTextFile Tests (Async)
+        // ReadTextFile Tests (Async)
 
         [UnityTest]
         public IEnumerator ReadTextFile_ReadsContent_Successfully() {
@@ -354,7 +354,7 @@ namespace OneJS.Tests {
                 $"Expected the await to throw for a non-existent file. result={result}");
         }
 
-        // MARK: WriteTextFile Tests (Async)
+        // WriteTextFile Tests (Async)
 
         [UnityTest]
         public IEnumerator WriteTextFile_WritesContent_Successfully() {
@@ -397,7 +397,7 @@ namespace OneJS.Tests {
             Assert.IsTrue(File.Exists(testPath), "File should exist in nested directory");
         }
 
-        // MARK: DeleteFile Tests
+        // DeleteFile Tests
 
         [UnityTest]
         public IEnumerator DeleteFile_ReturnsTrue_WhenDeleted() {
@@ -419,7 +419,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: ListFiles Tests
+        // ListFiles Tests
 
         [UnityTest]
         public IEnumerator ListFiles_ReturnsEmptyArray_ForEmptyDir() {
@@ -477,7 +477,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Integration Test, USS Loading from File
+        // Integration Test, USS Loading from File
 
         [UnityTest]
         public IEnumerator Integration_LoadUssFromFile_Works() {
@@ -505,7 +505,7 @@ namespace OneJS.Tests {
             Assert.AreEqual("true", removed);
         }
 
-        // MARK: System.IO Overloads
+        // System.IO Overloads
 
         // The System.IO overloads unity-types declares for app code
         // (Singtaa/OneJS#134), called from JS through the bridge, so a declaration

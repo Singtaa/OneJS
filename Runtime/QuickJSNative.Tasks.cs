@@ -42,7 +42,7 @@ namespace OneJS {
             public string ErrorMessage; // Error message if failed
         }
 
-        // MARK: Context Ownership
+        // Context Ownership
         //
         // Ownership is recorded as a small integer id rather than as a QuickJSContext
         // reference or a native pointer, for two reasons:
@@ -116,7 +116,7 @@ namespace OneJS {
             }
         }
 
-        // MARK: Task Registration
+        // Task Registration
         /// <summary>
         /// Register a Task for async completion tracking, owned by the given context.
         /// Returns a unique taskId that JS uses to create a pending Promise.
@@ -193,7 +193,7 @@ namespace OneJS {
             return false;
         }
 
-        // MARK: Completion Dispatch
+        // Completion Dispatch
         /// <summary>
         /// Process completed tasks owned by this context and invoke their JS callbacks.
         /// Call this from QuickJSUIBridge.Tick() on the main thread.
@@ -320,7 +320,7 @@ namespace OneJS {
             return $"{{ \"__csHandle\": {handle}, \"__csType\": \"{typeName}\" }}";
         }
 
-        // MARK: Queue Maintenance
+        // Queue Maintenance
         /// <summary>
         /// Clear all pending tasks, for every context. Call when the last context goes away.
         /// To retire one context's completions, use DiscardCompletionsForContext.

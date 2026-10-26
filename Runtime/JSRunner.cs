@@ -822,7 +822,7 @@ namespace OneJS {
             return $"its folder '{dir.Replace('\\', '/')}' holds no ~ working directory and no app.js.txt";
         }
 
-        // MARK: Root carts
+        // Root carts
 
         /// <summary>The root cart this runner's name resolves to, or null: no cart set, none by that name, or two.</summary>
         public RootCarts.Cart CartFolder => IsCart ? RootCarts.Resolve(_cart).Cart : null;
@@ -1669,7 +1669,7 @@ namespace OneJS {
             }
         }
 
-        // MARK: Edit-Mode Preview
+        // Edit-Mode Preview
 
         void OnPlayModeStateChanged(UnityEditor.PlayModeStateChange state) {
             switch (state) {
@@ -1992,7 +1992,7 @@ namespace OneJS {
 #endif
         }
 
-        // MARK: Build-specific code (non-Editor)
+        // Build-specific code (non-Editor)
 #if !UNITY_EDITOR
         void InitializeBuild() {
             InitializeBridge();

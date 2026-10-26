@@ -30,7 +30,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Correctness Tests
+        // Correctness Tests
 
         [UnityTest]
         public IEnumerator FastPath_Count_GreaterThanZero() {
@@ -131,7 +131,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Fast Constructor Tests
+        // Fast Constructor Tests
         // `new CS.UnityEngine.Vector2/3/4/Color/Quaternion(...)` build via the
         // zero-alloc ctor fast path. Returns surface as {x,y,z(,w)} in JS, matching
         // the reflection ctor path exactly.
@@ -281,7 +281,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: NodeBridge Tests
+        // NodeBridge Tests
         // Zero-alloc tree wiring by element handle, type-agnostic across element types.
 
         [UnityTest]
@@ -355,7 +355,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: StyleBridge Tests
+        // StyleBridge Tests
         // The batched style application uses direct typed setters for the common
         // properties (fast path) and reflection for the long tail (fallback).
 
@@ -424,7 +424,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Allocation Tests
+        // Allocation Tests
 
         /// <summary>
         /// Managed bytes per fast-path call, counted by Unity's "GC Allocated In
@@ -531,7 +531,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Performance Tests
+        // Performance Tests
 
         [UnityTest]
         public IEnumerator Performance_TransformPropertyAccess_ReasonableTime() {

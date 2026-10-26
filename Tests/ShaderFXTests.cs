@@ -31,7 +31,7 @@ namespace OneJS.Tests {
         // the panel-backed tests opt out of log failures individually. It is not set
         // in a [SetUp]: the LogAssert.Expect tests below need failures left on.
 
-        // MARK: Render target lifecycle
+        // Render target lifecycle
 
         [UnityTest]
         public IEnumerator Layout_PaintsOnFirstRectWithoutWaitingForATick() {
@@ -113,7 +113,7 @@ namespace OneJS.Tests {
             ph.Destroy();
         }
 
-        // MARK: Uniform marshalling
+        // Uniform marshalling
         // SetVectorArray takes object rather than float[] on purpose: a JS array
         // arrives as the {__csArray, __csArrayType} marker, which does not bind to a
         // float[] parameter and makes the method invisible to reflection entirely
@@ -137,7 +137,7 @@ namespace OneJS.Tests {
             fx.Dispose();
         }
 
-        // MARK: Shared resources
+        // Shared resources
         // These are all uploaded with Apply(makeNoLongerReadable: true), so there is no
         // CPU copy to read back: the assertions are about identity, caching and shape
         // rather than texels. Ramp and noise *content* is exercised end to end by the

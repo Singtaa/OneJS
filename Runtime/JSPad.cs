@@ -712,7 +712,7 @@ namespace OneJS {
             return Uri.UnescapeDataString(relativeUri.ToString());
         }
 
-        // MARK: ISerializationCallbackReceiver
+        // ISerializationCallbackReceiver
 
         public void OnBeforeSerialize() {
             // Ensure embedded PanelSettings exists before serialization
@@ -723,7 +723,7 @@ namespace OneJS {
             // Nothing needed here: PanelSettings will be deserialized automatically
         }
 
-        // MARK: Editor callbacks
+        // Editor callbacks
 
 #if UNITY_EDITOR
         void Reset() {

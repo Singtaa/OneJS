@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace OneJS {
     public static partial class QuickJSNative {
-        // MARK: Hash Utils
+        // Hash Utils
         /// <summary>
         /// Compute hash from UTF8 string pointer WITHOUT allocating a managed string.
         /// </summary>
@@ -38,13 +38,13 @@ namespace OneJS {
             return hash;
         }
 
-        // MARK: Delegate Types
+        // Delegate Types
         unsafe delegate void FastInstanceHandler(object target, InteropValue* args, int argCount,
             InteropValue* result);
 
         unsafe delegate void FastStaticHandler(InteropValue* args, int argCount, InteropValue* result);
 
-        // MARK: Struct Handler Delegates
+        // Struct Handler Delegates
         unsafe delegate void StructPackerRaw(object value, InteropValue* result);
         unsafe delegate object StructUnpackerRaw(InteropValue* source);
         delegate object DictConverterRaw(Dictionary<string, object> dict);
@@ -53,7 +53,7 @@ namespace OneJS {
         public unsafe delegate void StructUnpacker<T>(InteropValue* source, out T value) where T : struct;
         public delegate T DictConverter<T>(Dictionary<string, object> dict) where T : struct;
 
-        // MARK: Registry
+        // Registry
         static readonly Dictionary<Type, Delegate> _structPackers = new();
         static readonly Dictionary<Type, Delegate> _structUnpackers = new();
         static readonly Dictionary<Type, Delegate> _dictConverters = new();
@@ -72,7 +72,7 @@ namespace OneJS {
 
         static bool _fastPathInitialized;
 
-        // MARK: Public API
+        // Public API
         public static class FastPath {
             /// <summary>
             /// Register an instance property (getter and/or setter).
@@ -348,7 +348,7 @@ namespace OneJS {
                 }
             }
 
-            // MARK: Static methods by type name (for static classes that can't be type arguments)
+            // Static methods by type name (for static classes that can't be type arguments)
 
             /// <summary>
             /// Register a static method with 1 argument using explicit type name (for static classes).
@@ -461,7 +461,7 @@ namespace OneJS {
                 }
             }
 
-            // MARK: Struct Registration
+            // Struct Registration
             public static unsafe void Struct<T>(
                 StructPacker<T> pack,
                 StructUnpacker<T> unpack = null,
@@ -620,7 +620,7 @@ namespace OneJS {
             public static int StructCount => _structPackers.Count;
         }
 
-        // MARK: Static Type Cache
+        // Static Type Cache
         static void CacheStaticTypeHash(Type type) {
             // Cache mapping from typeName hash -> Type for static lookups
             var fullName = type.FullName;
@@ -644,7 +644,7 @@ namespace OneJS {
             }
         }
 
-        // MARK: Init
+        // Init
         static void EnsureFastPathInitialized() {
             if (_fastPathInitialized) return;
             _fastPathInitialized = true;
@@ -768,7 +768,7 @@ namespace OneJS {
             RegisterFastConstructors();
         }
 
-        // MARK: Zero-Alloc Lookup
+        // Zero-Alloc Lookup
 
         // Use long key instead of struct to avoid potential boxing in Dictionary
         static readonly Dictionary<long, Delegate> _fastPathRegistryLong = new();
@@ -862,7 +862,7 @@ namespace OneJS {
             return true;
         }
 
-        // MARK: Fast Constructors
+        // Fast Constructors
         //
         // `new CS.UnityEngine.Vector2(x, y)` etc. otherwise hit the reflection ctor
         // path (GetConstructors + GetParameters + ConvertToTargetType + ctor.Invoke,
@@ -976,7 +976,7 @@ namespace OneJS {
             result->typeHint = StringToUtf8(type.FullName);
         }
 
-        // MARK: Read/Write
+        // Read/Write
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static unsafe void WriteToInterop<T>(T value, InteropValue* result) {
             *result = default; // Clear entire struct (matches SetReturnValue behavior)

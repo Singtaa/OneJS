@@ -48,7 +48,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: API Existence Tests
+        // API Existence Tests
 
         [UnityTest]
         public IEnumerator WebSocket_GlobalExists() {
@@ -74,7 +74,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Constructor Tests
+        // Constructor Tests
 
         [UnityTest]
         public IEnumerator WebSocket_Constructor_SetsUrl() {
@@ -116,7 +116,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Connection Lifecycle Tests
+        // Connection Lifecycle Tests
 
         [UnityTest]
         public IEnumerator WebSocket_Connect_FiresOnOpen() {
@@ -190,7 +190,7 @@ namespace OneJS.Tests {
             Assert.IsTrue(resultJson.Contains("\"wasClean\":true"), $"Expected wasClean:true, got: {resultJson}");
         }
 
-        // MARK: Echo Tests
+        // Echo Tests
 
         [UnityTest]
         public IEnumerator WebSocket_SendAndReceive_EchoWorks() {
@@ -264,7 +264,7 @@ namespace OneJS.Tests {
             Assert.IsTrue(resultJson.Contains("\"value\":42"), $"Expected value:42, got: {resultJson}");
         }
 
-        // MARK: addEventListener Tests
+        // addEventListener Tests
 
         [UnityTest]
         public IEnumerator WebSocket_AddEventListener_Works() {
@@ -298,7 +298,7 @@ namespace OneJS.Tests {
             Assert.IsTrue(resultJson.Contains("\"opened\":true"), $"Expected opened:true, got: {resultJson}");
         }
 
-        // MARK: Error Handling Tests
+        // Error Handling Tests
 
         [UnityTest]
         public IEnumerator WebSocket_InvalidUrl_FiresErrorAndClose() {
@@ -333,7 +333,7 @@ namespace OneJS.Tests {
             Assert.IsTrue(resultJson.Contains("\"code\":1006"), $"Expected code:1006, got: {resultJson}");
         }
 
-        // MARK: Binary Frame Tests
+        // Binary Frame Tests
 
         [UnityTest]
         public IEnumerator WebSocket_BinaryType_DefaultsToArrayBuffer() {
@@ -383,7 +383,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Multiple Connections Test
+        // Multiple Connections Test
 
         [UnityTest]
         public IEnumerator WebSocket_MultipleConnections_WorkIndependently() {
@@ -421,7 +421,7 @@ namespace OneJS.Tests {
             Assert.IsTrue(resultJson.Contains("\"count\":2"), $"Expected count:2, got: {resultJson}");
         }
 
-        // MARK: Protocol Tests
+        // Protocol Tests
 
         [UnityTest]
         public IEnumerator WebSocket_Protocol_SetAfterOpen() {
@@ -458,7 +458,7 @@ namespace OneJS.Tests {
             Assert.IsTrue(resultJson.Contains("\"protocolIsString\":true"), $"Expected protocol to be a string after open, got: {resultJson}");
         }
 
-        // MARK: Instance Constants Tests
+        // Instance Constants Tests
 
         [UnityTest]
         public IEnumerator WebSocket_InstanceConstants_Accessible() {
@@ -480,7 +480,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: EventTarget Tests
+        // EventTarget Tests
 
         [UnityTest]
         public IEnumerator WebSocket_EventTarget_HasTargetProperty() {
@@ -542,7 +542,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: TypedArray Subview Tests
+        // TypedArray Subview Tests
 
         [UnityTest]
         public IEnumerator WebSocket_TypedArraySubview_SlicesCorrectly() {
@@ -559,7 +559,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Per-Context Isolation Tests
+        // Per-Context Isolation Tests
 
         [UnityTest]
         public IEnumerator WebSocket_PerContext_EventIsolation() {
@@ -574,7 +574,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Cleanup Tests
+        // Cleanup Tests
 
         [UnityTest]
         public IEnumerator WebSocket_Dispose_ClosesAllConnections() {

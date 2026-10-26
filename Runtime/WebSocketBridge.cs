@@ -225,7 +225,7 @@ namespace OneJS {
             }
         }
 
-        // MARK: Background Async
+        // Background Async
 
         /// <summary>
         /// Enqueue an event to the correct per-context queue.
@@ -362,7 +362,7 @@ namespace OneJS {
             }
         }
 
-        // MARK: JS Dispatch
+        // JS Dispatch
 
         static void DispatchToJs(QuickJSContext ctx, WebSocketEvent evt) {
             string dataEscaped = EscapeJsString(evt.Data ?? "");

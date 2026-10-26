@@ -77,7 +77,7 @@ namespace OneJS.Fx {
         const int ModeVector = 1;
         const int ModeTexture = 2;
 
-        // MARK: handles
+        // handles
 
         static readonly Dictionary<int, Texture> s_Textures = new Dictionary<int, Texture>();
         static readonly HashSet<int> s_Pooled = new HashSet<int>();
@@ -139,7 +139,7 @@ namespace OneJS.Fx {
             if (s_Pooled.Remove(handle) && t is RenderTexture rt) ReturnToPool(rt);
         }
 
-        // MARK: render target pool
+        // render target pool
 
         // Keyed by size, since every target this module makes has the same
         // format. Intermediates are borrowed and returned rather than allocated
@@ -188,7 +188,7 @@ namespace OneJS.Fx {
             stack.Push(rt);
         }
 
-        // MARK: execution
+        // execution
 
         static Material s_Material;
         static readonly Vector4[] s_Ops = new Vector4[MaxFusedOps];
@@ -760,7 +760,7 @@ namespace OneJS.Fx {
             return dst;
         }
 
-        // MARK: teardown
+        // teardown
 
         static readonly List<int> s_Doomed = new List<int>();
 

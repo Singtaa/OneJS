@@ -221,7 +221,7 @@ namespace OneJS.Editor {
             }
         }
 
-        // MARK: npm Resolution (same as NodeWatcherManager)
+        // npm Resolution (same as NodeWatcherManager)
 
         static string _cachedNpmPath;
 

@@ -40,7 +40,7 @@ namespace OneJS.Tests.Editor {
             }
         }
 
-        // MARK: EscapeJsString Tests
+        // EscapeJsString Tests
 
         [Test]
         public void EscapeJsString_NullInput_ReturnsNull() {
@@ -90,7 +90,7 @@ namespace OneJS.Tests.Editor {
             Assert.AreEqual("it\\'s a\\\\path\\nwith\\rmixed", result);
         }
 
-        // MARK: Pack.RelativePath Tests
+        // Pack.RelativePath Tests
 
         [Test]
         public void RelativePath_WithoutNamespace_ReturnsSlug() {
@@ -121,7 +121,7 @@ namespace OneJS.Tests.Editor {
             Object.DestroyImmediate(pack);
         }
 
-        // MARK: GetPackPath Tests
+        // GetPackPath Tests
 
         [Test]
         public void GetPackPath_NullBaseDir_ReturnsNull() {
@@ -228,7 +228,7 @@ namespace OneJS.Tests.Editor {
             Object.DestroyImmediate(pack);
         }
 
-        // MARK: ExtractPacks Tests
+        // ExtractPacks Tests
 
         [Test]
         public void ExtractPacks_NullPacks_DoesNotThrow() {
@@ -362,7 +362,7 @@ namespace OneJS.Tests.Editor {
             Object.DestroyImmediate(validPack);
         }
 
-        // MARK: ApplyStylesheets Tests
+        // ApplyStylesheets Tests
 
         [Test]
         public void ApplyStylesheets_NullStylesheets_DoesNotThrow() {
@@ -470,7 +470,7 @@ namespace OneJS.Tests.Editor {
             Object.DestroyImmediate(cartWithoutNs);
         }
 
-        // MARK: ExtractPacks Return Value Tests
+        // ExtractPacks Return Value Tests
 
         [Test]
         public void ExtractPacks_ReturnsCreatedFilePaths() {
@@ -515,7 +515,7 @@ namespace OneJS.Tests.Editor {
             Assert.AreEqual(0, result2.Count);
         }
 
-        // MARK: Old Names
+        // Old Names
 
         [Test]
         public void Generate_DeclaresPackAndTheDeprecatedCartridgeNames() {
@@ -559,7 +559,7 @@ namespace OneJS.Tests.Editor {
         }
 #pragma warning restore 0618
 
-        // MARK: Version Tests
+        // Version Tests
 
         [Test]
         public void Generate_WithVersion_WritesVersionLineInHeader() {
@@ -652,7 +652,7 @@ namespace OneJS.Tests.Editor {
             Object.DestroyImmediate(pack);
         }
 
-        // MARK: Helper Methods
+        // Helper Methods
 
         /// <summary>
         /// Sets the slug field on a Pack via reflection (since it's private).

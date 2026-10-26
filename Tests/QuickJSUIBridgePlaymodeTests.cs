@@ -54,7 +54,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Scheduling Tests
+        // Scheduling Tests
 
         [UnityTest]
         public IEnumerator Scheduling_RequestAnimationFrame_Exists() {
@@ -157,7 +157,7 @@ namespace OneJS.Tests {
             Assert.AreEqual("initial", result);
         }
 
-        // MARK: Event Tests
+        // Event Tests
 
         [UnityTest]
         public IEnumerator Event_EventAPI_Exists() {
@@ -287,7 +287,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Pointer Capture Tests
+        // Pointer Capture Tests
 
         [UnityTest]
         public IEnumerator PointerCapture_UseExtensions_CaptureAndRelease_Works() {
@@ -412,7 +412,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Pointer Capture + PointerMove Tests
+        // Pointer Capture + PointerMove Tests
 
         /// <summary>
         /// Integration test: Does the JS onPointerMove handler fire when a captured
@@ -469,7 +469,7 @@ namespace OneJS.Tests {
             _bridge.Eval("globalThis.__pmCaptureTestEl.ReleasePointer(0)");
         }
 
-        // MARK: Native Event Suppression + Wheel (PR #104)
+        // Native Event Suppression + Wheel (PR #104)
         // End-to-end tests for the wired feature: wheel is bridged to JS, and a JS
         // preventDefault() maps to native StopImmediatePropagation() to suppress nested
         // controls. Covers the root fast path, the per-element captured-pointer path, and
@@ -520,7 +520,7 @@ namespace OneJS.Tests {
                 "The wheel deltaY should be forwarded to JS (positive for a downward scroll).");
         }
 
-        // MARK: Geometry
+        // Geometry
 
         [UnityTest]
         public IEnumerator GeometryChanged_RectsReachJsAsTheDoublesTheyWiden() {

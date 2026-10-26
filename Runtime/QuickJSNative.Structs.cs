@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace OneJS {
     public static partial class QuickJSNative {
-        // MARK: Struct Registry
+        // Struct Registry
         // Custom serializers take priority over reflection-based generic handling
         static readonly Dictionary<Type, Func<object, string>> _customSerializers = new();
         static readonly Dictionary<Type, Func<Dictionary<string, object>, object>> _customDeserializers = new();
@@ -36,7 +36,7 @@ namespace OneJS {
             public Type FieldType;
         }
 
-        // MARK: Registration API
+        // Registration API
         /// <summary>
         /// Registers a struct type for automatic reflection-based serialization.
         /// Call this for any custom struct types you want to pass between JS and C#.
@@ -161,7 +161,7 @@ namespace OneJS {
             return false;
         }
 
-        // MARK: Init
+        // Init
         static bool _structsInitialized;
 
         static void EnsureStructsInitialized() {
@@ -298,7 +298,7 @@ namespace OneJS {
         static string F(float v) => v.ToString("G", CultureInfo.InvariantCulture);
         static string F(double v) => v.ToString("G", CultureInfo.InvariantCulture);
 
-        // MARK: Serialization (C# -> JS)
+        // Serialization (C# -> JS)
         /// <summary>
         /// Serializes a struct to JSON string for transfer to JS.
         /// Returns null if the type is not a serializable struct type.
@@ -456,7 +456,7 @@ namespace OneJS {
             return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r");
         }
 
-        // MARK: Deserialization (JS -> C#)
+        // Deserialization (JS -> C#)
         /// <summary>
         /// Deserializes a JSON string to a struct of the target type.
         /// Used when JS passes struct data back to C# and we know the expected type.
@@ -562,7 +562,7 @@ namespace OneJS {
             return value;
         }
 
-        // MARK: Field Cache
+        // Field Cache
         static StructFieldInfo[] GetStructFields(Type type) {
             if (_structFieldCache.TryGetValue(type, out var cached)) return cached;
 
@@ -638,7 +638,7 @@ namespace OneJS {
             return result;
         }
 
-        // MARK: JSON Parsing
+        // JSON Parsing
         // Simple JSON parser for struct data: handles numbers, strings, bools, nested objects
         static Dictionary<string, object> ParseSimpleJson(string json) {
             if (string.IsNullOrEmpty(json) || json[0] != '{') return null;
@@ -793,7 +793,7 @@ namespace OneJS {
             while (i < json.Length && char.IsWhiteSpace(json[i])) i++;
         }
 
-        // MARK: Type Conversion (updated)
+        // Type Conversion (updated)
         static readonly ConcurrentDictionary<(Type, Type), MethodInfo> _implicitOpCache = new();
 
         internal static object ConvertToTargetType(object value, Type targetType) {
@@ -1065,7 +1065,7 @@ namespace OneJS {
             return sb.ToString();
         }
 
-        // MARK: Array Conversion
+        // Array Conversion
         /// <summary>
         /// Convert value to target array type.
         /// Handles conversion from object[], typed arrays, and IEnumerable.
@@ -1244,7 +1244,7 @@ namespace OneJS {
             return Quaternion.identity;
         }
 
-        // MARK: Delegate Wrapper Creation
+        // Delegate Wrapper Creation
 
         // Cache: (callbackHandle, delegateType) → delegate, so add_/remove_ event pairs
         // get the same delegate instance (without this, Delegate.Remove can't match the
@@ -1674,7 +1674,7 @@ namespace OneJS {
                 }
             }
 
-            // MARK: Func invokes (marshal the JS return value)
+            // Func invokes (marshal the JS return value)
             // On failure these log (stale contexts warn once, see LogInvokeError)
             // and return default: JS-backed Func delegates get invoked by engine
             // code like ListView's makeItem, where throwing across the delegate

@@ -176,7 +176,7 @@ namespace OneJS {
         /// <summary>Logs an exception caught running this bridge's JS, its frames source-mapped.</summary>
         void LogJsError(string message, Exception ex) => OneJSLog.Exception(message, ex, translate: _translateError);
 
-        // MARK: Lifecycle
+        // Lifecycle
         public QuickJSUIBridge(VisualElement root, string workingDir = null, int bufferSize = 16 * 1024) {
             _root = root ?? throw new ArgumentNullException(nameof(root));
             _workingDir = workingDir ?? "";
@@ -198,7 +198,7 @@ namespace OneJS {
             System.Threading.Interlocked.Increment(ref _liveBridgeCount);
         }
 
-        // MARK: StyleSheet API
+        // StyleSheet API
 
         /// <summary>
         /// Load a USS file from the working directory and apply it to the root element.
@@ -417,7 +417,7 @@ namespace OneJS {
             }
         }
 
-        // MARK: Public API
+        // Public API
         public string Eval(string code, string filename = "<input>") {
             return _ctx.Eval(code, filename);
         }
@@ -601,7 +601,7 @@ namespace OneJS {
             }
         }
 
-        // MARK: Event Registration
+        // Event Registration
         void RegisterEventDelegation() {
             _root.RegisterCallback<ClickEvent>(OnClick, TrickleDown.TrickleDown);
             _root.RegisterCallback<PointerDownEvent>(OnPointerDown, TrickleDown.TrickleDown);
@@ -652,7 +652,7 @@ namespace OneJS {
             _root.UnregisterCallback<WheelEvent>(OnWheel, TrickleDown.TrickleDown);
         }
 
-        // MARK: Event Handlers
+        // Event Handlers
 
         // JS preventDefault() (defaultPrevented, bit1) is mirrored onto the native event as
         // StopImmediatePropagation, so a JS gesture can suppress nested native controls (e.g. a
@@ -881,7 +881,7 @@ namespace OneJS {
             }
         }
 
-        // MARK: Core Event Dispatch
+        // Core Event Dispatch
         int FindElementHandle(IEventHandler target) {
             // Single-lock parent-chain walk (was one lock + dict lookup per hop).
             return QuickJSNative.GetHandleForElementOrAncestor(target as VisualElement);
@@ -924,7 +924,7 @@ namespace OneJS {
 #endif
         }
 
-        // MARK: Zero-Alloc Event Dispatch
+        // Zero-Alloc Event Dispatch
 
         // The no-payload and int overloads return the suppression-flags bitmask like the pointer
         // overload below; callers without a native default to suppress ignore it.
@@ -1070,7 +1070,7 @@ namespace OneJS {
             return DispatchEventInternal(handle, eventType, data);
         }
 
-        // MARK: Per-Element Pointer Handlers (capture support)
+        // Per-Element Pointer Handlers (capture support)
         // Unity 6 dispatches captured pointer events directly to the capturing element,
         // bypassing TrickleDown/BubbleUp on ancestors. These per-element handlers ensure
         // JS event handlers fire during pointer capture. Dedup via reference equality
@@ -1234,7 +1234,7 @@ namespace OneJS {
             DispatchGeometryEvent("geometrychanged", handle, e.oldRect, e.newRect);
         }
 
-        // MARK: Per-Element Mouse, Input and Transition Handlers
+        // Per-Element Mouse, Input and Transition Handlers
         // Registered only on elements JS listens on, so an app that never asks for these
         // pays nothing for them. Each is sent to JS once, from its target; the bootstrap
         // then bubbles it as UI Toolkit does. Mouse events are the ones UI Toolkit raises
@@ -1309,7 +1309,7 @@ namespace OneJS {
             "{\"x\":" + JsonFloat(r.x) + ",\"y\":" + JsonFloat(r.y)
             + ",\"width\":" + JsonFloat(r.width) + ",\"height\":" + JsonFloat(r.height) + "}";
 
-        // MARK: Data Builders
+        // Data Builders
         static string BuildChangeData(string valueJson) => $"{{\"value\":{valueJson}}}";
 
         /// <summary>
@@ -1321,7 +1321,7 @@ namespace OneJS {
         static string JsonFloat(float f) =>
             float.IsFinite(f) ? ((double)f).ToString("G17", CultureInfo.InvariantCulture) : "null";
 
-        // MARK: String Escaping
+        // String Escaping
         /// <summary>
         /// Escape a string for safe inclusion in JSON.
         /// </summary>

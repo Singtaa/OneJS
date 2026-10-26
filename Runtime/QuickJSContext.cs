@@ -198,7 +198,7 @@ namespace OneJS {
             }
         }
 
-        // MARK: Callbacks (Allocating)
+        // Callbacks (Allocating)
         /// <summary>
         /// Invoke a JS callback with arbitrary arguments. ALLOCATES memory.
         /// For per-frame calls, use the zero-alloc overloads instead.
@@ -252,7 +252,7 @@ namespace OneJS {
             }
         }
 
-        // MARK: Zero-Alloc Callbacks
+        // Zero-Alloc Callbacks
         // Common validation: inlined for performance
         void ThrowIfInvalid() {
             if (_disposed) throw new ObjectDisposedException(nameof(QuickJSContext));
@@ -439,7 +439,7 @@ namespace OneJS {
             return InvokeAndGetInt(handle, args, 3);
         }
 
-        // MARK: Typed JS Functions
+        // Typed JS Functions
         /// <summary>
         /// Returns a typed delegate that calls a JS function by name ("showToast",
         /// or a dotted path from globalThis like "game.ui.showToast"). Resolution

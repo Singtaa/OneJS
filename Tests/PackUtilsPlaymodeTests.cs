@@ -31,7 +31,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: InjectPlatformDefines Tests
+        // InjectPlatformDefines Tests
 
         [UnityTest]
         public IEnumerator InjectPlatformDefines_InjectsUnityEditor() {
@@ -135,7 +135,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: InjectPackGlobals Tests (__pack API)
+        // InjectPackGlobals Tests (__pack API)
 
         [UnityTest]
         public IEnumerator InjectPackGlobals_NullPacks_DoesNotThrow() {
@@ -367,7 +367,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Helper Methods
+        // Helper Methods
 
         /// <summary>
         /// Sets the slug field on a Pack via reflection.

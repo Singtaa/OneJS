@@ -68,7 +68,7 @@ namespace OneJS.Tests {
             return _pad;
         }
 
-        // MARK: Temp Directory Tests
+        // Temp Directory Tests
 
         [UnityTest]
         public IEnumerator TempDir_CreatesUniqueInstanceId() {
@@ -149,7 +149,7 @@ namespace OneJS.Tests {
             Assert.IsTrue(content.Contains("@outputs/app.js"), "esbuild config should output to @outputs/app.js");
         }
 
-        // MARK: Source Code Tests
+        // Source Code Tests
 
         [UnityTest]
         public IEnumerator WriteSource_CreatesIndexTsx() {
@@ -189,7 +189,7 @@ namespace OneJS.Tests {
             Assert.AreEqual("modified", _pad.SourceCode, "SourceCode property should be modifiable");
         }
 
-        // MARK: Build State Tests
+        // Build State Tests
 
         [UnityTest]
         public IEnumerator BuildState_StartsIdle() {
@@ -251,7 +251,7 @@ namespace OneJS.Tests {
             Assert.IsTrue(_pad.HasBuiltBundle, "HasBuiltBundle should be true after saving bundle");
         }
 
-        // MARK: Execution Tests
+        // Execution Tests
 
         [UnityTest]
         public IEnumerator Reload_ExecutesBuiltBundle() {
@@ -370,7 +370,7 @@ namespace OneJS.Tests {
             Assert.IsNull(_pad.Bridge, "Bridge should be null after Stop");
         }
 
-        // MARK: Initialization Tests
+        // Initialization Tests
 
         [UnityTest]
         public IEnumerator Init_RequireComponent_EnsuresUIDocument() {
@@ -403,7 +403,7 @@ namespace OneJS.Tests {
             Assert.AreEqual(_pad.EmbeddedPanelSettings, uiDoc.panelSettings, "UIDocument should use the embedded PanelSettings");
         }
 
-        // MARK: Node Modules Tests
+        // Node Modules Tests
 
         [UnityTest]
         public IEnumerator HasNodeModules_ReturnsFalse_WhenNotInstalled() {
@@ -431,7 +431,7 @@ namespace OneJS.Tests {
             Assert.IsTrue(_pad.HasNodeModules(), "HasNodeModules should be true when directory exists");
         }
 
-        // MARK: Platform Defines Tests
+        // Platform Defines Tests
 
         [UnityTest]
         public IEnumerator Reload_InjectsPlatformDefines() {

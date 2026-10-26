@@ -178,7 +178,7 @@ namespace OneJS.Tests.Editor {
             return AssetDatabase.LoadAssetAtPath<GameObject>(path).GetComponent<JSRunner>();
         }
 
-        // MARK: the app ships
+        // the app ships
 
         [Test]
         public void APrefabOnlyRunner_GetsItsBundle() {
@@ -230,7 +230,7 @@ namespace OneJS.Tests.Editor {
             Assert.IsNotNull(Reload(second).BundleAsset, "The second prefab sharing the app has no bundle.");
         }
 
-        // MARK: opting out
+        // opting out
 
         [Test]
         public void AnExcludedPrefabRunner_GetsNothingAndWarnsNothing() {
@@ -281,7 +281,7 @@ namespace OneJS.Tests.Editor {
                 "A runner on an inactive prefab GameObject was still built.");
         }
 
-        // MARK: collision severity
+        // collision severity
 
         [Test]
         public void TwoPrefabAppsClaimingOnePath_WarnRatherThanFailTheBuild() {

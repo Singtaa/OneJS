@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.TestTools;
 
 namespace OneJS.Tests {
-    // MARK: Async Test Helpers
+    // Async Test Helpers
     public static class AsyncTestHelper {
         /// <summary>
         /// Simple async method that completes immediately with an int result.
@@ -70,7 +70,7 @@ namespace OneJS.Tests {
         }
     }
 
-    // MARK: Custom Structs for Tests
+    // Custom Structs for Tests
     public struct TestCustomPoint {
         public float x;
         public float y;
@@ -145,7 +145,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Basic Eval Tests
+        // Basic Eval Tests
 
         [UnityTest]
         public IEnumerator Eval_SimpleArithmetic_ReturnsCorrectResult() {
@@ -167,7 +167,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Static Call Tests
+        // Static Call Tests
 
         [UnityTest]
         public IEnumerator Static_DebugLogViaCallStatic_Works() {
@@ -199,7 +199,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: GameObject Interop Tests
+        // GameObject Interop Tests
 
         [UnityTest]
         public IEnumerator Interop_CreateGameObjectFromJS_Works() {
@@ -261,7 +261,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Callback Tests
+        // Callback Tests
 
         [UnityTest]
         public IEnumerator Callback_NumericCallback_ReturnsSum() {
@@ -301,7 +301,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Struct Serialization Tests
+        // Struct Serialization Tests
 
         [UnityTest]
         public IEnumerator Struct_Vector3FromPlainObject_Works() {
@@ -502,7 +502,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Struct Class Member Tests
+        // Struct Class Member Tests
 
         /// <summary>
         /// A struct with a class member crosses as a handle, so the reference
@@ -542,7 +542,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Struct Array/List Field Tests
+        // Struct Array/List Field Tests
 
         [UnityTest]
         public IEnumerator Struct_ArrayFields_SerializeAsJsonArrays() {
@@ -629,7 +629,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Generic Type Tests
+        // Generic Type Tests
 
         [UnityTest]
         public IEnumerator Generics_ListInt_CreateAndAdd_Works() {
@@ -714,7 +714,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Indexer Tests
+        // Indexer Tests
 
         [UnityTest]
         public IEnumerator Indexer_ListInt_GetByIndex_Works() {
@@ -845,7 +845,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Async/Await Tests (C# Task to JS Promise)
+        // Async/Await Tests (C# Task to JS Promise)
 
         [UnityTest]
         public IEnumerator Async_ImmediateTaskInt_ReturnsDirectly() {
@@ -1074,7 +1074,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Array Marshaling Tests
+        // Array Marshaling Tests
 
         [UnityTest]
         public IEnumerator Array_Float32Array_ToFloatArray_Works() {
@@ -1200,7 +1200,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Int64/UInt64 Tests
+        // Int64/UInt64 Tests
 
         [UnityTest]
         public IEnumerator Long_ReturnZero_Works() {
@@ -1282,7 +1282,7 @@ namespace OneJS.Tests {
         }
     }
 
-    // MARK: Array Test Helper
+    // Array Test Helper
     public static class ArrayTestHelper {
         public static float SumFloatArray(float[] arr) {
             if (arr == null || arr.Length == 0) return 0;
@@ -1324,7 +1324,7 @@ namespace OneJS.Tests {
         }
     }
 
-    // MARK: Int64/UInt64 Test Helper
+    // Int64/UInt64 Test Helper
     public static class Int64TestHelper {
         public static long GetLongZero() => 0L;
         public static long GetLongSmall() => 42L;

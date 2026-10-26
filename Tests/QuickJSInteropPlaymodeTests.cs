@@ -147,7 +147,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Proxy Identity Tests
+        // Proxy Identity Tests
 
         [UnityTest]
         public IEnumerator ProxyCache_SameMethodCall_ReturnsSameProxy() {
@@ -178,7 +178,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Change Detection Pattern Tests
+        // Change Detection Pattern Tests
 
         [UnityTest]
         public IEnumerator ChangeDetection_ObjectIs_TrueForSameProxy() {
@@ -242,7 +242,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Enum Resolution Tests
+        // Enum Resolution Tests
 
         [UnityTest]
         public IEnumerator Enum_Constant_ResolvesToNumber() {
@@ -339,7 +339,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Null Safety Tests
+        // Null Safety Tests
 
         [UnityTest]
         public IEnumerator NullSafety_NullState_ReturnsNull() {
@@ -379,7 +379,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Collection Access Tests (toArray pattern)
+        // Collection Access Tests (toArray pattern)
 
         [UnityTest]
         public IEnumerator Collection_ListCount_Works() {
@@ -475,7 +475,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Array Indexing Tests (C# arrays, not List<T>)
+        // Array Indexing Tests (C# arrays, not List<T>)
 
         [UnityTest]
         public IEnumerator Array_Length_Works() {
@@ -534,7 +534,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Combined Patterns (simulating useFrameSync selector + toArray workflow)
+        // Combined Patterns (simulating useFrameSync selector + toArray workflow)
 
         [UnityTest]
         public IEnumerator Combined_FullWorkflow_ProxyWithDepsAndCollection() {
@@ -591,7 +591,7 @@ namespace OneJS.Tests {
         }
 
         // =========================================================================
-        // MARK: Collection Sync, Typed Item Tests
+        // Collection Sync, Typed Item Tests
         //
         // These tests validate the exact interop contract that useFrameSync's
         // selector mode + toArray rely on for the parent/child collection pattern:

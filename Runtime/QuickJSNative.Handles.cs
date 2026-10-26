@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace OneJS {
     public static partial class QuickJSNative {
-        // MARK: Domain Reload Support
+        // Domain Reload Support
         /// <summary>
         /// Reset all static state when entering play mode.
         /// Critical for "Enter Play Mode Settings" with domain reload disabled:
@@ -57,7 +57,7 @@ namespace OneJS {
             // Reflection caches are safe to keep: types don't change across play mode.
         }
 
-        // MARK: Handle Table
+        // Handle Table
         static int _nextHandle = 1;
         internal static readonly Dictionary<int, object> _handleTable = new Dictionary<int, object>();
         static readonly Dictionary<object, int> _reverseHandleTable = new Dictionary<object, int>();

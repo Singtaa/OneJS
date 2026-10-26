@@ -38,7 +38,7 @@ namespace OneJS.Editor {
             return root;
         }
 
-        // MARK: Header Section
+        // Header Section
 
         VisualElement CreateHeaderSection() {
             var container = new VisualElement();
@@ -83,7 +83,7 @@ namespace OneJS.Editor {
             }
         }
 
-        // MARK: Identity Section
+        // Identity Section
 
         VisualElement CreateIdentitySection() {
             var container = CreateSectionContainer("Identity");
@@ -161,7 +161,7 @@ namespace OneJS.Editor {
             return container;
         }
 
-        // MARK: Files Section
+        // Files Section
 
         VisualElement CreateFilesSection() {
             var container = CreateSectionContainer("Files");
@@ -272,7 +272,7 @@ namespace OneJS.Editor {
             return row;
         }
 
-        // MARK: Objects Section
+        // Objects Section
 
         VisualElement CreateObjectsSection() {
             var container = CreateSectionContainer("Objects");
@@ -383,7 +383,7 @@ namespace OneJS.Editor {
             return row;
         }
 
-        // MARK: UI Helpers
+        // UI Helpers
 
         VisualElement CreateSectionContainer(string title) {
             var container = new VisualElement();

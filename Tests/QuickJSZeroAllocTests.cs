@@ -62,7 +62,7 @@ namespace OneJS.Tests {
         }
 
         // ========================================================================
-        // MARK: Basic Binding Registration Tests
+        // Basic Binding Registration Tests
         // ========================================================================
 
         /// <summary>
@@ -124,7 +124,7 @@ namespace OneJS.Tests {
         }
 
         // ========================================================================
-        // MARK: GPU Binding Tests
+        // GPU Binding Tests
         // ========================================================================
 
         /// <summary>
@@ -210,7 +210,7 @@ namespace OneJS.Tests {
         }
 
         // ========================================================================
-        // MARK: Property ID Caching Tests
+        // Property ID Caching Tests
         // ========================================================================
 
         /// <summary>
@@ -255,7 +255,7 @@ namespace OneJS.Tests {
         }
 
         // ========================================================================
-        // MARK: GPUBridge Zero-Alloc Binding Integration Tests
+        // GPUBridge Zero-Alloc Binding Integration Tests
         // ========================================================================
 
         /// <summary>
@@ -318,7 +318,7 @@ namespace OneJS.Tests {
         }
 
         // ========================================================================
-        // MARK: Binding Registration Tests
+        // Binding Registration Tests
         // ========================================================================
 
         /// <summary>
@@ -374,7 +374,7 @@ namespace OneJS.Tests {
         }
 
         // ========================================================================
-        // MARK: JavaScript Integration Tests
+        // JavaScript Integration Tests
         // ========================================================================
 
         /// <summary>

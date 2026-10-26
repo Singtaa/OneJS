@@ -51,7 +51,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Element Creation Tests
+        // Element Creation Tests
 
         [UnityTest]
         public IEnumerator Creation_VisualElement_Works() {
@@ -96,7 +96,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Property Tests
+        // Property Tests
 
         [UnityTest]
         public IEnumerator Property_Name_SetGet() {
@@ -165,7 +165,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Style Tests
+        // Style Tests
 
         [UnityTest]
         public IEnumerator Style_GetStyleObject_Works() {
@@ -317,7 +317,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Hierarchy Tests
+        // Hierarchy Tests
 
         [UnityTest]
         public IEnumerator Hierarchy_AddChild_Works() {
@@ -481,7 +481,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Helper Methods
+        // Helper Methods
 
         int RegisterTestContainer(VisualElement container) {
             // RegisterObject is public, so use Public binding flag

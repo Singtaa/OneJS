@@ -92,7 +92,7 @@ namespace OneJS.ShaderFX {
             s_Passes.Clear();
         }
 
-        // MARK: built-in procedural textures (lazy, shared, recreated after domain reload)
+        // built-in procedural textures (lazy, shared, recreated after domain reload)
 
         static readonly Dictionary<string, Texture2D> s_Builtins = new Dictionary<string, Texture2D>();
 
@@ -158,7 +158,7 @@ namespace OneJS.ShaderFX {
             return tex;
         }
 
-        // MARK: generators
+        // generators
 
         static uint Hash(uint x) {
             x ^= x >> 16; x *= 0x7feb352du;

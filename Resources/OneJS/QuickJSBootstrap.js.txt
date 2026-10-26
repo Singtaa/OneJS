@@ -1,4 +1,4 @@
-// MARK: Scope
+// Scope
 // The whole bootstrap runs inside this IIFE. On WebGL the file is evaluated by
 // indirect eval in the EMBEDDING PAGE's global scope (sloppy mode), where
 // top-level function/var declarations become own properties of the host page's
@@ -11,7 +11,7 @@
 // (Body indentation intentionally left at column 0.)
 (function () {
 
-// MARK: Interop
+// Interop
 if (typeof globalThis.__cs === "undefined") {
     const inv = globalThis.__cs_invoke;
     globalThis.__cs = {
@@ -19,7 +19,7 @@ if (typeof globalThis.__cs === "undefined") {
     };
 }
 
-// MARK: Console severity
+// Console severity
 // The native console maps log, warn, error and info onto a single C# callback
 // that takes nothing but a string, so the level is gone before C# sees it: a
 // React handler that threw and a debug print arrive identically as Debug.Log,
@@ -75,7 +75,7 @@ if (!globalThis.requestAnimationFrame && globalThis.console && !globalThis.conso
     };
 }
 
-// MARK: Handle Cleanup
+// Handle Cleanup
 // Track released handles to prevent double-free from FinalizationRegistry
 const __releasedHandles = new Set();
 
@@ -163,7 +163,7 @@ function releaseObject(obj) {
     }
 }
 
-// MARK: Args
+// Args
 // The callback slot each function passed as a method argument holds. Passing
 // the same function again reuses its slot, so it reaches C# as the same
 // delegate: `RemoveListener(fn)` finds what `AddListener(fn)` added, and a
@@ -322,7 +322,7 @@ function __resolvePathProxy(value) {
     return { __csTypeRef: path.join(".") };
 }
 
-// MARK: Generics Support
+// Generics Support
 /**
  * Check if a value represents a C# type reference
  */
@@ -444,7 +444,7 @@ function __createBoundGenericType(genericDefName, typeArgs) {
     });
 }
 
-// MARK: Results
+// Results
 function __wrapResultFromCs(typeHint, raw) {
     if (raw == null) return raw;
 
@@ -478,7 +478,7 @@ function __wrapResultFromCs(typeHint, raw) {
     return raw;
 }
 
-// MARK: Objects
+// Objects
 function __wrapObject(typeName, handle) {
     if (handle == null || handle === 0) return null;
 
@@ -678,7 +678,7 @@ function __wrapObject(typeName, handle) {
     return proxy;
 }
 
-// MARK: Helpers
+// Helpers
 function newObject(typeName, ...args) {
     const raw = __cs.invoke(typeName, "ctor", 0, 0, 0, __resolveArgs(args));
     return __wrapResultFromCs(typeName, raw);
@@ -744,7 +744,7 @@ globalThis.useExtensions = function(typeRef) {
     __cs.invoke(typeName, "", 9, 0, 0, []);
 };
 
-// MARK: CS Proxy
+// CS Proxy
 const __staticPropertyNames = new Set([
     "time", "deltaTime", "fixedDeltaTime", "unscaledTime", "unscaledDeltaTime",
     "fixedTime", "timeScale", "frameCount", "realtimeSinceStartup",
@@ -1036,7 +1036,7 @@ if (typeof globalThis.CS === "undefined") {
     });
 }
 
-// MARK: Events
+// Events
 // Event handler registry: maps elementHandle -> { eventType -> Set<callback> }
 // Note: __eventHandlers is declared at top of file for use by __cleanupHandle
 
@@ -1440,7 +1440,7 @@ globalThis.__eventAPI = {
     }
 };
 
-// MARK: Scheduling
+// Scheduling
 // Override ids start far above the browser's small sequential timer ids so
 // that after __teardownTimers (WebGL) restores the natives, the thin
 // clear*/cancel* wrappers can tell an override id from a native one.
@@ -1750,7 +1750,7 @@ if (__nativeRequestAnimationFrame) {
         };
     };
 
-    // MARK: Wheel normalisation (WebGL, legacy input)
+    // Wheel normalisation (WebGL, legacy input)
     //
     // On the LEGACY input path, Unity's WebGL input scrolls a FIXED step per
     // wheel event and discards the event's magnitude. Measured against a
@@ -1945,7 +1945,7 @@ if (__nativeRequestAnimationFrame) {
     }
 }
 
-// MARK: Tasks (C# async/await support)
+// Tasks (C# async/await support)
 // Maps taskId -> { resolve, reject } for pending C# Tasks
 const __pendingTaskPromises = new Map();
 
@@ -1991,7 +1991,7 @@ globalThis.__rejectTask = function(taskId, errorMessage) {
     pending.reject(new Error(errorMessage));
 };
 
-// MARK: Microtasks
+// Microtasks
 // Simple microtask queue for Promise-like behavior
 const __microtaskQueue = [];
 let __microtaskScheduled = false;
@@ -2023,7 +2023,7 @@ function __flushMicrotasks() {
     }
 }
 
-// MARK: Teardown
+// Teardown
 // Teardown hooks run right before the JS context is destroyed (hot reload, stop,
 // or shutdown). They let framework code release resources and fire component
 // cleanup while the context is still alive: e.g. the React reconciler unmounts
@@ -2053,7 +2053,7 @@ globalThis.__runTeardown = function() {
     }
 };
 
-// MARK: setImmediate
+// setImmediate
 // A macrotask, as in Node: an immediate set from ordinary code runs once the
 // current turn's microtasks settle (React's scheduler relies on that), and one
 // set while immediates are running waits for the next tick. So the Node idiom
@@ -2103,7 +2103,7 @@ if (typeof globalThis.setImmediate === "undefined") {
     };
 }
 
-// MARK: StyleSheet API
+// StyleSheet API
 /**
  * Load a USS file from the working directory and apply it to the root element.
  * @param {string} path: Path relative to working directory (e.g., "styles/main.uss")
@@ -2158,7 +2158,7 @@ globalThis.clearStyleSheets = function() {
     return globalThis.__bridge.ClearStyleSheets();
 };
 
-// MARK: FileSystem API
+// FileSystem API
 /**
  * Path globals for file system access in standalone builds.
  * These are convenience aliases for Unity's Application paths.
@@ -2272,7 +2272,7 @@ globalThis.listFiles = function(path, pattern, recursive) {
     return result;
 };
 
-// MARK: Async Asset Loading
+// Async Asset Loading
 
 /**
  * Load a Unity resource asynchronously from the Resources folder.
@@ -2298,7 +2298,7 @@ globalThis.loadResourceAsync = async function(path, type) {
     return await CS.OneJS.AssetLoader.LoadResourceAsync(path);
 };
 
-// MARK: Fetch API
+// Fetch API
 /**
  * Fetch API implementation.
  * - WebGL: Uses browser's native fetch (JIT-optimized, full CORS support)
@@ -2555,7 +2555,7 @@ if (typeof globalThis.Response === "undefined") {
     globalThis.Response = Response;
 }
 
-// MARK: Abort API
+// Abort API
 /**
  * AbortController/AbortSignal implementation for native platforms (QuickJS).
  * Libraries construct these around async work (TanStack Query news one up per
@@ -2651,7 +2651,7 @@ if (typeof globalThis.AbortController === "undefined") {
     globalThis.AbortSignal = __AbortSignal;
 }
 
-// MARK: WebSocket API
+// WebSocket API
 /**
  * WebSocket API implementation.
  * - WebGL: Uses browser's native WebSocket (JIT-optimized, full CORS support)
@@ -2839,7 +2839,7 @@ if (__nativeWebSocket) {
     globalThis.__base64ToArrayBuffer = __base64ToArrayBuffer;
 }
 
-// MARK: Storage API
+// Storage API
 /**
  * localStorage on Unity's PlayerPrefs, matching the web Storage API.
  * Only installed when no native Storage exists (QuickJS): in WebGL the
@@ -2974,7 +2974,7 @@ if (typeof globalThis.sessionStorage === "undefined") {
     globalThis.sessionStorage = __playerPrefsStorage;
 }
 
-// MARK: URL API
+// URL API
 /**
  * URLSearchParams implementation matching the WHATWG URL Standard.
  * Provides methods for working with query strings.
@@ -3446,7 +3446,7 @@ if (typeof globalThis.atob === "undefined") {
     };
 }
 
-// MARK: onejs namespace
+// onejs namespace
 // Every public OneJS global under one name, so nothing generic like
 // `readTextFile` or `listFiles` has to sit on a WebGL host page's window. The
 // older bare names (`__isPlaying`, `__root`, `readTextFile`, `loadStyleSheet`,

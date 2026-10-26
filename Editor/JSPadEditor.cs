@@ -994,7 +994,7 @@ namespace OneJS.Editor {
 #endif
         }
 
-        // MARK: Pack Management
+        // Pack Management
 
         void RebuildPackList() {
             if (_packListContainer == null) return;

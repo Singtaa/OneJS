@@ -23,7 +23,7 @@ namespace OneJS.Tests {
         static string Doc(string emitters, int max = 100, int seed = 0, int space = 0, int v = 4) =>
             $@"{{""v"":{v},""max"":{max},""seed"":{seed},""space"":{space},""emitters"":[{emitters}]}}";
 
-        // MARK: Wire parsing
+        // Wire parsing
 
         [Test]
         public void WireParse_MinimalDoc_AppliesDefaults() {
@@ -110,7 +110,7 @@ namespace OneJS.Tests {
                 @"{""sheetCols"":2,""sheetRows"":2,""sheetFrames"":9}")), "frame count exceeds the grid");
         }
 
-        // MARK: Flipbook frame selection (pure, no GPU)
+        // Flipbook frame selection (pure, no GPU)
 
         [Test]
         public void Sheet_FrameSelection_LifeModeSpreadsFramesOverLifetime() {
@@ -159,7 +159,7 @@ namespace OneJS.Tests {
             Assert.AreEqual(0, ParticleSystem2D.SheetFrame(cfg, 9f, 0.9f, 7), "a 1x1 grid never animates");
         }
 
-        // MARK: Simulation
+        // Simulation
 
         static ParticleSystem2D CreateSystem(string emitters, int max = 1000, int seed = 42) {
             var ve = new VisualElement();
@@ -216,7 +216,7 @@ namespace OneJS.Tests {
             }
         }
 
-        // MARK: Attraction
+        // Attraction
 
         const string kAttractEmitter =
             @"{""rate"":0,""lifeMin"":1,""lifeMax"":1,""attractX"":100,""attractY"":0,""attractStrength"":1}";
@@ -265,7 +265,7 @@ namespace OneJS.Tests {
             }
         }
 
-        // MARK: Texture grouping
+        // Texture grouping
 
         [Test]
         public void Textures_PerEmitterOverridesFormDrawGroups() {
@@ -332,7 +332,7 @@ namespace OneJS.Tests {
             Assert.AreEqual(0, sys.AliveCount);
         }
 
-        // MARK: Edge behavior
+        // Edge behavior
         // Edge collision and render readback need a real rect, so these run against
         // OneJS.Tests.PanelHost (Fixtures/PanelHost.cs), shared with ShaderFXTests.
 
@@ -410,7 +410,7 @@ namespace OneJS.Tests {
             ph.Destroy();
         }
 
-        // MARK: Host styling guard
+        // Host styling guard
 
         // The panel emits its own theme warning, so match on our message rather than
         // asserting on the whole log stream.
@@ -468,7 +468,7 @@ namespace OneJS.Tests {
             ph.Destroy();
         }
 
-        // MARK: Render smoke (end to end: shader from Resources, premultiplied additive path)
+        // Render smoke (end to end: shader from Resources, premultiplied additive path)
 
         [UnityTest]
         [Category("RequiresGraphics")]

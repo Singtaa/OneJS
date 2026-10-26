@@ -88,7 +88,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Fetch API Existence Tests
+        // Fetch API Existence Tests
 
         [UnityTest]
         public IEnumerator Fetch_GlobalExists() {
@@ -111,7 +111,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Headers Class Tests
+        // Headers Class Tests
 
         [UnityTest]
         public IEnumerator Headers_GetSet_Works() {
@@ -187,7 +187,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Fetch GET Tests
+        // Fetch GET Tests
 
         [UnityTest]
         public IEnumerator Fetch_SimpleGet_ReturnsResponse() {
@@ -259,7 +259,7 @@ namespace OneJS.Tests {
             Assert.IsTrue(resultJson.Contains("\"hasSlideshow\":true"), $"Expected hasSlideshow:true, got: {resultJson}");
         }
 
-        // MARK: Fetch POST Tests
+        // Fetch POST Tests
 
         [UnityTest]
         public IEnumerator Fetch_PostJson_SendsBody() {
@@ -302,7 +302,7 @@ namespace OneJS.Tests {
             Assert.IsTrue(resultJson.Contains("\"receivedTest\":\"hello\""), $"Expected receivedTest:hello, got: {resultJson}");
         }
 
-        // MARK: Request Header Tests
+        // Request Header Tests
 
         [UnityTest]
         public IEnumerator Fetch_HeadersInstance_SendsHeaders() {
@@ -420,7 +420,7 @@ namespace OneJS.Tests {
             Assert.IsTrue(resultJson.Contains("text/plain"), $"Expected caller content-type to survive, got: {resultJson}");
         }
 
-        // MARK: Response Object Tests
+        // Response Object Tests
 
         [UnityTest]
         public IEnumerator Response_TextMethod_Works() {
@@ -488,7 +488,7 @@ namespace OneJS.Tests {
             Assert.IsTrue(resultJson.Contains("\"hasContentType\":true"), $"Expected hasContentType:true, got: {resultJson}");
         }
 
-        // MARK: Error Handling Tests
+        // Error Handling Tests
 
         [UnityTest]
         public IEnumerator Fetch_404_SetsOkFalse() {
@@ -558,7 +558,7 @@ namespace OneJS.Tests {
             StringAssert.Contains("127.0.0.1:1", resultJson);
         }
 
-        // MARK: Local Test Server
+        // Local Test Server
 
         /// <summary>
         /// Minimal loopback HTTP server with httpbin-style canned responses.

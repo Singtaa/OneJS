@@ -150,7 +150,7 @@ namespace OneJS.Editor {
                 "OK");
         }
 
-        // MARK: recording
+        // recording
 
         static readonly Dictionary<string, string> s_Pending = new Dictionary<string, string>();
 
@@ -284,7 +284,7 @@ namespace OneJS.Editor {
 
         static Dictionary<string, string> ReadEntries(string assetPath) => ReadEntriesAt(Abs(assetPath));
 
-        // MARK: hash schemes
+        // hash schemes
 
         static readonly System.Text.RegularExpressions.Regex s_SchemeLine =
             new System.Text.RegularExpressions.Regex(@"^// SL_HASH_VERSION (\d+)\s*$", System.Text.RegularExpressions.RegexOptions.Multiline);
@@ -490,7 +490,7 @@ namespace OneJS.Editor {
             return hashes.ToArray();
         }
 
-        // MARK: the registry a player loads
+        // the registry a player loads
 
         /// <summary>
         /// Writes <see cref="RegistryAsset"/> naming the generated shader of each

@@ -84,7 +84,7 @@ namespace OneJS.Tests {
             _bridge.Context.ExecutePendingJobs();
         }
 
-        // MARK: Registration Tests
+        // Registration Tests
 
         [UnityTest]
         public IEnumerator Registration_CustomElement_CanBeCreated() {
@@ -134,7 +134,7 @@ namespace OneJS.Tests {
                 "className should be applied to custom element");
         }
 
-        // MARK: Prop Update Tests
+        // Prop Update Tests
 
         [UnityTest]
         public IEnumerator PropUpdate_CustomProps_UpdateOnStateChange() {
@@ -157,7 +157,7 @@ namespace OneJS.Tests {
                 "progress should update to 0.9 after React state change");
         }
 
-        // MARK: Event Tests
+        // Event Tests
 
         [UnityTest]
         public IEnumerator Events_ClickHandler_WorksOnCustomElement() {
@@ -174,7 +174,7 @@ namespace OneJS.Tests {
                 "Click handler should fire on custom element");
         }
 
-        // MARK: Ref Tests
+        // Ref Tests
 
         [UnityTest]
         public IEnumerator Ref_ForwardsToCustomElement() {
@@ -191,7 +191,7 @@ namespace OneJS.Tests {
             Assert.AreNotEqual("0", handle, "Ref handle should be non-zero");
         }
 
-        // MARK: Hierarchy Tests
+        // Hierarchy Tests
 
         [UnityTest]
         public IEnumerator Hierarchy_MultipleCustomElements_AllCreated() {

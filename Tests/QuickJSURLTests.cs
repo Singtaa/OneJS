@@ -50,7 +50,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Existence Tests
+        // Existence Tests
 
         [UnityTest]
         public IEnumerator URL_GlobalExists() {
@@ -66,7 +66,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: URLSearchParams Constructor Tests
+        // URLSearchParams Constructor Tests
 
         [UnityTest]
         public IEnumerator URLSearchParams_EmptyConstructor_Works() {
@@ -103,7 +103,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: URLSearchParams Methods
+        // URLSearchParams Methods
 
         [UnityTest]
         public IEnumerator URLSearchParams_Get_ReturnsValue() {
@@ -248,7 +248,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: URL Constructor Tests
+        // URL Constructor Tests
 
         [UnityTest]
         public IEnumerator URL_SimpleURL_Parses() {
@@ -309,7 +309,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: URL Properties
+        // URL Properties
 
         [UnityTest]
         public IEnumerator URL_Host_IncludesPort() {
@@ -366,7 +366,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: URL SearchParams Integration
+        // URL SearchParams Integration
 
         [UnityTest]
         public IEnumerator URL_SearchParams_ReturnsURLSearchParams() {
@@ -387,7 +387,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: URL Setters
+        // URL Setters
 
         [UnityTest]
         public IEnumerator URL_SetHostname_Works() {
@@ -433,7 +433,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: URL with Base
+        // URL with Base
 
         [UnityTest]
         public IEnumerator URL_RelativeWithBase_ResolvesAbsolutePath() {
@@ -470,7 +470,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Protocol Handling
+        // Protocol Handling
 
         [UnityTest]
         public IEnumerator URL_HttpProtocol_Works() {

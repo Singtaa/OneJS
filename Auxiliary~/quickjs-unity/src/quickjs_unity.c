@@ -3,7 +3,7 @@
 #include <string.h>
 #include "quickjs.h"
 
-// MARK: Platform
+// Platform
 
 #ifdef _WIN32
     #define QJS_API __declspec(dllexport)
@@ -11,7 +11,7 @@
     #define QJS_API __attribute__((visibility("default")))
 #endif
 
-// MARK: Constants
+// Constants
 
 #define QJS_MAGIC 0x51534A53u // 'QSJS'
 #define QJS_MAX_CALLBACKS 4096
@@ -39,7 +39,7 @@
 
 #define QJS_MAX_LIVE_CONTEXTS 64
 
-// MARK: Error Codes
+// Error Codes
 
 typedef enum QjsError {
     QJS_OK = 0,
@@ -51,7 +51,7 @@ typedef enum QjsError {
     QJS_ERR_STALE_HANDLE = -6
 } QjsError;
 
-// MARK: Types
+// Types
 
 typedef struct {
     unsigned int magic;
@@ -131,7 +131,7 @@ typedef struct InteropInvokeResult {
     const char* error_msg;
 } InteropInvokeResult;
 
-// MARK: Callbacks
+// Callbacks
 
 typedef void (*CsInvokeCallback)(QjsContext* ctx, const InteropInvokeRequest* req, InteropInvokeResult* res);
 typedef void (*CsLogCallback)(const char* msg);
@@ -193,7 +193,7 @@ QJS_API int qjs_abi_version(void) {
     return QJS_ABI_VERSION;
 }
 
-// MARK: Utils
+// Utils
 
 // Registry of live QjsContext pointers. Membership is checked BEFORE any
 // dereference of an incoming context pointer: C#-side delegate wrappers
@@ -337,7 +337,7 @@ static void format_exception(JSContext* ctx, JSValue exc, char* outBuf, int outB
     JS_FreeValue(ctx, stack);
 }
 
-// MARK: JSON Helper
+// JSON Helper
 
 // Serialize any JS value to JSON string using JSON.stringify
 static char* js_value_to_json(JSContext* ctx, JSValueConst v) {
@@ -367,7 +367,7 @@ static char* js_value_to_json(JSContext* ctx, JSValueConst v) {
     return NULL;
 }
 
-// MARK: Vector Detection
+// Vector Detection
 
 // Try to read a float property, returns 1 on success
 static int try_get_float_prop(JSContext* ctx, JSValueConst obj, const char* name, float* out) {
@@ -430,7 +430,7 @@ static int try_convert_color(JSContext* ctx, JSValueConst v, InteropValue* out) 
     return 1;
 }
 
-// MARK: Interop Conv
+// Interop Conv
 
 static int try_convert_array(JSContext* ctx, JSValueConst v, InteropValue* out) {
     if (!JS_IsArray(ctx, v)) return 0;
@@ -656,7 +656,7 @@ static void free_interop_args(InteropValue* args, int count) {
     free(args);
 }
 
-// MARK: JS Functions
+// JS Functions
 
 static JSValue js_console_log(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
     if (!g_callbacks.log) return JS_UNDEFINED;
@@ -857,7 +857,7 @@ cleanup:
     return result;
 }
 
-// MARK: Zero-Alloc Invoke
+// Zero-Alloc Invoke
 //
 // These functions provide zero-allocation C# interop by:
 // 1. Using stack-allocated InteropValue arrays (no malloc)
@@ -1215,7 +1215,7 @@ static void qjs_init_zeroalloc(JSContext* ctx) {
     JS_FreeValue(ctx, global);
 }
 
-// MARK: Init
+// Init
 
 static void qjs_init_callbacks(QjsContext* qctx) {
     for (int i = 0; i < QJS_MAX_CALLBACKS; i++) {
@@ -1276,7 +1276,7 @@ static void qjs_init_release_handle(JSContext* ctx) {
     JS_FreeValue(ctx, global_obj);
 }
 
-// MARK: Unhandled rejections
+// Unhandled rejections
 
 // A promise rejected with no handler is held here rather than reported at
 // once: `p = Promise.reject(e); p.catch(...)` attaches its handler a moment
@@ -1333,7 +1333,7 @@ static void qjs_release_rejections(QjsContext* instance, int report) {
     instance->rejections_dropped = 0;
 }
 
-// MARK: Lifecycle
+// Lifecycle
 
 QJS_API QjsContext* qjs_create() {
     JSRuntime* rt = JS_NewRuntime();
@@ -1407,7 +1407,7 @@ QJS_API void qjs_destroy(QjsContext* instance) {
     free(instance);
 }
 
-// MARK: Public API
+// Public API
 
 QJS_API int qjs_eval(QjsContext* instance, const char* code, const char* filename, int evalFlags,
                      char* outBuf, int outBufSize) {

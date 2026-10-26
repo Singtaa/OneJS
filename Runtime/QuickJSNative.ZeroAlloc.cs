@@ -36,7 +36,7 @@ namespace OneJS {
     ///   allocates its buffer or handle the way the fast path does, and native frees the buffer
     /// </summary>
     public static partial class QuickJSNative {
-        // MARK: Zero-Alloc Binding Registry
+        // Zero-Alloc Binding Registry
 
         /// <summary>
         /// Delegate type for zero-alloc method handlers.
@@ -90,7 +90,7 @@ namespace OneJS {
             }
         }
 
-        // MARK: Public Registration API
+        // Public Registration API
 
         /// <summary>
         /// Register a zero-alloc handler and return its binding ID.
@@ -118,7 +118,7 @@ namespace OneJS {
         /// </summary>
         public static int ZeroAllocBindingCount => _bindings.Count;
 
-        // MARK: Dynamic Binding (for TypeScript interop.bind())
+        // Dynamic Binding (for TypeScript interop.bind())
 
         /// <summary>
         /// Register a C# static method for zero-alloc calling from JavaScript.
@@ -292,7 +292,7 @@ namespace OneJS {
             }
         }
 
-        // MARK: Typed Binding Helpers
+        // Typed Binding Helpers
 
         /// <summary>
         /// Register a zero-arg method.
@@ -427,7 +427,7 @@ namespace OneJS {
             });
         }
 
-        // MARK: Argument Extraction (Zero-Alloc)
+        // Argument Extraction (Zero-Alloc)
         //
         // Uses UnsafeUtility.As<TFrom, TTo>() for boxing-free generic type conversion.
         // This is the same pattern used in FastPath.ReadFromInterop<T>().
@@ -500,7 +500,7 @@ namespace OneJS {
             return default;
         }
 
-        // MARK: Result Setting (Zero-Alloc)
+        // Result Setting (Zero-Alloc)
         //
         // Uses UnsafeUtility.As<TFrom, TTo>() for boxing-free generic type conversion.
         // This is the same pattern used in FastPath.WriteToInterop<T>().

@@ -100,7 +100,7 @@ namespace OneJS.Tests.Editor {
             File.WriteAllText(full, content);
         }
 
-        // MARK: CopyDirectoryRecursive Tests (via reflection)
+        // CopyDirectoryRecursive Tests (via reflection)
 
         [Test]
         public void CopyDirectoryRecursive_CopiesFilesRecursively() {
@@ -165,7 +165,7 @@ namespace OneJS.Tests.Editor {
             Assert.IsTrue(File.Exists(Path.Combine(destDir, "keep.png")), "Asset file should be copied");
             Assert.IsFalse(File.Exists(Path.Combine(destDir, "keep.png.meta")), ".meta sidecar should be skipped");
         }
-        // MARK: CommitAssets Tests (the multi-app bug, Discord 2026-09-14)
+        // CommitAssets Tests (the multi-app bug, Discord 2026-09-14)
 
         string Dest => Path.Combine(_testBasePath, "dest");
 
@@ -415,7 +415,7 @@ namespace OneJS.Tests.Editor {
             Assert.IsFalse(File.Exists(Path.Combine(Dest, "a.png.meta")));
         }
 
-        // MARK: Assets in npm packages
+        // Assets in npm packages
 
         // An app laid out the way a JSRunner project is: its source dir is
         // {workingDir}/assets, and its packages sit in {workingDir}/node_modules.

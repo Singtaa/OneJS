@@ -76,7 +76,7 @@ namespace OneJS {
             return (TDelegate)Delegate.CreateDelegate(typeof(TDelegate), binding, mi);
         }
 
-        // MARK: Resolution
+        // Resolution
         QuickJSContext ResolveContext() {
             var ctx = _contextProvider();
             if (ctx == null || !ctx.IsAlive)
@@ -122,7 +122,7 @@ namespace OneJS {
             }
         }
 
-        // MARK: Typed invoke surface (bound via Delegate.CreateDelegate)
+        // Typed invoke surface (bound via Delegate.CreateDelegate)
         public void InvokeVoid0() => Call(Array.Empty<object>());
         public void InvokeVoid1<T1>(T1 a1) => Call(new object[] { a1 });
         public void InvokeVoid2<T1, T2>(T1 a1, T2 a2) => Call(new object[] { a1, a2 });
@@ -135,7 +135,7 @@ namespace OneJS {
         public TResult InvokeRet3<T1, T2, T3, TResult>(T1 a1, T2 a2, T3 a3) => ConvertReturn<TResult>(Call(new object[] { a1, a2, a3 }));
         public TResult InvokeRet4<T1, T2, T3, T4, TResult>(T1 a1, T2 a2, T3 a3, T4 a4) => ConvertReturn<TResult>(Call(new object[] { a1, a2, a3, a4 }));
 
-        // MARK: Open method caches
+        // Open method caches
         static MethodInfo Open(string name) =>
             typeof(JsFunctionBinding).GetMethod(name, BindingFlags.Instance | BindingFlags.Public);
 

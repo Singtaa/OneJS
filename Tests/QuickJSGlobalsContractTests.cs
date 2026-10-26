@@ -51,7 +51,7 @@ namespace OneJS.Tests {
             QuickJSNative.ClearAllHandles();
         }
 
-        // MARK: CS proxy
+        // CS proxy
 
         [Test]
         public void NullStaticProperty_ReadsAsNull() {
@@ -84,7 +84,7 @@ namespace OneJS.Tests {
                 calls + ',' + list.Count"));
         }
 
-        // MARK: onejs namespace
+        // onejs namespace
 
         [Test]
         public void TheOnejsNamespace_ReachesTheSameGlobalsAsTheOldNames() {
@@ -99,7 +99,7 @@ namespace OneJS.Tests {
             Assert.AreEqual("true", _ctx.Eval("String(Object.isFrozen(onejs) && Object.isFrozen(onejs.cs))"));
         }
 
-        // MARK: Crossings
+        // Crossings
 
         [Test]
         public void ARepeatedMethodCall_CrossesIntoCSharpOnce() {
@@ -117,7 +117,7 @@ namespace OneJS.Tests {
             Assert.AreEqual(1, QuickJSNative.InteropCallCount - before, "static method");
         }
 
-        // MARK: Timers
+        // Timers
 
         [Test]
         public void TimeoutsDueInOnePass_RunInDueOrder() {
@@ -132,7 +132,7 @@ namespace OneJS.Tests {
                 "timeouts due in the same pass must run in due order, as on the web");
         }
 
-        // MARK: setImmediate
+        // setImmediate
 
         [Test]
         public void SetImmediate_RunsPromptly_ButARescheduleWaitsForTheNextTick() {
@@ -157,7 +157,7 @@ namespace OneJS.Tests {
             Assert.AreEqual("2", _ctx.Eval("String(__steps)"));
         }
 
-        // MARK: localStorage
+        // localStorage
 
         const string StorageKey = "onejs_test_storage_key";
 
@@ -203,7 +203,7 @@ namespace OneJS.Tests {
             }
         }
 
-        // MARK: Fetch polyfills
+        // Fetch polyfills
 
         [Test]
         public void Headers_AreIterable() {

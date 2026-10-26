@@ -6,14 +6,14 @@ using System.Runtime.CompilerServices;
 
 namespace OneJS {
     public static partial class QuickJSNative {
-        // MARK: Type and Member Caches
+        // Type and Member Caches
         static readonly Dictionary<string, Type> _typeCache = new();
         static readonly ConcurrentDictionary<(Type, string, bool, int), MethodInfo> _methodCache = new();
         static readonly ConcurrentDictionary<(Type, string, bool), PropertyInfo> _propertyCache = new();
         static readonly ConcurrentDictionary<(Type, string, bool), FieldInfo> _fieldCache = new();
         static readonly ConcurrentDictionary<(Type, string, bool), bool> _hasMethodCache = new();
 
-        // MARK: Extension Method Registry
+        // Extension Method Registry
         // targetType → { methodName → List<MethodInfo> }
         static readonly Dictionary<Type, Dictionary<string, List<MethodInfo>>> _extensionMethodRegistry = new();
         // Quick existence check for HasExtensionMethodByName path
@@ -21,12 +21,12 @@ namespace OneJS {
         // Prevent duplicate scanning
         static readonly HashSet<Type> _registeredExtensionTypes = new();
 
-        // MARK: BindingFlags Helpers
+        // BindingFlags Helpers
         const BindingFlags PublicNonPublic = BindingFlags.Public | BindingFlags.NonPublic;
         static BindingFlags GetFlags(bool isStatic) =>
             PublicNonPublic | (isStatic ? BindingFlags.Static : BindingFlags.Instance);
 
-        // MARK: Type Resolution
+        // Type Resolution
         static Type ResolveType(string fullName) {
             if (string.IsNullOrEmpty(fullName)) return null;
             if (_typeCache.TryGetValue(fullName, out var cached)) return cached;
@@ -82,7 +82,7 @@ namespace OneJS {
             return null;
         }
 
-        // MARK: Member Finders
+        // Member Finders
         /// <summary>
         /// Generic member finder that walks the type hierarchy.
         /// </summary>
@@ -250,7 +250,7 @@ namespace OneJS {
             return false;
         }
 
-        // MARK: Extension Methods
+        // Extension Methods
 
         /// <summary>
         /// Register all extension methods from a static class.
@@ -362,7 +362,7 @@ namespace OneJS {
             return false;
         }
 
-        // MARK: Argument Hash
+        // Argument Hash
         static int ComputeArgTypeHash(object[] args) {
             if (args == null || args.Length == 0) return 0;
             int hash = args.Length;
@@ -371,7 +371,7 @@ namespace OneJS {
             return hash;
         }
 
-        // MARK: Cached Lookups
+        // Cached Lookups
         static MethodInfo FindMethodCached(Type type, string name, bool isStatic, object[] args) {
             var key = (type, name, isStatic, ComputeArgTypeHash(args));
             if (_methodCache.TryGetValue(key, out var cached) && cached.GetParameters().Length >= args.Length)
@@ -400,7 +400,7 @@ namespace OneJS {
             return field;
         }
 
-        // MARK: Generic Type Helpers
+        // Generic Type Helpers
 
         /// <summary>
         /// Extracts a string from an InteropValue. Used for type argument names in generic binding.

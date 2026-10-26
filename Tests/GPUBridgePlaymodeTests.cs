@@ -50,7 +50,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Platform Capability Tests
+        // Platform Capability Tests
 
         [UnityTest]
         public IEnumerator Platform_SupportsCompute_ReturnsExpectedValue() {
@@ -82,7 +82,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Registry Tests
+        // Registry Tests
 
         [UnityTest]
         public IEnumerator Register_ValidShader_CanBeLoaded() {
@@ -128,7 +128,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Kernel Tests
+        // Kernel Tests
 
         [UnityTest]
         public IEnumerator FindKernel_ValidKernel_ReturnsPositiveIndex() {
@@ -169,7 +169,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Buffer Tests
+        // Buffer Tests
 
         [UnityTest]
         public IEnumerator CreateBuffer_ValidParams_ReturnsPositiveHandle() {
@@ -252,7 +252,7 @@ namespace OneJS.Tests {
             GPUBridge.DisposeBuffer(handle);
         }
 
-        // MARK: Dispatch Tests
+        // Dispatch Tests
 
         [UnityTest]
         public IEnumerator Dispatch_SimpleMultiply_ModifiesBuffer() {
@@ -305,7 +305,7 @@ namespace OneJS.Tests {
             GPUBridge.DisposeShader(shaderHandle);
         }
 
-        // MARK: Uniform Setting Tests
+        // Uniform Setting Tests
 
         [UnityTest]
         public IEnumerator SetFloat_NoException() {
@@ -358,7 +358,7 @@ namespace OneJS.Tests {
             yield return null;
         }
 
-        // MARK: Cleanup Tests
+        // Cleanup Tests
 
         [UnityTest]
         public IEnumerator Cleanup_ReleasesAllResources() {
