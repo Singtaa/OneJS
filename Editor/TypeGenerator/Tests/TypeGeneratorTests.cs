@@ -502,6 +502,56 @@ namespace OneJS.Editor.TypeGenerator.Tests {
             StringAssert.DoesNotContain("): System.TypeLike", result.Content);
         }
 
+        /// <summary>
+        /// A JS array or typed array crosses as an __csArray marker that the
+        /// runtime converts to the parameter's T[], so an array PARAMETER takes
+        /// those as well as a C# array. Declared as Array$1 alone, a Float32Array
+        /// for Tensor<float>'s data could not typecheck (#150).
+        /// </summary>
+        [Test]
+        public void Emit_ArrayParameter_WidensToArrayInput() {
+            var p = new TsParameterInfo { Name = "data", Type = TypeMapper.MapType(typeof(float[])) };
+
+            Assert.AreEqual("$data: System.ArrayInput<number>", p.ToTypeScript());
+        }
+
+        [Test]
+        public void Emit_TypeArrayParameter_WidensBoth() {
+            var p = new TsParameterInfo { Name = "types", Type = TypeMapper.MapType(typeof(Type[])) };
+
+            Assert.AreEqual("$types: System.ArrayInput<System.TypeLike>", p.ToTypeScript());
+        }
+
+        /// <summary>
+        /// What comes back is a C# array, and a ref or out array is written back
+        /// as one, so those stay Array$1, as does a multidimensional array, which
+        /// the marker does not carry.
+        /// </summary>
+        [Test]
+        public void Emit_ArrayNotPassedIn_StaysArray() {
+            var result = TypeGenerator.GenerateToResult(typeof(ArrayParameterFixture));
+
+            StringAssert.Contains("Take($values: System.ArrayInput<number>): System.Array$1<number>;", result.Content);
+            StringAssert.Contains("Grow($values: $Ref<System.Array$1<number>>): void;", result.Content);
+            StringAssert.Contains("Fill($values: $Out<System.Array$1<number>>): void;", result.Content);
+            StringAssert.Contains("Grid($cells: System.Array$1<number>): void;", result.Content);
+            StringAssert.Contains("Sum(...values: number[]): number;", result.Content);
+            StringAssert.Contains("stored: System.Array$1<number>;", result.Content);
+        }
+
+        /// <summary>
+        /// A delegate's call signature is C# calling JS, so the JS function is
+        /// handed a C# array and must be told so; Invoke is JS calling C#.
+        /// </summary>
+        [Test]
+        public void Emit_DelegateCalledFromCSharp_ReceivesArray() {
+            var result = TypeGenerator.GenerateToResult(typeof(ArrayCallbackFixture));
+
+            StringAssert.Contains("($values: System.Array$1<number>): void;", result.Content);
+            StringAssert.Contains("Invoke?: ($values: System.ArrayInput<number>) => void;", result.Content);
+            StringAssert.Contains("new (func: ($values: System.Array$1<number>) => void)", result.Content);
+        }
+
         [Test]
         public void Emit_NonTypeParameter_IsUntouched() {
             var p = new TsParameterInfo { Name = "n", Type = TypeMapper.MapType(typeof(int)) };
@@ -615,6 +665,17 @@ namespace OneJS.Editor.TypeGenerator.Tests {
         }
 
         #endregion
+    }
+
+    public delegate void ArrayCallbackFixture(int[] values);
+
+    public class ArrayParameterFixture {
+        public int[] stored;
+        public int[] Take(int[] values) => values;
+        public void Grow(ref int[] values) { }
+        public void Fill(out int[] values) { values = null; }
+        public void Grid(int[,] cells) { }
+        public int Sum(params int[] values) => 0;
     }
 
     public class GenericOuter<T> {
