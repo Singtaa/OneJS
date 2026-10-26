@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace OneJS.Editor.TypeGenerator {
     /// <summary>
@@ -314,6 +315,38 @@ namespace OneJS.Editor.TypeGenerator {
                 _indent--;
                 AppendLine("}");
             }
+
+            EmitBinder(type);
+        }
+
+        /// <summary>
+        /// OneJS binds a generic type by calling it with its type arguments,
+        /// List(Int32), so the bare name is also a function returning the bound
+        /// constructor (#148). An ambient function merges with a non-generic class
+        /// of the same name, so UnityEvent stays a class. A parameter with a
+        /// constraint cannot take an arbitrary type argument, so a constrained type
+        /// returns its unbound constructor. A type nested in a generic one only
+        /// carries its parent's parameters and is reached through the bound parent.
+        /// </summary>
+        private void EmitBinder(TsTypeInfo type) {
+            if (!type.IsGenericTypeDefinition || !DeclaresOwnGenericParameters(type)) return;
+
+            var parameters = type.GenericParameters;
+            var bareName = Regex.Replace(type.Name, @"\$\d+$", "");
+            var typeParams = string.Join(", ", parameters.Select(p => $"{p} extends System.TypeLike"));
+            var args = string.Join(", ", parameters.Select(p => $"${p}: {p}"));
+            var constrained = type.GenericConstraints.Any(c => !string.IsNullOrEmpty(c.ToTypeScript()));
+            var bound = constrained
+                ? $"typeof {type.Name}"
+                : $"typeof {type.Name}<{string.Join(", ", parameters.Select(p => $"System.BoundType<{p}>"))}>";
+
+            AppendLine($"function {bareName}<{typeParams}>({args}): {bound};");
+        }
+
+        private static bool DeclaresOwnGenericParameters(TsTypeInfo type) {
+            var declaring = type.OriginalType?.DeclaringType;
+            if (declaring == null) return true;
+            return type.OriginalType.GetGenericArguments().Length > declaring.GetGenericArguments().Length;
         }
 
         private void EmitMembers(TsTypeInfo type, bool isInterface) {
