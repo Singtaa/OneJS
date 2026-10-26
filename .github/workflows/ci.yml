@@ -143,14 +143,20 @@ jobs:
       # vendored QuickJS source each run, overwriting the committed binary for
       # the test run, so the build script and source stay continuously verified.
       - name: Build Linux QuickJS native library
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Built inside ubuntu:22.04 so the .so links against a glibc no newer
           # than the unityci test container's (the runner's 24.04 glibc is not
           # available in there). This is also the pinned baseline for the
           # committed binary (glibc 2.35, Unity 6's own Ubuntu 22.04 floor).
-          # From Docker's official mirror on ECR, which has no anonymous pull
-          # limit, rather than Docker Hub, which does.
-          docker run --rm -v "$PWD":/repo -w /repo public.ecr.aws/docker/library/ubuntu:22.04 bash -c \
+          # Every anonymous source of that image has refused this job on a busy
+          # day: Docker Hub's per-IP pull limit, and then ECR Public's "Data
+          # limit exceeded" on 26 October 2026. So it comes from this repository's
+          # own copy on ghcr.io (base-image.yml makes it), pulled with
+          # GITHUB_TOKEN and pinned by digest: Ubuntu's own 22.04, glibc 2.35.
+          echo "$TOKEN" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+          docker run --rm -v "$PWD":/repo -w /repo ghcr.io/singtaa/onejs-ci-ubuntu@sha256:0a614bbcf6a6fde1cf14b6b331f6a8917ce39498f8bfe8b900ba1135f3ab2bec bash -c \
             "apt-get update -qq && apt-get install -y -qq gcc make > /dev/null && bash Auxiliary~/quickjs-unity/build-linux.sh"
 
       # OneJS is a package, so CI hosts it inside a throwaway project. The host's
