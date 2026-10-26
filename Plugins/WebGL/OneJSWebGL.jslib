@@ -704,6 +704,15 @@ var OneJSWebGLLib = {
         var filename = UTF8ToString(filenamePtr);
         var c = OneJS.contexts[ctx];
 
+        // A bundle hands over its lifecycle exports as `var __exports` (esbuild's
+        // iife, globalName "__exports"). Under an indirect eval a strict bundle's
+        // top-level var stays in the eval's own scope, where QuickJS's global
+        // script would make it global, so publish it from inside that scope for
+        // JsHost.RegisterExport to find. Every scaffolded app is strict.
+        if (/\bvar\s+__exports\s*=/.test(code)) {
+            code += "\n;void (typeof __exports !== \"undefined\" && (globalThis.__exports = __exports));";
+        }
+
         try {
             // Global-scope eval in the context's realm: an iframe realm's own
             // eval, called as a member, is indirect in that realm.

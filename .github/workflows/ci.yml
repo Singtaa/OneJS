@@ -47,6 +47,21 @@ jobs:
       - uses: actions/checkout@v4
       - run: python3 Auxiliary~/quickjs-unity/check-plugin-deps.py
 
+  # The WebGL jslib runs only in a browser player, and its tests sit in a ~
+  # folder Unity never imports, so nothing else here would ever run them. Node's
+  # indirect eval scopes declarations exactly as a browser's does, which is what
+  # these check (#145: a strict bundle's onPlay never ran on WebGL).
+  webgl-jslib:
+    name: WebGL jslib (node)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test "Tests/WebGL~/qjs-eval.test.mjs"
+
   # The check above never opens a binary, which is what lets one Linux runner
   # cover all six at once. The cost is that it cannot see a library that parses
   # but will not run: a stale binary whose ABI no longer matches the C# side
