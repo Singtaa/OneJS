@@ -1,3 +1,7 @@
+# Unreleased
+
+- On WebGL, `onPlay` and `onStop` run for a strict bundle, as every scaffolded app's is
+
 # [2026-10-20] v3.9.12
 
 Updating from 3.9.3 or earlier left the old `UICartridgeEditor.cs` in the project, where it no longer compiles. Updates now replace it and every other file a release renamed or removed, including in a project an earlier update already broke.
