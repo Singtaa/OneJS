@@ -1,7 +1,15 @@
-# Unreleased
+# [2026-10-28] v3.9.13
 
-- On WebGL, `onPlay` and `onStop` run for a strict bundle, as every scaffolded app's is
+C# constructors with default parameters can be called from JS without them, and generic types, extension methods and array parameters now typecheck the way they already ran. On WebGL every app's `onPlay` and `onStop` run, and `useEventSync` reports a C# event or property that throws instead of hiding it.
+
+- `new` calls a C# constructor whose trailing parameters have defaults, with them left out (#146)
+- On WebGL, `onPlay` and `onStop` run for a strict bundle, as every scaffolded app's is (#145)
+- Generated types: a generic class is callable with its type arguments, as `List(Int32)` (#148)
+- Generated types: an extension method keeps its `this` parameter on its static class (#149)
+- Generated types: an array parameter takes a JS array or typed array (#150)
+- `useEventSync` logs an event accessor or getter that throws, and warns only about a missing event (#152)
 - `compute.struct`'s stride is the HLSL struct's size, with no rounding to 16 bytes
+- New projects get onejs-react 0.4.3, onejs-unity 0.11.1 and ojplay 0.12.2
 
 # [2026-10-20] v3.9.12
 
