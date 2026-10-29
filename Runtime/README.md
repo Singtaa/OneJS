@@ -171,7 +171,7 @@ JSRunner supports rendering UI in the Game view **without entering Play mode**. 
 | Exit Play mode | `OnEnable()` → `SchedulePreviewAutoStart()` → restarts preview |
 
 **Key implementation details:**
-- `SchedulePreviewAutoStart()` retries `TryStartEditModePreview()` on `EditorApplication.update` (every 0.25s, 10s window) until the UIDocument panel settles after a domain reload. `EditorApplication.delayCall` is deliberately not used: in an unfocused/idle editor the delayCall queue can starve indefinitely (it only drains with inspector/GUI activity), which left the preview off after externally-triggered reloads (MCP agents, scripted recompiles) until the editor regained focus.
+- `SchedulePreviewAutoStart()` retries `TryStartEditModePreview()` on `EditorApplication.update` (every 0.25s, 10s window) until the UIDocument panel settles after a domain reload. `EditorApplication.delayCall` is deliberately not used: in an unfocused/idle editor the delayCall queue can starve indefinitely (it only drains with inspector/GUI activity), which left the preview off after externally-triggered reloads (MCP agents, scripted recompiles) until the editor regained focus. For the same reason the retry adds the UIDocument itself when OnValidate's deferred add has not run yet (#141).
 - `QueuePlayerLoopUpdate()` forces Game view repaint on initial render and after live reload
 - `Update()` and `Start()` are guarded with `if (!Application.isPlaying) return;`
 - Reload failures in edit mode call `StopEditModePreview()` to prevent broken state

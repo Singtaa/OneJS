@@ -29,6 +29,7 @@ namespace OneJS.Tests.Editor {
         GameObject _go;
         MethodInfo _removeUIDocumentIfOwned;
         MethodInfo _ensureUIDocumentInEditor;
+        MethodInfo _tryStartEditModePreview;
 
         // Test objects live in a preview scene, never in whoever's scene is open. A GameObject created
         // in the open scene dirties it, and the EditMode runner then prompts to save modified scenes
@@ -49,6 +50,11 @@ namespace OneJS.Tests.Editor {
                 "EnsureUIDocumentInEditor", BindingFlags.NonPublic | BindingFlags.Instance);
             Assert.IsNotNull(_ensureUIDocumentInEditor,
                 "JSRunner.EnsureUIDocumentInEditor() was not found via reflection: " +
+                "these tests are out of sync with the implementation.");
+            _tryStartEditModePreview = typeof(JSRunner).GetMethod(
+                "TryStartEditModePreview", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.IsNotNull(_tryStartEditModePreview,
+                "JSRunner.TryStartEditModePreview() was not found via reflection: " +
                 "these tests are out of sync with the implementation.");
 
             _previewScene = EditorSceneManager.NewPreviewScene();
@@ -140,6 +146,27 @@ namespace OneJS.Tests.Editor {
             Assert.IsNull(_go.GetComponent<UIDocument>(),
                 "Clearing Panel Settings left behind a UIDocument that JSRunner added. The point is to " +
                 "narrow this cleanup to JSRunner's own component, not to stop cleaning up.");
+        }
+
+        /// <summary>
+        /// OnValidate adds the UIDocument through delayCall, which an unfocused, idle editor may not run
+        /// for longer than the preview's retry window, while the retry itself runs from update (#141).
+        /// Nothing here runs delayCall, which is the starved editor exactly.
+        /// </summary>
+        [Test]
+        public void PreviewStart_AddsTheUIDocument_WithoutWaitingForDelayCall() {
+            _go = NewTestObject();
+            var runner = _go.AddComponent<JSRunner>();
+            runner.SetPanelSettings(PanelSettingsInValidFolder());
+            File.WriteAllText(Path.Combine(AbsolutePath(TEST_FOLDER + "/Valid"), "app.js.txt"), "");
+            Assert.IsNull(_go.GetComponent<UIDocument>(),
+                "Test setup is wrong: nothing was supposed to have added a UIDocument yet.");
+
+            _tryStartEditModePreview.Invoke(runner, null);
+
+            Assert.IsNotNull(_go.GetComponent<UIDocument>(),
+                "The preview start left a runner with a valid Panel Settings and a bundle without its " +
+                "UIDocument, so an editor whose delayCall queue starves never starts the preview.");
         }
     }
 }

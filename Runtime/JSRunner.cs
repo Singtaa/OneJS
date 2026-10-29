@@ -1748,8 +1748,14 @@ namespace OneJS {
             var entryFile = EntryFileFullPath;
             if (string.IsNullOrEmpty(entryFile) || !File.Exists(entryFile)) return;
 
-            // Ensure UIDocument exists and has a valid rootVisualElement
+            // Ensure UIDocument exists and has a valid rootVisualElement. OnValidate adds it through
+            // delayCall, which an unfocused, idle editor may not run inside the retry window; every
+            // caller of this runs from update, where adding a component is allowed (#141).
             _uiDocument = GetComponent<UIDocument>();
+            if (_uiDocument == null && UsesPanelSettings) {
+                EnsureUIDocumentInEditor();
+                _uiDocument = GetComponent<UIDocument>();
+            }
             if (_uiDocument == null || _uiDocument.rootVisualElement == null) return;
 
             try {
