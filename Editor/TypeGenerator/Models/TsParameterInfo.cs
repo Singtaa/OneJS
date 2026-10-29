@@ -61,6 +61,10 @@ namespace OneJS.Editor.TypeGenerator {
         /// alone rejected a `Float32Array` the call accepts. A `ref` or `out` array
         /// is written back as a C# array, a multidimensional one is not carried by
         /// the marker, and a `params` array is spread, so those keep their type.
+        ///
+        /// The list itself or `System.ArrayInput<T>` for a `List<T>` passed in,
+        /// which the runtime fills from a JS array element by element (#151). A
+        /// `ref` or `out` list is written back as the list, so it keeps its type.
         /// </summary>
         static string Widen(TsTypeRef type, bool useFullTypeName, bool isParams) {
             if (type == null) return null;
@@ -73,6 +77,11 @@ namespace OneJS.Editor.TypeGenerator {
                     return $"System.ArrayInput<{elementName}>";
                 }
                 if (isType) return "System.Array$1<System.TypeLike>";
+            }
+            var original = type.OriginalType;
+            if (original != null && original.IsGenericType && original.GetGenericTypeDefinition() == typeof(System.Collections.Generic.List<>)
+                && type.GenericArguments.Count == 1 && !type.IsByRef && !type.IsOut) {
+                return $"{type.ToTypeScript(useFullTypeName)} | System.ArrayInput<{type.GenericArguments[0].ToTypeScript(useFullTypeName)}>";
             }
             return null;
         }

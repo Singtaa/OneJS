@@ -254,7 +254,7 @@ TypeGeneratorResult (Output + Metadata)
 
 An extension method is declared on its static class with every parameter, the extended object first, `PointerCaptureHelper.CapturePointer($handler, $pointerId)`: that static call is the form that works without `useExtensions()`.
 
-A parameter is declared as what a call can pass, which can be wider than its C# type: a `System.Type` parameter takes `System.TypeLike`, and a one-dimensional array parameter takes `System.ArrayInput<T>`, which admits a JS array or typed array the runtime converts. Returns, fields, `ref`/`out` arrays and a delegate's call signature (C# calling JS) keep the C# type.
+A parameter is declared as what a call can pass, which can be wider than its C# type: a `System.Type` parameter takes `System.TypeLike`, a one-dimensional array parameter takes `System.ArrayInput<T>`, which admits a JS array or typed array the runtime converts, and a `List<T>` parameter takes the list or `System.ArrayInput<T>`. Returns, fields, `ref`/`out` arrays and lists, and a delegate's call signature (C# calling JS) keep the C# type.
 
 A generic type is declared and referenced under one name, its C# name plus `$N` for its N type parameters (`class BaseField$1<TValueType>`, `extends BaseField$1<number>`), so `UnityEvent` and `UnityEvent$1` stay apart. A type nested in a generic one counts its parent's parameters too. `TypeMapper.TsTypeName` is the one place that name is made, for declarations and references alike.
 

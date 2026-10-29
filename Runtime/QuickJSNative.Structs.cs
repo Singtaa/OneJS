@@ -843,6 +843,11 @@ namespace OneJS {
                 return ConvertToArray(value, targetType);
             }
 
+            // A JS array, which arrives as a C# array, into a List<T>, element by element (#151)
+            if (IsListFromArray(targetType, value)) {
+                return ConvertToList(value, targetType);
+            }
+
             // 2. Dictionary from JS -> System.Type or delegate
             if (value is Dictionary<string, object> dict) {
                 // Handle __csTypeRef for AddComponent(MeshFilter) style calls

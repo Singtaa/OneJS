@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using UnityEngine;
@@ -1200,6 +1201,79 @@ namespace OneJS.Tests {
             yield return null;
         }
 
+        // A JS array into a List<T> parameter, constructor or property (#151)
+
+        [UnityTest]
+        public IEnumerator List_JsArray_ToIntList_Works() {
+            var result = _ctx.Eval("CS.OneJS.Tests.ArrayTestHelper.CountIntList([1, 2, 3])");
+            Assert.AreEqual("3", result);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator List_Float32Array_ToFloatList_Works() {
+            var result = _ctx.Eval("CS.OneJS.Tests.ArrayTestHelper.SumFloatList(new Float32Array([0.5, 1.5]))");
+            Assert.AreEqual("2", result);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator List_JsIntegers_ToFloatList_ConvertEachElement() {
+            var result = _ctx.Eval("CS.OneJS.Tests.ArrayTestHelper.SumFloatList([1, 2])");
+            Assert.AreEqual("3", result);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator List_JsObjectArray_ToVector3List_Works() {
+            var result = _ctx.Eval(@"
+                var sum = CS.OneJS.Tests.ArrayTestHelper.SumVector3List([{ x: 1, y: 2, z: 3 }, { x: 4, y: 5, z: 6 }]);
+                sum.x + ',' + sum.y + ',' + sum.z;
+            ");
+            Assert.AreEqual("5,7,9", result);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator List_EmptyJsArray_ToIntList_Works() {
+            var result = _ctx.Eval("CS.OneJS.Tests.ArrayTestHelper.CountIntList([])");
+            Assert.AreEqual("0", result);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator List_OverloadedOnArrayAndList_AJsArrayKeepsTheArray() {
+            // Mesh.SetVertices is overloaded the same way. The List<T> overload is declared first,
+            // so taking the first overload a JS array can reach would pick it.
+            var result = _ctx.Eval(@"
+                var list = new (CS.System.Collections.Generic.List(CS.System.Int32))();
+                CS.OneJS.Tests.ArrayTestHelper.Which([1, 2]) + ',' + CS.OneJS.Tests.ArrayTestHelper.Which(list);
+            ");
+            Assert.AreEqual("array,list", result);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator List_JsArray_ToConstructorAndSetter_Works() {
+            var result = _ctx.Eval(@"
+                var holder = new CS.OneJS.Tests.ListHolder([1, 2, 3]);
+                var counted = holder.Items.Count;
+                holder.Items = [4, 5];
+                counted + ',' + holder.Items.Count + ',' + new CS.OneJS.Tests.ListOrArray([1]).From;
+            ");
+            Assert.AreEqual("3,2,array", result);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator List_JsArrayOfTheWrongElements_IsStillRefused() {
+            var result = _ctx.Eval(@"
+                try { CS.OneJS.Tests.ArrayTestHelper.CountIntList(['a', 'b']); 'called' } catch (e) { 'refused' }
+            ");
+            Assert.AreEqual("refused", result);
+            yield return null;
+        }
+
         // Int64/UInt64 Tests
 
         [UnityTest]
@@ -1322,6 +1396,35 @@ namespace OneJS.Tests {
             if (arr == null || arr.Length == 0) return "";
             return string.Join("", arr);
         }
+
+        public static int CountIntList(List<int> list) => list == null ? -1 : list.Count;
+
+        public static float SumFloatList(List<float> list) {
+            float sum = 0;
+            foreach (var x in list) sum += x;
+            return sum;
+        }
+
+        public static Vector3 SumVector3List(List<Vector3> list) {
+            Vector3 sum = Vector3.zero;
+            foreach (var v in list) sum += v;
+            return sum;
+        }
+
+        // Declared before the array overload on purpose: see List_OverloadedOnArrayAndList_AJsArrayKeepsTheArray.
+        public static string Which(List<int> list) => "list";
+        public static string Which(int[] arr) => "array";
+    }
+
+    public class ListHolder {
+        public List<int> Items { get; set; }
+        public ListHolder(List<int> items) { Items = items; }
+    }
+
+    public class ListOrArray {
+        public string From;
+        public ListOrArray(List<int> items) { From = "list"; }
+        public ListOrArray(int[] items) { From = "array"; }
     }
 
     // Int64/UInt64 Test Helper

@@ -311,20 +311,23 @@ namespace OneJS {
                         return;
                     }
 
-                    // The rule FindMethod follows: an exact arity match wins, else the first
-                    // constructor whose omitted trailing parameters all declare defaults (#146).
+                    // The ranks FindMethod follows (OverloadRank): an exact arity match wins, else
+                    // the first constructor whose omitted trailing parameters all declare defaults
+                    // (#146), and one reached by taking a JS array as a List<T> only after each (#151).
                     ConstructorInfo fallbackCtor = null;
                     object[] fallbackArgs = null;
+                    int fallbackRank = int.MaxValue;
                     foreach (var ctor in type.GetConstructors()) {
                         var parms = ctor.GetParameters();
                         bool exact = parms.Length == args.Length;
-                        if (!exact && (parms.Length < args.Length || fallbackCtor != null ||
+                        if (!exact && (parms.Length < args.Length ||
                                        !TrailingParametersHaveDefaults(parms, args.Length))) continue;
 
-                        bool match = true;
+                        bool match = true, widened = false;
                         object[] convertedArgs = new object[parms.Length];
                         for (int i = 0; i < args.Length; i++) {
                             var pType = parms[i].ParameterType;
+                            widened |= IsListFromArray(pType, args[i]);
                             var converted = ConvertToTargetType(args[i], pType);
 
                             if (converted == null) {
@@ -341,13 +344,16 @@ namespace OneJS {
                         }
 
                         if (!match) continue;
-                        if (exact) {
+                        int rank = (widened ? 2 : 0) + (exact ? 0 : 1);
+                        if (rank == 0) {
                             SetReturnValue(resPtr, ctor.Invoke(convertedArgs));
                             return;
                         }
+                        if (rank >= fallbackRank) continue;
                         FillOmittedDefaults(parms, convertedArgs, args.Length);
                         fallbackCtor = ctor;
                         fallbackArgs = convertedArgs;
+                        fallbackRank = rank;
                     }
 
                     if (fallbackCtor != null) {

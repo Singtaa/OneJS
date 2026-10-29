@@ -157,7 +157,8 @@ namespace OneJS {
             // binds to `PlaySfx(string key, float volumeScale = 1, float pitch = 1)`.
             // The invoke site (QuickJSNative.Dispatch) fills the missing slots with
             // the declared default values.
-            MethodInfo optionalParamFallback = null;
+            MethodInfo best = null;
+            int bestRank = int.MaxValue;
 
             while (type != null) {
                 foreach (var m in type.GetMethods(flags | BindingFlags.DeclaredOnly)) {
@@ -168,28 +169,54 @@ namespace OneJS {
                     // Q<T>(e, name, className) beside Q(e, name, className).
                     // Picking the generic one fails at Invoke on Unity 6.5.
                     if (m.IsGenericMethodDefinition) continue;
-                    var parameters = m.GetParameters();
-
-                    if (parameters.Length == args.Length) {
-                        bool match = true;
-                        for (int j = 0; j < parameters.Length && match; j++)
-                            match = IsArgCompatible(parameters[j].ParameterType, args[j]);
-                        if (match) return m;
-                        continue;
-                    }
-
-                    if (parameters.Length > args.Length && optionalParamFallback == null) {
-                        bool match = true;
-                        for (int j = 0; j < args.Length && match; j++)
-                            match = IsArgCompatible(parameters[j].ParameterType, args[j]);
-                        if (match && TrailingParametersHaveDefaults(parameters, args.Length))
-                            optionalParamFallback = m;
+                    int rank = OverloadRank(m.GetParameters(), 0, args);
+                    if (rank == 0) return m;
+                    if (rank > 0 && rank < bestRank) {
+                        best = m;
+                        bestRank = rank;
                     }
                 }
                 type = type.BaseType;
             }
 
-            return optionalParamFallback;
+            return best;
+        }
+
+        /// <summary>
+        /// How well an overload fits the arguments, lower first, or -1 when it does not: the arity
+        /// matched with every argument as it is, then omitted trailing optionals, then each of those
+        /// again with a JS array taken as a List&lt;T&gt; (#151), so a method overloaded on T[] and
+        /// List&lt;T&gt;, as Mesh.SetVertices is, keeps the array. Parameters before
+        /// <paramref name="offset"/> are not the caller's: an extension method's `this`.
+        /// </summary>
+        static int OverloadRank(ParameterInfo[] parms, int offset, object[] args) {
+            int given = args.Length + offset;
+            bool exact = parms.Length == given;
+            if (!exact && (parms.Length < given || !TrailingParametersHaveDefaults(parms, given))) return -1;
+            bool widened = false;
+            for (int i = 0; i < args.Length; i++) {
+                var paramType = parms[i + offset].ParameterType;
+                if (IsArgCompatible(paramType, args[i])) continue;
+                if (!IsListFromArray(paramType, args[i])) return -1;
+                widened = true;
+            }
+            return (widened ? 2 : 0) + (exact ? 0 : 1);
+        }
+
+        /// <summary>
+        /// Whether a JS array, which arrives as a C# array, can become this List&lt;T&gt; parameter
+        /// (#151): each element has to fit T as it would fit an array of T.
+        /// </summary>
+        static bool IsListFromArray(Type paramType, object arg) {
+            if (!(arg is Array array) || !paramType.IsGenericType
+                || paramType.GetGenericTypeDefinition() != typeof(List<>)) return false;
+            var element = paramType.GetGenericArguments()[0];
+            var from = array.GetType().GetElementType();
+            if (from != typeof(object))
+                return element.IsAssignableFrom(from) || (element.IsPrimitive && from.IsPrimitive);
+            foreach (var item in array)
+                if (!IsArgCompatible(element, item)) return false;
+            return true;
         }
 
         /// <summary>
@@ -315,33 +342,21 @@ namespace OneJS {
             // Q(this, string name = null, string className = null). Open generic
             // definitions cannot be invoked without type arguments, so they never
             // match; UQuery pairs each Q/Query with a generic twin.
-            MethodInfo optionalParamFallback = null;
+            MethodInfo best = null;
+            int bestRank = int.MaxValue;
 
             foreach (var method in overloads) {
                 if (method.IsGenericMethodDefinition) continue;
-                var parms = method.GetParameters();
-
                 // First param is 'this', rest must match args
-                if (parms.Length - 1 == args.Length) {
-                    bool match = true;
-                    for (int i = 0; i < args.Length && match; i++) {
-                        match = IsArgCompatible(parms[i + 1].ParameterType, args[i]);
-                    }
-                    if (match) return method;
-                    continue;
-                }
-
-                if (parms.Length - 1 > args.Length && optionalParamFallback == null) {
-                    bool match = true;
-                    for (int i = 0; i < args.Length && match; i++) {
-                        match = IsArgCompatible(parms[i + 1].ParameterType, args[i]);
-                    }
-                    if (match && TrailingParametersHaveDefaults(parms, args.Length + 1))
-                        optionalParamFallback = method;
+                int rank = OverloadRank(method.GetParameters(), 1, args);
+                if (rank == 0) return method;
+                if (rank > 0 && rank < bestRank) {
+                    best = method;
+                    bestRank = rank;
                 }
             }
 
-            return optionalParamFallback;
+            return best;
         }
 
         /// <summary>

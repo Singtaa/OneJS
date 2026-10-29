@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NUnit.Framework;
@@ -552,6 +553,20 @@ namespace OneJS.Editor.TypeGenerator.Tests {
             StringAssert.Contains("new (func: ($values: System.Array$1<number>) => void)", result.Content);
         }
 
+        /// <summary>
+        /// A List&lt;T&gt; parameter takes a JS array or typed array as well, which
+        /// the runtime converts element by element when no overload takes it as it
+        /// is (#151). A returned, stored or ref list is a real one.
+        /// </summary>
+        [Test]
+        public void Emit_ListParameter_AlsoTakesArrayInput() {
+            var result = TypeGenerator.GenerateToResult(typeof(ListParameterFixture));
+
+            StringAssert.Contains("Take($values: System.Collections.Generic.List$1<number> | System.ArrayInput<number>): System.Collections.Generic.List$1<number>;", result.Content);
+            StringAssert.Contains("Grow($values: $Ref<System.Collections.Generic.List$1<number>>): void;", result.Content);
+            StringAssert.Contains("stored: System.Collections.Generic.List$1<number>;", result.Content);
+        }
+
         [Test]
         public void Emit_NonTypeParameter_IsUntouched() {
             var p = new TsParameterInfo { Name = "n", Type = TypeMapper.MapType(typeof(int)) };
@@ -761,6 +776,12 @@ namespace OneJS.Editor.TypeGenerator.Tests {
         public void Fill(out int[] values) { values = null; }
         public void Grid(int[,] cells) { }
         public int Sum(params int[] values) => 0;
+    }
+
+    public class ListParameterFixture {
+        public List<int> stored;
+        public List<int> Take(List<int> values) => values;
+        public void Grow(ref List<int> values) { }
     }
 
     public class GenericOuter<T> {
