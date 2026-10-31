@@ -232,8 +232,8 @@ namespace OneJS {
         double _nextPreviewStartAttempt;
         const double PreviewStartRetryWindow = 10.0;
         const double PreviewStartRetryInterval = 0.25;
+        // Edit-mode previews only. Play Mode ticks every runner, as a player build does.
         public static Func<JSRunner, bool> EditModeUpdateFilter;
-        public static Func<JSRunner, bool> PlayModeUpdateFilter;
         FileSystemWatcher _editModeWatcher;
 #endif
 
@@ -1982,7 +1982,7 @@ namespace OneJS {
             _stalenessReloadCount = 0;
 
 #if UNITY_EDITOR
-            if (_scriptLoaded && (PlayModeUpdateFilter == null || PlayModeUpdateFilter(this))) {
+            if (_scriptLoaded) {
                 _bridge?.Tick();
                 TryInitialFocus();
                 CheckForFileChanges();

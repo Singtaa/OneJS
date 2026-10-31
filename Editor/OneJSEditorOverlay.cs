@@ -64,8 +64,9 @@ namespace OneJS.Editor {
         }
 
         static OneJSOverlayUpdateModeBridge() {
+            // Edit-mode previews only: Play Mode ticks every runner, as a build does, so a
+            // world-space runner whose origin is off camera keeps its elements live.
             JSRunner.EditModeUpdateFilter = ShouldUpdateRunnerInEditMode;
-            JSRunner.PlayModeUpdateFilter = ShouldUpdateRunnerInPlayMode;
             Camera.onPreCull -= OnCameraPreCull;
             Camera.onPreCull += OnCameraPreCull;
         }
@@ -82,11 +83,6 @@ namespace OneJS.Editor {
                 return EvaluateGameMode(runner);
             }
             return EvaluateSceneMode(runner);
-        }
-
-        static bool ShouldUpdateRunnerInPlayMode(JSRunner runner) {
-            if (runner == null) return false;
-            return EvaluateGameMode(runner);
         }
 
         static bool EvaluateSceneMode(JSRunner runner) {
@@ -391,7 +387,9 @@ namespace OneJS.Editor {
         }
 
         PopupField<string> CreateGamePopup(List<string> options, int index, bool compact) {
-            var popup = new PopupField<string>("Game:", options, index);
+            var popup = new PopupField<string>("Game:", options, index) {
+                tooltip = "Which edit-mode previews update while the Game view has focus. Play Mode always updates every runner, as a build does."
+            };
             if (compact) {
                 popup.labelElement.style.minWidth = StyleKeyword.Auto;
                 popup.labelElement.style.width = StyleKeyword.Auto;
