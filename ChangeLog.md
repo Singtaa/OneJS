@@ -1,10 +1,16 @@
-# Unreleased
+# [2026-10-31] v3.9.14
+
+A world-space panel keeps running in Play Mode when its GameObject is off camera, and JS can move an element with `element.transform.position`. JS arrays now pass where C# takes a list.
 
 - Play Mode ticks every JSRunner, as a build does; the overlay's Game mode applies to edit-mode previews only
 - `element.transform.position` and `scale` can be set and read from JS
 - A C# object JS reaches through an interface is its own proxy: `el.transform !== el`
 - Writing `el.position` on an element fails with a message pointing at `el.transform.position`
 - Scene: Auto picks the runner whose content is closest, not its origin
+- A JS array or typed array passes as a C# `List<T>` (#151)
+- An unfocused editor starts a runner's preview without waiting for focus (#141)
+- A rebuild that changes nothing no longer makes Unity reimport the bundle (onejs-unity #9)
+- New projects get onejs-unity 0.11.2
 
 # [2026-10-28] v3.9.13
 
