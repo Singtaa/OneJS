@@ -487,10 +487,8 @@ namespace OneJS {
                     }
 
                     case InteropInvokeCallKind.SetProp: {
-                        PropertyInfo viewProp = view != null ? FindViewProperty(view, memberName) : null;
-                        PropertyInfo prop = viewProp != null && viewProp.CanWrite
-                            ? viewProp
-                            : FindWritableProperty(type, memberName, isStatic, args.Length > 0 ? args[0] : null);
+                        PropertyInfo prop = (view != null ? FindViewProperty(view, memberName) : null)
+                            ?? FindPropertyCached(type, memberName, isStatic);
                         if (prop == null) {
                             // Fallback: try field access (JS proxy doesn't distinguish fields from properties)
                             FieldInfo fallbackField = FindFieldCached(type, memberName, isStatic);
@@ -504,6 +502,11 @@ namespace OneJS {
 
                             Fail(resPtr, "[QuickJS] Property or field not found (set): " + type.FullName +
                                            "." + memberName);
+                            return;
+                        }
+
+                        if (!prop.CanWrite && prop.DeclaringType.IsInterface) {
+                            Fail(resPtr, ReadOnlyInterfaceMemberMessage(type, prop));
                             return;
                         }
 

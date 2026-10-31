@@ -43,8 +43,9 @@ namespace OneJS.Tests {
     /// A member that two interfaces declare, both implemented explicitly, is
     /// reached through the interface it was reached by, as C# reaches it: JS's
     /// element.transform.position is ITransform's, element.resolvedStyle.position
-    /// is IResolvedStyle's. Setting a member on the object itself takes the
-    /// declaration that can be written. Discord, 25 Oct: transform.position from
+    /// is IResolvedStyle's. Writing a member on the object itself that its first
+    /// interface declares get-only fails, naming the interface view to write it
+    /// through, so a read and a write never mean two members. Discord, 25 Oct: transform.position from
     /// JS threw "Set Method not found for 'position'", because the lookup took
     /// the first interface declaring the name, IResolvedStyle's get-only one.
     /// </summary>
@@ -166,14 +167,48 @@ namespace OneJS.Tests {
         }
 
         [UnityTest]
-        public IEnumerator SettingAnAmbiguousMemberOnTheObject_TakesTheWritableOne() {
+        public IEnumerator WritingAReadOnlyInterfaceMemberOnTheObject_NamesTheInterfaceToWriteThrough() {
             var result = Eval(@"
                 var t = new CS.OneJS.Tests.InterfaceMemberTwoLabels();
-                t.Label = 'set on the object';
-                t.Written;
+                var message = 'no error';
+                try { t.Label = 'set on the object'; } catch (e) { message = String(e.message); }
+                message + '|' + t.Written;
             ");
-            Assert.AreEqual("set on the object", result);
+            StringAssert.Contains("Label is read-only here", result);
+            StringAssert.Contains("use .Writable.Label", result);
+            StringAssert.EndsWith("|written", result, "nothing was written");
             yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator WritingPositionOnTheElement_PointsAtTransform() {
+            var result = Eval(@"
+                var el = CS.OneJS.Tests.InterfaceMemberTestHelper.GetElement();
+                var message = 'no error';
+                try { el.position = new CS.UnityEngine.Vector3(1, 2, 0); } catch (e) { message = String(e.message); }
+                message;
+            ");
+            StringAssert.Contains("position is read-only here", result);
+            StringAssert.Contains("IResolvedStyle.position", result);
+            StringAssert.Contains("use .transform.position", result);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator TransformPosition_RoundTrips() {
+            Eval(@"
+                var el = CS.OneJS.Tests.InterfaceMemberTestHelper.GetElement();
+                el.transform.position = new CS.UnityEngine.Vector3(7, 8, 0);
+            ");
+            yield return null;
+            yield return null;
+            var result = Eval(@"
+                var el = CS.OneJS.Tests.InterfaceMemberTestHelper.GetElement();
+                el.transform.position = el.transform.position;
+                var p = el.transform.position;
+                [p.x, p.y, p.z].join(',');
+            ");
+            Assert.AreEqual("7,8,0", result);
         }
 
         [UnityTest]

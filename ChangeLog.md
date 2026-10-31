@@ -1,3 +1,11 @@
+# Unreleased
+
+- Play Mode ticks every JSRunner, as a build does; the overlay's Game mode applies to edit-mode previews only
+- `element.transform.position` and `scale` can be set and read from JS
+- A C# object JS reaches through an interface is its own proxy: `el.transform !== el`
+- Writing `el.position` on an element fails with a message pointing at `el.transform.position`
+- Scene: Auto picks the runner whose content is closest, not its origin
+
 # [2026-10-28] v3.9.13
 
 C# constructors with default parameters can be called from JS without them, and generic types, extension methods and array parameters now typecheck the way they already ran. On WebGL every app's `onPlay` and `onStop` run, and `useEventSync` reports a C# event or property that throws instead of hiding it.

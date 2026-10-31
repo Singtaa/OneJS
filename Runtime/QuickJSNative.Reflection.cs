@@ -245,9 +245,10 @@ namespace OneJS {
 
             // Search interfaces (needed for IStyle, etc.). Two of them can declare
             // the name, both implemented explicitly, and this takes the first: a
-            // read through an interface the value was reached by goes to that
-            // interface instead (InterfaceViewOf), and a write that lands on a
-            // get-only one takes a writable one (FindWritableProperty).
+            // member reached through an interface view goes to that interface
+            // instead (InterfaceViewOf), and a write that lands on a get-only one
+            // fails naming the interface to write it through
+            // (ReadOnlyInterfaceMemberMessage).
             foreach (var iface in type.GetInterfaces()) {
                 prop = iface.GetProperty(name);
                 if (prop != null) return prop;
@@ -256,24 +257,26 @@ namespace OneJS {
         }
 
         /// <summary>
-        /// The property a write to <paramref name="name"/> goes to. Usually the one
-        /// a read finds, but when that one has no setter and is an interface's,
-        /// another interface's writable declaration of the same name: a
-        /// VisualElement's `position` is found as IResolvedStyle's get-only one,
-        /// and is written as ITransform's. Among several writable ones, the first
-        /// whose type takes the value.
+        /// Why a write to an interface's get-only member fails, and where it can go
+        /// instead: another interface the object implements that declares it with a
+        /// setter, reached through a property of the object that returns that
+        /// interface, as a VisualElement's `position` is written through
+        /// `transform`. A write never goes there by itself: the object's `position`
+        /// reads IResolvedStyle's, and a write to ITransform's would make
+        /// `el.position = el.position` mean two different members.
         /// </summary>
-        static PropertyInfo FindWritableProperty(Type type, string name, bool isStatic, object value) {
-            var found = FindPropertyCached(type, name, isStatic);
-            if (found == null || found.CanWrite || isStatic || !found.DeclaringType.IsInterface) return found;
-            PropertyInfo writable = null;
+        static string ReadOnlyInterfaceMemberMessage(Type type, PropertyInfo prop) {
+            var message = $"[QuickJS] {prop.Name} is read-only here: on {type.Name} it is {prop.DeclaringType.Name}.{prop.Name}.";
             foreach (var iface in type.GetInterfaces()) {
-                var prop = iface.GetProperty(name);
-                if (prop == null || !prop.CanWrite) continue;
-                if (IsArgCompatible(prop.PropertyType, value)) return prop;
-                writable ??= prop;
+                var writable = iface.GetProperty(prop.Name);
+                if (writable == null || !writable.CanWrite) continue;
+                foreach (var accessor in type.GetProperties(BindingFlags.Public | BindingFlags.Instance)) {
+                    if (accessor.PropertyType == iface && accessor.GetIndexParameters().Length == 0)
+                        return message + $" To write {iface.Name}.{prop.Name}, use .{accessor.Name}.{prop.Name}";
+                }
+                return message + $" {iface.Name}.{prop.Name} is writable, through a value typed {iface.Name}";
             }
-            return writable ?? found;
+            return message;
         }
 
         // Interface views
