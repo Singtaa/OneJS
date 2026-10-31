@@ -217,6 +217,11 @@ namespace OneJS {
                 // Resolve type if not already resolved from handle
                 if (type == null) type = ResolveType(typeName);
 
+                // A proxy JS holds as an interface view (InterfaceViewOf) is named
+                // for the interface: its members come first, as C# reaches them
+                // through it. Null for a proxy of the object's own type.
+                Type view = target != null ? ViewTypeOf(typeName, type) : null;
+
                 // Type queries
                 if (reqPtr->callKind == InteropInvokeCallKind.TypeExists) {
                     resPtr->returnValue.type = InteropType.Bool;
@@ -372,7 +377,8 @@ namespace OneJS {
 
                 switch (reqPtr->callKind) {
                     case InteropInvokeCallKind.Method: {
-                        MethodInfo method = FindMethodCached(type, memberName, isStatic, args);
+                        MethodInfo method = (view != null ? FindViewMethod(view, memberName, args) : null)
+                            ?? FindMethodCached(type, memberName, isStatic, args);
                         if (method == null && !isStatic) {
                             // Fallback: try extension methods before property fallback
                             var extMethod = FindExtensionMethod(type, memberName, args);
@@ -387,17 +393,18 @@ namespace OneJS {
                                     extArgs[i + 1] = ConvertToTargetType(args[i], extParms[i + 1].ParameterType);
                                 FillOmittedDefaults(extParms, extArgs, args.Length + 1);
                                 object extResult = extMethod.Invoke(null, extArgs);
-                                SetReturnValue(resPtr, extResult);
+                                SetReturnValue(resPtr, extResult, extMethod.ReturnType);
                                 return;
                             }
                         }
                         if (method == null) {
                             // Fallback: try as property getter if no method found
                             // This allows JS to access C# properties with PascalCase names naturally
-                            PropertyInfo prop = FindPropertyCached(type, memberName, isStatic);
+                            PropertyInfo prop = (view != null ? FindViewProperty(view, memberName) : null)
+                                ?? FindPropertyCached(type, memberName, isStatic);
                             if (prop != null && prop.CanRead) {
                                 object propResult = prop.GetValue(isStatic ? null : target);
-                                SetReturnValue(resPtr, propResult);
+                                SetReturnValue(resPtr, propResult, prop.PropertyType);
                                 return;
                             }
 
@@ -441,24 +448,25 @@ namespace OneJS {
                         }
 
                         object result = method.Invoke(isStatic ? null : target, invokeArgs);
-                        SetReturnValue(resPtr, result);
+                        SetReturnValue(resPtr, result, method.ReturnType);
                         return;
                     }
 
                     case InteropInvokeCallKind.GetProp: {
-                        PropertyInfo prop = FindPropertyCached(type, memberName, isStatic);
+                        PropertyInfo prop = (view != null ? FindViewProperty(view, memberName) : null)
+                            ?? FindPropertyCached(type, memberName, isStatic);
                         if (prop == null) {
                             // Fallback: try field access (JS proxy doesn't distinguish fields from properties)
                             FieldInfo fallbackField = FindFieldCached(type, memberName, isStatic);
                             if (fallbackField != null) {
                                 object fieldResult = fallbackField.GetValue(isStatic ? null : target);
-                                SetReturnValue(resPtr, fieldResult);
+                                SetReturnValue(resPtr, fieldResult, fallbackField.FieldType);
                                 return;
                             }
 
                             // Fallback: check if there's a method with this name (any signature)
                             // Return magic string so JS can create a function wrapper
-                            if (HasMethodByName(type, memberName, isStatic)) {
+                            if (HasMethodByName(type, memberName, isStatic) || (view != null && ViewHasMethod(view, memberName))) {
                                 SetReturnValue(resPtr, "__oneJS_methodRef__");
                                 return;
                             }
@@ -474,12 +482,15 @@ namespace OneJS {
                         }
 
                         object result = prop.GetValue(isStatic ? null : target);
-                        SetReturnValue(resPtr, result);
+                        SetReturnValue(resPtr, result, prop.PropertyType);
                         return;
                     }
 
                     case InteropInvokeCallKind.SetProp: {
-                        PropertyInfo prop = FindPropertyCached(type, memberName, isStatic);
+                        PropertyInfo viewProp = view != null ? FindViewProperty(view, memberName) : null;
+                        PropertyInfo prop = viewProp != null && viewProp.CanWrite
+                            ? viewProp
+                            : FindWritableProperty(type, memberName, isStatic, args.Length > 0 ? args[0] : null);
                         if (prop == null) {
                             // Fallback: try field access (JS proxy doesn't distinguish fields from properties)
                             FieldInfo fallbackField = FindFieldCached(type, memberName, isStatic);
@@ -511,7 +522,7 @@ namespace OneJS {
                         }
 
                         object result = field.GetValue(isStatic ? null : target);
-                        SetReturnValue(resPtr, result);
+                        SetReturnValue(resPtr, result, field.FieldType);
                         return;
                     }
 
@@ -533,19 +544,20 @@ namespace OneJS {
                     case InteropInvokeCallKind.TryGetProp: {
                         // Silent variant of GetProp: returns "__oneJS_notFound__" instead of logging on failure.
                         // Used by the CS path proxy for speculative static property resolution.
-                        PropertyInfo prop = FindPropertyCached(type, memberName, isStatic);
+                        PropertyInfo prop = (view != null ? FindViewProperty(view, memberName) : null)
+                            ?? FindPropertyCached(type, memberName, isStatic);
                         if (prop != null) {
                             object result = prop.GetValue(isStatic ? null : target);
-                            SetReturnValue(resPtr, result);
+                            SetReturnValue(resPtr, result, prop.PropertyType);
                             return;
                         }
                         FieldInfo fallbackField = FindFieldCached(type, memberName, isStatic);
                         if (fallbackField != null) {
                             object fieldResult = fallbackField.GetValue(isStatic ? null : target);
-                            SetReturnValue(resPtr, fieldResult);
+                            SetReturnValue(resPtr, fieldResult, fallbackField.FieldType);
                             return;
                         }
-                        if (HasMethodByName(type, memberName, isStatic)) {
+                        if (HasMethodByName(type, memberName, isStatic) || (view != null && ViewHasMethod(view, memberName))) {
                             SetReturnValue(resPtr, "__oneJS_methodRef__");
                             return;
                         }
@@ -587,7 +599,12 @@ namespace OneJS {
         }
 
         // Return Value
-        static unsafe void SetReturnValue(InteropInvokeResult* resPtr, object value) {
+        /// <param name="declared">
+        /// The type the member handing the value over declares, when there is one:
+        /// an interface the value is better reached through becomes a view of it
+        /// in JS (<see cref="InterfaceViewOf"/>).
+        /// </param>
+        static unsafe void SetReturnValue(InteropInvokeResult* resPtr, object value, Type declared = null) {
             resPtr->returnValue = default;
 
             if (IsNullForJs(value)) {
@@ -623,11 +640,13 @@ namespace OneJS {
                 return;
             }
 
-            // Reference type: register as handle
+            // Reference type: register as handle. An interface view travels in the
+            // type hint as "Runtime.Type|Interface.Type", which the bootstrap splits.
             int handle = RegisterObject(value);
             resPtr->returnValue.type = InteropType.ObjectHandle;
             resPtr->returnValue.handle = handle;
-            resPtr->returnValue.typeHint = StringToUtf8(t.FullName);
+            var view = InterfaceViewOf(t, declared);
+            resPtr->returnValue.typeHint = StringToUtf8(view == null ? t.FullName : t.FullName + "|" + view.FullName);
         }
 
         /// <summary>

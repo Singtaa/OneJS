@@ -243,10 +243,150 @@ namespace OneJS {
             var prop = FindMember(type, name, flags, (t, n, f) => t.GetProperty(n, f));
             if (prop != null) return prop;
 
-            // Search interfaces (needed for IStyle, etc.)
+            // Search interfaces (needed for IStyle, etc.). Two of them can declare
+            // the name, both implemented explicitly, and this takes the first: a
+            // read through an interface the value was reached by goes to that
+            // interface instead (InterfaceViewOf), and a write that lands on a
+            // get-only one takes a writable one (FindWritableProperty).
             foreach (var iface in type.GetInterfaces()) {
                 prop = iface.GetProperty(name);
                 if (prop != null) return prop;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// The property a write to <paramref name="name"/> goes to. Usually the one
+        /// a read finds, but when that one has no setter and is an interface's,
+        /// another interface's writable declaration of the same name: a
+        /// VisualElement's `position` is found as IResolvedStyle's get-only one,
+        /// and is written as ITransform's. Among several writable ones, the first
+        /// whose type takes the value.
+        /// </summary>
+        static PropertyInfo FindWritableProperty(Type type, string name, bool isStatic, object value) {
+            var found = FindPropertyCached(type, name, isStatic);
+            if (found == null || found.CanWrite || isStatic || !found.DeclaringType.IsInterface) return found;
+            PropertyInfo writable = null;
+            foreach (var iface in type.GetInterfaces()) {
+                var prop = iface.GetProperty(name);
+                if (prop == null || !prop.CanWrite) continue;
+                if (IsArgCompatible(prop.PropertyType, value)) return prop;
+                writable ??= prop;
+            }
+            return writable ?? found;
+        }
+
+        // Interface views
+
+        // Interfaces a value has been handed to JS as a view of, by full name: only
+        // these are worth resolving from a proxy's type name, the rest are the
+        // object's own type (or a name that resolves to nothing, which is not cached).
+        static readonly ConcurrentDictionary<string, Type> _viewTypes = new();
+        static readonly ConcurrentDictionary<(Type, Type), bool> _needsViewCache = new();
+
+        /// <summary>
+        /// The interface JS should reach <paramref name="value"/> through, when a
+        /// member declared to return <paramref name="declared"/> handed it over and
+        /// the interface implements some of its members in a way the object's own
+        /// lookup does not reach: VisualElement.transform is the element itself,
+        /// whose `position` the plain lookup finds as IResolvedStyle's, while
+        /// through ITransform it is ITransform's. Null when the plain lookup already
+        /// reaches every member as the interface would, which is the usual case
+        /// (IStyle on a VisualElement's style, an IList on a List).
+        /// </summary>
+        static Type InterfaceViewOf(Type runtime, Type declared) {
+            if (declared == null || !declared.IsInterface || declared == runtime || !declared.IsAssignableFrom(runtime)) return null;
+            if (!_needsViewCache.GetOrAdd((runtime, declared), key => NeedsInterfaceView(key.Item1, key.Item2))) return null;
+            _viewTypes.TryAdd(declared.FullName, declared);
+            return declared;
+        }
+
+        static bool NeedsInterfaceView(Type runtime, Type declared) {
+            try {
+                var flags = GetFlags(false);
+                var all = new List<Type> { declared };
+                all.AddRange(declared.GetInterfaces());
+                foreach (var iface in all) {
+                    foreach (var prop in iface.GetProperties()) {
+                        var reached = FindProperty(runtime, prop.Name, flags);
+                        if (reached == null) return true;
+                        if (!SameImplementation(runtime, prop.GetGetMethod(), reached.GetGetMethod(true))) return true;
+                        if (!SameImplementation(runtime, prop.GetSetMethod(), reached.GetSetMethod(true))) return true;
+                    }
+                    foreach (var method in iface.GetMethods()) {
+                        if (method.IsSpecialName) continue;
+                        // Implemented explicitly: the class declares no method by this
+                        // name, so only the interface reaches it
+                        if (!HasMethodByName(runtime, method.Name, false)) return true;
+                    }
+                }
+                return false;
+            } catch (ArgumentException) {
+                // GetInterfaceMap refuses some shapes (an array's generic interfaces):
+                // no view, the plain lookup as before
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Whether two accessors run the same code on <paramref name="runtime"/>,
+        /// each resolved through its interface map when an interface declares it.
+        /// An interface accessor with no counterpart is a difference.
+        /// </summary>
+        static bool SameImplementation(Type runtime, MethodInfo declared, MethodInfo reached) {
+            if (declared == null) return true;
+            if (reached == null) return false;
+            var a = Implementation(runtime, declared);
+            var b = Implementation(runtime, reached);
+            return a != null && b != null && a.MethodHandle == b.MethodHandle;
+        }
+
+        static MethodInfo Implementation(Type runtime, MethodInfo method) {
+            if (!method.DeclaringType.IsInterface) return method;
+            var map = runtime.GetInterfaceMap(method.DeclaringType);
+            for (int i = 0; i < map.InterfaceMethods.Length; i++)
+                if (map.InterfaceMethods[i].MethodHandle == method.MethodHandle) return map.TargetMethods[i];
+            return null;
+        }
+
+        /// <summary>
+        /// The interface a proxy named by <paramref name="typeName"/> views
+        /// <paramref name="runtime"/> through, or null for a proxy of the object's
+        /// own type.
+        /// </summary>
+        static Type ViewTypeOf(string typeName, Type runtime) {
+            if (string.IsNullOrEmpty(typeName) || !_viewTypes.TryGetValue(typeName, out var view)) return null;
+            return view.IsAssignableFrom(runtime) ? view : null;
+        }
+
+        /// <summary>A member as the interface declares it, or one of the interfaces it extends.</summary>
+        static PropertyInfo FindViewProperty(Type view, string name) {
+            var prop = view.GetProperty(name);
+            if (prop != null) return prop;
+            foreach (var iface in view.GetInterfaces()) {
+                prop = iface.GetProperty(name);
+                if (prop != null) return prop;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Whether the interface (or one it extends) declares a method by this name:
+        /// one implemented explicitly is no method of the object's own type.
+        /// </summary>
+        static bool ViewHasMethod(Type view, string name) {
+            if (view.GetMethod(name) != null) return true;
+            foreach (var iface in view.GetInterfaces())
+                if (iface.GetMethod(name) != null) return true;
+            return false;
+        }
+
+        static MethodInfo FindViewMethod(Type view, string name, object[] args) {
+            var method = FindMethod(view, name, BindingFlags.Public | BindingFlags.Instance, args);
+            if (method != null) return method;
+            foreach (var iface in view.GetInterfaces()) {
+                method = FindMethod(iface, name, BindingFlags.Public | BindingFlags.Instance, args);
+                if (method != null) return method;
             }
             return null;
         }

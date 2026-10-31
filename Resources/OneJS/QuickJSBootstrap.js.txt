@@ -86,6 +86,12 @@ const __releasedHandles = new Set();
 // and when ANY proxy is GC'd, the handle is released, invalidating all other proxies.
 const __proxyCache = new Map();
 
+// Interface views: handle → Map(interface name → WeakRef(view))
+const __viewCache = new Map();
+// view → the object's own proxy, which owns the handle. Held strongly for as
+// long as the view lives, so the handle outlives every view of it.
+const __viewBase = new WeakMap();
+
 // Forward declaration: actual Map created in Events section
 // This allows __cleanupHandle to reference it before initialization
 let __eventHandlers = new Map();
@@ -113,6 +119,7 @@ const __eventCbHandles = new WeakMap();
 const __handleRegistry = new FinalizationRegistry((handle) => {
     // Always clean proxy cache when a proxy is finalized
     __proxyCache.delete(handle);
+    __viewCache.delete(handle);
 
     // Skip if already released manually or handle is invalid
     if (handle <= 0 || __releasedHandles.has(handle)) {
@@ -132,6 +139,7 @@ const __handleRegistry = new FinalizationRegistry((handle) => {
 function __cleanupHandle(handle) {
     // Clean up proxy cache: prevents stale proxy from being reused
     __proxyCache.delete(handle);
+    __viewCache.delete(handle);
     // Clean up event handlers for this element
     __eventHandlers.delete(handle);
     // Clean up parent mapping
@@ -450,7 +458,12 @@ function __wrapResultFromCs(typeHint, raw) {
 
     if (typeof raw === "object" && raw.__csHandle) {
         const resolvedType = raw.__csType || typeHint || "";
-        return __wrapObject(resolvedType, raw.__csHandle);
+        // "Runtime.Type|Interface.Type": the object reached through an interface
+        // whose members its own type does not reach (C#'s InterfaceViewOf)
+        const bar = resolvedType.indexOf("|");
+        if (bar < 0) return __wrapObject(resolvedType, raw.__csHandle);
+        const base = __wrapObject(resolvedType.slice(0, bar), raw.__csHandle);
+        return base ? __interfaceView(base, resolvedType.slice(bar + 1)) : base;
     }
 
     // Check for Task marker: C# returns JSON string with __csTaskId
@@ -502,13 +515,48 @@ function __wrapObject(typeName, handle) {
         __proxyCache.delete(handle);
     }
 
+    const proxy = __createProxy(typeName, handle);
+
+    // Cache the proxy using WeakRef so it can still be GC'd when no longer referenced
+    __proxyCache.set(handle, new WeakRef(proxy));
+
+    // Register for cleanup when proxy is GC'd
+    __handleRegistry.register(proxy, handle);
+    return proxy;
+}
+
+/**
+ * The object behind `base` as C# reaches it through an interface: a second
+ * proxy, named for the interface, whose members C# resolves on the interface
+ * first. element.transform is the element itself, and through it `position`
+ * is ITransform's, not IResolvedStyle's. A view owns no handle reference; its
+ * base does, and releasing either releases the object.
+ */
+function __interfaceView(base, viewType) {
+    const handle = base.__csHandle;
+    let views = __viewCache.get(handle);
+    if (!views) {
+        views = new Map();
+        __viewCache.set(handle, views);
+    }
+    const ref = views.get(viewType);
+    const cached = ref && ref.deref();
+    if (cached) return cached;
+    const view = __createProxy(viewType, handle);
+    __viewBase.set(view, base);
+    views.set(viewType, new WeakRef(view));
+    return view;
+}
+
+/** A proxy for the C# object at `handle`, uncached and unregistered. */
+function __createProxy(typeName, handle) {
     const target = {
         __csType: typeName,
         __csHandle: handle
     };
     const methods = __methodMembersOf(typeName);
 
-    const proxy = new Proxy(target, {
+    return new Proxy(target, {
         get(obj, prop) {
             if (prop === "__csType" || prop === "__csHandle") return obj[prop];
             if (prop === "__csPathProxy") return false;
@@ -669,13 +717,6 @@ function __wrapObject(typeName, handle) {
             return true;
         }
     });
-
-    // Cache the proxy using WeakRef so it can still be GC'd when no longer referenced
-    __proxyCache.set(handle, new WeakRef(proxy));
-
-    // Register for cleanup when proxy is GC'd
-    __handleRegistry.register(proxy, handle);
-    return proxy;
 }
 
 // Helpers

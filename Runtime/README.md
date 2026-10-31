@@ -551,6 +551,15 @@ Temp/OneJSPad/{instanceId}/
 | `QuickJSNative.Tasks.cs` | C# Task/Promise bridging with queue monitoring |
 | `QuickJSNative.ZeroAlloc.cs` | Zero-allocation interop for GPU and hot-path operations |
 
+### Interface Views (QuickJSNative.Reflection.cs)
+
+A member is looked up on the object's own type, then on its interfaces in order. Two interfaces can declare the same name, both implemented explicitly: a `VisualElement` has IResolvedStyle's get-only `position` (a `Position`) and ITransform's `position` (a `Vector3`). C# picks by the interface it reaches the object through, so JS does too:
+
+- A member declared to return an interface (`VisualElement.transform` is `ITransform`) hands JS a **view** of the object when the interface implements members the plain lookup does not reach as it would (`InterfaceViewOf`, cached per runtime type and interface). The type hint travels as `Runtime.Type|Interface.Type`; the bootstrap keeps the object's own proxy and returns a second proxy named for the interface (`__interfaceView`), whose calls resolve on the interface first. The view holds its base proxy, which owns the handle, so `el.transform === el` is false while both are the same object in C#.
+- A write to a name whose first declaration is an interface's and get-only goes to a writable declaration of it (`FindWritableProperty`), so `el.position = v` on the element itself sets ITransform's. A read on the object itself still takes the first.
+
+Most interface returns need no view (IStyle on `style`, an `IList` on a `List`) and get the object's own proxy, as before.
+
 ### Struct Auto-Registration (QuickJSNative.Structs.cs)
 
 Structs are automatically serialized between JS and C# without manual registration. The system works as follows:
