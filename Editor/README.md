@@ -28,7 +28,7 @@ Editor scripts for OneJS Unity integration.
 | `PackFileEntryDrawer.cs` | Property drawer for pack file entries |
 | `PackObjectEntryDrawer.cs` | Property drawer for pack object entries |
 | `PackEditor.cs` | Custom inspector for `Pack` assets |
-| `OneJSEditorOverlay.cs` | The Scene view **OneJS** overlay and its update modes, installed as `JSRunner.EditModeUpdateFilter`: decides which runners' edit-mode previews tick (default Auto: the selected runner, else the one closest to the Scene camera; the Game mode while the Game view has focus). Play Mode is not gated: every runner ticks, as in a build |
+| `OneJSEditorOverlay.cs` | The Scene view **OneJS** overlay and its update modes, installed as `JSRunner.EditModeUpdateFilter`: decides which runners' edit-mode previews tick (default Auto: the selected runner, else the one closest to the Scene camera, measured to its Renderer's bounds where it has one (a world-space panel's UIRenderer), else to its origin; the Game mode while the Game view has focus). Play Mode is not gated: every runner ticks, as in a build |
 | `OneJSWslHelper.cs` | Windows only: runs Open Terminal and npm through WSL when chosen from Open Terminal's right-click menu |
 | `AISkillsInstaller.cs` | **Tools > OneJS > Install AI Skills**: copies `AI/Skills/` into the project's `.claude/skills/`, never overwriting an edited skill without asking |
 | `OneJSPackage.cs` | `OneJSPackage.Root()`: where the package is, for every install shape (Package Manager, a clone anywhere under Assets, the Asset Store); editor code reading a file the package ships resolves it here |

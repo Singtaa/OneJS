@@ -177,6 +177,20 @@ namespace OneJS.Editor {
                    viewportPoint.y >= 0f && viewportPoint.y <= 1f;
         }
 
+        /// <summary>
+        /// How far a runner is from the camera: to the nearest point of its
+        /// Renderer's bounds where it has one (a world-space panel's UIRenderer,
+        /// which takes in its elements wherever their transforms moved them), else
+        /// to its origin. The same Renderer the visibility check tests.
+        /// </summary>
+        internal static float SqrDistanceToRunner(JSRunner runner, Vector3 cameraPos) {
+            var go = runner.gameObject;
+            if (go.TryGetComponent<Renderer>(out var renderer) && renderer.enabled && go.activeInHierarchy) {
+                return renderer.bounds.SqrDistance(cameraPos);
+            }
+            return (runner.transform.position - cameraPos).sqrMagnitude;
+        }
+
         static Plane[] GetCachedFrustumPlanes(Camera camera) {
             if (camera == null) return null;
             if (_cachedFrustumFrame != Time.frameCount || _cachedFrustumCamera != camera || _cachedFrustumPlanes == null) {
@@ -197,7 +211,11 @@ namespace OneJS.Editor {
             return false;
         }
 
-        static JSRunner GetClosestRunnerToCamera(Camera camera) {
+        /// <summary>
+        /// The runner Scene: Auto ticks when none is selected: of those the Scene
+        /// camera can see, the one closest to it, measured by <see cref="SqrDistanceToRunner"/>.
+        /// </summary>
+        internal static JSRunner GetClosestRunnerToCamera(Camera camera) {
             if (_cachedClosestRunnerFrame == Time.frameCount &&
                 _cachedClosestRunnerCamera == camera) {
                 return _cachedClosestRunner;
@@ -220,7 +238,7 @@ namespace OneJS.Editor {
                 var candidate = runners[i];
                 if (candidate == null || !candidate.enabled || !candidate.gameObject.activeInHierarchy) continue;
                 if (!IsRunnerVisibleInCamera(candidate, camera)) continue;
-                var sqrDist = (candidate.transform.position - cameraPos).sqrMagnitude;
+                var sqrDist = SqrDistanceToRunner(candidate, cameraPos);
                 if (sqrDist < bestSqrDist) {
                     bestSqrDist = sqrDist;
                     _cachedClosestRunner = candidate;
