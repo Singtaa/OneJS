@@ -5,7 +5,7 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.9.14"
-  skill-version: "1.17.1"
+  skill-version: "1.18.0"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
@@ -174,6 +174,7 @@ Conventions that differ from web React and cause most first-time bugs:
 - Use `<Text text="..." />` or `<Label text="..." />` for display text. A raw string child such as `<View>Hello</View>` also produces a `TextElement`, but an implicit one you cannot pass props to. The defect is the missing `text` prop, not the element type.
 - Change handlers receive `e.value`, not `e.target.value`.
 - Import C# types with ES6 syntax, for example `import { Texture2D } from "UnityEngine"`. An esbuild plugin transforms these into `CS.*` references at build time. Prefer this over writing `CS.UnityEngine.Texture2D` by hand.
+- C# you write for the UI gets generated declarations, never hand-written ones. With the editor closed, `unity run <project> -- -nographics -executeMethod OneJS.Editor.ProjectSetup.GenerateTypings` writes `types/csharp.d.ts` from `Assembly-CSharp` (add `-typingAssemblies MyGame.Runtime` for an asmdef) and saves the choice on the runner, so the editor regenerates it on every recompile after that.
 - Style shorthands such as `padding` and `borderRadius` work and are expanded by the reconciler, even though UI Toolkit has no native shorthand for them.
 - Module-level code runs in edit-mode preview as well as Play mode. Guard play-only logic with the `__isPlaying` global, or put it in the exported `onPlay()` and `onStop()` lifecycle functions. Play-mode singletons are null during preview.
 - Hot reload is a hard reload. All JavaScript state is lost, `useEffect` cleanups run first, then the bundle re-runs.
@@ -368,6 +369,7 @@ untested rather than guaranteed.
 | `onPlay()` / `onStop()` | JS exports | Play-mode lifecycle hooks, for logic that must not run during preview. |
 | `Tools/OneJS/Type Generator` | Menu | Opens the C# type declaration generator. |
 | `Tools/OneJS/Regenerate All Project Typings` | Menu | Regenerates `types/csharp.d.ts` for every OneJS project in the Unity project. |
+| `OneJS.Editor.ProjectSetup.GenerateTypings()` | Static method | The same from `-executeMethod`: types each runner from its listed assemblies, `Assembly-CSharp` when it lists none, plus any `-typingAssemblies A,B`, saves the list, throws when it wrote nothing. |
 
 Deeper reference, including every component and hook, lives at https://onejs.com/docs. Prefer reading it over guessing an API.
 

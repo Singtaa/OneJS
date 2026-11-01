@@ -2,6 +2,7 @@
 
 - With no Scene view, as in a batch-mode editor, every edit-mode preview ticks unless one is selected
 - `ProjectSetup.Initialize` logs its info lines without stack traces
+- `ProjectSetup.GenerateTypings` writes `types/csharp.d.ts` from batch mode
 
 # [2026-10-31] v3.9.14
 

@@ -45,6 +45,83 @@ namespace OneJS.Editor {
         public static void Initialize() => WithBareInfoLogs(InitializeScene);
 
         /// <summary>
+        /// Writes each runner's <c>types/csharp.d.ts</c> from C# with no inspector, as the
+        /// inspector's Generate Types Now and Tools > OneJS > Regenerate All Project Typings
+        /// do, through the same <see cref="TypeGenerator.TypeGeneratorService.GenerateTypingsFor"/>.
+        /// Parameterless, so <c>-executeMethod</c> can call it:
+        /// <code>unity run . -- -nographics -executeMethod OneJS.Editor.ProjectSetup.GenerateTypings</code>
+        ///
+        /// It uses the scene <see cref="Initialize"/> would (never making one). A runner that lists
+        /// no typing assemblies gets <c>Assembly-CSharp</c>, where a game's scripts live unless an
+        /// asmdef claims them; <c>-typingAssemblies A,B</c> on the command line adds others. The
+        /// list is saved on the runner, so the editor regenerates on every domain reload from then
+        /// on. Throws when no runner could be typed, so a batch-mode run exits non-zero.
+        /// </summary>
+        public static void GenerateTypings() => WithBareInfoLogs(GenerateSceneTypings);
+
+        static void GenerateSceneTypings() {
+            var scene = OpenSceneForSetup(createIfNone: false);
+            var runners = scene.IsValid()
+                ? scene.GetRootGameObjects().SelectMany(go => go.GetComponentsInChildren<JSRunner>(true)).Where(r => !r.IsCart).ToList()
+                : new List<JSRunner>();
+            if (runners.Count == 0)
+                throw new InvalidOperationException("[OneJS] No JSRunner app to generate typings for. " +
+                    "Run OneJS.Editor.ProjectSetup.Initialize first.");
+
+            var requested = TypingAssembliesFromArgs(Environment.GetCommandLineArgs());
+            var failed = new List<string>();
+            foreach (var runner in runners) {
+                var assemblies = TypingAssembliesFor(runner.TypingAssemblies, requested, AssemblyIsLoaded);
+                if (!assemblies.SequenceEqual(runner.TypingAssemblies)) {
+                    var so = new SerializedObject(runner);
+                    var list = so.FindProperty("_typingAssemblies");
+                    list.ClearArray();
+                    for (var i = 0; i < assemblies.Count; i++) {
+                        list.InsertArrayElementAtIndex(i);
+                        list.GetArrayElementAtIndex(i).stringValue = assemblies[i];
+                    }
+                    so.ApplyModifiedProperties();
+                }
+                if (assemblies.Count == 0) {
+                    Debug.LogWarning($"[OneJS] {runner.name} has no assembly to type: the project has no Assembly-CSharp. " +
+                        "Name yours with -typingAssemblies MyGame.Runtime.", runner);
+                    failed.Add(runner.name);
+                } else if (!TypeGenerator.TypeGeneratorService.GenerateTypingsFor(runner)) {
+                    failed.Add(runner.name);
+                }
+            }
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            if (Application.isBatchMode) EditorSceneManager.SaveScene(scene);
+
+            if (failed.Count == runners.Count)
+                throw new InvalidOperationException($"[OneJS] No typings were written for {string.Join(", ", failed)}; the warnings above say why.");
+        }
+
+        /// <summary>
+        /// The assemblies a runner is typed from: its own list plus any named on the command line,
+        /// each once, or the game's own scripts when it lists none and none were named.
+        /// </summary>
+        internal static List<string> TypingAssembliesFor(IReadOnlyList<string> current, IReadOnlyList<string> requested,
+            Func<string, bool> exists) {
+            var result = current.Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => a.Trim()).ToList();
+            foreach (var name in requested)
+                if (!result.Contains(name)) result.Add(name);
+            if (result.Count == 0 && exists("Assembly-CSharp")) result.Add("Assembly-CSharp");
+            return result;
+        }
+
+        /// <summary>The comma-separated names after <c>-typingAssemblies</c>, if the command line has one.</summary>
+        internal static List<string> TypingAssembliesFromArgs(string[] args) {
+            var at = Array.IndexOf(args, "-typingAssemblies");
+            if (at < 0 || at + 1 >= args.Length) return new List<string>();
+            return args[at + 1].Split(',').Select(a => a.Trim()).Where(a => a.Length > 0).ToList();
+        }
+
+        static bool AssemblyIsLoaded(string name) =>
+            AppDomain.CurrentDomain.GetAssemblies().Any(a => a.GetName().Name == name);
+
+        /// <summary>
         /// Runs setup with info lines logged without stack traces. A batch-mode log prints
         /// one under every line, and an agent reading it took the traces under "Created
         /// default file" for errors. Warnings and errors keep theirs.
@@ -124,12 +201,13 @@ namespace OneJS.Editor {
             return workingDir;
         }
 
-        static Scene OpenSceneForSetup() {
+        static Scene OpenSceneForSetup(bool createIfNone = true) {
             var active = SceneManager.GetActiveScene();
             if (active.IsValid() && !string.IsNullOrEmpty(active.path)) return active;
 
             var listed = EditorBuildSettings.scenes.FirstOrDefault(s => s.enabled && File.Exists(s.path));
             if (listed != null) return EditorSceneManager.OpenScene(listed.path, OpenSceneMode.Single);
+            if (!createIfNone) return default;
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
             Directory.CreateDirectory(Path.GetDirectoryName(DefaultScenePath));

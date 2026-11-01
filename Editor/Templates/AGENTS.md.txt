@@ -42,6 +42,7 @@ C# interop:
 - The `CS` global reaches any loaded type: `CS.MyGame.Bridge.Instance`
 - C# events: `obj.add_OnX(fn)` / `obj.remove_OnX(fn)` (same fn reference to remove); delegate fields: `obj.OnX = fn`
 - Sync hooks from `onejs-react`: `useEventSync` (event-driven), `useFrameSync` (per-frame poll), `useThrottledSync`, plus `toArray` for C# collections
+- Your own C# gets generated declarations, never hand-written ones: after adding or changing C# this app uses, run `unity run <project> -- -nographics -executeMethod OneJS.Editor.ProjectSetup.GenerateTypings` (editor closed) to write `types/csharp.d.ts`. It types `Assembly-CSharp`; add `-typingAssemblies MyGame.Runtime` for an asmdef. From then on the editor regenerates it on every recompile
 - Many values per frame? Marshal one JSON string per frame and parse it, instead of many proxy reads (QuickJS is an interpreter; each access is a reflection crossing)
 
 Key docs: [quickstart](https://onejs.com/docs/quickstart), [C# interop](https://onejs.com/docs/core-concepts/csharp-interop), [state sync](https://onejs.com/docs/guides/state-sync), [styling](https://onejs.com/docs/core-concepts/styling), [building](https://onejs.com/docs/guides/building)
