@@ -42,7 +42,24 @@ namespace OneJS.Editor {
         /// batch-mode editor quits when this returns; each working directory is logged for it.
         /// Throws when a runner could not be initialized, so a batch-mode run exits non-zero.
         /// </summary>
-        public static void Initialize() {
+        public static void Initialize() => WithBareInfoLogs(InitializeScene);
+
+        /// <summary>
+        /// Runs setup with info lines logged without stack traces. A batch-mode log prints
+        /// one under every line, and an agent reading it took the traces under "Created
+        /// default file" for errors. Warnings and errors keep theirs.
+        /// </summary>
+        internal static void WithBareInfoLogs(Action setup) {
+            var info = Application.GetStackTraceLogType(LogType.Log);
+            Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
+            try {
+                setup();
+            } finally {
+                Application.SetStackTraceLogType(LogType.Log, info);
+            }
+        }
+
+        static void InitializeScene() {
             var scene = OpenSceneForSetup();
             var runners = scene.GetRootGameObjects()
                 .SelectMany(go => go.GetComponentsInChildren<JSRunner>(true))

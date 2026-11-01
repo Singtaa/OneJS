@@ -1,3 +1,8 @@
+# Unreleased
+
+- With no Scene view, as in a batch-mode editor, every edit-mode preview ticks unless one is selected
+- `ProjectSetup.Initialize` logs its info lines without stack traces
+
 # [2026-10-31] v3.9.14
 
 A world-space panel keeps running in Play Mode when its GameObject is off camera, and JS can move an element with `element.transform.position`. JS arrays now pass where C# takes a list.

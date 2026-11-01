@@ -5,7 +5,7 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.9.14"
-  skill-version: "1.17.0"
+  skill-version: "1.17.1"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
@@ -375,7 +375,7 @@ Deeper reference, including every component and hook, lives at https://onejs.com
 
 **Game view is blank in edit mode.**
 Cause: edit-mode ticking is gated by the Scene view's OneJS overlay update mode. In the default Auto mode only the selected runner ticks, or with nothing selected the runner closest to the Scene view camera.
-Fix: select the JSRunner GameObject, or switch the overlay's Scene mode to Camera. This gating affects what a human sees in the Game view. It is not a reason to skip verification: the rendered tree can still be read directly from the UIDocument, including headlessly. See Verification.
+Fix: select the JSRunner GameObject, or switch the overlay's Scene mode to Camera. This gating affects what a human sees in the Game view. With nothing selected and no Scene view to measure from, as in a batch-mode editor, every runner ticks (after OneJS 3.9.14; on 3.9.14 and earlier nothing ticks there unless selected, so select the runner or call its `Bridge.Tick()` yourself). It is not a reason to skip verification: the rendered tree can still be read directly from the UIDocument, including headlessly. See Verification.
 
 **Game view is blank and the Console is silent.**
 Cause: no PanelSettings assigned, or `app.js.txt` missing. JSRunner treats both as "not set up yet" rather than as errors.

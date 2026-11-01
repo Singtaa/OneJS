@@ -106,7 +106,12 @@ namespace OneJS.Editor {
                 return Selection.Contains(runner.gameObject);
             }
 
-            return runner == GetClosestRunnerToCamera(GetSceneViewCamera());
+            // With no Scene view there is no camera to measure from: a batch-mode editor,
+            // or a layout without one. Picking nobody froze every preview there, and a cold
+            // agent checking its HUD headlessly saw C# state never reach React.
+            var camera = GetSceneViewCamera();
+            if (camera == null) return true;
+            return runner == GetClosestRunnerToCamera(camera);
         }
 
         static bool EvaluateGameMode(JSRunner runner) {
