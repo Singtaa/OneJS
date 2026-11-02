@@ -13,7 +13,7 @@ Needs Node and a network connection the first time: the build runs on its own co
 | File | What it does |
 |------|--------------|
 | `OneJS.ExCSS.csproj` | The build. `netstandard2.1` and C# 9, what Unity compiled the source against when it shipped as source in 3.9.15; no version or framework attributes, as Unity's compile had none |
-| `build.mjs` | Builds in a scratch copy, so nothing is written here, runs the verifier, then writes or compares |
+| `build.mjs` | Builds in a scratch copy, so nothing is written here, with the source list sorted the same on every platform; runs the verifier, then writes or compares |
 | `verify/` | Reads the DLL and PDB and fails unless the PDB is portable, every source file is embedded in it under a `/_/` path, and the DLL is marked deterministic and points at it the same way |
 | `build.test.mjs` | Feeds `check` a stale DLL and a changed source, and the verifier a PDB without its source, and expects each to fail |
 | `.gitattributes` | Keeps git from converting line endings, which would change the embedded source |
@@ -22,7 +22,8 @@ Needs Node and a network connection the first time: the build runs on its own co
 
 The DLL and PDB depend on `src/` alone, so any machine can check them:
 
-- One exact .NET SDK (`SDK` in `build.mjs`, 10.0.403 with runtime 10.0.14), installed with Microsoft's `dotnet-install` into a cache folder of its own (`~/.cache/onejs-excss`, `%LOCALAPPDATA%\onejs-excss` on Windows, or `ONEJS_EXCSS_DOTNET`). A portable PDB records the runtime its compiler ran on, and that runtime compresses the embedded source, so the machine's own .NET, which rolls forward to its newest patch, would change both files. Pinning only the compiler was not enough: CI's runners and a Windows machine each built different bytes. Changing `SDK` means rebuilding and committing the pair.
+- One exact .NET SDK (`SDK` in `build.mjs`, 10.0.403 with runtime 10.0.14), installed with Microsoft's `dotnet-install` into a cache folder of its own (about 800 MB) (`~/.cache/onejs-excss`, `%LOCALAPPDATA%\onejs-excss` on Windows, or `ONEJS_EXCSS_DOTNET`). A portable PDB records the runtime its compiler ran on, and that runtime compresses the embedded source, so the machine's own .NET, which rolls forward to its newest patch, would change both files. Pinning only the compiler was not enough: CI's runners and a Windows machine each built different bytes. Changing `SDK` means rebuilding and committing the pair.
+- The compiler sees the source files in one order everywhere: `build.mjs` lists them sorted by their `/`-separated paths. A glob sorts by the platform's own paths, and Windows' `\` sorts after a letter, so `StyleProperties/Border` came after `BorderImage` there and every byte after it moved.
 - The build is deterministic, and every path is mapped to `/_/`. The SDK's own map is switched off (`DeterministicSourcePaths`): it maps the git root, so a copy outside git kept its real path.
 - Nothing from the build machine is in either file: no user name, no checkout path, no commit hash.
 

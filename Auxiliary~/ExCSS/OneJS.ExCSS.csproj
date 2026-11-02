@@ -42,7 +42,13 @@
     <NoWarn>$(NoWarn);CS1591;CS0618;CS0612;CS0168;CS0219;CS0414;CS0649;CS0169</NoWarn>
   </PropertyGroup>
 
-  <ItemGroup>
+  <!--
+    The compiler takes the files in the order listed, and the order changes both outputs. A glob
+    sorts by full path, where Windows' \ sorts after a letter and / before one (Border\ after
+    BorderImage\, Border/ before BorderImage/), so build.mjs writes the list sorted by /-path.
+  -->
+  <Import Project="Sources.props" Condition="Exists('Sources.props')" />
+  <ItemGroup Condition="!Exists('Sources.props')">
     <Compile Include="src/**/*.cs" />
   </ItemGroup>
 </Project>

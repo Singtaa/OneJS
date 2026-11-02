@@ -68,6 +68,17 @@ async function privateDotnet(scratch) {
     return exe
 }
 
+/**
+ * Every .cs under src, as MSBuild items in ordinal order of their /-separated paths: the order the
+ * compiler sees them in, so the same on every platform.
+ */
+function sourcesProps(src) {
+    const files = fs.readdirSync(src, { recursive: true }).map(f => f.split(path.sep).join("/")).filter(f => f.endsWith(".cs"))
+    files.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+    const items = files.map(f => `    <Compile Include="src/${f}" />`).join("\n")
+    return `<Project>\n  <ItemGroup>\n${items}\n  </ItemGroup>\n</Project>\n`
+}
+
 function runDotnet(exe, args, cwd) {
     const env = {
         ...process.env,
@@ -105,6 +116,7 @@ async function main() {
         fs.mkdirSync(project)
         fs.copyFileSync(path.join(HERE, "OneJS.ExCSS.csproj"), path.join(project, "OneJS.ExCSS.csproj"))
         fs.cpSync(args.src, path.join(project, "src"), { recursive: true })
+        fs.writeFileSync(path.join(project, "Sources.props"), sourcesProps(path.join(project, "src")))
         const built = path.join(scratch, "out")
         const b = runDotnet(dotnet, ["build", "-nologo", "-v", "q", "--disable-build-servers", "-p:UseSharedCompilation=false", ...args.properties.map(p => `-p:${p}`), "-o", built], project)
         if (b.status !== 0) fail(2, `The build failed:\n${b.stdout.slice(-3000)}${b.stderr.slice(-2000)}`)
