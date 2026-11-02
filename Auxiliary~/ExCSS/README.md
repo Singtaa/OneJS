@@ -8,7 +8,7 @@ node "Auxiliary~/ExCSS/build.mjs" check    # build, verify, and compare them byt
 node --test "Auxiliary~/ExCSS/build.test.mjs"
 ```
 
-Needs the .NET SDK 8 or later. `check` exits 0 when the committed pair is exactly what `src/` builds to, 1 when it is not or the debug file is missing something, 3 when there is no pair to compare. CI runs it on Linux, Windows and macOS.
+Needs Node and a network connection the first time: the build runs on its own copy of one exact .NET SDK, which it installs (see below). `check` exits 0 when the committed pair is exactly what `src/` builds to, 1 when it is not or the debug file is missing something, 3 when there is no pair to compare. CI runs it on Linux, Windows and macOS.
 
 | File | What it does |
 |------|--------------|
@@ -22,7 +22,7 @@ Needs the .NET SDK 8 or later. `check` exits 0 when the committed pair is exactl
 
 The DLL and PDB depend on `src/` alone, so any machine can check them:
 
-- The C# compiler is pinned (`Microsoft.Net.Compilers.Toolset` 5.0.0), so a newer SDK cannot change a byte.
+- One exact .NET SDK (`SDK` in `build.mjs`, 10.0.403 with runtime 10.0.14), installed with Microsoft's `dotnet-install` into a cache folder of its own (`~/.cache/onejs-excss`, `%LOCALAPPDATA%\onejs-excss` on Windows, or `ONEJS_EXCSS_DOTNET`). A portable PDB records the runtime its compiler ran on, and that runtime compresses the embedded source, so the machine's own .NET, which rolls forward to its newest patch, would change both files. Pinning only the compiler was not enough: CI's runners and a Windows machine each built different bytes. Changing `SDK` means rebuilding and committing the pair.
 - The build is deterministic, and every path is mapped to `/_/`. The SDK's own map is switched off (`DeterministicSourcePaths`): it maps the git root, so a copy outside git kept its real path.
 - Nothing from the build machine is in either file: no user name, no checkout path, no commit hash.
 

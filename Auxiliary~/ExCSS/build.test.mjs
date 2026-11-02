@@ -36,7 +36,7 @@ test("a DLL that differs by one byte fails the check", () => {
         fs.writeFileSync(path.join(dir, PAIR[0]), dll)
         const { code, out } = build("check", "--out", dir)
         assert.equal(code, 1, out)
-        assert.match(out, /OneJS\.ExCSS\.dll in .* is not what the source builds to/)
+        assert.match(out, /OneJS\.ExCSS\.dll (and OneJS\.ExCSS\.pdb )?in .* (is|are) not what the source builds to/)
     } finally {
         fs.rmSync(dir, { recursive: true, force: true })
     }
@@ -67,21 +67,7 @@ test("no committed pair is reported as nothing compared", () => {
 })
 
 test("the verifier fails on a PDB without its source", () => {
-    const dir = scratch()
-    try {
-        const project = path.join(dir, "OneJS.ExCSS")
-        fs.mkdirSync(project)
-        fs.copyFileSync(path.join(HERE, "OneJS.ExCSS.csproj"), path.join(project, "OneJS.ExCSS.csproj"))
-        fs.cpSync(path.join(HERE, "src"), path.join(project, "src"), { recursive: true })
-        const shell = process.platform === "win32"
-        const b = spawnSync("dotnet", ["build", "-nologo", "-v", "q", "-o", path.join(dir, "out"), "-p:EmbedAllSources=false"], { cwd: project, encoding: "utf8", shell })
-        assert.equal(b.status, 0, b.stdout)
-        const v = spawnSync("dotnet", ["run", "--project", path.join(HERE, "verify"), "--", ...PAIR.map(f => path.join(dir, "out", f)), path.join(project, "src")], { encoding: "utf8", shell })
-        assert.equal(v.status, 1, v.stdout)
-        assert.match(v.stdout, /its source is not embedded/)
-    } finally {
-        fs.rmSync(dir, { recursive: true, force: true })
-        fs.rmSync(path.join(HERE, "verify", "bin"), { recursive: true, force: true })
-        fs.rmSync(path.join(HERE, "verify", "obj"), { recursive: true, force: true })
-    }
+    const { code, out } = build("check", "--property", "EmbedAllSources=false")
+    assert.equal(code, 1, out)
+    assert.match(out, /its source is not embedded/)
 })

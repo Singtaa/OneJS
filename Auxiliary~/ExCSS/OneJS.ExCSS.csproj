@@ -4,8 +4,9 @@
     unmodified). Run build.mjs rather than this directly: it builds into a scratch folder and
     copies the two files, or with check compares them byte for byte with the committed ones.
 
-    Every setting below exists so the bytes depend on the source alone, not on the machine, the
-    checkout's path or the .NET SDK installed.
+    Every setting below exists so the bytes depend on the source alone, not on the machine or the
+    checkout's path. build.mjs supplies the rest: one exact .NET SDK, installed privately, since
+    the PDB records the runtime the compiler ran on and that runtime compresses the embedded source.
   -->
   <PropertyGroup>
     <AssemblyName>OneJS.ExCSS</AssemblyName>
@@ -43,7 +44,5 @@
 
   <ItemGroup>
     <Compile Include="src/**/*.cs" />
-    <!-- The compiler itself is pinned, so a newer SDK cannot change a byte. -->
-    <PackageReference Include="Microsoft.Net.Compilers.Toolset" Version="5.0.0" PrivateAssets="all" />
   </ItemGroup>
 </Project>
