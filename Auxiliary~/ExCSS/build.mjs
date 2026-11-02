@@ -16,7 +16,7 @@
  * The build runs in a scratch copy, so nothing is written beside the source, and the bytes
  * depend on src/ alone. OneJS.ExCSS.csproj makes the build deterministic and maps every path to
  * /_/. This script makes it run on one exact .NET SDK, SDK below, installed into a cache folder
- * of its own the first time (Microsoft's dotnet-install script, about 200 MB): a portable PDB
+ * of its own the first time (Microsoft's dotnet-install script; 650 to 800 MB on disk): a portable PDB
  * records the version of the runtime the compiler ran on, and that runtime compresses the
  * embedded source, so a machine's own .NET, which rolls forward to its newest patch, would
  * change both files. ONEJS_EXCSS_DOTNET names another folder for that install.
