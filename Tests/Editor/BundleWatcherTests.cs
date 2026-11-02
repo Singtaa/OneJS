@@ -77,7 +77,7 @@ namespace OneJS.Tests.Editor {
             // DefaultWatcher polls, so the file is compared on every look; the proxy wraps the
             // operating system's own watcher. Anything else means Mono's internals moved, and
             // BackendOf no longer tells a polling watcher apart.
-            Assert.That(watcher.Backend, Is.AnyOf("DefaultWatcher", "CoreFXFileSystemWatcherProxy"));
+            Assert.That(watcher.Backend, Is.EqualTo("DefaultWatcher").Or.EqualTo("CoreFXFileSystemWatcherProxy"));
             if (watcher.Backend == "DefaultWatcher") Assert.IsTrue(watcher.ComparesEveryLook);
         }
 
