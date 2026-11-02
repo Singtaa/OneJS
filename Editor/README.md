@@ -68,7 +68,7 @@ The inspector shows different UI depending on the PanelSettings configuration:
 
 When fully initialized, the Panel Settings field sits above the status section, outside the tabs, and the inspector shows four tabs:
 
-- **Project**: tick mode, Don't Destroy On Load, live reload (poll interval, Janitor), preloads, globals
+- **Project**: tick mode, Don't Destroy On Load, live reload (poll interval, Janitor), preloads, globals. Each of the two lists has one **+** under it at the right: a new entry is blank (growing a serialized array copies the last element, so `AddListEntry` clears it), scrolled into view, and its first field focused. A long key or value shrinks to an ellipsis with the whole text in its tooltip, so every row's **X** stays in view at any inspector width (`Shrinkable`)
 - **UI**: Stylesheets, and the assigned PanelSettings asset's own inspector
 - **Packs**: Pack list with per-row Extract (**E**), Delete extracted (**D**) and remove (**X**), plus Extract All and Delete All Extracted
 - **Build**: Build output (bundle, source map, Include Source Map, Exclude From Build), type generation, scaffolding (default files with Restore)

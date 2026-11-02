@@ -232,5 +232,59 @@ namespace OneJS.Tests.Editor {
 
             CollectionAssert.AreEqual(new[] { "b" }, Listed(list), "A row drawn before the list changed removed the wrong entry.");
         }
+
+        /// <summary>The add button for a list, by the tooltip it carries.</summary>
+        static readonly Dictionary<string, string> AddTooltips = new Dictionary<string, string> {
+            ["_preloads"] = "Add a preload TextAsset",
+            ["_globals"] = "Add a global variable",
+        };
+
+        // A user with 133 globals (Discord, 1 Nov): the "+" was in the header, far above the list's end,
+        // and an added entry arrived as a copy of the last one, because growing a serialized array copies it.
+        [TestCase("_preloads")]
+        [TestCase("_globals")]
+        public void OneAddButtonUnderTheListAddsABlankEntry(string list) {
+            Show(list);
+            var so = new SerializedObject(_runner);
+            if (list == "_globals") {
+                so.FindProperty(list).GetArrayElementAtIndex(2).FindPropertyRelative("value").objectReferenceValue = Make(new TextAsset("c"), "cValue");
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+            var adds = _root.Query<Button>().Where(b => b.tooltip == AddTooltips[list]).ToList();
+            Assert.AreEqual(1, adds.Count, "A list has exactly one add button.");
+            var lastRow = XButtons(list).Last().parent;
+            var rowsContainer = lastRow.parent;
+            var siblings = rowsContainer.parent.Children().ToList();
+            Assert.Greater(siblings.IndexOf(adds[0].parent), siblings.IndexOf(rowsContainer), "The add button is under the list, not above it.");
+
+            var args = _simulateClick.GetParameters().Select(p => p.ParameterType == typeof(int) ? (object)0 : null).ToArray();
+            _simulateClick.Invoke(adds[0].clickable, args);
+
+            var prop = new SerializedObject(_runner).FindProperty(list);
+            Assert.AreEqual(4, prop.arraySize);
+            var added = prop.GetArrayElementAtIndex(3);
+            if (list == "_globals") {
+                Assert.AreEqual("", added.FindPropertyRelative("key").stringValue, "The new global copied the last one's key.");
+                Assert.IsNull(added.FindPropertyRelative("value").objectReferenceValue, "The new global copied the last one's value.");
+            } else {
+                Assert.IsNull(added.objectReferenceValue, "The new preload copied the last one.");
+            }
+            CollectionAssert.AreEqual(new[] { "a", "b", "c", list == "_globals" ? "" : "(none)" }, Rows(list), "The inspector does not draw the new row.");
+        }
+
+        // A long key or value is cut to an ellipsis so the row's X stays in view; hovering shows the whole of it.
+        [Test]
+        public void EachGlobalShowsItsWholeKeyAndValueOnHover() {
+            const string longKey = "onRewardChestCeremonyStartedWithAVeryLongName";
+            var so = new SerializedObject(_runner);
+            var e = so.FindProperty("_globals").GetArrayElementAtIndex(1);
+            e.FindPropertyRelative("key").stringValue = longKey;
+            e.FindPropertyRelative("value").objectReferenceValue = Make(new TextAsset("v"), "onRewardChestCeremonyStarted");
+            so.ApplyModifiedPropertiesWithoutUndo();
+            _showTab.Invoke(_editor, new object[] { 0 });
+            var row = XButtons("_globals").Select(b => b.parent).First(r => r.Q<TextField>().value == longKey);
+            Assert.AreEqual(longKey, row.Q<TextField>().tooltip);
+            Assert.AreEqual("onRewardChestCeremonyStarted (Text Asset)", row.Q<ObjectField>().tooltip);
+        }
     }
 }

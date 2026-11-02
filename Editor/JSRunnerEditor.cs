@@ -349,22 +349,12 @@ namespace OneJS.Editor {
             preloadsLabel.style.flexGrow = 1;
             preloadsLabel.tooltip = "TextAssets eval'd before entry file (e.g., polyfills)";
             preloadsHeader.Add(preloadsLabel);
-
-            var addPreloadBtn = new Button(() => {
-                var prop = serializedObject.FindProperty("_preloads");
-                prop.arraySize++;
-                serializedObject.ApplyModifiedProperties();
-                RebuildPreloadsList();
-            }) { text = "+" };
-            addPreloadBtn.style.width = 24;
-            addPreloadBtn.style.height = 20;
-            addPreloadBtn.tooltip = "Add a preload TextAsset";
-            preloadsHeader.Add(addPreloadBtn);
             container.Add(preloadsHeader);
 
             _preloadsListContainer = new VisualElement();
             container.Add(_preloadsListContainer);
             RebuildPreloadsList();
+            container.Add(CreateAddFooter("Add a preload TextAsset", () => AddListEntry("_preloads", RebuildPreloadsList, _preloadsListContainer)));
 
             AddSpacer(container);
 
@@ -376,22 +366,12 @@ namespace OneJS.Editor {
             globalsLabel.style.flexGrow = 1;
             globalsLabel.tooltip = "Key-value pairs injected as globalThis[key]";
             globalsHeader.Add(globalsLabel);
-
-            var addGlobalBtn = new Button(() => {
-                var prop = serializedObject.FindProperty("_globals");
-                prop.arraySize++;
-                serializedObject.ApplyModifiedProperties();
-                RebuildGlobalsList();
-            }) { text = "+" };
-            addGlobalBtn.style.width = 24;
-            addGlobalBtn.style.height = 20;
-            addGlobalBtn.tooltip = "Add a global variable";
-            globalsHeader.Add(addGlobalBtn);
             container.Add(globalsHeader);
 
             _globalsListContainer = new VisualElement();
             container.Add(_globalsListContainer);
             RebuildGlobalsList();
+            container.Add(CreateAddFooter("Add a global variable", () => AddListEntry("_globals", RebuildGlobalsList, _globalsListContainer)));
             // Any add, remove, rename or reassignment rewrites the app's jsrunner.d.ts
             container.TrackPropertyValue(serializedObject.FindProperty("_globals"), _ => TypeGeneratorService.WriteGlobalsTypings(_target));
         }
@@ -680,6 +660,101 @@ namespace OneJS.Editor {
         /// before another inspector on the same runner changed the list, still
         /// removes its own entry.
         /// </summary>
+        /// <summary>
+        /// Appends a blank entry, then brings its row into view and focuses its first field, as Unity's
+        /// own lists do. Growing a serialized array copies the last element into the new one, so the
+        /// new entry is cleared: a key, a reference and anything else it holds.
+        /// </summary>
+        void AddListEntry(string propertyName, Action rebuild, VisualElement listContainer) {
+            serializedObject.Update();
+            var list = serializedObject.FindProperty(propertyName);
+            list.arraySize++;
+            Clear(list.GetArrayElementAtIndex(list.arraySize - 1));
+            serializedObject.ApplyModifiedProperties();
+            rebuild();
+
+            var row = listContainer.childCount > 0 ? listContainer[listContainer.childCount - 1] : null;
+            if (row == null) return;
+            // Once the row is laid out: until then it has no place to scroll to.
+            EventCallback<GeometryChangedEvent> reveal = null;
+            reveal = _ => {
+                row.UnregisterCallback(reveal);
+                row.GetFirstAncestorOfType<ScrollView>()?.ScrollTo(row);
+                var first = row.Query<VisualElement>().Where(e => e is TextField || e is ObjectField).First();
+                first?.Focus();
+            };
+            row.RegisterCallback(reveal);
+        }
+
+        static void Clear(SerializedProperty element) {
+            var end = element.GetEndProperty();
+            var p = element.Copy();
+            for (bool enter = true; p.Next(enter) && !SerializedProperty.EqualContents(p, end); enter = false) {
+                switch (p.propertyType) {
+                    case SerializedPropertyType.String: p.stringValue = ""; break;
+                    case SerializedPropertyType.ObjectReference: p.objectReferenceValue = null; break;
+                }
+            }
+            if (element.propertyType == SerializedPropertyType.ObjectReference) element.objectReferenceValue = null;
+        }
+
+        /// <summary>A list's add button: one "+", under the list at its right, as Unity's own lists have it.</summary>
+        static VisualElement CreateAddFooter(string tooltip, Action add) {
+            var footer = CreateRow();
+            footer.style.justifyContent = Justify.FlexEnd;
+            footer.style.marginTop = 2;
+            var button = new Button(add) { text = "+", tooltip = tooltip };
+            button.style.width = 24;
+            button.style.height = 20;
+            footer.Add(button);
+            return footer;
+        }
+
+        /// <summary>
+        /// Lets a field in a list row shrink to an ellipsis instead of pushing the row's remove button
+        /// past the inspector's edge (133 globals with long names, Discord, 1 Nov). Its full text is the
+        /// field's tooltip, which the caller keeps current.
+        /// </summary>
+        static void Shrinkable(VisualElement field, float grow) {
+            field.style.flexGrow = grow;
+            field.style.flexShrink = 1;
+            field.style.flexBasis = 0;
+            field.style.minWidth = 40;
+            field.style.overflow = Overflow.Hidden;
+            field.Query<VisualElement>().ForEach(e => {
+                // The object picker's button and the type icon keep their size; everything else may shrink.
+                if (e is Image || e.ClassListContains(ObjectField.selectorUssClassName)) return;
+                e.style.minWidth = 0;
+                e.style.flexShrink = 1;
+                e.style.overflow = Overflow.Hidden;
+            });
+            field.Query<TextElement>().ForEach(t => {
+                t.style.textOverflow = TextOverflow.Ellipsis;
+                t.style.whiteSpace = WhiteSpace.NoWrap;
+            });
+        }
+
+        /// <summary>What an object field shows, for its tooltip: the name and the nicified type, as the field writes them.</summary>
+        static string ObjectTooltip(UnityEngine.Object obj) =>
+            obj == null ? "" : $"{obj.name} ({ObjectNames.NicifyVariableName(obj.GetType().Name)})";
+
+        static Label CreateIndexLabel(int index) {
+            var indexLabel = new Label($"{index}");
+            indexLabel.style.width = 24;
+            indexLabel.style.flexShrink = 0;
+            indexLabel.style.color = OneJSEditorDesign.Colors.TextDim;
+            return indexLabel;
+        }
+
+        static Button CreateRemoveButton(Action remove, string tooltip) {
+            var removeBtn = new Button(remove) { text = "X", tooltip = tooltip };
+            removeBtn.style.width = 24;
+            removeBtn.style.height = 20;
+            removeBtn.style.marginLeft = 4;
+            removeBtn.style.flexShrink = 0;
+            return removeBtn;
+        }
+
         void RemoveListEntry(string propertyName, int hint, Func<SerializedProperty, bool> shows, Action rebuild) {
             serializedObject.Update();
             var list = serializedObject.FindProperty(propertyName);
@@ -796,29 +871,23 @@ namespace OneJS.Editor {
             var row = CreateRow();
             row.style.marginBottom = 2;
 
-            var indexLabel = new Label($"{index}");
-            indexLabel.style.width = 16;
-            indexLabel.style.color = OneJSEditorDesign.Colors.TextDim;
-            row.Add(indexLabel);
+            row.Add(CreateIndexLabel(index));
 
             var objectField = new ObjectField();
             objectField.objectType = typeof(TextAsset);
             objectField.value = elementProp.objectReferenceValue as TextAsset;
-            objectField.style.flexGrow = 1;
             objectField.style.marginLeft = 4;
+            objectField.tooltip = ObjectTooltip(objectField.value);
+            Shrinkable(objectField, 1);
             objectField.RegisterValueChangedCallback(evt => {
                 elementProp.objectReferenceValue = evt.newValue;
                 serializedObject.ApplyModifiedProperties();
+                objectField.tooltip = ObjectTooltip(evt.newValue);
             });
             row.Add(objectField);
 
-            var removeBtn = new Button(() => RemoveListEntry("_preloads", index,
-                e => e.objectReferenceValue == objectField.value, RebuildPreloadsList)) { text = "X" };
-            removeBtn.style.width = 24;
-            removeBtn.style.height = 20;
-            removeBtn.style.marginLeft = 4;
-            removeBtn.tooltip = "Remove this preload";
-            row.Add(removeBtn);
+            row.Add(CreateRemoveButton(() => RemoveListEntry("_preloads", index,
+                e => e.objectReferenceValue == objectField.value, RebuildPreloadsList), "Remove this preload"));
 
             return row;
         }
@@ -855,46 +924,44 @@ namespace OneJS.Editor {
             var row = CreateRow();
             row.style.marginBottom = 2;
 
-            var indexLabel = new Label($"{index}");
-            indexLabel.style.width = 16;
-            indexLabel.style.color = OneJSEditorDesign.Colors.TextDim;
-            row.Add(indexLabel);
+            row.Add(CreateIndexLabel(index));
 
+            // Key and value share the row two to three, each shrinking to an ellipsis with its full text on hover.
             var keyField = new TextField();
             keyField.value = keyProp.stringValue;
-            keyField.style.width = 130;
             keyField.style.marginLeft = 4;
+            keyField.tooltip = keyProp.stringValue;
+            Shrinkable(keyField, 2);
             keyField.RegisterValueChangedCallback(evt => {
                 keyProp.stringValue = evt.newValue;
                 serializedObject.ApplyModifiedProperties();
+                keyField.tooltip = evt.newValue;
             });
             row.Add(keyField);
 
             var arrow = new Label("→");
             arrow.style.marginLeft = 4;
             arrow.style.marginRight = 4;
+            arrow.style.flexShrink = 0;
             arrow.style.color = OneJSEditorDesign.Colors.TextDim;
             row.Add(arrow);
 
             var valueField = new ObjectField();
             valueField.objectType = typeof(UnityEngine.Object);
             valueField.value = valueProp.objectReferenceValue;
-            valueField.style.flexGrow = 1;
+            valueField.tooltip = ObjectTooltip(valueField.value);
+            Shrinkable(valueField, 3);
             valueField.RegisterValueChangedCallback(evt => {
                 valueProp.objectReferenceValue = evt.newValue;
                 serializedObject.ApplyModifiedProperties();
+                valueField.tooltip = ObjectTooltip(evt.newValue);
             });
             row.Add(valueField);
 
-            var removeBtn = new Button(() => RemoveListEntry("_globals", index,
+            row.Add(CreateRemoveButton(() => RemoveListEntry("_globals", index,
                 e => e.FindPropertyRelative("key").stringValue == keyField.value &&
                      e.FindPropertyRelative("value").objectReferenceValue == valueField.value,
-                RebuildGlobalsList)) { text = "X" };
-            removeBtn.style.width = 24;
-            removeBtn.style.height = 20;
-            removeBtn.style.marginLeft = 4;
-            removeBtn.tooltip = "Remove this global";
-            row.Add(removeBtn);
+                RebuildGlobalsList), "Remove this global"));
 
             return row;
         }
