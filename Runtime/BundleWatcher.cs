@@ -2,6 +2,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Threading;
 
 namespace OneJS {
@@ -9,10 +10,10 @@ namespace OneJS {
     /// Says when a JSRunner's bundle may have changed, so live reload follows a rebuild within
     /// a few frames instead of on the next half-second poll.
     ///
-    /// The operating system reports changes (a <see cref="FileSystemWatcher"/>: FSEvents or
-    /// kqueue on macOS, inotify on Linux, ReadDirectoryChangesW on Windows), and none of them is
-    /// trusted alone: Mono's watchers have dropped and doubled events on every platform, and a
-    /// network drive or an exhausted inotify limit gives none at all. So:
+    /// The operating system reports changes through a <see cref="FileSystemWatcher"/> (FSEvents on
+    /// macOS, inotify on Linux), and none of them is trusted alone: Mono's watchers have dropped
+    /// and doubled events on every platform, and a network drive or an exhausted inotify limit
+    /// gives none at all. So:
     /// - An event is only a reason to look. The runner still compares the bundle's hash, so a
     ///   duplicate event, or one for a write that changed nothing, costs one hash and no reload.
     /// - It waits <see cref="Settle"/> after the last event before saying so. esbuild writes the
@@ -22,12 +23,23 @@ namespace OneJS {
     ///   time, so a missed event costs at most that delay, never the reload.
     /// - When the watcher cannot start, or reports an error, it polls at the runner's old poll
     ///   interval with the hash, exactly as live reload always did, and tries the watcher again.
+    /// - On Windows, Unity's Mono gives FileSystemWatcher no operating system events at all: its
+    ///   runtime picks DefaultWatcher, a managed thread that sleeps 750 ms and then compares every
+    ///   file in the folder, so each event came about 0.76 s after the write, later than the
+    ///   half-second poll it replaced (#155, 6000.5.2f1). Where Mono's watcher only polls like
+    ///   that, the bundle's size and write time are compared on every look, at most every
+    ///   <see cref="StatInterval"/>, and a change counts as an event. Its late events still
+    ///   arrive, and still wake an unfocused editor. ReadDirectoryChangesW is not called directly:
+    ///   its handle on the folder would stop that folder, and every folder above it, from being
+    ///   renamed or moved while the preview runs.
     /// </summary>
     internal sealed class BundleWatcher : IDisposable {
         /// <summary>How long after the last event the bundle counts as written.</summary>
         public const double Settle = 0.05;
         /// <summary>How often the file's size and write time are compared while events arrive.</summary>
         public const double SafetyInterval = 2.0;
+        /// <summary>How often the file's size and write time are compared where Mono's watcher only polls.</summary>
+        public const double StatInterval = 0.03;
         /// <summary>How often a broken watcher is started again.</summary>
         const double RetryInterval = 10.0;
 
@@ -42,7 +54,9 @@ namespace OneJS {
         int _broken;
         int _events;
         double _nextLook;
+        double _nextStat;
         double _nextRetry;
+        bool _comparesEveryLook;
         long _length = -1;
         long _writeTicks;
 
@@ -63,6 +77,15 @@ namespace OneJS {
         /// <summary>Whether the operating system is reporting changes, rather than only the poll.</summary>
         public bool IsWatching => _watcher != null;
 
+        /// <summary>
+        /// Whether the file is compared on every look because Mono's watcher only polls (always on
+        /// Windows), rather than left to the watcher's events.
+        /// </summary>
+        public bool ComparesEveryLook => _watcher != null && _comparesEveryLook;
+
+        /// <summary>The class Mono picked to serve the watcher, for tests and measurement.</summary>
+        public string Backend { get; private set; } = "none";
+
         /// <summary>Events received, for tests and measurement.</summary>
         public int EventCount => Volatile.Read(ref _events);
 
@@ -79,6 +102,11 @@ namespace OneJS {
                 Start();
                 _nextRetry = now + RetryInterval;
                 Interlocked.Exchange(ref _pendingEvent, Stopwatch.GetTimestamp());
+            }
+
+            if (_comparesEveryLook && _watcher != null && now >= _nextStat) {
+                _nextStat = now + StatInterval;
+                if (StatChanged()) Interlocked.Exchange(ref _pendingEvent, Stopwatch.GetTimestamp());
             }
 
             var pending = Interlocked.Read(ref _pendingEvent);
@@ -118,11 +146,32 @@ namespace OneJS {
                 watcher.Error += OnError;
                 watcher.EnableRaisingEvents = true;
                 _watcher = watcher;
+                Backend = BackendOf(watcher);
+#if UNITY_EDITOR_WIN
+                _comparesEveryLook = true;
+#else
+                _comparesEveryLook = Backend == "DefaultWatcher";
+#endif
             } catch (Exception) {
                 // A network drive, an inotify watch limit, a platform without a watcher: poll.
                 _watcher = null;
+                Backend = "none";
                 _nextRetry = Now + RetryInterval;
                 Volatile.Write(ref _broken, 1);
+            }
+        }
+
+        /// <summary>
+        /// The class Mono picked to serve a FileSystemWatcher, from its private <c>watcher</c> field:
+        /// CoreFXFileSystemWatcherProxy wraps the operating system's own watcher, DefaultWatcher
+        /// polls. "unknown" if Mono's internals move, which then counts as an operating system's.
+        /// </summary>
+        static string BackendOf(FileSystemWatcher watcher) {
+            try {
+                var field = typeof(FileSystemWatcher).GetField("watcher", BindingFlags.Instance | BindingFlags.NonPublic);
+                return field?.GetValue(watcher)?.GetType().Name ?? "unknown";
+            } catch (Exception) {
+                return "unknown";
             }
         }
 

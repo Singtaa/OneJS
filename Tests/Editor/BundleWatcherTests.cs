@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using NUnit.Framework;
 
@@ -7,7 +9,7 @@ namespace OneJS.Tests.Editor {
     /// <summary>
     /// Live reload's change detection, on the real file system of whichever platform runs it:
     /// macOS, Windows and Linux each have their own watcher underneath (and Mono's have missed
-    /// and doubled events on each), so these run on all three. Each change is made the way a
+    /// and doubled events on each, and on Windows only polls), so these run on all three. Each change is made the way a
     /// build tool can make it: written in place (esbuild), deleted and written again, and
     /// written beside then moved over.
     /// </summary>
@@ -48,16 +50,35 @@ namespace OneJS.Tests.Editor {
             return n;
         }
 
+        /// <summary>
+        /// Each of five writes reaches the runner within a quarter second. A watcher whose events
+        /// lag (Mono's DefaultWatcher, which Unity's Mono uses on Windows, sleeps 750 ms between
+        /// looks) fails this, where a single write under a second passed it.
+        /// </summary>
         [Test]
-        public void AnInPlaceWriteIsSeenWellBeforeTheSafetyPoll() {
+        public void EveryInPlaceWriteIsSeenWithinAQuarterSecond() {
             using var watcher = new BundleWatcher(_bundle, 0.5);
-            Assert.IsTrue(watcher.IsWatching, "the operating system's watcher started");
+            Assert.IsTrue(watcher.IsWatching, "the watcher started");
             Thread.Sleep(100);
-            File.WriteAllText(_bundle, "second, longer");
-            var seconds = SecondsUntilCheck(watcher, 3);
-            Assert.That(seconds, Is.GreaterThanOrEqualTo(0), "the change was never reported");
-            Assert.That(seconds, Is.LessThan(BundleWatcher.SafetyInterval / 2), $"reported after {seconds:F3} s, so by the safety poll rather than an event");
-            Assert.That(watcher.EventCount, Is.GreaterThan(0));
+            var seen = new List<double>();
+            for (int i = 0; i < 5; i++) {
+                File.WriteAllText(_bundle, new string('w', 100 + i));
+                seen.Add(SecondsUntilCheck(watcher, 3));
+                Thread.Sleep(120 + 70 * i);
+            }
+            var report = $"{watcher.Backend}, compared every look: {watcher.ComparesEveryLook}; seen after {string.Join(", ", seen.Select(x => x.ToString("F3")))} s";
+            TestContext.WriteLine(report);
+            Assert.That(seen, Has.All.InRange(0.0, 0.25), report);
+        }
+
+        [Test]
+        public void MonosChoiceOfWatcherIsOneThisKnows() {
+            using var watcher = new BundleWatcher(_bundle, 0.5);
+            // DefaultWatcher polls, so the file is compared on every look; the proxy wraps the
+            // operating system's own watcher. Anything else means Mono's internals moved, and
+            // BackendOf no longer tells a polling watcher apart.
+            Assert.That(watcher.Backend, Is.AnyOf("DefaultWatcher", "CoreFXFileSystemWatcherProxy"));
+            if (watcher.Backend == "DefaultWatcher") Assert.IsTrue(watcher.ComparesEveryLook);
         }
 
         [Test]
