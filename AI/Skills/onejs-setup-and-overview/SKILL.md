@@ -4,7 +4,7 @@ description: "Use this skill whenever the user wants to build or set up user int
 metadata:
   asset: "OneJS"
   publisher: "DragonGround"
-  asset-version: "3.9.14"
+  asset-version: "3.9.15"
   skill-version: "1.18.0"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
@@ -12,7 +12,7 @@ metadata:
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-10-31"
+  last-verified: "2026-11-02"
 ---
 
 # Set Up a OneJS Project

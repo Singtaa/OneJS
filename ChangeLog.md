@@ -1,10 +1,13 @@
-# Unreleased
+# [2026-11-02] v3.9.15
 
+Stylesheets and UXML import again on Unity 6.6 and later. Agents can generate C# typings and check edit-mode previews from batch mode, and the Preloads and Globals lists are easier to edit.
+
+- Stylesheets and UXML import again on Unity 6.6 and later (#154)
+- Files whose import failed that way are imported again once, on the first load after updating
 - With no Scene view, as in a batch-mode editor, every edit-mode preview ticks unless one is selected
 - `ProjectSetup.Initialize` logs its info lines without stack traces
 - `ProjectSetup.GenerateTypings` writes `types/csharp.d.ts` from batch mode
-- Stylesheets and UXML import again on Unity 6.6 and later (#154)
-- Files whose import failed that way are imported again once, on the first load after updating
+- The Preloads and Globals lists' + adds a blank row, scrolled into view and focused; a long entry shrinks to an ellipsis
 
 # [2026-10-31] v3.9.14
 
