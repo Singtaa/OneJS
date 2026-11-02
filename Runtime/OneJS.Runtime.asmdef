@@ -2,15 +2,14 @@
     "name": "OneJS.Runtime",
     "rootNamespace": "OneJS",
     "references": [
-        "UnityEngine.UI"
+        "UnityEngine.UI",
+        "OneJS.ExCSS"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": true,
     "overrideReferences": true,
-    "precompiledReferences": [
-        "ExCSS.Unity.dll"
-    ],
+    "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [],

@@ -14,6 +14,7 @@ Editor scripts for OneJS Unity integration.
 | `ProjectSetup.cs` | Initialize Project as a call: `Initialize()` for `-executeMethod` (picks or creates the scene and runner, saves in batch mode, throws on failure), `InitializeRunner(runner)` for one runner, which the inspector button also calls |
 | `JSRunnerAutoWatch.cs` | Auto-starts file watchers on Play mode entry |
 | `JSRunnerCleanup.cs` | Tracks JSRunner instances for cleanup bookkeeping |
+| `StyleImportRepair.cs` | Once per project, reimports the .uss, .tss and .uxml files whose import failed while OneJS's old parser shadowed Unity's (#154); a marker in `Library/OneJS` says it ran |
 | `JSPadEditor.cs` | Custom inspector for JSPad inline runner |
 | `JSRunnerBuildProcessor.cs` | Build hook for auto-copying JS bundles |
 | `PlayerBundle.cs` | The production `npm run build` a player ships, and the editor's development bundle put back after |

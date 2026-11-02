@@ -74,6 +74,7 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `Input/InputBridge.cs` | Input System bridge for keyboard, mouse, gamepad, touch; its own assembly, built only when the package is installed (see `Input/README.md`) |
 | `Input/InputSystemUIModule.cs` | Adds the `InputSystemUIInputModule` to the EventSystem JSRunner creates, so `OneJS.Runtime` never references the Input System |
 | `Styling/UssCompiler.cs` | Runtime USS compilation from strings, with diagnostics (see `Styling/README.md`) |
+| `Styling/ExCSS/` | The CSS parser `UssCompiler` reads, ExCSS v4.3.2 as its own assembly `OneJS.ExCSS` |
 | `Styling/StyleSheetBuilderWrapper.cs` | Reflection wrapper for Unity's internal StyleSheetBuilder |
 | `Controls/CodeField.cs` | TextField with syntax highlighting via per-glyph vertex coloring |
 | `Utils/UIDebugger.cs` | Runtime UI debugger for dumping visual tree and inspecting USS classes |

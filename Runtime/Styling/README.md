@@ -11,7 +11,7 @@ Compiles USS strings into `StyleSheet` assets at runtime, bypassing Unity's asse
 ```
 USS String
     ↓
-ExCSS.Parse() → ExCSS.Stylesheet (MIT licensed CSS parser)
+ExCSS.Parse() → ExCSS.Stylesheet (OneJS.ExCSS: upstream ExCSS v4.3.2, MIT)
     ↓
 UssCompiler (clean-room implementation)
     ↓
@@ -24,7 +24,8 @@ UnityEngine.UIElements.StyleSheet asset
 
 | File | Description |
 |------|-------------|
-| `ExCSS.Unity.dll` | Third-party CSS parser (MIT license) |
+| `ExCSS/` | The CSS parser: upstream ExCSS v4.3.2 source, unmodified, as the `OneJS.ExCSS` assembly (its README says why and how to update it) |
+| `ExCSS.Unity.dll` | Tombstone: an empty assembly enabled on no platform. It held the parser until 3.9.14, under the name of the Unity editor's own ExCSS, which it shadowed (#154). Importing a package never deletes a file, so this path keeps a harmless one |
 | `StyleSheetBuilderWrapper.cs` | Reflection wrapper for Unity's internal `StyleSheetBuilder` |
 | `UssCompiler.cs` | Main compiler that translates ExCSS AST to StyleSheetBuilder calls |
 | `UnityThemes/UnityDefaultRuntimeTheme.tss` | Default runtime theme: JSRunner's `_defaultThemeStylesheet`, assigned to the PanelSettings it creates |
@@ -136,7 +137,7 @@ What it doesn't transform (you must pre-process):
 
 ## Dependencies
 
-- **ExCSS** (MIT): CSS parsing
+- **ExCSS** (MIT): CSS parsing, vendored as source in `ExCSS/`. Never give it the assembly name of Unity's own fork (`ExCSS.Unity`): the editor's importer then loads ours in place of its own
 - **Unity 6.3+**: Target platform (uses internal APIs that may change)
 
 ## Legal Notes

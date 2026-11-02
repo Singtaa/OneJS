@@ -3,6 +3,8 @@
 - With no Scene view, as in a batch-mode editor, every edit-mode preview ticks unless one is selected
 - `ProjectSetup.Initialize` logs its info lines without stack traces
 - `ProjectSetup.GenerateTypings` writes `types/csharp.d.ts` from batch mode
+- Stylesheets and UXML import again on Unity 6.6 and later (#154)
+- Files whose import failed that way are imported again once, on the first load after updating
 
 # [2026-10-31] v3.9.14
 
