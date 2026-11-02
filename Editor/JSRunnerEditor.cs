@@ -327,6 +327,8 @@ namespace OneJS.Editor {
             container.Add(liveReloadField);
 
             var liveReloadSettings = new VisualElement();
+            var keepStateField = new PropertyField(serializedObject.FindProperty("_keepStateOnReload"), "Keep Component State");
+            liveReloadSettings.Add(keepStateField);
             liveReloadSettings.Add(new PropertyField(serializedObject.FindProperty("_pollInterval")));
 
             var janitorField = new PropertyField(serializedObject.FindProperty("_enableJanitor"), "Enable Janitor");

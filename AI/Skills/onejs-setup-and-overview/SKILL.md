@@ -5,7 +5,7 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.9.16"
-  skill-version: "1.18.0"
+  skill-version: "1.19.0"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
@@ -177,7 +177,7 @@ Conventions that differ from web React and cause most first-time bugs:
 - C# you write for the UI gets generated declarations, never hand-written ones. With the editor closed, `unity run <project> -- -nographics -executeMethod OneJS.Editor.ProjectSetup.GenerateTypings` writes `types/csharp.d.ts` from `Assembly-CSharp` (add `-typingAssemblies MyGame.Runtime` for an asmdef) and saves the choice on the runner, so the editor regenerates it on every recompile after that.
 - Style shorthands such as `padding` and `borderRadius` work and are expanded by the reconciler, even though UI Toolkit has no native shorthand for them.
 - Module-level code runs in edit-mode preview as well as Play mode. Guard play-only logic with the `__isPlaying` global, or put it in the exported `onPlay()` and `onStop()` lifecycle functions. Play-mode singletons are null during preview.
-- Hot reload is a hard reload. All JavaScript state is lost, `useEffect` cleanups run first, then the bundle re-runs.
+- Hot reload runs the new bundle in a fresh JavaScript context, after `useEffect` cleanups. Components keep their `useState`, `useReducer` and `useRef` values when their hooks and place in the tree are unchanged; module-level variables and stores start fresh.
 
 ### Workflow: Write a shader as a `.sl` file
 
@@ -412,8 +412,8 @@ Cause: Node.js is missing from `PATH`, or is older than 18.
 Fix: install Node 18 or newer. OneJS also probes common `nvm` install locations.
 
 **State resets on every save.**
-Cause: none. Hot reload is a hard reload by design.
-Fix: if state must survive, keep it in C# and read it back, or persist it deliberately.
+Cause: the Console's `[JSRunner] Reloaded` line names each component that started fresh and why: its hooks changed (added, removed or reordered), its state holds a function or a C# object, or it moved in the tree. State outside React components (module-level variables, stores) always starts fresh, and so does every component when the JSRunner's **Keep Component State** is off or the app's onejs-react predates it.
+Fix: keep the hooks' order, hold plain data in state (an id rather than the C# object), or keep state that must survive anything in C# and read it back.
 
 **JavaScript input throws `Type not found: OneJS.Input.InputBridge`.**
 Cause: `onejs-unity/input` reads through `InputBridge`, which exists only when the Input System package is installed and Player Settings select it. OneJS does not install the package itself.

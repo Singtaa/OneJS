@@ -147,11 +147,47 @@ namespace OneJS {
         /// panel all come through here, so none of them skips onStop.
         /// </summary>
         public void Recreate(VisualElement root, string workingDir, string code, string filename,
-            Action afterOnStop = null, Action<QuickJSUIBridge> configure = null) {
+            Action afterOnStop = null, Action<QuickJSUIBridge> configure = null, bool keepState = false) {
+            var snapshot = keepState ? CaptureState() : null;
             Stop(afterOnStop);
             Create(root, workingDir, configure);
+            if (!string.IsNullOrEmpty(snapshot))
+                Bridge.Eval($"globalThis.__onejsReloadSnapshot = '{RunnerUtils.EscapeJsString(snapshot)}'", "keep-state.js");
             Run(code, filename);
             InvokeOnPlay();
+            LastReloadReport = keepState ? TakeReloadReport() : null;
+        }
+
+        /// <summary>
+        /// What the last <see cref="Recreate"/> with keepState said it kept, for example
+        /// "kept state in 9 components; 2 started fresh (...)". Empty when there was
+        /// nothing to keep, null when it was not asked to keep anything.
+        /// </summary>
+        public string LastReloadReport { get; private set; }
+
+        /// <summary>
+        /// The running app's component state as JSON, from onejs-react (keep-state.ts), or
+        /// null when the app has none to give: no onejs-react, or one older than this. A
+        /// failure here only costs the state, so it never stops the reload.
+        /// </summary>
+        string CaptureState() {
+            if (Bridge == null || !ScriptLoaded) return null;
+            try {
+                Bridge.ReloadSnapshot = null;
+                Bridge.Eval("typeof __onejsCaptureState === 'function' ? __onejsCaptureState() : -1", "keep-state.js");
+                return Bridge.ReloadSnapshot;
+            } catch (Exception ex) {
+                OneJSLog.Exception($"[{_name}] Could not keep component state across the reload", ex, translate: _translateError);
+                return null;
+            }
+        }
+
+        string TakeReloadReport() {
+            try {
+                return Bridge?.Eval("typeof __onejsTakeReloadReport === 'function' ? __onejsTakeReloadReport() : ''", "keep-state.js") ?? "";
+            } catch (Exception) {
+                return "";
+            }
         }
 
         /// <summary>Disposes the context without calling onStop.</summary>

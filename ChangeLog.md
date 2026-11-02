@@ -1,3 +1,8 @@
+# Unreleased
+
+- Components keep their state across a hot reload (#155)
+- A hot reload follows a rebuild within about 0.1 s
+
 # [2026-11-02] v3.9.16
 
 The package is smaller: the CSS parser that 3.9.15 shipped as about 500 source files is now one DLL, with its source in its debug file. Nothing else changes.

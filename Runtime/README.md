@@ -335,7 +335,8 @@ The inspector adapts to the project state:
 | **Panel Settings** (top-level) | PanelSettings asset: its folder is the project folder |
 | **Project tab** | |
 | Live Reload | Toggle live reload on/off |
-| Poll Interval | How often to check for file changes (default 0.5s) |
+| Keep Component State | A live reload keeps components' `useState`, `useReducer` and `useRef` values (default on) |
+| Poll Interval | How often to check the bundle when the operating system cannot report changes (default 0.5s) |
 | Enable Janitor | Auto-cleanup of JS-created GameObjects on reload |
 | Preloads | TextAssets eval'd before entry file (e.g., polyfills) |
 | Globals | `key → Object` pairs injected as `globalThis[key]`, and declared for TypeScript in `types/jsrunner.d.ts` |
@@ -357,10 +358,11 @@ The inspector adapts to the project state:
 - **Use Scene Name as Root Folder**: toggle whether instance folder is nested under scene name
 
 ### Live Reload (Editor Only)
-- Polls the bundle (`app.js.txt`) and compares a content hash, not the mtime (NTFS can report a stale mtime for a file esbuild deletes and recreates)
-- Configurable poll interval (default: 0.5s)
-- In edit mode a `FileSystemWatcher` on the bundle only wakes an unfocused editor (`QueuePlayerLoopUpdate`); the poll still decides
-- Hard reload: disposes context, clears UI, recreates fresh
+- `BundleWatcher` says when the bundle (`app.js.txt`) may have changed, and the runner then compares a content hash, not the mtime (NTFS can report a stale mtime for a file esbuild deletes and recreates), so a duplicate event or a write that changed nothing reloads nothing
+- The operating system's watcher (a `FileSystemWatcher`) reports the write; the check waits 50 ms after the last event, because esbuild writes the bundle in place and a long write arrives as several events. Save to new UI measured 110 ms median against 237 ms for the old 0.5 s poll (6000.5.2f1, an 810 KB bundle)
+- Every 2 s a size and write-time comparison catches an event the watcher missed. A watcher that cannot start (some network drives, an exhausted inotify limit) or reports an error leaves the old poll at the inspector's Poll Interval, and is started again every 10 s
+- Each event also wakes an unfocused editor (`QueuePlayerLoopUpdate`), where `EditorApplication.update` otherwise throttles
+- The reload disposes the context, clears the UI and recreates it fresh. With Keep Component State on, `JsHost.Recreate` first asks onejs-react for its components' state (`__onejsCaptureState`, into `QuickJSUIBridge.ReloadSnapshot`) and hands it to the new context as `__onejsReloadSnapshot` before the bundle runs; onejs-react's README has the rest. `__onejsTakeReloadReport()` gives the line the `Reloaded` log ends with
 - **Janitor cleanup**: When enabled, destroys JS-created GameObjects on reload (see below)
 
 ### Janitor (Live Reload Cleanup)

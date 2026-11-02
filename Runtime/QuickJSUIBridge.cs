@@ -173,6 +173,13 @@ namespace OneJS {
             }
         }
 
+        /// <summary>
+        /// Component state this context's app hands to the next one on a hot reload, as JSON.
+        /// onejs-react's <c>__onejsCaptureState()</c> sets it while the context is still alive;
+        /// <see cref="JsHost"/> reads it after the context is gone and gives it to the new one.
+        /// </summary>
+        public string ReloadSnapshot { get; set; }
+
         /// <summary>Logs an exception caught running this bridge's JS, its frames source-mapped.</summary>
         void LogJsError(string message, Exception ex) => OneJSLog.Exception(message, ex, translate: _translateError);
 

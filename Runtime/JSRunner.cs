@@ -129,7 +129,11 @@ namespace OneJS {
 
         [Tooltip("Automatically reload when the entry file changes (Editor only)")]
         [SerializeField] bool _liveReload = true;
-        [Tooltip("How often to check for file changes (in seconds)")]
+        [Tooltip("On a live reload, components keep their useState, useReducer and useRef values when their hooks are unchanged. " +
+            "Anything that is not plain data, such as a C# object, and any component whose hooks changed, starts fresh.")]
+        [SerializeField] bool _keepStateOnReload = true;
+        [Tooltip("How often to check the bundle for changes when the operating system cannot report them, " +
+            "as on some network drives (in seconds). Otherwise a change is seen within a few frames.")]
         [SerializeField] float _pollInterval = 0.5f;
         [Tooltip("Enable Janitor to clean up GameObjects created by JS on reload")]
         [SerializeField] bool _enableJanitor = true;
@@ -204,7 +208,7 @@ namespace OneJS {
         // Live reload state
         DateTime _lastModifiedTime;
         DateTime _lastReloadTime;
-        float _nextPollTime;
+        BundleWatcher _bundleWatcher;
         int _reloadCount;
         string _lastContentHash;
         Janitor _janitor;
@@ -234,13 +238,18 @@ namespace OneJS {
         const double PreviewStartRetryInterval = 0.25;
         // Edit-mode previews only. Play Mode ticks every runner, as a player build does.
         public static Func<JSRunner, bool> EditModeUpdateFilter;
-        FileSystemWatcher _editModeWatcher;
 #endif
 
         // Public API
         public QuickJSUIBridge Bridge => _bridge;
         public bool IsRunning => _scriptLoaded && _bridge != null;
         public bool IsLiveReloadEnabled => _liveReload;
+
+        /// <summary>Whether a live reload keeps component state (onejs-react, #155).</summary>
+        public bool KeepStateOnReload {
+            get => _keepStateOnReload;
+            set => _keepStateOnReload = value;
+        }
         /// <summary>Seconds between the editor's checks of the bundle for changes (Editor only).</summary>
         public float PollInterval => _pollInterval;
         public int ReloadCount => _reloadCount;
@@ -981,6 +990,7 @@ namespace OneJS {
             }
             // Don't unsubscribe playModeStateChanged: it must persist across play
             // mode transitions for the no-domain-reload case. OnDestroy handles final cleanup.
+            StopWatchingBundle();
 #endif
         }
 
@@ -1025,10 +1035,10 @@ namespace OneJS {
         /// re-enabling the component, a rebuilt panel): onStop, the janitor,
         /// a fresh context with its globals, the bundle, onPlay, then Reloaded.
         /// </summary>
-        void RecreateContext(string code, string filename) {
+        void RecreateContext(string code, string filename, bool keepState = false) {
             _initialFocusDone = false; // re-grab keyboard focus after the rebuild
             Host.Recreate(_uiDocument.rootVisualElement, BridgeWorkingDir, code, filename,
-                afterOnStop: CleanUpAfterApp, configure: ConfigureBridge);
+                afterOnStop: CleanUpAfterApp, configure: ConfigureBridge, keepState: keepState);
             _reloadCount++;
             try {
                 Reloaded?.Invoke(this);
@@ -1236,7 +1246,7 @@ namespace OneJS {
             if (_liveReload) {
                 _lastModifiedTime = File.GetLastWriteTime(entryFile);
                 _lastContentHash = ComputeFileHash(entryFile);
-                _nextPollTime = Time.realtimeSinceStartup + _pollInterval;
+                WatchBundle(entryFile);
             }
         }
 
@@ -1269,7 +1279,7 @@ namespace OneJS {
             if (_liveReload) {
                 _lastModifiedTime = File.GetLastWriteTime(entryFile);
                 _lastContentHash = ComputeFileHash(entryFile);
-                _nextPollTime = Time.realtimeSinceStartup + _pollInterval;
+                WatchBundle(entryFile);
             }
         }
 
@@ -1608,6 +1618,7 @@ namespace OneJS {
 #if UNITY_EDITOR
             _warnedNoPanelSettings = false;
             _warnedCart = null;
+            StopWatchingBundle();
 #endif
             _initialFocusDone = false;
         }
@@ -1625,12 +1636,13 @@ namespace OneJS {
             }
 
             try {
-                RecreateContext(ReadBundleForEditor(EntryFileFullPath), Path.GetFileName(EntryFileFullPath));
+                RecreateContext(ReadBundleForEditor(EntryFileFullPath), Path.GetFileName(EntryFileFullPath), keepState: _keepStateOnReload);
 
                 _lastModifiedTime = File.GetLastWriteTime(EntryFileFullPath);
                 _lastContentHash = ComputeFileHash(EntryFileFullPath);
                 _lastReloadTime = DateTime.Now;
-                Debug.Log($"[JSRunner] Reloaded ({_reloadCount})");
+                var kept = Host.LastReloadReport;
+                Debug.Log(string.IsNullOrEmpty(kept) ? $"[JSRunner] Reloaded ({_reloadCount})" : $"[JSRunner] Reloaded ({_reloadCount}): {kept}");
 
                 // Force UI Toolkit to process layout so the Game view reflects
                 // the new content when the editor regains focus.
@@ -1645,11 +1657,27 @@ namespace OneJS {
             }
         }
 
+        /// <summary>
+        /// Starts watching the bundle for live reload (BundleWatcher). Its events also wake an
+        /// unfocused editor, where EditorApplication.update otherwise throttles to almost nothing,
+        /// so a rebuild still shows while focus is in the code editor.
+        /// </summary>
+        void WatchBundle(string entryFile) {
+            StopWatchingBundle();
+            if (!_liveReload || string.IsNullOrEmpty(entryFile)) return;
+            _bundleWatcher = new BundleWatcher(entryFile, _pollInterval, UnityEditor.EditorApplication.QueuePlayerLoopUpdate);
+        }
+
+        void StopWatchingBundle() {
+            _bundleWatcher?.Dispose();
+            _bundleWatcher = null;
+        }
+
         void CheckForFileChanges() {
             if (!_liveReload || !_scriptLoaded) return;
-            if (Time.realtimeSinceStartup < _nextPollTime) return;
-
-            _nextPollTime = Time.realtimeSinceStartup + _pollInterval;
+            var entryFile = EntryFileFullPath;
+            if (_bundleWatcher == null || _bundleWatcher.Path != entryFile) WatchBundle(entryFile);
+            if (_bundleWatcher == null || !_bundleWatcher.ShouldCheck()) return;
 
             try {
                 if (!File.Exists(EntryFileFullPath)) return;
@@ -1770,25 +1798,10 @@ namespace OneJS {
                 // Set up file watching for live reload in edit-mode
                 _lastModifiedTime = File.GetLastWriteTime(entryFile);
                 _lastContentHash = ComputeFileHash(entryFile);
-                _nextPollTime = Time.realtimeSinceStartup + _pollInterval;
 
                 _editModePreviewActive = true;
                 UnityEditor.EditorApplication.update += EditModeTick;
-
-                // Watch the entry file so we can wake the editor when it's unfocused.
-                // EditorApplication.update throttles when the editor loses focus; the
-                // FileSystemWatcher fires from a thread pool thread regardless of focus
-                // and QueuePlayerLoopUpdate wakes the editor to process the change.
-                try {
-                    _editModeWatcher = new FileSystemWatcher(
-                        Path.GetDirectoryName(entryFile), Path.GetFileName(entryFile));
-                    _editModeWatcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size;
-                    _editModeWatcher.Changed += (_, __) =>
-                        UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
-                    _editModeWatcher.EnableRaisingEvents = true;
-                } catch {
-                    // Non-critical: fall back to polling-only (e.g., network drives)
-                }
+                WatchBundle(entryFile);
 
                 // Force initial repaint so the Game view shows the UI
                 UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
@@ -1812,8 +1825,7 @@ namespace OneJS {
             if (!_editModePreviewActive) return;
 
             UnityEditor.EditorApplication.update -= EditModeTick;
-            _editModeWatcher?.Dispose();
-            _editModeWatcher = null;
+            StopWatchingBundle();
             _editModePreviewActive = false;
 
             if (_uiDocument != null && _uiDocument.rootVisualElement != null) {
@@ -2035,6 +2047,7 @@ namespace OneJS {
                 StopEditModePreview();
             }
             UnityEditor.EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
+            StopWatchingBundle();
 #endif
             if (Application.isPlaying) InvokeOnStop();
             _host?.Dispose();
