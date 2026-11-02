@@ -1,4 +1,6 @@
-# Unreleased
+# [2026-11-02] v3.9.16
+
+The package is smaller: the CSS parser that 3.9.15 shipped as about 500 source files is now one DLL, with its source in its debug file. Nothing else changes.
 
 - The CSS parser ships as one DLL with its source in its debug file, so the package is about 500 files smaller
 
