@@ -1,0 +1,2 @@
+# The PDB embeds these files byte for byte, so a checkout must never convert their line endings.
+* -text

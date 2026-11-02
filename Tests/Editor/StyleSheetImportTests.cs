@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -50,6 +51,39 @@ namespace OneJS.Tests.Editor {
             }
             var parser = typeof(UssCompiler).GetField("_parser", BindingFlags.Instance | BindingFlags.NonPublic).FieldType;
             Assert.AreEqual("OneJS.ExCSS", parser.Assembly.GetName().Name);
+        }
+
+        static string RuntimeFolder => Path.GetDirectoryName(CompilationPipeline.GetAssemblyDefinitionFilePathFromAssemblyName("OneJS.Runtime"));
+
+        static System.Reflection.Assembly Parser => typeof(UssCompiler).GetField("_parser", BindingFlags.Instance | BindingFlags.NonPublic).FieldType.Assembly;
+
+        [Test]
+        public void TheParserIsTheShippedDll() {
+            Assert.AreEqual(Path.GetFullPath(Path.Combine(RuntimeFolder, "Styling/ExCSS/OneJS.ExCSS.dll")), Path.GetFullPath(Parser.Location));
+        }
+
+        [Test]
+        public void AnExceptionInsideTheParserNamesItsSourceFileAndLine() {
+            // ExCSS ships as a DLL with a portable PDB beside it (Auxiliary~/ExCSS). A stack trace that names
+            // the file and line inside it is the proof that Unity loaded the PDB.
+            var length = Parser.GetType("ExCSS.Length", true);
+            var em = Enum.Parse(Parser.GetType("ExCSS.Length+Unit", true), "Em");
+            var relative = Activator.CreateInstance(length, 1f, em);
+            var thrown = Assert.Throws<TargetInvocationException>(() => length.GetMethod("ToPixel").Invoke(relative, null)).InnerException;
+            Assert.IsInstanceOf<InvalidOperationException>(thrown);
+            StringAssert.IsMatch(@"/_/src/Values/Length\.cs:\d+", thrown.StackTrace, "the stack trace names no source line, so the PDB was not loaded");
+            TestContext.WriteLine(thrown.StackTrace);
+        }
+
+        [Test]
+        public void SourceLeftInTheOldParserFolderCompilesNowhere() {
+            // 3.9.15 shipped the parser as source in Runtime/Styling/ExCSS. Updating over it never removes those
+            // files, so the folder keeps an asmdef with a define nothing sets, and they build into no assembly.
+            foreach (var type in new[] { AssembliesType.Editor, AssembliesType.Player }) {
+                Assert.IsFalse(CompilationPipeline.GetAssemblies(type).Any(a => a.name.StartsWith("OneJS.ExCSS")), $"an OneJS.ExCSS assembly is compiled from source for {type}");
+            }
+            var asmdef = Path.Combine(RuntimeFolder, "Styling/ExCSS/OneJS.ExCSS.asmdef");
+            StringAssert.Contains("\"ONEJS_RETIRED_SOURCE\"", File.ReadAllText(asmdef));
         }
 
         [Test]

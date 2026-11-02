@@ -24,7 +24,7 @@ UnityEngine.UIElements.StyleSheet asset
 
 | File | Description |
 |------|-------------|
-| `ExCSS/` | The CSS parser: upstream ExCSS v4.3.2 source, unmodified, as the `OneJS.ExCSS` assembly (its README says why and how to update it) |
+| `ExCSS/` | The CSS parser, upstream ExCSS v4.3.2 unmodified, as `OneJS.ExCSS.dll` with its source in the `.pdb`; built from `Auxiliary~/ExCSS` (its README says why it has its own name, and why the folder's asmdef compiles nothing) |
 | `ExCSS.Unity.dll` | Tombstone: an empty assembly enabled on no platform. It held the parser until 3.9.14, under the name of the Unity editor's own ExCSS, which it shadowed (#154). Importing a package never deletes a file, so this path keeps a harmless one |
 | `StyleSheetBuilderWrapper.cs` | Reflection wrapper for Unity's internal `StyleSheetBuilder` |
 | `UssCompiler.cs` | Main compiler that translates ExCSS AST to StyleSheetBuilder calls |
@@ -137,7 +137,7 @@ What it doesn't transform (you must pre-process):
 
 ## Dependencies
 
-- **ExCSS** (MIT): CSS parsing, vendored as source in `ExCSS/`. Never give it the assembly name of Unity's own fork (`ExCSS.Unity`): the editor's importer then loads ours in place of its own
+- **ExCSS** (MIT): CSS parsing, built from source in `Auxiliary~/ExCSS` into `ExCSS/OneJS.ExCSS.dll`. Never give it the assembly name of Unity's own fork (`ExCSS.Unity`): the editor's importer then loads ours in place of its own
 - **Unity 6.3+**: Target platform (uses internal APIs that may change)
 
 ## Legal Notes

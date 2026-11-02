@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Builds Runtime/Styling/ExCSS/OneJS.ExCSS.dll and its .pdb from src/ (upstream ExCSS v4.3.2,
+    unmodified). Run build.mjs rather than this directly: it builds into a scratch folder and
+    copies the two files, or with check compares them byte for byte with the committed ones.
+
+    Every setting below exists so the bytes depend on the source alone, not on the machine, the
+    checkout's path or the .NET SDK installed.
+  -->
+  <PropertyGroup>
+    <AssemblyName>OneJS.ExCSS</AssemblyName>
+    <RootNamespace>ExCSS</RootNamespace>
+    <!-- What Unity compiled the source against when it was a folder of .cs files (3.9.15). -->
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Configuration>Release</Configuration>
+    <Optimize>true</Optimize>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+
+    <!-- Unity's own compile of the folder carried no version or framework attributes. -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+
+    <!-- The same bytes from the same source on every machine. -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <!-- Ours, not the SDK's: its own map is from the git root, so a copy outside git kept the real path. -->
+    <DeterministicSourcePaths>false</DeterministicSourcePaths>
+    <PathMap>$(MSBuildProjectDirectory)=/_/</PathMap>
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <EmbedAllSources>true</EmbedAllSources>
+    <EnableSourceLink>false</EnableSourceLink>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <RunAnalyzers>false</RunAnalyzers>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS0618;CS0612;CS0168;CS0219;CS0414;CS0649;CS0169</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="src/**/*.cs" />
+    <!-- The compiler itself is pinned, so a newer SDK cannot change a byte. -->
+    <PackageReference Include="Microsoft.Net.Compilers.Toolset" Version="5.0.0" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

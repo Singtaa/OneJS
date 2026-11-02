@@ -1,3 +1,7 @@
+# Unreleased
+
+- The CSS parser ships as one DLL with its source in its debug file, so the package is about 500 files smaller
+
 # [2026-11-02] v3.9.15
 
 Stylesheets and UXML import again on Unity 6.6 and later. Agents can generate C# typings and check edit-mode previews from batch mode, and the Preloads and Globals lists are easier to edit.

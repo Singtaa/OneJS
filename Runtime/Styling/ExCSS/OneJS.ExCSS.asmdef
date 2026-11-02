@@ -1,5 +1,5 @@
 {
-    "name": "OneJS.ExCSS",
+    "name": "OneJS.ExCSS.RetiredSource",
     "rootNamespace": "ExCSS",
     "references": [],
     "includePlatforms": [],
@@ -8,7 +8,9 @@
     "overrideReferences": true,
     "precompiledReferences": [],
     "autoReferenced": false,
-    "defineConstraints": [],
+    "defineConstraints": [
+        "ONEJS_RETIRED_SOURCE"
+    ],
     "versionDefines": [],
     "noEngineReferences": true
 }

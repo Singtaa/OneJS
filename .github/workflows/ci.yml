@@ -62,6 +62,29 @@ jobs:
           node-version: '22'
       - run: node --test "Tests/WebGL~/qjs-eval.test.mjs"
 
+  # OneJS.ExCSS.dll and its .pdb are built from Auxiliary~/ExCSS/src, which Unity
+  # never imports, so nothing else here would notice a DLL nobody rebuilt after a
+  # source change. Rebuild on each platform and compare bytes: that also catches
+  # a build that depends on the machine it ran on. The tests break it on purpose
+  # (a changed byte, a changed source, a PDB without its source) to show it fails.
+  excss-dll:
+    name: ExCSS DLL is its source (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test "Auxiliary~/ExCSS/build.test.mjs"
+
   # The check above never opens a binary, which is what lets one Linux runner
   # cover all six at once. The cost is that it cannot see a library that parses
   # but will not run: a stale binary whose ABI no longer matches the C# side
