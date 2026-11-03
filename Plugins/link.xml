@@ -21,7 +21,7 @@
              in a sheet through the first, UssFilter reads an inline filter through
              both. No player code calls FromUssString, so High stripping removed it
              and every filter from compileStyleSheet, a CSS module or a JSX style
-             was dropped in a build (FilterStylesPlayerBuild in the container). -->
+             was dropped in a build. -->
         <type fullname="UnityEngine.UIElements.StyleValueFunctionExtension">
             <method name="FromUssString"/>
         </type>

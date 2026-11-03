@@ -16,8 +16,7 @@ namespace OneJS.SL {
     /// any of this works is checked once, at first use, by drawing nothing:
     /// <see cref="Describe"/> makes a small RenderTexture and asks the host
     /// whether it can see it. A Unity upgrade that renames a handle then reads
-    /// "unavailable" here (and in the container's smoke test) instead of
-    /// drawing wrong.
+    /// "unavailable" here instead of drawing wrong.
     /// </summary>
     public static class SLWeb {
         /// <summary>Uniform slots, each a float4: onejs-sl's WEB_UNIFORM_SLOTS, and the jslib's `uniformFloats`.</summary>
@@ -116,9 +115,8 @@ namespace OneJS.SL {
 
         /// <summary>
         /// False stops a WebGL2 draw from putting Unity's GL state back. Only
-        /// for the harness's negative control (`Tools/sl-web-parity`): Unity's
-        /// frame must visibly break, or the checks that pass with it on are
-        /// blind to a missing restore.
+        /// for a test's negative control: Unity's frame must visibly break, or
+        /// the checks that pass with it on are blind to a missing restore.
         /// </summary>
         public static void SetRestoreGLState(bool on) {
 #if UNITY_WEBGL && !UNITY_EDITOR

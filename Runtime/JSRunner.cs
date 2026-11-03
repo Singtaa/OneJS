@@ -114,7 +114,7 @@ namespace OneJS {
         [Tooltip("PanelSettings asset for the UI. Assigned to the runtime UIDocument. Auto-created in instance folder on Initialize if not set.")]
         [SerializeField] PanelSettings _panelSettings;
 
-        // The oj.json name of the root cart this runner runs (Specs/ROOT_CARTS.md). Empty is an app
+        // The oj.json name of the root cart this runner runs (Runtime/README.md, Root Carts). Empty is an app
         // under Assets anchored by its PanelSettings, exactly as before carts; every cart code path
         // is behind IsCart. A name, never a path: a folder outside Assets has no GUID, and a path
         // string breaks when the folder moves. ojplay finds this declaration to tell whether the
@@ -1500,7 +1500,7 @@ namespace OneJS {
                 }
             }
 
-            // Inject pack objects. Packs are not offered to a cart (Specs/ROOT_CARTS.md, 5.10).
+            // Inject pack objects. Packs are not offered to a cart.
             if (!IsCart) PackUtils.InjectPackGlobals(_bridge, _packs);
         }
 

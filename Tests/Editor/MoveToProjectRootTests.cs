@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace OneJS.Tests.Editor {
     /// <summary>
-    /// Move to Project Root's folder move (Specs/ROOT_CARTS.md 5.9): git mv when the project's
+    /// Move to Project Root's folder move: git mv when the project's
     /// repository tracks the app's ~ or holds it as a submodule, so history follows the cart,
     /// and a plain move otherwise. Against temp repositories, never the project's own.
     /// </summary>

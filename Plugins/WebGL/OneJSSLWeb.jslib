@@ -6,8 +6,7 @@
  * onejs-unity re-exports) prints every program as WGSL and GLSL ES 3.00 at
  * build time (`onejs-sl/src/web.ts`), and this host compiles whichever one
  * the device speaks and draws it straight into the RenderTexture a
- * ShaderEffectElement shows. Tools/sl-web-parity in the container holds what it
- * draws to onejs-sl's goldens.
+ * ShaderEffectElement shows.
  *
  * WHY IT LIVES HERE, IN THE FRAMEWORK CLOSURE. Drawing needs Unity's WebGL2
  * context or WebGPU device and the table that turns a texture's native pointer
@@ -65,9 +64,9 @@ var OneJSSLWebLibrary = {
         loggedFail: {},
         // Cleared only by the negative control (SLWeb.SetRestoreGLState).
         restore: true,
-        // onejs-sl's TEXTURE_SLOTS and four floats per UNIFORM_SLOTS, which
-        // the container's SLCapsContractTests holds these to. The previous
-        // frame is bound on the unit after the texture slots'.
+        // onejs-sl's TEXTURE_SLOTS and four floats per UNIFORM_SLOTS: change
+        // them together with onejs-sl. The previous frame is bound on the
+        // unit after the texture slots'.
         textureSlots: 8,
         uniformFloats: 256,
 

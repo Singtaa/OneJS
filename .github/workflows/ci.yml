@@ -148,8 +148,8 @@ jobs:
           # The QuickJS engine sources are submodules under Auxiliary~.
           submodules: recursive
 
-      # Docker Hub's anonymous pull limit is per runner IP, and busy days hit it
-      # (Singtaa/OneJSv3Container#14). The editor image the test runner pulls,
+      # Docker Hub's anonymous pull limit is per runner IP, and busy days hit it.
+      # The editor image the test runner pulls,
       # unityci/editor, has no public mirror, so a login is what lifts the
       # limit for it. Runs once DOCKERHUB_USERNAME and DOCKERHUB_TOKEN (a
       # read-only access token) exist; until then it is skipped and the pull

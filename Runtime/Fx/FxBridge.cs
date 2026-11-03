@@ -16,7 +16,7 @@ namespace OneJS.Fx {
     /// unlimited because the chain has to be *data* for a bounded shader loop;
     /// player builds cannot compile shaders at runtime.
     ///
-    /// Wire contract: JSModules/onejs-unity/src/fx/ops.ts. Change both together.
+    /// Wire contract: onejs-unity's src/fx/ops.ts. Change both together.
     /// </summary>
     public static class FxBridge {
         /// <summary>

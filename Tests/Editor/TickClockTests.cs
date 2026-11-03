@@ -5,8 +5,7 @@ namespace OneJS.Tests.Editor {
     /// The clock shader effects, particles and 2D physics tick by. Driven by the
     /// virtual clock, whose Begin seeds from engine realtime, so ending and
     /// beginning it again after running ahead steps time backwards, as leaving
-    /// play mode does. SLSteppedProgramTests in the container holds the same
-    /// through a real play session.
+    /// play mode does.
     /// </summary>
     public class TickClockTests {
         bool _wasVirtual;

@@ -9,8 +9,8 @@ using UnityEngine.UIElements;
 
 namespace OneJS.Editor {
     /// <summary>
-    /// The inspector of a runner linked to a root cart (Specs/ROOT_CARTS.md, section 4 and the
-    /// mockups in Specs/root-carts), and the cart picker the legacy inspector shows a new runner
+    /// The inspector of a runner linked to a root cart, and the cart picker the legacy
+    /// inspector shows a new runner
     /// when the project root holds carts. A runner with no cart set gets the legacy inspector,
     /// built by JSRunnerEditor.cs exactly as before carts.
     /// </summary>

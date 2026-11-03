@@ -12,7 +12,7 @@ using UnityEngine.UIElements;
 
 namespace OneJS.Tests.Editor {
     /// <summary>
-    /// Root carts (Specs/ROOT_CARTS.md): the one-level scan, the name link and its two
+    /// Root carts: the one-level scan, the name link and its two
     /// refusals, what a cart runner's paths resolve to, and that it writes nothing into the
     /// cart. The scan tests run against a temp folder; the runner tests put a real cart at
     /// the project root, because that is the only place a runner looks.

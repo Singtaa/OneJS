@@ -9,7 +9,7 @@ using UnityEngine;
 namespace OneJS {
     /// <summary>
     /// The carts at the Unity project root: every <c>&lt;project&gt;/*/oj.json</c>, one level
-    /// deep, found by the name in its oj.json (Specs/ROOT_CARTS.md, 5.1 and 5.2).
+    /// deep, found by the name in its oj.json.
     ///
     /// A runner links to a cart by that name and never by path, because a folder outside
     /// Assets has no GUID and a path string breaks when the folder moves. The name is

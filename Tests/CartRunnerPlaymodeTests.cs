@@ -12,7 +12,7 @@ using UnityEngine.UIElements;
 
 namespace OneJS.Tests {
     /// <summary>
-    /// A runner linked to a real root cart, in Play mode (Specs/ROOT_CARTS.md, step 1).
+    /// A runner linked to a real root cart, in Play mode.
     ///
     /// The cart is a folder at the project root with an oj.json naming it, and its editor
     /// build sits in Library/OneJS/Carts/{folder}/app.js.txt in the shape ojplay's Unity

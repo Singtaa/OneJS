@@ -533,7 +533,7 @@ namespace OneJS.Editor {
         }
 
         /// <summary>
-        /// A cart runner's part of a player build (Specs/ROOT_CARTS.md, 5.6): the name resolved
+        /// A cart runner's part of a player build: the name resolved
         /// by the scan, the cart built once with its own ojplay into
         /// Assets/OneJS.Generated/Carts/{folder}, the bundle assigned to the runner as an app's is,
         /// and the cart's files recorded for StreamingAssets/onejs/carts/{folder}. A name that
@@ -732,8 +732,8 @@ namespace OneJS.Editor {
 
         /// <summary>
         /// Removes Assets/StreamingAssets/onejs/carts, the copy of the carts' files a player
-        /// build packs. The files belong to the carts' own folders (Specs/ROOT_CARTS.md, section 4:
-        /// in the player, "Not in the project at all"), so the copy lasts only as long as the
+        /// build packs. The files belong to the carts' own folders, and are not in the project
+        /// at all as far as the player is concerned, so the copy lasts only as long as the
         /// build that needs it: removed when a build ends, pass or fail, and again when one
         /// starts, for a build that never got to end. onejs/assets is left as it always was.
         /// </summary>

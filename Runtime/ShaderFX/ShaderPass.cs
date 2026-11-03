@@ -46,7 +46,7 @@ namespace OneJS.ShaderFX {
         bool _drawAtSetTime;   // SetTime's frame is still to be drawn, paused or not
         bool _targetIsNew;     // the target's contents are undefined until its first draw or ClearIfNew
 
-        // A program drawn frame after frame (Specs/SL_NEXT.md 4). A frame is
+        // A program drawn frame after frame. A frame is
         // one step of this pass's clock: the last result becomes the previous
         // frame, the count goes up by one and the step is the time moved. A
         // draw at the same time draws the same frame again. A clear makes the
@@ -60,7 +60,7 @@ namespace OneJS.ShaderFX {
         bool _cleared = true;      // the next frame is frame 0
         static bool s_WarnedRawFormat;
 
-        // Passes (Specs/SL_PASSES.md). What this reads, by the program's texture
+        // Passes. What this reads, by the program's texture
         // slot, and what reads this, for its size. Never a cycle: SetProgramPass
         // refuses the binding that would close one.
         readonly Dictionary<int, ShaderPass> _inputs = new Dictionary<int, ShaderPass>();

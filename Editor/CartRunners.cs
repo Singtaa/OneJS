@@ -14,7 +14,7 @@ using Debug = UnityEngine.Debug;
 
 namespace OneJS.Editor {
     /// <summary>
-    /// The editor side of root carts (Specs/ROOT_CARTS.md, 5.4): a cart builds with its own
+    /// The editor side of root carts: a cart builds with its own
     /// ojplay, the builder the site uses, never with OneJS's esbuild template.
     ///
     /// Set Up runs <c>ojplay init</c> (when the cart has no package.json) and <c>npm install</c>

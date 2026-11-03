@@ -21,7 +21,3 @@ render(<ParticlesDemo />, __root)
 ```
 
 See the Particles guide on onejs.com for the full API.
-
-Note for OneJS developers: the source of truth for this component lives in the
-dev container app (`Assets/Scenes/MainScene/App/~/examples/particles-demo.tsx`);
-keep `particles-demo.tsx.txt` in sync when it changes.

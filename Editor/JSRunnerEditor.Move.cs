@@ -5,7 +5,7 @@ using UnityEngine.UIElements;
 namespace OneJS.Editor {
     /// <summary>
     /// The legacy inspector's offer to move an app that is a cart to the project root
-    /// (Specs/ROOT_CARTS.md 5.9, the legacy mockup). Shown only for an app whose ~ holds an
+    /// (Editor/README.md, Cart runners). Shown only for an app whose ~ holds an
     /// oj.json; every other app sees the legacy inspector as it was.
     /// </summary>
     public partial class JSRunnerEditor {

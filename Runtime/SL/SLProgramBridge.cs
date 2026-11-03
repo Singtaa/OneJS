@@ -20,8 +20,7 @@ namespace OneJS.SL {
     public static class SLProgramBridge {
         /// <summary>
         /// A program's uniform slots and texture slots: onejs-sl's
-        /// `UNIFORM_SLOTS` and `TEXTURE_SLOTS`, which the container's
-        /// SLCapsContractTests holds these to.
+        /// `UNIFORM_SLOTS` and `TEXTURE_SLOTS`. Change them together.
         /// </summary>
         public const int MaxUniforms = 64;
         public const int MaxTextures = 8;
@@ -91,9 +90,7 @@ namespace OneJS.SL {
         /// one.
         ///
         /// A page that cannot compile (the startup handle check failed) draws
-        /// nothing and says why; the Play container's smoke test is what
-        /// catches that, and Tools/sl-web-parity in the container holds the
-        /// compiled picture to onejs-sl's goldens.
+        /// nothing and says why.
         /// </summary>
         public static bool CompiledOnly =>
 #if UNITY_WEBGL && !UNITY_EDITOR

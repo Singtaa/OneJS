@@ -114,7 +114,7 @@ namespace OneJS.Editor {
         }
 
         public override VisualElement CreateInspectorGUI() {
-            // The scan runs when an inspector opens (Specs/ROOT_CARTS.md, 5.2).
+            // The scan runs when an inspector opens.
             RootCarts.Invalidate();
             _root = new VisualElement();
             _cartMode = _target.IsCart;

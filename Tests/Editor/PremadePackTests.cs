@@ -26,8 +26,8 @@ namespace OneJS.Tests.Editor {
         // be safe for both. Deliberately stricter than "no path separators".
         static readonly Regex kIdent = new Regex(@"^[A-Za-z][A-Za-z0-9_-]*$");
 
-        // Only the shipped products. Packs elsewhere in the project (the
-        // OneJSContainer/TestPack fixtures, say) are deliberately minimal test
+        // Only the shipped products. Packs elsewhere in the project (test
+        // fixtures, say) are deliberately minimal test
         // data and would fail the store-listing requirements below for good reason.
         // PackUtilsTests already covers the extraction machinery generically.
         const string kPremadeRoot = "Assets/Singtaa/Premade/";
@@ -43,14 +43,14 @@ namespace OneJS.Tests.Editor {
             return paths.Length > 0 ? paths : new[] { "<none found>" };
         }
 
-        // These tests validate the premade content that lives in the dev container.
+        // These tests validate the premade content the Asset Store package ships.
         // A project hosting only the OneJS package (CI, a consumer project) has no
         // premade folder at all: skip rather than fail. A folder that exists but
         // yields nothing is still a real failure.
         static void RequirePremadeEnvironment(string path) {
             if (path != "<none found>") return;
             if (!AssetDatabase.IsValidFolder(kPremadeRoot.TrimEnd('/')))
-                Assert.Ignore($"{kPremadeRoot} does not exist in this project; premade content tests only run in the dev container.");
+                Assert.Ignore($"{kPremadeRoot} does not exist in this project; premade content tests only run where the premade content is installed.");
             Assert.Fail($"No Pack assets under {kPremadeRoot}. Either the premades moved or FindAssets(\"t:Pack\") stopped matching.");
         }
 
