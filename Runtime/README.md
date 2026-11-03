@@ -336,7 +336,7 @@ The inspector adapts to the project state:
 | **Project tab** | |
 | Live Reload | Toggle live reload on/off |
 | Keep Component State | A live reload keeps components' `useState`, `useReducer` and `useRef` values (default on) |
-| Poll Interval | How often to check the bundle when the operating system cannot report changes (default 0.5s) |
+| Poll Interval | How often to compare the bundle's content even when its size and write time look unchanged (default 0.5s) |
 | Enable Janitor | Auto-cleanup of JS-created GameObjects on reload |
 | Preloads | TextAssets eval'd before entry file (e.g., polyfills) |
 | Globals | `key → Object` pairs injected as `globalThis[key]`, and declared for TypeScript in `types/jsrunner.d.ts` |
@@ -359,10 +359,11 @@ The inspector adapts to the project state:
 
 ### Live Reload (Editor Only)
 - `BundleWatcher` says when the bundle (`app.js.txt`) may have changed, and the runner then compares a content hash, not the mtime (NTFS can report a stale mtime for a file esbuild deletes and recreates), so a duplicate event or a write that changed nothing reloads nothing
-- The operating system's watcher (a `FileSystemWatcher`) reports the write; the check waits 50 ms after the last event, because esbuild writes the bundle in place and a long write arrives as several events. Save to new UI measured 110 ms median against 237 ms for the old 0.5 s poll on macOS, and 135 ms against 289 ms on Windows (6000.5.2f1, an 810 KB bundle)
-- On Windows, Unity's Mono gives `FileSystemWatcher` no operating system events: it serves it from `DefaultWatcher`, which sleeps 750 ms between looks at the folder. Wherever Mono's watcher only polls like that (always on Windows, detected by type elsewhere), the bundle's size and write time are compared on every look, at most every 30 ms, and a change counts as an event. ReadDirectoryChangesW is not called directly, since its handle on the folder would stop the folder and every folder above it from being renamed
-- Every 2 s a size and write-time comparison catches an event the watcher missed. A watcher that cannot start (some network drives, an exhausted inotify limit) or reports an error leaves the old poll at the inspector's Poll Interval, and is started again every 10 s
-- Each event also wakes an unfocused editor (`QueuePlayerLoopUpdate`), where `EditorApplication.update` otherwise throttles
+- A thread of its own compares the bundle's size and write time every 30 ms, the same on every platform, so the suite Linux CI runs tests what macOS and Windows run. The check waits 50 ms after the last change it saw, because esbuild writes the bundle in place and a large write can be seen half done. `BundleWatcherTests.ThereIsOneWayToSeeAChangeOnEveryPlatform` fails on a `FileSystemWatcher` or a platform branch in `BundleWatcher.cs`
+- Not the operating system's events: under Unity's Mono a `FileSystemWatcher` is FSEvents on macOS (late while other processes churn files), inotify on Linux, and on Windows `DefaultWatcher`, a managed thread that looks every 750 ms. A stat holds no handle on the folder, so the folder and every folder above it can still be renamed while the preview runs
+- Save to new UI measured 103 to 116 ms median on a quiet Mac, against 237 ms for the 0.5 s poll of 3.9.16 (6000.5.2f1, an 810 KB bundle). In an idle editor the check costs about 0.7 s of CPU a minute, about 0.4 s more than the poll alone. A `System.Threading.Timer` cost 1.1 to 1.9 s, since Mono's thread pool workers spin, so the watcher keeps a thread of its own
+- Every Poll Interval the hash is compared anyway, as live reload did before 3.9.17, so a write the size and write time cannot show (the same size on a file system with coarse timestamps) costs that interval
+- Each change also wakes an unfocused editor (`QueuePlayerLoopUpdate`, from the watching thread), where `EditorApplication.update` otherwise throttles
 - The reload disposes the context, clears the UI and recreates it fresh. With Keep Component State on, `JsHost.Recreate` first asks onejs-react for its components' state (`__onejsCaptureState`, into `QuickJSUIBridge.ReloadSnapshot`) and hands it to the new context as `__onejsReloadSnapshot` before the bundle runs; onejs-react's README has the rest. `__onejsTakeReloadReport()` gives the line the `Reloaded` log ends with
 - **Janitor cleanup**: When enabled, destroys JS-created GameObjects on reload (see below)
 
