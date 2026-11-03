@@ -152,20 +152,24 @@ namespace OneJS.Editor {
         /// watcher's handles can outlive its process by a moment on Windows. Answers how.
         /// </summary>
         internal static string MoveFolder(string projectRoot, string from, string to) {
-            var top = Git(projectRoot, "rev-parse --show-toplevel", out var topOut) == 0 ? Path.GetFullPath(topOut.Trim()) : null;
+            // Paths relative to the project, with git run there, because git resolves a
+            // relative path from its working directory. The repository's top as git prints
+            // it is a resolved path, so on a Mac a project under /var (the temp folder, among
+            // others) sat at /private/var by git's account and never under its own top.
             string relFrom = null, relTo = null;
             var submodule = false;
             var tracked = false;
-            if (top != null && IsUnder(from, top) && IsUnder(to, top)) {
-                relFrom = Path.GetRelativePath(top, from).Replace('\\', '/');
-                relTo = Path.GetRelativePath(top, to).Replace('\\', '/');
-                submodule = Git(top, $"ls-files --stage -- \"{relFrom}\"", out var stage) == 0 && stage.StartsWith("160000");
-                tracked = submodule || (Git(top, $"ls-files -- \"{relFrom}\"", out var files) == 0 && files.Trim().Length > 0);
+            var inRepo = Git(projectRoot, "rev-parse --is-inside-work-tree", out var inside) == 0 && inside.Trim() == "true";
+            if (inRepo && IsUnder(from, projectRoot) && IsUnder(to, projectRoot)) {
+                relFrom = Path.GetRelativePath(projectRoot, from).Replace('\\', '/');
+                relTo = Path.GetRelativePath(projectRoot, to).Replace('\\', '/');
+                submodule = Git(projectRoot, $"ls-files --stage -- \"{relFrom}\"", out var stage) == 0 && stage.StartsWith("160000");
+                tracked = submodule || (Git(projectRoot, $"ls-files -- \"{relFrom}\"", out var files) == 0 && files.Trim().Length > 0);
             }
             for (var attempt = 1; ; attempt++) {
                 try {
                     if (tracked) {
-                        if (Git(top, $"mv \"{relFrom}\" \"{relTo}\"", out var output) != 0) throw new IOException($"git mv {relFrom} {relTo} failed: {output.Trim()}");
+                        if (Git(projectRoot, $"mv \"{relFrom}\" \"{relTo}\"", out var output) != 0) throw new IOException($"git mv {relFrom} {relTo} failed: {output.Trim()}");
                         return submodule ? "git mv, as a submodule" : "git mv";
                     }
                     Directory.Move(from, to);
