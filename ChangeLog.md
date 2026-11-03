@@ -4,6 +4,7 @@
 - A hot reload follows a rebuild within about 0.1 s
 - Poll Interval is gone from the JSRunner inspector, and `PollInterval` is obsolete
 - Apps get a CLAUDE.md that imports AGENTS.md
+- Move to Project Root keeps git history on a Mac when the project path runs through a symlink
 
 # [2026-11-02] v3.9.16
 
