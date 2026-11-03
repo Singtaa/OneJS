@@ -2,6 +2,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using System.Threading;
 using NUnit.Framework;
 
@@ -69,6 +72,26 @@ namespace OneJS.Tests.Editor {
             var report = $"{watcher.Backend}, compared every look: {watcher.ComparesEveryLook}; seen after {string.Join(", ", seen.Select(x => x.ToString("F3")))} s";
             TestContext.WriteLine(report);
             Assert.That(seen, Has.All.InRange(0.0, 0.25), report);
+        }
+
+        static string ThisFile([CallerFilePath] string path = "") => path;
+
+        /// <summary>
+        /// One way to see a change, the same on every platform, so the suite that runs on Linux CI
+        /// tests what macOS and Windows run too. Three paths (FSEvents, inotify, and Windows' poll)
+        /// meant CI covered one of them (#155). Fails on a FileSystemWatcher, or on a platform branch.
+        /// </summary>
+        [Test]
+        public void ThereIsOneWayToSeeAChangeOnEveryPlatform() {
+            var fields = typeof(BundleWatcher).GetFields(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            var watchers = fields.Where(f => typeof(FileSystemWatcher).IsAssignableFrom(f.FieldType)).Select(f => f.Name).ToList();
+            Assert.That(watchers, Is.Empty, "BundleWatcher holds a FileSystemWatcher");
+
+            var source = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(ThisFile()), "..", "..", "Runtime", "BundleWatcher.cs"));
+            Assert.IsTrue(File.Exists(source), $"BundleWatcher.cs not found at {source}, so nothing was compared");
+            var code = File.ReadAllLines(source).Where(l => !l.TrimStart().StartsWith("//")).ToList();
+            var branches = code.Where(l => Regex.IsMatch(l, @"UNITY_EDITOR_(WIN|OSX|LINUX)|UNITY_STANDALONE_|RuntimePlatform|Application\.platform|OSPlatform|FileSystemWatcher")).Select(l => l.Trim()).ToList();
+            Assert.That(branches, Is.Empty, "BundleWatcher.cs branches on the platform or uses a FileSystemWatcher");
         }
 
         [Test]
