@@ -214,6 +214,8 @@ Implements `IPreprocessBuildWithReport` and `IPostprocessBuildWithReport` to han
 5. Copies each app's `{WorkingDir}/assets/` into `StreamingAssets/onejs/assets/`, and with it every `@{ns}/` folder the app's packages carry at `node_modules/{pkg}/assets/@{ns}/` (scoped packages too) that the app has no folder of its own for (`CommitAssetsTo`). The same package file in two apps ships once when the bytes match; any other shared path is a collision
 6. Logs status during build
 
+Prefabs are walked because an app can ship through Addressables, a `Resources/` folder, an AssetBundle or a plain prefab reference, none of which any scene walk sees; before the prefab walk, such an app shipped with no bundle and the player ran OneJS's default placeholder app. They are baked from `BuildPlayerProcessor.PrepareForBuild`, not from `OnPreprocessBuild` where scene apps are: every `BuildPlayerProcessor` runs before every `IPreprocessBuildWithReport`, and Addressables builds its content from one, so a bundle baked in `OnPreprocessBuild` is already too late for the Addressable content carrying that prefab. Measured, not assumed: with the walk in the old hook the prefab still ends up holding a bundle reference, so the project looks right while the shipped bundle has no app in it, and only the *next* build picks it up.
+
 Since esbuild outputs directly to `app.js.txt`, assigning the bundle is loading that file as a TextAsset. A bundle assigned by hand from anywhere else is the project's own, and is neither rebuilt nor replaced.
 
 ### Which scenes it walks
@@ -348,13 +350,14 @@ speed. Disable with `ShowCursor = false`, resize with `CursorScale`.
 
 ## Templates
 
-The `Templates/` directory contains TextAsset templates scaffolded by `Initialize Project`: `package.json`, `tsconfig.json`, `esbuild.config.mjs`, `index.tsx`, `main.uss`, `global.d.ts`, `gitignore` (written as `.gitignore`) and `AGENTS.md`. Notes on four of them:
+The `Templates/` directory contains TextAsset templates scaffolded by `Initialize Project`: `package.json`, `tsconfig.json`, `esbuild.config.mjs`, `index.tsx`, `main.uss`, `global.d.ts`, `gitignore` (written as `.gitignore`), `AGENTS.md` and `CLAUDE.md`. Notes on five of them:
 
 - `esbuild.config.mjs.txt` is one `oneJSConfig({ entry: "index.tsx", plugins: [...] })` call from `onejs-unity/esbuild`, which holds the IIFE format, the `__exports` global, the React aliases, the plugins and the `NODE_ENV` define, so a fix to the build reaches existing projects through an npm update. Keep the multi-line `plugins: [` list: `ojplay init --unity` and `ojplay add` insert their plugins into it.
 - `package.json.txt` runs the config through `onejs-unity build` and `onejs-unity watch`.
-- `tsconfig.json.txt` names `onejs-unity/globals` in `types`, which declares the runtime's globals (`__root`, `__isPlaying`, timers, `fetch`, `URL`, `localStorage`...) and updates with the package. The container's scaffold gate typechecks a probe that uses every global the bootstrap installs, so one added there without a declaration in onejs-unity fails the gate.
+- `tsconfig.json.txt` names `onejs-unity/globals` in `types`, which declares the runtime's globals (`__root`, `__isPlaying`, timers, `fetch`, `URL`, `localStorage`...) and updates with the package. A global added to the bootstrap needs its declaration there too.
 - `global.d.ts.txt` is the app's own declarations, empty but for a comment.
 - `AGENTS.md.txt` is scaffolded into the working dir as `AGENTS.md`: a condensed guide (commands, rules, interop quick reference) for AI coding agents working on the user's app. Keep it in sync with the repo-root `AGENTS.md`.
+- `CLAUDE.md.txt` is the single line `@AGENTS.md`: Claude Code reads `CLAUDE.md`, not `AGENTS.md`, and the import makes it load the same guide.
 
 ## TypeGenerator
 

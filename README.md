@@ -121,7 +121,7 @@ Assets/Scenes/Level1/App/             # App = the GameObject's name
 ├── ~/                                # TS/TSX source (~ = ignored by Unity)
 │   ├── index.tsx                     # Entry point
 │   ├── package.json, tsconfig.json, esbuild.config.mjs
-│   └── styles/main.uss, types/global.d.ts, AGENTS.md, .gitignore
+│   └── styles/main.uss, types/global.d.ts, AGENTS.md, CLAUDE.md, .gitignore
 ├── PanelSettings.asset               # Project marker, assigned to JSRunner
 ├── UIDocument.uxml
 └── app.js.txt                        # Built bundle

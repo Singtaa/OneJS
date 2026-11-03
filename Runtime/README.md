@@ -13,6 +13,8 @@ Core C# runtime for QuickJS integration with Unity.
 
 For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `../Plugins/README.md`.
 
+**Engine modules.** Naming a type from an engine module OneJS does not use yet means declaring `com.unity.modules.<name>` in the package's `package.json`. CI builds its host project from that list, so an undeclared module fails there even though a project with every module enabled compiles fine.
+
 ## Files
 
 | File | Purpose |
@@ -53,7 +55,7 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `Particles/ParticleWire.cs` | Versioned wire schema + validation (the C#-JS contract; parity with onejs-react particles.test.ts) |
 | `Physics2D/Physics2DBridge.cs` | JS entry for 2D physics worlds, `TickAll`, `DisposeOwnedBy` / `DisposeAll` (same shape as `ParticleBridge`) |
 | `Physics2D/PhysicsWorld2D.cs` | A script-simulated Unity 2D physics world (`Rigidbody2D`) whose bodies drive VisualElements by `transform.position`; contacts come back as one flat event buffer |
-| `Physics2D/Physics2DWire.cs` | Versioned wire schema (v1) shared with onejs-unity `src/physics2d/index.ts`, guarded by the container's `Physics2DWireContractTests` |
+| `Physics2D/Physics2DWire.cs` | Versioned wire schema (v1) shared with onejs-unity `src/physics2d/index.ts`; change both together |
 | `Models/ModelBridge.cs` | 3D models for ojplay's `useScene`: `.glb` loads, actors, sun, ambient, fog and point lights by handle (optional assembly, needs glTFast) |
 | `Models/ModelImport.cs` | glTFast's importer minus the vertex colours ModelLit never reads, so a skinned mesh is built in the streams Unity skins from |
 | `Models/ModelMaterialGenerator.cs` | glTF materials on `ModelLit`, falling back to glTFast's own where it has no SubShader |
@@ -307,6 +309,7 @@ Default template files (in `Assets/Singtaa/OneJS/Editor/Templates/`), with the p
 - `main.uss.txt` → `styles/main.uss`: Sample USS stylesheet
 - `gitignore.txt` → `.gitignore`: ignores `node_modules/`, logs, `.DS_Store`
 - `AGENTS.md.txt` → `AGENTS.md`: the app's guide for coding agents
+- `CLAUDE.md.txt` → `CLAUDE.md`: one line, `@AGENTS.md`, so Claude Code loads that guide
 
 ### Inspector Layout
 
@@ -767,11 +770,8 @@ has compiled its program, a compile
 error is logged once by the host, and a page that cannot compile at all throws
 when the program is made. The host reads three handles private to
 Unity's framework (`GL.textures`, `Module.WebGPU.device`, lib_webgpu's `wgpu`
-table); `SLWeb.Describe()` checks all three on first use and reports
-"unavailable" rather than drawing wrong, and the Play container's smoke test
-prints it, so a Unity upgrade that renames one is caught there.
-`Tools/sl-web-parity` in the container holds what a player draws to onejs-sl's
-goldens.
+table); `SLWeb.Describe()` checks all three on first use, so a Unity upgrade
+that renames one reports "unavailable" rather than drawing wrong.
 
 **A native player runs a program compiled too.** At the start of every native
 build `SLShaderBuildStep` (in the editor assembly) generates a shader for every
@@ -789,8 +789,7 @@ app in the editor, when a recorded program is under a scheme no app produces
 any more, as every one is after an onejs-sl that changed the scheme; the editor
 drops such programs when it records their replacements. `IsCompiled` is true
 for either compiled path, and `Census` sorts every live program into drawing
-compiled or drawing nothing, which the container's `SLPlayerBuildTests`
-asserts on in a real player.
+compiled or drawing nothing, which is how a player can report what it draws.
 
 **The editor compiles a program the first time it draws it.** Until then the
 program draws nothing:
@@ -815,13 +814,12 @@ halves, a draw at the same time draws the same frame again, and a new program,
 a new size, `SetTime` or `ResetTime` makes the next frame frame 0. Frame 0 reads
 `Texture2D.blackTexture` (transparent black) instead of a half cleared first,
 because in a WebGPU player Unity submits its own clear at the end of the frame,
-after the page has drawn, and wiped the frames drawn over it (sl-web-parity
-caught it; WebGL2 and native, which run in order, did not). The plan is
+after the page has drawn, and wiped the frames drawn over it (WebGL2 and
+native, which run in order, do not). The plan is
 committed only when a frame is drawn,
 so a program the page is still compiling steps by all the time that passed
 meanwhile. `AcceptsSteppedPrograms` is what a host checks before sending a
-program that reads `previous`, `frame` or `deltaTime`; the container's
-`SLSteppedProgramTests` holds the native path to onejs-sl's stepped goldens.
+program that reads `previous`, `frame` or `deltaTime`.
 
 **A program reads another through a pass.** `ShaderPass` is the drawing
 behind every element (program, clock, previous frame, target); the element
@@ -837,9 +835,7 @@ draw. A pass keeps its picture raw like the previous frame (`ARGBHalf`,
 linear), sizes itself as a fraction (`Scale`) of the picture it ends up in,
 and follows its reader's `SetTime`, `ResetTime` and `Step`. A binding that
 would close a cycle is refused with an error, so drawing never loops.
-Standalone passes register only to be disposed with their context. The
-container's `PassesPlaymodeTests` holds the ordering, the refusal and a bloom
-against a CPU reference.
+Standalone passes register only to be disposed with their context.
 
 `ShaderEffectElement.SetProgram` keeps the shape it had when a program also
 carried the shader language VM's encoding, and ignores that part, so an
@@ -862,7 +858,7 @@ JS side: `createPhysicsWorld(host, config)` from `onejs-unity/physics2d`.
 - **Contacts**: recorded as flat numbers (`EventStride`, 6 per contact) and handed to JS in one `DrainEvents()` call per frame.
 - **Simulation**: `Physics2D.simulationMode = Script`, stepped with `dt` clamped to 50ms.
 
-Tests: `Tests/Physics2DBodyTests.cs`; the wire is compared with onejs-unity's `src/physics2d/index.ts` by the container's `Physics2DWireContractTests`.
+Tests: `Tests/Physics2DBodyTests.cs`. The wire must match onejs-unity's `src/physics2d/index.ts` field for field, so change both together.
 
 ## 3D Models (`Models/` folder)
 

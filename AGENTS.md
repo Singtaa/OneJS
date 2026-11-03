@@ -34,7 +34,7 @@ Or clone into Assets: `git clone https://github.com/Singtaa/OneJS.git`. Package 
 ├── ~/                      # TS/TSX source (the ~ suffix keeps Unity from importing it)
 │   ├── index.tsx           # entry point
 │   ├── package.json, tsconfig.json, esbuild.config.mjs
-│   └── styles/main.uss, types/global.d.ts, AGENTS.md, .gitignore
+│   └── styles/main.uss, types/global.d.ts, AGENTS.md, CLAUDE.md, .gitignore
 ├── PanelSettings.asset     # project marker: the one mandatory JSRunner field
 ├── UIDocument.uxml
 ├── app.js.txt              # built bundle (esbuild writes ../app.js.txt)
@@ -47,8 +47,8 @@ Key model:
 
 - **Panel Settings is the project marker.** The folder containing the assigned PanelSettings asset defines the project; the bundle is always loaded from `{that folder}/app.js.txt`. A folder is considered valid when it contains `~/` or `app.js.txt`.
 - **Or a root cart.** A runner with **Cart** set runs a play.onejs.com cart from a folder at the project root (`<root>/*/oj.json`), linked by its `oj.json` `name`; its PanelSettings is then only panel settings, its editor bundle is `Library/OneJS/Carts/{folder}/app.js.txt`, and Unity writes nothing inside the cart. See the setup skill's root cart workflow.
-- **Do not add a UIDocument.** JSRunner adds and wires one at runtime (and an EventSystem if missing). On Unity 6.5+, do **not** substitute the new `PanelRenderer` either: it never attaches a panel outside Play mode, so edit-mode preview would silently render nothing. OneJS stays on `UIDocument`, which is not `[Obsolete]`. See `Runtime/README.md`.
-- **Edit-mode preview**: JSRunner renders the UI in the Game view without Play mode whenever Panel Settings is valid, `app.js.txt` exists on disk, and the UIDocument root is ready. Ticks at 30 Hz. Ticking is gated by the Scene view's **OneJS overlay** update modes: in the default Auto mode only the selected runner (or, with nothing selected, the one closest to the Scene view camera, measured to its Renderer's bounds where it has one, as a world-space panel's UIRenderer, else to its origin) ticks, so an unselected runner's timers freeze while its hot reload keeps working. With nothing selected and no Scene view to measure from (a batch-mode editor, or a layout without one), every runner's preview ticks. The overlay's Game mode applies to edit-mode previews while the Game view has focus. **Play Mode is never gated**: every runner ticks every frame, as in a player build, so a world-space runner whose GameObject is off camera keeps its elements live.
+- **Do not add a UIDocument.** JSRunner adds and wires one at runtime (and an EventSystem if missing). On Unity 6.5+, do **not** substitute the new `PanelRenderer` either: it never attaches a panel outside Play mode, so edit-mode preview would render nothing.
+- **Edit-mode preview**: JSRunner renders the UI in the Game view without Play mode whenever Panel Settings is valid and `app.js.txt` exists, ticking at 30 Hz. The Scene view's **OneJS overlay** decides which previews tick: in the default Auto mode only the selected runner (with nothing selected, the one nearest the Scene view camera), so an unselected runner's timers freeze while its hot reload keeps working. **Play Mode is never gated**: every runner ticks every frame, as in a player build.
 - Scaffolding never overwrites existing files, and writes each default file once: `~/.onejs/scaffold` records what the app was given, so a deleted file stays deleted until Restore in the Build tab brings it back.
 - `~/.onejs/` holds small per-app OneJS state the project commits, never caches or machine-local files.
 
@@ -62,9 +62,9 @@ All commands run inside `~/`:
 - `npm run watch`: rebuild on save
 - `npm run typecheck`: `tsc --noEmit`
 
-Inside the editor, the esbuild watcher is **managed automatically** (`JSRunnerAutoWatch` / `NodeWatcherManager`): it starts when edit-mode preview begins (if `node_modules` exists) and on entering Play mode (running `npm install`/`build` first if needed), and stops on Play mode exit. Running `npm run watch` manually also works and is the path for working outside the editor.
+Inside the editor, the esbuild watcher is **managed automatically**: it starts when edit-mode preview begins (if `node_modules` exists) and on entering Play mode (running `npm install`/`build` first if needed), and stops on Play mode exit. Running `npm run watch` manually also works and is the path for working outside the editor.
 
-JSRunner itself watches the **built bundle** (`app.js.txt`), not source files: a thread of its own compares its size and write time every 30 ms, the same on every platform, and the runner compares an MD5 of the bundle 50 ms after the last change it saw, and every Poll Interval regardless. There is no FileSystemWatcher, and a test fails on one or on a platform branch: one path is what lets Linux CI test what every platform runs. So the loop is simply: save a source file, the watcher rebuilds the bundle, Unity hot-reloads about 0.1 s later, in both edit-mode preview and Play mode.
+JSRunner itself watches the **built bundle** (`app.js.txt`), not source files, and reloads only when its content changed. So the loop is simply: save a source file, the watcher rebuilds the bundle, Unity hot-reloads about 0.1 s later, in both edit-mode preview and Play mode.
 
 Reload runs the new bundle in a **fresh JS context**: nothing from the old code keeps running. The order is `onStop()` (if playing) → Janitor destroys JS-created GameObjects → React teardown (`useEffect` cleanups DO run) → new context, globals re-injected → bundle re-runs → `onPlay()` (if playing). Re-enabling a JSRunner rebuilds the same way. **Component state survives a hot reload** (onejs-react, JSRunner's Keep Component State, on by default): `useState`, `useReducer` and `useRef` values carry over to every component whose hooks and place in the tree are unchanged. A component whose hooks changed, or whose state holds a function or a C# object, starts fresh, and so does everything outside React components (module-level variables, stores). The Console's `[JSRunner] Reloaded` line says which components started fresh and why.
 
@@ -93,7 +93,7 @@ export function onStop() {}   // Play mode exit + before hot reload while playin
 - Change handlers receive `e.value` (NOT `e.target.value`).
 - Raw text children (`<View>Hi</View>`) create TextElements; prefer `<Text text="..." />`.
 
-The esbuild config is `oneJSConfig(...)` from `onejs-unity/esbuild`, which sets `format: "iife"` + `globalName: "__exports"` (QuickJS evals in global scope, so ESM output throws, and lifecycle exports are discovered via `__exports`) and the react/jsx-runtime aliases (duplicate React copies break hooks). Do not override those through it. A player build runs `npm run build` with `NODE_ENV=production` (`Editor/PlayerBundle.cs`).
+The esbuild config is `oneJSConfig(...)` from `onejs-unity/esbuild`, which sets `format: "iife"` + `globalName: "__exports"` (QuickJS evals in global scope, so ESM output throws, and lifecycle exports are discovered via `__exports`) and the react/jsx-runtime aliases (duplicate React copies break hooks). Do not override those through it. A player build runs `npm run build` with `NODE_ENV=production`.
 
 ### Styling
 
@@ -112,7 +112,7 @@ A `Pack` (ScriptableObject, **Create > OneJS > Pack**) packages source files and
 
 Consuming one:
 
-1. Add the asset to the JSRunner inspector's **Packs** tab. Assignment extracts it immediately to `~/@packs/{slug}/` (namespaced: `~/@packs/@{namespace}/{slug}/`), or `~/@cartridges/` on a runner made before cartridges became packs; on OneJS 3.1.3 and older, extraction waits for the next preview/play or the tab's **E** button.
+1. Add the asset to the JSRunner inspector's **Packs** tab. Assignment extracts it immediately to `~/@packs/{slug}/` (namespaced: `~/@packs/@{namespace}/{slug}/`); a runner made when packs were called cartridges keeps `~/@cartridges/`.
 2. Themes: `import "onejs:themes"` registers every extracted `*Theme.ts` module at build time (themesPlugin from `onejs-unity/esbuild` 0.2.19+, wired in scaffolded esbuild configs). A single theme can still be registered explicitly by relative path (`import "./@packs/@singtaa/kawaii/kawaiiTheme"`); component packs always use named relative imports (no alias/package exists). Premade themes need `onejs-ui` in the app's `package.json` (newly scaffolded projects include it; older ones need a one-time `npm install onejs-ui`, and the Packs tab warns when it is missing).
 
 Semantics worth knowing: editor extraction never overwrites (refresh via the tab's **D** then **E**), player builds always re-extract with overwrite (extracted files are generated output; edits belong in the consumer's own files). Object entries (key → UnityEngine.Object) are reachable as `__pack("@ns/slug").key` with a generated `.d.ts`; the premade themes use only the file channel, so their `__pack()` entry is empty.
@@ -143,21 +143,19 @@ Performance on QuickJS (an interpreter): every proxy access is a reflection cros
 - Keep the react aliases in the esbuild config.
 - `e.value`, not `e.target.value`.
 - `console.log(csObject)` prints a handle, not fields: log fields directly. JS logs land in the Unity Console.
-- Naming a type from a new engine module means declaring `com.unity.modules.<name>` in `package.json`. CI builds its host project from that list, so an undeclared module fails there even though the dev project, which has every module, compiles fine.
 - Native callback table = 4096 slots (one per JS function bound to a C# delegate/event; freed on reassign/`remove_`). A function passed to a C# method keeps one slot however often it is passed, so hoist it rather than writing a fresh closure per call.
 - IL2CPP/AOT builds strip dynamically-accessed code: ship a `link.xml` preserving your game assemblies or you get `[QuickJS] Type/Method not found` in builds only. See https://onejs.com/docs/guides/building
 - Scene transitions destroy JSRunner before React cleanup runs: also clear static delegate subscriptions in `onStop`.
 - On Android/WebGL, `StreamingAssets` is a URL, not a directory: use the async asset loaders (`loadImageAsync` etc.) from `onejs-unity/assets`.
 - `StreamingAssets/onejs/assets/` is generated: the build processor rebuilds it from every app's `~/assets/` and the `assets/@namespace/` folders of its npm packages on each build (an app's own `assets/@namespace/` wins for that whole namespace), so anything put there by hand is removed. What is normally in there is the last build's output, not your files. Keep hand placed files elsewhere under `StreamingAssets/`. Two apps cannot ship the same relative path, and the comparison is case insensitive. Two apps a build scene reached fail the build naming both; if a prefab reached either of them it warns instead, because a prefab does not say whether it ships.
-- **Every JSRunner in a scene or a prefab is built**, unless **Exclude From Build** is on it. Prefabs are walked because an app can ship through Addressables, a `Resources/` folder, an AssetBundle or a plain prefab reference, none of which any scene walk sees; before this, such an app shipped with no bundle and the player ran OneJS's default placeholder app. Turn Exclude From Build on for a runner kept in the project but never shipped, which also keeps its files out of the collision check.
-- Prefab apps are baked from `BuildPlayerProcessor.PrepareForBuild`, not from `OnPreprocessBuild` where scene apps are. Every `BuildPlayerProcessor` runs before every `IPreprocessBuildWithReport`, and Addressables builds its content from one, so a bundle baked in `OnPreprocessBuild` is already too late for the Addressable content carrying that prefab. Measured, not assumed: with the walk in the old hook the prefab still ends up holding a bundle reference, so the project looks right while the shipped bundle has no app in it, and only the *next* build picks it up.
+- **Every JSRunner in a scene or a prefab is built**, unless **Exclude From Build** is on it, since an app can ship through Addressables, a `Resources/` folder, an AssetBundle or a plain prefab reference. Turn Exclude From Build on for a runner kept in the project but never shipped, which also keeps its files out of the collision check.
 - Several JSRunners on WebGL each run in their own realm: the first in the page's, and each one started while it lives in a hidden iframe. OneJS's wheel normalising lasts only as long as the page realm's runner, and app code that touches the DOM sees its iframe's empty document in the others.
 - WebGL embedding: `unityInstance.Quit()` is safe on 3.1.5+ (OneJS stops its tick and hands the page's timers back on teardown). Timers your bundle never cleans up keep running on the page afterward (their C# calls are ignored): create timers inside React effects, or clear them in `onStop`.
 
 ## Verifying without the editor GUI
 
 - `npm run build` and `npm run typecheck` validate the whole JS side from the CLI: no editor needed.
-- Unity batchmode runs tests: `-batchmode -runTests` (EditMode/PlayMode).
+- Tests run headless with the project closed: `unity test <project>`, or `<editor> -batchmode -nographics -projectPath <project> -runTests -testPlatform EditMode` (or `PlayMode`). `-runTests` quits by itself, so leave `-quit` out here, unlike `-executeMethod` above.
 - Edit-mode preview renders the UI without Play mode; JS errors surface in the Unity Console.
 
 ## Repo map

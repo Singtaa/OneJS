@@ -2204,6 +2204,7 @@ namespace OneJS {
                 ("main.uss.txt", "styles/main.uss"),
                 ("gitignore.txt", ".gitignore"),
                 ("AGENTS.md.txt", "AGENTS.md"),
+                ("CLAUDE.md.txt", "CLAUDE.md"),
             };
 
             // Find the OneJS package using the assembly that contains JSRunner

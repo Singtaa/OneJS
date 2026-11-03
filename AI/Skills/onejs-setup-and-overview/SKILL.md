@@ -5,14 +5,14 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.9.16"
-  skill-version: "1.19.0"
+  skill-version: "1.19.1"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-11-02"
+  last-verified: "2026-11-03"
 ---
 
 # Set Up a OneJS Project
@@ -101,6 +101,7 @@ It uses the open scene (else the first build scene, else a new `Assets/Scenes/Ma
 │   ├── package.json, tsconfig.json, esbuild.config.mjs
 │   ├── types/global.d.ts, styles/main.uss, .gitignore
 │   ├── AGENTS.md           # per-app agent notes, written by the scaffold
+│   ├── CLAUDE.md           # @AGENTS.md, so Claude Code reads the same notes
 │   └── .onejs/scaffold     # which default files this app was given; commit it
 ├── PanelSettings.asset     # project marker, the one mandatory JSRunner field
 ├── UIDocument.uxml

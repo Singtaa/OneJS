@@ -21,12 +21,12 @@ Inside the Unity editor the watcher is started automatically (during Play mode a
 - Generated files, never edit by hand: `../app.js.txt`, `../app.js.map.txt`, `*.module.uss.d.ts`, `types/csharp.d.ts`.
 - Change handlers receive `e.value`, not `e.target.value`.
 - Use `<Text text="..." />` for display text (raw string children become bare TextElements).
-- Hot reload is a hard reload: all JS state is lost; `useEffect` cleanups run first, then the bundle re-runs.
+- Hot reload runs the new bundle in a fresh JS context: `useEffect` cleanups run first, then the bundle re-runs. `useState`, `useReducer` and `useRef` values carry over to components whose hooks are unchanged; module-level variables and stores start fresh.
 - Module-level code also runs in edit-mode preview (no Play mode). Guard play-only logic with the `__isPlaying` global and the exported `onPlay()`/`onStop()` lifecycle functions: play-mode C# singletons are null in preview.
 
 ## Quick reference
 
-Components (from `onejs-react`): `View, Text, Label, Button, TextField, Toggle, Slider, ScrollView, Image, ListView, FrostedGlass, ScreenProvider, Portal, ErrorBoundary`.
+Components (from `onejs-react`): `View, Text, Label, Button, TextField, Toggle, Slider, ScrollView, Image, ListView, TreeView, FrostedGlass, ScreenProvider, Portal, ErrorBoundary`.
 
 Styling, all bundle-embedded (works in player builds):
 
