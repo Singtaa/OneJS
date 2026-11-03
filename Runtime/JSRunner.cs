@@ -1307,7 +1307,8 @@ namespace OneJS {
             var record = RecordFor(workingDir, defaults, out var isNew);
 
             bool wrote = false;
-            foreach (var entry in defaults) {
+            // CLAUDE.md last, so it sees an AGENTS.md written in this same pass.
+            foreach (var entry in defaults.OrderBy(e => IsClaudeMd(e.path))) {
                 if (record.Has(entry.path)) continue;
                 var fullPath = Path.Combine(workingDir, entry.path);
                 if (File.Exists(fullPath)) {
@@ -1315,6 +1316,9 @@ namespace OneJS {
                     record.Add(entry.path, HashIfTemplate(fullPath, entry));
                     continue;
                 }
+                // CLAUDE.md is the line `@AGENTS.md`, which imports nothing without an AGENTS.md.
+                // Left unrecorded, so it is written once AGENTS.md is back.
+                if (IsClaudeMd(entry.path) && !File.Exists(Path.Combine(workingDir, "AGENTS.md"))) continue;
                 var dir = Path.GetDirectoryName(fullPath);
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
                 var text = entry.content.text;
@@ -1365,6 +1369,8 @@ namespace OneJS {
             }
             return record;
         }
+
+        static bool IsClaudeMd(string path) => path.Replace('\\', '/') == "CLAUDE.md";
 
         /// <summary>The template's hash when the file at `fullPath` is the template's content, line endings aside; otherwise null.</summary>
         static string HashIfTemplate(string fullPath, DefaultFileEntry entry) {

@@ -147,6 +147,38 @@ namespace OneJS.Tests.Editor {
         }
 
         [Test]
+        public void AnAppWithoutAnAgentsMdIsNotGivenAClaudeMdThatImportsIt() {
+            var runner = MakeRunner();
+            runner.EnsureProjectSetup();
+            // An app from before CLAUDE.md was a template, whose user deleted AGENTS.md.
+            File.Delete(InWorkingDir("AGENTS.md"));
+            File.Delete(InWorkingDir("CLAUDE.md"));
+            File.WriteAllLines(Record, File.ReadAllLines(Record).Where(l => !l.StartsWith("CLAUDE.md")));
+
+            runner.EnsureProjectSetup();
+
+            Assert.IsFalse(File.Exists(InWorkingDir("CLAUDE.md")), "CLAUDE.md was written to import an AGENTS.md the app does not have.");
+            Assert.IsFalse(File.Exists(InWorkingDir("AGENTS.md")), "AGENTS.md is recorded and was deleted, but came back.");
+
+            // Once AGENTS.md is back, the CLAUDE.md that imports it follows.
+            Assert.IsTrue(runner.RestoreDefaultFile("AGENTS.md"));
+            runner.EnsureProjectSetup();
+            Assert.IsTrue(File.Exists(InWorkingDir("CLAUDE.md")), "AGENTS.md is back, and the CLAUDE.md that imports it never came.");
+        }
+
+        [Test]
+        public void ANewAppGetsClaudeMdWhenItsListNamesClaudeMdButNotAgentsMd() {
+            var runner = MakeRunner();
+            // The list has CLAUDE.md and lacks AGENTS.md, which the templates then add after it.
+            Unlist(runner, "AGENTS.md");
+
+            runner.EnsureProjectSetup();
+
+            Assert.IsTrue(File.Exists(InWorkingDir("AGENTS.md")), "A template the list lacks was not written.");
+            Assert.IsTrue(File.Exists(InWorkingDir("CLAUDE.md")), "CLAUDE.md waited for an AGENTS.md written in the same pass.");
+        }
+
+        [Test]
         public void AnAppFromBeforeTheRecordIsSeededFromItsDiskAndItsList() {
             var runner = MakeRunner();
             // An app scaffolded by an older OneJS: its files, no record, and a list from

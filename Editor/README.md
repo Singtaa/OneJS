@@ -357,7 +357,7 @@ The `Templates/` directory contains TextAsset templates scaffolded by `Initializ
 - `tsconfig.json.txt` names `onejs-unity/globals` in `types`, which declares the runtime's globals (`__root`, `__isPlaying`, timers, `fetch`, `URL`, `localStorage`...) and updates with the package. A global added to the bootstrap needs its declaration there too.
 - `global.d.ts.txt` is the app's own declarations, empty but for a comment.
 - `AGENTS.md.txt` is scaffolded into the working dir as `AGENTS.md`: a condensed guide (commands, rules, interop quick reference) for AI coding agents working on the user's app. Keep it in sync with the repo-root `AGENTS.md`.
-- `CLAUDE.md.txt` is the single line `@AGENTS.md`: Claude Code reads `CLAUDE.md`, not `AGENTS.md`, and the import makes it load the same guide.
+- `CLAUDE.md.txt` is the single line `@AGENTS.md`: Claude Code reads `CLAUDE.md`, not `AGENTS.md`, and the import makes it load the same guide. It is written only where the app has an `AGENTS.md`, so a user who deleted the guide gets no import of a missing file; restoring `AGENTS.md` brings it at the next scaffold.
 
 ## TypeGenerator
 
