@@ -194,6 +194,17 @@ namespace OneJS.Tests.Editor {
             Assert.Fail("the stat saw every try, so the poll was never what found the write");
         }
 
+        /// <summary>
+        /// While the bundle sits still the runner hashes nothing: hashing a large bundle every
+        /// half second cost more CPU in an idle editor than the watching itself.
+        /// </summary>
+        [Test]
+        public void NothingChangedMeansNoCheck() {
+            using var watcher = new BundleWatcher(_bundle, 0.5);
+            var checks = ChecksWithin(watcher, 3);
+            Assert.AreEqual(0, checks, $"{checks} checks in 3 s while nothing changed");
+        }
+
         [Test]
         public void WithNothingChangedItLooksOnlyAtThePollInterval() {
             using var watcher = new BundleWatcher(_bundle, 0.2);
