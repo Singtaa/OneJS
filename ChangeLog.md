@@ -2,6 +2,7 @@
 
 - Components keep their state across a hot reload (#155)
 - A hot reload follows a rebuild within about 0.1 s
+- Poll Interval is gone from the JSRunner inspector, and `PollInterval` is obsolete
 - Apps get a CLAUDE.md that imports AGENTS.md
 
 # [2026-11-02] v3.9.16

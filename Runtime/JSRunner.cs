@@ -132,9 +132,6 @@ namespace OneJS {
         [Tooltip("On a live reload, components keep their useState, useReducer and useRef values when their hooks are unchanged. " +
             "Anything that is not plain data, such as a C# object, and any component whose hooks changed, starts fresh.")]
         [SerializeField] bool _keepStateOnReload = true;
-        [Tooltip("How often to compare the bundle's content even when its size and write time look unchanged " +
-            "(in seconds). A rebuild that changes either is seen within about 0.1 s.")]
-        [SerializeField] float _pollInterval = 0.5f;
         [Tooltip("Enable Janitor to clean up GameObjects created by JS on reload")]
         [SerializeField] bool _enableJanitor = true;
 
@@ -250,8 +247,9 @@ namespace OneJS {
             get => _keepStateOnReload;
             set => _keepStateOnReload = value;
         }
-        /// <summary>Seconds between the editor's checks of the bundle for changes (Editor only).</summary>
-        public float PollInterval => _pollInterval;
+        /// <summary>Always 0.5, the default it had. Live reload no longer polls the bundle on an interval.</summary>
+        [Obsolete("PollInterval no longer does anything: live reload notices a rebuild on its own, within about 0.1 s.")]
+        public float PollInterval => 0.5f;
         public int ReloadCount => _reloadCount;
         public DateTime LastModifiedTime => _lastModifiedTime;
         public DateTime LastReloadTime => _lastReloadTime;
@@ -1671,7 +1669,7 @@ namespace OneJS {
         void WatchBundle(string entryFile) {
             StopWatchingBundle();
             if (!_liveReload || string.IsNullOrEmpty(entryFile)) return;
-            _bundleWatcher = new BundleWatcher(entryFile, _pollInterval, UnityEditor.EditorApplication.QueuePlayerLoopUpdate);
+            _bundleWatcher = new BundleWatcher(entryFile, UnityEditor.EditorApplication.QueuePlayerLoopUpdate);
         }
 
         void StopWatchingBundle() {

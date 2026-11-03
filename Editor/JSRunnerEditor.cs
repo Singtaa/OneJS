@@ -329,7 +329,6 @@ namespace OneJS.Editor {
             var liveReloadSettings = new VisualElement();
             var keepStateField = new PropertyField(serializedObject.FindProperty("_keepStateOnReload"), "Keep Component State");
             liveReloadSettings.Add(keepStateField);
-            liveReloadSettings.Add(new PropertyField(serializedObject.FindProperty("_pollInterval")));
 
             var janitorField = new PropertyField(serializedObject.FindProperty("_enableJanitor"), "Enable Janitor");
             janitorField.tooltip = "When enabled, spawns a Janitor GameObject on first run. On reload, all GameObjects after the Janitor in the hierarchy are destroyed.";

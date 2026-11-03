@@ -13,12 +13,9 @@ namespace OneJS.Tests.Editor {
     /// Live reload's change detection, on the real file system of whichever platform runs it.
     /// The watcher is one stat poll on a thread of its own everywhere, so these test what every
     /// platform runs. Each change is made the way a build tool can make it: written in place
-    /// (esbuild), deleted and written again, and written beside then moved over. A poll interval
-    /// of 5 s keeps the runner's hash poll out of the timings, so a pass means the stat saw it.
+    /// (esbuild), deleted and written again, and written beside then moved over.
     /// </summary>
     public class BundleWatcherTests {
-        const double NoPoll = 5;
-
         string _dir;
         string _bundle;
 
@@ -82,7 +79,7 @@ namespace OneJS.Tests.Editor {
         /// </summary>
         [Test]
         public void EveryInPlaceWriteIsSeenWithinAQuarterSecond() {
-            using var watcher = new BundleWatcher(_bundle, NoPoll);
+            using var watcher = new BundleWatcher(_bundle);
             Thread.Sleep(100);
             var seen = new List<double>();
             for (int i = 0; i < 5; i++) {
@@ -103,7 +100,7 @@ namespace OneJS.Tests.Editor {
         [Test]
         public void AWriteWakesTheEditorWithoutAFrame() {
             var wakes = 0;
-            using var watcher = new BundleWatcher(_bundle, NoPoll, () => Interlocked.Increment(ref wakes));
+            using var watcher = new BundleWatcher(_bundle, () => Interlocked.Increment(ref wakes));
             Thread.Sleep(100);
             var after = new List<double>();
             for (int i = 0; i < 5; i++) {
@@ -119,7 +116,7 @@ namespace OneJS.Tests.Editor {
 
         [Test]
         public void ABurstOfWritesIsOneCheckOnceItSettles() {
-            using var watcher = new BundleWatcher(_bundle, NoPoll);
+            using var watcher = new BundleWatcher(_bundle);
             Thread.Sleep(100);
             for (int i = 0; i < 20; i++) {
                 File.WriteAllText(_bundle, new string('x', 1000 + i));
@@ -131,7 +128,7 @@ namespace OneJS.Tests.Editor {
 
         [Test]
         public void ABundleDeletedAndWrittenAgainIsSeen() {
-            using var watcher = new BundleWatcher(_bundle, NoPoll);
+            using var watcher = new BundleWatcher(_bundle);
             Thread.Sleep(100);
             File.Delete(_bundle);
             Thread.Sleep(20);
@@ -142,7 +139,7 @@ namespace OneJS.Tests.Editor {
 
         [Test]
         public void ABundleMovedOverTheOldOneIsSeen() {
-            using var watcher = new BundleWatcher(_bundle, NoPoll);
+            using var watcher = new BundleWatcher(_bundle);
             Thread.Sleep(100);
             var beside = Path.Combine(_dir, "app.js.txt.tmp");
             File.WriteAllText(beside, "moved over, longer");
@@ -155,7 +152,7 @@ namespace OneJS.Tests.Editor {
         [Test]
         public void ABundleInAFolderThatDoesNotExistYetIsSeenWhenItAppears() {
             var later = Path.Combine(_dir, "not-yet", "app.js.txt");
-            using var watcher = new BundleWatcher(later, NoPoll);
+            using var watcher = new BundleWatcher(later);
             Thread.Sleep(100);
             Directory.CreateDirectory(Path.GetDirectoryName(later));
             File.WriteAllText(later, "built at last");
@@ -165,33 +162,11 @@ namespace OneJS.Tests.Editor {
 
         [Test]
         public void AnotherFileInTheFolderIsNotAReason() {
-            using var watcher = new BundleWatcher(_bundle, NoPoll);
+            using var watcher = new BundleWatcher(_bundle);
             Thread.Sleep(100);
             File.WriteAllText(Path.Combine(_dir, "app.js.map.txt"), "map");
             Assert.AreEqual(0, ChecksWithin(watcher, 0.4));
             Assert.AreEqual(0, watcher.ChangeCount);
-        }
-
-        /// <summary>
-        /// A rewrite with the same size and, as a file system with coarse timestamps would report,
-        /// the same write time is invisible to the stat, and the runner's hash poll still finds it.
-        /// </summary>
-        [Test]
-        public void AWriteTheStatCannotSeeIsFoundByThePoll() {
-            // The stat can land in the microseconds between the write and putting the write time
-            // back, which tests nothing, so that try is made again.
-            for (int attempt = 0; attempt < 3; attempt++) {
-                var written = File.GetLastWriteTimeUtc(_bundle);
-                using var watcher = new BundleWatcher(_bundle, 0.5);
-                Thread.Sleep(100);
-                File.WriteAllText(_bundle, attempt % 2 == 0 ? "fresh" : "first");
-                File.SetLastWriteTimeUtc(_bundle, written);
-                var seconds = SecondsUntilCheck(watcher, 2);
-                if (watcher.ChangeCount != 0) continue;
-                Assert.That(seconds, Is.InRange(0.3, 0.55), $"reported after {seconds:F3} s, the poll being due 0.4 s after the write");
-                return;
-            }
-            Assert.Fail("the stat saw every try, so the poll was never what found the write");
         }
 
         /// <summary>
@@ -200,23 +175,15 @@ namespace OneJS.Tests.Editor {
         /// </summary>
         [Test]
         public void NothingChangedMeansNoCheck() {
-            using var watcher = new BundleWatcher(_bundle, 0.5);
+            using var watcher = new BundleWatcher(_bundle);
             var checks = ChecksWithin(watcher, 3);
             Assert.AreEqual(0, checks, $"{checks} checks in 3 s while nothing changed");
         }
 
         [Test]
-        public void WithNothingChangedItLooksOnlyAtThePollInterval() {
-            using var watcher = new BundleWatcher(_bundle, 0.2);
-            var checks = ChecksWithin(watcher, 0.75);
-            Assert.That(checks, Is.InRange(2, 4), $"{checks} checks in 0.75 s at a 0.2 s interval");
-            Assert.AreEqual(0, watcher.ChangeCount);
-        }
-
-        [Test]
         public void NothingIsSeenOrWokenAfterDispose() {
             var wakes = 0;
-            var watcher = new BundleWatcher(_bundle, NoPoll, () => Interlocked.Increment(ref wakes));
+            var watcher = new BundleWatcher(_bundle, () => Interlocked.Increment(ref wakes));
             Thread.Sleep(100);
             watcher.Dispose();
             Thread.Sleep((int)(BundleWatcher.StatInterval * 2000));
