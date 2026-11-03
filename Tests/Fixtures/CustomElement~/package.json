@@ -7,7 +7,7 @@
   },
   "dependencies": {
     "react": "^19.0.0",
-    "onejs-react": "file:../../../../../../JSModules/onejs-react"
+    "onejs-react": "^0.4.3"
   },
   "devDependencies": {
     "esbuild": "^0.28.1"

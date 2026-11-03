@@ -117,6 +117,8 @@ var __exports = (() => {
               return "SuspenseList";
             case REACT_ACTIVITY_TYPE:
               return "Activity";
+            case REACT_VIEW_TRANSITION_TYPE:
+              return "ViewTransition";
           }
           if ("object" === typeof type)
             switch ("number" === typeof type.tag && console.error(
@@ -373,8 +375,11 @@ var __exports = (() => {
         }
         function lazyInitializer(payload) {
           if (-1 === payload._status) {
-            var ioInfo = payload._ioInfo;
-            null != ioInfo && (ioInfo.start = ioInfo.end = performance.now());
+            var resolveDebugValue = null, rejectDebugValue = null, ioInfo = payload._ioInfo;
+            null != ioInfo && (ioInfo.start = ioInfo.end = performance.now(), ioInfo.value = new Promise(function(resolve, reject) {
+              resolveDebugValue = resolve;
+              rejectDebugValue = reject;
+            }));
             ioInfo = payload._result;
             var thenable = ioInfo();
             thenable.then(
@@ -383,7 +388,13 @@ var __exports = (() => {
                   payload._status = 1;
                   payload._result = moduleObject;
                   var _ioInfo = payload._ioInfo;
-                  null != _ioInfo && (_ioInfo.end = performance.now());
+                  if (null != _ioInfo) {
+                    _ioInfo.end = performance.now();
+                    var debugValue = null == moduleObject ? void 0 : moduleObject.default;
+                    resolveDebugValue(debugValue);
+                    _ioInfo.value.status = "fulfilled";
+                    _ioInfo.value.value = debugValue;
+                  }
                   void 0 === thenable.status && (thenable.status = "fulfilled", thenable.value = moduleObject);
                 }
               },
@@ -392,14 +403,13 @@ var __exports = (() => {
                   payload._status = 2;
                   payload._result = error;
                   var _ioInfo2 = payload._ioInfo;
-                  null != _ioInfo2 && (_ioInfo2.end = performance.now());
+                  null != _ioInfo2 && (_ioInfo2.end = performance.now(), _ioInfo2.value.then(noop, noop), rejectDebugValue(error), _ioInfo2.value.status = "rejected", _ioInfo2.value.reason = error);
                   void 0 === thenable.status && (thenable.status = "rejected", thenable.reason = error);
                 }
               }
             );
             ioInfo = payload._ioInfo;
             if (null != ioInfo) {
-              ioInfo.value = thenable;
               var displayName = thenable.displayName;
               "string" === typeof displayName && (ioInfo.name = displayName);
             }
@@ -424,6 +434,35 @@ var __exports = (() => {
         }
         function releaseAsyncTransition() {
           ReactSharedInternals.asyncTransitions--;
+        }
+        function startTransition(scope) {
+          var prevTransition = ReactSharedInternals.T, currentTransition = {};
+          currentTransition.types = null !== prevTransition ? prevTransition.types : null;
+          currentTransition._updatedFibers = /* @__PURE__ */ new Set();
+          ReactSharedInternals.T = currentTransition;
+          try {
+            var returnValue = scope(), onStartTransitionFinish = ReactSharedInternals.S;
+            null !== onStartTransitionFinish && onStartTransitionFinish(currentTransition, returnValue);
+            "object" === typeof returnValue && null !== returnValue && "function" === typeof returnValue.then && (ReactSharedInternals.asyncTransitions++, returnValue.then(releaseAsyncTransition, releaseAsyncTransition), returnValue.then(noop, reportGlobalError));
+          } catch (error) {
+            reportGlobalError(error);
+          } finally {
+            null === prevTransition && currentTransition._updatedFibers && (scope = currentTransition._updatedFibers.size, currentTransition._updatedFibers.clear(), 10 < scope && console.warn(
+              "Detected a large number of updates inside startTransition. If this is due to a subscription please re-write it to use React provided hooks. Otherwise concurrent mode guarantees are off the table."
+            )), null !== prevTransition && null !== currentTransition.types && (null !== prevTransition.types && prevTransition.types !== currentTransition.types && console.error(
+              "We expected inner Transitions to have transferred the outer types set and that you cannot add to the outer Transition while inside the inner.This is a bug in React."
+            ), prevTransition.types = currentTransition.types), ReactSharedInternals.T = prevTransition;
+          }
+        }
+        function addTransitionType(type) {
+          var transition = ReactSharedInternals.T;
+          if (null !== transition) {
+            var transitionTypes = transition.types;
+            null === transitionTypes ? transition.types = [type] : -1 === transitionTypes.indexOf(type) && transitionTypes.push(type);
+          } else
+            0 === ReactSharedInternals.asyncTransitions && console.error(
+              "addTransitionType can only be called inside a `startTransition()` callback. It must be associated with a specific Transition."
+            ), startTransition(addTransitionType.bind(null, type));
         }
         function enqueueTask(task) {
           if (null === enqueueTaskImpl)
@@ -499,7 +538,7 @@ var __exports = (() => {
           }
         }
         "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ && "function" === typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart(Error());
-        var REACT_ELEMENT_TYPE = /* @__PURE__ */ Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = /* @__PURE__ */ Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = /* @__PURE__ */ Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = /* @__PURE__ */ Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = /* @__PURE__ */ Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = /* @__PURE__ */ Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = /* @__PURE__ */ Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = /* @__PURE__ */ Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = /* @__PURE__ */ Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = /* @__PURE__ */ Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = /* @__PURE__ */ Symbol.for("react.memo"), REACT_LAZY_TYPE = /* @__PURE__ */ Symbol.for("react.lazy"), REACT_ACTIVITY_TYPE = /* @__PURE__ */ Symbol.for("react.activity"), MAYBE_ITERATOR_SYMBOL = Symbol.iterator, didWarnStateUpdateForUnmountedComponent = {}, ReactNoopUpdateQueue = {
+        var REACT_ELEMENT_TYPE = /* @__PURE__ */ Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = /* @__PURE__ */ Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = /* @__PURE__ */ Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = /* @__PURE__ */ Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = /* @__PURE__ */ Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = /* @__PURE__ */ Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = /* @__PURE__ */ Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = /* @__PURE__ */ Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = /* @__PURE__ */ Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = /* @__PURE__ */ Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = /* @__PURE__ */ Symbol.for("react.memo"), REACT_LAZY_TYPE = /* @__PURE__ */ Symbol.for("react.lazy"), REACT_ACTIVITY_TYPE = /* @__PURE__ */ Symbol.for("react.activity"), REACT_VIEW_TRANSITION_TYPE = /* @__PURE__ */ Symbol.for("react.view_transition"), MAYBE_ITERATOR_SYMBOL = Symbol.iterator, didWarnStateUpdateForUnmountedComponent = {}, ReactNoopUpdateQueue = {
           isMounted: function() {
             return false;
           },
@@ -634,6 +673,7 @@ var __exports = (() => {
         exports.PureComponent = PureComponent;
         exports.StrictMode = REACT_STRICT_MODE_TYPE;
         exports.Suspense = REACT_SUSPENSE_TYPE;
+        exports.ViewTransition = REACT_VIEW_TRANSITION_TYPE;
         exports.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE = ReactSharedInternals;
         exports.__COMPILER_RUNTIME = deprecatedAPIs;
         exports.act = function(callback) {
@@ -713,6 +753,7 @@ var __exports = (() => {
             }
           };
         };
+        exports.addTransitionType = addTransitionType;
         exports.cache = function(fn) {
           return function() {
             return fn.apply(null, arguments);
@@ -789,6 +830,7 @@ var __exports = (() => {
         exports.createElement = function(type, config, children) {
           for (var i = 2; i < arguments.length; i++)
             validateChildKeys(arguments[i]);
+          var propName;
           i = {};
           var key = null;
           if (null != config)
@@ -811,13 +853,13 @@ var __exports = (() => {
             i,
             "function" === typeof type ? type.displayName || type.name || "Unknown" : type
           );
-          var propName = 1e4 > ReactSharedInternals.recentlyCreatedOwnerStacks++;
+          (propName = 1e4 > ReactSharedInternals.recentlyCreatedOwnerStacks++) ? (childArray = Error.stackTraceLimit, Error.stackTraceLimit = 10, childrenLength = Error("react-stack-top-frame"), Error.stackTraceLimit = childArray) : childrenLength = unknownOwnerDebugStack;
           return ReactElement(
             type,
             key,
             i,
             getOwner(),
-            propName ? Error("react-stack-top-frame") : unknownOwnerDebugStack,
+            childrenLength,
             propName ? createTask(getTaskName(type)) : unknownOwnerDebugTask
           );
         };
@@ -897,24 +939,7 @@ var __exports = (() => {
           });
           return compare;
         };
-        exports.startTransition = function(scope) {
-          var prevTransition = ReactSharedInternals.T, currentTransition = {};
-          currentTransition._updatedFibers = /* @__PURE__ */ new Set();
-          ReactSharedInternals.T = currentTransition;
-          try {
-            var returnValue = scope(), onStartTransitionFinish = ReactSharedInternals.S;
-            null !== onStartTransitionFinish && onStartTransitionFinish(currentTransition, returnValue);
-            "object" === typeof returnValue && null !== returnValue && "function" === typeof returnValue.then && (ReactSharedInternals.asyncTransitions++, returnValue.then(releaseAsyncTransition, releaseAsyncTransition), returnValue.then(noop, reportGlobalError));
-          } catch (error) {
-            reportGlobalError(error);
-          } finally {
-            null === prevTransition && currentTransition._updatedFibers && (scope = currentTransition._updatedFibers.size, currentTransition._updatedFibers.clear(), 10 < scope && console.warn(
-              "Detected a large number of updates inside startTransition. If this is due to a subscription please re-write it to use React provided hooks. Otherwise concurrent mode guarantees are off the table."
-            )), null !== prevTransition && null !== currentTransition.types && (null !== prevTransition.types && prevTransition.types !== currentTransition.types && console.error(
-              "We expected inner Transitions to have transferred the outer types set and that you cannot add to the outer Transition while inside the inner.This is a bug in React."
-            ), prevTransition.types = currentTransition.types), ReactSharedInternals.T = prevTransition;
-          }
-        };
+        exports.startTransition = startTransition;
         exports.unstable_useCacheRefresh = function() {
           return resolveDispatcher().useCacheRefresh();
         };
@@ -996,7 +1021,7 @@ var __exports = (() => {
         exports.useTransition = function() {
           return resolveDispatcher().useTransition();
         };
-        exports.version = "19.2.4";
+        exports.version = "19.3.1";
         "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ && "function" === typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStop && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStop(Error());
       })();
     }
@@ -1014,278 +1039,9 @@ var __exports = (() => {
     }
   });
 
-  // node_modules/react/cjs/react-jsx-runtime.development.js
-  var require_react_jsx_runtime_development = __commonJS({
-    "node_modules/react/cjs/react-jsx-runtime.development.js"(exports) {
-      "use strict";
-      (function() {
-        function getComponentNameFromType(type) {
-          if (null == type) return null;
-          if ("function" === typeof type)
-            return type.$$typeof === REACT_CLIENT_REFERENCE ? null : type.displayName || type.name || null;
-          if ("string" === typeof type) return type;
-          switch (type) {
-            case REACT_FRAGMENT_TYPE:
-              return "Fragment";
-            case REACT_PROFILER_TYPE:
-              return "Profiler";
-            case REACT_STRICT_MODE_TYPE:
-              return "StrictMode";
-            case REACT_SUSPENSE_TYPE:
-              return "Suspense";
-            case REACT_SUSPENSE_LIST_TYPE:
-              return "SuspenseList";
-            case REACT_ACTIVITY_TYPE:
-              return "Activity";
-          }
-          if ("object" === typeof type)
-            switch ("number" === typeof type.tag && console.error(
-              "Received an unexpected object in getComponentNameFromType(). This is likely a bug in React. Please file an issue."
-            ), type.$$typeof) {
-              case REACT_PORTAL_TYPE:
-                return "Portal";
-              case REACT_CONTEXT_TYPE:
-                return type.displayName || "Context";
-              case REACT_CONSUMER_TYPE:
-                return (type._context.displayName || "Context") + ".Consumer";
-              case REACT_FORWARD_REF_TYPE:
-                var innerType = type.render;
-                type = type.displayName;
-                type || (type = innerType.displayName || innerType.name || "", type = "" !== type ? "ForwardRef(" + type + ")" : "ForwardRef");
-                return type;
-              case REACT_MEMO_TYPE:
-                return innerType = type.displayName || null, null !== innerType ? innerType : getComponentNameFromType(type.type) || "Memo";
-              case REACT_LAZY_TYPE:
-                innerType = type._payload;
-                type = type._init;
-                try {
-                  return getComponentNameFromType(type(innerType));
-                } catch (x) {
-                }
-            }
-          return null;
-        }
-        function testStringCoercion(value) {
-          return "" + value;
-        }
-        function checkKeyStringCoercion(value) {
-          try {
-            testStringCoercion(value);
-            var JSCompiler_inline_result = false;
-          } catch (e) {
-            JSCompiler_inline_result = true;
-          }
-          if (JSCompiler_inline_result) {
-            JSCompiler_inline_result = console;
-            var JSCompiler_temp_const = JSCompiler_inline_result.error;
-            var JSCompiler_inline_result$jscomp$0 = "function" === typeof Symbol && Symbol.toStringTag && value[Symbol.toStringTag] || value.constructor.name || "Object";
-            JSCompiler_temp_const.call(
-              JSCompiler_inline_result,
-              "The provided key is an unsupported type %s. This value must be coerced to a string before using it here.",
-              JSCompiler_inline_result$jscomp$0
-            );
-            return testStringCoercion(value);
-          }
-        }
-        function getTaskName(type) {
-          if (type === REACT_FRAGMENT_TYPE) return "<>";
-          if ("object" === typeof type && null !== type && type.$$typeof === REACT_LAZY_TYPE)
-            return "<...>";
-          try {
-            var name = getComponentNameFromType(type);
-            return name ? "<" + name + ">" : "<...>";
-          } catch (x) {
-            return "<...>";
-          }
-        }
-        function getOwner() {
-          var dispatcher = ReactSharedInternals.A;
-          return null === dispatcher ? null : dispatcher.getOwner();
-        }
-        function UnknownOwner() {
-          return Error("react-stack-top-frame");
-        }
-        function hasValidKey(config) {
-          if (hasOwnProperty.call(config, "key")) {
-            var getter = Object.getOwnPropertyDescriptor(config, "key").get;
-            if (getter && getter.isReactWarning) return false;
-          }
-          return void 0 !== config.key;
-        }
-        function defineKeyPropWarningGetter(props, displayName) {
-          function warnAboutAccessingKey() {
-            specialPropKeyWarningShown || (specialPropKeyWarningShown = true, console.error(
-              "%s: `key` is not a prop. Trying to access it will result in `undefined` being returned. If you need to access the same value within the child component, you should pass it as a different prop. (https://react.dev/link/special-props)",
-              displayName
-            ));
-          }
-          warnAboutAccessingKey.isReactWarning = true;
-          Object.defineProperty(props, "key", {
-            get: warnAboutAccessingKey,
-            configurable: true
-          });
-        }
-        function elementRefGetterWithDeprecationWarning() {
-          var componentName = getComponentNameFromType(this.type);
-          didWarnAboutElementRef[componentName] || (didWarnAboutElementRef[componentName] = true, console.error(
-            "Accessing element.ref was removed in React 19. ref is now a regular prop. It will be removed from the JSX Element type in a future release."
-          ));
-          componentName = this.props.ref;
-          return void 0 !== componentName ? componentName : null;
-        }
-        function ReactElement(type, key, props, owner, debugStack, debugTask) {
-          var refProp = props.ref;
-          type = {
-            $$typeof: REACT_ELEMENT_TYPE,
-            type,
-            key,
-            props,
-            _owner: owner
-          };
-          null !== (void 0 !== refProp ? refProp : null) ? Object.defineProperty(type, "ref", {
-            enumerable: false,
-            get: elementRefGetterWithDeprecationWarning
-          }) : Object.defineProperty(type, "ref", { enumerable: false, value: null });
-          type._store = {};
-          Object.defineProperty(type._store, "validated", {
-            configurable: false,
-            enumerable: false,
-            writable: true,
-            value: 0
-          });
-          Object.defineProperty(type, "_debugInfo", {
-            configurable: false,
-            enumerable: false,
-            writable: true,
-            value: null
-          });
-          Object.defineProperty(type, "_debugStack", {
-            configurable: false,
-            enumerable: false,
-            writable: true,
-            value: debugStack
-          });
-          Object.defineProperty(type, "_debugTask", {
-            configurable: false,
-            enumerable: false,
-            writable: true,
-            value: debugTask
-          });
-          Object.freeze && (Object.freeze(type.props), Object.freeze(type));
-          return type;
-        }
-        function jsxDEVImpl(type, config, maybeKey, isStaticChildren, debugStack, debugTask) {
-          var children = config.children;
-          if (void 0 !== children)
-            if (isStaticChildren)
-              if (isArrayImpl(children)) {
-                for (isStaticChildren = 0; isStaticChildren < children.length; isStaticChildren++)
-                  validateChildKeys(children[isStaticChildren]);
-                Object.freeze && Object.freeze(children);
-              } else
-                console.error(
-                  "React.jsx: Static children should always be an array. You are likely explicitly calling React.jsxs or React.jsxDEV. Use the Babel transform instead."
-                );
-            else validateChildKeys(children);
-          if (hasOwnProperty.call(config, "key")) {
-            children = getComponentNameFromType(type);
-            var keys = Object.keys(config).filter(function(k) {
-              return "key" !== k;
-            });
-            isStaticChildren = 0 < keys.length ? "{key: someKey, " + keys.join(": ..., ") + ": ...}" : "{key: someKey}";
-            didWarnAboutKeySpread[children + isStaticChildren] || (keys = 0 < keys.length ? "{" + keys.join(": ..., ") + ": ...}" : "{}", console.error(
-              'A props object containing a "key" prop is being spread into JSX:\n  let props = %s;\n  <%s {...props} />\nReact keys must be passed directly to JSX without using spread:\n  let props = %s;\n  <%s key={someKey} {...props} />',
-              isStaticChildren,
-              children,
-              keys,
-              children
-            ), didWarnAboutKeySpread[children + isStaticChildren] = true);
-          }
-          children = null;
-          void 0 !== maybeKey && (checkKeyStringCoercion(maybeKey), children = "" + maybeKey);
-          hasValidKey(config) && (checkKeyStringCoercion(config.key), children = "" + config.key);
-          if ("key" in config) {
-            maybeKey = {};
-            for (var propName in config)
-              "key" !== propName && (maybeKey[propName] = config[propName]);
-          } else maybeKey = config;
-          children && defineKeyPropWarningGetter(
-            maybeKey,
-            "function" === typeof type ? type.displayName || type.name || "Unknown" : type
-          );
-          return ReactElement(
-            type,
-            children,
-            maybeKey,
-            getOwner(),
-            debugStack,
-            debugTask
-          );
-        }
-        function validateChildKeys(node) {
-          isValidElement(node) ? node._store && (node._store.validated = 1) : "object" === typeof node && null !== node && node.$$typeof === REACT_LAZY_TYPE && ("fulfilled" === node._payload.status ? isValidElement(node._payload.value) && node._payload.value._store && (node._payload.value._store.validated = 1) : node._store && (node._store.validated = 1));
-        }
-        function isValidElement(object) {
-          return "object" === typeof object && null !== object && object.$$typeof === REACT_ELEMENT_TYPE;
-        }
-        var React = require_react(), REACT_ELEMENT_TYPE = /* @__PURE__ */ Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = /* @__PURE__ */ Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = /* @__PURE__ */ Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = /* @__PURE__ */ Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = /* @__PURE__ */ Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = /* @__PURE__ */ Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = /* @__PURE__ */ Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = /* @__PURE__ */ Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = /* @__PURE__ */ Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = /* @__PURE__ */ Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = /* @__PURE__ */ Symbol.for("react.memo"), REACT_LAZY_TYPE = /* @__PURE__ */ Symbol.for("react.lazy"), REACT_ACTIVITY_TYPE = /* @__PURE__ */ Symbol.for("react.activity"), REACT_CLIENT_REFERENCE = /* @__PURE__ */ Symbol.for("react.client.reference"), ReactSharedInternals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, hasOwnProperty = Object.prototype.hasOwnProperty, isArrayImpl = Array.isArray, createTask = console.createTask ? console.createTask : function() {
-          return null;
-        };
-        React = {
-          react_stack_bottom_frame: function(callStackForError) {
-            return callStackForError();
-          }
-        };
-        var specialPropKeyWarningShown;
-        var didWarnAboutElementRef = {};
-        var unknownOwnerDebugStack = React.react_stack_bottom_frame.bind(
-          React,
-          UnknownOwner
-        )();
-        var unknownOwnerDebugTask = createTask(getTaskName(UnknownOwner));
-        var didWarnAboutKeySpread = {};
-        exports.Fragment = REACT_FRAGMENT_TYPE;
-        exports.jsx = function(type, config, maybeKey) {
-          var trackActualOwner = 1e4 > ReactSharedInternals.recentlyCreatedOwnerStacks++;
-          return jsxDEVImpl(
-            type,
-            config,
-            maybeKey,
-            false,
-            trackActualOwner ? Error("react-stack-top-frame") : unknownOwnerDebugStack,
-            trackActualOwner ? createTask(getTaskName(type)) : unknownOwnerDebugTask
-          );
-        };
-        exports.jsxs = function(type, config, maybeKey) {
-          var trackActualOwner = 1e4 > ReactSharedInternals.recentlyCreatedOwnerStacks++;
-          return jsxDEVImpl(
-            type,
-            config,
-            maybeKey,
-            true,
-            trackActualOwner ? Error("react-stack-top-frame") : unknownOwnerDebugStack,
-            trackActualOwner ? createTask(getTaskName(type)) : unknownOwnerDebugTask
-          );
-        };
-      })();
-    }
-  });
-
-  // node_modules/react/jsx-runtime.js
-  var require_jsx_runtime = __commonJS({
-    "node_modules/react/jsx-runtime.js"(exports, module) {
-      "use strict";
-      if (false) {
-        module.exports = null;
-      } else {
-        module.exports = require_react_jsx_runtime_development();
-      }
-    }
-  });
-
-  // ../../../../../../JSModules/onejs-react/node_modules/scheduler/cjs/scheduler.development.js
+  // node_modules/scheduler/cjs/scheduler.development.js
   var require_scheduler_development = __commonJS({
-    "../../../../../../JSModules/onejs-react/node_modules/scheduler/cjs/scheduler.development.js"(exports) {
+    "node_modules/scheduler/cjs/scheduler.development.js"(exports) {
       "use strict";
       (function() {
         function performWorkUntilDeadline() {
@@ -1551,9 +1307,9 @@ var __exports = (() => {
     }
   });
 
-  // ../../../../../../JSModules/onejs-react/node_modules/scheduler/index.js
+  // node_modules/scheduler/index.js
   var require_scheduler = __commonJS({
-    "../../../../../../JSModules/onejs-react/node_modules/scheduler/index.js"(exports, module) {
+    "node_modules/scheduler/index.js"(exports, module) {
       "use strict";
       if (false) {
         module.exports = null;
@@ -1563,9 +1319,9 @@ var __exports = (() => {
     }
   });
 
-  // ../../../../../../JSModules/onejs-react/node_modules/react-reconciler/cjs/react-reconciler.development.js
+  // node_modules/react-reconciler/cjs/react-reconciler.development.js
   var require_react_reconciler_development = __commonJS({
-    "../../../../../../JSModules/onejs-react/node_modules/react-reconciler/cjs/react-reconciler.development.js"(exports, module) {
+    "node_modules/react-reconciler/cjs/react-reconciler.development.js"(exports, module) {
       "use strict";
       module.exports = function($$$config) {
         function findHook(fiber, id) {
@@ -5593,7 +5349,7 @@ var __exports = (() => {
             });
           }
         }
-        function logCaughtError(root, boundary, errorInfo) {
+        function logCaughtError2(root, boundary, errorInfo) {
           try {
             componentName = errorInfo.source ? getComponentNameFromFiber(errorInfo.source) : null;
             errorBoundaryName = getComponentNameFromFiber(boundary);
@@ -5633,7 +5389,7 @@ var __exports = (() => {
               markFailedErrorBoundaryForHotReloading(fiber);
               runWithFiberInDEV(
                 errorInfo.source,
-                logCaughtError,
+                logCaughtError2,
                 root,
                 fiber,
                 errorInfo
@@ -5645,7 +5401,7 @@ var __exports = (() => {
             markFailedErrorBoundaryForHotReloading(fiber);
             runWithFiberInDEV(
               errorInfo.source,
-              logCaughtError,
+              logCaughtError2,
               root,
               fiber,
               errorInfo
@@ -13253,9 +13009,9 @@ var __exports = (() => {
     }
   });
 
-  // ../../../../../../JSModules/onejs-react/node_modules/react-reconciler/index.js
+  // node_modules/react-reconciler/index.js
   var require_react_reconciler = __commonJS({
-    "../../../../../../JSModules/onejs-react/node_modules/react-reconciler/index.js"(exports, module) {
+    "node_modules/react-reconciler/index.js"(exports, module) {
       "use strict";
       if (false) {
         module.exports = null;
@@ -13265,18 +13021,563 @@ var __exports = (() => {
     }
   });
 
-  // ../../../../../../JSModules/onejs-react/src/components.tsx
-  var import_react = __toESM(require_react());
+  // node_modules/react/cjs/react-jsx-runtime.development.js
+  var require_react_jsx_runtime_development = __commonJS({
+    "node_modules/react/cjs/react-jsx-runtime.development.js"(exports) {
+      "use strict";
+      (function() {
+        function getComponentNameFromType(type) {
+          if (null == type) return null;
+          if ("function" === typeof type)
+            return type.$$typeof === REACT_CLIENT_REFERENCE ? null : type.displayName || type.name || null;
+          if ("string" === typeof type) return type;
+          switch (type) {
+            case REACT_FRAGMENT_TYPE:
+              return "Fragment";
+            case REACT_PROFILER_TYPE:
+              return "Profiler";
+            case REACT_STRICT_MODE_TYPE:
+              return "StrictMode";
+            case REACT_SUSPENSE_TYPE:
+              return "Suspense";
+            case REACT_SUSPENSE_LIST_TYPE:
+              return "SuspenseList";
+            case REACT_ACTIVITY_TYPE:
+              return "Activity";
+            case REACT_VIEW_TRANSITION_TYPE:
+              return "ViewTransition";
+          }
+          if ("object" === typeof type)
+            switch ("number" === typeof type.tag && console.error(
+              "Received an unexpected object in getComponentNameFromType(). This is likely a bug in React. Please file an issue."
+            ), type.$$typeof) {
+              case REACT_PORTAL_TYPE:
+                return "Portal";
+              case REACT_CONTEXT_TYPE:
+                return type.displayName || "Context";
+              case REACT_CONSUMER_TYPE:
+                return (type._context.displayName || "Context") + ".Consumer";
+              case REACT_FORWARD_REF_TYPE:
+                var innerType = type.render;
+                type = type.displayName;
+                type || (type = innerType.displayName || innerType.name || "", type = "" !== type ? "ForwardRef(" + type + ")" : "ForwardRef");
+                return type;
+              case REACT_MEMO_TYPE:
+                return innerType = type.displayName || null, null !== innerType ? innerType : getComponentNameFromType(type.type) || "Memo";
+              case REACT_LAZY_TYPE:
+                innerType = type._payload;
+                type = type._init;
+                try {
+                  return getComponentNameFromType(type(innerType));
+                } catch (x) {
+                }
+            }
+          return null;
+        }
+        function testStringCoercion(value) {
+          return "" + value;
+        }
+        function checkKeyStringCoercion(value) {
+          try {
+            testStringCoercion(value);
+            var JSCompiler_inline_result = false;
+          } catch (e) {
+            JSCompiler_inline_result = true;
+          }
+          if (JSCompiler_inline_result) {
+            JSCompiler_inline_result = console;
+            var JSCompiler_temp_const = JSCompiler_inline_result.error;
+            var JSCompiler_inline_result$jscomp$0 = "function" === typeof Symbol && Symbol.toStringTag && value[Symbol.toStringTag] || value.constructor.name || "Object";
+            JSCompiler_temp_const.call(
+              JSCompiler_inline_result,
+              "The provided key is an unsupported type %s. This value must be coerced to a string before using it here.",
+              JSCompiler_inline_result$jscomp$0
+            );
+            return testStringCoercion(value);
+          }
+        }
+        function getTaskName(type) {
+          if (type === REACT_FRAGMENT_TYPE) return "<>";
+          if ("object" === typeof type && null !== type && type.$$typeof === REACT_LAZY_TYPE)
+            return "<...>";
+          try {
+            var name = getComponentNameFromType(type);
+            return name ? "<" + name + ">" : "<...>";
+          } catch (x) {
+            return "<...>";
+          }
+        }
+        function getOwner() {
+          var dispatcher = ReactSharedInternals.A;
+          return null === dispatcher ? null : dispatcher.getOwner();
+        }
+        function UnknownOwner() {
+          return Error("react-stack-top-frame");
+        }
+        function hasValidKey(config) {
+          if (hasOwnProperty.call(config, "key")) {
+            var getter = Object.getOwnPropertyDescriptor(config, "key").get;
+            if (getter && getter.isReactWarning) return false;
+          }
+          return void 0 !== config.key;
+        }
+        function defineKeyPropWarningGetter(props, displayName) {
+          function warnAboutAccessingKey() {
+            specialPropKeyWarningShown || (specialPropKeyWarningShown = true, console.error(
+              "%s: `key` is not a prop. Trying to access it will result in `undefined` being returned. If you need to access the same value within the child component, you should pass it as a different prop. (https://react.dev/link/special-props)",
+              displayName
+            ));
+          }
+          warnAboutAccessingKey.isReactWarning = true;
+          Object.defineProperty(props, "key", {
+            get: warnAboutAccessingKey,
+            configurable: true
+          });
+        }
+        function elementRefGetterWithDeprecationWarning() {
+          var componentName = getComponentNameFromType(this.type);
+          didWarnAboutElementRef[componentName] || (didWarnAboutElementRef[componentName] = true, console.error(
+            "Accessing element.ref was removed in React 19. ref is now a regular prop. It will be removed from the JSX Element type in a future release."
+          ));
+          componentName = this.props.ref;
+          return void 0 !== componentName ? componentName : null;
+        }
+        function ReactElement(type, key, props, owner, debugStack, debugTask) {
+          var refProp = props.ref;
+          type = {
+            $$typeof: REACT_ELEMENT_TYPE,
+            type,
+            key,
+            props,
+            _owner: owner
+          };
+          null !== (void 0 !== refProp ? refProp : null) ? Object.defineProperty(type, "ref", {
+            enumerable: false,
+            get: elementRefGetterWithDeprecationWarning
+          }) : Object.defineProperty(type, "ref", { enumerable: false, value: null });
+          type._store = {};
+          Object.defineProperty(type._store, "validated", {
+            configurable: false,
+            enumerable: false,
+            writable: true,
+            value: 0
+          });
+          Object.defineProperty(type, "_debugInfo", {
+            configurable: false,
+            enumerable: false,
+            writable: true,
+            value: null
+          });
+          Object.defineProperty(type, "_debugStack", {
+            configurable: false,
+            enumerable: false,
+            writable: true,
+            value: debugStack
+          });
+          Object.defineProperty(type, "_debugTask", {
+            configurable: false,
+            enumerable: false,
+            writable: true,
+            value: debugTask
+          });
+          Object.freeze && (Object.freeze(type.props), Object.freeze(type));
+          return type;
+        }
+        function jsxDEVImpl(type, config, maybeKey, isStaticChildren, debugStack, debugTask) {
+          var children = config.children;
+          if (void 0 !== children)
+            if (isStaticChildren)
+              if (isArrayImpl(children)) {
+                for (isStaticChildren = 0; isStaticChildren < children.length; isStaticChildren++)
+                  validateChildKeys(children[isStaticChildren]);
+                Object.freeze && Object.freeze(children);
+              } else
+                console.error(
+                  "React.jsx: Static children should always be an array. You are likely explicitly calling React.jsxs or React.jsxDEV. Use the Babel transform instead."
+                );
+            else validateChildKeys(children);
+          if (hasOwnProperty.call(config, "key")) {
+            children = getComponentNameFromType(type);
+            var keys = Object.keys(config).filter(function(k) {
+              return "key" !== k;
+            });
+            isStaticChildren = 0 < keys.length ? "{key: someKey, " + keys.join(": ..., ") + ": ...}" : "{key: someKey}";
+            didWarnAboutKeySpread[children + isStaticChildren] || (keys = 0 < keys.length ? "{" + keys.join(": ..., ") + ": ...}" : "{}", console.error(
+              'A props object containing a "key" prop is being spread into JSX:\n  let props = %s;\n  <%s {...props} />\nReact keys must be passed directly to JSX without using spread:\n  let props = %s;\n  <%s key={someKey} {...props} />',
+              isStaticChildren,
+              children,
+              keys,
+              children
+            ), didWarnAboutKeySpread[children + isStaticChildren] = true);
+          }
+          children = null;
+          void 0 !== maybeKey && (checkKeyStringCoercion(maybeKey), children = "" + maybeKey);
+          hasValidKey(config) && (checkKeyStringCoercion(config.key), children = "" + config.key);
+          if ("key" in config) {
+            maybeKey = {};
+            for (var propName in config)
+              "key" !== propName && (maybeKey[propName] = config[propName]);
+          } else maybeKey = config;
+          children && defineKeyPropWarningGetter(
+            maybeKey,
+            "function" === typeof type ? type.displayName || type.name || "Unknown" : type
+          );
+          return ReactElement(
+            type,
+            children,
+            maybeKey,
+            getOwner(),
+            debugStack,
+            debugTask
+          );
+        }
+        function validateChildKeys(node) {
+          isValidElement(node) ? node._store && (node._store.validated = 1) : "object" === typeof node && null !== node && node.$$typeof === REACT_LAZY_TYPE && ("fulfilled" === node._payload.status ? isValidElement(node._payload.value) && node._payload.value._store && (node._payload.value._store.validated = 1) : node._store && (node._store.validated = 1));
+        }
+        function isValidElement(object) {
+          return "object" === typeof object && null !== object && object.$$typeof === REACT_ELEMENT_TYPE;
+        }
+        var React = require_react(), REACT_ELEMENT_TYPE = /* @__PURE__ */ Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = /* @__PURE__ */ Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = /* @__PURE__ */ Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = /* @__PURE__ */ Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = /* @__PURE__ */ Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = /* @__PURE__ */ Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = /* @__PURE__ */ Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = /* @__PURE__ */ Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = /* @__PURE__ */ Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = /* @__PURE__ */ Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = /* @__PURE__ */ Symbol.for("react.memo"), REACT_LAZY_TYPE = /* @__PURE__ */ Symbol.for("react.lazy"), REACT_ACTIVITY_TYPE = /* @__PURE__ */ Symbol.for("react.activity"), REACT_VIEW_TRANSITION_TYPE = /* @__PURE__ */ Symbol.for("react.view_transition"), REACT_CLIENT_REFERENCE = /* @__PURE__ */ Symbol.for("react.client.reference"), ReactSharedInternals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, hasOwnProperty = Object.prototype.hasOwnProperty, isArrayImpl = Array.isArray, createTask = console.createTask ? console.createTask : function() {
+          return null;
+        };
+        React = {
+          react_stack_bottom_frame: function(callStackForError) {
+            return callStackForError();
+          }
+        };
+        var specialPropKeyWarningShown;
+        var didWarnAboutElementRef = {};
+        var unknownOwnerDebugStack = React.react_stack_bottom_frame.bind(
+          React,
+          UnknownOwner
+        )();
+        var unknownOwnerDebugTask = createTask(getTaskName(UnknownOwner));
+        var didWarnAboutKeySpread = {};
+        exports.Fragment = REACT_FRAGMENT_TYPE;
+        exports.jsx = function(type, config, maybeKey) {
+          var trackActualOwner = 1e4 > ReactSharedInternals.recentlyCreatedOwnerStacks++;
+          if (trackActualOwner) {
+            var previousStackTraceLimit = Error.stackTraceLimit;
+            Error.stackTraceLimit = 10;
+            var debugStackDEV = Error("react-stack-top-frame");
+            Error.stackTraceLimit = previousStackTraceLimit;
+          } else debugStackDEV = unknownOwnerDebugStack;
+          return jsxDEVImpl(
+            type,
+            config,
+            maybeKey,
+            false,
+            debugStackDEV,
+            trackActualOwner ? createTask(getTaskName(type)) : unknownOwnerDebugTask
+          );
+        };
+        exports.jsxs = function(type, config, maybeKey) {
+          var trackActualOwner = 1e4 > ReactSharedInternals.recentlyCreatedOwnerStacks++;
+          if (trackActualOwner) {
+            var previousStackTraceLimit = Error.stackTraceLimit;
+            Error.stackTraceLimit = 10;
+            var debugStackDEV = Error("react-stack-top-frame");
+            Error.stackTraceLimit = previousStackTraceLimit;
+          } else debugStackDEV = unknownOwnerDebugStack;
+          return jsxDEVImpl(
+            type,
+            config,
+            maybeKey,
+            true,
+            debugStackDEV,
+            trackActualOwner ? createTask(getTaskName(type)) : unknownOwnerDebugTask
+          );
+        };
+      })();
+    }
+  });
 
-  // ../../../../../../JSModules/onejs-react/src/texturefx.ts
-  var SRC = { noise: 0, shape: 1, constant: 2 };
+  // node_modules/react/jsx-runtime.js
+  var require_jsx_runtime = __commonJS({
+    "node_modules/react/jsx-runtime.js"(exports, module) {
+      "use strict";
+      if (false) {
+        module.exports = null;
+      } else {
+        module.exports = require_react_jsx_runtime_development();
+      }
+    }
+  });
+
+  // node_modules/onejs-react/src/components.tsx
+  var import_react3 = __toESM(require_react());
+
+  // node_modules/onejs-react/src/color.ts
+  var NAMED_COLORS = {
+    transparent: [0, 0, 0, 0],
+    black: [0, 0, 0, 1],
+    white: [1, 1, 1, 1],
+    red: [1, 0, 0, 1],
+    green: [0, 0.502, 0, 1],
+    // CSS green is #008000
+    blue: [0, 0, 1, 1],
+    yellow: [1, 1, 0, 1],
+    cyan: [0, 1, 1, 1],
+    magenta: [1, 0, 1, 1],
+    orange: [1, 0.647, 0, 1],
+    purple: [0.502, 0, 0.502, 1],
+    pink: [1, 0.753, 0.796, 1],
+    brown: [0.647, 0.165, 0.165, 1],
+    gray: [0.502, 0.502, 0.502, 1],
+    grey: [0.502, 0.502, 0.502, 1],
+    silver: [0.753, 0.753, 0.753, 1],
+    gold: [1, 0.843, 0, 1],
+    navy: [0, 0, 0.502, 1],
+    teal: [0, 0.502, 0.502, 1],
+    olive: [0.502, 0.502, 0, 1],
+    maroon: [0.502, 0, 0, 1],
+    aqua: [0, 1, 1, 1],
+    lime: [0, 1, 0, 1],
+    fuchsia: [1, 0, 1, 1]
+  };
+  var HEX = /^#?([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+  var RGB = /^rgba?\s*\(\s*([\d.]+)(%?)\s*,\s*([\d.]+)(%?)\s*,\s*([\d.]+)(%?)\s*(?:,\s*([\d.]+)(%?))?\s*\)$/i;
+  function toRGBA(c, what = "colour") {
+    const rgba = tryRGBA(c);
+    if (rgba === null) {
+      const shown = typeof c === "string" ? `"${c}"` : JSON.stringify(c);
+      throw new Error(`${what}: ${shown} is not a colour; use #rgb, #rrggbbaa, rgb(), a CSS name, [r, g, b, a] or { r, g, b, a }`);
+    }
+    return rgba;
+  }
+  function tryRGBA(c) {
+    if (typeof c === "string") return parseColorString(c);
+    if (Array.isArray(c)) {
+      if (c.length !== 3 && c.length !== 4 || !c.every(isNumber)) return null;
+      const n = c;
+      return [n[0], n[1], n[2], n.length === 4 ? n[3] : 1];
+    }
+    if (c !== null && typeof c === "object") {
+      const o = c;
+      if (!isNumber(o.r) || !isNumber(o.g) || !isNumber(o.b)) return null;
+      if (o.a === void 0) return [o.r, o.g, o.b, 1];
+      return isNumber(o.a) ? [o.r, o.g, o.b, o.a] : null;
+    }
+    return null;
+  }
+  function parseColorString(value) {
+    const s = value.trim().toLowerCase();
+    const named = NAMED_COLORS[s];
+    if (named) return [...named];
+    const hex = HEX.exec(s);
+    if (hex) {
+      const h = hex[1];
+      const short = h.length <= 4;
+      const channel = (i) => parseInt(short ? h[i] + h[i] : h.slice(i * 2, i * 2 + 2), 16) / 255;
+      const hasAlpha = h.length === 4 || h.length === 8;
+      return [channel(0), channel(1), channel(2), hasAlpha ? channel(3) : 1];
+    }
+    const rgb = RGB.exec(s);
+    if (rgb) {
+      const channel = (v, pct) => clamp01(parseFloat(v) / (pct === "%" ? 100 : 255));
+      const a = rgb[7] === void 0 ? 1 : clamp01(parseFloat(rgb[7]) / (rgb[8] === "%" ? 100 : 1));
+      return [channel(rgb[1], rgb[2]), channel(rgb[3], rgb[4]), channel(rgb[5], rgb[6]), a];
+    }
+    return null;
+  }
+  function isNumber(v) {
+    return typeof v === "number" && !Number.isNaN(v);
+  }
+  function clamp01(n) {
+    return n < 0 ? 0 : n > 1 ? 1 : n;
+  }
+
+  // node_modules/onejs-react/src/texturefx.ts
+  var SRC = { noise: 0, shape: 1, constant: 2, sdf: 3 };
   var BLEND = { set: 0, multiply: 1, add: 2, subtract: 3, min: 4, max: 5, screen: 6 };
   var SHAPE = { flame: 0, radial: 1, linear: 2, box: 3 };
+  var SDF = {
+    circle: 0,
+    roundedBox: 1,
+    box: 2,
+    orientedBox: 3,
+    segment: 4,
+    rhombus: 5,
+    trapezoid: 6,
+    parallelogram: 7,
+    equilateralTriangle: 8,
+    triangleIsosceles: 9,
+    triangle: 10,
+    unevenCapsule: 11,
+    pentagon: 12,
+    hexagon: 13,
+    octagon: 14,
+    hexagram: 15,
+    star5: 16,
+    star: 17,
+    pie: 18,
+    cutDisk: 19,
+    arc: 20,
+    ring: 21,
+    horseshoe: 22,
+    vesica: 23,
+    orientedVesica: 24,
+    moon: 25,
+    roundedCross: 26,
+    egg: 27,
+    heart: 28,
+    cross: 29,
+    roundedX: 30,
+    ellipse: 31,
+    parabola: 32,
+    parabolaSegment: 33,
+    bezier: 34,
+    blobbyCross: 35,
+    tunnel: 36,
+    stairs: 37,
+    quadraticCircle: 38,
+    hyperbola: 39,
+    coolS: 40,
+    circleWave: 41
+  };
+  var RAMP_SAMPLES = 64;
+  function isPlacedStop(s) {
+    return typeof s === "object" && s !== null && "at" in s && "color" in s;
+  }
+  function resampleStops(stops) {
+    const placed = stops.map((s, i) => {
+      if (!isPlacedStop(s)) return { at: stops.length === 1 ? 0 : i / (stops.length - 1), rgba: toRGBA(s, "TextureFX ramp") };
+      const rgba = toRGBA(s.color, "TextureFX ramp");
+      if (s.alpha !== void 0) rgba[3] = s.alpha;
+      return { at: s.at, rgba };
+    }).sort((a, b) => a.at - b.at);
+    const out = [];
+    for (let i = 0; i < RAMP_SAMPLES; i++) {
+      const t = i / (RAMP_SAMPLES - 1);
+      let hi = placed.findIndex((p) => p.at >= t);
+      if (hi === -1) hi = placed.length - 1;
+      const lo = Math.max(0, hi - 1);
+      const a = placed[lo], b = placed[hi];
+      const span = b.at - a.at;
+      const f = span <= 0 ? t >= b.at ? 1 : 0 : Math.min(1, Math.max(0, (t - a.at) / span));
+      out.push([0, 1, 2, 3].map((c) => a.rgba[c] + (b.rgba[c] - a.rgba[c]) * f));
+    }
+    return out;
+  }
   var MAX_TEXTUREFX_LAYERS = 6;
+  var DEG2RAD = Math.PI / 180;
+  var xy = (v, dx, dy) => v ?? [dx, dy];
+  function packSDF(kind, o) {
+    const q = (a = 0, b = 0, c = 0, d = 0) => [a, b, c, d];
+    const none = [0, 0];
+    switch (kind) {
+      case "circle":
+        return [q(o.r ?? 0.35), none];
+      case "roundedBox": {
+        const c = o.corners ?? 0.1;
+        const [tr, br, tl, bl] = typeof c === "number" ? [c, c, c, c] : c;
+        return [q(o.w ?? 0.3, o.h ?? 0.35, tr, br), [tl, bl]];
+      }
+      case "box":
+        return [q(o.w ?? 0.3, o.h ?? 0.35), none];
+      case "orientedBox": {
+        const [ax, ay] = xy(o.a, -0.25, -0.2), [bx, by] = xy(o.b, 0.25, 0.2);
+        return [q(ax, ay, bx, by), [o.thickness ?? 0.15, 0]];
+      }
+      case "segment": {
+        const [ax, ay] = xy(o.a, -0.25, -0.25), [bx, by] = xy(o.b, 0.25, 0.25);
+        return [q(ax, ay, bx, by), none];
+      }
+      case "rhombus":
+        return [q(o.w ?? 0.3, o.h ?? 0.4), none];
+      case "trapezoid":
+        return [q(o.rBottom ?? 0.35, o.rTop ?? 0.2, o.h ?? 0.35), none];
+      case "parallelogram":
+        return [q(o.w ?? 0.3, o.h ?? 0.3, o.skew ?? 0.12), none];
+      case "equilateralTriangle":
+        return [q(o.r ?? 0.35), none];
+      case "triangleIsosceles":
+        return [q(o.w ?? 0.3, o.h ?? 0.45), none];
+      case "triangle": {
+        const [ax, ay] = xy(o.a, -0.35, -0.3), [bx, by] = xy(o.b, 0.35, -0.25);
+        return [q(ax, ay, bx, by), xy(o.c, 0, 0.4)];
+      }
+      case "unevenCapsule":
+        return [q(o.rBottom ?? 0.2, o.rTop ?? 0.1, o.h ?? 0.35), none];
+      case "pentagon":
+        return [q(o.r ?? 0.35), none];
+      case "hexagon":
+        return [q(o.r ?? 0.35), none];
+      case "octagon":
+        return [q(o.r ?? 0.35), none];
+      case "hexagram":
+        return [q(o.r ?? 0.25), none];
+      case "star5":
+        return [q(o.r ?? 0.35, o.inset ?? 0.45), none];
+      case "star":
+        return [q(o.r ?? 0.35, o.points ?? 6, o.sharpness ?? 3), none];
+      case "pie": {
+        const a = (o.aperture ?? 60) * DEG2RAD;
+        return [q(Math.sin(a), Math.cos(a), o.r ?? 0.38), none];
+      }
+      case "cutDisk":
+        return [q(o.r ?? 0.38, o.cut ?? -0.15), none];
+      case "arc": {
+        const a = (o.aperture ?? 70) * DEG2RAD;
+        return [q(Math.sin(a), Math.cos(a), o.r ?? 0.32, o.thickness ?? 0.06), none];
+      }
+      case "ring": {
+        const a = (o.angle ?? 70) * DEG2RAD;
+        return [q(Math.cos(a), Math.sin(a), o.r ?? 0.3, o.thickness ?? 0.1), none];
+      }
+      case "horseshoe": {
+        const a = (o.angle ?? 57) * DEG2RAD;
+        return [q(Math.cos(a), Math.sin(a), o.r ?? 0.3, o.w ?? 0.1), [o.h ?? 0.06, 0]];
+      }
+      case "vesica":
+        return [q(o.r ?? 0.4, o.d ?? 0.2), none];
+      case "orientedVesica": {
+        const [ax, ay] = xy(o.a, -0.25, -0.2), [bx, by] = xy(o.b, 0.25, 0.2);
+        return [q(ax, ay, bx, by), [o.w ?? 0.12, 0]];
+      }
+      case "moon":
+        return [q(o.d ?? 0.15, o.r ?? 0.35, o.rCut ?? 0.32), none];
+      case "roundedCross":
+        return [q(o.h ?? 0.5), none];
+      case "egg":
+        return [q(o.h ?? 0.4, o.r ?? 0.2, o.rTop ?? 0.1, o.bulge ?? 0.7), none];
+      case "heart":
+        return [q(), none];
+      case "cross":
+        return [q(o.w ?? 0.35, o.h ?? 0.12, o.r ?? 0.03), none];
+      case "roundedX":
+        return [q(o.w ?? 0.5, o.r ?? 0.08), none];
+      case "ellipse":
+        return [q(o.rx ?? 0.4, o.ry ?? 0.25), none];
+      case "parabola":
+        return [q(o.k ?? 2), none];
+      case "parabolaSegment":
+        return [q(o.w ?? 0.35, o.h ?? 0.4), none];
+      case "bezier": {
+        const [ax, ay] = xy(o.a, -0.35, -0.25), [bx, by] = xy(o.b, 0, 0.5);
+        return [q(ax, ay, bx, by), xy(o.c, 0.35, -0.25)];
+      }
+      case "blobbyCross":
+        return [q(o.h ?? 0.4), none];
+      case "tunnel":
+        return [q(o.w ?? 0.3, o.h ?? 0.3), none];
+      case "stairs":
+        return [q(o.w ?? 0.12, o.h ?? 0.12, o.steps ?? 4), none];
+      case "quadraticCircle":
+        return [q(), none];
+      case "hyperbola":
+        return [q(o.k ?? 0.01, o.h ?? 0.35), none];
+      case "coolS":
+        return [q(), none];
+      case "circleWave":
+        return [q(o.tightness ?? 0.5, o.r ?? 0.25), none];
+    }
+  }
   var pair = (v, d) => v === void 0 ? [d, d] : typeof v === "number" ? [v, v] : v;
   var TextureFXBuilder = class {
     layers = [];
-    threshold = 0;
+    /** Where the threshold stretch starts, and how wide it is. */
+    cutoff = 0;
     softness = 1;
     speed = 1;
     colors = ["#00000000", "#ffffffff"];
@@ -13314,7 +13615,13 @@ var __exports = (() => {
         scroll: o.scroll ?? [0, 0],
         amount: o.amount ?? 1,
         shape: 0,
-        params: [0, 0, 0, 0]
+        params: [0, 0, 0, 0],
+        params2: [0, 0, 0, 0],
+        pos: [0, 0],
+        rot: 0,
+        uniformScale: 1,
+        rounded: 0,
+        onion: 0
       });
     }
     /** A positional falloff that carves the silhouette. Not scaled or scrolled. */
@@ -13329,7 +13636,13 @@ var __exports = (() => {
         scroll: [0, 0],
         amount: o.amount ?? 1,
         shape: SHAPE[kind],
-        params
+        params,
+        params2: [0, 0, 0, 0],
+        pos: [0, 0],
+        rot: 0,
+        uniformScale: 1,
+        rounded: 0,
+        onion: 0
       });
     }
     /** A flat value, for biasing or flooring the stack. */
@@ -13343,21 +13656,72 @@ var __exports = (() => {
         scroll: [0, 0],
         amount: 1,
         shape: 0,
-        params: [value, 0, 0, 0]
+        params: [value, 0, 0, 0],
+        params2: [0, 0, 0, 0],
+        rounded: 0,
+        onion: 0,
+        pos: [0, 0],
+        rot: 0,
+        uniformScale: 1
       });
     }
     /**
-     * Erodes the accumulated field to a defined edge before colouring. This is what
-     * turns a soft blob into licks and wisps; without it everything looks like fog.
+     * A signed distance shape: precise geometry with a hard, antialiased edge.
+     *
+     * Distinct from `shape()`, which is four soft positional falloffs meant for
+     * carving noise. These are the real outlines, they take a transform, and
+     * `rounded` / `onion` work on all of them. Both families have a "box"; they
+     * are not the same thing and do not take the same options.
+     *
+     *     fx.sdf("hexagon", { r: 0.4, rounded: 0.04 })
+     *     fx.sdf("star", { r: 0.35, points: 6, rotation: 15 }).subtract()
      */
+    sdf(kind, o = {}) {
+      const [params, params2] = packSDF(kind, o);
+      return this.push({
+        src: SRC.sdf,
+        blend: BLEND.set,
+        scale: [1, 1],
+        octaves: 1,
+        seed: 0,
+        // An sdf layer has no noise field, so _LScale carries its transform.
+        pos: [o.x ?? 0, o.y ?? 0],
+        rot: (o.rotation ?? 0) * DEG2RAD,
+        uniformScale: o.scale ?? 1,
+        scroll: [0, 0],
+        amount: o.amount ?? 1,
+        shape: SDF[kind],
+        params,
+        // z = edge softness, w = 1 to emit the raw field instead of a mask
+        params2: [params2[0], params2[1], o.softness ?? 0.01, o.field ? 1 : 0],
+        rounded: o.rounded ?? 0,
+        onion: o.onion ?? 0
+      });
+    }
+    /**
+     * Keeps what lies between `low` and `high`, stretched to 0..1, before
+     * colouring: below is empty, above is full. This is what turns a soft blob
+     * into licks and wisps; without it everything looks like fog. The same word
+     * and numbers as image fx's `threshold`.
+     */
+    threshold(low, high) {
+      this.cutoff = low;
+      this.softness = high - low;
+      return this;
+    }
+    /** @deprecated Use `threshold(low, low + softness)`, the name image fx uses. */
     erode(threshold, softness = 0.3) {
-      this.threshold = threshold;
+      this.cutoff = threshold;
       this.softness = softness;
       return this;
     }
-    /** Gradient the eroded value indexes. Alpha is carried, so cutoff lives here too. */
-    ramp(colors) {
-      this.colors = colors;
+    /**
+     * The gradient the thresholded value indexes. Alpha is carried, so cutoff
+     * lives here too. Takes colours spaced evenly, or stops placed with `at`
+     * (and an optional `alpha`), the shapes image fx's `ramp` takes.
+     */
+    ramp(stops) {
+      this.colors = stops.some(isPlacedStop) ? resampleStops(stops) : [...stops];
       return this;
     }
     /** Multiplies every layer's scroll rate. */
@@ -13368,21 +13732,30 @@ var __exports = (() => {
     /** Flattens to the uniforms OneJS/TextureFX expects. */
     compile() {
       if (this.layers.length === 0) throw new Error("[onejs texturefx] no layers");
-      const scale = [], scroll = [], params = [], mode = [];
+      const scale = [], scroll = [], params = [];
+      const params2 = [], mode = [];
       for (const l of this.layers) {
-        scale.push(l.scale[0], l.scale[1], l.octaves, l.seed);
+        if (l.src === SRC.sdf) scale.push(l.pos[0], l.pos[1], l.rot, l.uniformScale);
+        else scale.push(l.scale[0], l.scale[1], l.octaves, l.seed);
         scroll.push(l.scroll[0] * l.scale[0], l.scroll[1] * l.scale[1], l.amount, l.shape);
         params.push(...l.params);
-        mode.push(l.src, l.blend, 0, 0);
+        params2.push(...l.params2);
+        mode.push(l.src, l.blend, l.rounded, l.onion);
       }
       return {
         floats: {
           _LayerCount: this.layers.length,
-          _Threshold: this.threshold,
+          _Threshold: this.cutoff,
           _Softness: this.softness,
           _Speed: this.speed
         },
-        vectorArrays: { _LScale: scale, _LScroll: scroll, _LParams: params, _LMode: mode },
+        vectorArrays: {
+          _LScale: scale,
+          _LScroll: scroll,
+          _LParams: params,
+          _LParams2: params2,
+          _LMode: mode
+        },
         ramp: this.colors
       };
     }
@@ -13393,233 +13766,30 @@ var __exports = (() => {
     return fx.compile();
   }
 
-  // ../../../../../../JSModules/onejs-react/src/components.tsx
-  var import_jsx_runtime = __toESM(require_jsx_runtime());
-  useExtensions(CS.UnityEngine.ImageConversion);
-  var _imageCache = /* @__PURE__ */ new Map();
-  var _imagePending = /* @__PURE__ */ new Map();
-  function _isUrlPath(path) {
-    return path.includes("://");
-  }
-  function _resolveAssetPath(src) {
-    const Path = CS.System.IO.Path;
-    if (Path.IsPathRooted(src)) {
-      return src;
-    }
-    if (CS.UnityEngine.Application.isEditor) {
-      const workingDir = typeof globalThis.__workingDir === "string" ? globalThis.__workingDir : Path.Combine(Path.GetDirectoryName(CS.UnityEngine.Application.dataPath), "App");
-      return Path.Combine(workingDir, "assets", src);
-    }
-    const streamingAssets = CS.UnityEngine.Application.streamingAssetsPath;
-    if (_isUrlPath(streamingAssets)) {
-      return `${streamingAssets}/onejs/assets/${src}`;
-    }
-    return Path.Combine(streamingAssets, "onejs", "assets", src);
-  }
-  function _loadImageAsset(src) {
-    const cached = _imageCache.get(src);
-    if (cached) return cached;
-    const fullPath = _resolveAssetPath(src);
-    if (_isUrlPath(fullPath)) return null;
-    if (!CS.System.IO.File.Exists(fullPath)) {
-      console.error(`Image src not found: ${src} (resolved to ${fullPath})`);
-      return null;
-    }
-    let result;
-    if (src.toLowerCase().endsWith(".svg")) {
-      const svgText = CS.System.IO.File.ReadAllText(fullPath);
-      result = CS.OneJS.SVGUtils.LoadFromString(svgText);
-    } else {
-      const bytes = CS.System.IO.File.ReadAllBytes(fullPath);
-      const tex = new CS.UnityEngine.Texture2D(2, 2);
-      tex.LoadImage(bytes);
-      tex.filterMode = CS.UnityEngine.FilterMode.Bilinear;
-      result = tex;
-    }
-    _imageCache.set(src, result);
-    return result;
-  }
-  function _loadImageAssetAsync(src, url) {
-    const existing = _imagePending.get(src);
-    if (existing) return existing;
-    const promise = (async () => {
-      try {
-        let result;
-        if (src.toLowerCase().endsWith(".svg")) {
-          const res = await fetch(url);
-          if (!res.ok) {
-            console.error(`Image src not found: ${src} (resolved to ${url})`);
-            return null;
-          }
-          const svgText = await res.text();
-          result = CS.OneJS.SVGUtils.LoadFromString(svgText);
-        } else {
-          const tex = await CS.OneJS.Network.LoadTextureFromUrl(url);
-          if (!tex) {
-            console.error(`Image src not found: ${src} (resolved to ${url})`);
-            return null;
-          }
-          tex.filterMode = CS.UnityEngine.FilterMode.Bilinear;
-          result = tex;
-        }
-        _imageCache.set(src, result);
-        return result;
-      } catch (e) {
-        console.error(`Image src failed to load: ${src} (resolved to ${url}): ${e}`);
-        return null;
-      }
-    })();
-    _imagePending.set(src, promise);
-    promise.then(() => {
-      if (_imagePending.get(src) === promise) _imagePending.delete(src);
-    });
-    return promise;
-  }
-  var View = (0, import_react.forwardRef)((props, ref) => {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-view", { ref, ...props });
-  });
-  View.displayName = "View";
-  var Text = (0, import_react.forwardRef)((props, ref) => {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-text", { ref, ...props });
-  });
-  Text.displayName = "Text";
-  var Label = (0, import_react.forwardRef)((props, ref) => {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-label", { ref, ...props });
-  });
-  Label.displayName = "Label";
-  var Button = (0, import_react.forwardRef)((props, ref) => {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-button", { ref, ...props });
-  });
-  Button.displayName = "Button";
-  var TextField = (0, import_react.forwardRef)((props, ref) => {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-textfield", { ref, ...props });
-  });
-  TextField.displayName = "TextField";
-  var Toggle = (0, import_react.forwardRef)((props, ref) => {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-toggle", { ref, ...props });
-  });
-  Toggle.displayName = "Toggle";
-  var Slider = (0, import_react.forwardRef)((props, ref) => {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-slider", { ref, ...props });
-  });
-  Slider.displayName = "Slider";
-  var ScrollView = (0, import_react.forwardRef)((props, ref) => {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-scrollview", { ref, ...props });
-  });
-  ScrollView.displayName = "ScrollView";
-  var Image = (0, import_react.forwardRef)(({ src, image, ...rest }, ref) => {
-    const [loaded, setLoaded] = (0, import_react.useState)(null);
-    const resolved = (0, import_react.useMemo)(() => {
-      if (src) return _loadImageAsset(src);
-      return image;
-    }, [src, image]);
-    (0, import_react.useEffect)(() => {
-      if (!src || resolved) return;
-      const fullPath = _resolveAssetPath(src);
-      if (!_isUrlPath(fullPath)) return;
-      let cancelled = false;
-      _loadImageAssetAsync(src, fullPath).then((result) => {
-        if (!cancelled && result) setLoaded({ src, image: result });
-      });
-      return () => {
-        cancelled = true;
-      };
-    }, [src, resolved]);
-    const asyncImage = loaded && loaded.src === src ? loaded.image : null;
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-image", { ref, image: resolved ?? asyncImage, ...rest });
-  });
-  Image.displayName = "Image";
-  var ListView = (0, import_react.forwardRef)((props, ref) => {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-listview", { ref, ...props });
-  });
-  ListView.displayName = "ListView";
-  var FrostedGlass = (0, import_react.forwardRef)(({ blur, tint, ...rest }, ref) => {
-    const parsedTint = (0, import_react.useMemo)(() => {
-      if (!tint) return new CS.UnityEngine.Color(1, 1, 1, 0.15);
-      const m = tint.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+))?\s*\)/);
-      if (m) return new CS.UnityEngine.Color(+m[1] / 255, +m[2] / 255, +m[3] / 255, m[4] != null ? +m[4] : 1);
-      return new CS.UnityEngine.Color(1, 1, 1, 0.15);
-    }, [tint]);
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-frostedglass", { ref, blurRadius: blur ?? 10, tintColor: parsedTint, ...rest });
-  });
-  FrostedGlass.displayName = "FrostedGlass";
-  function createComponent(name, displayName) {
-    const type = name.startsWith("ojs-") ? name : `ojs-${name}`;
-    const Component2 = (0, import_react.forwardRef)((props, ref) => {
-      return (0, import_react.createElement)(type, { ...props, ref });
-    });
-    Component2.displayName = displayName || name;
-    return Component2;
-  }
-  var ShaderEffect = (0, import_react.forwardRef)((props, ref) => {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-shaderfx", { ...props, ref });
-  });
-  ShaderEffect.displayName = "ShaderEffect";
-  var FIRE_RAMP = ["#00000000", "#4a060088", "#c22200dd", "#ff6a10ff", "#ffc23cff", "#fff4d2ff"];
-  var TextureFX = (0, import_react.forwardRef)(({ build, ...rest }, ref) => {
-    const compiled = (0, import_react.useMemo)(() => buildTextureFX(build), [build]);
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      ShaderEffect,
-      {
-        ...rest,
-        ref,
-        shader: "OneJS/TextureFX",
-        floats: compiled.floats,
-        vectorArrays: compiled.vectorArrays,
-        ramp: compiled.ramp
-      }
-    );
-  });
-  TextureFX.displayName = "TextureFX";
-  var Flame = (0, import_react.forwardRef)(
-    ({ colors, speed, threshold, softness, width, taper, topFalloff, gain, ...rest }, ref) => {
-      const build = (0, import_react.useMemo)(() => (fx) => {
-        const g = gain ?? 7.5;
-        fx.noise({ scale: [3, 4], seed: 1, scroll: [0.02, -1.1], amount: Math.sqrt(g) });
-        fx.noise({ scale: [6, 8], seed: 2, scroll: [-0.03, -1.9], amount: Math.sqrt(g) }).multiply();
-        fx.shape("flame", {
-          width: width ?? 0.44,
-          taper: taper ?? 0.7,
-          softness: 0.05,
-          falloff: topFalloff ?? 0.55
-        }).multiply();
-        fx.erode(threshold ?? 0.3, softness ?? 1);
-        fx.ramp(colors ?? FIRE_RAMP);
-        fx.setSpeed(speed ?? 1);
-      }, [colors, speed, threshold, softness, width, taper, topFalloff, gain]);
-      return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TextureFX, { ...rest, ref, build });
-    }
-  );
-  Flame.displayName = "Flame";
+  // node_modules/onejs-react/src/rows.tsx
+  var import_react2 = __toESM(require_react());
 
-  // ../../../../../../JSModules/onejs-react/src/style-parser.ts
-  var NAMED_COLORS = {
-    transparent: [0, 0, 0, 0],
-    black: [0, 0, 0, 1],
-    white: [1, 1, 1, 1],
-    red: [1, 0, 0, 1],
-    green: [0, 0.502, 0, 1],
-    // CSS green is #008000
-    blue: [0, 0, 1, 1],
-    yellow: [1, 1, 0, 1],
-    cyan: [0, 1, 1, 1],
-    magenta: [1, 0, 1, 1],
-    orange: [1, 0.647, 0, 1],
-    purple: [0.502, 0, 0.502, 1],
-    pink: [1, 0.753, 0.796, 1],
-    brown: [0.647, 0.165, 0.165, 1],
-    gray: [0.502, 0.502, 0.502, 1],
-    grey: [0.502, 0.502, 0.502, 1],
-    silver: [0.753, 0.753, 0.753, 1],
-    gold: [1, 0.843, 0, 1],
-    navy: [0, 0, 0.502, 1],
-    teal: [0, 0.502, 0.502, 1],
-    olive: [0.502, 0.502, 0, 1],
-    maroon: [0.502, 0, 0, 1],
-    aqua: [0, 1, 1, 1],
-    lime: [0, 1, 0, 1],
-    fuchsia: [1, 0, 1, 1]
-  };
+  // node_modules/onejs-react/src/renderer.ts
+  var import_react_reconciler = __toESM(require_react_reconciler());
+  var import_react = __toESM(require_react());
+
+  // node_modules/onejs-react/src/style-parser.ts
+  var lengthUnits = null;
+  var styleKeywords = null;
+  function units() {
+    if (lengthUnits === null) {
+      const LengthUnit = CS.UnityEngine.UIElements.LengthUnit;
+      lengthUnits = { pixel: Number(LengthUnit.Pixel), percent: Number(LengthUnit.Percent) };
+    }
+    return lengthUnits;
+  }
+  function keywords() {
+    if (styleKeywords === null) {
+      const StyleKeyword = CS.UnityEngine.UIElements.StyleKeyword;
+      styleKeywords = { auto: Number(StyleKeyword.Auto), none: Number(StyleKeyword.None), initial: Number(StyleKeyword.Initial) };
+    }
+    return styleKeywords;
+  }
   var LENGTH_PROPERTIES = /* @__PURE__ */ new Set([
     "width",
     "height",
@@ -13681,7 +13851,6 @@ var __exports = (() => {
   ]);
   var ENUM_MAPPINGS = {
     flexDirection: {
-      enum: () => CS.UnityEngine.UIElements.FlexDirection,
       values: {
         "row": "Row",
         "row-reverse": "RowReverse",
@@ -13690,7 +13859,6 @@ var __exports = (() => {
       }
     },
     flexWrap: {
-      enum: () => CS.UnityEngine.UIElements.Wrap,
       values: {
         "nowrap": "NoWrap",
         "wrap": "Wrap",
@@ -13698,7 +13866,6 @@ var __exports = (() => {
       }
     },
     alignItems: {
-      enum: () => CS.UnityEngine.UIElements.Align,
       values: {
         "auto": "Auto",
         "flex-start": "FlexStart",
@@ -13708,7 +13875,6 @@ var __exports = (() => {
       }
     },
     alignSelf: {
-      enum: () => CS.UnityEngine.UIElements.Align,
       values: {
         "auto": "Auto",
         "flex-start": "FlexStart",
@@ -13718,7 +13884,6 @@ var __exports = (() => {
       }
     },
     alignContent: {
-      enum: () => CS.UnityEngine.UIElements.Align,
       values: {
         "auto": "Auto",
         "flex-start": "FlexStart",
@@ -13728,52 +13893,46 @@ var __exports = (() => {
       }
     },
     justifyContent: {
-      enum: () => CS.UnityEngine.UIElements.Justify,
       values: {
         "flex-start": "FlexStart",
         "flex-end": "FlexEnd",
         "center": "Center",
         "space-between": "SpaceBetween",
-        "space-around": "SpaceAround"
+        "space-around": "SpaceAround",
+        "space-evenly": "SpaceEvenly"
       }
     },
     position: {
-      enum: () => CS.UnityEngine.UIElements.Position,
       values: {
         "relative": "Relative",
         "absolute": "Absolute"
       }
     },
     overflow: {
-      enum: () => CS.UnityEngine.UIElements.Overflow,
       values: {
         "visible": "Visible",
         "hidden": "Hidden"
       }
     },
     display: {
-      enum: () => CS.UnityEngine.UIElements.DisplayStyle,
       values: {
         "flex": "Flex",
         "none": "None"
       }
     },
     visibility: {
-      enum: () => CS.UnityEngine.UIElements.Visibility,
       values: {
         "visible": "Visible",
         "hidden": "Hidden"
       }
     },
     whiteSpace: {
-      enum: () => CS.UnityEngine.UIElements.WhiteSpace,
       values: {
         "normal": "Normal",
         "nowrap": "NoWrap"
       }
     },
     unityFontStyleAndWeight: {
-      enum: () => CS.UnityEngine.FontStyle,
       values: {
         "normal": "Normal",
         "bold": "Bold",
@@ -13782,14 +13941,12 @@ var __exports = (() => {
       }
     },
     textOverflow: {
-      enum: () => CS.UnityEngine.UIElements.TextOverflow,
       values: {
         "clip": "Clip",
         "ellipsis": "Ellipsis"
       }
     },
     unityTextOverflowPosition: {
-      enum: () => CS.UnityEngine.UIElements.TextOverflowPosition,
       values: {
         "end": "End",
         "start": "Start",
@@ -13797,7 +13954,6 @@ var __exports = (() => {
       }
     },
     unityOverflowClipBox: {
-      enum: () => CS.UnityEngine.UIElements.OverflowClipBox,
       values: {
         "padding-box": "PaddingBox",
         "content-box": "ContentBox"
@@ -13805,80 +13961,42 @@ var __exports = (() => {
     }
   };
   function parseEnumValue(key, value) {
-    const mapping = ENUM_MAPPINGS[key];
-    if (!mapping) return null;
-    const unityEnumName = mapping.values[value];
-    if (!unityEnumName) return null;
-    const enumType = mapping.enum();
-    return enumType[unityEnumName] ?? null;
+    return ENUM_MAPPINGS[key]?.values[value] ?? null;
   }
   function parseLength(value) {
     if (typeof value === "number") {
-      return new CS.UnityEngine.UIElements.Length(value, CS.UnityEngine.UIElements.LengthUnit.Pixel);
+      return { value, unit: units().pixel };
     }
     if (typeof value !== "string") return null;
     const trimmed = value.trim().toLowerCase();
-    if (trimmed === "auto") {
-      return CS.UnityEngine.UIElements.StyleKeyword.Auto;
-    }
-    if (trimmed === "none") {
-      return CS.UnityEngine.UIElements.StyleKeyword.None;
-    }
-    if (trimmed === "initial") {
-      return CS.UnityEngine.UIElements.StyleKeyword.Initial;
-    }
+    if (trimmed === "auto") return { keyword: keywords().auto };
+    if (trimmed === "none") return { keyword: keywords().none };
+    if (trimmed === "initial") return { keyword: keywords().initial };
     const match = trimmed.match(/^(-?[\d.]+)(px|%)?$/);
     if (match) {
       const num = parseFloat(match[1]);
       if (isNaN(num)) return null;
-      const unitStr = match[2];
-      const unit = unitStr === "%" ? CS.UnityEngine.UIElements.LengthUnit.Percent : CS.UnityEngine.UIElements.LengthUnit.Pixel;
-      return new CS.UnityEngine.UIElements.Length(num, unit);
+      return { value: num, unit: match[2] === "%" ? units().percent : units().pixel };
     }
     return null;
   }
-  function clamp01(n) {
+  function clamp012(n) {
     return n < 0 ? 0 : n > 1 ? 1 : n;
   }
   function createColor(r, g, b, a) {
-    return new CS.UnityEngine.Color(clamp01(r), clamp01(g), clamp01(b), clamp01(a));
+    return new CS.UnityEngine.Color(clamp012(r), clamp012(g), clamp012(b), clamp012(a));
   }
-  function parseHexColor(hex) {
-    const len = hex.length;
-    const isShort = len === 3 || len === 4;
-    const isLong = len === 6 || len === 8;
-    if (!isShort && !isLong) return null;
-    const step = isShort ? 1 : 2;
-    const parse = (i) => {
-      const slice = hex.slice(i * step, i * step + step);
-      const expanded = isShort ? slice + slice : slice;
-      return parseInt(expanded, 16) / 255;
-    };
-    const r = parse(0), g = parse(1), b = parse(2);
-    const a = len === 4 || len === 8 ? parse(3) : 1;
-    return createColor(r, g, b, a);
+  function parsePlainColor(value) {
+    const rgba = tryRGBA(value);
+    if (rgba === null) return null;
+    const [r, g, b, a] = rgba;
+    return { r: clamp012(r), g: clamp012(g), b: clamp012(b), a: clamp012(a) };
   }
   function parseColor(value) {
-    if (typeof value !== "string") return null;
-    const trimmed = value.trim().toLowerCase();
-    if (NAMED_COLORS[trimmed]) {
-      const [r, g, b, a] = NAMED_COLORS[trimmed];
-      return new CS.UnityEngine.Color(r, g, b, a);
-    }
-    if (trimmed.startsWith("#")) {
-      return parseHexColor(trimmed.slice(1));
-    }
-    const rgbMatch = trimmed.match(/^rgba?\s*\(\s*([\d.]+)(%?)\s*,\s*([\d.]+)(%?)\s*,\s*([\d.]+)(%?)\s*(?:,\s*([\d.]+))?\s*\)$/);
-    if (rgbMatch) {
-      const isPercent = rgbMatch[2] === "%";
-      const divisor = isPercent ? 100 : 255;
-      const r = parseFloat(rgbMatch[1]) / divisor;
-      const g = parseFloat(rgbMatch[3]) / divisor;
-      const b = parseFloat(rgbMatch[5]) / divisor;
-      const a = rgbMatch[7] !== void 0 ? parseFloat(rgbMatch[7]) : 1;
-      return createColor(r, g, b, a);
-    }
-    return null;
+    const rgba = tryRGBA(value);
+    if (rgba === null) return null;
+    const [r, g, b, a] = rgba;
+    return createColor(r, g, b, a);
   }
   function parseLengthForTransform(value) {
     if (typeof value === "number") {
@@ -14002,20 +14120,13 @@ var __exports = (() => {
       return new SMD(value);
     }
     if (value === void 0 || value === null) return value;
-    if (LENGTH_PROPERTIES.has(key)) {
-      if (typeof value === "number") {
-        return new CS.UnityEngine.UIElements.Length(value, CS.UnityEngine.UIElements.LengthUnit.Pixel);
-      }
-      if (typeof value === "string") {
-        const parsed = parseLength(value);
-        if (parsed !== null) return parsed;
-      }
+    if (LENGTH_PROPERTIES.has(key) && (typeof value === "number" || typeof value === "string")) {
+      const parsed = parseLength(value);
+      if (parsed !== null) return parsed;
     }
     if (COLOR_PROPERTIES.has(key)) {
-      if (typeof value === "string") {
-        const parsed = parseColor(value);
-        if (parsed !== null) return parsed;
-      }
+      const parsed = parsePlainColor(value);
+      if (parsed !== null) return parsed;
     }
     if (NUMBER_PROPERTIES.has(key)) {
       return value;
@@ -14031,10 +14142,320 @@ var __exports = (() => {
     return value;
   }
 
-  // ../../../../../../JSModules/onejs-react/src/host-config.ts
+  // node_modules/onejs-react/src/shader-props.ts
+  var Pass = class {
+    /**
+     * The C# ShaderPass that draws it, or null on a OneJS without passes.
+     * @internal
+     */
+    target;
+    /** @internal */
+    constructor(target) {
+      this.target = target;
+    }
+  };
+  function acceptsPasses(el) {
+    try {
+      return el.AcceptsPasses === true;
+    } catch {
+      return false;
+    }
+  }
+  var reportedNoPasses = false;
+  function reportNoPasses() {
+    if (reportedNoPasses) return;
+    reportedNoPasses = true;
+    console.error(`[onejs-react] usePass needs OneJS 3.9.11 or newer; a program reading a pass reads nothing from it here. Update OneJS.`);
+  }
+  var warnedPassOnShader = false;
+  function warnPassOnShader() {
+    if (warnedPassOnShader) return;
+    warnedPassOnShader = true;
+    console.warn(`[onejs-react] ShaderEffect: a pass is read by a ShaderProgram's texture2D; a shader by name cannot read one.`);
+  }
+  var warnedUniforms = /* @__PURE__ */ new Set();
+  function warnUnknownUniform(hash, name, declared) {
+    const key = `${hash ?? ""}:${name}`;
+    if (warnedUniforms.has(key)) return;
+    warnedUniforms.add(key);
+    const known = declared && declared.length > 0 ? declared.map((n) => `"${n}"`).join(", ") : "none";
+    console.warn(`[onejs-react] ShaderProgram: no uniform named "${name}" in this program (declared: ${known}). Check the name passed to sl.uniform.`);
+  }
+  var warnedTextures = /* @__PURE__ */ new Set();
+  function warnUnknownTexture(hash, name, declared) {
+    const key = `${hash ?? ""}:${name}`;
+    if (warnedTextures.has(key)) return;
+    warnedTextures.add(key);
+    const known = declared && declared.length > 0 ? declared.map((n) => `"${n}"`).join(", ") : "none";
+    console.warn(`[onejs-react] ShaderProgram: no texture named "${name}" in this program (declared: ${known}). Check the name in the texture2D declaration.`);
+  }
+  function acceptsCompiledPrograms(el) {
+    try {
+      return el.AcceptsCompiledPrograms === true;
+    } catch {
+      return false;
+    }
+  }
+  var reportedOldOneJS = /* @__PURE__ */ new Set();
+  function reportOldOneJS(hash) {
+    if (reportedOldOneJS.has(hash)) return;
+    reportedOldOneJS.add(hash);
+    console.error(`[onejs-react] shader program ${hash} needs OneJS 3.7 or newer. Update OneJS, or keep onejs-react below 0.2 and onejs-unity below 0.6.`);
+  }
+  function acceptsSteppedPrograms(el) {
+    try {
+      return el.AcceptsSteppedPrograms === true;
+    } catch {
+      return false;
+    }
+  }
+  var STEPPED_ONEJS = "3.9.1";
+  function canPixelate(el) {
+    try {
+      return typeof el.Pixelated === "boolean";
+    } catch {
+      return false;
+    }
+  }
+  var PIXELATED_ONEJS = "3.9.11";
+  var reportedNoPixelated = false;
+  function reportNoPixelated() {
+    if (reportedNoPixelated) return;
+    reportedNoPixelated = true;
+    console.error(`[onejs-react] pixelated needs OneJS ${PIXELATED_ONEJS} or newer; this one smooths the picture. Update OneJS.`);
+  }
+  function readsBetweenFrames(p) {
+    const r = p.reads;
+    return r != null && (r.previous === true || r.frame === true || r.deltaTime === true);
+  }
+  var reportedUnstepped = /* @__PURE__ */ new Set();
+  function reportUnstepped(hash) {
+    if (reportedUnstepped.has(hash)) return;
+    reportedUnstepped.add(hash);
+    console.error(`[onejs-react] shader program ${hash} reads the previous frame, frame or deltaTime, which needs OneJS ${STEPPED_ONEJS} or newer. Update OneJS.`);
+  }
+  var shaderValueEq = (a, b) => {
+    if (a === b) return true;
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((v, i) => v === b[i]);
+  };
+  var shaderShallowEq = (a, b) => {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    const ka = Object.keys(a), kb = Object.keys(b);
+    if (ka.length !== kb.length) return false;
+    return ka.every((k) => shaderValueEq(a[k], b[k]));
+  };
+  function applyShaderFxProps(el, props, oldProps) {
+    if (props.shader !== void 0 && props.shader !== oldProps?.shader) el.SetShader(props.shader);
+    const newProgram = props.program !== void 0 && props.program?.hash !== oldProps?.program?.hash;
+    if (newProgram) {
+      const p = props.program;
+      let wantsSource;
+      const stepped = acceptsSteppedPrograms(el);
+      let bound = acceptsCompiledPrograms(el);
+      if (!bound) reportOldOneJS(p.hash);
+      else if (!stepped && readsBetweenFrames(p)) {
+        reportUnstepped(p.hash);
+        bound = false;
+      } else {
+        wantsSource = el.SetProgram(new Float32Array(0), 0, 0, p.hash, p.uniforms ?? []);
+      }
+      if (bound) {
+        const defaults = p.defaults;
+        if (defaults) {
+          for (let slot = 0; slot * 4 < defaults.length; slot++) {
+            const at = slot * 4;
+            el.SetUniform(
+              slot,
+              defaults[at] ?? 0,
+              defaults[at + 1] ?? 0,
+              defaults[at + 2] ?? 0,
+              defaults[at + 3] ?? 0
+            );
+          }
+        }
+        if (wantsSource === true) {
+          const hlsl = p.hlsl;
+          if (typeof hlsl === "string") el.RecordProgram(p.hash, hlsl);
+        }
+        if ("wgsl" in p || "glsl" in p) {
+          if (el.WantsWebSource === true) el.SetProgramWeb(p.wgsl ?? "", p.glsl ?? "");
+        }
+      }
+    }
+    if (props.resolution !== void 0 || oldProps?.resolution !== void 0) {
+      const r = props.resolution;
+      const o = oldProps?.resolution;
+      if (!r || !o || r[0] !== o[0] || r[1] !== o[1]) {
+        el.SetResolution(r ? r[0] : 0, r ? r[1] : 0);
+      }
+    }
+    if (props.floats && !shaderShallowEq(props.floats, oldProps?.floats)) {
+      for (const k in props.floats) el.SetFloat(k, props.floats[k]);
+    }
+    if (props.uniforms && (newProgram || !shaderShallowEq(props.uniforms, oldProps?.uniforms))) {
+      const names = props.program?.uniforms;
+      for (const k in props.uniforms) {
+        const slot = names ? names.indexOf(k) : -1;
+        if (slot < 0) {
+          warnUnknownUniform(props.program?.hash, k, names);
+          continue;
+        }
+        const v = props.uniforms[k];
+        if (typeof v === "number") el.SetUniform(slot, v, 0, 0, 0);
+        else el.SetUniform(slot, v[0] ?? 0, v[1] ?? 0, v[2] ?? 0, v[3] ?? 0);
+      }
+    }
+    if (props.vectors && !shaderShallowEq(props.vectors, oldProps?.vectors)) {
+      for (const k in props.vectors) {
+        const v = props.vectors[k];
+        el.SetVector(k, v[0] ?? 0, v[1] ?? 0, v[2] ?? 0, v[3] ?? 0);
+      }
+    }
+    if (props.vectorArrays) {
+      for (const k in props.vectorArrays) {
+        const a = props.vectorArrays[k];
+        const o = oldProps?.vectorArrays?.[k];
+        if (!o || o.length !== a.length || a.some((v, i) => v !== o[i])) {
+          el.SetVectorArray(k, Float32Array.from(a));
+        }
+      }
+    }
+    if (props.colors && !shaderShallowEq(props.colors, oldProps?.colors)) {
+      for (const k in props.colors) {
+        const [r, g, b, a] = toRGBA(props.colors[k], `ShaderEffect colors.${k}`);
+        el.SetColor(k, r, g, b, a);
+      }
+    }
+    if (props.textures && (newProgram || !shaderShallowEq(props.textures, oldProps?.textures))) {
+      const slots = props.program?.textures;
+      for (const k in props.textures) {
+        const t = props.textures[k];
+        if (slots) {
+          const slot = slots.indexOf(k);
+          if (slot < 0) {
+            warnUnknownTexture(props.program?.hash, k, slots);
+            continue;
+          }
+          if (t instanceof Pass) {
+            if (t.target && acceptsPasses(el)) el.SetProgramPass(slot, t.target);
+            else reportNoPasses();
+          } else if (typeof t === "string") el.SetProgramBuiltinTexture(slot, t);
+          else if (t) el.SetProgramTexture(slot, t);
+          continue;
+        }
+        if (t instanceof Pass) warnPassOnShader();
+        else if (typeof t === "string") el.SetBuiltinTexture(k, t);
+        else if (t) el.SetTexture(k, t);
+      }
+    }
+    if (props.ramp !== void 0) {
+      const same = oldProps?.ramp && oldProps.ramp.length === props.ramp.length && props.ramp.every((c, i) => shaderValueEq(c, oldProps.ramp[i]));
+      if (!same) {
+        const flat = [];
+        for (const c of props.ramp) flat.push(...toRGBA(c, "TextureFX ramp"));
+        el.SetRamp(props.rampProperty ?? "_Ramp", flat);
+      }
+    }
+    if (props.paused !== void 0 && props.paused !== oldProps?.paused) {
+      if (props.paused) el.Pause();
+      else el.Resume();
+    }
+    const pixelated = props.pixelated === true;
+    if (pixelated !== (oldProps?.pixelated === true)) {
+      if (canPixelate(el)) el.Pixelated = pixelated;
+      else if (pixelated) reportNoPixelated();
+    }
+  }
+
+  // node_modules/onejs-react/src/treeview.ts
+  function flattenTree(items) {
+    const ids = [];
+    const parentIds = [];
+    const dataById = /* @__PURE__ */ new Map();
+    const used = /* @__PURE__ */ new Set();
+    const collectExplicit = (nodes) => {
+      for (const node of nodes) {
+        if (node.id !== void 0) {
+          if (used.has(node.id)) {
+            throw new Error(`[TreeView] Duplicate item id ${node.id}`);
+          }
+          used.add(node.id);
+        }
+        if (node.children) collectExplicit(node.children);
+      }
+    };
+    collectExplicit(items);
+    let next = 0;
+    const autoId = () => {
+      while (used.has(next)) next++;
+      used.add(next);
+      return next;
+    };
+    const walk = (nodes, parentId) => {
+      for (const node of nodes) {
+        const id = node.id !== void 0 ? node.id : autoId();
+        ids.push(id);
+        parentIds.push(parentId);
+        dataById.set(id, node.data);
+        if (node.children && node.children.length > 0) {
+          walk(node.children, id);
+        }
+      }
+    };
+    walk(items, -1);
+    return { ids, parentIds, dataById };
+  }
+
+  // node_modules/onejs-react/src/class-names.ts
+  var CLASS_ESCAPE_MAP = [
+    [":", "_c_"],
+    // Pseudo-classes and breakpoints (hover:, sm:)
+    ["/", "_s_"],
+    // Fractions (w-1/2)
+    [".", "_d_"],
+    // Decimals (p-2.5)
+    ["[", "_lb_"],
+    // Arbitrary values ([100px])
+    ["]", "_rb_"],
+    ["(", "_lp_"],
+    // Functions (calc())
+    [")", "_rp_"],
+    ["#", "_n_"],
+    // Hex colors
+    ["%", "_p_"],
+    // Percentages
+    [",", "_cm_"],
+    // Multiple values
+    ["&", "_amp_"],
+    [">", "_gt_"],
+    ["<", "_lt_"],
+    ["*", "_ast_"],
+    ["'", "_sq_"]
+  ];
+  var _escapeCache = /* @__PURE__ */ new Map();
+  function escapeClassName(name) {
+    const cached = _escapeCache.get(name);
+    if (cached !== void 0) return cached;
+    let escaped = /^[0-9]/.test(name) ? "_" + name : name;
+    for (const [char, replacement] of CLASS_ESCAPE_MAP) {
+      if (escaped.includes(char)) {
+        escaped = escaped.split(char).join(replacement);
+      }
+    }
+    _escapeCache.set(name, escaped);
+    return escaped;
+  }
+
+  // node_modules/onejs-react/src/host-config.ts
   var DefaultEventPriority = 32;
   var currentUpdatePriority = DefaultEventPriority;
   var TEXT_MERGE_TYPES = /* @__PURE__ */ new Set(["ojs-label", "ojs-text", "ojs-button"]);
+  function pairedWheelStep() {
+    const notch = globalThis.__ojWheelNotch;
+    return typeof notch === "number" && notch > 0 ? notch * 0.18 : null;
+  }
   var TYPE_MAP = {
     "ojs-view": () => new CS.UnityEngine.UIElements.VisualElement(),
     "ojs-text": () => new CS.UnityEngine.UIElements.TextElement(),
@@ -14043,9 +14464,15 @@ var __exports = (() => {
     "ojs-textfield": () => new CS.UnityEngine.UIElements.TextField(),
     "ojs-toggle": () => new CS.UnityEngine.UIElements.Toggle(),
     "ojs-slider": () => new CS.UnityEngine.UIElements.Slider(),
-    "ojs-scrollview": () => new CS.UnityEngine.UIElements.ScrollView(),
+    "ojs-scrollview": () => {
+      const view = new CS.UnityEngine.UIElements.ScrollView();
+      const step = pairedWheelStep();
+      if (step !== null) view.mouseWheelScrollSize = step;
+      return view;
+    },
     "ojs-image": () => new CS.UnityEngine.UIElements.Image(),
     "ojs-listview": () => new CS.UnityEngine.UIElements.ListView(),
+    "ojs-treeview": () => new CS.UnityEngine.UIElements.TreeView(),
     "ojs-frostedglass": () => new CS.OneJS.GPU.FrostedGlassElement(),
     "ojs-shaderfx": () => new CS.OneJS.ShaderFX.ShaderEffectElement()
   };
@@ -14078,7 +14505,6 @@ var __exports = (() => {
     onMouseOver: "mouseover",
     onMouseOut: "mouseout",
     onWheel: "wheel",
-    onContextClick: "contextclick",
     // Focus events
     onFocus: "focus",
     onBlur: "blur",
@@ -14090,20 +14516,12 @@ var __exports = (() => {
     // Input events
     onChange: "change",
     onInput: "input",
-    // Drag events
-    onDragEnter: "dragenter",
-    onDragLeave: "dragleave",
-    onDragUpdated: "dragupdated",
-    onDragPerform: "dragperform",
-    onDragExited: "dragexited",
     // Geometry events
     onGeometryChanged: "geometrychanged",
     // Navigation events
     onNavigationMove: "navigationmove",
     onNavigationSubmit: "navigationsubmit",
     onNavigationCancel: "navigationcancel",
-    // Tooltip
-    onTooltip: "tooltip",
     // Transition events
     onTransitionRun: "transitionrun",
     onTransitionStart: "transitionstart",
@@ -14117,44 +14535,6 @@ var __exports = (() => {
     borderColor: ["borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor"],
     borderRadius: ["borderTopLeftRadius", "borderTopRightRadius", "borderBottomRightRadius", "borderBottomLeftRadius"]
   };
-  var CLASS_ESCAPE_MAP = [
-    [":", "_c_"],
-    // Pseudo-classes and breakpoints (hover:, sm:)
-    ["/", "_s_"],
-    // Fractions (w-1/2)
-    [".", "_d_"],
-    // Decimals (p-2.5)
-    ["[", "_lb_"],
-    // Arbitrary values ([100px])
-    ["]", "_rb_"],
-    ["(", "_lp_"],
-    // Functions (calc())
-    [")", "_rp_"],
-    ["#", "_n_"],
-    // Hex colors
-    ["%", "_p_"],
-    // Percentages
-    [",", "_cm_"],
-    // Multiple values
-    ["&", "_amp_"],
-    [">", "_gt_"],
-    ["<", "_lt_"],
-    ["*", "_ast_"],
-    ["'", "_sq_"]
-  ];
-  var _escapeCache = /* @__PURE__ */ new Map();
-  function escapeClassName(name) {
-    const cached = _escapeCache.get(name);
-    if (cached !== void 0) return cached;
-    let escaped = name;
-    for (const [char, replacement] of CLASS_ESCAPE_MAP) {
-      if (escaped.includes(char)) {
-        escaped = escaped.split(char).join(replacement);
-      }
-    }
-    _escapeCache.set(name, escaped);
-    return escaped;
-  }
   function shallowEqual(a, b) {
     if (a === b) return true;
     if (!a || !b) return false;
@@ -14167,21 +14547,20 @@ var __exports = (() => {
     }
     return true;
   }
-  function getExpandedStyleKeys(style) {
-    const keys = /* @__PURE__ */ new Set();
-    if (!style) return keys;
+  var EMPTY_STYLE = /* @__PURE__ */ new Map();
+  function flattenStyle(style) {
+    const flat = /* @__PURE__ */ new Map();
+    if (!style) return flat;
     for (const [key, value] of Object.entries(style)) {
       if (value === void 0) continue;
       const expanded = STYLE_SHORTHANDS[key];
       if (expanded) {
-        for (const prop of expanded) {
-          keys.add(prop);
-        }
+        for (const prop of expanded) flat.set(prop, value);
       } else {
-        keys.add(key);
+        flat.set(key, value);
       }
     }
-    return keys;
+    return flat;
   }
   function isRenderTextureHandle(value) {
     if (typeof value !== "object" || value === null) return false;
@@ -14191,57 +14570,67 @@ var __exports = (() => {
     return value.__rtHandle ?? value.__handle ?? -1;
   }
   function applyStyle(element, style) {
-    const appliedKeys = /* @__PURE__ */ new Set();
-    if (!style) return appliedKeys;
-    const batched = {};
-    for (const [key, value] of Object.entries(style)) {
-      if (value === void 0) continue;
-      const expanded = STYLE_SHORTHANDS[key];
-      if (expanded) {
-        const parsed = resolveForBatch(parseStyleValue(expanded[0], value));
-        for (const prop of expanded) {
-          batched[prop] = parsed;
-          appliedKeys.add(prop);
-        }
-      } else if (key === "backgroundImage") {
-        if (value == null) {
-          CS.OneJS.GPU.GPUBridge.ClearElementBackgroundImage(element);
-        } else if (isRenderTextureHandle(value)) {
-          const handle = getRenderTextureHandle(value);
-          if (handle >= 0) {
-            CS.OneJS.GPU.GPUBridge.SetElementBackgroundImage(element, handle);
-          }
-        } else if (typeof value === "object" && "__csHandle" in value) {
-          CS.OneJS.GPU.GPUBridge.SetElementBackgroundFromObject(element, value);
-        }
-        appliedKeys.add(key);
-      } else {
-        batched[key] = resolveForBatch(parseStyleValue(key, value));
-        appliedKeys.add(key);
+    const flat = flattenStyle(style);
+    sendStyles(element, flat, flat.keys());
+    return flat;
+  }
+  function updateStyle(element, previous, style) {
+    const next = flattenStyle(style);
+    const changed = [];
+    for (const [key, value] of next) {
+      if (!previous.has(key) || !Object.is(previous.get(key), value)) changed.push(key);
+    }
+    for (const key of previous.keys()) {
+      if (next.has(key)) continue;
+      if (bridgeClearsNull()) changed.push(key);
+      else if (key === "backgroundImage") CS.OneJS.GPU.GPUBridge.ClearElementBackgroundImage(element);
+      else element.style[key] = void 0;
+    }
+    sendStyles(element, next, changed);
+    return next;
+  }
+  var clearsNull;
+  function bridgeClearsNull() {
+    if (clearsNull === void 0) {
+      try {
+        clearsNull = CS.OneJS.StyleBridge.ClearsNull === true;
+      } catch {
+        clearsNull = false;
       }
     }
-    if (Object.keys(batched).length > 0) {
-      CS.OneJS.StyleBridge.ApplyStyles(element, batched);
-    }
-    return appliedKeys;
+    return clearsNull;
   }
+  function sendStyles(element, flat, keys) {
+    let batched = null;
+    for (const key of keys) {
+      const value = flat.get(key);
+      if (key === "backgroundImage") {
+        applyBackgroundImage(element, value);
+        continue;
+      }
+      batched ??= {};
+      batched[key] = value === void 0 ? null : resolveForBatch(parseStyleValue(key, value));
+    }
+    if (batched) CS.OneJS.StyleBridge.ApplyStyles(element, batched);
+  }
+  function applyBackgroundImage(element, value) {
+    if (value == null) {
+      CS.OneJS.GPU.GPUBridge.ClearElementBackgroundImage(element);
+    } else if (isRenderTextureHandle(value)) {
+      const handle = getRenderTextureHandle(value);
+      if (handle >= 0) {
+        CS.OneJS.GPU.GPUBridge.SetElementBackgroundImage(element, handle);
+      }
+    } else if (typeof value === "object" && "__csHandle" in value) {
+      CS.OneJS.GPU.GPUBridge.SetElementBackgroundFromObject(element, value);
+    }
+  }
+  var _portalLayers = /* @__PURE__ */ new WeakMap();
   function resolveForBatch(value) {
     if (value && value.__csPathProxy) {
       return Number(value);
     }
     return value;
-  }
-  function clearRemovedStyles(element, oldKeys, newKeys) {
-    const s = element.style;
-    for (const key of oldKeys) {
-      if (!newKeys.has(key)) {
-        if (key === "backgroundImage") {
-          CS.OneJS.GPU.GPUBridge.ClearElementBackgroundImage(element);
-        } else {
-          s[key] = void 0;
-        }
-      }
-    }
   }
   var _parseCache = /* @__PURE__ */ new Map();
   function parseClassNames(className) {
@@ -14267,16 +14656,28 @@ var __exports = (() => {
   function updateClassNames(element, oldClassName, newClassName) {
     const oldClasses = parseClassNames(oldClassName);
     const newClasses = parseClassNames(newClassName);
-    for (const cls of oldClasses) {
-      if (!newClasses.has(cls)) {
-        element.RemoveFromClassList(cls);
+    const removed = [];
+    const added = [];
+    for (const cls of oldClasses) if (!newClasses.has(cls)) removed.push(cls);
+    for (const cls of newClasses) if (!oldClasses.has(cls)) added.push(cls);
+    if (removed.length === 0 && added.length === 0) return;
+    if (bridgeUpdatesClasses()) {
+      CS.OneJS.StyleBridge.UpdateClasses(element, removed, added);
+      return;
+    }
+    for (const cls of removed) element.RemoveFromClassList(cls);
+    for (const cls of added) element.AddToClassList(cls);
+  }
+  var updatesClasses;
+  function bridgeUpdatesClasses() {
+    if (updatesClasses === void 0) {
+      try {
+        updatesClasses = CS.OneJS.StyleBridge.UpdatesClasses === true;
+      } catch {
+        updatesClasses = false;
       }
     }
-    for (const cls of newClasses) {
-      if (!oldClasses.has(cls)) {
-        element.AddToClassList(cls);
-      }
-    }
+    return updatesClasses;
   }
   function trackParent(child, parent) {
     const childHandle = child.__csHandle;
@@ -14311,8 +14712,14 @@ var __exports = (() => {
     if (ch > 0) CS.OneJS.NodeBridge.RemoveFromHierarchy(ch);
     else childEl.RemoveFromHierarchy();
   }
+  var DIRECT_EVENT_ENTRIES = Object.entries(EVENT_PROPS).filter(([, eventType]) => eventType !== "change");
+  var runSync = (fn) => fn();
+  function setSyncRunner(fn) {
+    runSync = fn;
+  }
   function applyEvents(instance, props) {
-    for (const [propName, eventType] of Object.entries(EVENT_PROPS)) {
+    applyChangeListener(instance, props);
+    for (const [propName, eventType] of DIRECT_EVENT_ENTRIES) {
       const handler = props[propName];
       const existingHandler = instance.eventHandlers.get(eventType);
       if (handler !== existingHandler) {
@@ -14325,6 +14732,47 @@ var __exports = (() => {
           instance.eventHandlers.set(eventType, handler);
         }
       }
+    }
+  }
+  function applyChangeListener(instance, props) {
+    const p = props;
+    const wanted = p.onChange !== void 0 || p.value != null;
+    if (wanted && !instance.changeListener) {
+      const listener = (event) => dispatchChange(instance, event);
+      instance.changeListener = listener;
+      __eventAPI.addEventListener(instance.element, "change", listener);
+    } else if (!wanted && instance.changeListener) {
+      __eventAPI.removeEventListener(instance.element, "change", instance.changeListener);
+      instance.changeListener = void 0;
+    }
+  }
+  function dispatchChange(instance, event) {
+    try {
+      const onChange = instance.props.onChange;
+      if (onChange) runSync(() => onChange(event));
+    } finally {
+      if (event.target === void 0 || event.target === elementHandle(instance.element)) {
+        reassertValue(instance);
+      }
+    }
+  }
+  var VALUE_CONTROL_TYPES = /* @__PURE__ */ new Set(["ojs-textfield", "ojs-toggle", "ojs-slider"]);
+  function reassertValue(instance) {
+    const value = instance.props.value;
+    if (value == null) return;
+    if (instance.element.value === value) return;
+    writeValue(instance.element, instance.type, value);
+  }
+  function writeValue(element, type, value) {
+    const el = element;
+    if (VALUE_CONTROL_TYPES.has(type)) {
+      el.SetValueWithoutNotify(value);
+      return;
+    }
+    try {
+      el.SetValueWithoutNotify(value);
+    } catch {
+      el.value = value;
     }
   }
   function applyVisualContentCallback(instance, props) {
@@ -14341,6 +14789,7 @@ var __exports = (() => {
       } else {
         instance.visualContentCallback = void 0;
       }
+      instance.element.MarkDirtyRepaint();
     }
   }
   function rebuildMergedText(instance) {
@@ -14349,7 +14798,9 @@ var __exports = (() => {
       instance.element.text = "";
       return;
     }
-    instance.element.text = children.map((c) => c.element.text || "").join("");
+    let text = "";
+    for (const c of children) if (!c.hidden) text += c.text ?? "";
+    instance.element.text = text;
   }
   function shouldMergeText(parentInstance, child) {
     if (parentInstance.hasMixedContent) return false;
@@ -14361,7 +14812,10 @@ var __exports = (() => {
     parentInstance.element.text = "";
     for (const child of children) {
       child.mergedInto = void 0;
+      if (child.textElement) child.textElement.text = child.text ?? "";
+      if (child.hidden) child.element.style.display = CS.UnityEngine.UIElements.DisplayStyle.None;
       nodeAdd(parentInstance.element, child.element);
+      trackParent(child.element, parentInstance.element);
     }
     parentInstance.mergedTextChildren = void 0;
     parentInstance.hasMixedContent = true;
@@ -14371,23 +14825,24 @@ var __exports = (() => {
       unmergTextChildren(parentInstance);
     }
   }
+  function mergedTextChildrenWithout(parentInstance, child) {
+    const children = parentInstance.mergedTextChildren ??= [];
+    const index = children.indexOf(child);
+    if (index >= 0) children.splice(index, 1);
+    return children;
+  }
   function appendMergedTextChild(parentInstance, child) {
-    if (!parentInstance.mergedTextChildren) {
-      parentInstance.mergedTextChildren = [];
-    }
-    parentInstance.mergedTextChildren.push(child);
+    mergedTextChildrenWithout(parentInstance, child).push(child);
     child.mergedInto = parentInstance;
     rebuildMergedText(parentInstance);
   }
   function insertMergedTextChild(parentInstance, child, beforeChild) {
-    if (!parentInstance.mergedTextChildren) {
-      parentInstance.mergedTextChildren = [];
-    }
-    const index = parentInstance.mergedTextChildren.indexOf(beforeChild);
+    const children = mergedTextChildrenWithout(parentInstance, child);
+    const index = children.indexOf(beforeChild);
     if (index >= 0) {
-      parentInstance.mergedTextChildren.splice(index, 0, child);
+      children.splice(index, 0, child);
     } else {
-      parentInstance.mergedTextChildren.push(child);
+      children.push(child);
     }
     child.mergedInto = parentInstance;
     rebuildMergedText(parentInstance);
@@ -14413,10 +14868,13 @@ var __exports = (() => {
     const target = childIndex >= 0 && childIndex < beforeIndex ? beforeIndex - 1 : beforeIndex;
     nodeInsert(parentEl, target, childEl);
   }
-  function applyCommonProps(element, props, oldProps) {
+  function applyCommonProps(element, type, props, oldProps) {
     const el = element;
     if (props.text !== void 0 && props.text !== oldProps?.text) el.text = props.text;
-    if (props.value !== void 0 && props.value !== oldProps?.value) el.value = props.value;
+    if (props.value !== void 0 && props.value !== oldProps?.value) {
+      if (VALUE_CONTROL_TYPES.has(type)) writeValue(element, type, props.value);
+      else el.value = props.value;
+    }
     if (props.label !== void 0 && props.label !== oldProps?.label) el.label = props.label;
   }
   function setEnumProp(target, key, props, propKey, enumType, oldProps) {
@@ -14431,6 +14889,9 @@ var __exports = (() => {
   }
   function applyTextFieldProps(element, props, oldProps) {
     const el = element;
+    if (props.placeholder !== void 0 && props.placeholder !== oldProps?.placeholder) {
+      el.textEdition.placeholder = props.placeholder;
+    }
     if (props.readOnly !== void 0 && props.readOnly !== oldProps?.readOnly) el.isReadOnly = props.readOnly;
     if (props.multiline !== void 0 && props.multiline !== oldProps?.multiline) el.multiline = props.multiline;
     if (props.maxLength !== void 0 && props.maxLength !== oldProps?.maxLength) el.maxLength = props.maxLength;
@@ -14442,10 +14903,48 @@ var __exports = (() => {
     if (props.hideMobileInput !== void 0 && props.hideMobileInput !== oldProps?.hideMobileInput) el.hideMobileInput = props.hideMobileInput;
     if (props.autoCorrection !== void 0 && props.autoCorrection !== oldProps?.autoCorrection) el.autoCorrection = props.autoCorrection;
   }
+  function getTextFieldInput(instance) {
+    if (instance.inputElement === void 0) {
+      instance.inputElement = null;
+      const field = instance.element;
+      for (let i = 0, n = field.childCount; i < n; i++) {
+        const child = field.ElementAt(i);
+        if (child.ClassListContains("unity-text-field__input")) {
+          instance.inputElement = child;
+          break;
+        }
+      }
+    }
+    return instance.inputElement;
+  }
+  function applyTextFieldInputProps(instance, props, oldProps) {
+    const inputStyle = props.inputStyle;
+    const oldInputStyle = oldProps?.inputStyle;
+    if (oldProps ? oldInputStyle !== inputStyle && !shallowEqual(oldInputStyle, inputStyle) : inputStyle !== void 0) {
+      const input = getTextFieldInput(instance);
+      if (input) {
+        instance.appliedInputStyle = oldProps ? updateStyle(input, instance.appliedInputStyle ?? EMPTY_STYLE, inputStyle) : applyStyle(input, inputStyle);
+      }
+    }
+    const inputClassName = props.inputClassName;
+    const oldInputClassName = oldProps?.inputClassName;
+    if (oldProps ? oldInputClassName !== inputClassName : inputClassName !== void 0) {
+      const input = getTextFieldInput(instance);
+      if (input) {
+        if (oldProps) {
+          updateClassNames(input, oldInputClassName, inputClassName);
+        } else {
+          applyClassName(input, inputClassName);
+        }
+      }
+    }
+  }
   function applySliderProps(element, props, oldProps) {
     const el = element;
-    if (props.lowValue !== void 0 && props.lowValue !== oldProps?.lowValue) el.lowValue = props.lowValue;
-    if (props.highValue !== void 0 && props.highValue !== oldProps?.highValue) el.highValue = props.highValue;
+    const low = props.min ?? props.lowValue, high = props.max ?? props.highValue;
+    const oldLow = oldProps?.min ?? oldProps?.lowValue, oldHigh = oldProps?.max ?? oldProps?.highValue;
+    if (low !== void 0 && low !== oldLow) el.lowValue = low;
+    if (high !== void 0 && high !== oldHigh) el.highValue = high;
     if (props.showInputField !== void 0 && props.showInputField !== oldProps?.showInputField) el.showInputField = props.showInputField;
     if (props.inverted !== void 0 && props.inverted !== oldProps?.inverted) el.inverted = props.inverted;
     if (props.pageSize !== void 0 && props.pageSize !== oldProps?.pageSize) el.pageSize = props.pageSize;
@@ -14494,8 +14993,8 @@ var __exports = (() => {
     setEnumProp(element, "mode", props, "mode", UIE.ScrollViewMode, oldProps);
     setEnumProp(element, "horizontalScrollerVisibility", props, "horizontalScrollerVisibility", UIE.ScrollerVisibility, oldProps);
     setEnumProp(element, "verticalScrollerVisibility", props, "verticalScrollerVisibility", UIE.ScrollerVisibility, oldProps);
-    setEnumProp(element, "touchScrollBehavior", props, "touchScrollBehavior", UIE.TouchScrollBehavior, oldProps);
-    setEnumProp(element, "nestedInteractionKind", props, "nestedInteractionKind", UIE.NestedInteractionKind, oldProps);
+    setEnumProp(element, "touchScrollBehavior", props, "touchScrollBehavior", UIE["ScrollView+TouchScrollBehavior"], oldProps);
+    setEnumProp(element, "nestedInteractionKind", props, "nestedInteractionKind", UIE["ScrollView+NestedInteractionKind"], oldProps);
     setValueProp(element, "elasticity", props, "elasticity", oldProps);
     setValueProp(element, "elasticAnimationIntervalMs", props, "elasticAnimationIntervalMs", oldProps);
     setValueProp(element, "scrollDecelerationRate", props, "scrollDecelerationRate", oldProps);
@@ -14503,8 +15002,49 @@ var __exports = (() => {
     setValueProp(element, "horizontalPageSize", props, "horizontalPageSize", oldProps);
     setValueProp(element, "verticalPageSize", props, "verticalPageSize", oldProps);
   }
+  var collectionState = /* @__PURE__ */ new WeakMap();
+  function getCollectionState(element) {
+    let state = collectionState.get(element);
+    if (!state) {
+      state = { props: {}, dataById: null };
+      collectionState.set(element, state);
+    }
+    return state;
+  }
+  function asNumberArray(value) {
+    if (Array.isArray(value)) return value;
+    const col = value;
+    const len = col && typeof col.Length === "number" ? col.Length : 0;
+    const out = [];
+    for (let i = 0; i < len; i++) out.push(col[i]);
+    return out;
+  }
+  function hookOnce(element, props, oldProps, propKey, subscribe) {
+    if (props[propKey] !== void 0 && oldProps?.[propKey] === void 0) {
+      subscribe();
+    }
+  }
   function applyListViewProps(element, props, oldProps) {
     const UIE = CS.UnityEngine.UIElements;
+    const state = getCollectionState(element);
+    state.props = props;
+    hookOnce(element, props, oldProps, "onSelectionChange", () => {
+      element.add_selectedIndicesChanged(() => {
+        const cb = getCollectionState(element).props.onSelectionChange;
+        if (!cb) return;
+        cb(asNumberArray(CS.OneJS.TreeViewBridge.GetSelectedIndices(element)));
+      });
+    });
+    hookOnce(element, props, oldProps, "onItemsChosen", () => {
+      element.add_itemsChosen(() => {
+        const s = getCollectionState(element);
+        const cb = s.props.onItemsChosen;
+        if (!cb) return;
+        const indices = asNumberArray(CS.OneJS.TreeViewBridge.GetSelectedIndices(element));
+        const source = s.props.itemsSource;
+        cb(indices.map((i) => source?.[i]));
+      });
+    });
     setValueProp(element, "itemsSource", props, "itemsSource", oldProps);
     setValueProp(element, "makeItem", props, "makeItem", oldProps);
     setValueProp(element, "bindItem", props, "bindItem", oldProps);
@@ -14523,6 +15063,59 @@ var __exports = (() => {
     setValueProp(element, "showBorder", props, "showBorder", oldProps);
     setEnumProp(element, "showAlternatingRowBackgrounds", props, "showAlternatingRowBackgrounds", UIE.AlternatingRowBackground, oldProps);
   }
+  function applyTreeViewProps(element, props, oldProps) {
+    const UIE = CS.UnityEngine.UIElements;
+    const state = getCollectionState(element);
+    state.props = props;
+    hookOnce(element, props, oldProps, "makeItem", () => {
+      element.makeItem = () => {
+        const cb = getCollectionState(element).props.makeItem;
+        return cb ? cb() : new UIE.VisualElement();
+      };
+    });
+    hookOnce(element, props, oldProps, "bindItem", () => {
+      element.bindItem = (item, index) => {
+        const s = getCollectionState(element);
+        const cb = s.props.bindItem;
+        if (!cb) return;
+        cb(item, index, s.dataById?.get(element.GetIdForIndex(index)));
+      };
+    });
+    hookOnce(element, props, oldProps, "unbindItem", () => {
+      element.unbindItem = (item, index) => {
+        const s = getCollectionState(element);
+        const cb = s.props.unbindItem;
+        if (!cb) return;
+        cb(item, index, s.dataById?.get(element.GetIdForIndex(index)));
+      };
+    });
+    hookOnce(element, props, oldProps, "destroyItem", () => {
+      element.destroyItem = (item) => {
+        const cb = getCollectionState(element).props.destroyItem;
+        if (cb) cb(item);
+      };
+    });
+    hookOnce(element, props, oldProps, "onSelectionChange", () => {
+      element.add_selectedIndicesChanged(() => {
+        const s = getCollectionState(element);
+        const cb = s.props.onSelectionChange;
+        if (!cb) return;
+        const ids = asNumberArray(CS.OneJS.TreeViewBridge.GetSelectedIds(element));
+        cb(ids.map((id) => s.dataById?.get(id)), ids);
+      });
+    });
+    setValueProp(element, "fixedItemHeight", props, "fixedItemHeight", oldProps);
+    setEnumProp(element, "virtualizationMethod", props, "virtualizationMethod", UIE.CollectionVirtualizationMethod, oldProps);
+    setValueProp(element, "autoExpand", props, "autoExpand", oldProps);
+    setEnumProp(element, "selectionType", props, "selectionType", UIE.SelectionType, oldProps);
+    setValueProp(element, "showBorder", props, "showBorder", oldProps);
+    setEnumProp(element, "showAlternatingRowBackgrounds", props, "showAlternatingRowBackgrounds", UIE.AlternatingRowBackground, oldProps);
+    if (props.rootItems !== void 0 && props.rootItems !== oldProps?.rootItems) {
+      const flat = flattenTree(props.rootItems);
+      state.dataById = flat.dataById;
+      CS.OneJS.TreeViewBridge.SetRootItems(element, flat.ids, flat.parentIds);
+    }
+  }
   var RESERVED_PROPS = /* @__PURE__ */ new Set([
     "children",
     "key",
@@ -14536,24 +15129,25 @@ var __exports = (() => {
     "onGenerateVisualContent",
     ...Object.keys(EVENT_PROPS)
   ]);
-  function applyCustomProps(element, props, oldProps) {
+  function applyCustomProps(element, type, props, oldProps) {
     for (const [key, value] of Object.entries(props)) {
       if (value === void 0 || RESERVED_PROPS.has(key)) continue;
       if (value === oldProps?.[key]) continue;
-      element[key] = value;
+      if (key === "value") writeValue(element, type, value);
+      else element[key] = value;
     }
   }
   function applyComponentProps(element, type, props, oldProps) {
     if (!BUILT_IN_TYPES.has(type)) {
-      applyCustomProps(element, props, oldProps);
+      applyCustomProps(element, type, props, oldProps);
       return;
     }
     if (type === "ojs-slider") {
       applySliderProps(element, props, oldProps);
-      applyCommonProps(element, props, oldProps);
+      applyCommonProps(element, type, props, oldProps);
       return;
     }
-    applyCommonProps(element, props, oldProps);
+    applyCommonProps(element, type, props, oldProps);
     if (type === "ojs-textfield") {
       applyTextFieldProps(element, props, oldProps);
     } else if (type === "ojs-toggle") {
@@ -14564,6 +15158,8 @@ var __exports = (() => {
       applyScrollViewProps(element, props, oldProps);
     } else if (type === "ojs-listview") {
       applyListViewProps(element, props, oldProps);
+    } else if (type === "ojs-treeview") {
+      applyTreeViewProps(element, props, oldProps);
     } else if (type === "ojs-frostedglass") {
       const el = element;
       if (props.blurRadius !== void 0 && props.blurRadius !== oldProps?.blurRadius) el.BlurRadius = props.blurRadius;
@@ -14578,18 +15174,20 @@ var __exports = (() => {
       throw new Error(`Unknown element type: ${type}`);
     }
     const element = factory();
-    const appliedStyleKeys = applyStyle(element, props.style);
     const instance = {
       element,
       type,
       props,
       eventHandlers: /* @__PURE__ */ new Map(),
-      appliedStyleKeys
+      appliedStyle: applyStyle(element, props.style)
     };
     applyClassName(element, props.className);
     applyEvents(instance, props);
     applyVisualContentCallback(instance, props);
     applyComponentProps(element, type, props);
+    if (type === "ojs-textfield") {
+      applyTextFieldInputProps(instance, props);
+    }
     if (props.name !== void 0) {
       element.name = props.name;
     }
@@ -14606,10 +15204,9 @@ var __exports = (() => {
   }
   function updateInstance(instance, oldProps, newProps) {
     const element = instance.element;
+    instance.props = newProps;
     if (oldProps.style !== newProps.style && !shallowEqual(oldProps.style, newProps.style)) {
-      const newStyleKeys = getExpandedStyleKeys(newProps.style);
-      clearRemovedStyles(element, instance.appliedStyleKeys, newStyleKeys);
-      instance.appliedStyleKeys = applyStyle(element, newProps.style);
+      instance.appliedStyle = updateStyle(element, instance.appliedStyle, newProps.style);
     }
     if (oldProps.className !== newProps.className) {
       updateClassNames(element, oldProps.className, newProps.className);
@@ -14617,6 +15214,9 @@ var __exports = (() => {
     applyEvents(instance, newProps);
     applyVisualContentCallback(instance, newProps);
     applyComponentProps(element, instance.type, newProps, oldProps);
+    if (instance.type === "ojs-textfield") {
+      applyTextFieldInputProps(instance, newProps, oldProps);
+    }
     if (oldProps.name !== newProps.name) {
       element.name = newProps.name ?? "";
     }
@@ -14637,7 +15237,6 @@ var __exports = (() => {
         element.SetEnabled(true);
       }
     }
-    instance.props = newProps;
   }
   var hostConfig = {
     supportsMutation: true,
@@ -14649,15 +15248,22 @@ var __exports = (() => {
       return createInstance(type, props);
     },
     createTextInstance(text) {
-      const element = new CS.UnityEngine.UIElements.TextElement();
-      element.text = text;
-      return {
-        element,
+      const instance = {
+        get element() {
+          if (!instance.textElement) {
+            const element = new CS.UnityEngine.UIElements.TextElement();
+            element.text = instance.text ?? "";
+            instance.textElement = element;
+          }
+          return instance.textElement;
+        },
+        text,
         type: "text",
         props: {},
         eventHandlers: /* @__PURE__ */ new Map(),
-        appliedStyleKeys: /* @__PURE__ */ new Set()
+        appliedStyle: EMPTY_STYLE
       };
+      return instance;
     },
     appendInitialChild(parentInstance, child) {
       if (shouldMergeText(parentInstance, child)) {
@@ -14665,8 +15271,8 @@ var __exports = (() => {
       } else {
         handleNonTextChild(parentInstance);
         nodeAdd(parentInstance.element, child.element);
+        trackParent(child.element, parentInstance.element);
       }
-      trackParent(child.element, parentInstance.element);
     },
     appendChild(parentInstance, child) {
       if (shouldMergeText(parentInstance, child)) {
@@ -14674,11 +15280,12 @@ var __exports = (() => {
       } else {
         handleNonTextChild(parentInstance);
         nodeAdd(parentInstance.element, child.element);
+        trackParent(child.element, parentInstance.element);
       }
-      trackParent(child.element, parentInstance.element);
     },
     appendChildToContainer(container, child) {
       nodeAdd(container, child.element);
+      trackParent(child.element, container);
     },
     insertBefore(parentInstance, child, beforeChild) {
       if (shouldMergeText(parentInstance, child)) {
@@ -14686,11 +15293,12 @@ var __exports = (() => {
       } else {
         handleNonTextChild(parentInstance);
         insertElementBefore(parentInstance.element, child.element, beforeChild.element);
+        trackParent(child.element, parentInstance.element);
       }
-      trackParent(child.element, parentInstance.element);
     },
     insertInContainerBefore(container, child, beforeChild) {
       insertElementBefore(container, child.element, beforeChild.element);
+      trackParent(child.element, container);
     },
     removeChild(parentInstance, child) {
       if (child.mergedInto === parentInstance) {
@@ -14698,8 +15306,8 @@ var __exports = (() => {
       } else {
         __eventAPI.removeAllEventListeners(child.element);
         nodeRemoveFromHierarchy(child.element);
+        untrackParent(child.element);
       }
-      untrackParent(child.element);
     },
     removeChildFromContainer(container, child) {
       __eventAPI.removeAllEventListeners(child.element);
@@ -14715,9 +15323,11 @@ var __exports = (() => {
       updateInstance(instance, oldProps, newProps);
     },
     commitTextUpdate(textInstance, _oldText, newText) {
-      textInstance.element.text = newText;
+      textInstance.text = newText;
       if (textInstance.mergedInto) {
         rebuildMergedText(textInstance.mergedInto);
+      } else {
+        textInstance.element.text = newText;
       }
     },
     finalizeInitialChildren() {
@@ -14743,6 +15353,7 @@ var __exports = (() => {
       return false;
     },
     clearContainer(container) {
+      _portalLayers.delete(container);
       container.Clear();
     },
     scheduleTimeout: setTimeout,
@@ -14804,13 +15415,18 @@ var __exports = (() => {
       instance.element.style.display = CS.UnityEngine.UIElements.DisplayStyle.None;
     },
     hideTextInstance(textInstance) {
-      textInstance.element.style.display = CS.UnityEngine.UIElements.DisplayStyle.None;
+      textInstance.hidden = true;
+      if (textInstance.mergedInto) rebuildMergedText(textInstance.mergedInto);
+      else textInstance.element.style.display = CS.UnityEngine.UIElements.DisplayStyle.None;
     },
-    unhideInstance(instance, _props) {
-      instance.element.style.display = CS.UnityEngine.UIElements.DisplayStyle.Flex;
+    unhideInstance(instance, props) {
+      const own = props.style?.display;
+      instance.element.style.display = own === "none" ? CS.UnityEngine.UIElements.DisplayStyle.None : own === "flex" ? CS.UnityEngine.UIElements.DisplayStyle.Flex : void 0;
     },
     unhideTextInstance(textInstance, _text) {
-      textInstance.element.style.display = CS.UnityEngine.UIElements.DisplayStyle.Flex;
+      textInstance.hidden = false;
+      if (textInstance.mergedInto) rebuildMergedText(textInstance.mergedInto);
+      else textInstance.element.style.display = CS.UnityEngine.UIElements.DisplayStyle.Flex;
     },
     // Text content
     resetTextContent(_instance) {
@@ -14836,91 +15452,150 @@ var __exports = (() => {
       return console[methodName]?.bind(console, ...args);
     }
   };
-  function shaderHexToRgba(c) {
-    let h = c.startsWith("#") ? c.slice(1) : c;
-    if (h.length === 3 || h.length === 4) h = h.split("").map((d) => d + d).join("");
-    if (h.length !== 6 && h.length !== 8) throw new Error(`[onejs shaderfx] invalid color "${c}"`);
-    const n = (i) => parseInt(h.slice(i, i + 2), 16) / 255;
-    return [n(0), n(2), n(4), h.length === 8 ? n(6) : 1];
+
+  // node_modules/onejs-react/src/image-cache.ts
+  useExtensions(CS.UnityEngine.ImageConversion);
+  var _imageCache = /* @__PURE__ */ new Map();
+  var _imagePending = /* @__PURE__ */ new Map();
+  var _generation = 0;
+  var _hostBase = null;
+  var _hostUsedCarts = "";
+  function isUrlPath(path) {
+    return path.includes("://");
   }
-  var shaderShallowEq = (a, b) => {
-    if (a === b) return true;
-    if (!a || !b) return false;
-    const ka = Object.keys(a), kb = Object.keys(b);
-    if (ka.length !== kb.length) return false;
-    return ka.every((k) => a[k] === b[k]);
-  };
-  function applyShaderFxProps(el, props, oldProps) {
-    if (props.shader !== void 0 && props.shader !== oldProps?.shader) el.SetShader(props.shader);
-    if (props.resolution !== void 0 || oldProps?.resolution !== void 0) {
-      const r = props.resolution;
-      const o = oldProps?.resolution;
-      if (!r || !o || r[0] !== o[0] || r[1] !== o[1]) {
-        el.SetResolution(r ? r[0] : 0, r ? r[1] : 0);
-      }
+  function resolveAssetPath(src) {
+    if (isUrlPath(src)) {
+      return src;
     }
-    if (props.floats && !shaderShallowEq(props.floats, oldProps?.floats)) {
-      for (const k in props.floats) el.SetFloat(k, props.floats[k]);
+    const Path = CS.System.IO.Path;
+    if (Path.IsPathRooted(src)) {
+      return src;
     }
-    if (props.vectors && !shaderShallowEq(props.vectors, oldProps?.vectors)) {
-      for (const k in props.vectors) {
-        const v = props.vectors[k];
-        el.SetVector(k, v[0] ?? 0, v[1] ?? 0, v[2] ?? 0, v[3] ?? 0);
-      }
+    if (_hostBase !== null) {
+      const name = src.replace(/^\.\//, "");
+      return _hostUsedCarts !== "" && name.startsWith("@") ? `${_hostBase}/${_hostUsedCarts}/${name}` : `${_hostBase}/${name}`;
     }
-    if (props.vectorArrays) {
-      for (const k in props.vectorArrays) {
-        const a = props.vectorArrays[k];
-        const o = oldProps?.vectorArrays?.[k];
-        if (!o || o.length !== a.length || a.some((v, i) => v !== o[i])) {
-          el.SetVectorArray(k, Float32Array.from(a));
+    if (CS.UnityEngine.Application.isEditor) {
+      const workingDir = typeof globalThis.__workingDir === "string" ? globalThis.__workingDir : Path.Combine(Path.GetDirectoryName(CS.UnityEngine.Application.dataPath), "App");
+      return Path.Combine(workingDir, "assets", src);
+    }
+    const streamingAssets = CS.UnityEngine.Application.streamingAssetsPath;
+    if (isUrlPath(streamingAssets)) {
+      return `${streamingAssets}/onejs/assets/${src}`;
+    }
+    return Path.Combine(streamingAssets, "onejs", "assets", src);
+  }
+  function loadImageAsset(src) {
+    const cached = _imageCache.get(src);
+    if (cached) return cached;
+    const fullPath = resolveAssetPath(src);
+    if (isUrlPath(fullPath)) return null;
+    if (!CS.System.IO.File.Exists(fullPath)) {
+      console.error(`Image src not found: ${src} (resolved to ${fullPath})`);
+      return null;
+    }
+    let result;
+    if (src.toLowerCase().endsWith(".svg")) {
+      const svgText = CS.System.IO.File.ReadAllText(fullPath);
+      result = CS.OneJS.SVGUtils.LoadFromString(svgText);
+    } else {
+      const bytes = CS.System.IO.File.ReadAllBytes(fullPath);
+      const tex = new CS.UnityEngine.Texture2D(2, 2);
+      tex.LoadImage(bytes);
+      tex.filterMode = CS.UnityEngine.FilterMode.Bilinear;
+      tex.wrapMode = CS.UnityEngine.TextureWrapMode.Clamp;
+      result = tex;
+    }
+    _imageCache.set(src, result);
+    return result;
+  }
+  function loadImageAssetAsync(src, url) {
+    const existing = _imagePending.get(src);
+    if (existing) return existing;
+    const generation = _generation;
+    const promise = (async () => {
+      try {
+        let result;
+        if (src.toLowerCase().endsWith(".svg")) {
+          const res = await fetch(url);
+          if (!res.ok) {
+            console.error(`Image src not found: ${src} (resolved to ${url})`);
+            return null;
+          }
+          const svgText = await res.text();
+          result = CS.OneJS.SVGUtils.LoadFromString(svgText);
+        } else {
+          const tex = await CS.OneJS.Network.LoadTextureFromUrl(url);
+          if (!tex) {
+            console.error(`Image src loaded nothing: ${src} (resolved to ${url}). Either the request failed or the format is one Unity does not decode; the preceding [Network] warning says which.`);
+            return null;
+          }
+          tex.filterMode = CS.UnityEngine.FilterMode.Bilinear;
+          tex.wrapMode = CS.UnityEngine.TextureWrapMode.Clamp;
+          result = tex;
         }
+        if (generation !== _generation) {
+          destroyAsset(result);
+          return null;
+        }
+        _imageCache.set(src, result);
+        return result;
+      } catch (e) {
+        console.error(`Image src failed to load: ${src} (resolved to ${url}): ${e}`);
+        return null;
       }
-    }
-    if (props.colors && !shaderShallowEq(props.colors, oldProps?.colors)) {
-      for (const k in props.colors) {
-        const [r, g, b, a] = shaderHexToRgba(props.colors[k]);
-        el.SetColor(k, r, g, b, a);
-      }
-    }
-    if (props.textures && !shaderShallowEq(props.textures, oldProps?.textures)) {
-      for (const k in props.textures) {
-        const t = props.textures[k];
-        if (typeof t === "string") el.SetBuiltinTexture(k, t);
-        else if (t) el.SetTexture(k, t);
-      }
-    }
-    if (props.ramp !== void 0) {
-      const same = oldProps?.ramp && oldProps.ramp.length === props.ramp.length && props.ramp.every((c, i) => c === oldProps.ramp[i]);
-      if (!same) {
-        const flat = [];
-        for (const c of props.ramp) flat.push(...shaderHexToRgba(c));
-        el.SetRamp(props.rampProperty ?? "_Ramp", flat);
-      }
-    }
-    if (props.paused !== void 0 && props.paused !== oldProps?.paused) {
-      if (props.paused) el.Pause();
-      else el.Resume();
+    })();
+    _imagePending.set(src, promise);
+    promise.then(() => {
+      if (_imagePending.get(src) === promise) _imagePending.delete(src);
+    });
+    return promise;
+  }
+  function releaseImageCache() {
+    _generation++;
+    for (const asset of _imageCache.values()) destroyAsset(asset);
+    _imageCache.clear();
+    _imagePending.clear();
+  }
+  function destroyAsset(asset) {
+    if (!asset) return;
+    try {
+      if (CS.UnityEngine.Application.isPlaying) CS.UnityEngine.Object.Destroy(asset);
+      else CS.UnityEngine.Object.DestroyImmediate(asset);
+    } catch (e) {
+      console.error(`Image cache: could not destroy a cached image: ${e}`);
     }
   }
 
-  // ../../../../../../JSModules/onejs-react/src/renderer.ts
-  var import_react_reconciler = __toESM(require_react_reconciler());
+  // node_modules/onejs-react/src/renderer.ts
   var reconciler = (0, import_react_reconciler.default)(hostConfig);
   reconciler.injectIntoDevTools({
     bundleType: 1,
     // 0 for prod, 1 for dev
-    version: "19.0.0",
+    version: import_react.version,
     rendererPackageName: "onejs-react"
   });
   var roots = /* @__PURE__ */ new Map();
   var createContainer = reconciler.createContainer;
+  function logCaughtError(error, errorInfo) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    const componentStack = errorInfo?.componentStack;
+    const parts = [`[OneJS React] Error caught by an error boundary: ${err.message}`];
+    if (err.stack) parts.push(err.stack);
+    if (componentStack) parts.push(`Component stack:${componentStack}`);
+    console.error(parts.join("\n"));
+  }
   var teardownHookRegistered = false;
+  function teardown() {
+    teardownHookRegistered = false;
+    unmountAll();
+    releaseImageCache();
+  }
   function ensureTeardownHook() {
     if (teardownHookRegistered) return;
     const g = globalThis;
     if (typeof g !== "undefined" && typeof g.__onTeardown === "function") {
-      g.__onTeardown(unmountAll);
+      g.__onTeardown(teardown);
       teardownHookRegistered = true;
     }
   }
@@ -14931,7 +15606,7 @@ var __exports = (() => {
       root = createContainer(
         container,
         0,
-        // LegacyRoot (0) vs ConcurrentRoot (1)
+        // the root tag; react-reconciler 0.31 makes every root concurrent whatever this says
         null,
         // hydrationCallbacks
         false,
@@ -14941,7 +15616,7 @@ var __exports = (() => {
         "",
         // identifierPrefix
         (error) => console.error("[OneJS React] Uncaught error:", error),
-        (error) => console.error("[OneJS React] Error caught by boundary:", error),
+        logCaughtError,
         (error) => console.error("[OneJS React] Recoverable error:", error),
         null
         // transitionCallbacks
@@ -14979,33 +15654,258 @@ var __exports = (() => {
       unmount(container);
     }
   }
+  function createPortal(children, container, key = null) {
+    return reconciler.createPortal(children, container, null, key);
+  }
+  function flushSync(callback) {
+    const r = reconciler;
+    const sync = r.flushSyncFromReconciler ?? r.flushSync;
+    if (typeof sync === "function") return sync(callback);
+    return callback();
+  }
+  setSyncRunner(flushSync);
 
-  // ../../../../../../JSModules/onejs-react/src/portal.tsx
-  var import_react2 = __toESM(require_react());
+  // node_modules/onejs-react/src/rows.tsx
+  function handleOf(element) {
+    return element.__csHandle;
+  }
+  function useRowPortals(renderRow) {
+    const [rows, setRows] = (0, import_react2.useState)([]);
+    const makeItem = (0, import_react2.useCallback)(() => {
+      const el = new CS.UnityEngine.UIElements.VisualElement();
+      el.style.flexGrow = 1;
+      return el;
+    }, []);
+    const bindItem = (0, import_react2.useCallback)((element, index, data) => {
+      setRows((prev) => {
+        const handle = handleOf(element);
+        const at = prev.findIndex((r) => handleOf(r.element) === handle);
+        if (at < 0) return [...prev, { element, index, data }];
+        if (prev[at].index === index && prev[at].data === data) return prev;
+        const next = prev.slice();
+        next[at] = { element, index, data };
+        return next;
+      });
+    }, []);
+    const releaseRow = (0, import_react2.useCallback)((element) => {
+      setRows((prev) => {
+        const handle = handleOf(element);
+        const at = prev.findIndex((r) => handleOf(r.element) === handle);
+        if (at < 0) return prev;
+        const next = prev.slice();
+        next.splice(at, 1);
+        return next;
+      });
+    }, []);
+    const unbindItem = (0, import_react2.useCallback)((element) => releaseRow(element), [releaseRow]);
+    const destroyItem = (0, import_react2.useCallback)((element) => releaseRow(element), [releaseRow]);
+    const portals = renderRow ? rows.map((row) => renderPortal(row, renderRow)) : null;
+    return { makeItem, bindItem, unbindItem, destroyItem, portals };
+  }
+  function renderPortal(row, renderRow) {
+    return createPortal(
+      (0, import_react2.createElement)(import_react2.Fragment, { key: String(row.index) }, renderRow(row.index, row.data)),
+      row.element,
+      String(handleOf(row.element))
+    );
+  }
 
-  // ../../../../../../JSModules/onejs-react/src/error-boundary.tsx
-  var import_react3 = __toESM(require_react());
+  // node_modules/onejs-react/src/components.tsx
+  var import_jsx_runtime = __toESM(require_jsx_runtime());
+  var View = (0, import_react3.forwardRef)((props, ref) => {
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-view", { ref, ...props });
+  });
+  View.displayName = "View";
+  var Text = (0, import_react3.forwardRef)((props, ref) => {
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-text", { ref, ...props });
+  });
+  Text.displayName = "Text";
+  var Label = (0, import_react3.forwardRef)((props, ref) => {
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-label", { ref, ...props });
+  });
+  Label.displayName = "Label";
+  var Button = (0, import_react3.forwardRef)((props, ref) => {
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-button", { ref, ...props });
+  });
+  Button.displayName = "Button";
+  var TextField = (0, import_react3.forwardRef)((props, ref) => {
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-textfield", { ref, ...props });
+  });
+  TextField.displayName = "TextField";
+  var Toggle = (0, import_react3.forwardRef)((props, ref) => {
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-toggle", { ref, ...props });
+  });
+  Toggle.displayName = "Toggle";
+  var Slider = (0, import_react3.forwardRef)((props, ref) => {
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-slider", { ref, ...props });
+  });
+  Slider.displayName = "Slider";
+  var ScrollView = (0, import_react3.forwardRef)((props, ref) => {
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-scrollview", { ref, ...props });
+  });
+  ScrollView.displayName = "ScrollView";
+  var Image = (0, import_react3.forwardRef)(({ src, image, ...rest }, ref) => {
+    const [loaded, setLoaded] = (0, import_react3.useState)(null);
+    const resolved = (0, import_react3.useMemo)(() => {
+      if (src) return loadImageAsset(src);
+      return image;
+    }, [src, image]);
+    (0, import_react3.useEffect)(() => {
+      if (!src || resolved) return;
+      const fullPath = resolveAssetPath(src);
+      if (!isUrlPath(fullPath)) return;
+      let cancelled = false;
+      loadImageAssetAsync(src, fullPath).then((result) => {
+        if (!cancelled && result) setLoaded({ src, image: result });
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [src, resolved]);
+    const asyncImage = loaded && loaded.src === src ? loaded.image : null;
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-image", { ref, image: resolved ?? asyncImage, ...rest });
+  });
+  Image.displayName = "Image";
+  var ListView = (0, import_react3.forwardRef)((props, ref) => {
+    const { renderItem, itemsSource, ...rest } = props;
+    const rows = useRowPortals(
+      renderItem ? (index) => index < itemsSource.length ? renderItem(itemsSource[index], index) : null : void 0
+    );
+    if (!renderItem) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-listview", { ref, ...props });
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      "ojs-listview",
+      {
+        ref,
+        ...rest,
+        itemsSource,
+        makeItem: rows.makeItem,
+        bindItem: rows.bindItem,
+        unbindItem: rows.unbindItem,
+        destroyItem: rows.destroyItem,
+        children: rows.portals
+      }
+    );
+  });
+  ListView.displayName = "ListView";
+  var TreeView = (0, import_react3.forwardRef)((props, ref) => {
+    const { renderItem, ...rest } = props;
+    const rows = useRowPortals(renderItem ? (index, data) => renderItem(data, index) : void 0);
+    if (!renderItem) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-treeview", { ref, ...props });
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      "ojs-treeview",
+      {
+        ref,
+        ...rest,
+        makeItem: rows.makeItem,
+        bindItem: rows.bindItem,
+        unbindItem: rows.unbindItem,
+        destroyItem: rows.destroyItem,
+        children: rows.portals
+      }
+    );
+  });
+  TreeView.displayName = "TreeView";
+  function frostedGlassTint(tint) {
+    return (tint ? parseColor(tint) : null) ?? new CS.UnityEngine.Color(1, 1, 1, 0.15);
+  }
+  var FrostedGlass = (0, import_react3.forwardRef)(({ blur, tint, ...rest }, ref) => {
+    const parsedTint = (0, import_react3.useMemo)(() => frostedGlassTint(tint), [tint]);
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-frostedglass", { ref, blurRadius: blur ?? 10, tintColor: parsedTint, ...rest });
+  });
+  FrostedGlass.displayName = "FrostedGlass";
+  function createComponent(name, displayName) {
+    const type = name.startsWith("ojs-") ? name : `ojs-${name}`;
+    const Component2 = (0, import_react3.forwardRef)((props, ref) => {
+      return (0, import_react3.createElement)(type, { ...props, ref });
+    });
+    Component2.displayName = displayName || name;
+    return Component2;
+  }
+  var ShaderEffect = (0, import_react3.forwardRef)((props, ref) => {
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ojs-shaderfx", { ...props, ref });
+  });
+  ShaderEffect.displayName = "ShaderEffect";
+  var ShaderProgramImpl = (0, import_react3.forwardRef)((props, ref) => {
+    return (0, import_react3.createElement)("ojs-shaderfx", { ...props, ref });
+  });
+  ShaderProgramImpl.displayName = "ShaderProgram";
+  var FIRE_RAMP = ["#00000000", "#4a060088", "#c22200dd", "#ff6a10ff", "#ffc23cff", "#fff4d2ff"];
+  var TextureFX = (0, import_react3.forwardRef)(({ build, ...rest }, ref) => {
+    const compiled = (0, import_react3.useMemo)(() => buildTextureFX(build), [build]);
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      ShaderEffect,
+      {
+        ...rest,
+        ref,
+        shader: "OneJS/TextureFX",
+        floats: compiled.floats,
+        vectorArrays: compiled.vectorArrays,
+        ramp: compiled.ramp
+      }
+    );
+  });
+  TextureFX.displayName = "TextureFX";
+  var Flame = (0, import_react3.forwardRef)(
+    ({ colors, speed, threshold, softness, width, taper, topFalloff, gain, ...rest }, ref) => {
+      const build = (0, import_react3.useMemo)(() => (fx) => {
+        const g = gain ?? 7.5;
+        fx.noise({ scale: [3, 4], seed: 1, scroll: [0.02, -1.1], amount: Math.sqrt(g) });
+        fx.noise({ scale: [6, 8], seed: 2, scroll: [-0.03, -1.9], amount: Math.sqrt(g) }).multiply();
+        fx.shape("flame", {
+          width: width ?? 0.44,
+          taper: taper ?? 0.7,
+          softness: 0.05,
+          falloff: topFalloff ?? 0.55
+        }).multiply();
+        fx.threshold(threshold ?? 0.3, (threshold ?? 0.3) + (softness ?? 1));
+        fx.ramp(colors ?? FIRE_RAMP);
+        fx.setSpeed(speed ?? 1);
+      }, [colors, speed, threshold, softness, width, taper, topFalloff, gain]);
+      return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TextureFX, { ...rest, ref, build });
+    }
+  );
+  Flame.displayName = "Flame";
+
+  // node_modules/onejs-react/src/portal.tsx
+  var import_react4 = __toESM(require_react());
+
+  // node_modules/onejs-react/src/error-boundary.tsx
+  var import_react5 = __toESM(require_react());
   var import_jsx_runtime2 = __toESM(require_jsx_runtime());
 
-  // ../../../../../../JSModules/onejs-react/src/screen.tsx
-  var import_react4 = __toESM(require_react());
-  var import_jsx_runtime3 = __toESM(require_jsx_runtime());
-  var ScreenContext = (0, import_react4.createContext)(null);
-
-  // ../../../../../../JSModules/onejs-react/src/vector.ts
-  var import_react5 = __toESM(require_react());
-
-  // ../../../../../../JSModules/onejs-react/src/painter.ts
+  // node_modules/onejs-react/src/screen.tsx
   var import_react6 = __toESM(require_react());
+  var import_jsx_runtime3 = __toESM(require_jsx_runtime());
+  var ScreenContext = (0, import_react6.createContext)(null);
+  var CLASS_2XL = escapeClassName("2xl");
 
-  // ../../../../../../JSModules/onejs-react/src/particles.ts
-  var import_react7 = __toESM(require_react());
-
-  // ../../../../../../JSModules/onejs-react/src/hooks.ts
+  // node_modules/onejs-react/src/vector.ts
   var import_react8 = __toESM(require_react());
 
+  // node_modules/onejs-react/src/attach.ts
+  var import_react7 = __toESM(require_react());
+
+  // node_modules/onejs-react/src/transform.ts
+  var TAU = Math.PI * 2;
+  var MAX_SEGMENT_SWEEP = Math.PI / 2;
+
+  // node_modules/onejs-react/src/painter.ts
+  var import_react10 = __toESM(require_react());
+
+  // node_modules/onejs-react/src/frame.ts
+  var import_react9 = __toESM(require_react());
+
+  // node_modules/onejs-react/src/particles.ts
+  var import_react11 = __toESM(require_react());
+
+  // node_modules/onejs-react/src/pass.ts
+  var import_react12 = __toESM(require_react());
+
+  // node_modules/onejs-react/src/hooks.ts
+  var import_react13 = __toESM(require_react());
+
   // index.tsx
-  var import_react9 = __toESM(require_react(), 1);
+  var import_react14 = __toESM(require_react(), 1);
   var import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
   registerElement("test-progress", CS.OneJS.Tests.TestCustomProgressBar);
   var TestProgress = createComponent("test-progress");
@@ -15026,7 +15926,7 @@ var __exports = (() => {
   globalThis.__test_propUpdates = () => {
     let setProgressFn = null;
     function App() {
-      const [progress, setProgress] = (0, import_react9.useState)(0.25);
+      const [progress, setProgress] = (0, import_react14.useState)(0.25);
       setProgressFn = setProgress;
       return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(View, { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(TestProgress, { progress, trackColor: "#00ff00" }) });
     }
@@ -15056,8 +15956,8 @@ var __exports = (() => {
     globalThis.__refTypeName = null;
     globalThis.__refHandle = -1;
     function App() {
-      const ref = (0, import_react9.useRef)(null);
-      (0, import_react9.useEffect)(() => {
+      const ref = (0, import_react14.useRef)(null);
+      (0, import_react14.useEffect)(() => {
         if (ref.current) {
           ;
           globalThis.__refTypeName = ref.current.GetType().Name;
@@ -15102,17 +16002,6 @@ react/cjs/react.development.js:
    * LICENSE file in the root directory of this source tree.
    *)
 
-react/cjs/react-jsx-runtime.development.js:
-  (**
-   * @license React
-   * react-jsx-runtime.development.js
-   *
-   * Copyright (c) Meta Platforms, Inc. and affiliates.
-   *
-   * This source code is licensed under the MIT license found in the
-   * LICENSE file in the root directory of this source tree.
-   *)
-
 scheduler/cjs/scheduler.development.js:
   (**
    * @license React
@@ -15128,6 +16017,17 @@ react-reconciler/cjs/react-reconciler.development.js:
   (**
    * @license React
    * react-reconciler.development.js
+   *
+   * Copyright (c) Meta Platforms, Inc. and affiliates.
+   *
+   * This source code is licensed under the MIT license found in the
+   * LICENSE file in the root directory of this source tree.
+   *)
+
+react/cjs/react-jsx-runtime.development.js:
+  (**
+   * @license React
+   * react-jsx-runtime.development.js
    *
    * Copyright (c) Meta Platforms, Inc. and affiliates.
    *

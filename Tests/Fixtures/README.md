@@ -15,7 +15,7 @@ var code = fixture.text;
 - **`PanelHost.cs`**: a real UI Toolkit panel rendering into a RenderTexture, for tests that need resolved layout or readable pixels (`ParticleTests`, `ShaderFXTests`). Yield two frames after adding children before asserting on geometry.
 - **`Resources/*.txt`**: plain scripts with no dependencies: `SimpleScript` (console.log and a global), `UICreation` (UI elements via the CS proxy), `EventTest` (event registration and dispatch), `WebGLTest` (WebGL bridge validation). No test loads these four today; they are kept as starting points.
 - **`Resources/TestCustomElement.txt`**: prebuilt React bundle loaded by `CustomElementPlaymodeTests`.
-- **`CustomElement~/`**: the source of that bundle. Rebuild after changing it or onejs-react: `cd CustomElement~ && npm install && npm run build` (writes `../Resources/TestCustomElement.txt`). Its `onejs-react` dependency is a `file:` link to the container's `JSModules/onejs-react`, so it builds only inside the OneJSv3Container checkout.
+- **`CustomElement~/`**: the source of that bundle. Rebuild after changing it or onejs-react: `cd CustomElement~ && npm install && npm run build` (writes `../Resources/TestCustomElement.txt`). It takes `onejs-react` from npm; to build it against an unreleased onejs-react, `npm install <path to onejs-react>` in that folder first, and do not commit the changed `package.json` or lock file.
 
 ## Design Decisions
 
