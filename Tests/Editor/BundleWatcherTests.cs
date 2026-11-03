@@ -11,7 +11,7 @@ using NUnit.Framework;
 namespace OneJS.Tests.Editor {
     /// <summary>
     /// Live reload's change detection, on the real file system of whichever platform runs it.
-    /// The watcher is one stat poll on a timer thread everywhere, so these test what every
+    /// The watcher is one stat poll on a thread of its own everywhere, so these test what every
     /// platform runs. Each change is made the way a build tool can make it: written in place
     /// (esbuild), deleted and written again, and written beside then moved over. A poll interval
     /// of 5 s keeps the runner's hash poll out of the timings, so a pass means the stat saw it.
@@ -96,7 +96,7 @@ namespace OneJS.Tests.Editor {
         }
 
         /// <summary>
-        /// A write wakes the editor from the timer thread, with no frame asking: an unfocused
+        /// A write wakes the editor from the watching thread, with no frame asking: an unfocused
         /// editor's update throttles to almost nothing, so a watcher that only looks when the
         /// main thread asks would wait for focus.
         /// </summary>

@@ -10,7 +10,7 @@ namespace OneJS {
     /// about a tenth of a second instead of on the next half-second poll.
     ///
     /// It works the same way on every platform, so the tests that run on one test them all:
-    /// - A timer thread compares the bundle's size and write time every <see cref="StatInterval"/>.
+    /// - A thread of its own compares the bundle's size and write time every <see cref="StatInterval"/>.
     ///   A change wakes the editor, because an unfocused editor's update otherwise throttles to
     ///   almost nothing while focus is in the code editor.
     /// - A change is only a reason to look. The runner compares the bundle's hash, so a write
@@ -31,44 +31,45 @@ namespace OneJS {
     internal sealed class BundleWatcher : IDisposable {
         /// <summary>How long after the last change seen the bundle counts as written.</summary>
         public const double Settle = 0.05;
-        /// <summary>How often the timer thread compares the bundle's size and write time.</summary>
+        /// <summary>How often the watching thread compares the bundle's size and write time.</summary>
         public const double StatInterval = 0.03;
 
         readonly string _path;
         readonly double _pollInterval;
         readonly Action _wake;
-        readonly object _gate = new object();
-        readonly Timer _timer;
-        bool _disposed;
+        readonly ManualResetEvent _stop = new ManualResetEvent(false);
+        readonly Thread _thread;
 
-        // Owned by the timer thread once it starts: the callback is one-shot and re-armed after it
-        // returns, so two never run at once.
+        // Owned by the watching thread once it starts.
         long _length = -1;
         long _writeTicks;
 
         // Stopwatch timestamp of the latest change not yet acted on, 0 when there is none.
-        // Written on the timer thread, read and cleared on the main thread.
+        // Written on the watching thread, read and cleared on the main thread.
         long _pendingChange;
         int _changes;
         double _nextPoll;
 
         /// <param name="path">The bundle.</param>
         /// <param name="pollInterval">How often the runner compares the hash even when nothing seems to have changed.</param>
-        /// <param name="wake">Called from the timer thread on each change, to wake an idle editor.</param>
+        /// <param name="wake">Called from the watching thread on each change, to wake an idle editor.</param>
         public BundleWatcher(string path, double pollInterval, Action wake = null) {
             _path = path;
             _pollInterval = Math.Max(0.05, pollInterval);
             _wake = wake;
             RecordStat();
             _nextPoll = Now + _pollInterval;
-            // Armed only once the field is set, since the callback re-arms through it.
-            _timer = new Timer(Look, null, Timeout.Infinite, Timeout.Infinite);
-            _timer.Change(Milliseconds(StatInterval), Timeout.Infinite);
+            // A thread of its own rather than a System.Threading.Timer: under Unity's Mono each timer
+            // tick goes through its scheduler thread and the thread pool, whose workers spin, which
+            // cost 0.3 s of CPU a minute doing nothing and 1.1 to 1.9 s in the editor, against
+            // 0.05 s for a thread that waits on an event (6000.5.2f1). One stat is 2.3 us.
+            _thread = new Thread(Watch) { IsBackground = true, Name = "OneJS bundle watcher" };
+            _thread.Start();
         }
 
         public string Path => _path;
 
-        /// <summary>Changes the timer thread has seen, for tests and measurement.</summary>
+        /// <summary>Changes the watching thread has seen, for tests and measurement.</summary>
         public int ChangeCount => Volatile.Read(ref _changes);
 
         /// <summary>Whether the runner should compare the bundle's hash now. Main thread, every frame.</summary>
@@ -88,20 +89,16 @@ namespace OneJS {
             return true;
         }
 
-        void Look(object state) {
-            try {
-                if (StatChanged()) {
-                    Interlocked.Exchange(ref _pendingChange, Stopwatch.GetTimestamp());
-                    Interlocked.Increment(ref _changes);
-                    try {
-                        _wake?.Invoke();
-                    } catch (Exception) {
-                        // Waking the editor is a courtesy; the next frame looks anyway.
-                    }
-                }
-            } finally {
-                lock (_gate) {
-                    if (!_disposed) _timer.Change(Milliseconds(StatInterval), Timeout.Infinite);
+        void Watch() {
+            var interval = Milliseconds(StatInterval);
+            while (!_stop.WaitOne(interval)) {
+                if (!StatChanged()) continue;
+                Interlocked.Exchange(ref _pendingChange, Stopwatch.GetTimestamp());
+                Interlocked.Increment(ref _changes);
+                try {
+                    _wake?.Invoke();
+                } catch (Exception) {
+                    // Waking the editor is a courtesy; the next frame looks anyway.
                 }
             }
         }
@@ -131,11 +128,10 @@ namespace OneJS {
         static int Milliseconds(double seconds) => (int)Math.Round(seconds * 1000);
 
         public void Dispose() {
-            lock (_gate) {
-                if (_disposed) return;
-                _disposed = true;
-                _timer.Dispose();
-            }
+            _stop.Set();
+            // It wakes at once; a stat stuck on an unanswering network drive is left to finish on
+            // its own, since the thread is a background one and looks at nothing after the stop.
+            _thread.Join(200);
         }
     }
 }
