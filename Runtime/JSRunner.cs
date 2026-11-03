@@ -132,8 +132,8 @@ namespace OneJS {
         [Tooltip("On a live reload, components keep their useState, useReducer and useRef values when their hooks are unchanged. " +
             "Anything that is not plain data, such as a C# object, and any component whose hooks changed, starts fresh.")]
         [SerializeField] bool _keepStateOnReload = true;
-        [Tooltip("How often to check the bundle for changes when the operating system cannot report them, " +
-            "as on some network drives (in seconds). Otherwise a change is seen within a few frames.")]
+        [Tooltip("How often to compare the bundle's content even when its size and write time look unchanged " +
+            "(in seconds). A rebuild that changes either is seen within about 0.1 s.")]
         [SerializeField] float _pollInterval = 0.5f;
         [Tooltip("Enable Janitor to clean up GameObjects created by JS on reload")]
         [SerializeField] bool _enableJanitor = true;
@@ -1658,9 +1658,9 @@ namespace OneJS {
         }
 
         /// <summary>
-        /// Starts watching the bundle for live reload (BundleWatcher). Its events also wake an
-        /// unfocused editor, where EditorApplication.update otherwise throttles to almost nothing,
-        /// so a rebuild still shows while focus is in the code editor.
+        /// Starts watching the bundle for live reload (BundleWatcher). A change it sees also wakes
+        /// an unfocused editor, where EditorApplication.update otherwise throttles to almost
+        /// nothing, so a rebuild still shows while focus is in the code editor.
         /// </summary>
         void WatchBundle(string entryFile) {
             StopWatchingBundle();

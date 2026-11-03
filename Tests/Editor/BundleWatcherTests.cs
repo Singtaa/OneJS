@@ -10,13 +10,15 @@ using NUnit.Framework;
 
 namespace OneJS.Tests.Editor {
     /// <summary>
-    /// Live reload's change detection, on the real file system of whichever platform runs it:
-    /// macOS, Windows and Linux each have their own watcher underneath (and Mono's have missed
-    /// and doubled events on each, and on Windows only polls), so these run on all three. Each change is made the way a
-    /// build tool can make it: written in place (esbuild), deleted and written again, and
-    /// written beside then moved over.
+    /// Live reload's change detection, on the real file system of whichever platform runs it.
+    /// The watcher is one stat poll on a timer thread everywhere, so these test what every
+    /// platform runs. Each change is made the way a build tool can make it: written in place
+    /// (esbuild), deleted and written again, and written beside then moved over. A poll interval
+    /// of 5 s keeps the runner's hash poll out of the timings, so a pass means the stat saw it.
     /// </summary>
     public class BundleWatcherTests {
+        const double NoPoll = 5;
+
         string _dir;
         string _bundle;
 
@@ -53,27 +55,6 @@ namespace OneJS.Tests.Editor {
             return n;
         }
 
-        /// <summary>
-        /// Each of five writes reaches the runner within a quarter second. A watcher whose events
-        /// lag (Mono's DefaultWatcher, which Unity's Mono uses on Windows, sleeps 750 ms between
-        /// looks) fails this, where a single write under a second passed it.
-        /// </summary>
-        [Test]
-        public void EveryInPlaceWriteIsSeenWithinAQuarterSecond() {
-            using var watcher = new BundleWatcher(_bundle, 0.5);
-            Assert.IsTrue(watcher.IsWatching, "the watcher started");
-            Thread.Sleep(100);
-            var seen = new List<double>();
-            for (int i = 0; i < 5; i++) {
-                File.WriteAllText(_bundle, new string('w', 100 + i));
-                seen.Add(SecondsUntilCheck(watcher, 3));
-                Thread.Sleep(120 + 70 * i);
-            }
-            var report = $"{watcher.Backend}, compared every look: {watcher.ComparesEveryLook}; seen after {string.Join(", ", seen.Select(x => x.ToString("F3")))} s";
-            TestContext.WriteLine(report);
-            Assert.That(seen, Has.All.InRange(0.0, 0.25), report);
-        }
-
         static string ThisFile([CallerFilePath] string path = "") => path;
 
         /// <summary>
@@ -94,83 +75,144 @@ namespace OneJS.Tests.Editor {
             Assert.That(branches, Is.Empty, "BundleWatcher.cs branches on the platform or uses a FileSystemWatcher");
         }
 
+        /// <summary>
+        /// Each of five writes reaches the runner within a quarter second. A watcher whose events
+        /// lag (Mono's on Windows looked every 750 ms) fails this, where a single write under a
+        /// second passed it.
+        /// </summary>
         [Test]
-        public void MonosChoiceOfWatcherIsOneThisKnows() {
-            using var watcher = new BundleWatcher(_bundle, 0.5);
-            // DefaultWatcher polls, so the file is compared on every look; the proxy wraps the
-            // operating system's own watcher. Anything else means Mono's internals moved, and
-            // BackendOf no longer tells a polling watcher apart.
-            Assert.That(watcher.Backend, Is.EqualTo("DefaultWatcher").Or.EqualTo("CoreFXFileSystemWatcherProxy"));
-            if (watcher.Backend == "DefaultWatcher") Assert.IsTrue(watcher.ComparesEveryLook);
+        public void EveryInPlaceWriteIsSeenWithinAQuarterSecond() {
+            using var watcher = new BundleWatcher(_bundle, NoPoll);
+            Thread.Sleep(100);
+            var seen = new List<double>();
+            for (int i = 0; i < 5; i++) {
+                File.WriteAllText(_bundle, new string('w', 100 + i));
+                seen.Add(SecondsUntilCheck(watcher, 3));
+                Thread.Sleep(120 + 70 * i);
+            }
+            var report = $"seen after {string.Join(", ", seen.Select(x => x.ToString("F3")))} s, {watcher.ChangeCount} changes";
+            TestContext.WriteLine(report);
+            Assert.That(seen, Has.All.InRange(0.0, 0.25), report);
+        }
+
+        /// <summary>
+        /// A write wakes the editor from the timer thread, with no frame asking: an unfocused
+        /// editor's update throttles to almost nothing, so a watcher that only looks when the
+        /// main thread asks would wait for focus.
+        /// </summary>
+        [Test]
+        public void AWriteWakesTheEditorWithoutAFrame() {
+            var wakes = 0;
+            using var watcher = new BundleWatcher(_bundle, NoPoll, () => Interlocked.Increment(ref wakes));
+            Thread.Sleep(100);
+            var after = new List<double>();
+            for (int i = 0; i < 5; i++) {
+                var before = Volatile.Read(ref wakes);
+                File.WriteAllText(_bundle, new string('k', 100 + i));
+                var clock = Stopwatch.StartNew();
+                while (Volatile.Read(ref wakes) == before && clock.Elapsed.TotalSeconds < 2) Thread.Sleep(1);
+                after.Add(Volatile.Read(ref wakes) == before ? -1 : clock.Elapsed.TotalSeconds);
+                Thread.Sleep(80);
+            }
+            Assert.That(after, Has.All.InRange(0.0, 0.2), $"woken after {string.Join(", ", after.Select(x => x.ToString("F3")))} s");
         }
 
         [Test]
         public void ABurstOfWritesIsOneCheckOnceItSettles() {
-            using var watcher = new BundleWatcher(_bundle, 0.5);
+            using var watcher = new BundleWatcher(_bundle, NoPoll);
             Thread.Sleep(100);
             for (int i = 0; i < 20; i++) {
                 File.WriteAllText(_bundle, new string('x', 1000 + i));
                 Thread.Sleep(2);
             }
             var checks = ChecksWithin(watcher, 0.6);
-            Assert.That(checks, Is.InRange(1, 2), $"{checks} checks for one burst of 20 writes ({watcher.EventCount} events)");
+            Assert.That(checks, Is.InRange(1, 2), $"{checks} checks for one burst of 20 writes ({watcher.ChangeCount} changes seen)");
         }
 
         [Test]
         public void ABundleDeletedAndWrittenAgainIsSeen() {
-            using var watcher = new BundleWatcher(_bundle, 0.5);
+            using var watcher = new BundleWatcher(_bundle, NoPoll);
             Thread.Sleep(100);
             File.Delete(_bundle);
             Thread.Sleep(20);
             File.WriteAllText(_bundle, "recreated");
             var seconds = SecondsUntilCheck(watcher, 3);
-            Assert.That(seconds, Is.InRange(0, BundleWatcher.SafetyInterval / 2), $"reported after {seconds:F3} s");
+            Assert.That(seconds, Is.InRange(0, 0.25), $"reported after {seconds:F3} s");
         }
 
         [Test]
         public void ABundleMovedOverTheOldOneIsSeen() {
-            using var watcher = new BundleWatcher(_bundle, 0.5);
+            using var watcher = new BundleWatcher(_bundle, NoPoll);
             Thread.Sleep(100);
             var beside = Path.Combine(_dir, "app.js.txt.tmp");
             File.WriteAllText(beside, "moved over, longer");
             File.Delete(_bundle);
             File.Move(beside, _bundle);
             var seconds = SecondsUntilCheck(watcher, 3);
-            Assert.That(seconds, Is.InRange(0, BundleWatcher.SafetyInterval / 2), $"reported after {seconds:F3} s");
+            Assert.That(seconds, Is.InRange(0, 0.25), $"reported after {seconds:F3} s");
+        }
+
+        [Test]
+        public void ABundleInAFolderThatDoesNotExistYetIsSeenWhenItAppears() {
+            var later = Path.Combine(_dir, "not-yet", "app.js.txt");
+            using var watcher = new BundleWatcher(later, NoPoll);
+            Thread.Sleep(100);
+            Directory.CreateDirectory(Path.GetDirectoryName(later));
+            File.WriteAllText(later, "built at last");
+            var seconds = SecondsUntilCheck(watcher, 3);
+            Assert.That(seconds, Is.InRange(0, 0.25), $"reported after {seconds:F3} s");
         }
 
         [Test]
         public void AnotherFileInTheFolderIsNotAReason() {
-            using var watcher = new BundleWatcher(_bundle, 0.5);
+            using var watcher = new BundleWatcher(_bundle, NoPoll);
             Thread.Sleep(100);
             File.WriteAllText(Path.Combine(_dir, "app.js.map.txt"), "map");
             Assert.AreEqual(0, ChecksWithin(watcher, 0.4));
+            Assert.AreEqual(0, watcher.ChangeCount);
+        }
+
+        /// <summary>
+        /// A rewrite with the same size and, as a file system with coarse timestamps would report,
+        /// the same write time is invisible to the stat, and the runner's hash poll still finds it.
+        /// </summary>
+        [Test]
+        public void AWriteTheStatCannotSeeIsFoundByThePoll() {
+            // The stat can land in the microseconds between the write and putting the write time
+            // back, which tests nothing, so that try is made again.
+            for (int attempt = 0; attempt < 3; attempt++) {
+                var written = File.GetLastWriteTimeUtc(_bundle);
+                using var watcher = new BundleWatcher(_bundle, 0.5);
+                Thread.Sleep(100);
+                File.WriteAllText(_bundle, attempt % 2 == 0 ? "fresh" : "first");
+                File.SetLastWriteTimeUtc(_bundle, written);
+                var seconds = SecondsUntilCheck(watcher, 2);
+                if (watcher.ChangeCount != 0) continue;
+                Assert.That(seconds, Is.InRange(0.3, 0.55), $"reported after {seconds:F3} s, the poll being due 0.4 s after the write");
+                return;
+            }
+            Assert.Fail("the stat saw every try, so the poll was never what found the write");
         }
 
         [Test]
-        public void AMissedEventCostsTheSafetyPollNotTheReload() {
-            using var watcher = new BundleWatcher(_bundle, 0.5) { IgnoreEvents = true };
-            Thread.Sleep(100);
-            File.WriteAllText(_bundle, "changed while nobody was told");
-            var seconds = SecondsUntilCheck(watcher, BundleWatcher.SafetyInterval + 1.5);
-            Assert.That(seconds, Is.GreaterThanOrEqualTo(0), "the safety poll never saw the change");
-            Assert.That(seconds, Is.LessThanOrEqualTo(BundleWatcher.SafetyInterval + 0.2));
-        }
-
-        [Test]
-        public void TheSafetyPollIsQuietWhileNothingChanges() {
-            using var watcher = new BundleWatcher(_bundle, 0.5);
-            Assert.AreEqual(0, ChecksWithin(watcher, BundleWatcher.SafetyInterval + 0.3));
-        }
-
-        [Test]
-        public void WithNoWatcherItPollsAtTheRunnersInterval() {
-            // A folder that does not exist yet cannot be watched, which stands in for a network drive.
-            var missing = Path.Combine(_dir, "not-yet", "app.js.txt");
-            using var watcher = new BundleWatcher(missing, 0.2);
-            Assert.IsFalse(watcher.IsWatching);
+        public void WithNothingChangedItLooksOnlyAtThePollInterval() {
+            using var watcher = new BundleWatcher(_bundle, 0.2);
             var checks = ChecksWithin(watcher, 0.75);
             Assert.That(checks, Is.InRange(2, 4), $"{checks} checks in 0.75 s at a 0.2 s interval");
+            Assert.AreEqual(0, watcher.ChangeCount);
+        }
+
+        [Test]
+        public void NothingIsSeenOrWokenAfterDispose() {
+            var wakes = 0;
+            var watcher = new BundleWatcher(_bundle, NoPoll, () => Interlocked.Increment(ref wakes));
+            Thread.Sleep(100);
+            watcher.Dispose();
+            Thread.Sleep((int)(BundleWatcher.StatInterval * 2000));
+            File.WriteAllText(_bundle, "after dispose");
+            Thread.Sleep(300);
+            Assert.AreEqual(0, Volatile.Read(ref wakes));
+            Assert.AreEqual(0, watcher.ChangeCount);
         }
     }
 }
