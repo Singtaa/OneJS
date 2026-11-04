@@ -1,6 +1,8 @@
-# Unreleased
+# [2026-11-04] v3.9.17
 
-- Components keep their state across a hot reload (#155)
+Components keep their state when a saved change reloads the app, and the reload follows the rebuild within about a tenth of a second. New apps also get a CLAUDE.md, so Claude Code reads the app's AGENTS.md.
+
+- Components keep their state across a hot reload, with onejs-react 0.4.4 (#155)
 - A hot reload follows a rebuild within about 0.1 s
 - Poll Interval is gone from the JSRunner inspector, and `PollInterval` is obsolete
 - Apps get a CLAUDE.md that imports AGENTS.md

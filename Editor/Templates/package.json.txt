@@ -12,10 +12,10 @@
   },
   "dependencies": {
     "react": "^19.0.0",
-    "onejs-react": "^0.4.3",
+    "onejs-react": "^0.4.4",
     "onejs-ui": "^0.0.6",
     "onejs-unity": "^0.11.2",
-    "ojplay": "^0.12.2"
+    "ojplay": "^0.12.3"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
