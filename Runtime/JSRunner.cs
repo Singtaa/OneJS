@@ -205,7 +205,9 @@ namespace OneJS {
         // Live reload state
         DateTime _lastModifiedTime;
         DateTime _lastReloadTime;
+#if UNITY_EDITOR
         BundleWatcher _bundleWatcher;
+#endif
         int _reloadCount;
         string _lastContentHash;
         Janitor _janitor;

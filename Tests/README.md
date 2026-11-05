@@ -93,6 +93,7 @@ EditMode (`Tests/Editor/`):
 | `InputBridgeNamingTests.cs` | The retired `GetKeyDown` names stay deprecated |
 | `AISkillContractTests.cs` | Shipped AI Skills' frontmatter versions match `package.json` |
 | `BuildValidationTests.cs` | Full build and run of a standalone player (`[Explicit]`, slow) |
+| `PlayerCompileTests.cs` | Compiles every script for this editor's standalone player without building one, so editor-only code reached from outside `#if UNITY_EDITOR` fails here, in seconds, rather than in a user's build (3.9.17's BundleWatcher field) |
 | `BuildValidationSceneSetup.cs` | Not a test: regenerates `BuildValidationScene`'s wiring (`-executeMethod`) |
 
 ## Test Categories
