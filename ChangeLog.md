@@ -1,3 +1,9 @@
+# [2026-11-05] v3.9.18
+
+Player builds work again: 3.9.17 failed to compile any build outside the editor. Nothing else changes.
+
+- Player builds compile again (3.9.17 stopped at a CS0246 in JSRunner.cs)
+
 # [2026-11-04] v3.9.17
 
 Components keep their state when a saved change reloads the app, and the reload follows the rebuild within about a tenth of a second. New apps also get a CLAUDE.md, so Claude Code reads the app's AGENTS.md.
