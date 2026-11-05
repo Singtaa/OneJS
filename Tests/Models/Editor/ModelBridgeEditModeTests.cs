@@ -189,6 +189,22 @@ namespace OneJS.Tests.Models {
             Assert.That(InScene<Transform>(), Is.Empty);
         }
 
+        // onejs-play's unload: a level's models go when the level does, not only with the scene.
+        [UnityTest]
+        public IEnumerator Unload_FreesAModelNothingShows_AndKeepsOneAnActorStillShows() {
+            int model = 0;
+            yield return Load(m => model = m);
+            var actor = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, true, true);
+            Assert.That(ModelBridge.Unload(model), Is.False, "an actor of it is still in the world");
+            Assert.That(ModelBridge.ModelCount, Is.EqualTo(1));
+            ModelBridge.Destroy(actor);
+            Assert.That(ModelBridge.Unload(model), Is.True);
+            Assert.That(ModelBridge.ModelCount, Is.EqualTo(0));
+            Assert.That(ModelBridge.Clips(model), Is.Empty);
+            Assert.Throws<System.ArgumentException>(() => ModelBridge.Spawn(model, 0, 0, 0, 0, 1, true, true));
+            Assert.That(ModelBridge.Unload(model), Is.True, "unloading twice is no harm");
+        }
+
         // Pressing Play or saving a file while a .glb is still loading tears the scene down under
         // the load; a load that then finished anyway left a template behind that outlived it.
         [UnityTest]

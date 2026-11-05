@@ -46,6 +46,7 @@ namespace OneJS.Models {
         }
 
         class Actor {
+            public int model;
             public GameObject go;
             public Animation anim;
             public Renderer[] renderers;
@@ -181,6 +182,23 @@ namespace OneJS.Models {
             throw new OperationCanceledException("the scene was disposed while the model loaded");
         }
 
+        /// <summary>
+        /// Frees a loaded model: its template and everything glTFast made for it (meshes,
+        /// materials, textures). False, and nothing freed, while an actor of it is still in the
+        /// world, since those share the model's meshes and materials; true when it was freed or
+        /// was never there. onejs-play's unload calls it.
+        /// </summary>
+        public static bool Unload(int model) {
+            if (!_models.TryGetValue(model, out var m)) return true;
+            foreach (var a in _actors.Values) if (a.model == model) return false;
+            _models.Remove(model);
+            if (m.template != null) Kill(m.template);
+            m.import.Dispose();
+            return true;
+        }
+
+        public static int ModelCount => _models.Count;
+
         /// <summary>The model's animation clip names, one per line.</summary>
         public static string Clips(int model) =>
             _models.TryGetValue(model, out var m) ? string.Join("\n", m.clips) : "";
@@ -208,6 +226,7 @@ namespace OneJS.Models {
 
             var id = ++_next;
             var actor = new Actor {
+                model = model,
                 go = go,
                 anim = go.GetComponentInChildren<Animation>(true),
                 renderers = go.GetComponentsInChildren<Renderer>(true),
