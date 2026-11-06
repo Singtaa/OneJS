@@ -20,7 +20,14 @@ namespace OneJS.ShaderFX {
     /// and the drawing, is this class, for both.
     /// </summary>
     public class ShaderPass : IDisposable {
-        internal const int MinRes = 8;
+        /// <summary>
+        /// The smallest side drawn. 1: a pixel grid asks for exactly its cells
+        /// (a resolution of [10, 7] is ten by seven), and a texture of one
+        /// pixel is a texture. It was 8 with no reason given, which drew [10, 7]
+        /// at ten by eight and [4, 4] at eight by eight, silently (learn Mac,
+        /// engine-findings.md).
+        /// </summary>
+        internal const int MinRes = 1;
         internal const int MaxRes = 2048;
 
         Material _material;
