@@ -4,6 +4,7 @@
 - A Float32Array sets a Vector3[] (or Vector2, Vector4, Color, Quaternion) array, as in `mesh.vertices`
 - WebSocket binary sends and GPU buffer writes cross as bytes
 - The native library's ABI version is 4: restart the editor after updating
+- ModelLit takes `_ColorMask`, so a model can draw depth alone
 
 # [2026-11-05] v3.9.18
 

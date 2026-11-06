@@ -38,6 +38,9 @@ Shader "OneJS/ModelLit" {
         [HideInInspector] _SrcBlend ("Src Blend", Float) = 1
         [HideInInspector] _DstBlend ("Dst Blend", Float) = 0
         [HideInInspector] _ZWrite ("ZWrite", Float) = 1
+        // 15 writes every channel; 0 writes depth alone, as a shadow fan or an occluder wants, without blending a
+        // colour nobody sees (Gunyard, Tachi 5f9c606d).
+        [HideInInspector] _ColorMask ("Color Mask", Float) = 15
     }
 
     SubShader {
@@ -109,6 +112,7 @@ Shader "OneJS/ModelLit" {
             Tags { "LightMode" = "UniversalForward" }
             Blend [_SrcBlend] [_DstBlend]
             ZWrite [_ZWrite]
+            ColorMask [_ColorMask]
             Cull [_Cull]
 
             HLSLPROGRAM
@@ -378,6 +382,7 @@ Shader "OneJS/ModelLit" {
         Tags { "RenderType" = "Opaque" "Queue" = "Geometry" }
         Blend [_SrcBlend] [_DstBlend]
         ZWrite [_ZWrite]
+        ColorMask [_ColorMask]
         Cull [_Cull]
 
         CGPROGRAM

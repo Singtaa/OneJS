@@ -352,6 +352,42 @@ namespace OneJS.Tests.Models {
 
         // A per-actor value declared where URP does not expect it takes every model off the SRP
         // Batcher, and nothing else would say so: the models still draw, one by one.
+        // A depth-only draw (Gunyard's shadow fan, Tachi 5f9c606d): _ColorMask 0 leaves the target's colour alone,
+        // and the default, 15, draws. Without ColorMask [_ColorMask] in the forward pass both draw.
+        [UnityTest]
+        public IEnumerator ColorMaskZero_DrawsNoColour() {
+            var target = new RenderTexture(64, 64, 24);
+            var camera = new GameObject("Test Camera").AddComponent<Camera>();
+            var read = new Texture2D(64, 64, TextureFormat.RGBA32, false);
+            try {
+                int model = 0;
+                yield return Load(m => model = m, "skinned.glb");
+                var actor = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, true, true);
+                var materials = ModelBridge.ActorObject(actor).GetComponentsInChildren<Renderer>(true).SelectMany(r => r.sharedMaterials).Distinct().ToArray();
+                Assert.That(materials, Is.Not.Empty);
+                Assert.That(materials.All(m => m.GetFloat("_ColorMask") == 15), "every channel by default");
+                camera.transform.position = new Vector3(0, 0.5f, -3);
+                camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.backgroundColor = Color.magenta;
+                camera.targetTexture = target;
+                Color Centre() {
+                    camera.Render();
+                    var was = RenderTexture.active;
+                    RenderTexture.active = target;
+                    read.ReadPixels(new Rect(0, 0, 64, 64), 0, 0);
+                    RenderTexture.active = was;
+                    return read.GetPixel(32, 32);
+                }
+                Assert.That(Centre(), Is.Not.EqualTo(Color.magenta), "the model covers the centre");
+                foreach (var m in materials) m.SetFloat("_ColorMask", 0);
+                Assert.That(Centre(), Is.EqualTo(Color.magenta), "a depth-only draw leaves the colour");
+            } finally {
+                Object.DestroyImmediate(camera.gameObject);
+                Object.DestroyImmediate(read);
+                target.Release();
+            }
+        }
+
         [Test]
         public void UrpSubShader_StaysSrpBatcherCompatible() {
             var shader = Resources.Load<Shader>("OneJS/ModelLit");
