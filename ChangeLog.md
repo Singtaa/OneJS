@@ -18,6 +18,7 @@
 - LightBaker bakes sky and bounced light into a lightmap and a probe grid at runtime
 - ModelBridge bakes the scene's static actors and scattered copies, and lights moving actors from the probes
 - ModelLit draws a baked actor from the lightmap
+- ModelBridge saves a finished bake as a light file and shows a saved one without baking
 
 # [2026-11-05] v3.9.18
 

@@ -10,6 +10,7 @@ measurements are `PlaySite/docs/lightmapping.md` in the container repo.
 | `LightBaker.cs` | `BakeScene` (what is baked), `BakeSettings`, and `LightBaker`, which bakes it a slice at a time |
 | `Bvh.cs` | The triangle hierarchy the trace walks, built on the CPU |
 | `ProbeSolve.cs` | The probe pass's sums as `SphericalHarmonicsL2` coefficients, and probes inside solids filled from their neighbours |
+| `LightFile.cs` | A finished bake as one PNG and back: the lightmap as 8-bit RGBM over a range of 8, and under it the probes, each float as its four bytes in one pixel, so they read back exactly |
 | `Resources/OneJS/LightBake.shader` | The passes: G-buffer, lightmap trace, probe trace, resolve, dilation, denoise |
 
 ## What it bakes
@@ -59,7 +60,9 @@ draft and the final stay; the rest is freed at the end.
 
 `ModelBridge.Light.cs` (in `Runtime/Models`) is the one caller in OneJS: it builds the `BakeScene`
 from the scene's static actors and scattered copies, steps the baker a frame at a time for
-onejs-play's `scene.bake`, and puts the result on the models. The baker disposes its textures with
+onejs-play's `scene.bake`, and puts the result on the models. It also writes a finished bake as a
+light file (`LightFile`) and shows one instead of baking (`LoadLight`), which is how a cart's saved
+light reaches a player without a bake on their device. The baker disposes its textures with
 `DestroyImmediate` in the editor's edit mode, since a bake runs in the edit-mode preview too.
 
 ## Traps

@@ -4,6 +4,7 @@ using OneJS.Lighting;
 using OneJS.Utils;
 using UnityEngine;
 using UnityEngine.Rendering;
+using LightFileFormat = OneJS.Lighting.LightFile;
 using Object = UnityEngine.Object;
 
 namespace OneJS.Models {
@@ -29,6 +30,8 @@ namespace OneJS.Models {
         static LightBaker _baker;
         // The lightmap ModelLit reads now: the bake's draft, then its final. Null until the draft.
         static Texture _lightmap;
+        // A lightmap read from a light file (LoadLight), which the bridge owns; a bake's are the baker's.
+        static Texture2D _loaded;
         // The probes' 27 floats each, as LightBaker.ProbeSH lays them out, and their grid. Null until read.
         static float[] _probes;
         static Vector3 _gridOrigin;
@@ -266,23 +269,10 @@ namespace OneJS.Models {
             if (!LightBaker.Supported(out var why)) return $"this GPU cannot bake light: {why}";
 
             var scene = new SceneBuilder();
-            for (int i = 0; i < actors.Length; i += ActorStride) {
-                if (!_actors.TryGetValue((int)actors[i], out var a)) return $"there is no actor {(int)actors[i]}";
-                if (!_models.TryGetValue(a.model, out var m) || m.lit == null) return $"actor {(int)actors[i]}'s model has no unwrap";
-                var st = new Vector4(actors[i + 1], actors[i + 2], actors[i + 3], actors[i + 4]);
-                foreach (var (filter, renderer) in Parts(a.go)) scene.Add(filter.sharedMesh, filter.transform.localToWorldMatrix, renderer.sharedMaterials, st);
-                a.atlas = st;
-            }
-            for (int i = 0; i < copies.Length; i += CopyStride) {
-                if (!_scatters.TryGetValue((int)copies[i], out var s)) return $"there is no scatter {(int)copies[i]}";
-                if (!_models.TryGetValue(s.model, out var m) || m.lit == null) return $"scatter {(int)copies[i]}'s model has no unwrap";
-                var copy = (int)copies[i + 1];
-                if (copy < 0 || copy >= s.data.Length / ScatterStride) return $"scatter {(int)copies[i]} has no copy {copy}";
-                var st = new Vector4(copies[i + 2], copies[i + 3], copies[i + 4], copies[i + 5]);
-                var matrix = CopyMatrix(s.data, copy);
-                foreach (var part in s.parts) scene.Add(part.filter.sharedMesh, matrix * part.local, part.materials, st);
-                s.atlas ??= new Vector4[s.data.Length / ScatterStride];
-                s.atlas[copy] = st;
+            var problem = Place(actors, copies, scene);
+            if (problem != "") {
+                ClearLight();
+                return problem;
             }
             if (scene.Empty) return "there is nothing static to bake";
 
@@ -308,6 +298,84 @@ namespace OneJS.Models {
             _gridOrigin = bake.GridOrigin;
             _gridSpacing = bake.GridSpacing;
             _gridCounts = bake.GridCounts;
+            return "";
+        }
+
+        /// <summary>
+        /// Gives each static actor and copy its rectangle of the atlas, as BeginBake and LoadLight
+        /// read them, and hands its triangles to `scene` when there is one. "" or why not.
+        /// </summary>
+        static string Place(float[] actors, float[] copies, SceneBuilder scene) {
+            for (int i = 0; i < actors.Length; i += ActorStride) {
+                if (!_actors.TryGetValue((int)actors[i], out var a)) return $"there is no actor {(int)actors[i]}";
+                if (!_models.TryGetValue(a.model, out var m) || m.lit == null) return $"actor {(int)actors[i]}'s model has no unwrap";
+                var st = new Vector4(actors[i + 1], actors[i + 2], actors[i + 3], actors[i + 4]);
+                if (scene != null) {
+                    foreach (var (filter, renderer) in Parts(a.go)) scene.Add(filter.sharedMesh, filter.transform.localToWorldMatrix, renderer.sharedMaterials, st);
+                }
+                a.atlas = st;
+            }
+            for (int i = 0; i < copies.Length; i += CopyStride) {
+                if (!_scatters.TryGetValue((int)copies[i], out var s)) return $"there is no scatter {(int)copies[i]}";
+                if (!_models.TryGetValue(s.model, out var m) || m.lit == null) return $"scatter {(int)copies[i]}'s model has no unwrap";
+                var copy = (int)copies[i + 1];
+                if (copy < 0 || copy >= s.data.Length / ScatterStride) return $"scatter {(int)copies[i]} has no copy {copy}";
+                var st = new Vector4(copies[i + 2], copies[i + 3], copies[i + 4], copies[i + 5]);
+                if (scene != null) {
+                    var matrix = CopyMatrix(s.data, copy);
+                    foreach (var part in s.parts) scene.Add(part.filter.sharedMesh, matrix * part.local, part.materials, st);
+                }
+                s.atlas ??= new Vector4[s.data.Length / ScatterStride];
+                s.atlas[copy] = st;
+            }
+            return "";
+        }
+
+        /// <summary>
+        /// The finished bake as a light file (Lighting/LightFile.cs), base64: the lightmap and the
+        /// probes, which onejs-play saves with its record. "" while nothing has finished baking.
+        /// </summary>
+        public static string LightFile() {
+            if (_baker == null || !_baker.Done || _baker.Lightmap == null) return "";
+            var map = _baker.Lightmap;
+            var png = LightFileFormat.Encode(LightFileFormat.Read(map), map.width, map.height, _baker.ProbeSH);
+            return Convert.ToBase64String(png);
+        }
+
+        /// <summary>
+        /// Shows a saved bake instead of baking: `file` is a light file as base64 (LightFile), and
+        /// the rest are as BeginBake takes them, for the scene the file was baked for. Replaces any
+        /// bake before it. "" when the light is showing, or why not, and then nothing is lit by it.
+        /// </summary>
+        public static string LoadLight(string file, float[] actors, float[] copies, float[] grid, int width, int height) {
+            ClearLight();
+            if (actors == null || actors.Length % ActorStride != 0) return "five floats a static actor: its id and its rectangle";
+            if (copies == null || copies.Length % CopyStride != 0) return "six floats a copy: its scatter, its index and its rectangle";
+            if (grid == null || grid.Length != GridFloats) return "a probe grid is seven floats: origin, spacing and counts";
+            byte[] png;
+            try {
+                png = Convert.FromBase64String(file ?? "");
+            } catch (FormatException) {
+                return "the light file is not base64";
+            }
+            var counts = new Vector3Int((int)grid[4], (int)grid[5], (int)grid[6]);
+            var problem = LightFileFormat.Decode(png, width, height, counts.x * counts.y * counts.z, out var light, out var probes);
+            if (problem == "") problem = Place(actors, copies, null);
+            if (problem != "") {
+                if (light != null) Kill(light);
+                ClearLight();
+                return problem;
+            }
+            _loaded = light;
+            _gridOrigin = new Vector3(grid[0], grid[1], grid[2]);
+            _gridSpacing = grid[3];
+            _gridCounts = counts;
+            if (probes.Length > 0) {
+                _probes = probes;
+                Probing(true);
+            }
+            ShowLightmap(light);
+            UpdateProbes();
             return "";
         }
 
@@ -376,6 +444,8 @@ namespace OneJS.Models {
         public static void ClearLight() {
             _baker?.Dispose();
             _baker = null;
+            if (_loaded != null) Kill(_loaded);
+            _loaded = null;
             var had = _lightmap != null || _probes != null;
             _lightmap = null;
             _probes = null;

@@ -175,6 +175,48 @@ namespace OneJS.Tests.Models {
             Assert.That(ModelBridge.BeginBake(actors, new float[] { scatter, 7, 1, 1, 0, 0 }, Grid, AtlasWidth, AtlasHeight, 8, 16), Does.Contain("no copy 7"));
         }
 
+        [Test]
+        public void LightFile_LoadsBackAsTheLightItWasBakedAs() {
+            Assert.That(ModelBridge.LightFile(), Is.Empty, "nothing has baked yet");
+            Assert.That(Bake(), Is.Empty);
+            Assert.That(ModelBridge.LightFile(), Is.Empty, "the bake has not finished");
+            RunBake();
+            var file = ModelBridge.LightFile();
+            Assert.That(file, Is.Not.Empty);
+            var shaded = Sample(Floor(0, 0));
+            var lit = Sample(Floor(3.5f, 3.5f));
+            var under = ModelBridge.BlendProbes(new Vector3(0, 0.25f, 0));
+
+            ModelBridge.ClearLight();
+            Assert.That(ModelBridge.BakedLightmap, Is.Null);
+            var actors = new[] { _floorActor, FloorST.x, FloorST.y, FloorST.z, FloorST.w, _roofActor, RoofST.x, RoofST.y, RoofST.z, RoofST.w };
+            Assert.That(ModelBridge.LoadLight(file, actors, Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight), Is.Empty);
+            Assert.That(ModelBridge.Baking, Is.False, "a loaded file bakes nothing");
+            Assert.That(AtlasOf(_floorActor), Is.EqualTo(FloorST));
+            Assert.That(AtlasOf(_crateActor), Is.EqualTo(Vector4.zero));
+            Assert.That(RendererOf(_crateActor).lightProbeUsage, Is.EqualTo(LightProbeUsage.CustomProvided), "a moving actor takes its probe light from the file");
+            Assert.That(ModelBridge.BlendProbes(new Vector3(0, 0.25f, 0)), Is.EqualTo(under), "the probes, exactly");
+
+            var shadedAgain = Sample(Floor(0, 0));
+            var litAgain = Sample(Floor(3.5f, 3.5f));
+            Assert.That(shadedAgain.g, Is.EqualTo(shaded.g).Within(0.02f + shaded.g * 0.02f), $"the shaded floor: {shadedAgain} against {shaded}");
+            Assert.That(litAgain.g, Is.EqualTo(lit.g).Within(0.02f + lit.g * 0.02f), $"the open floor: {litAgain} against {lit}");
+        }
+
+        [Test]
+        public void LoadLight_RefusesAFileThatDoesNotFitAndLightsNothing() {
+            Assert.That(Bake(), Is.Empty);
+            RunBake();
+            var file = ModelBridge.LightFile();
+            var actors = new[] { _floorActor, FloorST.x, FloorST.y, FloorST.z, FloorST.w };
+            Assert.That(ModelBridge.LoadLight(file, actors, Array.Empty<float>(), Grid, AtlasWidth * 2, AtlasHeight), Does.Contain("needs"));
+            Assert.That(ModelBridge.BakedLightmap, Is.Null);
+            Assert.That(AtlasOf(_floorActor), Is.EqualTo(Vector4.zero));
+            Assert.That(ModelBridge.LoadLight("not base64!", actors, Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight), Does.Contain("base64"));
+            Assert.That(ModelBridge.LoadLight(file, new float[] { 999, 1, 1, 0, 0 }, Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight), Does.Contain("no actor 999"));
+            Assert.That(ModelBridge.BakedLightmap, Is.Null);
+        }
+
         static Vector2 Floor(float x, float z) {
             var u = (x + 4) / 8;
             var v = (z + 4) / 8;
