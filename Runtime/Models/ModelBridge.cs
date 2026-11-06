@@ -38,12 +38,36 @@ namespace OneJS.Models {
         // ModelLit's per-actor values, apart from the material's own _Dissolve and _ReceiveShadows.
         static readonly int ActorDissolveId = Shader.PropertyToID("_ActorDissolve");
         static readonly int ActorShadowlessId = Shader.PropertyToID("_ActorShadowless");
+        static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
         class Model {
+            // Null for a model made from arrays, which has `built` instead.
             public GltfImport import;
             public GameObject template;
             public Bounds bounds;
             public string[] clips;
+            public BuiltMesh built;
+        }
+
+        /// <summary>
+        /// A model made from arrays (CreateMesh): the mesh and material it owns, which vertex
+        /// streams it has, and the buffers SetMesh writes into. The buffers hold a capacity, so a
+        /// mesh redrawn every frame at varying sizes allocates a handful of times and then never.
+        /// </summary>
+        sealed class BuiltMesh {
+            public Mesh mesh;
+            public Material material;
+            public bool givesNormals, givesColors, givesUvs;
+            public int colorStream = -1, uvStream = -1;
+            public VertexAttributeDescriptor[] layout;
+            public int vertexCount, indexCount, vertexCapacity, indexCapacity;
+            public IndexFormat format = IndexFormat.UInt16;
+            // The indices as given, and as 16-bit for a mesh small enough to draw with them.
+            public uint[] indices = Array.Empty<uint>();
+            public ushort[] shortIndices = Array.Empty<ushort>();
+            public Color[] colors = Array.Empty<Color>();
+            public Color baseColor;
+            public bool seeThrough, written, dynamic;
         }
 
         class Actor {
@@ -194,10 +218,242 @@ namespace OneJS.Models {
             if (!_models.TryGetValue(model, out var m)) return true;
             foreach (var a in _actors.Values) if (a.model == model) return false;
             _models.Remove(model);
-            if (m.template != null) Kill(m.template);
-            m.import.Dispose();
+            Free(m);
             return true;
         }
+
+        static void Free(Model m) {
+            if (m.template != null) Kill(m.template);
+            m.import?.Dispose();
+            if (m.built != null) {
+                if (m.built.mesh != null) Kill(m.built.mesh);
+                if (m.built.material != null) Kill(m.built.material);
+            }
+        }
+
+        // Models made from arrays
+
+        /// <summary>
+        /// A model made from arrays rather than a file, spawned like a loaded one. It holds no
+        /// vertices until <see cref="SetMesh"/> gives them, and keeps the vertex streams it is made
+        /// with: positions always, normals (computed from the triangles unless `normals` says they
+        /// are given), per-vertex colours and UVs. `r, g, b, a` is its colour in sRGB, multiplied by
+        /// the vertex colours; an alpha below 1 draws it see-through. Returns the model's handle.
+        /// </summary>
+        public static int CreateMesh(bool normals, bool colors, bool uvs, float r, float g, float b, float a) {
+            var built = new BuiltMesh { givesNormals = normals, givesColors = colors, givesUvs = uvs, baseColor = new Color(r, g, b, a) };
+            var layout = new List<VertexAttributeDescriptor> {
+                new(VertexAttribute.Position, VertexAttributeFormat.Float32, 3, 0),
+                new(VertexAttribute.Normal, VertexAttributeFormat.Float32, 3, 1),
+            };
+            if (colors) {
+                built.colorStream = layout.Count;
+                layout.Add(new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.Float32, 4, built.colorStream));
+            }
+            if (uvs) {
+                built.uvStream = layout.Count;
+                layout.Add(new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2, built.uvStream));
+            }
+            built.layout = layout.ToArray();
+            built.mesh = new Mesh { name = "mesh" };
+            built.mesh.subMeshCount = 1;
+
+            if (ModelMaterialGenerator.ModelShader != null) {
+                built.material = new Material(ModelMaterialGenerator.ModelShader) { name = "mesh", enableInstancing = true };
+                // SetColor takes the sRGB value and keeps it linear in a linear project.
+                built.material.SetColor(BaseColorId, built.baseColor);
+                if (colors) built.material.EnableKeyword("_VERTEX_COLOR");
+            } else {
+                // HDRP, where ModelLit has no SubShader: glTFast's default material, without vertex colours.
+                built.material = new Material(new ModelMaterialGenerator().GetDefaultMaterial()) { name = "mesh" };
+                built.material.color = built.baseColor;
+            }
+            if (!Playing) built.mesh.hideFlags = built.material.hideFlags = HideFlags.DontSave;
+
+            var template = new GameObject("mesh");
+            template.SetActive(false);
+            template.transform.SetParent(Root, false);
+            template.AddComponent<MeshFilter>().sharedMesh = built.mesh;
+            template.AddComponent<MeshRenderer>().sharedMaterial = built.material;
+            Mark(template);
+
+            var id = ++_next;
+            _models[id] = new Model { template = template, bounds = new Bounds(), clips = Array.Empty<string>(), built = built };
+            return id;
+        }
+
+        /// <summary>
+        /// Gives a mesh model its vertices and triangles, or new ones. Positions are three floats a
+        /// vertex; indices three a triangle, a Uint32Array or a Uint16Array, and left out they stay
+        /// what they were. Normals (three floats), colours (sRGB, three or four floats) and UVs (two)
+        /// come with every set that changes the number of vertices, if the model was made with them;
+        /// otherwise they may be left out and stay. Every actor of the model changes with it.
+        ///
+        /// Returns "" when it took them, and otherwise what was wrong, with nothing changed: the
+        /// arrays come from a cart, and the reason is worth more to it than an exception's text.
+        /// </summary>
+        public static string SetMesh(int model, Vector3[] positions, object indices, Vector3[] normals, float[] colors, Vector2[] uvs) {
+            if (!_models.TryGetValue(model, out var m) || m.built == null) return $"there is no mesh model {model}";
+            var b = m.built;
+            if (positions == null) return "positions are required";
+            int count = positions.Length;
+            bool resized = count != b.vertexCount || !b.written;
+
+            string problem = Stream("normals", normals?.Length, b.givesNormals, count, resized)
+                ?? Stream("uvs", uvs?.Length, b.givesUvs, count, resized);
+            if (problem != null) return problem;
+            if (colors != null && !b.givesColors) return "this model was made without colors, so it takes none";
+            if (colors == null && b.givesColors && resized) return "colors are required whenever the number of vertices changes";
+            int colorWidth = colors == null ? 0 : colors.Length == count * 4 ? 4 : colors.Length == count * 3 ? 3 : -1;
+            if (colorWidth < 0) return $"colors has {colors.Length} numbers, which is neither 3 nor 4 a vertex for {count} vertices";
+
+            int indexCount;
+            if (indices == null) {
+                if (!b.written) return "indices are required";
+                indexCount = b.indexCount;
+            } else if (IsIndices(indices)) {
+                indexCount = ((Array)indices).Length;
+            } else {
+                return $"indices are a {indices.GetType().Name}; give a Uint32Array or a Uint16Array";
+            }
+            if (indexCount % 3 != 0) return $"there are {indexCount} indices, which is not three a triangle";
+            problem = indices == null ? Reach(b.indices, b.indexCount, count) : CheckIndices(indices, count);
+            if (problem != null) return problem;
+
+            // Everything is valid: from here nothing returns early.
+            if (b.written && !b.dynamic) {
+                b.mesh.MarkDynamic();
+                b.dynamic = true;
+            }
+            const MeshUpdateFlags quiet = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices;
+            if (count > b.vertexCapacity) {
+                // A mesh set once is exactly its size; one that grows again doubles.
+                b.vertexCapacity = b.written ? Math.Max(count, b.vertexCapacity * 2) : count;
+                b.mesh.SetVertexBufferParams(b.vertexCapacity, b.layout);
+            }
+            var format = b.vertexCapacity > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16;
+            bool rewrite = indices != null;
+            if (indexCount > b.indexCapacity || format != b.format) {
+                b.indexCapacity = b.written ? Math.Max(indexCount, b.indexCapacity * 2) : indexCount;
+                b.format = format;
+                b.mesh.SetIndexBufferParams(b.indexCapacity, format);
+                rewrite = true;
+            }
+            if (indices != null) CopyIndices(b, indices, indexCount);
+            if (rewrite) {
+                if (format == IndexFormat.UInt32) b.mesh.SetIndexBufferData(b.indices, 0, 0, indexCount, quiet);
+                else {
+                    if (b.shortIndices.Length < b.indexCapacity) b.shortIndices = new ushort[b.indexCapacity];
+                    for (int i = 0; i < indexCount; i++) b.shortIndices[i] = (ushort)b.indices[i];
+                    b.mesh.SetIndexBufferData(b.shortIndices, 0, 0, indexCount, quiet);
+                }
+            }
+
+            b.mesh.SetVertexBufferData(positions, 0, 0, count, 0, quiet);
+            if (normals != null) b.mesh.SetVertexBufferData(normals, 0, 0, count, 1, quiet);
+            if (uvs != null) b.mesh.SetVertexBufferData(uvs, 0, 0, count, b.uvStream, quiet);
+            bool seeThrough = b.baseColor.a < 1;
+            if (colors != null) {
+                if (b.colors.Length < b.vertexCapacity) b.colors = new Color[b.vertexCapacity];
+                // sRGB as everywhere in oj; the shader reads vertex colours as they are, so a linear
+                // project needs them linear or they come out washed out.
+                bool linear = QualitySettings.activeColorSpace == ColorSpace.Linear;
+                for (int v = 0, f = 0; v < count; v++, f += colorWidth) {
+                    var c = new Color(colors[f], colors[f + 1], colors[f + 2], colorWidth == 4 ? colors[f + 3] : 1);
+                    if (c.a < 1) seeThrough = true;
+                    b.colors[v] = linear ? c.linear : c;
+                }
+                b.mesh.SetVertexBufferData(b.colors, 0, 0, count, b.colorStream, quiet);
+            } else if (b.givesColors) {
+                for (int v = 0; v < count && !seeThrough; v++) seeThrough = b.colors[v].a < 1;
+            }
+
+            var bounds = Measure(positions, count);
+            b.mesh.SetSubMesh(0, new SubMeshDescriptor(0, indexCount) { bounds = bounds, firstVertex = 0, vertexCount = count }, quiet);
+            b.mesh.bounds = bounds;
+            if (!b.givesNormals) b.mesh.RecalculateNormals(quiet);
+            b.vertexCount = count;
+            b.indexCount = indexCount;
+            b.written = true;
+            if (seeThrough != b.seeThrough && ModelMaterialGenerator.ModelShader != null) {
+                ModelMaterialGenerator.SetSeeThrough(b.material, seeThrough);
+                b.seeThrough = seeThrough;
+            }
+
+            // A click on an actor hits a box the size of its model.
+            m.bounds = bounds;
+            foreach (var a in _actors.Values) {
+                if (a.model != model || !a.go.TryGetComponent<BoxCollider>(out var box)) continue;
+                box.center = bounds.center;
+                box.size = bounds.size;
+            }
+            return "";
+        }
+
+        /// <summary>Whether an optional stream came as the model takes it, or why not.</summary>
+        static string Stream(string name, int? length, bool takes, int count, bool resized) {
+            if (length != null && !takes) return $"this model was made without {name}, so it takes none";
+            if (length == null && takes && resized) return $"{name} are required whenever the number of vertices changes";
+            if (length != null && length != count) return $"there are {length} {name} for {count} positions";
+            return null;
+        }
+
+        // By the exact type: the CLR lets an int[] pass `is uint[]` (and a uint[] `is int[]`), which
+        // would read a negative index as four billion.
+        static bool IsIndices(object indices) {
+            var type = indices.GetType();
+            return type == typeof(uint[]) || type == typeof(int[]) || type == typeof(ushort[]);
+        }
+
+        static string CheckIndices(object indices, int count) {
+            var type = indices.GetType();
+            if (type == typeof(uint[])) {
+                var u = (uint[])indices;
+                for (int i = 0; i < u.Length; i++) if (u[i] >= count) return Past(i, u[i], count);
+            } else if (type == typeof(int[])) {
+                var s = (int[])indices;
+                for (int i = 0; i < s.Length; i++) if (s[i] < 0 || s[i] >= count) return Past(i, s[i], count);
+            } else {
+                var h = (ushort[])indices;
+                for (int i = 0; i < h.Length; i++) if (h[i] >= count) return Past(i, h[i], count);
+            }
+            return null;
+        }
+
+        // Indices kept from the last set, against a new number of vertices.
+        static string Reach(uint[] kept, int n, int count) {
+            for (int i = 0; i < n; i++) if (kept[i] >= count) return $"the indices kept from the last set reach vertex {kept[i]}, and there are {count} vertices now: give indices with them";
+            return null;
+        }
+
+        static string Past(int at, long value, int count) =>
+            $"index {at} is {value}, and there are {count} vertices (0 to {count - 1})";
+
+        static void CopyIndices(BuiltMesh b, object indices, int n) {
+            if (b.indices.Length < b.indexCapacity) b.indices = new uint[b.indexCapacity];
+            var type = indices.GetType();
+            if (type == typeof(uint[])) Array.Copy((uint[])indices, b.indices, n);
+            else if (type == typeof(int[])) { var s = (int[])indices; for (int i = 0; i < n; i++) b.indices[i] = (uint)s[i]; }
+            else { var h = (ushort[])indices; for (int i = 0; i < n; i++) b.indices[i] = h[i]; }
+        }
+
+        static Bounds Measure(Vector3[] positions, int count) {
+            if (count == 0) return new Bounds();
+            Vector3 min = positions[0], max = positions[0];
+            for (int i = 1; i < count; i++) {
+                min = Vector3.Min(min, positions[i]);
+                max = Vector3.Max(max, positions[i]);
+            }
+            var bounds = new Bounds();
+            bounds.SetMinMax(min, max);
+            return bounds;
+        }
+
+        /// <summary>How many vertices and indices a mesh model's buffers hold room for: what SetMesh writes into.</summary>
+        internal static Vector2Int MeshCapacity(int model) =>
+            _models.TryGetValue(model, out var m) && m.built != null ? new Vector2Int(m.built.vertexCapacity, m.built.indexCapacity) : default;
+
+        internal static Mesh MeshOf(int model) => _models.TryGetValue(model, out var m) ? m.built?.mesh : null;
 
         public static int ModelCount => _models.Count;
 
@@ -523,10 +779,7 @@ namespace OneJS.Models {
             _generation++;
             foreach (var a in _actors.Values) if (a.go != null) Kill(a.go);
             _actors.Clear();
-            foreach (var m in _models.Values) {
-                if (m.template != null) Kill(m.template);
-                m.import.Dispose();
-            }
+            foreach (var m in _models.Values) Free(m);
             _models.Clear();
             _lights.Clear();
             if (_root != null) Kill(_root.gameObject);

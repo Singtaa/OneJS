@@ -16,8 +16,9 @@ namespace OneJS.Models {
     /// Where ModelLit has no SubShader for the pipeline (HDRP), glTFast's own generator makes the
     /// material instead: the model still looks right, and only the dissolve is lost.
     ///
-    /// Not carried: texture transforms, a second UV set, vertex colours and glTF's other
-    /// extensions (clearcoat, transmission, specular-glossiness).
+    /// Not carried: texture transforms, a second UV set, a file's vertex colours (ModelLit draws
+    /// them only for a mesh model, ModelBridge.CreateMesh) and glTF's other extensions (clearcoat,
+    /// transmission, specular-glossiness).
     /// </summary>
     public class ModelMaterialGenerator : IMaterialGenerator {
         static Shader _shader;
@@ -110,18 +111,26 @@ namespace OneJS.Models {
                     material.renderQueue = (int)RenderQueue.AlphaTest;
                     break;
                 case MaterialBase.AlphaMode.Blend:
-                    material.SetFloat(SurfaceId, 1);
-                    material.SetFloat(SrcBlendId, (float)BlendMode.SrcAlpha);
-                    material.SetFloat(DstBlendId, (float)BlendMode.OneMinusSrcAlpha);
-                    material.SetFloat(ZWriteId, 0);
-                    material.SetOverrideTag("RenderType", "Transparent");
-                    material.renderQueue = (int)RenderQueue.Transparent;
+                    SetSeeThrough(material, true);
                     break;
                 default:
                     material.renderQueue = (int)RenderQueue.Geometry;
                     break;
             }
             return material;
+        }
+
+        /// <summary>
+        /// A ModelLit material blended over what is behind it, by its alpha, or drawn opaque: a glTF
+        /// material in Blend mode, and a mesh model whose colour has an alpha below 1.
+        /// </summary>
+        public static void SetSeeThrough(Material material, bool seeThrough) {
+            material.SetFloat(SurfaceId, seeThrough ? 1 : 0);
+            material.SetFloat(SrcBlendId, (float)(seeThrough ? BlendMode.SrcAlpha : BlendMode.One));
+            material.SetFloat(DstBlendId, (float)(seeThrough ? BlendMode.OneMinusSrcAlpha : BlendMode.Zero));
+            material.SetFloat(ZWriteId, seeThrough ? 0 : 1);
+            material.SetOverrideTag("RenderType", seeThrough ? "Transparent" : "Opaque");
+            material.renderQueue = (int)(seeThrough ? RenderQueue.Transparent : RenderQueue.Geometry);
         }
 
         public void SetLogger(ICodeLogger logger) {

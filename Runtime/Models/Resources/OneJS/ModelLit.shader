@@ -2,7 +2,8 @@
 //
 // glTF's metallic-roughness material as glTF lays it out (metal in B and roughness in G of one
 // texture, occlusion in R), lit by the pipeline's own PBR lighting: the sun's soft cascaded
-// shadows, point lights, ambient from the probe, SSAO and fog. Plus a noise dissolve.
+// shadows, point lights, ambient from the probe, SSAO and fog. Plus a noise dissolve, and a mesh
+// model's vertex colours.
 //
 // Every SubShader carries PackageRequirements on glTFast, so in a project without the models
 // assembly the file compiles to nothing and costs a build nothing. The URP SubShader also needs
@@ -130,6 +131,10 @@ Shader "OneJS/ModelLit" {
             #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
             #pragma multi_compile_fog
             #pragma multi_compile_instancing
+            // A mesh model's own colours (ModelBridge.CreateMesh). A glTF material never enables it, so a
+            // file's model reads no COLOR and draws as it did. multi_compile, since the material that
+            // enables it is made at run time, after a build's stripping has decided.
+            #pragma multi_compile_local _ _VERTEX_COLOR
             #define _ENVIRONMENTREFLECTIONS_OFF 1
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -139,6 +144,9 @@ Shader "OneJS/ModelLit" {
                 float3 normalOS : NORMAL;
                 float4 tangentOS : TANGENT;
                 float2 uv : TEXCOORD0;
+                #ifdef _VERTEX_COLOR
+                    float4 color : COLOR;
+                #endif
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -150,6 +158,9 @@ Shader "OneJS/ModelLit" {
                 half4 tangentWS : TEXCOORD3;
                 float3 positionOS : TEXCOORD4;
                 half4 fogAndVertexLight : TEXCOORD5;
+                #ifdef _VERTEX_COLOR
+                    half4 color : TEXCOORD6;
+                #endif
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -165,6 +176,9 @@ Shader "OneJS/ModelLit" {
                 o.tangentWS = half4(n.tangentWS, v.tangentOS.w * GetOddNegativeScale());
                 o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
                 o.positionOS = v.positionOS.xyz;
+                #ifdef _VERTEX_COLOR
+                    o.color = v.color;
+                #endif
                 o.fogAndVertexLight.x = ComputeFogFactor(p.positionCS.z);
                 #ifdef _ADDITIONAL_LIGHTS_VERTEX
                     o.fogAndVertexLight.yzw = VertexLighting(p.positionWS, n.normalWS);
@@ -175,6 +189,9 @@ Shader "OneJS/ModelLit" {
             half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
                 UNITY_SETUP_INSTANCE_ID(i);
                 half4 base = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv) * _BaseColor;
+                #ifdef _VERTEX_COLOR
+                    base *= i.color;
+                #endif
                 float cut = ModelClip(i.positionOS, base.a, _AlphaClip, _Cutoff, Dissolved(), _DissolveScale);
                 half3 emission = SAMPLE_TEXTURE2D(_EmissionMap, sampler_EmissionMap, i.uv).rgb * _EmissionColor.rgb
                     + ModelEdge(cut, _DissolveEdge.rgb);
@@ -388,6 +405,7 @@ Shader "OneJS/ModelLit" {
         CGPROGRAM
         #pragma surface Surf Standard fullforwardshadows addshadow keepalpha vertex:Vert
         #pragma target 3.0
+        #pragma multi_compile_local _ _VERTEX_COLOR
         #include "ModelDissolve.hlsl"
 
         sampler2D _BaseMap;
@@ -414,6 +432,8 @@ Shader "OneJS/ModelLit" {
         struct Input {
             float2 uv_BaseMap;
             float3 positionOS;
+            // Filled from the mesh's COLOR by the surface shader; read only under _VERTEX_COLOR.
+            float4 color : COLOR;
         };
 
         void Vert(inout appdata_full v, out Input o) {
@@ -424,6 +444,9 @@ Shader "OneJS/ModelLit" {
         void Surf(Input i, inout SurfaceOutputStandard o) {
             float2 uv = i.uv_BaseMap;
             half4 base = tex2D(_BaseMap, uv) * _BaseColor;
+            #ifdef _VERTEX_COLOR
+                base *= i.color;
+            #endif
             float cut = ModelClip(i.positionOS, base.a, _AlphaClip, _Cutoff, max(_Dissolve, _ActorDissolve), _DissolveScale);
             half3 emission = tex2D(_EmissionMap, uv).rgb * _EmissionColor.rgb + ModelEdge(cut, _DissolveEdge.rgb);
             o.Alpha = base.a;
