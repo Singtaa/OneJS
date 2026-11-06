@@ -58,6 +58,8 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `Physics2D/PhysicsWorld2D.cs` | A script-simulated Unity 2D physics world (`Rigidbody2D`) whose bodies drive VisualElements by `transform.position`; contacts come back as one flat event buffer |
 | `Physics2D/Physics2DWire.cs` | Versioned wire schema (v1) shared with onejs-unity `src/physics2d/index.ts`; change both together |
 | `Physics2D/ElementPlacer.cs` | Moves many elements in one call: `Register` an element once, then `PlaceMany([id, x, y, degrees, ...])` sets each one's translate and rotate so its centre lands at (x, y). How ojplay's Rapier 2D worlds carry their elements |
+| `Lighting/LightBaker.cs` | Runtime baked light on the GPU: sky and bounced light into a lightmap for static triangles and a probe grid as spherical harmonics, a slice at a time (see `Lighting/README.md`) |
+| `Lighting/Bvh.cs`, `Lighting/ProbeSolve.cs` | The bake's triangle hierarchy, and its probe sums turned into Unity's ambient probe format with probes inside solids filled from outside |
 | `Models/ModelBridge.cs` | 3D models for ojplay's `useScene`: `.glb` loads, models made from arrays, actors, sun, ambient, fog and point lights by handle (optional assembly, needs glTFast) |
 | `Models/ModelBridge.Scatter.cs` | Copies of a model that never move, drawn as instanced chunks with no GameObject |
 | `Models/ModelBridge.SceneTexture.cs` | The scene drawn into a shared texture a program reads, while anything reads it |

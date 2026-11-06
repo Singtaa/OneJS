@@ -15,6 +15,7 @@
 - InputBridge says which pointer the last press came from
 - SLProgramBridge counts the page programs still compiling
 - A property two interfaces declare reads the get-only one, whatever order the assembly lists them in
+- LightBaker bakes sky and bounced light into a lightmap and a probe grid at runtime
 
 # [2026-11-05] v3.9.18
 

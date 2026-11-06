@@ -1,0 +1,69 @@
+# Lighting
+
+Baked light at runtime, for a game that cannot use Unity's lightmapper because
+it runs in a player: OJPlay's `scene.bake` (onejs-play, `src/light/`), and any
+OneJS project that bakes a scene it builds as it runs. The design and its
+measurements are `PlaySite/docs/lightmapping.md` in the container repo.
+
+| File | Contents |
+|---|---|
+| `LightBaker.cs` | `BakeScene` (what is baked), `BakeSettings`, and `LightBaker`, which bakes it a slice at a time |
+| `Bvh.cs` | The triangle hierarchy the trace walks, built on the CPU |
+| `ProbeSolve.cs` | The probe pass's sums as `SphericalHarmonicsL2` coefficients, and probes inside solids filled from their neighbours |
+| `Resources/OneJS/LightBake.shader` | The passes: G-buffer, lightmap trace, probe trace, resolve, dilation, denoise |
+
+## What it bakes
+
+The static triangles arrive in world space, already laid out in one atlas (the
+unwrap is onejs-play's `src/light/unwrap.ts`). Each triangle receives light and
+blocks and bounces it. The bake is:
+
+- **the sky and the ground** of the ambient, as two hemispheres of constant
+  radiance. That is exactly the light `ModelBridge.HemisphereProbe` gives an
+  open surface (its irradiance is the average plus half the difference times
+  the normal's height), so a floor with nothing over it bakes to what it shows
+  unbaked, and baking changes where light lands, never how much there is;
+- **the sun's bounce**: every hit after the first. The sun's first hit stays
+  live, with its shadow map, so a game can move its sun without its shadows
+  going wrong;
+- two bounces, in ModelLit's units: a sun of colour C lights a surface facing
+  it C, and a surface of albedo A lit L sends A L on.
+
+**Probes** sit on a grid and hold the light arriving there, from every
+direction, as `SphericalHarmonicsL2` holds the ambient probe: ready for a
+moving actor's shader to read in place of the one ambient probe. A probe most
+of whose rays meet the back of a face is inside a solid and takes its
+neighbours' mean, filled in from outside a ring at a time.
+
+## How it runs
+
+Fragment passes, not compute, so WebGL 2 runs them. The G-buffer is drawn once;
+the probes are traced first, so moving things are lit within a few frames; then
+the lightmap, a tile at a time, as a running mean blended into a half-float
+target (no ping-pong, so a tile writes only its own texels). A draft is finished
+at `DraftSamples` and the final at `Samples`, each by resolve, four steps of
+dilation and an edge-aware denoise of the whole map. `Step(paths)` does about
+that many paths, at least one draw; `RunToEnd` bakes everything, waiting on the
+GPU between submissions so none grows long enough to trip a watchdog.
+
+A GPU needs float render targets (positions in half floats are centimetres off
+at a hundred metres), half-float ones, four targets at once and float textures.
+`LightBaker.Supported` says which is missing; a game without them keeps its flat
+ambient.
+
+Memory while baking: 72 bytes a texel (positions and normals in float, the sum,
+two work targets, the draft and the final in half), 19 MB at 512 by 512. The
+draft and the final stay; the rest is freed at the end.
+
+## Traps
+
+- **xatlas centres a chart's border texels on its edges.** A floor texel at the
+  foot of a wall then sits on the wall's plane and its rays cross the wall at
+  distance 0, letting the sky in along every corner. The G-buffer moves each
+  texel 5 mm towards its triangle's centre.
+- **Which row is which.** Only the G-buffer places anything, at its uv, flipped
+  where `UNITY_UV_STARTS_AT_TOP`, so a texture read at that uv finds it. Every
+  other pass reads and writes its own pixel. The probes are read back by the
+  index each carries, never by row, since a read-back's row order is the one
+  thing platforms disagree on. `LightBakerTests` checks the orientation by
+  sampling the lightmap as a model does.
