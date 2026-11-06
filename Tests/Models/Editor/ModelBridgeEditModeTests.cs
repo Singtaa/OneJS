@@ -99,6 +99,36 @@ namespace OneJS.Tests.Models {
         }
 
         [UnityTest]
+        public IEnumerator OnlyAnActorWithValuesOfItsOwn_CarriesAPropertyBlock() {
+            // A renderer with a property block leaves URP's SRP Batcher and draws alone in every
+            // shadow cascade, so the common actor must have none.
+            int model = 0;
+            yield return Load(m => model = m);
+            ModelBridge.BeginScene();
+            int plain = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, true, true);
+            int fading = ModelBridge.Spawn(model, 2, 0, 0, 0, 1, true, true);
+            int shadowless = ModelBridge.Spawn(model, 4, 0, 0, 0, 1, true, false);
+            Renderer[] Of(int actor) => ModelBridge.ActorObject(actor).GetComponentsInChildren<Renderer>();
+
+            ModelBridge.SetDissolve(fading, 0.4f);
+            Assert.That(Of(plain).Any(r => r.HasPropertyBlock()), Is.False, "a plain actor");
+            Assert.That(Of(shadowless).All(r => r.HasPropertyBlock()), Is.True, "an actor that keeps no shadow on itself");
+            foreach (var r in Of(fading)) {
+                var block = new MaterialPropertyBlock();
+                r.GetPropertyBlock(block);
+                Assert.That(block.GetFloat("_ActorDissolve"), Is.EqualTo(0.4f).Within(1e-6));
+            }
+
+            // Back to plain, the block goes, so the actor batches again.
+            ModelBridge.SetDissolve(fading, 0f);
+            ModelBridge.SetShadows(shadowless, true, true);
+            Assert.That(Of(fading).Concat(Of(shadowless)).Any(r => r.HasPropertyBlock()), Is.False);
+
+            // And every material instances, for the actors that do carry one.
+            Assert.That(Of(plain).SelectMany(r => r.sharedMaterials).All(m => m.enableInstancing), Is.True);
+        }
+
+        [UnityTest]
         public IEnumerator Actors_MoveTurnAndScaleOneThingAtATime() {
             int model = 0;
             yield return Load(m => model = m);
@@ -320,6 +350,23 @@ namespace OneJS.Tests.Models {
             Assert.That(gated, Is.EqualTo(subShaders), "every SubShader needs PackageRequirements on glTFast, or it ships in builds without models");
         }
 
+        // A per-actor value declared where URP does not expect it takes every model off the SRP
+        // Batcher, and nothing else would say so: the models still draw, one by one.
+        [Test]
+        public void UrpSubShader_StaysSrpBatcherCompatible() {
+            var shader = Resources.Load<Shader>("OneJS/ModelLit");
+            var pipeline = new ShaderTagId("RenderPipeline");
+            var urp = Enumerable.Range(0, shader.subshaderCount).Single(i => shader.FindSubshaderTagValue(i, pipeline) != ShaderTagId.none);
+            var code = typeof(UnityEditor.ShaderUtil).GetMethod("GetSRPBatcherCompatibilityCode",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+            if (code == null) Assert.Ignore("this editor has no ShaderUtil.GetSRPBatcherCompatibilityCode");
+            var reason = typeof(UnityEditor.ShaderUtil).GetMethod("GetSRPBatcherCompatibilityIssueReason",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+            int result = (int)code.Invoke(null, new object[] { shader, urp });
+            string why = result == 0 || reason == null ? "" : (string)reason.Invoke(null, new object[] { shader, urp, result });
+            Assert.That(result, Is.EqualTo(0), why);
+        }
+
         // URP compiled the built-in SubShader's 48 variants into every build and never drew one.
         [Test]
         public void ScriptablePipelineBuilds_LeaveOutTheBuiltInSubShader() {
@@ -338,10 +385,12 @@ namespace OneJS.Tests.Models {
         static T[] InScene<T>() where T : Component =>
             Resources.FindObjectsOfTypeAll<T>().Where(c => c.gameObject.scene == SceneManager.GetActiveScene()).ToArray();
 
+        // What ModelLit reads: an actor with no property block receives shadows.
         static float ReceiveShadows(Renderer r) {
+            if (!r.HasPropertyBlock()) return 1f;
             var block = new MaterialPropertyBlock();
             r.GetPropertyBlock(block);
-            return block.GetFloat("_ReceiveShadows");
+            return 1f - block.GetFloat("_ActorShadowless");
         }
 
         static void AssertColor(Color got, Color want) {
