@@ -39,6 +39,7 @@ namespace OneJS.Models {
         static readonly int ActorDissolveId = Shader.PropertyToID("_ActorDissolve");
         static readonly int ActorShadowlessId = Shader.PropertyToID("_ActorShadowless");
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        static readonly int MetallicId = Shader.PropertyToID("_Metallic");
         static readonly int ColorMaskId = Shader.PropertyToID("_ColorMask");
 
         class Model {
@@ -264,6 +265,9 @@ namespace OneJS.Models {
                 built.material = new Material(ModelMaterialGenerator.ModelShader) { name = "mesh", enableInstancing = true };
                 // SetColor takes the sRGB value and keeps it linear in a linear project.
                 built.material.SetColor(BaseColorId, built.baseColor);
+                // ModelLit's default is glTF's metallic factor of 1, which a glTF material sets for
+                // itself; a mesh from arrays is a rough non-metal, so it takes diffuse light.
+                built.material.SetFloat(MetallicId, 0);
                 if (colors) built.material.EnableKeyword("_VERTEX_COLOR");
             } else {
                 // HDRP, where ModelLit has no SubShader: glTFast's default material, without vertex colours.
