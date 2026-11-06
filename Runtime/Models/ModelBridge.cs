@@ -243,6 +243,22 @@ namespace OneJS.Models {
             a.go.transform.SetPositionAndRotation(new Vector3(x, y, z), Quaternion.Euler(0, yaw, 0));
         }
 
+        /// <summary>
+        /// Moves and turns many actors in one call, which is how a physics world puts every
+        /// body's actor where its body is each frame without a crossing per actor. Eight floats
+        /// an actor: its id, its position, then its rotation as a quaternion (x, y, z, w).
+        /// An id that names no actor is skipped.
+        /// </summary>
+        public static void PlaceMany(float[] data) {
+            if (data == null) return;
+            for (int i = 0; i + 7 < data.Length; i += 8) {
+                if (!_actors.TryGetValue((int)data[i], out var a)) continue;
+                a.go.transform.SetPositionAndRotation(
+                    new Vector3(data[i + 1], data[i + 2], data[i + 3]),
+                    new Quaternion(data[i + 4], data[i + 5], data[i + 6], data[i + 7]));
+            }
+        }
+
         /// <summary>Moves an actor without turning it.</summary>
         public static void Move(int actor, float x, float y, float z) {
             if (_actors.TryGetValue(actor, out var a)) a.go.transform.position = new Vector3(x, y, z);

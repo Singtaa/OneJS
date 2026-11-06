@@ -119,6 +119,28 @@ namespace OneJS.Tests.Models {
         }
 
         [UnityTest]
+        public IEnumerator PlaceMany_MovesAndTurnsEveryActorInOneCall() {
+            int model = 0;
+            yield return Load(m => model = m);
+            ModelBridge.BeginScene();
+            int a = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, true, true);
+            int b = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, true, true);
+            // b's quaternion is what onejs-play's physics3d/rotation.ts toQuat gives for
+            // { yaw: 90, pitch: 30, roll: 10 }: the two sides must mean the same turn.
+            ModelBridge.PlaceMany(new[] {
+                a, 1f, 2f, 3f, 0f, 0f, 0f, 1f,
+                b, -1f, 0.5f, 4f, 0.24184476f, 0.66446302f, -0.12278780f, 0.69636424f,
+                999f, 9f, 9f, 9f, 0f, 0f, 0f, 1f,
+            });
+            var ta = ModelBridge.ActorObject(a).transform;
+            var tb = ModelBridge.ActorObject(b).transform;
+            Assert.That(ta.position, Is.EqualTo(new Vector3(1, 2, 3)));
+            Assert.That(Quaternion.Angle(ta.rotation, Quaternion.identity), Is.LessThan(0.01f));
+            Assert.That(tb.position, Is.EqualTo(new Vector3(-1, 0.5f, 4)));
+            Assert.That(Quaternion.Angle(tb.rotation, Quaternion.Euler(30, 90, 10)), Is.LessThan(0.01f));
+        }
+
+        [UnityTest]
         public IEnumerator Speed_ScalesAnActorsClipAndZeroFreezesIt() {
             int model = 0;
             yield return Load(m => model = m);
