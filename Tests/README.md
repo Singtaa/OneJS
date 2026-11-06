@@ -51,6 +51,7 @@ PlayMode (`Tests/*.cs`):
 | `UIToolkitJSPlaymodeTests.cs` | Element creation, properties, styles, hierarchy from JS |
 | `CustomElementPlaymodeTests.cs` | `registerElement`/`createComponent` end to end, using the prebuilt `TestCustomElement` fixture |
 | `ControlAlignmentPlaymodeTests.cs` | Each control's visible part centred in its box, so an `align-items: center` row lines up |
+| `FontFromBytesTests.cs` | A font from a file's bytes (`Fonts.FromBytes`): glyphs drawn, one cached file per font, null for bytes that are not one; `fontFamily` and `unityFontDefinition` taking it, a name refused; `Release` the frame a font drew new glyphs leaving the next text updates clean |
 | `FilterStylePlaymodeTests.cs` | `filter` and `backdrop-filter` from a compiled sheet and an inline style, the inline parser held to Unity's sheet reader; `none`, and a removed inline filter falling back to the sheet's |
 | `TreeViewBridgeTests.cs` | `TreeViewBridge` parallel-array contract (mirrors onejs-react's `treeview.test.tsx`) |
 | `ShaderFXTests.cs` | ShaderFX render-target lifecycle against real layout, uniform marshalling, ramp/texture caching |

@@ -32,7 +32,8 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `OneJSLog.cs` | `OneJSLog.Exception(message, ex, context, translate)`: how OneJS logs a caught exception, through `Debug.LogException` with its stack. A text log of a caught exception is an expected failure listed in `ExceptionLoggingGuardTests` with its reason |
 | `AssemblyInfo.cs` | `InternalsVisibleTo` for `OneJS.Runtime.InputSystem` (`JSRunner.AddInputSystemModule`) and `OneJS.Tests` (`JsHost`) |
 | `Janitor.cs` | Marker component for live reload cleanup of JS-created GameObjects |
-| `Network.cs` | Fetch API implementation using UnityWebRequest; `LoadTextureFromUrl` for `<Image src>` on a URL |
+| `Network.cs` | Fetch API implementation using UnityWebRequest; `LoadTextureFromUrl` for `<Image src>` on a URL; `LoadFontFromUrl` for a game's own font file |
+| `Fonts.cs` | A dynamic SDF font asset from a .ttf or .otf file's bytes (written once to the temporary cache, since Unity reads a font only from a path); `Release` empties its atlas without destroying it, since a font destroyed the frame it drew new glyphs throws from the next text update; `DefinitionOf` for a style's font |
 | `WebSocketBridge.cs` | WebSocket on native platforms (`ClientWebSocket` on background threads, events drained per context in `Tick`); WebGL uses the browser's |
 | `PerElementEventSupport.cs` | Per-element C# handlers for events that never pass the root (captured pointer events, `GeometryChangedEvent`) and for ones registered only where JS listens (mouse, input, transition) |
 | `PointerEvents.cs` | `MoveEventsEnabled`: whether pointermove reaches JS at all (off saves ~0.6KB/frame when polling) |
@@ -47,7 +48,7 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `RunnerUtils.cs` | Context setup helpers JSRunner and JSPad share: JS string escaping, stylesheets, platform defines |
 | `UICartridge.cs` | Obsolete abstract base of `Pack`, so anything typed `UICartridge` still holds and finds a pack |
 | `CartridgeUtils.cs`, `CartridgeTypeGenerator.cs` | Obsolete forwarders for the names from before cartridges became packs |
-| `StyleBridge.cs` | Batched style + class-list application; typed IStyle setters for common props (no reflection), reflection fallback for the long tail; a null value clears the inline value (`ClearsNull`), which is how onejs-react sends a removed key |
+| `StyleBridge.cs` | Batched style + class-list application; typed IStyle setters for common props (no reflection), reflection fallback for the long tail; a null value clears the inline value (`ClearsNull`), which is how onejs-react sends a removed key; `fontFamily` and `unityFontDefinition` take a loaded font (a name warns once) |
 | `PainterBridge.cs` | Batched vector drawing: replays a Painter2D command buffer in one crossing |
 | `TreeViewBridge.cs` | TreeView data plumbing: wraps the generic `SetRootItems<T>` (generic methods are unreachable from JS) taking the tree as parallel pre-order int arrays with data kept JS-side, plus int[] selection getters (`IEnumerable<int>` cannot cross) |
 | `Particles/ParticleSystem2D.cs` | 2D particle system: C#-owned SoA sim + quad mesh write inside a host element |

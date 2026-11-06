@@ -264,6 +264,37 @@ namespace OneJS {
             }
         }
 
+        /// <summary>
+        /// Load a font from a URL, as a dynamic SDF font asset a style's
+        /// `fontFamily` takes. Called from JavaScript by a game's font loader.
+        /// </summary>
+        /// <param name="url">The TrueType or OpenType file's URL, or its path in the editor and a desktop player</param>
+        /// <returns>FontAsset, or null on failure</returns>
+        public static async Task<UnityEngine.TextCore.Text.FontAsset> LoadFontFromUrl(string url) {
+            if (!url.Contains("://")) url = new Uri(System.IO.Path.GetFullPath(url)).AbsoluteUri;
+            using (var request = UnityWebRequest.Get(url)) {
+                var operation = request.SendWebRequest();
+                while (!operation.isDone) {
+                    await Task.Yield();
+                }
+
+                if (request.result != UnityWebRequest.Result.Success) {
+                    Debug.LogWarning($"[Network] Failed to load font from {url}: {request.error}");
+                    return null;
+                }
+
+                var bytes = request.downloadHandler.data;
+                var asset = Fonts.FromBytes(bytes, System.IO.Path.GetFileName(url.Split('?', '#')[0]));
+                if (asset == null) {
+                    // The file is there; it is the format. As with an image, say so,
+                    // so the path is not what gets checked.
+                    Debug.LogWarning($"[Network] {url} downloaded {bytes.Length} bytes and is not a font Unity can read. " +
+                        "It reads TrueType and OpenType (.ttf, .otf); WOFF and WOFF2 it does not. The file is present, so the path is not the problem.");
+                }
+                return asset;
+            }
+        }
+
         static string GetStatusText(long code) {
             switch (code) {
                 case 200: return "OK";
