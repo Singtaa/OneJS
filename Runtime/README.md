@@ -56,6 +56,7 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `Physics2D/Physics2DBridge.cs` | JS entry for 2D physics worlds, `TickAll`, `DisposeOwnedBy` / `DisposeAll` (same shape as `ParticleBridge`) |
 | `Physics2D/PhysicsWorld2D.cs` | A script-simulated Unity 2D physics world (`Rigidbody2D`) whose bodies drive VisualElements by `transform.position`; contacts come back as one flat event buffer |
 | `Physics2D/Physics2DWire.cs` | Versioned wire schema (v1) shared with onejs-unity `src/physics2d/index.ts`; change both together |
+| `Physics2D/ElementPlacer.cs` | Moves many elements in one call: `Register` an element once, then `PlaceMany([id, x, y, degrees, ...])` sets each one's translate and rotate so its centre lands at (x, y). How ojplay's Rapier 2D worlds carry their elements |
 | `Models/ModelBridge.cs` | 3D models for ojplay's `useScene`: `.glb` loads, actors, sun, ambient, fog and point lights by handle (optional assembly, needs glTFast) |
 | `Models/ModelImport.cs` | glTFast's importer minus the vertex colours ModelLit never reads, so a skinned mesh is built in the streams Unity skins from |
 | `Models/ModelMaterialGenerator.cs` | glTF materials on `ModelLit`, falling back to glTFast's own where it has no SubShader |
@@ -858,6 +859,8 @@ JS side: `createPhysicsWorld(host, config)` from `onejs-unity/physics2d`.
 - **Simulation**: `Physics2D.simulationMode = Script`, stepped with `dt` clamped to 50ms.
 
 Tests: `Tests/Physics2DBodyTests.cs`. The wire must match onejs-unity's `src/physics2d/index.ts` field for field, so change both together.
+
+`ElementPlacer` is separate from this world: ojplay simulates its 2D worlds in JS (Rapier 2D) and only hands the frame's placements across, one `PlaceMany` call for every body that carries an element. Elements are held weakly, so a torn down panel takes them with it. Tests: `Tests/Editor/ElementPlacerTests.cs`.
 
 ## 3D Models (`Models/` folder)
 
