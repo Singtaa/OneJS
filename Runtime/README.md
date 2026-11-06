@@ -557,6 +557,7 @@ Temp/OneJSPad/{instanceId}/
 | `QuickJSNative.FastPath.cs` | Zero-allocation fast path for hot properties/methods/constructors |
 | `QuickJSNative.Tasks.cs` | C# Task/Promise bridging with queue monitoring |
 | `QuickJSNative.ZeroAlloc.cs` | Zero-allocation interop for GPU and hot-path operations |
+| `QuickJSNative.Wasm.cs` | `RegisterWasmModule`: a native WebAssembly module library's table, served to JS as `__wasm` |
 
 ### Interface Views (QuickJSNative.Reflection.cs)
 

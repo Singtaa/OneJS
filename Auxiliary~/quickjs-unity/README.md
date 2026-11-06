@@ -9,7 +9,11 @@ quickjs-unity/
 ├── quickjs/                 # Submodule: Bellard's QuickJS, used by every .sh build
 ├── quickjs-ng/              # Submodule: quickjs-ng, used only by the MSVC/CMake path
 ├── src/
-│   └── quickjs_unity.c     # Unity wrapper: interop marshaling, callback table, exports
+│   ├── quickjs_unity.c     # Unity wrapper: interop marshaling, callback table, exports
+│   ├── quickjs_text.c      # TextDecoder and TextEncoder, UTF-8 only
+│   ├── quickjs_wasm.c      # __wasm: WebAssembly modules compiled to native code
+│   └── quickjs_compat.h    # The one API difference between quickjs and quickjs-ng the sources meet
+├── wasm/                   # Turning a .wasm into a native module library (see below)
 ├── build.sh                # macOS build
 ├── build-linux.sh          # Linux x64 build
 ├── build-windows.sh        # Windows cross-compile (MinGW), the shipped DLL
@@ -90,6 +94,36 @@ checks every platform's binary from any host. CI runs it on each push; run it
 yourself after refreshing any binary here, since a dependency picked up from
 the build machine only surfaces at load time on someone else's machine.
 
+## WebAssembly modules
+
+QuickJS has no WebAssembly. A module the browser would run, OneJS runs as
+native code instead: WABT's `wasm2c` translates the `.wasm` to C,
+`wasm/wasm2onejs.py` writes the table that describes it to the engine
+(`wasm/onejs_wasm.h`: imports, exports as thunks over uint64 slots, memory,
+and the sha256 of the `.wasm`), and `wasm/build-module.sh` builds that into
+one library per platform exporting `onejs_wasm_<name>()`. C# hands the table
+to `QuickJSNative.RegisterWasmModule`, and every context then has
+
+```js
+__wasm.has(name, sha256)                   // true only for that exact module
+__wasm.instantiate(name, sha256, imports)  // the exports, and memory.buffer, as WebAssembly gives them
+```
+
+so the glue a toolchain generated for the browser runs unchanged. A module's
+memory is bounds checked rather than guarded, because wasm2c's guard pages
+need a SIGSEGV handler that would take Mono's and IL2CPP's own faults; memory
+that grows is reallocated, and the `ArrayBuffer` JavaScript holds is detached
+whenever its bytes moved, as a browser's is after `grow`.
+
+The engine holds no module. They ship as packages of their own
+(`com.singtaa.onejs-physics` carries Rapier), since one physics engine is
+about 10 MB of code per architecture.
+
+```bash
+wasm/build-module.sh <module.wasm> <name> <out dir> macos windows linux android ios
+wasm/test/run.sh    # a probe module through this host's shipped engine, and a wrong one it must fail
+```
+
 ## Key Native Functions
 
 | Function | Purpose |
@@ -103,6 +137,7 @@ the build machine only surfaces at load time on someone else's machine.
 | `qjs_take_last_error()` | Take the error a callback threw (message, then its frames); C# throws or logs it as a `JSException` |
 | `qjs_set_cs_invoke_callback()` | Register the C# dispatch handler (also `_log_`, `_release_handle_`, `_zeroalloc_`, `_free_` variants) |
 | `qjs_free()` | Free memory the native side allocated for C# |
+| `qjs_register_wasm_module()` / `qjs_unregister_wasm_module()` | Make a native WebAssembly module available to every context as `__wasm`, or forget one by name |
 
 ## Handle System
 
