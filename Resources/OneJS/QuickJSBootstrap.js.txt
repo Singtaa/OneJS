@@ -713,10 +713,36 @@ function __createProxy(typeName, handle) {
                 return true;
             }
 
+            // UI Toolkit's style has longhands only, and JSX takes shorthands
+            // (onejs-react's STYLE_SHORTHANDS), so a style reached through a ref
+            // takes the same ones: el.style.borderRadius = 6 sets all four
+            // corners. Before, it threw "Property or field not found".
+            const longhands = __STYLE_SHORTHANDS[propName];
+            if (longhands !== undefined && __isInlineStyle(obj.__csType)) {
+                for (const longhand of longhands) {
+                    __cs.invoke(obj.__csType, longhand, 3, 0, obj.__csHandle, [resolvedValue]);
+                }
+                return true;
+            }
+
             __cs.invoke(obj.__csType || "", propName, 3, 0, obj.__csHandle, [resolvedValue]);
             return true;
         }
     });
+}
+
+/** The shorthands JSX styles take, as onejs-react expands them. */
+const __STYLE_SHORTHANDS = {
+    padding: ["paddingTop", "paddingRight", "paddingBottom", "paddingLeft"],
+    margin: ["marginTop", "marginRight", "marginBottom", "marginLeft"],
+    borderWidth: ["borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth"],
+    borderColor: ["borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor"],
+    borderRadius: ["borderTopLeftRadius", "borderTopRightRadius", "borderBottomRightRadius", "borderBottomLeftRadius"],
+};
+
+/** Whether a proxy's type is UI Toolkit's inline style, which `element.style` returns. */
+function __isInlineStyle(typeName) {
+    return typeof typeName === "string" && (typeName.endsWith(".InlineStyleAccess") || typeName.endsWith(".IStyle"));
 }
 
 // Helpers
