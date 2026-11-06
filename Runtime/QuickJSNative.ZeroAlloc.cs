@@ -198,6 +198,8 @@ namespace OneJS {
             if (expectedType == typeof(Vector4)) return new Vector4(v->vecX, v->vecY, v->vecZ, v->vecW);
             if (expectedType == typeof(Color)) return new Color(v->vecX, v->vecY, v->vecZ, v->vecW);
 
+            if (v->type == InteropType.TypedArray) return TypedArrayToObject(*v);
+
             if (v->type == InteropType.ObjectHandle) {
                 return GetObjectByHandle(v->handle);
             }
@@ -496,6 +498,9 @@ namespace OneJS {
                 var obj = GetObjectByHandle(v->handle);
                 if (obj is T typed) return typed;
             }
+
+            // A typed array: the one managed array it is copied into
+            if (v->type == InteropType.TypedArray && TypedArrayToObject(*v) is T array) return array;
 
             return default;
         }

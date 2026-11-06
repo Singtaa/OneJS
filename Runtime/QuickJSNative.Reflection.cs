@@ -141,6 +141,12 @@ namespace OneJS {
                 return true;
             }
 
+            // A Float32Array (float[]) -> Vector2/3/4, Color or Quaternion array,
+            // packed by ConvertToArray, which refuses a length that does not divide
+            if (arg is float[] && paramType.IsArray && VectorWidth(paramType.GetElementType()) > 0) {
+                return true;
+            }
+
             // Vector3 -> Vector2 (C# returns Vector2 as Vector3 with z=0 for efficiency)
             if (paramType == typeof(UnityEngine.Vector2) && argType == typeof(UnityEngine.Vector3)) {
                 return true;

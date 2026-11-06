@@ -117,8 +117,19 @@ namespace OneJS {
         }
 
         /// <summary>
-        /// Send a binary message on an open WebSocket.
-        /// Accepts base64-encoded data from JS, decodes to bytes on C# side.
+        /// Send a binary message on an open WebSocket. The bootstrap's send() passes
+        /// a Uint8Array, whose bytes cross the bridge as they are.
+        /// </summary>
+        public static void SendBytes(int socketId, byte[] bytes) {
+            if (bytes == null) return;
+            if (!_sockets.TryGetValue(socketId, out var state)) return;
+            if (state.Socket.State != WebSocketState.Open) return;
+            EnqueueBinary(socketId, state, bytes);
+        }
+
+        /// <summary>
+        /// Send a binary message given as base64, the form send() used before typed
+        /// arrays crossed as bytes. Kept for code that calls it directly.
         /// </summary>
         public static void SendBinary(int socketId, string base64Data) {
             if (!_sockets.TryGetValue(socketId, out var state)) return;
@@ -132,7 +143,10 @@ namespace OneJS {
                 Debug.LogError($"[WebSocketBridge] Invalid base64 data: {ex.Message}");
                 return;
             }
+            EnqueueBinary(socketId, state, bytes);
+        }
 
+        static void EnqueueBinary(int socketId, SocketState state, byte[] bytes) {
             state.SendQueue.Enqueue(new SendItem { BinaryData = bytes, IsBinary = true });
 
             if (Interlocked.CompareExchange(ref state.SendLoopFlag, 1, 0) == 0) {

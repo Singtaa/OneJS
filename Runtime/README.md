@@ -32,7 +32,8 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `OneJSLog.cs` | `OneJSLog.Exception(message, ex, context, translate)`: how OneJS logs a caught exception, through `Debug.LogException` with its stack. A text log of a caught exception is an expected failure listed in `ExceptionLoggingGuardTests` with its reason |
 | `AssemblyInfo.cs` | `InternalsVisibleTo` for `OneJS.Runtime.InputSystem` (`JSRunner.AddInputSystemModule`) and `OneJS.Tests` (`JsHost`) |
 | `Janitor.cs` | Marker component for live reload cleanup of JS-created GameObjects |
-| `Network.cs` | Fetch API implementation using UnityWebRequest; `LoadTextureFromUrl` for `<Image src>` on a URL |
+| `Network.cs` | Fetch API implementation using UnityWebRequest; `LoadTextureFromUrl` for `<Image src>` on a URL; `LoadFontFromUrl` for a game's own font file |
+| `Fonts.cs` | A dynamic SDF font asset from a .ttf or .otf file's bytes (written once to the temporary cache, since Unity reads a font only from a path); `Release` empties its atlas without destroying it, since a font destroyed the frame it drew new glyphs throws from the next text update; `DefinitionOf` for a style's font |
 | `WebSocketBridge.cs` | WebSocket on native platforms (`ClientWebSocket` on background threads, events drained per context in `Tick`); WebGL uses the browser's |
 | `PerElementEventSupport.cs` | Per-element C# handlers for events that never pass the root (captured pointer events, `GeometryChangedEvent`) and for ones registered only where JS listens (mouse, input, transition) |
 | `PointerEvents.cs` | `MoveEventsEnabled`: whether pointermove reaches JS at all (off saves ~0.6KB/frame when polling) |
@@ -47,7 +48,7 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `RunnerUtils.cs` | Context setup helpers JSRunner and JSPad share: JS string escaping, stylesheets, platform defines |
 | `UICartridge.cs` | Obsolete abstract base of `Pack`, so anything typed `UICartridge` still holds and finds a pack |
 | `CartridgeUtils.cs`, `CartridgeTypeGenerator.cs` | Obsolete forwarders for the names from before cartridges became packs |
-| `StyleBridge.cs` | Batched style + class-list application; typed IStyle setters for common props (no reflection), reflection fallback for the long tail; a null value clears the inline value (`ClearsNull`), which is how onejs-react sends a removed key |
+| `StyleBridge.cs` | Batched style + class-list application; typed IStyle setters for common props (no reflection), reflection fallback for the long tail; a null value clears the inline value (`ClearsNull`), which is how onejs-react sends a removed key; `fontFamily` and `unityFontDefinition` take a loaded font (a name warns once) |
 | `PainterBridge.cs` | Batched vector drawing: replays a Painter2D command buffer in one crossing |
 | `TreeViewBridge.cs` | TreeView data plumbing: wraps the generic `SetRootItems<T>` (generic methods are unreachable from JS) taking the tree as parallel pre-order int arrays with data kept JS-side, plus int[] selection getters (`IEnumerable<int>` cannot cross) |
 | `Particles/ParticleSystem2D.cs` | 2D particle system: C#-owned SoA sim + quad mesh write inside a host element |
@@ -56,6 +57,7 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `Physics2D/Physics2DBridge.cs` | JS entry for 2D physics worlds, `TickAll`, `DisposeOwnedBy` / `DisposeAll` (same shape as `ParticleBridge`) |
 | `Physics2D/PhysicsWorld2D.cs` | A script-simulated Unity 2D physics world (`Rigidbody2D`) whose bodies drive VisualElements by `transform.position`; contacts come back as one flat event buffer |
 | `Physics2D/Physics2DWire.cs` | Versioned wire schema (v1) shared with onejs-unity `src/physics2d/index.ts`; change both together |
+| `Physics2D/ElementPlacer.cs` | Moves many elements in one call: `Register` an element once, then `PlaceMany([id, x, y, degrees, ...])` sets each one's translate and rotate so its centre lands at (x, y). How ojplay's Rapier 2D worlds carry their elements |
 | `Models/ModelBridge.cs` | 3D models for ojplay's `useScene`: `.glb` loads, actors, sun, ambient, fog and point lights by handle (optional assembly, needs glTFast) |
 | `Models/ModelImport.cs` | glTFast's importer minus the vertex colours ModelLit never reads, so a skinned mesh is built in the streams Unity skins from |
 | `Models/ModelMaterialGenerator.cs` | glTF materials on `ModelLit`, falling back to glTFast's own where it has no SubShader |
@@ -701,6 +703,9 @@ crossings, and steady-state emission costs zero JS work.
   call. Physics worlds, shader effects, fx handles, SL programs, GPU buffers,
   sounds, input actions and the 3D scene follow the same ownership rule. Bursts drop when at
   capacity (`max` is the budget knob).
+- **Default dot**: without a `texture`, a 64 px disc solid to half its radius with a soft
+  edge to nothing at the rim (`SoftDiscAlpha`), so a particle reads as the `size` it was
+  given. The quadratic glow it replaced was half bright across only 0.29 of `size`.
 
 **Wire versioning**: the parser accepts v1..v4. Every added field defaults to the
 previous behavior, so an older onejs-react keeps working against a newer package;
@@ -711,7 +716,7 @@ are configured, so existing configs keep their exact original particle streams.
 
 Tests: `Tests/ParticleTests.cs` (wire parse/validation incl. v1 back-compat,
 deterministic sim, attraction arrival, edge modes against a panel-backed rect,
-texture grouping, imperative API semantics, and RT-readback render smoke tests
+texture grouping, the default dot's width, imperative API semantics, and RT-readback render smoke tests
 that verify the additive path and the non-square quad basis end to end).
 
 ## ShaderFX (`ShaderFX/` folder)
@@ -739,11 +744,11 @@ builder's layers into uniform arrays (`_LScale/_LScroll/_LParams/_LMode`) that o
 shader evaluates in a bounded loop. Hence the fixed `MAX_LAYERS 6` ceiling, shared
 between the shader and `MAX_TEXTUREFX_LAYERS` in TS.
 
-**`SetVectorArray` takes `object`, not `float[]`.** A JS array arrives as the
-`{__csArray, __csArrayType:"float"}` marker, which does not bind to a `float[]`
-parameter and makes the whole method invisible to reflection ("Method not found").
-It converts via `QuickJSNative.ConvertToTargetType`, the same path PainterBridge
-and StyleBridge use.
+**`SetVectorArray` takes `object`, not `float[]`.** A plain JS array of whole
+numbers arrives as `int[]`, which does not bind to a `float[]` parameter and makes
+the whole method invisible to reflection ("Method not found"). onejs-react sends a
+`Float32Array`, which arrives as a `float[]`; `QuickJSNative.ConvertToTargetType`
+takes either, the same path PainterBridge uses.
 
 **Scroll units are element-relative.** The shader samples in noise space
 (`uv * scale + scroll * t`), so the builder pre-multiplies scroll by scale before
@@ -860,6 +865,8 @@ JS side: `createPhysicsWorld(host, config)` from `onejs-unity/physics2d`.
 
 Tests: `Tests/Physics2DBodyTests.cs`. The wire must match onejs-unity's `src/physics2d/index.ts` field for field, so change both together.
 
+`ElementPlacer` is separate from this world: ojplay simulates its 2D worlds in JS (Rapier 2D) and only hands the frame's placements across, one `PlaceMany` call for every body that carries an element. Elements are held weakly, so a torn down panel takes them with it. Tests: `Tests/Editor/ElementPlacerTests.cs`.
+
 ## 3D Models (`Models/` folder)
 
 JS side: `useScene` and `useModel` from ojplay (`src/models.ts`). An optional assembly, `OneJS.Runtime.Models`, compiled only when glTFast (`com.unity.cloud.gltfast` 6.0 or newer) is installed; JS looks `ModelBridge` up by name and names the package when it is missing.
@@ -868,6 +875,7 @@ JS side: `useScene` and `useModel` from ojplay (`src/models.ts`). An optional as
 - **One shader**: `ModelMaterialGenerator` builds every glTF material on `Resources/OneJS/ModelLit.shader`: URP's PBR lighting with soft main light shadows, plus a built-in pipeline SubShader on Standard lighting. Every SubShader requires glTFast (`PackageRequirements`), so a project without it builds nothing extra, and `Editor/ModelShaderStripper.cs` drops the built-in one from scriptable pipeline builds. Where neither SubShader runs (HDRP) glTFast's own materials are used and only the dissolve is lost.
 - **Two modes**: in play mode and players the bridge's camera, sun, ambient and fog replace the scene's (screen cameras and directional lights are switched off, `RenderSettings` saved) until `DisposeAll` restores them. In the edit-mode preview it only adds `DontSave` objects and changes nothing in the open scene, so the scene's own sun lights the models; it makes a sun only when the scene has none.
 - **Vertex streams**: glTFast lays a mesh with vertex colours out in four streams, and Unity warns "Skinned mesh attributes use wrong streams" as it builds a skinned one. `ModelImport` clears `COLOR_0` once the JSON is parsed, before any mesh exists, wherever ModelLit draws (its shader reads no vertex colours); glTFast's own materials do read them, so they keep them.
+- **Batching**: actors of one model share its materials and draw through URP's SRP Batcher. Only an actor with a value of its own (a dissolve, or `receiveShadows: false`) gets a `MaterialPropertyBlock`, which takes that actor's renderers out of the batcher; those values are `_ActorDissolve` and `_ActorShadowless`, declared in an instancing buffer so the materials (all `enableInstancing`) can still instance them. Materials made at runtime do not keep instancing variants in a build, so `Resources/OneJS/ModelLitInstancing.mat` exists only to keep them. `UrpSubShader_StaysSrpBatcherCompatible` fails when a property moves out of `UnityPerMaterial`.
 - **Teardown**: the models module calls `DisposeAll` when its scene unmounts, which hot reload and leaving edit mode both do. A load still running then is cancelled and destroys what it made, so nothing outlives the domain reload.
 
 Tests: `Tests/Models/` (EditMode and PlayMode, both gated on glTFast) with the `Fixtures~/cubes.glb` fixture its `cubes.mjs` generates.
@@ -883,7 +891,7 @@ JS side: `audio` from `onejs-unity/audio`. `AudioBridge` exists so sound works t
 
 ## Image Fx (`Fx/` folder)
 
-JS side: `onejs-unity/fx` (wire contract in `src/fx/ops.ts`; change both together). `FxBridge.Execute` / `ExecuteInto` replay a chain that crossed as one flat float buffer (the `__csArray` path PainterBridge uses). Runs of per-pixel ops fuse into one blit through `OneJS/FxOps` (up to `MaxFusedOps`, 16, matching the shader's `MAX_OPS`); spatial and neighbourhood ops take a pass of their own. Author colours are sRGB and converted to the linear working space on the way in. Targets and loaded textures are handles, released by `Release` or, on teardown, `DisposeOwnedBy` for the handles that context made; the pool and materials go with the last context (`DisposeAll`).
+JS side: `onejs-unity/fx` (wire contract in `src/fx/ops.ts`; change both together). `FxBridge.Execute` / `ExecuteInto` replay a chain that crossed as one flat float buffer (a `Float32Array`, whose bytes cross as PainterBridge's do). Runs of per-pixel ops fuse into one blit through `OneJS/FxOps` (up to `MaxFusedOps`, 16, matching the shader's `MAX_OPS`); spatial and neighbourhood ops take a pass of their own. Author colours are sRGB and converted to the linear working space on the way in. Targets and loaded textures are handles, released by `Release` or, on teardown, `DisposeOwnedBy` for the handles that context made; the pool and materials go with the last context (`DisposeAll`).
 
 ## WebSocket (`WebSocketBridge.cs`)
 
@@ -1463,7 +1471,17 @@ mesh.triangles = new Int32Array([0, 1, 2, ...])  // int[]
 | `Int8Array` | `sbyte[]` |
 | `Uint32Array` | `uint[]` |
 | `Uint16Array` | `ushort[]` |
-| `Uint8Array` | `byte[]` |
+| `Uint8Array`, `Uint8ClampedArray` | `byte[]` |
+| `BigInt64Array` | `long[]` |
+| `BigUint64Array` | `ulong[]` |
+| `Float16Array` | `float[]` |
+
+A typed array crosses as its bytes (`InteropType.TypedArray`, 14): native QuickJS
+copies them out of the array's buffer (the zero-alloc path points at them in
+place), the WebGL jslib copies them into the wasm heap, and C# copies them once
+into the managed array. A view (`subarray`) brings only its own elements; a
+detached one arrives empty; a `DataView` is not a typed array and crosses as an
+object. A typed array a JS callback returns to C# arrives the same way.
 
 **Supported object array mappings**:
 | JS Object Shape | C# Type |
@@ -1477,7 +1495,8 @@ mesh.triangles = new Int32Array([0, 1, 2, ...])  // int[]
 | `[x, y, z, w]` (tuple) | `Vector4[]` / `Color[]` |
 
 **Implementation details**:
-- Arrays are serialized as JSON with a `__csArray` marker and type hint
-- Type inference runs on the first element for JS arrays
+- JS arrays are serialized as JSON with a `__csArray` marker and type hint
+- Type inference runs on the first element for JS arrays; a number array is
+  `int[]` when every element is whole, so pass a `Float32Array` to a `float[]`
 - Empty typed arrays (e.g., `new Int32Array(0)`) preserve their type
 - Empty JS arrays (`[]`) default to `object[]`

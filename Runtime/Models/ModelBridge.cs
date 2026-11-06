@@ -35,8 +35,9 @@ namespace OneJS.Models {
     /// </summary>
     public static class ModelBridge {
         const string RootName = "OneJS Models";
-        static readonly int DissolveId = Shader.PropertyToID("_Dissolve");
-        static readonly int ReceiveShadowsId = Shader.PropertyToID("_ReceiveShadows");
+        // ModelLit's per-actor values, apart from the material's own _Dissolve and _ReceiveShadows.
+        static readonly int ActorDissolveId = Shader.PropertyToID("_ActorDissolve");
+        static readonly int ActorShadowlessId = Shader.PropertyToID("_ActorShadowless");
 
         class Model {
             public GltfImport import;
@@ -50,6 +51,7 @@ namespace OneJS.Models {
             public GameObject go;
             public Animation anim;
             public Renderer[] renderers;
+            // Made the first time this actor needs one (see Apply).
             public MaterialPropertyBlock block;
             public float dissolve;
             public bool receive = true;
@@ -230,7 +232,6 @@ namespace OneJS.Models {
                 go = go,
                 anim = go.GetComponentInChildren<Animation>(true),
                 renderers = go.GetComponentsInChildren<Renderer>(true),
-                block = new MaterialPropertyBlock(),
             };
             _actors[id] = actor;
             Shadows(actor, castShadows, receiveShadows);
@@ -570,19 +571,29 @@ namespace OneJS.Models {
             a.receive = receive;
             foreach (var r in a.renderers) {
                 r.shadowCastingMode = cast ? ShadowCastingMode.On : ShadowCastingMode.Off;
-                // The built-in pipeline reads the renderer's flag; ModelLit in URP reads the block.
+                // The built-in pipeline reads the renderer's flag; ModelLit in URP reads the actor's value.
                 r.receiveShadows = receive;
             }
             Apply(a);
         }
 
+        /// <summary>
+        /// An actor's dissolve and shadows, onto its renderers. A renderer with a property block
+        /// falls out of URP's SRP Batcher and draws alone, in every shadow cascade too, so only an
+        /// actor that is dissolving or keeps no shadow on itself gets one, and an actor that goes
+        /// back to plain loses it. ModelLit reads both per instance, so those actors still draw
+        /// together where their material instances.
+        /// </summary>
         static void Apply(Actor a) {
-            foreach (var r in a.renderers) {
-                r.GetPropertyBlock(a.block);
-                a.block.SetFloat(DissolveId, a.dissolve);
-                a.block.SetFloat(ReceiveShadowsId, a.receive ? 1 : 0);
-                r.SetPropertyBlock(a.block);
+            if (a.dissolve <= 0 && a.receive) {
+                foreach (var r in a.renderers) r.SetPropertyBlock(null);
+                return;
             }
+            a.block ??= new MaterialPropertyBlock();
+            a.block.Clear();
+            a.block.SetFloat(ActorDissolveId, a.dissolve);
+            a.block.SetFloat(ActorShadowlessId, a.receive ? 0 : 1);
+            foreach (var r in a.renderers) r.SetPropertyBlock(a.block);
         }
 
         static Vector2 PanelSize(VisualElement element) => element?.panel?.visualTree.layout.size ?? Vector2.zero;

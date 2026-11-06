@@ -1,3 +1,10 @@
+# Unreleased
+
+- Typed arrays cross to C# as their bytes, not as JSON
+- A Float32Array sets a Vector3[] (or Vector2, Vector4, Color, Quaternion) array, as in `mesh.vertices`
+- WebSocket binary sends and GPU buffer writes cross as bytes
+- The native library's ABI version is 5: restart the editor after updating
+
 # [2026-11-05] v3.9.18
 
 Player builds work again: 3.9.17 failed to compile any build outside the editor. Nothing else changes.

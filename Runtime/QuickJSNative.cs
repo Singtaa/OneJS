@@ -159,7 +159,7 @@ namespace OneJS {
         /// dylib loaded after a package update) fails loudly instead of
         /// misbehaving at the first interop call.
         /// </summary>
-        internal const int ExpectedAbiVersion = 4;
+        internal const int ExpectedAbiVersion = 5;
 
         // Error Codes (mirror QjsError in quickjs_unity.c)
         internal const int ErrOk = 0;
@@ -180,6 +180,10 @@ namespace OneJS {
                 result.str != IntPtr.Zero) {
                 qjs_free(result.str);
                 result.str = IntPtr.Zero;
+            }
+            if (result.type == InteropType.TypedArray && result.taData != IntPtr.Zero) {
+                qjs_free(result.taData);
+                result.taData = IntPtr.Zero;
             }
             if (result.typeHint != IntPtr.Zero) {
                 qjs_free(result.typeHint);
@@ -232,7 +236,27 @@ namespace OneJS {
             Vector3 = 10,  // Binary packed x,y,z floats - zero alloc!
             Vector4 = 11,  // Binary packed x,y,z,w floats (Quaternion, Color) - zero alloc!
             TaskHandle = 12, // Pending C# Task - JS receives Promise
-            MethodRef = 13  // Signals "this is a method, not a property" - JS creates function wrapper
+            MethodRef = 13,  // Signals "this is a method, not a property" - JS creates function wrapper
+            TypedArray = 14  // A JS typed array's bytes (taData, taByteLength, taKind), JS to C# only
+        }
+
+        /// <summary>
+        /// A typed array's element kind as it crosses in <see cref="InteropValue.taKind"/>:
+        /// QuickJS's JSTypedArrayEnum numbering, which the WebGL jslib copies.
+        /// </summary>
+        public enum TypedArrayKind : int {
+            Uint8Clamped = 0,
+            Int8 = 1,
+            Uint8 = 2,
+            Int16 = 3,
+            Uint16 = 4,
+            Int32 = 5,
+            Uint32 = 6,
+            BigInt64 = 7,
+            BigUint64 = 8,
+            Float16 = 9,
+            Float32 = 10,
+            Float64 = 11
         }
 
         public enum InteropInvokeCallKind : int {
@@ -294,6 +318,18 @@ namespace OneJS {
 
             [FieldOffset(20)]
             public float vecW;
+
+            // Typed array: the bytes, their length, and their TypedArrayKind. The
+            // pointer has 8 bytes on every target, so the other two keep their
+            // offsets on 32-bit.
+            [FieldOffset(8)]
+            public IntPtr taData;
+
+            [FieldOffset(16)]
+            public int taByteLength;
+
+            [FieldOffset(20)]
+            public TypedArrayKind taKind;
 
             // typeHint now at offset 24 (after 16-byte union)
             [FieldOffset(24)]

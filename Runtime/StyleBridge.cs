@@ -127,7 +127,8 @@ namespace OneJS {
         // count, and UpdateClasses does the same for an update.
         //
         // JS arrays of strings come through the {__csArray, __csArrayType:"string"}
-        // marshalling path and arrive as string[]. Untyped arrays would arrive
+        // marshalling path (typed arrays cross as bytes; these are not) and
+        // arrive as string[]. Untyped arrays would arrive
         // as List<object> - handle both for safety.
         public static void AddClassesBatch(VisualElement element, object classesObj) {
             if (element == null) return;
@@ -248,6 +249,10 @@ namespace OneJS {
                 case "unityTextAlign": style.unityTextAlign = AsEnum<TextAnchor>(value); return true;
                 case "unityFontStyleAndWeight": style.unityFontStyleAndWeight = AsEnum<FontStyle>(value); return true;
 
+                // A font: the web's name for it, and UI Toolkit's
+                case "fontFamily":
+                case "unityFontDefinition": style.unityFontDefinition = AsFont(key, value); return true;
+
                 default: return false;
             }
         }
@@ -262,6 +267,18 @@ namespace OneJS {
             v == null ? StyleKeyword.Null : (StyleColor)QuickJSNative.ConvertToTargetType(v, typeof(StyleColor));
         static StyleEnum<T> AsEnum<T>(object v) where T : struct, IConvertible =>
             v == null ? StyleKeyword.Null : (StyleEnum<T>)QuickJSNative.ConvertToTargetType(v, typeof(StyleEnum<T>));
+
+        // A font a game loaded (FontAsset, Font or FontDefinition). A family's
+        // name, as on the web, is not one: no font is installed by name here.
+        static StyleFontDefinition AsFont(string key, object v) {
+            if (v == null) return StyleKeyword.Null;
+            var definition = Fonts.DefinitionOf(v);
+            if (definition.HasValue) return definition.Value;
+            if (_warnedUnknownKeys.TryAdd(key + ":font", true)) {
+                Debug.LogWarning($"[StyleBridge] {key} takes a font a game loaded (loadFont), not {(v is string s ? $"the name \"{s}\"" : v.GetType().Name)}. The value was dropped. Warning once per property.");
+            }
+            return StyleKeyword.Null;
+        }
 
         // Styles reapply on every React commit, so an always-on warning for a
         // bad key would repeat 30 times a second; once per key is enough to

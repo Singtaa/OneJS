@@ -1086,6 +1086,13 @@ namespace OneJS {
                 return value;
             }
 
+            // A Float32Array arrives as float[]: a vector array takes its floats
+            // as they lie, in one copy (mesh.vertices = new Float32Array(...)).
+            if (value is float[] floats) {
+                int width = VectorWidth(elementType);
+                if (width > 0) return PackFloats(floats, elementType, width);
+            }
+
             // Convert from IEnumerable
             if (value is System.Collections.IEnumerable enumerable) {
                 var list = new List<object>();
@@ -1102,6 +1109,33 @@ namespace OneJS {
             }
 
             return value;
+        }
+
+        /// <summary>How many floats make one of these, 0 for anything that is not floats alone.</summary>
+        static int VectorWidth(Type t) {
+            if (t == typeof(Vector3)) return 3;
+            if (t == typeof(Vector2)) return 2;
+            if (t == typeof(Vector4) || t == typeof(Color) || t == typeof(Quaternion)) return 4;
+            return 0;
+        }
+
+        static unsafe Array PackFloats(float[] floats, Type elementType, int width) {
+            if (floats.Length % width != 0) {
+                Debug.LogError($"[QuickJS] {floats.Length} floats do not make whole {elementType.Name}s ({width} each); marshaling as null");
+                return null;
+            }
+            var result = Array.CreateInstance(elementType, floats.Length / width);
+            if (floats.Length == 0) return result;
+            var pin = GCHandle.Alloc(result, GCHandleType.Pinned);
+            try {
+                fixed (float* src = floats) {
+                    long bytes = (long)floats.Length * sizeof(float);
+                    Buffer.MemoryCopy(src, (void*)pin.AddrOfPinnedObject(), bytes, bytes);
+                }
+            } finally {
+                pin.Free();
+            }
+            return result;
         }
 
         /// <summary>

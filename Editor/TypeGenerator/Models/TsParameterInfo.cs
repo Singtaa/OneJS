@@ -56,8 +56,8 @@ namespace OneJS.Editor.TypeGenerator {
         /// applied by hand to ~118 signatures in unity-types before it lived here.
         ///
         /// `System.ArrayInput<T>` for a one-dimensional array passed in (#150).
-        /// The bootstrap sends a JS array or typed array as an `__csArray` marker
-        /// that the runtime converts to the parameter's `T[]`, so `System.Array$1`
+        /// A JS array (as an `__csArray` marker) or a typed array (as its bytes)
+        /// reaches the parameter as its `T[]`, so `System.Array$1`
         /// alone rejected a `Float32Array` the call accepts. A `ref` or `out` array
         /// is written back as a C# array, a multidimensional one is not carried by
         /// the marker, and a `params` array is spread, so those keep their type.

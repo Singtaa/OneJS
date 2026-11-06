@@ -504,8 +504,8 @@ namespace OneJS.Editor.TypeGenerator.Tests {
         }
 
         /// <summary>
-        /// A JS array or typed array crosses as an __csArray marker that the
-        /// runtime converts to the parameter's T[], so an array PARAMETER takes
+        /// A JS array (an __csArray marker) or a typed array (its bytes) reaches
+        /// an array parameter as its T[], so an array PARAMETER takes
         /// those as well as a C# array. Declared as Array$1 alone, a Float32Array
         /// for Tensor<float>'s data could not typecheck (#150).
         /// </summary>

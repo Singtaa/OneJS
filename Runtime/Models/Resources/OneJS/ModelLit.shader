@@ -75,9 +75,32 @@ Shader "OneJS/ModelLit" {
             half _Surface;
         CBUFFER_END
 
+        // What one actor has of its own, set by ModelBridge only on an actor that needs it: a
+        // renderer with a property block leaves URP's SRP Batcher, so every other actor has none,
+        // and 0 (whole, and shadowed) is what an unset value reads. Per instance where the
+        // material instances, so the actors that do carry them still draw together.
+        #if defined(UNITY_INSTANCING_ENABLED)
+            UNITY_INSTANCING_BUFFER_START(ModelActor)
+                UNITY_DEFINE_INSTANCED_PROP(float, _ActorDissolve)
+                UNITY_DEFINE_INSTANCED_PROP(float, _ActorShadowless)
+            UNITY_INSTANCING_BUFFER_END(ModelActor)
+            #define MODEL_ACTOR_DISSOLVE UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorDissolve)
+            #define MODEL_ACTOR_SHADOWLESS UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorShadowless)
+        #else
+            float _ActorDissolve;
+            float _ActorShadowless;
+            #define MODEL_ACTOR_DISSOLVE _ActorDissolve
+            #define MODEL_ACTOR_SHADOWLESS _ActorShadowless
+        #endif
+
+        // The material's dissolve or the actor's, whichever is further gone.
+        float Dissolved() {
+            return max(_Dissolve, MODEL_ACTOR_DISSOLVE);
+        }
+
         float ClipAt(float3 positionOS, float2 uv) {
             float alpha = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, uv).a * _BaseColor.a;
-            return ModelClip(positionOS, alpha, _AlphaClip, _Cutoff, _Dissolve, _DissolveScale);
+            return ModelClip(positionOS, alpha, _AlphaClip, _Cutoff, Dissolved(), _DissolveScale);
         }
         ENDHLSL
 
@@ -148,7 +171,7 @@ Shader "OneJS/ModelLit" {
             half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
                 UNITY_SETUP_INSTANCE_ID(i);
                 half4 base = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv) * _BaseColor;
-                float cut = ModelClip(i.positionOS, base.a, _AlphaClip, _Cutoff, _Dissolve, _DissolveScale);
+                float cut = ModelClip(i.positionOS, base.a, _AlphaClip, _Cutoff, Dissolved(), _DissolveScale);
                 half3 emission = SAMPLE_TEXTURE2D(_EmissionMap, sampler_EmissionMap, i.uv).rgb * _EmissionColor.rgb
                     + ModelEdge(cut, _DissolveEdge.rgb);
 
@@ -179,7 +202,8 @@ Shader "OneJS/ModelLit" {
                 d.viewDirectionWS = GetWorldSpaceNormalizeViewDir(i.positionWS);
                 #if defined(MAIN_LIGHT_CALCULATE_SHADOWS)
                     // A shadow coordinate past the far plane reads as unshadowed, on either depth convention.
-                    d.shadowCoord = _ReceiveShadows > 0.5 ? TransformWorldToShadowCoord(i.positionWS) : float4(0, 0, UNITY_RAW_FAR_CLIP_VALUE, 0);
+                    bool receives = _ReceiveShadows > 0.5 && MODEL_ACTOR_SHADOWLESS < 0.5;
+                    d.shadowCoord = receives ? TransformWorldToShadowCoord(i.positionWS) : float4(0, 0, UNITY_RAW_FAR_CLIP_VALUE, 0);
                 #endif
                 #ifdef _ADDITIONAL_LIGHTS_VERTEX
                     d.vertexLighting = i.fogAndVertexLight.yzw;
@@ -378,6 +402,9 @@ Shader "OneJS/ModelLit" {
         half _Dissolve;
         half _DissolveScale;
         half4 _DissolveEdge;
+        // The actor's own dissolve (see the URP SubShader); the built-in pipeline reads receiving
+        // shadows from the renderer.
+        float _ActorDissolve;
 
         struct Input {
             float2 uv_BaseMap;
@@ -392,7 +419,7 @@ Shader "OneJS/ModelLit" {
         void Surf(Input i, inout SurfaceOutputStandard o) {
             float2 uv = i.uv_BaseMap;
             half4 base = tex2D(_BaseMap, uv) * _BaseColor;
-            float cut = ModelClip(i.positionOS, base.a, _AlphaClip, _Cutoff, _Dissolve, _DissolveScale);
+            float cut = ModelClip(i.positionOS, base.a, _AlphaClip, _Cutoff, max(_Dissolve, _ActorDissolve), _DissolveScale);
             half3 emission = tex2D(_EmissionMap, uv).rgb * _EmissionColor.rgb + ModelEdge(cut, _DissolveEdge.rgb);
             o.Alpha = base.a;
             if (_Unlit > 0.5) {

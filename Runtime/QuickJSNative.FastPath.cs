@@ -1208,6 +1208,8 @@ namespace OneJS {
                 if (obj is T t) return t;
             }
 
+            if (v->type == InteropType.TypedArray && TypedArrayToObject(*v) is T array) return array;
+
             var type = typeof(T);
 
             if (type.IsValueType && (v->type == InteropType.Vector3 || v->type == InteropType.Vector4)) {

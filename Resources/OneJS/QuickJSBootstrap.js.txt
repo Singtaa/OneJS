@@ -229,13 +229,8 @@ function __resolveValue(value) {
         return { __csCallbackHandle: handle };
     }
 
-    // TypedArray detection: convert to array marker for C# marshaling
-    if (ArrayBuffer.isView(value) && !(value instanceof DataView)) {
-        return {
-            __csArray: Array.from(value),
-            __csArrayType: __getTypedArrayType(value)
-        };
-    }
+    // A typed array passes through as it is: the native bridge and the WebGL
+    // jslib send its bytes, and C# receives the matching float[], byte[], etc.
 
     // JS Array detection
     if (Array.isArray(value)) {
@@ -250,23 +245,6 @@ function __resolveValue(value) {
     }
 
     return value;
-}
-
-/**
- * Get the C# element type hint from a TypedArray.
- */
-function __getTypedArrayType(typedArray) {
-    if (typedArray instanceof Float32Array) return "float";
-    if (typedArray instanceof Float64Array) return "double";
-    if (typedArray instanceof Int32Array) return "int";
-    if (typedArray instanceof Int16Array) return "short";
-    if (typedArray instanceof Int8Array) return "sbyte";
-    if (typedArray instanceof Uint32Array) return "uint";
-    if (typedArray instanceof Uint16Array) return "ushort";
-    if (typedArray instanceof Uint8Array) return "byte";
-    if (typedArray instanceof BigInt64Array) return "long";
-    if (typedArray instanceof BigUint64Array) return "ulong";
-    return "object";
 }
 
 /**
@@ -713,10 +691,36 @@ function __createProxy(typeName, handle) {
                 return true;
             }
 
+            // UI Toolkit's style has longhands only, and JSX takes shorthands
+            // (onejs-react's STYLE_SHORTHANDS), so a style reached through a ref
+            // takes the same ones: el.style.borderRadius = 6 sets all four
+            // corners. Before, it threw "Property or field not found".
+            const longhands = __STYLE_SHORTHANDS[propName];
+            if (longhands !== undefined && __isInlineStyle(obj.__csType)) {
+                for (const longhand of longhands) {
+                    __cs.invoke(obj.__csType, longhand, 3, 0, obj.__csHandle, [resolvedValue]);
+                }
+                return true;
+            }
+
             __cs.invoke(obj.__csType || "", propName, 3, 0, obj.__csHandle, [resolvedValue]);
             return true;
         }
     });
+}
+
+/** The shorthands JSX styles take, as onejs-react expands them. */
+const __STYLE_SHORTHANDS = {
+    padding: ["paddingTop", "paddingRight", "paddingBottom", "paddingLeft"],
+    margin: ["marginTop", "marginRight", "marginBottom", "marginLeft"],
+    borderWidth: ["borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth"],
+    borderColor: ["borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor"],
+    borderRadius: ["borderTopLeftRadius", "borderTopRightRadius", "borderBottomRightRadius", "borderBottomLeftRadius"],
+};
+
+/** Whether a proxy's type is UI Toolkit's inline style, which `element.style` returns. */
+function __isInlineStyle(typeName) {
+    return typeof typeName === "string" && (typeName.endsWith(".InlineStyleAccess") || typeName.endsWith(".IStyle"));
 }
 
 // Helpers
@@ -1470,6 +1474,20 @@ globalThis.__eventAPI = {
     addEventListener,
     removeEventListener,
     removeAllEventListeners,
+    /**
+     * Whether the element has a handler for any of the event types. What a
+     * host asks to tell a press on a button from a press on the game behind
+     * it (onejs-play's input, `overUI`): UI Toolkit knows which element a
+     * point is over, and only this map knows which ones answer.
+     */
+    listens(element, eventTypes) {
+        const handlers = element && element.__csHandle ? __eventHandlers.get(element.__csHandle) : undefined;
+        if (!handlers) return false;
+        for (const type of eventTypes) {
+            if (handlers.has(type)) return true;
+        }
+        return false;
+    },
     // Parent tracking for event bubbling
     setParent(childHandle, parentHandle) {
         if (childHandle > 0 && parentHandle > 0) {
@@ -2787,11 +2805,10 @@ if (__nativeWebSocket) {
                 throw new Error("WebSocket is not open");
             }
             if (data instanceof ArrayBuffer) {
-                CS.OneJS.WebSocketBridge.SendBinary(this._socketId, __arrayBufferToBase64(data));
+                CS.OneJS.WebSocketBridge.SendBytes(this._socketId, new Uint8Array(data));
             } else if (ArrayBuffer.isView(data)) {
-                // Slice to respect byteOffset/byteLength of TypedArray views
-                var slice = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-                CS.OneJS.WebSocketBridge.SendBinary(this._socketId, __arrayBufferToBase64(slice));
+                // A byte view of the same bytes: byteOffset and byteLength kept, nothing copied here
+                CS.OneJS.WebSocketBridge.SendBytes(this._socketId, new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
             } else {
                 CS.OneJS.WebSocketBridge.Send(this._socketId, String(data));
             }

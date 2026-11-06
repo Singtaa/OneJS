@@ -53,9 +53,9 @@ namespace OneJS {
         public static void Execute(MeshGenerationContext mgc, object bufferObj) {
             if (mgc == null || bufferObj == null) return;
 
-            // The buffer arrives as the {__csArray, __csArrayType:"float"} marker
-            // (a Float32Array on the JS side). Reuse the shared conversion that
-            // StyleBridge relies on so we get a plain float[].
+            // A Float32Array on the JS side, so its bytes arrive as a float[]
+            // (InteropType.TypedArray). The conversion is a no-op then, and
+            // still takes a plain JS array from an older onejs-react.
             var buffer = QuickJSNative.ConvertToTargetType(bufferObj, typeof(float[])) as float[];
             if (buffer == null || buffer.Length == 0) return;
 

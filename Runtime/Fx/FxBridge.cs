@@ -6,8 +6,8 @@ namespace OneJS.Fx {
     /// <summary>
     /// Runs an image operation chain described from JavaScript.
     ///
-    /// The chain crosses once as a flat float buffer, the same __csArray path
-    /// PainterBridge uses, and this replays it with direct typed calls. Spark2D
+    /// The chain crosses once as a Float32Array, its bytes arriving as a
+    /// float[] as PainterBridge's do, and this replays it with direct typed calls. Spark2D
     /// dispatched per operation instead, so a four step chain cost four full
     /// screen passes and roughly twelve reflection crossings.
     ///
@@ -291,9 +291,9 @@ namespace OneJS.Fx {
         /// <summary>
         /// Runs an encoded chain and returns a handle to the result.
         ///
-        /// The buffer arrives as the {__csArray, __csArrayType:"float"} marker
-        /// object, so it goes through the same conversion StyleBridge and
-        /// PainterBridge use to get a plain float[].
+        /// The buffer is a Float32Array, which arrives as a float[]; the
+        /// conversion PainterBridge also uses passes that through and still
+        /// takes a plain JS array.
         /// </summary>
         /// <summary>
         /// A target the caller keeps, rather than one handed out per render.

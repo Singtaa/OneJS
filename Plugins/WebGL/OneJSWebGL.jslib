@@ -123,6 +123,25 @@ var OneJSWebGLLib = {
         TYPE_JSON_OBJECT: 9,
         TYPE_VECTOR3: 10,
         TYPE_VECTOR4: 11,
+        TYPE_TYPED_ARRAY: 14,
+
+        // A typed array's element kind, numbered as QuickJS's JSTypedArrayEnum
+        // (C#'s TypedArrayKind). Float16Array only where the browser has it.
+        typedArrayKind: function(value) {
+            if (value instanceof Float32Array) return 10;
+            if (value instanceof Uint8Array) return 2;
+            if (value instanceof Int32Array) return 5;
+            if (value instanceof Float64Array) return 11;
+            if (value instanceof Uint16Array) return 4;
+            if (value instanceof Int16Array) return 3;
+            if (value instanceof Uint32Array) return 6;
+            if (value instanceof Int8Array) return 1;
+            if (value instanceof Uint8ClampedArray) return 0;
+            if (value instanceof BigInt64Array) return 7;
+            if (value instanceof BigUint64Array) return 8;
+            if (typeof Float16Array !== "undefined" && value instanceof Float16Array) return 9;
+            return -1;
+        },
 
         // Initialize the runtime
         init: function() {
@@ -250,6 +269,23 @@ var OneJSWebGLLib = {
                 var strPtr = _malloc(strLen);
                 stringToUTF8(value, strPtr, strLen);
                 HEAPU32[(valuePtr + 8) >> 2] = strPtr;
+            }
+            else if (type === "object" && ArrayBuffer.isView(value) && OneJS.typedArrayKind(value) >= 0) {
+                // A typed array crosses as its bytes, copied into the wasm heap
+                // (it lives in the browser's, which C# cannot read). The copy is
+                // freed by freeValueMemory for an argument, and by C# through
+                // qjs_free for a callback's result.
+                var byteLength = value.byteLength;
+                var dataPtr = 0;
+                if (byteLength > 0) {
+                    dataPtr = _malloc(byteLength);
+                    HEAPU8.set(new Uint8Array(value.buffer, value.byteOffset, byteLength), dataPtr);
+                }
+                HEAP32[valuePtr >> 2] = OneJS.TYPE_TYPED_ARRAY;
+                HEAPU32[(valuePtr + 8) >> 2] = dataPtr;
+                HEAPU32[(valuePtr + 12) >> 2] = 0;
+                HEAP32[(valuePtr + 16) >> 2] = byteLength;
+                HEAP32[(valuePtr + 20) >> 2] = OneJS.typedArrayKind(value);
             }
             else if (type === "object") {
                 // Arrays cross as {"__csArray": [...]} marker JSON, the same shape
@@ -427,7 +463,7 @@ var OneJSWebGLLib = {
         // =====================================================================
         freeValueMemory: function(valuePtr) {
             var type = HEAP32[valuePtr >> 2];
-            if (type === OneJS.TYPE_STRING || type === OneJS.TYPE_JSON_OBJECT) {
+            if (type === OneJS.TYPE_STRING || type === OneJS.TYPE_JSON_OBJECT || type === OneJS.TYPE_TYPED_ARRAY) {
                 var strPtr = HEAPU32[(valuePtr + 8) >> 2];
                 if (strPtr) _free(strPtr);
             }
@@ -623,7 +659,7 @@ var OneJSWebGLLib = {
     // quickjs_unity.c). The jslib ships inside the build so it always matches,
     // but the entry point must exist for the C# probe.
     qjs_abi_version: function() {
-        return 3;
+        return 5;
     },
 
     // A callback that throws is reported to the browser console where it

@@ -66,14 +66,19 @@ namespace OneJS.Models {
 
         public Material GetDefaultMaterial(bool pointsSupport = false) {
             if (ModelShader == null) return Fallback.GetDefaultMaterial(pointsSupport);
-            if (_default == null) _default = new Material(ModelShader) { name = "ModelLit default" };
+            if (_default == null) _default = new Material(ModelShader) { name = "ModelLit default", enableInstancing = true };
             return _default;
         }
 
         public Material GenerateMaterial(MaterialBase gltfMaterial, IGltfReadable gltf, bool pointsSupport = false) {
             if (ModelShader == null) return Fallback.GenerateMaterial(gltfMaterial, gltf, pointsSupport);
 
-            var material = new Material(ModelShader) { name = gltfMaterial.name };
+            // Instanced, so actors that carry values of their own (ModelBridge.Apply) still draw
+            // together; the rest draw through the SRP Batcher, which takes precedence. A build keeps
+            // the instancing variants this needs because Resources/OneJS/ModelLitInstancing.mat,
+            // which nothing loads, asks for them: these materials are made at runtime, after
+            // stripping has decided.
+            var material = new Material(ModelShader) { name = gltfMaterial.name, enableInstancing = true };
             var pbr = gltfMaterial.PbrMetallicRoughness;
             if (pbr != null) {
                 // glTF factors are linear; SetColor takes the gamma value and converts it back.

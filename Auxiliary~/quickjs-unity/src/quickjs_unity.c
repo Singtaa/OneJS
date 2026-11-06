@@ -25,8 +25,9 @@
 // C# checks this at init (qjs_abi_version) so a stale native binary fails
 // loudly instead of misbehaving. Bump on any change to exported signatures,
 // struct layouts, or handle/ownership semantics.
-// 4: qjs_wasm_register, TextDecoder and TextEncoder, __wasm (6 Nov 2026).
-#define QJS_ABI_VERSION 4
+// 4: INTEROP_TYPE_TYPED_ARRAY, a typed array's bytes (OneJS main, runtime 1.2.2).
+// 5: qjs_wasm_register, TextDecoder and TextEncoder, __wasm (6 Nov 2026).
+#define QJS_ABI_VERSION 5
 
 // Callback handles encode the owning context's generation so a handle from a
 // destroyed context can never silently index into a newer context's table
@@ -88,7 +89,11 @@ typedef enum InteropType {
     INTEROP_TYPE_ARRAY = 8,
     INTEROP_TYPE_JSON_OBJECT = 9,
     INTEROP_TYPE_VECTOR3 = 10,  // Binary packed x,y,z floats
-    INTEROP_TYPE_VECTOR4 = 11   // Binary packed x,y,z,w floats (Quaternion, Color)
+    INTEROP_TYPE_VECTOR4 = 11,  // Binary packed x,y,z,w floats (Quaternion, Color)
+    // A typed array's bytes, JS to C# only: v.ta points at them, with their
+    // length in bytes and the element kind (JSTypedArrayEnum's numbering).
+    // C# copies them into a managed array before the call can run any JS.
+    INTEROP_TYPE_TYPED_ARRAY = 14
 } InteropType;
 
 typedef struct InteropValue {
@@ -103,6 +108,13 @@ typedef struct InteropValue {
         double f64;
         const char* str;
         struct { float x, y, z, w; } vec;  // For Vector3/Vector4
+        // The pointer sits in 8 bytes on every target, so length and kind keep
+        // offsets 16 and 20 on 32-bit (WebGL, armv7) as on 64-bit.
+        struct {
+            union { const void* data; int64_t _data64; } p;
+            int32_t byteLength;
+            int32_t kind;
+        } ta;
     } v;
     const char* typeHint;
 } InteropValue;
@@ -435,6 +447,89 @@ static int try_convert_color(JSContext* ctx, JSValueConst v, InteropValue* out) 
 
 // Interop Conv
 
+// The class id of a Uint8ClampedArray; the other typed arrays follow it in
+// JSTypedArrayEnum's order, in Bellard's engine and in quickjs-ng alike.
+// Neither engine publishes the class ids, so qjs_create reads them off arrays
+// it makes, and confirms the order for every kind. -1 until then, and for
+// good if the order ever differs: typed arrays then take the JSON path.
+static int g_typed_array_class_base = -1;
+
+static void init_typed_array_classes(JSContext* ctx) {
+    if (g_typed_array_class_base >= 0) return;
+    int base = -1;
+    for (int kind = JS_TYPED_ARRAY_UINT8C; kind <= JS_TYPED_ARRAY_FLOAT64; kind++) {
+        JSValue length = JS_NewInt32(ctx, 0);
+        JSValue a = JS_NewTypedArray(ctx, 1, &length, (JSTypedArrayEnum)kind);
+        int id = -1;
+        if (JS_IsException(a)) {
+            JS_FreeValue(ctx, JS_GetException(ctx));
+        } else {
+            id = (int)JS_GetClassID(a);
+            JS_FreeValue(ctx, a);
+        }
+        if (kind == JS_TYPED_ARRAY_UINT8C) base = id;
+        if (id < 0 || id != base + kind) return;
+    }
+    g_typed_array_class_base = base;
+}
+
+/**
+ * A typed array crosses as its bytes (INTEROP_TYPE_TYPED_ARRAY). With copy set
+ * they are malloc'd, owned like a string payload: free_interop_value frees
+ * them for call arguments, and C# frees a callback or eval result's through
+ * qjs_free, since by then the JS value may be gone. Without copy (zero-alloc
+ * arguments only) they are pointed at where they are, which holds because the
+ * call holds the array and C# copies the bytes before anything can run JS. A
+ * DataView or a plain object is not a typed array and goes on to the next
+ * converter.
+ */
+static int try_convert_typed_array(JSContext* ctx, JSValueConst v, InteropValue* out, int copy) {
+    if (g_typed_array_class_base < 0) return 0;
+    int kind = (int)JS_GetClassID(v) - g_typed_array_class_base;
+    if (kind < JS_TYPED_ARRAY_UINT8C || kind > JS_TYPED_ARRAY_FLOAT64) return 0;
+
+    out->type = INTEROP_TYPE_TYPED_ARRAY;
+    out->v.ta.p._data64 = 0;
+    out->v.ta.byteLength = 0;
+    out->v.ta.kind = kind;
+
+    size_t offset = 0, length = 0;
+    JSValue buffer = JS_GetTypedArrayBuffer(ctx, v, &offset, &length, NULL);
+    if (JS_IsException(buffer)) {
+        // Detached, or out of bounds of a shrunk buffer: JS reads it as empty.
+        JS_FreeValue(ctx, JS_GetException(ctx));
+        return 1;
+    }
+    if (length == 0) {
+        // An empty buffer may have no data pointer at all.
+        JS_FreeValue(ctx, buffer);
+        return 1;
+    }
+    size_t size = 0;
+    uint8_t* bytes = JS_GetArrayBuffer(ctx, &size, buffer);
+    JS_FreeValue(ctx, buffer);
+    if (!bytes || length > INT32_MAX || offset + length > size) {
+        // Not reachable for a live typed array; refuse rather than point
+        // past the buffer. C# reports the null against the parameter.
+        if (!bytes) JS_FreeValue(ctx, JS_GetException(ctx));
+        out->type = INTEROP_TYPE_NULL;
+        return 1;
+    }
+    if (copy) {
+        void* owned = malloc(length);
+        if (!owned) {
+            out->type = INTEROP_TYPE_NULL;
+            return 1;
+        }
+        memcpy(owned, bytes + offset, length);
+        out->v.ta.p.data = owned;
+    } else {
+        out->v.ta.p.data = bytes + offset;
+    }
+    out->v.ta.byteLength = (int32_t)length;
+    return 1;
+}
+
 static int try_convert_array(JSContext* ctx, JSValueConst v, InteropValue* out) {
     if (!JS_IsArray(ctx, v)) return 0;
 
@@ -571,6 +666,7 @@ static void interop_value_from_js(JSContext* ctx, JSValueConst v, InteropValue* 
     }
 
     if (JS_IsObject(v)) {
+        if (try_convert_typed_array(ctx, v, out, 1)) return;
         if (try_convert_array(ctx, v, out)) return;
         if (try_convert_handle(ctx, v, out)) return;
         if (try_convert_struct(ctx, v, out)) return;
@@ -644,6 +740,10 @@ static void free_interop_value(InteropValue* v) {
     if ((v->type == INTEROP_TYPE_STRING || v->type == INTEROP_TYPE_JSON_OBJECT) && v->v.str) {
         free((void*)v->v.str);
         v->v.str = NULL;
+    }
+    if (v->type == INTEROP_TYPE_TYPED_ARRAY && v->v.ta.p.data) {
+        free((void*)v->v.ta.p.data);
+        v->v.ta.p._data64 = 0;
     }
     if (v->typeHint) {
         free((void*)v->typeHint);
@@ -938,6 +1038,9 @@ static void interop_value_from_js_noalloc(JSContext* ctx, JSValueConst v, Intero
             return;
         }
         JS_FreeValue(ctx, handleVal);
+
+        // A typed array's bytes, pointed at where they are: no allocation
+        if (try_convert_typed_array(ctx, v, out, 0)) return;
 
         // Try vector patterns (no allocation - just copies floats)
         if (try_convert_vector3(ctx, v, out)) return;
@@ -1381,6 +1484,7 @@ QJS_API QjsContext* qjs_create() {
     qjs_init_release_handle(ctx);
     qjs_init_callbacks(wrapper);
     qjs_init_zeroalloc(ctx);
+    init_typed_array_classes(ctx);
     qjs_text_install(ctx);
     qjs_wasm_install(ctx);
 

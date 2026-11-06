@@ -23,6 +23,22 @@ namespace OneJS.Tests {
         static string Doc(string emitters, int max = 100, int seed = 0, int space = 0, int v = 4) =>
             $@"{{""v"":{v},""max"":{max},""seed"":{seed},""space"":{space},""emitters"":[{emitters}]}}";
 
+        // The default dot
+
+        /// A particle's `size` is its width, and the dot drawn without a texture
+        /// should read as that wide. The quadratic glow it had drew half
+        /// brightness across 12 px of a 40 px particle in a browser (6 Nov).
+        [Test]
+        public void DefaultDot_ReadsAsTheSizeAsked() {
+            const int w = 64;
+            var pixels = ParticleSystem2D.SoftDiscPixels(w, true);
+            int half = 0;
+            for (int x = 0; x < w; x++) if (pixels[(w / 2) * w + x].a >= 128) half++;
+            Assert.GreaterOrEqual(half / (float)w, 0.7f, "half bright or more across most of the size");
+            Assert.AreEqual(255, pixels[(w / 2) * w + w / 2].a, "solid in the middle");
+            Assert.AreEqual(0, pixels[(w / 2) * w].a, "nothing at the rim");
+        }
+
         // Wire parsing
 
         [Test]

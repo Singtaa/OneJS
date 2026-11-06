@@ -96,6 +96,25 @@ namespace OneJS.Tests {
         }
 
         [UnityTest]
+        public IEnumerator Resolution_SmallSizesAreDrawnAsAsked() {
+            // A pixel grid asks for exactly its cells. The floor was 8, which drew
+            // [10, 7] at 10 by 8 and [4, 4] at 8 by 8 with nothing said (learn Mac).
+            LogAssert.ignoreFailingMessages = true;
+            foreach (var (w, h) in new[] { (10, 7), (4, 4), (1, 1) }) {
+                var ph = PanelHost.Create(128, 128);
+                var fx = MakeEffect();
+                fx.SetResolution(w, h);
+                ph.Add(fx, 128, 128);
+                yield return null;
+                yield return null;
+                Assert.AreEqual(w, fx.RenderWidth, $"width asked {w}");
+                Assert.AreEqual(h, fx.RenderHeight, $"height asked {h}");
+                fx.Dispose();
+                ph.Destroy();
+            }
+        }
+
+        [UnityTest]
         public IEnumerator Dispose_UnregistersFromTheBridge() {
             LogAssert.ignoreFailingMessages = true;
             var ph = PanelHost.Create(32, 32);
@@ -115,8 +134,8 @@ namespace OneJS.Tests {
 
         // Uniform marshalling
         // SetVectorArray takes object rather than float[] on purpose: a JS array
-        // arrives as the {__csArray, __csArrayType} marker, which does not bind to a
-        // float[] parameter and makes the method invisible to reflection entirely
+        // of whole numbers arrives as int[], which does not bind to a float[]
+        // parameter and makes the method invisible to reflection entirely
         // ("Method not found: ...SetVectorArray"). These cover the C#-side contract;
         // the packing itself is pinned by onejs-react's texturefx.test.ts.
 
