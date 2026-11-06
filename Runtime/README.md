@@ -78,7 +78,7 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `GPU/FrostedGlassElement.cs` | `<FrostedGlass>`: a VisualElement showing the blurred scene behind it, with `blur` and `tint` |
 | `GPU/BackdropBlurManager.cs` | Scene capture and two-pass blur for every FrostedGlassElement; created by the first, destroyed with the last |
 | `Proc/MeshGenerator.cs` | Procedural primitive meshes (cube, sphere, cylinder, cone, plane, torus, quad); see `Proc/README.md` |
-| `Input/InputBridge.cs` | Input System bridge for keyboard, mouse, gamepad, touch; its own assembly, built only when the package is installed (see `Input/README.md`) |
+| `Input/InputBridge.cs` | Input System bridge for keyboard, mouse, gamepad, touch, and which pointer pressed last (`GetPointerType`); its own assembly, built only when the package is installed (see `Input/README.md`) |
 | `Input/InputSystemUIModule.cs` | Adds the `InputSystemUIInputModule` to the EventSystem JSRunner creates, so `OneJS.Runtime` never references the Input System |
 | `Styling/UssCompiler.cs` | Runtime USS compilation from strings, with diagnostics (see `Styling/README.md`) |
 | `Styling/ExCSS/` | The CSS parser `UssCompiler` reads, ExCSS v4.3.2 as `OneJS.ExCSS.dll` and its `.pdb`, built from `Auxiliary~/ExCSS` |
