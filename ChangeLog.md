@@ -6,6 +6,7 @@
 - The native library's ABI version is 4: restart the editor after updating
 - ModelLit takes `_ColorMask`, so a model can draw depth alone
 - ModelBridge makes a model from arrays, with vertex colours, and redraws it in place
+- ModelBridge scatters copies of a model as instanced chunks
 - A shader effect draws at a `PixelRatio`, pixels per layout point
 - A picture sized by its layout can pass 2048 a side, up to the GPU's limit, and keeps its shape
 

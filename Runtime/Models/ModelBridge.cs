@@ -33,7 +33,7 @@ namespace OneJS.Models {
     /// Compiled only when com.unity.cloud.gltfast is installed (see the asmdef). JS looks the type
     /// up by name and says what to install when it is absent.
     /// </summary>
-    public static class ModelBridge {
+    public static partial class ModelBridge {
         const string RootName = "OneJS Models";
         // ModelLit's per-actor values, apart from the material's own _Dissolve and _ReceiveShadows.
         static readonly int ActorDissolveId = Shader.PropertyToID("_ActorDissolve");
@@ -210,13 +210,14 @@ namespace OneJS.Models {
 
         /// <summary>
         /// Frees a loaded model: its template and everything glTFast made for it (meshes,
-        /// materials, textures). False, and nothing freed, while an actor of it is still in the
-        /// world, since those share the model's meshes and materials; true when it was freed or
+        /// materials, textures). False, and nothing freed, while an actor or a scatter of it is
+        /// still in the world, since those share the model's meshes and materials; true when it was freed or
         /// was never there. onejs-play's unload calls it.
         /// </summary>
         public static bool Unload(int model) {
             if (!_models.TryGetValue(model, out var m)) return true;
             foreach (var a in _actors.Values) if (a.model == model) return false;
+            if (Scatters(model)) return false;
             _models.Remove(model);
             Free(m);
             return true;
@@ -777,6 +778,7 @@ namespace OneJS.Models {
         /// </summary>
         public static void DisposeAll() {
             _generation++;
+            ClearScatters();
             foreach (var a in _actors.Values) if (a.go != null) Kill(a.go);
             _actors.Clear();
             foreach (var m in _models.Values) Free(m);
