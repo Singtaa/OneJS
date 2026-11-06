@@ -55,7 +55,7 @@ PlayMode (`Tests/*.cs`):
 | `FilterStylePlaymodeTests.cs` | `filter` and `backdrop-filter` from a compiled sheet and an inline style, the inline parser held to Unity's sheet reader; `none`, and a removed inline filter falling back to the sheet's |
 | `TreeViewBridgeTests.cs` | `TreeViewBridge` parallel-array contract (mirrors onejs-react's `treeview.test.tsx`) |
 | `ShaderFXTests.cs` | ShaderFX render-target lifecycle against real layout, uniform marshalling, ramp/texture caching |
-| `ParticleTests.cs` | Particle wire parsing, deterministic simulation, imperative API, render smoke tests |
+| `ParticleTests.cs` | Particle wire parsing, deterministic simulation, the default dot's width, imperative API, render smoke tests |
 | `Physics2DBodyTests.cs` | How a wire body becomes a Rigidbody2D: no engine warnings on build, density driving mass |
 | `GPUBridgePlaymodeTests.cs` | GPU compute shaders, buffers, dispatch, from C# and JS |
 | `BufferTransportBenchmark.cs` | `[Explicit]` benchmark (#107): a 4096-float buffer written and read back as JSON against `BufferBits` text; prints `[Bench107]` lines |

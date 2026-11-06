@@ -102,6 +102,32 @@ namespace OneJS {
         // Radial falloff sprite used when no texture is supplied. The premultiplied
         // variant (rgb = alpha = falloff) matches the custom shader's blend math;
         // the straight variant (white rgb, alpha falloff) matches the fallback path.
+        /// <summary>
+        /// The default dot's opacity at a distance from its centre, as a share of its
+        /// radius: solid to half way, then a soft edge to nothing at `size`'s rim, so
+        /// the dot a player sees is about the `size` asked. A quadratic glow, (1 - r)²,
+        /// drew a visible dot a third of it: half brightness reached only 0.29 of the
+        /// way out (learn Mac, 6 Nov: sizes 6 to 14 drew about 3 px on a phone).
+        /// </summary>
+        static float SoftDiscAlpha(float r) => 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.5f, 1f, r));
+
+        /// <summary>The default dot's pixels, `size` square, row by row.</summary>
+        internal static Color32[] SoftDiscPixels(int size, bool premultiplied) {
+            var pixels = new Color32[size * size];
+            float center = (size - 1) * 0.5f;
+            for (int py = 0; py < size; py++) {
+                for (int px = 0; px < size; px++) {
+                    float dx = (px - center) / center;
+                    float dy = (py - center) / center;
+                    float f = SoftDiscAlpha(Mathf.Sqrt(dx * dx + dy * dy));
+                    byte fb = (byte)(f * 255f + 0.5f);
+                    byte rgb = premultiplied ? fb : (byte)255;
+                    pixels[py * size + px] = new Color32(rgb, rgb, rgb, fb);
+                }
+            }
+            return pixels;
+        }
+
         static Texture2D ResolveSoftDisc(bool premultiplied) {
             var cached = premultiplied ? s_SoftDiscPremultiplied : s_SoftDiscStraight;
             if (cached == null) {
@@ -111,20 +137,7 @@ namespace OneJS {
                     wrapMode = TextureWrapMode.Clamp,
                     filterMode = FilterMode.Bilinear,
                 };
-                var pixels = new Color32[size * size];
-                float center = (size - 1) * 0.5f;
-                for (int py = 0; py < size; py++) {
-                    for (int px = 0; px < size; px++) {
-                        float dx = (px - center) / center;
-                        float dy = (py - center) / center;
-                        float f = Mathf.Clamp01(1f - Mathf.Sqrt(dx * dx + dy * dy));
-                        f *= f; // quadratic falloff reads as a soft glow
-                        byte fb = (byte)(f * 255f + 0.5f);
-                        byte rgb = premultiplied ? fb : (byte)255;
-                        pixels[py * size + px] = new Color32(rgb, rgb, rgb, fb);
-                    }
-                }
-                tex.SetPixels32(pixels);
+                tex.SetPixels32(SoftDiscPixels(size, premultiplied));
                 tex.Apply(false, true);
                 if (premultiplied) s_SoftDiscPremultiplied = tex;
                 else s_SoftDiscStraight = tex;

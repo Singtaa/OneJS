@@ -702,6 +702,9 @@ crossings, and steady-state emission costs zero JS work.
   call. Physics worlds, shader effects, fx handles, SL programs, GPU buffers,
   sounds, input actions and the 3D scene follow the same ownership rule. Bursts drop when at
   capacity (`max` is the budget knob).
+- **Default dot**: without a `texture`, a 64 px disc solid to half its radius with a soft
+  edge to nothing at the rim (`SoftDiscAlpha`), so a particle reads as the `size` it was
+  given. The quadratic glow it replaced was half bright across only 0.29 of `size`.
 
 **Wire versioning**: the parser accepts v1..v4. Every added field defaults to the
 previous behavior, so an older onejs-react keeps working against a newer package;
@@ -712,7 +715,7 @@ are configured, so existing configs keep their exact original particle streams.
 
 Tests: `Tests/ParticleTests.cs` (wire parse/validation incl. v1 back-compat,
 deterministic sim, attraction arrival, edge modes against a panel-backed rect,
-texture grouping, imperative API semantics, and RT-readback render smoke tests
+texture grouping, the default dot's width, imperative API semantics, and RT-readback render smoke tests
 that verify the additive path and the non-square quad basis end to end).
 
 ## ShaderFX (`ShaderFX/` folder)
