@@ -166,6 +166,65 @@ namespace OneJS.Tests.Models {
             Assert.That(material.GetFloat("_ZWrite"), Is.EqualTo(1f));
         }
 
+        // Gunyard's shadow fan (Tachi 5f9c606d): it hides the red square behind it and draws nothing
+        // of its own, so the background shows where it is and the red around it.
+        [Test]
+        public void DepthOnly_HidesWhatIsBehind_DrawingNoColourOfItsOwn() {
+            var target = new RenderTexture(32, 32, 24);
+            var camera = new GameObject("Test Camera").AddComponent<Camera>();
+            var read = new Texture2D(32, 32, TextureFormat.RGBA32, false);
+            try {
+                var red = Enumerable.Range(0, 4).SelectMany(_ => new[] { 1f, 0f, 0f }).ToArray();
+                int behind = Made(Square, TwoTriangles, null, red);
+                ModelBridge.ActorObject(ModelBridge.Spawn(behind, 0, 0, 1, 0, 3, false, false))
+                    .GetComponent<MeshRenderer>().sharedMaterial.SetFloat("_Unlit", 1);
+                int fan = Made(Square, TwoTriangles);
+                Assert.That(ModelBridge.SetDepthOnly(fan), Is.True);
+                ModelBridge.Spawn(fan, 0, 0, 0, 0, 1, true, true);
+                camera.transform.position = new Vector3(0, 0, -2);
+                camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.backgroundColor = Color.magenta;
+                camera.targetTexture = target;
+                camera.Render();
+                var was = RenderTexture.active;
+                RenderTexture.active = target;
+                read.ReadPixels(new Rect(0, 0, 32, 32), 0, 0);
+                RenderTexture.active = was;
+                Assert.That(read.GetPixel(16, 16), Is.EqualTo(Color.magenta), "the fan hides the red and draws no colour");
+                var edge = read.GetPixel(1, 16);
+                Assert.That(edge.r, Is.GreaterThan(0.9f), $"the red around it: {edge}");
+                Assert.That(edge.b, Is.LessThan(0.1f), $"the red around it: {edge}");
+            } finally {
+                Object.DestroyImmediate(camera.gameObject);
+                Object.DestroyImmediate(read);
+                target.Release();
+            }
+        }
+
+        [Test]
+        public void DepthOnly_DrawsBeforeTheOpaques_CastsNoShadow_AndIsNeverSeeThrough() {
+            int fan = Made(Square, TwoTriangles, null, Enumerable.Repeat(1f, 16).ToArray());
+            var before = ModelBridge.ActorObject(ModelBridge.Spawn(fan, 0, 0, 0, 0, 1, true, true)).GetComponent<MeshRenderer>();
+            Assert.That(before.shadowCastingMode, Is.EqualTo(ShadowCastingMode.On));
+            Assert.That(ModelBridge.SetDepthOnly(fan), Is.True);
+            var material = before.sharedMaterial;
+            Assert.That(material.GetFloat("_ColorMask"), Is.EqualTo(0f));
+            Assert.That(material.renderQueue, Is.EqualTo((int)RenderQueue.Geometry - 1), "its depth is down before what it hides");
+            Assert.That(before.shadowCastingMode, Is.EqualTo(ShadowCastingMode.Off), "an actor spawned before");
+            var after = ModelBridge.ActorObject(ModelBridge.Spawn(fan, 0, 0, 0, 0, 1, true, true)).GetComponent<MeshRenderer>();
+            Assert.That(after.shadowCastingMode, Is.EqualTo(ShadowCastingMode.Off), "and one spawned after");
+            int actor = ModelBridge.Spawn(fan, 0, 0, 0, 0, 1, false, true);
+            ModelBridge.SetShadows(actor, true, true);
+            Assert.That(ModelBridge.ActorObject(actor).GetComponent<MeshRenderer>().shadowCastingMode, Is.EqualTo(ShadowCastingMode.Off), "and one asked to later");
+
+            var half = Enumerable.Range(0, 16).Select(i => i % 4 == 3 ? 0.5f : 1f).ToArray();
+            ModelBridge.SetMesh(fan, Square, null, null, half, null);
+            Assert.That(material.renderQueue, Is.EqualTo((int)RenderQueue.Geometry - 1), "an alpha below 1 does not make it see-through");
+            Assert.That(material.GetFloat("_ZWrite"), Is.EqualTo(1f));
+            Assert.That(ModelBridge.SetDepthOnly(fan), Is.True, "twice is no harm");
+            Assert.That(ModelBridge.SetDepthOnly(12345), Is.False, "not a mesh model");
+        }
+
         // ModelLit read no vertex colour before _VERTEX_COLOR: this square drew white.
         [Test]
         public void VertexColours_AreWhatItDraws() {

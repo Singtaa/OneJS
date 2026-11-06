@@ -39,6 +39,7 @@ namespace OneJS.Models {
         static readonly int ActorDissolveId = Shader.PropertyToID("_ActorDissolve");
         static readonly int ActorShadowlessId = Shader.PropertyToID("_ActorShadowless");
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        static readonly int ColorMaskId = Shader.PropertyToID("_ColorMask");
 
         class Model {
             // Null for a model made from arrays, which has `built` instead.
@@ -67,7 +68,7 @@ namespace OneJS.Models {
             public ushort[] shortIndices = Array.Empty<ushort>();
             public Color[] colors = Array.Empty<Color>();
             public Color baseColor;
-            public bool seeThrough, written, dynamic;
+            public bool seeThrough, written, dynamic, depthOnly;
         }
 
         class Actor {
@@ -284,6 +285,30 @@ namespace OneJS.Models {
         }
 
         /// <summary>
+        /// Makes a mesh model write depth and no colour (onejs-play's `scene.mesh(data, { depthOnly:
+        /// true })`): Gunyard's shadow fan, which hides what is behind it without being seen. Its
+        /// material draws with `_ColorMask` 0 just before the opaque queue, so its depth is down
+        /// before anything it hides, and it casts no shadow, for its actors now and later and for
+        /// its scatters. An alpha below 1 no longer draws it see-through. False for a model not
+        /// made from arrays, or where ModelLit has no SubShader (HDRP), which cannot mask colour.
+        /// </summary>
+        public static bool SetDepthOnly(int model) {
+            if (!_models.TryGetValue(model, out var m) || m.built == null || ModelMaterialGenerator.ModelShader == null) return false;
+            var b = m.built;
+            if (b.depthOnly) return true;
+            b.depthOnly = true;
+            if (b.seeThrough) {
+                ModelMaterialGenerator.SetSeeThrough(b.material, false);
+                b.seeThrough = false;
+            }
+            b.material.SetFloat(ColorMaskId, 0);
+            b.material.renderQueue = (int)RenderQueue.Geometry - 1;
+            foreach (var r in m.template.GetComponentsInChildren<Renderer>(true)) r.shadowCastingMode = ShadowCastingMode.Off;
+            foreach (var a in _actors.Values) if (a.model == model) Shadows(a, false, a.receive);
+            return true;
+        }
+
+        /// <summary>
         /// Gives a mesh model its vertices and triangles, or new ones. Positions are three floats a
         /// vertex; indices three a triangle, a Uint32Array or a Uint16Array, and left out they stay
         /// what they were. Normals (three floats), colours (sRGB, three or four floats) and UVs (two)
@@ -376,7 +401,7 @@ namespace OneJS.Models {
             b.vertexCount = count;
             b.indexCount = indexCount;
             b.written = true;
-            if (seeThrough != b.seeThrough && ModelMaterialGenerator.ModelShader != null) {
+            if (seeThrough != b.seeThrough && !b.depthOnly && ModelMaterialGenerator.ModelShader != null) {
                 ModelMaterialGenerator.SetSeeThrough(b.material, seeThrough);
                 b.seeThrough = seeThrough;
             }
@@ -827,6 +852,8 @@ namespace OneJS.Models {
 
         static void Shadows(Actor a, bool cast, bool receive) {
             a.receive = receive;
+            // A depth-only model is never seen, so neither is its shadow.
+            if (cast && _models.TryGetValue(a.model, out var m) && m.built != null && m.built.depthOnly) cast = false;
             foreach (var r in a.renderers) {
                 r.shadowCastingMode = cast ? ShadowCastingMode.On : ShadowCastingMode.Off;
                 // The built-in pipeline reads the renderer's flag; ModelLit in URP reads the actor's value.
