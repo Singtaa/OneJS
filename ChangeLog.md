@@ -16,6 +16,8 @@
 - SLProgramBridge counts the page programs still compiling
 - A property two interfaces declare reads the get-only one, whatever order the assembly lists them in
 - LightBaker bakes sky and bounced light into a lightmap and a probe grid at runtime
+- ModelBridge bakes the scene's static actors and scattered copies, and lights moving actors from the probes
+- ModelLit draws a baked actor from the lightmap
 
 # [2026-11-05] v3.9.18
 

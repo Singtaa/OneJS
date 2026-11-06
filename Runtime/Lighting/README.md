@@ -55,6 +55,13 @@ Memory while baking: 72 bytes a texel (positions and normals in float, the sum,
 two work targets, the draft and the final in half), 19 MB at 512 by 512. The
 draft and the final stay; the rest is freed at the end.
 
+## Who calls it
+
+`ModelBridge.Light.cs` (in `Runtime/Models`) is the one caller in OneJS: it builds the `BakeScene`
+from the scene's static actors and scattered copies, steps the baker a frame at a time for
+onejs-play's `scene.bake`, and puts the result on the models. The baker disposes its textures with
+`DestroyImmediate` in the editor's edit mode, since a bake runs in the edit-mode preview too.
+
 ## Traps
 
 - **xatlas centres a chart's border texels on its edges.** A floor texel at the

@@ -11,7 +11,8 @@ namespace OneJS.Models {
 
         /// <summary>One renderer of a model: what a scatter draws for it, and where it sits in the model.</summary>
         sealed class ScatterPart {
-            public Mesh mesh;
+            // The template's own, so the mesh drawn is whichever the model has now: an unwrap swaps it.
+            public MeshFilter filter;
             public Material[] materials;
             public Matrix4x4 local;
             public ShadowCastingMode cast;
@@ -25,6 +26,8 @@ namespace OneJS.Models {
             // Per part, each copy's matrix with the part's own placement in the model applied.
             public Matrix4x4[][] matrices;
             public Bounds bounds;
+            // Each copy's rectangle of the baked light's atlas, once a bake has a lightmap; null before.
+            public MaterialPropertyBlock light;
         }
 
         sealed class Scattered {
@@ -34,6 +37,8 @@ namespace OneJS.Models {
             public ScatterChunkData[] chunks;
             // The model's bounds the chunks were measured with: a mesh model's set moves them.
             public Bounds measuredWith;
+            // By copy, its rectangle of the baked light's atlas (ModelBridge.Light.cs); null when not baked.
+            public Vector4[] atlas;
         }
 
         static readonly Dictionary<int, Scattered> _scatters = new();
@@ -52,13 +57,12 @@ namespace OneJS.Models {
             if (m.template.GetComponentInChildren<SkinnedMeshRenderer>(true) != null) return 0;
 
             var parts = new List<ScatterPart>();
-            foreach (var filter in m.template.GetComponentsInChildren<MeshFilter>(true)) {
-                if (filter.sharedMesh == null || !filter.TryGetComponent<MeshRenderer>(out var renderer)) continue;
+            foreach (var (filter, renderer) in Parts(m.template)) {
                 var materials = renderer.sharedMaterials;
                 // RenderMeshInstanced refuses a material that does not instance; ModelLit's all do.
                 foreach (var material in materials) if (material != null) material.enableInstancing = true;
                 parts.Add(new ScatterPart {
-                    mesh = filter.sharedMesh, materials = materials,
+                    filter = filter, materials = materials,
                     // The template sits at the origin, so a renderer's world matrix is its place in the model.
                     local = filter.transform.localToWorldMatrix,
                     cast = renderer.shadowCastingMode, receive = renderer.receiveShadows, layer = renderer.gameObject.layer,
@@ -211,13 +215,17 @@ namespace OneJS.Models {
                 foreach (var chunk in s.chunks) {
                     for (int p = 0; p < s.parts.Length; p++) {
                         var part = s.parts[p];
-                        for (int sub = 0; sub < part.mesh.subMeshCount && sub < part.materials.Length; sub++) {
+                        var mesh = part.filter.sharedMesh;
+                        for (int sub = 0; sub < mesh.subMeshCount && sub < part.materials.Length; sub++) {
                             if (part.materials[sub] == null) continue;
                             var rp = new RenderParams(part.materials[sub]) {
                                 camera = camera, worldBounds = chunk.bounds, layer = part.layer,
                                 shadowCastingMode = part.cast, receiveShadows = part.receive,
+                                matProps = chunk.light,
+                                // The built-in pipeline adds the ambient probe itself; a baked copy's is zero (Apply).
+                                lightProbeUsage = chunk.light != null && BuiltInPipeline ? LightProbeUsage.CustomProvided : LightProbeUsage.BlendProbes,
                             };
-                            Graphics.RenderMeshInstanced(rp, part.mesh, sub, chunk.matrices[p], chunk.copies.Length);
+                            Graphics.RenderMeshInstanced(rp, mesh, sub, chunk.matrices[p], chunk.copies.Length);
                         }
                     }
                 }

@@ -48,6 +48,9 @@ namespace OneJS.Models {
             public Bounds bounds;
             public string[] clips;
             public BuiltMesh built;
+            // The template's meshes, part by part, as loaded, and the same rebuilt with the light's
+            // uv in TEXCOORD1 once an unwrap has been given (ModelBridge.Light.cs). Null until then.
+            public Mesh[] unlit, lit;
         }
 
         /// <summary>
@@ -82,6 +85,12 @@ namespace OneJS.Models {
             public bool receive = true;
             // Applied to every clip, including one played after it was set.
             public float speed = 1;
+            // Its rectangle of the baked light's atlas, as a uv scale and offset; zero when it has none.
+            public Vector4 atlas;
+            // The light at its middle from the probe grid, and where its middle was when it was taken.
+            public SphericalHarmonicsL2 probe;
+            public bool probed;
+            public Vector3 probedAt;
         }
 
         /// <summary>The lighting a play-mode scene changed, to put back.</summary>
@@ -225,6 +234,7 @@ namespace OneJS.Models {
         }
 
         static void Free(Model m) {
+            FreeLit(m);
             if (m.template != null) Kill(m.template);
             m.import?.Dispose();
             if (m.built != null) {
@@ -347,6 +357,8 @@ namespace OneJS.Models {
             if (problem != null) return problem;
 
             // Everything is valid: from here nothing returns early.
+            // The unwrap was made from the old triangles, so its actors draw unbaked until the next bake.
+            DropUnwrap(model, m);
             if (b.written && !b.dynamic) {
                 b.mesh.MarkDynamic();
                 b.dynamic = true;
@@ -480,6 +492,8 @@ namespace OneJS.Models {
             _models.TryGetValue(model, out var m) && m.built != null ? new Vector2Int(m.built.vertexCapacity, m.built.indexCapacity) : default;
 
         internal static Mesh MeshOf(int model) => _models.TryGetValue(model, out var m) ? m.built?.mesh : null;
+
+        internal static Material MaterialOf(int model) => _models.TryGetValue(model, out var m) ? m.built?.material : null;
 
         public static int ModelCount => _models.Count;
 
@@ -803,6 +817,7 @@ namespace OneJS.Models {
         /// </summary>
         public static void DisposeAll() {
             _generation++;
+            ClearLight();
             ClearScatters();
             // The camera goes with the root below, so there is no screen to give it back to.
             StopSceneTexture(restoreCamera: false);
@@ -863,22 +878,38 @@ namespace OneJS.Models {
         }
 
         /// <summary>
-        /// An actor's dissolve and shadows, onto its renderers. A renderer with a property block
-        /// falls out of URP's SRP Batcher and draws alone, in every shadow cascade too, so only an
-        /// actor that is dissolving or keeps no shadow on itself gets one, and an actor that goes
-        /// back to plain loses it. ModelLit reads both per instance, so those actors still draw
-        /// together where their material instances.
+        /// An actor's dissolve, shadows and baked light, onto its renderers. A renderer with a
+        /// property block falls out of URP's SRP Batcher and draws alone, in every shadow cascade
+        /// too, so only an actor that needs one gets one: dissolving, keeping no shadow on itself,
+        /// or lit by a bake. ModelLit reads all of them per instance, so those actors still draw
+        /// together where their material instances. The probe light is Unity's own per-renderer
+        /// SH (LightProbeUsage.CustomProvided), which ModelLit's SampleSH already reads.
         /// </summary>
         static void Apply(Actor a) {
-            if (a.dissolve <= 0 && a.receive) {
-                foreach (var r in a.renderers) r.SetPropertyBlock(null);
+            bool mapped = Lightmapped(a);
+            bool probed = !mapped && a.probed;
+            // The built-in pipeline adds the ambient probe itself, so a lightmapped actor's is zero there.
+            bool customSH = probed || (mapped && BuiltInPipeline);
+            if (a.dissolve <= 0 && a.receive && !mapped && !probed) {
+                foreach (var r in a.renderers) {
+                    r.SetPropertyBlock(null);
+                    r.lightProbeUsage = LightProbeUsage.BlendProbes;
+                }
                 return;
             }
             a.block ??= new MaterialPropertyBlock();
             a.block.Clear();
             a.block.SetFloat(ActorDissolveId, a.dissolve);
             a.block.SetFloat(ActorShadowlessId, a.receive ? 0 : 1);
-            foreach (var r in a.renderers) r.SetPropertyBlock(a.block);
+            if (mapped) a.block.SetVector(ActorLightmapId, a.atlas);
+            if (customSH) {
+                _oneProbe[0] = probed ? a.probe : default;
+                a.block.CopySHCoefficientArraysFrom(_oneProbe);
+            }
+            foreach (var r in a.renderers) {
+                r.lightProbeUsage = customSH ? LightProbeUsage.CustomProvided : LightProbeUsage.BlendProbes;
+                r.SetPropertyBlock(a.block);
+            }
         }
 
         static Vector2 PanelSize(VisualElement element) => element?.panel?.visualTree.layout.size ?? Vector2.zero;

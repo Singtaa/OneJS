@@ -87,15 +87,26 @@ Shader "OneJS/ModelLit" {
             UNITY_INSTANCING_BUFFER_START(ModelActor)
                 UNITY_DEFINE_INSTANCED_PROP(float, _ActorDissolve)
                 UNITY_DEFINE_INSTANCED_PROP(float, _ActorShadowless)
+                UNITY_DEFINE_INSTANCED_PROP(float4, _ActorLightmapST)
             UNITY_INSTANCING_BUFFER_END(ModelActor)
             #define MODEL_ACTOR_DISSOLVE UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorDissolve)
             #define MODEL_ACTOR_SHADOWLESS UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorShadowless)
+            #define MODEL_ACTOR_LIGHTMAP_ST UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorLightmapST)
         #else
             float _ActorDissolve;
             float _ActorShadowless;
+            float4 _ActorLightmapST;
             #define MODEL_ACTOR_DISSOLVE _ActorDissolve
             #define MODEL_ACTOR_SHADOWLESS _ActorShadowless
+            #define MODEL_ACTOR_LIGHTMAP_ST _ActorLightmapST
         #endif
+
+        // The scene's baked light (ModelBridge.Light.cs): light arriving at a static surface, sky and
+        // bounce without the sun's first hit, in the units SampleSH gives. An actor with a rectangle
+        // of it (_ActorLightmapST's scale above 0) reads it at its TEXCOORD1 in place of the probe.
+        // A branch on a per-actor value rather than a keyword, since one material draws baked and
+        // moving actors alike, and a run-time keyword would be stripped from a build.
+        TEXTURE2D(_OjLightmap); SAMPLER(sampler_OjLightmap);
 
         // The material's dissolve or the actor's, whichever is further gone.
         float Dissolved() {
@@ -121,8 +132,9 @@ Shader "OneJS/ModelLit" {
             #pragma vertex Vert
             #pragma fragment Frag
 
-            // URP's lighting keywords, as its Lit shader declares them, less lightmaps, decals,
-            // reflection probes and debug views, which a cart's scene never has.
+            // URP's lighting keywords, as its Lit shader declares them, less Unity's lightmaps, decals,
+            // reflection probes and debug views, which a cart's scene never has. Its baked light is
+            // the bake's own (_OjLightmap above), which needs no keyword.
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
             #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
@@ -144,6 +156,7 @@ Shader "OneJS/ModelLit" {
                 float3 normalOS : NORMAL;
                 float4 tangentOS : TANGENT;
                 float2 uv : TEXCOORD0;
+                float2 lightmapUV : TEXCOORD1;
                 #ifdef _VERTEX_COLOR
                     float4 color : COLOR;
                 #endif
@@ -158,6 +171,7 @@ Shader "OneJS/ModelLit" {
                 half4 tangentWS : TEXCOORD3;
                 float3 positionOS : TEXCOORD4;
                 half4 fogAndVertexLight : TEXCOORD5;
+                float2 lightmapUV : TEXCOORD7;
                 #ifdef _VERTEX_COLOR
                     half4 color : TEXCOORD6;
                 #endif
@@ -175,6 +189,8 @@ Shader "OneJS/ModelLit" {
                 o.normalWS = n.normalWS;
                 o.tangentWS = half4(n.tangentWS, v.tangentOS.w * GetOddNegativeScale());
                 o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
+                float4 lightmapST = MODEL_ACTOR_LIGHTMAP_ST;
+                o.lightmapUV = v.lightmapUV * lightmapST.xy + lightmapST.zw;
                 o.positionOS = v.positionOS.xyz;
                 #ifdef _VERTEX_COLOR
                     o.color = v.color;
@@ -229,7 +245,9 @@ Shader "OneJS/ModelLit" {
                 #ifdef _ADDITIONAL_LIGHTS_VERTEX
                     d.vertexLighting = i.fogAndVertexLight.yzw;
                 #endif
-                d.bakedGI = SampleSH(d.normalWS);
+                d.bakedGI = MODEL_ACTOR_LIGHTMAP_ST.x > 0
+                    ? SAMPLE_TEXTURE2D(_OjLightmap, sampler_OjLightmap, i.lightmapUV).rgb
+                    : SampleSH(d.normalWS);
                 d.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(i.positionCS);
                 d.shadowMask = half4(1, 1, 1, 1);
 
@@ -428,10 +446,17 @@ Shader "OneJS/ModelLit" {
         // The actor's own dissolve (see the URP SubShader); the built-in pipeline reads receiving
         // shadows from the renderer.
         float _ActorDissolve;
+        // The baked light (see the URP SubShader). The surface shader adds the ambient probe itself,
+        // so ModelBridge gives a baked actor a zero probe and its light arrives here as emission.
+        UNITY_INSTANCING_BUFFER_START(ModelActorLight)
+            UNITY_DEFINE_INSTANCED_PROP(float4, _ActorLightmapST)
+        UNITY_INSTANCING_BUFFER_END(ModelActorLight)
+        sampler2D _OjLightmap;
 
         struct Input {
             float2 uv_BaseMap;
             float3 positionOS;
+            float2 lightmapUV;
             // Filled from the mesh's COLOR by the surface shader; read only under _VERTEX_COLOR.
             float4 color : COLOR;
         };
@@ -439,6 +464,8 @@ Shader "OneJS/ModelLit" {
         void Vert(inout appdata_full v, out Input o) {
             UNITY_INITIALIZE_OUTPUT(Input, o);
             o.positionOS = v.vertex.xyz;
+            float4 lightmapST = UNITY_ACCESS_INSTANCED_PROP(ModelActorLight, _ActorLightmapST);
+            o.lightmapUV = v.texcoord1.xy * lightmapST.xy + lightmapST.zw;
         }
 
         void Surf(Input i, inout SurfaceOutputStandard o) {
@@ -462,6 +489,9 @@ Shader "OneJS/ModelLit" {
             o.Normal = UnpackScaleNormal(tex2D(_NormalMap, uv), _NormalScale);
             o.Occlusion = lerp(1.0, tex2D(_OcclusionMap, uv).r, _OcclusionStrength);
             o.Emission = emission;
+            if (UNITY_ACCESS_INSTANCED_PROP(ModelActorLight, _ActorLightmapST).x > 0) {
+                o.Emission += o.Albedo * (1.0 - o.Metallic) * o.Occlusion * tex2D(_OjLightmap, i.lightmapUV).rgb;
+            }
         }
         ENDCG
     }

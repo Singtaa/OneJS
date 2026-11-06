@@ -326,7 +326,7 @@ namespace OneJS.Lighting {
                 }
             } finally {
                 RenderTexture.active = previous;
-                UnityEngine.Object.Destroy(tex);
+                Kill(tex);
             }
             _probeSH = ProbeSolve.FromSums(sums, w, _probeCount, _probeRaysDone, _gridCounts, _sky, _ground);
             foreach (var t in _probeA) Release(t);
@@ -343,7 +343,7 @@ namespace OneJS.Lighting {
             RenderTexture.active = target;
             tex.ReadPixels(new Rect(0, 0, 1, 1), 0, 0, false);
             RenderTexture.active = previous;
-            UnityEngine.Object.Destroy(tex);
+            Kill(tex);
         }
 
         static void Flush(CommandBuffer cmd) {
@@ -369,16 +369,23 @@ namespace OneJS.Lighting {
             Release(_draft);
             Release(_final);
             _draft = _final = null;
-            UnityEngine.Object.Destroy(_tris);
-            UnityEngine.Object.Destroy(_nodes);
-            UnityEngine.Object.Destroy(_gbufferMesh);
-            UnityEngine.Object.Destroy(_material);
+            Kill(_tris);
+            Kill(_nodes);
+            Kill(_gbufferMesh);
+            Kill(_material);
+        }
+
+        /// <summary>Destroy where a player runs, DestroyImmediate in the editor's edit mode, which refuses Destroy: a bake runs in the edit-mode preview too.</summary>
+        static void Kill(UnityEngine.Object o) {
+            if (o == null) return;
+            if (Application.isPlaying) UnityEngine.Object.Destroy(o);
+            else UnityEngine.Object.DestroyImmediate(o);
         }
 
         static void Release(RenderTexture rt) {
             if (rt == null) return;
             rt.Release();
-            UnityEngine.Object.Destroy(rt);
+            Kill(rt);
         }
 
         RenderTexture Target(RenderTextureFormat format, string name) => Target(_width, _height, format, name);
