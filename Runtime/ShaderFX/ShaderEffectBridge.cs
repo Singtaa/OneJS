@@ -32,6 +32,14 @@ namespace OneJS.ShaderFX {
 
         internal static void BeginDraw() => s_Draws++;
 
+        /// <summary>
+        /// Raised once a frame, just before the effects draw, for whatever renders a picture
+        /// they read: the 3D scene's camera, while a program reads the scene. Rendered here, a
+        /// program reads this frame's picture; rendered by Unity after Update, it would read
+        /// the last one.
+        /// </summary>
+        public static event Action BeforeDraw;
+
         internal static void Register(ShaderEffectElement e) {
             if (s_Elements.Contains(e)) return;
             e.OwnerContextId = QuickJSNative.CurrentContextId;
@@ -65,6 +73,7 @@ namespace OneJS.ShaderFX {
             // hitch clamp would silently slow the effect at low frame rates.
             if (dt > 0.05f && !VirtualClock.IsActive) dt = 0.05f; // first tick / editor hitches
 
+            BeforeDraw?.Invoke();
             BeginDraw();
             for (int i = s_Elements.Count - 1; i >= 0; i--)
                 s_Elements[i]?.Tick(dt);

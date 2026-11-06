@@ -779,6 +779,8 @@ namespace OneJS.Models {
         public static void DisposeAll() {
             _generation++;
             ClearScatters();
+            // The camera goes with the root below, so there is no screen to give it back to.
+            StopSceneTexture(restoreCamera: false);
             foreach (var a in _actors.Values) if (a.go != null) Kill(a.go);
             _actors.Clear();
             foreach (var m in _models.Values) Free(m);
