@@ -58,9 +58,12 @@ if ! [[ "$NAME" =~ ^[a-z][a-z0-9]*$ ]]; then
     exit 2
 fi
 
-BUILD="$SCRIPT_DIR/build-$NAME"
+# Outside the package, so a commit made while a build runs cannot take its
+# generated C along, and under $HOME, which Docker on a Mac (colima, Docker
+# Desktop) shares with its VM where /var/folders is not.
+mkdir -p "$HOME/.cache/onejs-wasm-build"
+BUILD="$(mktemp -d "$HOME/.cache/onejs-wasm-build/$NAME.XXXXXX")"
 GEN="$BUILD/gen"
-rm -rf "$BUILD"
 mkdir -p "$GEN"
 trap 'rm -rf "$BUILD"' EXIT
 
