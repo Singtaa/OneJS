@@ -1470,6 +1470,20 @@ globalThis.__eventAPI = {
     addEventListener,
     removeEventListener,
     removeAllEventListeners,
+    /**
+     * Whether the element has a handler for any of the event types. What a
+     * host asks to tell a press on a button from a press on the game behind
+     * it (onejs-play's input, `overUI`): UI Toolkit knows which element a
+     * point is over, and only this map knows which ones answer.
+     */
+    listens(element, eventTypes) {
+        const handlers = element && element.__csHandle ? __eventHandlers.get(element.__csHandle) : undefined;
+        if (!handlers) return false;
+        for (const type of eventTypes) {
+            if (handlers.has(type)) return true;
+        }
+        return false;
+    },
     // Parent tracking for event bubbling
     setParent(childHandle, parentHandle) {
         if (childHandle > 0 && parentHandle > 0) {
