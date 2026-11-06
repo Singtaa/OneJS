@@ -34,6 +34,7 @@ namespace OneJS.ShaderFX {
     public partial class ShaderEffectElement : VisualElement {
         readonly Shown _pass;
         bool _pixelated;
+        float _pixelRatio = 1f;
         bool _paintingOnLayout;
 
         /// <summary>
@@ -95,8 +96,8 @@ namespace OneJS.ShaderFX {
                 // NaN is the pre-layout state, and it is what an element reports for
                 // the frame after a hot reload.
                 if (float.IsNaN(r.width) || r.width < 1f || r.height < 1f) return false;
-                w = Mathf.RoundToInt(r.width);
-                h = Mathf.RoundToInt(r.height);
+                w = Mathf.RoundToInt(r.width * _el._pixelRatio);
+                h = Mathf.RoundToInt(r.height * _el._pixelRatio);
                 return true;
             }
 
@@ -216,6 +217,26 @@ namespace OneJS.ShaderFX {
         }
 
         FilterMode DisplayFilter => _pixelated ? FilterMode.Point : FilterMode.Bilinear;
+
+        /// <summary>
+        /// Pixels drawn per layout point: 1 by default, which draws at the
+        /// element's size in panel points. A panel scaled by the screen's density
+        /// (the Play container's, at the page's devicePixelRatio) shows that
+        /// picture stretched; the same ratio here draws one pixel per screen
+        /// pixel, at the ratio squared the cost. A set resolution ignores it.
+        /// A change resizes the picture, which clears a program's previous frame.
+        /// </summary>
+        public float PixelRatio {
+            get => _pixelRatio;
+            set {
+                float next = float.IsNaN(value) || value <= 0f ? 1f : value;
+                if (next == _pixelRatio) return;
+                _pixelRatio = next;
+                // A new size, as a resize is: painted on this layout, not the next tick.
+                MarkDirtyRepaint();
+                PaintOnLayout();
+            }
+        }
 
         /// <inheritdoc cref="ShaderPass.ResetTime"/>
         public void ResetTime() => _pass.ResetTime();

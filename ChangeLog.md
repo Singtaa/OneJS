@@ -5,6 +5,8 @@
 - WebSocket binary sends and GPU buffer writes cross as bytes
 - The native library's ABI version is 4: restart the editor after updating
 - ModelLit takes `_ColorMask`, so a model can draw depth alone
+- A shader effect draws at a `PixelRatio`, pixels per layout point
+- A picture sized by its layout can pass 2048 a side, up to the GPU's limit, and keeps its shape
 
 # [2026-11-05] v3.9.18
 

@@ -114,6 +114,80 @@ namespace OneJS.Tests {
             }
         }
 
+        // A panel scaled by the screen's density shows a picture drawn in points
+        // stretched: at 3x, a ninth of the pixels (runtime-1.3.md section 1).
+        [UnityTest]
+        public IEnumerator PixelRatio_DrawsThatManyPixelsPerPoint() {
+            LogAssert.ignoreFailingMessages = true;
+            var ph = PanelHost.Create(128, 128);
+            var fx = MakeEffect();
+            ph.Add(fx, 64, 32);
+            yield return null;
+            yield return null;
+            Assert.AreEqual(64, fx.RenderWidth, "1 by default: the layout's size");
+
+            fx.PixelRatio = 2f;
+            Assert.AreEqual(128, fx.RenderWidth, "a change paints at once, as a resize does");
+            Assert.AreEqual(64, fx.RenderHeight);
+
+            fx.PixelRatio = 1.5f;
+            yield return null;
+            Assert.AreEqual(96, fx.RenderWidth);
+            Assert.AreEqual(48, fx.RenderHeight);
+
+            fx.Dispose();
+            ph.Destroy();
+        }
+
+        [UnityTest]
+        public IEnumerator PixelRatio_ASetResolutionIgnoresIt() {
+            LogAssert.ignoreFailingMessages = true;
+            var ph = PanelHost.Create(128, 128);
+            var fx = MakeEffect();
+            fx.SetResolution(16, 24);
+            fx.PixelRatio = 3f;
+            ph.Add(fx, 64, 64);
+            yield return null;
+            yield return null;
+            Assert.AreEqual(16, fx.RenderWidth);
+            Assert.AreEqual(24, fx.RenderHeight);
+            fx.Dispose();
+            ph.Destroy();
+        }
+
+        [UnityTest]
+        public IEnumerator PixelRatio_AnOversizePictureShrinksWithItsShape() {
+            // Clamping each side alone made a tall phone screen's picture wider than
+            // tall at its limit; one factor for both keeps its pixels square.
+            LogAssert.ignoreFailingMessages = true;
+            var before = ShaderPass.MaxNaturalSide;
+            ShaderPass.MaxNaturalSide = 100;
+            try {
+                var ph = PanelHost.Create(128, 128);
+                var fx = MakeEffect();
+                fx.PixelRatio = 3f;
+                ph.Add(fx, 40, 80);   // 120 by 240 asked
+                yield return null;
+                yield return null;
+                Assert.AreEqual(50, fx.RenderWidth);
+                Assert.AreEqual(100, fx.RenderHeight);
+                fx.Dispose();
+                ph.Destroy();
+            } finally {
+                ShaderPass.MaxNaturalSide = before;
+            }
+        }
+
+        [Test]
+        public void PixelRatio_ANonsenseValueIsOne() {
+            var fx = MakeEffect();
+            foreach (var bad in new[] { 0f, -2f, float.NaN }) {
+                fx.PixelRatio = bad;
+                Assert.AreEqual(1f, fx.PixelRatio, $"{bad}");
+            }
+            fx.Dispose();
+        }
+
         [UnityTest]
         public IEnumerator Dispose_UnregistersFromTheBridge() {
             LogAssert.ignoreFailingMessages = true;

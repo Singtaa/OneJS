@@ -28,7 +28,16 @@ namespace OneJS.ShaderFX {
         /// engine-findings.md).
         /// </summary>
         internal const int MinRes = 1;
+        /// <summary>The largest side a set resolution draws at.</summary>
         internal const int MaxRes = 2048;
+
+        /// <summary>
+        /// The largest side a size taken from layout draws at: the GPU's own
+        /// limit, since a phone's whole screen at 3x is 1170 by 2532 and the
+        /// 2048 a set resolution keeps would cut it. Settable for a test, so it
+        /// need not allocate the GPU's largest texture to reach it.
+        /// </summary>
+        internal static int MaxNaturalSide = SystemInfo.maxTextureSize;
 
         Material _material;
         RenderTexture _rt;
@@ -494,12 +503,22 @@ namespace OneJS.ShaderFX {
         /// <summary>The target this draws into, which an element shows. Null until the first draw.</summary>
         internal RenderTexture Target => _rt;
 
-        /// <summary>The size this draws at: the resolution set, or the natural size, clamped.</summary>
+        /// <summary>
+        /// The size this draws at: the resolution set, or the natural size,
+        /// which shrinks by one factor on both sides when a side passes
+        /// <see cref="MaxNaturalSide"/>, so its pixels stay square.
+        /// </summary>
         internal bool TryGetSize(out int w, out int h) {
             if (TryGetSetSize(out w, out h)) return true;
             if (!TryGetNaturalSize(out w, out h)) return false;
-            w = Mathf.Clamp(w, MinRes, MaxRes);
-            h = Mathf.Clamp(h, MinRes, MaxRes);
+            int longest = Mathf.Max(w, h);
+            if (longest > MaxNaturalSide) {
+                float k = (float)MaxNaturalSide / longest;
+                w = Mathf.Min(MaxNaturalSide, Mathf.RoundToInt(w * k));
+                h = Mathf.Min(MaxNaturalSide, Mathf.RoundToInt(h * k));
+            }
+            w = Mathf.Max(w, MinRes);
+            h = Mathf.Max(h, MinRes);
             return true;
         }
 
