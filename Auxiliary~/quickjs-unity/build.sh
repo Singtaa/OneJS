@@ -45,7 +45,7 @@ for ARCH in $ARCHS; do
     clang -dynamiclib -O2 -arch "$ARCH" -mmacosx-version-min="$MACOS_MIN" \
         -I"$BUILD_DIR/$ARCH/quickjs" \
         -o "$BUILD_DIR/libquickjs_unity.$ARCH.dylib" \
-        src/quickjs_unity.c \
+        src/quickjs_unity.c src/quickjs_text.c src/quickjs_wasm.c \
         "$BUILD_DIR/$ARCH/quickjs/libquickjs.a"
 done
 

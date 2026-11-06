@@ -42,7 +42,7 @@ echo "=== Building quickjs_unity.dll ==="
 $CC -shared -O2 \
     -I"$BUILD_DIR/quickjs" \
     -o "$BUILD_DIR/quickjs_unity.dll" \
-    src/quickjs_unity.c \
+    src/quickjs_unity.c src/quickjs_text.c src/quickjs_wasm.c \
     "$BUILD_DIR/quickjs/libquickjs.a" \
     -static
 

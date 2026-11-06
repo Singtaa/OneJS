@@ -18,6 +18,8 @@ set(BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS_SAVED} CACHE BOOL "" FORCE)
 # Build quickjs_unity as shared library
 add_library(quickjs_unity SHARED
     src/quickjs_unity.c
+    src/quickjs_text.c
+    src/quickjs_wasm.c
 )
 
 target_include_directories(quickjs_unity PRIVATE

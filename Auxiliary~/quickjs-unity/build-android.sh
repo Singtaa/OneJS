@@ -91,7 +91,7 @@ build_abi() {
         -Wl,-z,relro,-z,now \
         -I"$QJS_BUILD" \
         -o "$ABI_DIR/libquickjs_unity.so" \
-        src/quickjs_unity.c \
+        src/quickjs_unity.c src/quickjs_text.c src/quickjs_wasm.c \
         "$QJS_BUILD/libquickjs.a" \
         -lm
 

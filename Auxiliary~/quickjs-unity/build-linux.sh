@@ -26,7 +26,7 @@ echo "=== Building libquickjs_unity.so ==="
 gcc -shared -O2 -fPIC \
     -I"$BUILD_DIR/quickjs" \
     -o "$BUILD_DIR/libquickjs_unity.so" \
-    src/quickjs_unity.c \
+    src/quickjs_unity.c src/quickjs_text.c src/quickjs_wasm.c \
     "$BUILD_DIR/quickjs/libquickjs.a" \
     -lm
 

@@ -45,10 +45,12 @@ build_arch() {
         CONFIG_DEFAULT_AR=y
 
     echo "=== Compiling quickjs_unity.c ($LABEL) ==="
-    $CC -O2 -fPIC \
-        -I"$QJS_BUILD" \
-        -c src/quickjs_unity.c \
-        -o "$ARCH_DIR/quickjs_unity.o"
+    for SRC in quickjs_unity quickjs_text quickjs_wasm; do
+        $CC -O2 -fPIC \
+            -I"$QJS_BUILD" \
+            -c src/$SRC.c \
+            -o "$ARCH_DIR/$SRC.o"
+    done
 
     echo "=== Creating static library ($LABEL) ==="
     # Extract QuickJS objects and repack everything into one .a
@@ -58,7 +60,7 @@ build_arch() {
     cd "$SCRIPT_DIR"
 
     $AR rcs "$ARCH_DIR/libquickjs_unity.a" \
-        "$ARCH_DIR/quickjs_unity.o" \
+        "$ARCH_DIR/quickjs_unity.o" "$ARCH_DIR/quickjs_text.o" "$ARCH_DIR/quickjs_wasm.o" \
         "$ARCH_DIR"/objs/*.o
 
     echo "  -> $ARCH_DIR/libquickjs_unity.a"

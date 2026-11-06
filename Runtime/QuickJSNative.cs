@@ -159,7 +159,7 @@ namespace OneJS {
         /// dylib loaded after a package update) fails loudly instead of
         /// misbehaving at the first interop call.
         /// </summary>
-        internal const int ExpectedAbiVersion = 3;
+        internal const int ExpectedAbiVersion = 4;
 
         // Error Codes (mirror QjsError in quickjs_unity.c)
         internal const int ErrOk = 0;

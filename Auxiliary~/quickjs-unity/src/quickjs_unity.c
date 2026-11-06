@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "quickjs.h"
+#include "quickjs_text.h"
+#include "quickjs_wasm.h"
 
 // Platform
 
@@ -23,7 +25,8 @@
 // C# checks this at init (qjs_abi_version) so a stale native binary fails
 // loudly instead of misbehaving. Bump on any change to exported signatures,
 // struct layouts, or handle/ownership semantics.
-#define QJS_ABI_VERSION 3
+// 4: qjs_wasm_register, TextDecoder and TextEncoder, __wasm (6 Nov 2026).
+#define QJS_ABI_VERSION 4
 
 // Callback handles encode the owning context's generation so a handle from a
 // destroyed context can never silently index into a newer context's table
@@ -1378,8 +1381,24 @@ QJS_API QjsContext* qjs_create() {
     qjs_init_release_handle(ctx);
     qjs_init_callbacks(wrapper);
     qjs_init_zeroalloc(ctx);
+    qjs_text_install(ctx);
+    qjs_wasm_install(ctx);
 
     return wrapper;
+}
+
+/*
+ * Serves a native WebAssembly module library to every context as
+ * __wasm (quickjs_wasm.c). C# hands over the table each module library
+ * returns from onejs_wasm_<name>(). 0, or negative when refused.
+ */
+QJS_API int qjs_register_wasm_module(const void* module) {
+    return qjs_wasm_register((const onejs_wasm_module*)module);
+}
+
+/* Forgets a registered module by name, for a module whose code is about to go away (one a test built). 0, or -1 when none had that name. */
+QJS_API int qjs_unregister_wasm_module(const char* name) {
+    return qjs_wasm_unregister(name);
 }
 
 QJS_API void qjs_destroy(QjsContext* instance) {

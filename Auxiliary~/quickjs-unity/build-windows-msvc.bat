@@ -99,7 +99,7 @@ if errorlevel 1 (
 
 cl /LD /O2 /DNDEBUG ^
     /I"quickjs-ng" ^
-    src\quickjs_unity.c ^
+    src\quickjs_unity.c src\quickjs_text.c src\quickjs_wasm.c ^
     "!QJS_LIB!" ^
     /Fe:quickjs_unity.dll
 
