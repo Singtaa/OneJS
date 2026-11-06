@@ -141,6 +141,21 @@ namespace OneJS.Tests.Models {
         }
 
         [UnityTest]
+        public IEnumerator GltfX_IsMirroredIntoUnitysX() {
+            // onejs-play builds mesh colliders from the same .glb in JavaScript and mirrors
+            // glTF's x the way glTFast does. If glTFast ever stops, colliders stand on the
+            // wrong side of every model, and this is where it shows.
+            int model = 0;
+            yield return Load(m => model = m, "offset-wall.glb");
+            ModelBridge.BeginScene();
+            int actor = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, true, true);
+            var bounds = ModelBridge.ActorObject(actor).GetComponentInChildren<Renderer>().bounds;
+            Assert.That(bounds.center.x, Is.EqualTo(-3f).Within(1e-3), "glTF x = +3 should stand at Unity x = -3");
+            Assert.That(bounds.size.x, Is.EqualTo(2f).Within(1e-3));
+            Assert.That(bounds.center.y, Is.EqualTo(1f).Within(1e-3));
+        }
+
+        [UnityTest]
         public IEnumerator Speed_ScalesAnActorsClipAndZeroFreezesIt() {
             int model = 0;
             yield return Load(m => model = m);
