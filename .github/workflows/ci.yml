@@ -129,6 +129,22 @@ jobs:
         if: runner.os == 'macOS'
         run: arch -x86_64 /usr/bin/python3 "Auxiliary~/quickjs-unity/load-plugin-smoke.py"
 
+  # The WebAssembly module pipeline end to end: build-module.sh turns a probe
+  # .wasm into a module library with the pinned wasm2c, and the engine this
+  # repo ships runs it outside Unity through __wasm. The same test builds a
+  # module that answers wrong and requires the smoke to fail it.
+  wasm-modules:
+    name: WebAssembly modules (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash "Auxiliary~/quickjs-unity/wasm/test/run.sh"
+
   unity-tests:
     name: Unity tests (EditMode + PlayMode)
     runs-on: ubuntu-latest

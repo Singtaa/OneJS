@@ -10,7 +10,7 @@ function export as a thunk taking its arguments as uint64_t slots, every
 import calling back into the host the same way, and the module's sha256, so
 the glue that loads it can refuse a module it was not generated against.
 Compile the three with wasm-rt-impl.c and wasm-rt-mem-impl.c from the same
-WABT release (build-wasm-module.sh does).
+WABT release (build-module.sh does).
 
 The thunks are read from wasm2c's header rather than from the binary: each
 import and export there is a comment naming it, then its C prototype, and the
@@ -304,8 +304,8 @@ def main():
     parser.add_argument("--wasm2c", default="wasm2c")
     args = parser.parse_args()
 
-    if not re.fullmatch(r"[a-z][a-z0-9_]*", args.name):
-        sys.exit("wasm2onejs: a module name is lower case letters, digits and _, starting with a letter")
+    if not re.fullmatch(r"[a-z][a-z0-9]*", args.name):
+        sys.exit("wasm2onejs: a module name is lower case letters and digits, starting with a letter (wasm2c rewrites _ in names)")
     version = subprocess.run([args.wasm2c, "--version"], capture_output=True, text=True).stdout.strip()
     if version != WASM2C_VERSION:
         # The thunks are only as right as the header they were read from, and

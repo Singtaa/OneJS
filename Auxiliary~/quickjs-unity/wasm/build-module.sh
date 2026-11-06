@@ -53,8 +53,8 @@ for P in $PLATFORMS; do
         *) echo "Unknown platform: $P (macos windows linux android ios, or all)"; exit 2 ;;
     esac
 done
-if ! [[ "$NAME" =~ ^[a-z][a-z0-9_]*$ ]]; then
-    echo "The name becomes a C identifier and a library name: lowercase letters, digits and _ only ($NAME)"
+if ! [[ "$NAME" =~ ^[a-z][a-z0-9]*$ ]]; then
+    echo "The name becomes a C identifier and a library name: lowercase letters and digits only, since wasm2c rewrites _ ($NAME)"
     exit 2
 fi
 
@@ -65,6 +65,10 @@ mkdir -p "$GEN"
 trap 'rm -rf "$BUILD"' EXIT
 
 # --- wasm2c ---
+
+sha256() {
+    if command -v sha256sum > /dev/null; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi
+}
 
 wabt_dir() {
     if [ -n "${WABT_DIR:-}" ]; then
@@ -84,7 +88,7 @@ wabt_dir() {
         mkdir -p "$(dirname "$CACHE")"
         curl -fsSL -o "$TGZ" "https://github.com/WebAssembly/wabt/releases/download/$WABT_VERSION/wabt-$WABT_VERSION-$ASSET.tar.gz"
         local GOT
-        GOT=$(shasum -a 256 "$TGZ" | cut -d' ' -f1)
+        GOT=$(sha256 "$TGZ")
         if [ "$GOT" != "$SHA" ]; then
             rm -f "$TGZ"
             echo "WABT $WABT_VERSION $ASSET has sha256 $GOT, expected $SHA" >&2
@@ -226,5 +230,5 @@ for P in $PLATFORMS; do
 done
 
 echo ""
-echo "DONE. $NAME, sha256 $(shasum -a 256 "$WASM" | cut -d' ' -f1):"
+echo "DONE. $NAME, sha256 $(sha256 "$WASM"):"
 (cd "$OUT" && find . -name "*onejs_$NAME*" -type f | sort | while read -r F; do echo "  $F ($(du -h "$F" | cut -f1))"; done)
