@@ -275,7 +275,7 @@ namespace OneJS {
         ///
         /// A returned float[] arrives in JavaScript as a wrapped C# object, not
         /// an array: length reads as null and Array.from gives nothing. Going
-        /// the other way there is a typed-array path (__csArray, which is how
+        /// the other way a typed array crosses as its bytes (which is how
         /// PainterBridge sends its command buffer), but nothing equivalent comes
         /// back, so this is the v1 answer for the same reason PainterBridge
         /// documents. It is one crossing either way; what it costs extra is a

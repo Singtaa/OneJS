@@ -229,13 +229,8 @@ function __resolveValue(value) {
         return { __csCallbackHandle: handle };
     }
 
-    // TypedArray detection: convert to array marker for C# marshaling
-    if (ArrayBuffer.isView(value) && !(value instanceof DataView)) {
-        return {
-            __csArray: Array.from(value),
-            __csArrayType: __getTypedArrayType(value)
-        };
-    }
+    // A typed array passes through as it is: the native bridge and the WebGL
+    // jslib send its bytes, and C# receives the matching float[], byte[], etc.
 
     // JS Array detection
     if (Array.isArray(value)) {
@@ -250,23 +245,6 @@ function __resolveValue(value) {
     }
 
     return value;
-}
-
-/**
- * Get the C# element type hint from a TypedArray.
- */
-function __getTypedArrayType(typedArray) {
-    if (typedArray instanceof Float32Array) return "float";
-    if (typedArray instanceof Float64Array) return "double";
-    if (typedArray instanceof Int32Array) return "int";
-    if (typedArray instanceof Int16Array) return "short";
-    if (typedArray instanceof Int8Array) return "sbyte";
-    if (typedArray instanceof Uint32Array) return "uint";
-    if (typedArray instanceof Uint16Array) return "ushort";
-    if (typedArray instanceof Uint8Array) return "byte";
-    if (typedArray instanceof BigInt64Array) return "long";
-    if (typedArray instanceof BigUint64Array) return "ulong";
-    return "object";
 }
 
 /**
@@ -2827,11 +2805,10 @@ if (__nativeWebSocket) {
                 throw new Error("WebSocket is not open");
             }
             if (data instanceof ArrayBuffer) {
-                CS.OneJS.WebSocketBridge.SendBinary(this._socketId, __arrayBufferToBase64(data));
+                CS.OneJS.WebSocketBridge.SendBytes(this._socketId, new Uint8Array(data));
             } else if (ArrayBuffer.isView(data)) {
-                // Slice to respect byteOffset/byteLength of TypedArray views
-                var slice = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-                CS.OneJS.WebSocketBridge.SendBinary(this._socketId, __arrayBufferToBase64(slice));
+                // A byte view of the same bytes: byteOffset and byteLength kept, nothing copied here
+                CS.OneJS.WebSocketBridge.SendBytes(this._socketId, new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
             } else {
                 CS.OneJS.WebSocketBridge.Send(this._socketId, String(data));
             }

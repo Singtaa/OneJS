@@ -743,11 +743,11 @@ builder's layers into uniform arrays (`_LScale/_LScroll/_LParams/_LMode`) that o
 shader evaluates in a bounded loop. Hence the fixed `MAX_LAYERS 6` ceiling, shared
 between the shader and `MAX_TEXTUREFX_LAYERS` in TS.
 
-**`SetVectorArray` takes `object`, not `float[]`.** A JS array arrives as the
-`{__csArray, __csArrayType:"float"}` marker, which does not bind to a `float[]`
-parameter and makes the whole method invisible to reflection ("Method not found").
-It converts via `QuickJSNative.ConvertToTargetType`, the same path PainterBridge
-and StyleBridge use.
+**`SetVectorArray` takes `object`, not `float[]`.** A plain JS array of whole
+numbers arrives as `int[]`, which does not bind to a `float[]` parameter and makes
+the whole method invisible to reflection ("Method not found"). onejs-react sends a
+`Float32Array`, which arrives as a `float[]`; `QuickJSNative.ConvertToTargetType`
+takes either, the same path PainterBridge uses.
 
 **Scroll units are element-relative.** The shader samples in noise space
 (`uv * scale + scroll * t`), so the builder pre-multiplies scroll by scale before
@@ -890,7 +890,7 @@ JS side: `audio` from `onejs-unity/audio`. `AudioBridge` exists so sound works t
 
 ## Image Fx (`Fx/` folder)
 
-JS side: `onejs-unity/fx` (wire contract in `src/fx/ops.ts`; change both together). `FxBridge.Execute` / `ExecuteInto` replay a chain that crossed as one flat float buffer (the `__csArray` path PainterBridge uses). Runs of per-pixel ops fuse into one blit through `OneJS/FxOps` (up to `MaxFusedOps`, 16, matching the shader's `MAX_OPS`); spatial and neighbourhood ops take a pass of their own. Author colours are sRGB and converted to the linear working space on the way in. Targets and loaded textures are handles, released by `Release` or, on teardown, `DisposeOwnedBy` for the handles that context made; the pool and materials go with the last context (`DisposeAll`).
+JS side: `onejs-unity/fx` (wire contract in `src/fx/ops.ts`; change both together). `FxBridge.Execute` / `ExecuteInto` replay a chain that crossed as one flat float buffer (a `Float32Array`, whose bytes cross as PainterBridge's do). Runs of per-pixel ops fuse into one blit through `OneJS/FxOps` (up to `MaxFusedOps`, 16, matching the shader's `MAX_OPS`); spatial and neighbourhood ops take a pass of their own. Author colours are sRGB and converted to the linear working space on the way in. Targets and loaded textures are handles, released by `Release` or, on teardown, `DisposeOwnedBy` for the handles that context made; the pool and materials go with the last context (`DisposeAll`).
 
 ## WebSocket (`WebSocketBridge.cs`)
 
@@ -1470,7 +1470,17 @@ mesh.triangles = new Int32Array([0, 1, 2, ...])  // int[]
 | `Int8Array` | `sbyte[]` |
 | `Uint32Array` | `uint[]` |
 | `Uint16Array` | `ushort[]` |
-| `Uint8Array` | `byte[]` |
+| `Uint8Array`, `Uint8ClampedArray` | `byte[]` |
+| `BigInt64Array` | `long[]` |
+| `BigUint64Array` | `ulong[]` |
+| `Float16Array` | `float[]` |
+
+A typed array crosses as its bytes (`InteropType.TypedArray`, 14): native QuickJS
+copies them out of the array's buffer (the zero-alloc path points at them in
+place), the WebGL jslib copies them into the wasm heap, and C# copies them once
+into the managed array. A view (`subarray`) brings only its own elements; a
+detached one arrives empty; a `DataView` is not a typed array and crosses as an
+object. A typed array a JS callback returns to C# arrives the same way.
 
 **Supported object array mappings**:
 | JS Object Shape | C# Type |
@@ -1484,7 +1494,8 @@ mesh.triangles = new Int32Array([0, 1, 2, ...])  // int[]
 | `[x, y, z, w]` (tuple) | `Vector4[]` / `Color[]` |
 
 **Implementation details**:
-- Arrays are serialized as JSON with a `__csArray` marker and type hint
-- Type inference runs on the first element for JS arrays
+- JS arrays are serialized as JSON with a `__csArray` marker and type hint
+- Type inference runs on the first element for JS arrays; a number array is
+  `int[]` when every element is whole, so pass a `Float32Array` to a `float[]`
 - Empty typed arrays (e.g., `new Int32Array(0)`) preserve their type
 - Empty JS arrays (`[]`) default to `object[]`

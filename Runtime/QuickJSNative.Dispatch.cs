@@ -884,6 +884,8 @@ namespace OneJS {
                         }
                     }
                     return null;
+                case InteropType.TypedArray:
+                    return TypedArrayToObject(v);
                 case InteropType.Array:
                     // Arrays normally cross as {"__csArray": [...]} marker JSON
                     // (see try_convert_array); this legacy length-only form only
@@ -963,6 +965,70 @@ namespace OneJS {
         }
 
         // Array Conversion
+
+        /// <summary>
+        /// A JS typed array as the managed array of its element type: float[]
+        /// from a Float32Array, byte[] from a Uint8Array or Uint8ClampedArray,
+        /// long[] from a BigInt64Array, and so on (a Float16Array widens to
+        /// float[]). The bytes are copied once, so the native or WebGL buffer
+        /// they arrived in can go as soon as this returns. Null, with an error
+        /// naming what was wrong, for a value no typed array could have made.
+        /// </summary>
+        internal static unsafe Array TypedArrayToObject(in InteropValue v) {
+            int bytes = v.taByteLength;
+            int size = TypedArrayElementSize(v.taKind);
+            if (size == 0 || bytes < 0 || bytes % size != 0 || (bytes > 0 && v.taData == IntPtr.Zero)) {
+                Debug.LogError($"[QuickJS] Malformed typed array from JS (kind {(int)v.taKind}, {bytes} bytes); marshaling as null");
+                return null;
+            }
+            switch (v.taKind) {
+                case TypedArrayKind.Uint8Clamped:
+                case TypedArrayKind.Uint8: return CopyTypedArray<byte>(v.taData, bytes);
+                case TypedArrayKind.Int8: return CopyTypedArray<sbyte>(v.taData, bytes);
+                case TypedArrayKind.Int16: return CopyTypedArray<short>(v.taData, bytes);
+                case TypedArrayKind.Uint16: return CopyTypedArray<ushort>(v.taData, bytes);
+                case TypedArrayKind.Int32: return CopyTypedArray<int>(v.taData, bytes);
+                case TypedArrayKind.Uint32: return CopyTypedArray<uint>(v.taData, bytes);
+                case TypedArrayKind.BigInt64: return CopyTypedArray<long>(v.taData, bytes);
+                case TypedArrayKind.BigUint64: return CopyTypedArray<ulong>(v.taData, bytes);
+                case TypedArrayKind.Float32: return CopyTypedArray<float>(v.taData, bytes);
+                case TypedArrayKind.Float64: return CopyTypedArray<double>(v.taData, bytes);
+                default: {
+                    var halves = (ushort*)v.taData;
+                    var floats = new float[bytes / 2];
+                    for (int i = 0; i < floats.Length; i++) floats[i] = Mathf.HalfToFloat(halves[i]);
+                    return floats;
+                }
+            }
+        }
+
+        static int TypedArrayElementSize(TypedArrayKind kind) {
+            switch (kind) {
+                case TypedArrayKind.Uint8Clamped:
+                case TypedArrayKind.Int8:
+                case TypedArrayKind.Uint8: return 1;
+                case TypedArrayKind.Int16:
+                case TypedArrayKind.Uint16:
+                case TypedArrayKind.Float16: return 2;
+                case TypedArrayKind.Int32:
+                case TypedArrayKind.Uint32:
+                case TypedArrayKind.Float32: return 4;
+                case TypedArrayKind.BigInt64:
+                case TypedArrayKind.BigUint64:
+                case TypedArrayKind.Float64: return 8;
+                default: return 0;
+            }
+        }
+
+        static unsafe T[] CopyTypedArray<T>(IntPtr data, int byteLength) where T : unmanaged {
+            if (byteLength == 0) return Array.Empty<T>();
+            var array = new T[byteLength / sizeof(T)];
+            fixed (T* dst = array) {
+                Buffer.MemoryCopy((void*)data, dst, byteLength, byteLength);
+            }
+            return array;
+        }
+
         /// <summary>
         /// Convert JS array data to C# array based on type hint.
         /// </summary>

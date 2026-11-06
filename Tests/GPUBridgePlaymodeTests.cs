@@ -252,6 +252,47 @@ namespace OneJS.Tests {
             GPUBridge.DisposeBuffer(handle);
         }
 
+        [UnityTest]
+        public IEnumerator SetBufferWords_FromJsTypedArray_ReadsBackTheSameWords() {
+            if (!GPUBridge.SupportsCompute) {
+                Assert.Ignore("Compute shaders not supported on this platform");
+                yield break;
+            }
+
+            Assert.IsTrue(GPUBridge.HasBufferWords);
+            // An Int32Array view: its words cross as bytes and land exactly,
+            // only the view's, never the rest of its buffer.
+            int handle;
+            using (var ctx = new QuickJSContext()) {
+                handle = int.Parse(ctx.Eval(@"
+                    var h = CS.OneJS.GPU.GPUBridge.CreateBuffer(5, 4)
+                    var all = new Int32Array([99, 5, -7, 2147483647, -2147483648, 1065353216, 99])
+                    CS.OneJS.GPU.GPUBridge.SetBufferWords(h, all.subarray(1, 6))
+                    h
+                "));
+            }
+            int requestId = GPUBridge.RequestReadback(handle);
+            Assert.Greater(requestId, 0, "Readback request should succeed");
+            for (int i = 0; i < 60 && !GPUBridge.IsReadbackComplete(requestId); i++) yield return null;
+            Assert.IsTrue(GPUBridge.IsReadbackComplete(requestId), "Readback should complete");
+
+            Assert.AreEqual("5,-7,2147483647,-2147483648,1065353216", GPUBridge.GetReadbackBits(requestId));
+            GPUBridge.DisposeBuffer(handle);
+        }
+
+        [Test]
+        public void SetBufferWords_RefusesWhatIsNotWords() {
+            if (!GPUBridge.SupportsCompute) {
+                Assert.Ignore("Compute shaders not supported on this platform");
+                return;
+            }
+
+            int handle = GPUBridge.CreateBuffer(2, 4);
+            LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("SetBufferWords takes a Float32Array"));
+            GPUBridge.SetBufferWords(handle, new double[] { 1.5, 2.5 });
+            GPUBridge.DisposeBuffer(handle);
+        }
+
         // Dispatch Tests
 
         [UnityTest]

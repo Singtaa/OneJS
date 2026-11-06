@@ -134,8 +134,8 @@ namespace OneJS.Tests {
 
         // Uniform marshalling
         // SetVectorArray takes object rather than float[] on purpose: a JS array
-        // arrives as the {__csArray, __csArrayType} marker, which does not bind to a
-        // float[] parameter and makes the method invisible to reflection entirely
+        // of whole numbers arrives as int[], which does not bind to a float[]
+        // parameter and makes the method invisible to reflection entirely
         // ("Method not found: ...SetVectorArray"). These cover the C#-side contract;
         // the packing itself is pinned by onejs-react's texturefx.test.ts.
 

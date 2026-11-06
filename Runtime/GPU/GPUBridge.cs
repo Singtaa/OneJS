@@ -327,6 +327,32 @@ namespace OneJS.GPU {
         }
 
         /// <summary>
+        /// True in a runtime where a typed array crosses the bridge as its bytes, so
+        /// <see cref="SetBufferWords"/> takes one directly. onejs-unity reads it, and keeps
+        /// to <see cref="SetBufferBits"/> against a runtime from before.
+        /// </summary>
+        public static bool HasBufferWords => true;
+
+        /// <summary>
+        /// Set buffer data from a Float32Array, Int32Array or Uint32Array, which arrives
+        /// as a float[], int[] or uint[] carrying the words exactly: no text either way.
+        /// Anything else is refused with an error, since its elements are not the
+        /// buffer's 32-bit words.
+        /// </summary>
+        public static void SetBufferWords(int handle, object words) {
+            if (!(words is float[] || words is int[] || words is uint[])) {
+                Debug.LogError($"[GPUBridge] SetBufferWords takes a Float32Array, Int32Array or Uint32Array, not {words?.GetType().Name ?? "null"}");
+                return;
+            }
+            lock (_lock) {
+                if (!_bufferHandles.TryGetValue(handle, out var buffer)) {
+                    return;
+                }
+                buffer.SetData((Array)words);
+            }
+        }
+
+        /// <summary>
         /// Bind a buffer to a shader kernel.
         /// </summary>
         public static void BindBuffer(int shaderHandle, int kernelIndex, string name, int bufferHandle) {

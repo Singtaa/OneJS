@@ -127,7 +127,8 @@ namespace OneJS {
         // count, and UpdateClasses does the same for an update.
         //
         // JS arrays of strings come through the {__csArray, __csArrayType:"string"}
-        // marshalling path and arrive as string[]. Untyped arrays would arrive
+        // marshalling path (typed arrays cross as bytes; these are not) and
+        // arrive as string[]. Untyped arrays would arrive
         // as List<object> - handle both for safety.
         public static void AddClassesBatch(VisualElement element, object classesObj) {
             if (element == null) return;

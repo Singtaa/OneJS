@@ -384,10 +384,11 @@ namespace OneJS.ShaderFX {
         /// description is a couple of crossings regardless of how many layers it has.
         /// </summary>
         public void SetVectorArray(string name, object flatObj) {
-            // Takes object, not float[]: a JS array arrives as the
-            // {__csArray, __csArrayType:"float"} marker, which does not bind to a
-            // float[] parameter and makes the whole method invisible to reflection
-            // ("Method not found"). Same conversion PainterBridge and StyleBridge use.
+            // Takes object, not float[]: a plain JS array of whole numbers
+            // arrives as int[], which does not bind to a float[] parameter and
+            // makes the whole method invisible to reflection ("Method not
+            // found"). onejs-react sends a Float32Array, which arrives as a
+            // float[]; the conversion takes either.
             var flat = QuickJSNative.ConvertToTargetType(flatObj, typeof(float[])) as float[];
             if (flat == null || flat.Length == 0 || flat.Length % 4 != 0) {
                 Debug.LogWarning($"[OneJS ShaderFX] \"{name}\" needs a flat array of 4 floats per element, got {flat?.Length ?? 0}.");

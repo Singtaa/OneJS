@@ -1,4 +1,11 @@
+using System;
 using System.Collections;
+using System.Net;
+using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -6,6 +13,79 @@ using UnityEngine.TestTools;
 using UnityEngine.UIElements;
 
 namespace OneJS.Tests {
+    /// <summary>
+    /// A WebSocket server on loopback that echoes the first frame it is sent,
+    /// binary or text, then holds the connection until the client closes it.
+    /// The public echo servers the other tests use drop binary frames
+    /// (ws.postman-echo.com closes with 1006) or greet first.
+    /// </summary>
+    sealed class LoopbackWebSocketEcho : IDisposable {
+        readonly TcpListener _listener = new TcpListener(IPAddress.Loopback, 0);
+
+        public string Url { get; }
+
+        public LoopbackWebSocketEcho() {
+            _listener.Start();
+            Url = $"ws://127.0.0.1:{((IPEndPoint)_listener.LocalEndpoint).Port}/";
+            Task.Run(Serve);
+        }
+
+        async Task Serve() {
+            try {
+                using var client = await _listener.AcceptTcpClientAsync();
+                var stream = client.GetStream();
+                var request = new StringBuilder();
+                var one = new byte[1];
+                while (!request.ToString().EndsWith("\r\n\r\n")) {
+                    if (await stream.ReadAsync(one, 0, 1) == 0) return;
+                    request.Append((char)one[0]);
+                }
+                var key = Regex.Match(request.ToString(), @"Sec-WebSocket-Key:\s*(\S+)", RegexOptions.IgnoreCase).Groups[1].Value;
+                string accept;
+                using (var sha1 = SHA1.Create()) {
+                    accept = Convert.ToBase64String(sha1.ComputeHash(Encoding.ASCII.GetBytes(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")));
+                }
+                var response = Encoding.ASCII.GetBytes(
+                    $"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\n\r\n");
+                await stream.WriteAsync(response, 0, response.Length);
+
+                var head = await Read(stream, 2);
+                int opcode = head[0] & 0x0F;
+                int length = head[1] & 0x7F;
+                if (length == 126) {
+                    var extended = await Read(stream, 2);
+                    length = (extended[0] << 8) | extended[1];
+                }
+                var mask = (head[1] & 0x80) != 0 ? await Read(stream, 4) : null;
+                var payload = await Read(stream, length);
+                if (mask != null) for (int i = 0; i < payload.Length; i++) payload[i] ^= mask[i % 4];
+
+                var frame = new byte[2 + payload.Length];
+                if (payload.Length >= 126) throw new NotSupportedException("the echo answers short frames only");
+                frame[0] = (byte)(0x80 | opcode);
+                frame[1] = (byte)payload.Length;
+                Buffer.BlockCopy(payload, 0, frame, 2, payload.Length);
+                await stream.WriteAsync(frame, 0, frame.Length);
+                while (await stream.ReadAsync(one, 0, 1) > 0) { }
+            } catch (Exception) {
+                // The test reads what arrived, or that nothing did; a server
+                // torn down mid-read has nothing to add.
+            }
+        }
+
+        static async Task<byte[]> Read(NetworkStream stream, int count) {
+            var buffer = new byte[count];
+            for (int read = 0; read < count;) {
+                int n = await stream.ReadAsync(buffer, read, count - read);
+                if (n == 0) throw new System.IO.EndOfStreamException();
+                read += n;
+            }
+            return buffer;
+        }
+
+        public void Dispose() => _listener.Stop();
+    }
+
     /// <summary>
     /// Tests for the WebSocket API implementation.
     /// Uses ws.postman-echo.com for real WebSocket echo tests.
@@ -41,8 +121,8 @@ namespace OneJS.Tests {
             _bridge?.Dispose();
             _bridge = null;
 
-            if (_go != null) Object.Destroy(_go);
-            if (_panelSettings != null) Object.Destroy(_panelSettings);
+            if (_go != null) UnityEngine.Object.Destroy(_go);
+            if (_panelSettings != null) UnityEngine.Object.Destroy(_panelSettings);
 
             QuickJSNative.ClearAllHandles();
             yield return null;
@@ -225,6 +305,46 @@ namespace OneJS.Tests {
 
             var resultJson = _bridge.Eval("JSON.stringify(globalThis.__wsResult)");
             Assert.IsTrue(resultJson.Contains("\"echo\":\"hello from OneJS\""), $"Expected echo, got: {resultJson}");
+        }
+
+        [UnityTest]
+        public IEnumerator WebSocket_SendBinaryView_EchoesOnlyTheViewsBytes() {
+            // A typed array view crosses as its bytes (WebSocketBridge.SendBytes):
+            // the echo has to be exactly the view, not its whole buffer.
+            using var echo = new LoopbackWebSocketEcho();
+            _bridge.Eval(@"
+                globalThis.__wsDone = false;
+                globalThis.__wsResult = null;
+                var ws = new WebSocket('" + echo.Url + @"');
+                ws.onopen = function() {
+                    var all = new Uint8Array([9, 0, 1, 254, 255, 128, 9]);
+                    ws.send(all.subarray(1, 6));
+                };
+                ws.onmessage = function(event) {
+                    var isBuffer = event.data instanceof ArrayBuffer;
+                    globalThis.__wsResult = { binary: isBuffer, bytes: isBuffer ? Array.from(new Uint8Array(event.data)) : String(event.data) };
+                    ws.close();
+                    globalThis.__wsDone = true;
+                };
+                ws.onerror = function() {
+                    globalThis.__wsResult = { error: 'connection failed' };
+                    globalThis.__wsDone = true;
+                };
+            ");
+            _bridge.Context.ExecutePendingJobs();
+
+            float timeout = 10f;
+            float elapsed = 0f;
+            while (elapsed < timeout) {
+                _bridge.Tick();
+                var done = _bridge.Eval("globalThis.__wsDone");
+                if (done == "true") break;
+                yield return new WaitForSeconds(0.1f);
+                elapsed += 0.1f;
+            }
+
+            var resultJson = _bridge.Eval("JSON.stringify(globalThis.__wsResult)");
+            Assert.AreEqual("{\"binary\":true,\"bytes\":[0,1,254,255,128]}", resultJson);
         }
 
         [UnityTest]
