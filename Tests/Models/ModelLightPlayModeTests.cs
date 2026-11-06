@@ -217,6 +217,29 @@ namespace OneJS.Tests.Models {
             Assert.That(ModelBridge.BakedLightmap, Is.Null);
         }
 
+        [Test]
+        public void Sha256_IsTheStandardDigestOfBytesFromJSAndOfAFileOnDisk() {
+            const string Abc = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+            Assert.That(ModelBridge.Sha256(new byte[] { 97, 98, 99 }), Is.EqualTo(Abc));
+            Assert.That(ModelBridge.Sha256(Array.Empty<byte>()), Is.EqualTo("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"));
+
+            // The crossing onejs-play makes: a Uint8Array arrives as its bytes, and a view as only its own.
+            using (var ctx = new QuickJSContext()) {
+                Assert.That(ctx.Eval("CS.OneJS.Models.ModelBridge.Sha256(new Uint8Array([97, 98, 99]))"), Is.EqualTo(Abc));
+                Assert.That(ctx.Eval("CS.OneJS.Models.ModelBridge.Sha256(new Uint8Array([0, 97, 98, 99, 0]).subarray(1, 4))"), Is.EqualTo(Abc));
+            }
+            QuickJSNative.ClearAllHandles();
+
+            var path = System.IO.Path.GetTempFileName();
+            try {
+                System.IO.File.WriteAllBytes(path, new byte[] { 97, 98, 99 });
+                Assert.That(ModelBridge.FileSha256(path), Is.EqualTo(Abc));
+            } finally {
+                System.IO.File.Delete(path);
+            }
+            Assert.Throws<System.IO.FileNotFoundException>(() => ModelBridge.FileSha256(path));
+        }
+
         static Vector2 Floor(float x, float z) {
             var u = (x + 4) / 8;
             var v = (z + 4) / 8;

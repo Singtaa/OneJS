@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using OneJS.Lighting;
 using OneJS.Utils;
 using UnityEngine;
@@ -340,6 +343,33 @@ namespace OneJS.Models {
             var map = _baker.Lightmap;
             var png = LightFileFormat.Encode(LightFileFormat.Read(map), map.width, map.height, _baker.ProbeSH);
             return Convert.ToBase64String(png);
+        }
+
+        /// <summary>
+        /// The SHA-256 of `bytes` as 64 lowercase hex digits: how onejs-play's light record names a
+        /// model the build's file map does not. QuickJS has no crypto.subtle, and the digest in JS
+        /// takes about half a millisecond a kilobyte there, seconds for a large model; a typed
+        /// array crosses as its bytes, so here it is the copy and a native hash.
+        /// </summary>
+        public static string Sha256(byte[] bytes) {
+            using var sha = SHA256.Create();
+            return Hex(sha.ComputeHash(bytes ?? Array.Empty<byte>()));
+        }
+
+        /// <summary>
+        /// The SHA-256 of the file at `path`, as Sha256 gives it, read here so that a model on
+        /// disk (a Unity project's) is hashed without its bytes crossing into JS at all.
+        /// </summary>
+        public static string FileSha256(string path) {
+            using var sha = SHA256.Create();
+            using var file = File.OpenRead(path);
+            return Hex(sha.ComputeHash(file));
+        }
+
+        static string Hex(byte[] digest) {
+            var text = new StringBuilder(digest.Length * 2);
+            foreach (var b in digest) text.Append(b.ToString("x2"));
+            return text.ToString();
         }
 
         /// <summary>
