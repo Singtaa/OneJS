@@ -250,16 +250,28 @@ namespace OneJS {
             if (prop != null) return prop;
 
             // Search interfaces (needed for IStyle, etc.). Two of them can declare
-            // the name, both implemented explicitly, and this takes the first: a
-            // member reached through an interface view goes to that interface
-            // instead (InterfaceViewOf), and a write that lands on a get-only one
-            // fails naming the interface to write it through
-            // (ReadOnlyInterfaceMemberMessage).
+            // the name, both implemented explicitly: the object's own member is then
+            // the get-only declaration (a VisualElement's position is
+            // IResolvedStyle's, not ITransform's), and between equals the interface
+            // named first. GetInterfaces promises no order (it follows the
+            // assembly's metadata, which moved when a file was added to it), so the
+            // choice is made here rather than taken from it. A member reached
+            // through an interface view goes to that interface instead
+            // (InterfaceViewOf), and a write that lands on a get-only one fails
+            // naming the interface to write it through (ReadOnlyInterfaceMemberMessage).
+            PropertyInfo best = null;
             foreach (var iface in type.GetInterfaces()) {
-                prop = iface.GetProperty(name);
-                if (prop != null) return prop;
+                var candidate = iface.GetProperty(name);
+                if (candidate == null) continue;
+                if (best == null || Preferred(candidate, best)) best = candidate;
             }
-            return null;
+            return best;
+        }
+
+        // A get-only declaration before a writable one, then by the interface's full name.
+        static bool Preferred(PropertyInfo candidate, PropertyInfo best) {
+            if (candidate.CanWrite != best.CanWrite) return !candidate.CanWrite;
+            return string.CompareOrdinal(candidate.DeclaringType.FullName, best.DeclaringType.FullName) < 0;
         }
 
         /// <summary>

@@ -26,6 +26,10 @@ namespace OneJS.Input {
             _keysPressedTextCount = 0;
             _watchingKeyPresses = false;
             WatchKeyPresses();
+            if (_watchingPointerPresses) InputSystem.onAfterUpdate -= RecordPointerPress;
+            _watchingPointerPresses = false;
+            _pointerType = null;
+            _lastFingerPress = double.NegativeInfinity;
             _mouseButtonsPressed = 0;
             _mouseButtonsReleased = 0;
             Array.Clear(_gamepadButtonsPressed, 0, _gamepadButtonsPressed.Length);
@@ -387,6 +391,74 @@ namespace OneJS.Input {
             _keysPressedTextCount = count;
             _keysPressedText = count == 0 ? "" : string.Join(",", _keysPressedInOrder);
             return _keysPressedText;
+        }
+
+        // ============ Pointer Type ============
+
+        // onejs-unity's input.pointerType: which kind of pointer the last press came from. Watched
+        // after each input update, and only from the first ask, so a game that never asks costs
+        // nothing. A touchscreen's events arrive in its own touch format, so the devices are read
+        // once applied rather than from each event.
+        static bool _watchingPointerPresses;
+        static string _pointerType;
+        // When a touch or a pen last went down, on the input clock.
+        static double _lastFingerPress = double.NegativeInfinity;
+        // Windows, and Unity's own mouse from touch, follow a touch or a pen press with a mouse
+        // press of their own. A mouse press this soon after one is that press, as a browser treats
+        // the compatibility mouse events a tap fires.
+        const double SyntheticMouseWindow = 0.2;
+
+        /// <summary>True on a OneJS with <see cref="GetPointerType"/>: a missing static reads as a proxy, not true.</summary>
+        public static bool PointerTypes => true;
+
+        /// <summary>
+        /// "mouse", "touch" or "pen": the kind of pointer the last press came from, or before any
+        /// press the device's best guess, "touch" on a handheld (the Device Simulator's too) and
+        /// "mouse" otherwise. Presses are watched from the first call; one in progress then, or
+        /// ending that frame, counts.
+        /// </summary>
+        public static string GetPointerType() {
+            if (!_watchingPointerPresses) {
+                _watchingPointerPresses = true;
+                InputSystem.onAfterUpdate += RecordPointerPress;
+                _pointerType = PressInProgress();
+            }
+            return _pointerType ?? GuessPointerType();
+        }
+
+        static string GuessPointerType() =>
+            UnityEngine.Device.SystemInfo.deviceType == DeviceType.Handheld ? "touch" : "mouse";
+
+        static string PressInProgress() {
+            static bool Down(ButtonControl b) => b != null && (b.isPressed || b.wasReleasedThisFrame);
+            var pen = Pen.current;
+            if (pen != null && Down(pen.tip)) return "pen";
+            var touchscreen = Touchscreen.current;
+            if (touchscreen != null && Down(touchscreen.press)) return "touch";
+            var mouse = Mouse.current;
+            if (mouse != null && (Down(mouse.leftButton) || Down(mouse.rightButton) || Down(mouse.middleButton))) return "mouse";
+            return null;
+        }
+
+        // A pen or a touch first, since the mouse a platform makes of one goes down with it.
+        internal static void RecordPointerPress() {
+            var pen = Pen.current;
+            if (pen != null && pen.tip.wasPressedThisFrame) {
+                _pointerType = "pen";
+                _lastFingerPress = InputState.currentTime;
+                return;
+            }
+            var touchscreen = Touchscreen.current;
+            if (touchscreen != null && touchscreen.press.wasPressedThisFrame) {
+                _pointerType = "touch";
+                _lastFingerPress = InputState.currentTime;
+                return;
+            }
+            var mouse = Mouse.current;
+            if (mouse == null) return;
+            if (!mouse.leftButton.wasPressedThisFrame && !mouse.rightButton.wasPressedThisFrame && !mouse.middleButton.wasPressedThisFrame) return;
+            if (InputState.currentTime - _lastFingerPress < SyntheticMouseWindow) return;
+            _pointerType = "mouse";
         }
 
         // ============ Mouse ============

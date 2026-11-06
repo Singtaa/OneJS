@@ -9,6 +9,11 @@
 - ModelBridge scatters copies of a model as instanced chunks
 - A shader effect draws at a `PixelRatio`, pixels per layout point
 - A picture sized by its layout can pass 2048 a side, up to the GPU's limit, and keeps its shape
+- ModelBridge draws the scene into a texture a program reads
+- ModelBridge draws a gradient sky with a sun disc and stars
+- ModelBridge draws a mesh model as depth alone
+- InputBridge says which pointer the last press came from
+- A property two interfaces declare reads the get-only one, whatever order the assembly lists them in
 
 # [2026-11-05] v3.9.18
 
