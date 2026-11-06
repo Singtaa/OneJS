@@ -13,6 +13,7 @@
 - ModelBridge draws a gradient sky with a sun disc and stars
 - ModelBridge draws a mesh model as depth alone
 - InputBridge says which pointer the last press came from
+- SLProgramBridge counts the page programs still compiling
 - A property two interfaces declare reads the get-only one, whatever order the assembly lists them in
 
 # [2026-11-05] v3.9.18

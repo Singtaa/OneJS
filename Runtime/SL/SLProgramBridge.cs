@@ -63,6 +63,8 @@ namespace OneJS.SL {
             public int WebId;
             /// <summary>True when the last frame was drawn by the page.</summary>
             public bool DrewCompiled;
+            /// <summary>True once the page has drawn the program it holds now; see <see cref="PendingCompiles"/>.</summary>
+            public bool EverDrew;
             /// <summary>
             /// True when the program reads the frame it drew before, as its
             /// compiled form says: a generated shader with a `_Prev` property,
@@ -345,6 +347,7 @@ namespace OneJS.SL {
             if (!SLWeb.Available) return;
             SLWeb.Release(c.WebId);
             c.WebId = SLWeb.Create(wgsl, glsl);
+            c.EverDrew = false;
             // The emitters declare the previous frame's binding only for a
             // program that samples it (onejs-sl's web.ts).
             c.ReadsPrevious = (wgsl != null && wgsl.Contains(" var sl_prev: ")) ||
@@ -366,6 +369,21 @@ namespace OneJS.SL {
         /// released, and for every handle after <see cref="DisposeAll"/>.
         /// </summary>
         public static bool Exists(int handle) => s_Programs.ContainsKey(handle);
+
+        /// <summary>
+        /// The programs the page is still compiling: handed their source and not yet drawn once.
+        /// One that fails to compile is no longer counted. onejs-play's container holds a cart's
+        /// frame clock on it, so a program's first draw and the cart's first frame are one frame
+        /// (runtime-1.3.md section 11). Always 0 outside a WebGL player, where a program compiles
+        /// as it is made or there is no page.
+        /// </summary>
+        public static int PendingCompiles {
+            get {
+                int n = 0;
+                foreach (var c in s_Programs.Values) if (c.WebId > 0 && !c.EverDrew) n++;
+                return n;
+            }
+        }
 
         /// <summary>
         /// True when the program draws compiled: through a generated shader, or,
@@ -442,6 +460,7 @@ namespace OneJS.SL {
                 c.WebId = 0;
             }
             c.DrewCompiled = r > 0;
+            if (r > 0) c.EverDrew = true;
             return c.DrewCompiled;
         }
 

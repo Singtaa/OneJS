@@ -69,7 +69,7 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `ShaderFX/ShaderEffectElement.cs` | Runs a shader into an element's `backgroundImage` via a per-frame blit to a RenderTexture; the drawing is its `ShaderPass`'s |
 | `ShaderFX/ShaderPass.cs` | A shader or program drawn into a texture every frame: the program, clock, previous frame and drawing behind every element, and on its own a pass (`usePass`) that another program reads |
 | `ShaderFX/ShaderEffectBridge.cs` | Live-effect registry, `TickAll` (driven from `QuickJSUIBridge.TickSystems()`), built-in procedural textures and ramp cache |
-| `SL/SLProgramBridge.cs` | Shader language programs: finds the shader generated from a program, or hands a WebGL page its WGSL and GLSL; uniforms and textures by slot |
+| `SL/SLProgramBridge.cs` | Shader language programs: finds the shader generated from a program, or hands a WebGL page its WGSL and GLSL; uniforms and textures by slot; `PendingCompiles`, the page programs not yet drawn once |
 | `SL/SLShaderRegistry.cs` | Every generated shader by program hash, as the Resources asset a native build writes so the player packs them |
 | `SL/SLWeb.cs` | Compiled programs in a WebGL player, through `Plugins/WebGL/OneJSSLWeb.jslib`; `Describe()` is the startup handle check |
 | `NodeBridge.cs` | Zero-alloc tree wiring (Add/Insert/RemoveFromHierarchy) by element handle. Add/Insert log an error on an unresolvable handle; detach stays a tolerant no-op |
