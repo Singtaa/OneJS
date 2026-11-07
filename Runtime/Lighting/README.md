@@ -59,7 +59,10 @@ On a sheet each page bakes an apron round itself, as many texels as dilation
 and the denoiser reach (7), and seeds each texel's paths by its place on the
 sheet and its sweep, so the texels two pages share come out the same on both
 (`AFloorAcrossTheSeam_...` reads them alike to the bit). One page has no apron
-and keeps the seeds it had before pages, so its bake is unchanged to the bit. `Step(paths)` does about
+and keeps the seeds it had before pages, so its bake is unchanged to the bit.
+Dilation and the denoiser skip a neighbour past the working textures' edge: a
+read there is undefined, and WebGPU gave a one-page bake's border texels
+another texel's light. `Step(paths)` does about
 that many paths, at least one draw; `RunToEnd` bakes everything, waiting on the
 GPU between submissions so none grows long enough to trip a watchdog. A bake is
 `Done` once its lightmap is finished and its probes are read back, which on
