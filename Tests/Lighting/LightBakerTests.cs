@@ -49,9 +49,9 @@ namespace OneJS.Tests.Lighting {
                 return this;
             }
 
-            public BakeScene Build(int atlas = 64) => new BakeScene {
+            public BakeScene Build(int atlas = 64, int pages = 1) => new BakeScene {
                 Positions = Positions.ToArray(), Normals = Normals.ToArray(), Uvs = Uvs.ToArray(), Indices = Indices.ToArray(), Albedo = Albedo.ToArray(),
-                AtlasWidth = atlas, AtlasHeight = atlas, Sky = Sky, Ground = Ground,
+                AtlasWidth = atlas, AtlasHeight = atlas, Pages = pages, Sky = Sky, Ground = Ground,
             };
         }
 
@@ -61,8 +61,11 @@ namespace OneJS.Tests.Lighting {
         static Vector2 WallUv(float x, float y) => new Vector2(WallRect.xMin + x / 4 * WallRect.width, WallRect.yMin + y / 3 * WallRect.height);
 
         static SceneBuilder Floor(Color albedo) => new SceneBuilder().Quad(Vector3.zero, new Vector3(4, 0, 0), new Vector3(0, 0, 4), Vector3.up, FloorRect, albedo);
-        static SceneBuilder FloorAndWall(Color floor, Color wall) =>
-            Floor(floor).Quad(Vector3.zero, new Vector3(4, 0, 0), new Vector3(0, 3, 0), Vector3.forward, WallRect, wall);
+        static SceneBuilder FloorAndWall(Color floor, Color wall, int wallPage = 0) {
+            var rect = WallRect;
+            rect.x += wallPage;
+            return Floor(floor).Quad(Vector3.zero, new Vector3(4, 0, 0), new Vector3(0, 3, 0), Vector3.forward, rect, wall);
+        }
 
         static BakeSettings Quick(int samples = 64) => new BakeSettings { Samples = samples, DraftSamples = samples, ProbeRays = 1024, Detail = 16 };
 
@@ -72,8 +75,8 @@ namespace OneJS.Tests.Lighting {
             return baker;
         }
 
-        /// <summary>What a model's shader reads from the lightmap at `uv`.</summary>
-        static Color Sample(RenderTexture lightmap, Vector2 uv) {
+        /// <summary>What a model's shader reads from the lightmap at `uv`, on page `page`.</summary>
+        static Color Sample(RenderTexture lightmap, Vector2 uv, int page = 0) {
             var shader = Shader.Find("Hidden/OneJS/Tests/LightmapSample");
             Assert.IsNotNull(shader, "the test's sampling shader");
             var mat = new Material(shader);
@@ -81,6 +84,7 @@ namespace OneJS.Tests.Lighting {
             try {
                 mat.SetTexture("_Lightmap", lightmap);
                 mat.SetVector("_At", uv);
+                mat.SetFloat("_Slice", page);
                 var cmd = new CommandBuffer();
                 cmd.SetRenderTarget(target);
                 cmd.DrawProcedural(Matrix4x4.identity, mat, 0, MeshTopology.Triangles, 3);
@@ -94,16 +98,8 @@ namespace OneJS.Tests.Lighting {
             }
         }
 
-        static Color[] Read(RenderTexture rt) {
-            var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBAFloat, false, true);
-            var previous = RenderTexture.active;
-            RenderTexture.active = rt;
-            tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0, false);
-            RenderTexture.active = previous;
-            var pixels = tex.GetPixels();
-            UnityEngine.Object.DestroyImmediate(tex);
-            return pixels;
-        }
+        /// <summary>A target's texels, or one slice's of the lightmap's.</summary>
+        static Color[] Read(RenderTexture rt, int slice = 0) => TextureRead.Start(rt, 0, 0, rt.width, rt.height, slice).Wait().Colors();
 
         static void Near(Color expected, Color actual, float relative, string what, float absolute = 1e-3f) {
             for (var c = 0; c < 3; c++) Assert.AreEqual(expected[c], actual[c], Mathf.Max(absolute, Mathf.Abs(expected[c]) * relative), $"{what}, channel {c}: expected {expected}, got {actual}");
@@ -256,8 +252,35 @@ namespace OneJS.Tests.Lighting {
             order.Add("done");
             CollectionAssert.AreEqual(new[] { "probes", "draft", "done" }, order);
             Assert.AreEqual(1f, baker.Progress);
-            Assert.AreNotSame(baker.Draft, baker.Lightmap, "the final replaces the draft");
             Assert.AreEqual(16, baker.Samples);
+            Assert.AreEqual(TextureDimension.Tex2DArray, baker.Lightmap.dimension);
+            Assert.AreEqual(1, baker.Lightmap.volumeDepth);
+        }
+
+        [Test]
+        public void APageAtATime_EachLitByTheWholeWorld_AsOnePageWouldBe() {
+            var settings = Quick();
+            settings.TileSize = 32;
+            using var one = Bake(FloorAndWall(Color.gray, new Color(0.8f, 0.1f, 0.1f)).Build(), settings);
+            using var two = new LightBaker(FloorAndWall(Color.gray, new Color(0.8f, 0.1f, 0.1f), wallPage: 1).Build(pages: 2), settings);
+            Assert.AreEqual(2, two.Pages);
+            // A page at a time, in order, the first lit before the second is begun.
+            var seen = new List<(int page, int lit)>();
+            for (var steps = 0; ; steps++, two.Sync()) {
+                Assert.Less(steps, 10_000, "a bake that never ends");
+                var done = two.Step(two.TilePaths);
+                if (seen.Count == 0 || seen[^1] != (two.Page, two.PagesLit)) seen.Add((two.Page, two.PagesLit));
+                if (done) break;
+            }
+            CollectionAssert.AreEqual(new[] { (0, 0), (1, 1), (1, 2) }, seen);
+            Assert.AreEqual(2, two.Lightmap.volumeDepth);
+            // The floor at the wall's foot takes the wall's red from the other page's triangles, and the wall on page 1 is lit as on one page.
+            Near(Sample(one.Lightmap, FloorUv(2, 0.3f)), Sample(two.Lightmap, FloorUv(2, 0.3f)), 0.15f, "the floor at the wall's foot");
+            Near(Sample(one.Lightmap, WallUv(2, 1.5f)), Sample(two.Lightmap, WallUv(2, 1.5f), 1), 0.15f, "the wall, on its page");
+            var foot = Sample(two.Lightmap, FloorUv(2, 0.3f));
+            Assert.Greater(foot.r, foot.g * 1.05f, $"the wall's red reaches the floor across pages ({foot})");
+            // And the wall's rectangle on page 0 holds nothing.
+            Assert.AreEqual(0f, Read(two.Lightmap, 0)[(int)(WallUv(2, 1.5f).y * 64) * 64 + (int)(WallUv(2, 1.5f).x * 64)].a, "nothing of the wall on the floor's page");
         }
 
         static LightBaker ProbedBaker() {
@@ -313,6 +336,8 @@ namespace OneJS.Tests.Lighting {
             scene = Floor(Color.gray).Build();
             scene.Indices = new[] { 0, 1 };
             Assert.Throws<ArgumentException>(() => new LightBaker(scene));
+            // The wall on a second page of an atlas of one.
+            Assert.Throws<ArgumentException>(() => new LightBaker(FloorAndWall(Color.gray, Color.gray, wallPage: 1).Build()));
         }
     }
 

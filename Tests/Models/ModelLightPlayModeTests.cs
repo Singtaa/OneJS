@@ -64,11 +64,18 @@ namespace OneJS.Tests.Models {
         static string Unwrap(int model, uint[] indices) =>
             ModelBridge.SetLightUnwrap(model, new uint[] { 0, 1, 2, 3 }, new float[] { 0, 0, 1, 0, 1, 1, 0, 1 }, indices);
 
-        string Bake() {
+        // The floor's rectangle on page `floorPage` of `pages`: the page rides in the offset's whole part.
+        static Vector4 FloorOn(int floorPage) => FloorST + new Vector4(0, 0, floorPage, 0);
+
+        float[] Actors(int floorPage = 0) {
+            var floor = FloorOn(floorPage);
+            return new[] { _floorActor, floor.x, floor.y, floor.z, floor.w, _roofActor, RoofST.x, RoofST.y, RoofST.z, RoofST.w };
+        }
+
+        string Bake(int pages = 1, int floorPage = 0) {
             Assert.That(Unwrap(_floor, Up), Is.Empty);
             Assert.That(Unwrap(_roof, Down), Is.Empty);
-            var actors = new[] { _floorActor, FloorST.x, FloorST.y, FloorST.z, FloorST.w, _roofActor, RoofST.x, RoofST.y, RoofST.z, RoofST.w };
-            return ModelBridge.BeginBake(actors, Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight, 8, 32);
+            return ModelBridge.BeginBake(Actors(floorPage), Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight, pages, 8, 32);
         }
 
         // Steps the bake to its end, waiting between steps for what it reads back, as frames would.
@@ -161,6 +168,77 @@ namespace OneJS.Tests.Models {
             Assert.That(after.g, Is.LessThan(before.g * 0.7f), $"under the roof, drawn from the lightmap, the floor is darker than under the flat ambient: {after} against {before}");
         }
 
+        [Test]
+        public void Bake_OnTwoPages_LightsAnActorFromItsPageOnceThePageHasLight() {
+            Assert.That(Bake(pages: 2, floorPage: 1), Is.Empty);
+            var pages = new List<int>();
+            var floorWaited = false;
+            for (var i = 0; i < 100000; i++) {
+                // A tile a step, so each page takes steps of its own.
+                var done = ModelBridge.StepBake(1) >= 1;
+                if (pages.Count == 0 || pages[pages.Count - 1] != ModelBridge.BakePage()) pages.Add(ModelBridge.BakePage());
+                // The roof's page has light and the floor's has not: the floor is still lit by the probes.
+                if (AtlasOf(_roofActor) == RoofST && !floorWaited) {
+                    // Anything that draws the floor afresh (a dissolve here) still draws it from the probes.
+                    ModelBridge.SetDissolve(_floorActor, 0);
+                    Assert.That(AtlasOf(_floorActor), Is.EqualTo(Vector4.zero), "the floor waits for its own page's light");
+                }
+                if (AtlasOf(_roofActor) == RoofST && AtlasOf(_floorActor) == Vector4.zero) {
+                    floorWaited = true;
+                    Assert.That(RendererOf(_floorActor).lightProbeUsage, Is.EqualTo(LightProbeUsage.CustomProvided), "the floor takes the probes while its page bakes");
+                }
+                if (done) break;
+                AsyncGPUReadback.WaitAllRequests();
+            }
+            Assert.That(pages, Is.EqualTo(new[] { 0, 1 }));
+            Assert.That(floorWaited, Is.True, "the floor waited for its page");
+            Assert.That(AtlasOf(_floorActor), Is.EqualTo(FloorOn(1)));
+            Assert.That(AtlasOf(_roofActor), Is.EqualTo(RoofST));
+            var shaded = Sample(Floor(0, 0), 1);
+            var lit = Sample(Floor(3.5f, 3.5f), 1);
+            Assert.That(shaded.g, Is.LessThan(lit.g * 0.6f), $"the floor on page 1 bakes darker under the roof on page 0: {shaded} against {lit}");
+            Assert.That(Sample(Floor(3.5f, 3.5f), 0).a, Is.EqualTo(0f), "and page 0 holds nothing of it");
+        }
+
+        [Test]
+        public void BeginBake_RefusesARectangleOnAPageTheAtlasHasNot() {
+            Assert.That(Bake(pages: 1, floorPage: 1), Does.Contain("on page 1 of 1"));
+            Assert.That(ModelBridge.Baking, Is.False);
+            Assert.That(Bake(pages: 0), Does.Contain("a page at least"));
+        }
+
+        [UnityTest]
+        public IEnumerator ModelLit_DrawsAnActorFromItsOwnPage() {
+            Assert.That(Bake(), Is.Empty);
+            RunBake();
+            yield return null;
+            var one = Render();
+            Assert.That(Bake(pages: 2, floorPage: 1), Is.Empty);
+            RunBake();
+            yield return null;
+            var two = Render();
+            // Read from page 0, where its rectangle holds nothing, the floor would be black.
+            Assert.That(two.g, Is.EqualTo(one.g).Within(one.g * 0.15f), $"the floor on page 1 draws as it did on page 0: {two} against {one}");
+        }
+
+        [Test]
+        public void LightFile_OfTwoPages_LoadsBackOntoBoth() {
+            Assert.That(Bake(pages: 2, floorPage: 1), Is.Empty);
+            RunBake();
+            var file = File();
+            var shaded = Sample(Floor(0, 0), 1);
+            var roof = Sample(new Vector2(RoofST.z + RoofST.x / 2, RoofST.w + RoofST.y / 2), 0);
+            ModelBridge.ClearLight();
+            Assert.That(ModelBridge.LoadLight(file, Actors(1), Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight, 1), Does.Contain("needs"));
+            Assert.That(ModelBridge.LoadLight(file, Actors(1), Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight, 2), Is.Empty);
+            Assert.That(AtlasOf(_floorActor), Is.EqualTo(FloorOn(1)));
+            Assert.That(AtlasOf(_roofActor), Is.EqualTo(RoofST));
+            var shadedAgain = Sample(Floor(0, 0), 1);
+            var roofAgain = Sample(new Vector2(RoofST.z + RoofST.x / 2, RoofST.w + RoofST.y / 2), 0);
+            Assert.That(shadedAgain.g, Is.EqualTo(shaded.g).Within(0.02f + shaded.g * 0.02f), $"the floor, page 1: {shadedAgain} against {shaded}");
+            Assert.That(roofAgain.g, Is.EqualTo(roof.g).Within(0.02f + roof.g * 0.02f), $"the roof, page 0: {roofAgain} against {roof}");
+        }
+
         [UnityTest]
         public IEnumerator Probes_BlendOnceAFrameHoweverManyCamerasRender() {
             Assert.That(Bake(), Is.Empty);
@@ -234,12 +312,12 @@ namespace OneJS.Tests.Models {
             Assert.That(Unwrap(_roof, Down), Is.Empty);
             var actors = new[] { _floorActor, FloorST.x, FloorST.y, FloorST.z, FloorST.w };
             var copies = new[] { scatter, 1, RoofST.x, RoofST.y, RoofST.z, RoofST.w };
-            Assert.That(ModelBridge.BeginBake(actors, copies, Grid, AtlasWidth, AtlasHeight, 8, 16), Is.Empty);
+            Assert.That(ModelBridge.BeginBake(actors, copies, Grid, AtlasWidth, AtlasHeight, 1, 8, 16), Is.Empty);
             RunBake();
             Assert.That(ModelBridge.ScatterAtlas(scatter, 1), Is.EqualTo(RoofST));
             Assert.That(ModelBridge.ScatterDrawsBaked(scatter), Is.True, "its chunks draw with the rectangles");
             Assert.That(ModelBridge.ScatterAtlas(scatter, 0), Is.EqualTo(Vector4.zero), "a copy not named is not baked");
-            Assert.That(ModelBridge.BeginBake(actors, new float[] { scatter, 7, 1, 1, 0, 0 }, Grid, AtlasWidth, AtlasHeight, 8, 16), Does.Contain("no copy 7"));
+            Assert.That(ModelBridge.BeginBake(actors, new float[] { scatter, 7, 1, 1, 0, 0 }, Grid, AtlasWidth, AtlasHeight, 1, 8, 16), Does.Contain("no copy 7"));
         }
 
         // Read back async, as both browser backends do, and by ReadPixels, as a GPU without async readback does.
@@ -268,7 +346,7 @@ namespace OneJS.Tests.Models {
             ModelBridge.ClearLight();
             Assert.That(ModelBridge.BakedLightmap, Is.Null);
             var actors = new[] { _floorActor, FloorST.x, FloorST.y, FloorST.z, FloorST.w, _roofActor, RoofST.x, RoofST.y, RoofST.z, RoofST.w };
-            Assert.That(ModelBridge.LoadLight(file, actors, Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight), Is.Empty);
+            Assert.That(ModelBridge.LoadLight(file, actors, Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight, 1), Is.Empty);
             Assert.That(ModelBridge.Baking, Is.False, "a loaded file bakes nothing");
             Assert.That(AtlasOf(_floorActor), Is.EqualTo(FloorST));
             Assert.That(AtlasOf(_crateActor), Is.EqualTo(Vector4.zero));
@@ -304,11 +382,11 @@ namespace OneJS.Tests.Models {
             RunBake();
             var file = File();
             var actors = new[] { _floorActor, FloorST.x, FloorST.y, FloorST.z, FloorST.w };
-            Assert.That(ModelBridge.LoadLight(file, actors, Array.Empty<float>(), Grid, AtlasWidth * 2, AtlasHeight), Does.Contain("needs"));
+            Assert.That(ModelBridge.LoadLight(file, actors, Array.Empty<float>(), Grid, AtlasWidth * 2, AtlasHeight, 1), Does.Contain("needs"));
             Assert.That(ModelBridge.BakedLightmap, Is.Null);
             Assert.That(AtlasOf(_floorActor), Is.EqualTo(Vector4.zero));
-            Assert.That(ModelBridge.LoadLight("not base64!", actors, Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight), Does.Contain("base64"));
-            Assert.That(ModelBridge.LoadLight(file, new float[] { 999, 1, 1, 0, 0 }, Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight), Does.Contain("no actor 999"));
+            Assert.That(ModelBridge.LoadLight("not base64!", actors, Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight, 1), Does.Contain("base64"));
+            Assert.That(ModelBridge.LoadLight(file, new float[] { 999, 1, 1, 0, 0 }, Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight, 1), Does.Contain("no actor 999"));
             Assert.That(ModelBridge.BakedLightmap, Is.Null);
         }
 
@@ -384,7 +462,7 @@ namespace OneJS.Tests.Models {
             return new Vector2(u * FloorST.x + FloorST.z, v * FloorST.y + FloorST.w);
         }
 
-        static Color Sample(Vector2 uv) {
+        static Color Sample(Vector2 uv, int page = 0) {
             var shader = Shader.Find("Hidden/OneJS/Tests/LightmapSample");
             Assert.IsNotNull(shader, "the test's sampling shader");
             var mat = new Material(shader);
@@ -392,6 +470,7 @@ namespace OneJS.Tests.Models {
             try {
                 mat.SetTexture("_Lightmap", ModelBridge.BakedLightmap);
                 mat.SetVector("_At", uv);
+                mat.SetFloat("_Slice", page);
                 var cmd = new CommandBuffer();
                 cmd.SetRenderTarget(target);
                 cmd.DrawProcedural(Matrix4x4.identity, mat, 0, MeshTopology.Triangles, 3);

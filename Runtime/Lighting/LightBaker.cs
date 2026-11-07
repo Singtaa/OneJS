@@ -4,20 +4,22 @@ using UnityEngine.Rendering;
 
 namespace OneJS.Lighting {
     /// <summary>
-    /// What a bake lights: the static triangles, in world space, already laid out in the atlas.
-    /// Every triangle both receives light and blocks or bounces it.
+    /// What a bake lights: the static triangles, in world space, already laid out in the atlas's
+    /// pages. Every triangle both receives light and blocks or bounces it, whichever page it is on.
     /// </summary>
     public sealed class BakeScene {
         public Vector3[] Positions;
         /// <summary>Per vertex, world space: what the G-buffer interpolates.</summary>
         public Vector3[] Normals;
-        /// <summary>Per vertex, the atlas uv, 0 to 1 a side.</summary>
+        /// <summary>Per vertex, the atlas uv, 0 to 1 a side, its page added to u: page 2's run from 2 to 3.</summary>
         public Vector2[] Uvs;
         public int[] Indices;
         /// <summary>Per triangle, linear: what a bounce off it is tinted by.</summary>
         public Color[] Albedo;
+        /// <summary>Each page's size, and how many pages.</summary>
         public int AtlasWidth;
         public int AtlasHeight;
+        public int Pages = 1;
 
         /// <summary>The probe grid: its first probe, the distance between probes, and how many on each axis. No probes when any count is 0.</summary>
         public Vector3 GridOrigin;
@@ -59,9 +61,10 @@ namespace OneJS.Lighting {
     /// Bakes sky and bounced light into a lightmap for static triangles, and the light at each point
     /// of a probe grid as spherical harmonics, on the GPU, a slice at a time (Runtime/Lighting/README.md).
     ///
-    /// The probes come first, so moving things are lit within a few frames; then the lightmap, shown
-    /// as a draft at DraftSamples and finished at Samples. Step does at most about the paths it is
-    /// given, in tiles, so a game can bake beside its frame.
+    /// The probes come first, so moving things are lit within a few frames; then the lightmap, a
+    /// page at a time, each page shown as a draft at DraftSamples and finished at Samples. The world
+    /// is built once for every page, and one page's working textures are held at a time. Step does
+    /// at most about the paths it is given, in tiles, so a game can bake beside its frame.
     /// </summary>
     public sealed class LightBaker : IDisposable {
         public const string ShaderPath = "OneJS/LightBake";
@@ -89,9 +92,12 @@ namespace OneJS.Lighting {
         readonly Material _material;
         readonly Texture2D _tris, _nodes;
         readonly Mesh _gbufferMesh;
-        readonly int _width, _height;
+        readonly int _width, _height, _pages;
         RenderTexture _gPos, _gNormal, _accum, _work0, _work1;
-        RenderTexture _draft, _final;
+        // Every page, a slice each, once the first has its draft.
+        RenderTexture _lightmap;
+        // The page being baked, and how many have at least their draft.
+        int _page, _pagesLit;
 
         readonly int _probeCount, _probesWide, _probesHigh;
         readonly Vector3Int _gridCounts;
@@ -130,6 +136,7 @@ namespace OneJS.Lighting {
             if (!Supported(out var why)) throw new NotSupportedException($"[OneJS] This GPU cannot bake light: {why}.");
             _width = scene.AtlasWidth;
             _height = scene.AtlasHeight;
+            _pages = scene.Pages;
             _material = new Material(Resources.Load<Shader>(ShaderPath)) { hideFlags = HideFlags.HideAndDontSave };
 
             var (nodes, order) = Bvh.Build(scene.Positions, scene.Indices);
@@ -150,16 +157,12 @@ namespace OneJS.Lighting {
             _gNormal = Target(RenderTextureFormat.ARGBFloat, "OneJS Bake Normals");
             _accum = Target(RenderTextureFormat.ARGBHalf, "OneJS Bake Sum");
             _gbufferMesh = GBufferMesh(scene);
-            using (var cmd = new CommandBuffer { name = "OneJS Bake G-buffer" }) {
-                cmd.SetRenderTarget(new RenderTargetIdentifier[] { _gPos, _gNormal }, _gPos.depthBuffer);
-                cmd.ClearRenderTarget(false, true, Color.clear);
-                cmd.DrawMesh(_gbufferMesh, Matrix4x4.identity, _material, 0, PassGBuffer);
-                cmd.SetRenderTarget(_accum);
-                cmd.ClearRenderTarget(false, true, Color.clear);
-                Graphics.ExecuteCommandBuffer(cmd);
-            }
             _material.SetTexture(GPosId, _gPos);
             _material.SetTexture(GNormalId, _gNormal);
+            using (var cmd = new CommandBuffer { name = "OneJS Bake G-buffer" }) {
+                StartPage(cmd, 0);
+                Graphics.ExecuteCommandBuffer(cmd);
+            }
 
             _gridCounts = scene.GridCounts;
             _probeCount = Math.Max(0, _gridCounts.x) * Math.Max(0, _gridCounts.y) * Math.Max(0, _gridCounts.z);
@@ -182,31 +185,39 @@ namespace OneJS.Lighting {
         }
 
         public int Width => _width;
+        /// <summary>How many pages the lightmap has, each Width by Height, and the page being baked.</summary>
+        public int Pages => _pages;
+        public int Page => _page;
+        /// <summary>Pages with at least their draft, from the first: what a model on page n waits for to be more than n.</summary>
+        public int PagesLit => _pagesLit;
         /// <summary>The paths one tile traces: the least a Step traces once the probes are done.</summary>
         public long TilePaths => (long)Math.Max(8, _settings.TileSize) * Math.Max(8, _settings.TileSize) * _settings.SamplesPerPass;
         public int Height => _height;
         public int ProbeCount => _probeCount;
-        /// <summary>Samples a texel the lightmap has so far.</summary>
+        /// <summary>Samples a texel the page being baked has so far.</summary>
         public int Samples { get; private set; }
         /// <summary>True once the probes are read back: ProbeSH holds them.</summary>
         public bool ProbesReady => _probeSH != null || _probeCount == 0;
-        /// <summary>True once the lightmap has its draft, then once it is finished.</summary>
-        public bool DraftReady => _draft != null;
+        /// <summary>True once the first page has its draft.</summary>
+        public bool DraftReady => _pagesLit > 0;
         /// <summary>True once the lightmap is finished and the probes are read back, which can land a frame or more after it.</summary>
         public bool Done => _mapDone && ProbesReady;
         /// <summary>
         /// What a Step does now: the probes' rays, then the lightmap's tiles while the probes' read is in
         /// flight, then once it has landed, then nothing while it lands. A path of each costs the GPU
         /// differently, and the frame a phase changes in costs more than either, so a frame budget
-        /// starts over at each.
+        /// starts over at each, and at each new Page, whose frame lays its G-buffer.
         /// </summary>
         public BakePhase Phase => _mapDone ? BakePhase.Finishing
             : _probeCount > 0 && _probeRaysDone < _settings.ProbeRays ? BakePhase.Probes
             : ProbesReady ? BakePhase.Lightmap : BakePhase.LightmapProbesReading;
 
-        /// <summary>The newest finished lightmap: the draft, then the final. Null before the draft. RGB light, A 1 where a texel has light.</summary>
-        public RenderTexture Lightmap => _final != null ? _final : _draft;
-        public RenderTexture Draft => _draft;
+        /// <summary>
+        /// The lightmap, a texture array of Pages slices: each page's draft, then its final, written in
+        /// place. Null before the first page's draft. RGB light, A 1 where a texel has light. A slice
+        /// from PagesLit on holds nothing yet.
+        /// </summary>
+        public RenderTexture Lightmap => _lightmap;
 
         /// <summary>
         /// Each probe's light as Unity's SphericalHarmonicsL2 holds the ambient probe: nine coefficients for
@@ -215,12 +226,13 @@ namespace OneJS.Lighting {
         /// </summary>
         public float[] ProbeSH => _probeSH;
 
-        /// <summary>0 to 1, 1 only once done: the probes are the first tenth, the lightmap the rest.</summary>
+        /// <summary>0 to 1, 1 only once done: the probes are the first tenth, the lightmap's pages the rest, in equal shares.</summary>
         public float Progress {
             get {
                 if (Done) return 1;
                 var probes = _probeCount == 0 ? 1f : Mathf.Min(1f, _probeRaysDone / (float)_settings.ProbeRays);
-                var map = Mathf.Min(1f, (Samples + SweepFraction() * _settings.SamplesPerPass) / _settings.Samples);
+                var page = _mapDone ? 1f : Mathf.Min(1f, (Samples + SweepFraction() * _settings.SamplesPerPass) / _settings.Samples);
+                var map = (_page + page) / _pages;
                 // Below 1 while the probes' read is on its way.
                 return Mathf.Min(0.999f, _probeCount == 0 ? map : 0.1f * probes + 0.9f * map);
             }
@@ -254,12 +266,16 @@ namespace OneJS.Lighting {
                 }
                 spent += TilePass(cmd);
                 if (_tile == 0) {
-                    // A sweep over every tile finished.
+                    // A sweep over the page's every tile finished.
                     Samples = _sweepSamples;
-                    if (_draft == null && Samples >= Math.Min(_settings.DraftSamples, _settings.Samples)) _draft = Finish(cmd, "OneJS Lightmap Draft");
                     if (Samples >= _settings.Samples) {
-                        _final = Finish(cmd, "OneJS Lightmap");
-                        _mapDone = true;
+                        Finish(cmd);
+                        _pagesLit = _page + 1;
+                        if (_page + 1 < _pages) StartPage(cmd, _page + 1);
+                        else _mapDone = true;
+                    } else if (_pagesLit == _page && Samples >= _settings.DraftSamples) {
+                        Finish(cmd);
+                        _pagesLit = _page + 1;
                     }
                 }
             }
@@ -287,6 +303,18 @@ namespace OneJS.Lighting {
             _probeRaysDone += rays;
         }
 
+        // Lays page `page`'s triangles into the G-buffer and clears its sum: the page's first frame.
+        void StartPage(CommandBuffer cmd, int page) {
+            _page = page;
+            _tile = 0;
+            Samples = 0;
+            cmd.SetRenderTarget(new RenderTargetIdentifier[] { _gPos, _gNormal }, _gPos.depthBuffer);
+            cmd.ClearRenderTarget(false, true, Color.clear);
+            cmd.DrawMesh(_gbufferMesh, Matrix4x4.identity, _material, page, PassGBuffer);
+            cmd.SetRenderTarget(_accum);
+            cmd.ClearRenderTarget(false, true, Color.clear);
+        }
+
         long TilePass(CommandBuffer cmd) {
             var tile = Math.Max(8, _settings.TileSize);
             if (_tile == 0) _sweepSamples = Samples + _settings.SamplesPerPass;
@@ -306,11 +334,18 @@ namespace OneJS.Lighting {
             return (long)(rect.width * rect.height) * _settings.SamplesPerPass;
         }
 
-        RenderTexture Finish(CommandBuffer cmd, string name) {
+        // Resolves, dilates and denoises the page's sum into its slice of the lightmap.
+        void Finish(CommandBuffer cmd) {
             _work0 ??= Target(RenderTextureFormat.ARGBHalf, "OneJS Bake Work A");
             _work1 ??= Target(RenderTextureFormat.ARGBHalf, "OneJS Bake Work B");
-            var result = Target(RenderTextureFormat.ARGBHalf, name);
-            result.filterMode = FilterMode.Bilinear;
+            if (_lightmap == null) {
+                _lightmap = new RenderTexture(_width, _height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear) {
+                    name = "OneJS Lightmap", dimension = TextureDimension.Tex2DArray, volumeDepth = _pages,
+                    filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, useMipMap = false, autoGenerateMips = false,
+                    hideFlags = HideFlags.HideAndDontSave,
+                };
+                _lightmap.Create();
+            }
 
             var block = new MaterialPropertyBlock();
             block.SetTexture(SrcId, _accum);
@@ -328,9 +363,8 @@ namespace OneJS.Lighting {
             block.SetTexture(SrcId, from);
             block.SetInteger(RadiusId, _settings.DenoiseRadius);
             block.SetFloat(SigmaPId, _settings.DenoiseTexels / Mathf.Max(0.01f, _settings.Detail));
-            cmd.SetRenderTarget(result);
+            cmd.SetRenderTarget(_lightmap, 0, CubemapFace.Unknown, _page);
             cmd.DrawProcedural(Matrix4x4.identity, _material, PassDenoise, MeshTopology.Triangles, 3, 1, block);
-            return result;
         }
 
         // Starts reading the probe sums back; LandProbes solves them once all four have landed.
@@ -385,9 +419,8 @@ namespace OneJS.Lighting {
             ReleaseWork();
             if (_probeA != null) foreach (var t in _probeA) Release(t);
             if (_probeB != null) foreach (var t in _probeB) Release(t);
-            Release(_draft);
-            Release(_final);
-            _draft = _final = null;
+            Release(_lightmap);
+            _lightmap = null;
             Kill(_tris);
             Kill(_nodes);
             Kill(_gbufferMesh);
@@ -469,31 +502,43 @@ namespace OneJS.Lighting {
             d[o] = v.x; d[o + 1] = v.y; d[o + 2] = v.z;
         }
 
-        /// <summary>The static triangles with a corner each, so each carries its own centre to the G-buffer.</summary>
+        /// <summary>The page a triangle is on: its uv's whole part, read at its middle so a corner on the page's far edge counts as on it.</summary>
+        static int PageOf(BakeScene s, int triangle) {
+            var u = (s.Uvs[s.Indices[triangle * 3]].x + s.Uvs[s.Indices[triangle * 3 + 1]].x + s.Uvs[s.Indices[triangle * 3 + 2]].x) / 3f;
+            return Mathf.Clamp(Mathf.FloorToInt(u), 0, s.Pages - 1);
+        }
+
+        /// <summary>
+        /// The static triangles with a corner each, so each carries its own centre to the G-buffer, a
+        /// submesh a page, each at its page's uv (the page taken off u).
+        /// </summary>
         static Mesh GBufferMesh(BakeScene s) {
             var n = s.Indices.Length;
             var pos = new Vector3[n];
             var nrm = new Vector3[n];
             var uv = new Vector2[n];
             var centre = new Vector3[n];
+            var onPage = new System.Collections.Generic.List<int>[s.Pages];
+            for (var p = 0; p < s.Pages; p++) onPage[p] = new System.Collections.Generic.List<int>();
             for (var k = 0; k < n; k += 3) {
                 var c = (s.Positions[s.Indices[k]] + s.Positions[s.Indices[k + 1]] + s.Positions[s.Indices[k + 2]]) / 3f;
+                var page = PageOf(s, k / 3);
                 for (var j = 0; j < 3; j++) {
                     var v = s.Indices[k + j];
                     pos[k + j] = s.Positions[v];
                     nrm[k + j] = s.Normals[v];
-                    uv[k + j] = s.Uvs[v];
+                    uv[k + j] = s.Uvs[v] - new Vector2(page, 0);
                     centre[k + j] = c;
+                    onPage[page].Add(k + j);
                 }
             }
-            var indices = new int[n];
-            for (var i = 0; i < n; i++) indices[i] = i;
             var mesh = new Mesh { name = "OneJS Bake G-buffer", indexFormat = n > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16, hideFlags = HideFlags.HideAndDontSave };
             mesh.SetVertices(pos);
             mesh.SetNormals(nrm);
             mesh.SetUVs(0, uv);
             mesh.SetUVs(1, centre);
-            mesh.SetTriangles(indices, 0, false);
+            mesh.subMeshCount = s.Pages;
+            for (var p = 0; p < s.Pages; p++) mesh.SetTriangles(onPage[p], p, false);
             // Placed by uv, not by position, so Unity must never cull it by its bounds.
             mesh.bounds = new Bounds(Vector3.zero, Vector3.one * 1e6f);
             return mesh;
@@ -508,6 +553,8 @@ namespace OneJS.Lighting {
             if (s.Albedo.Length != s.Indices.Length / 3) throw new ArgumentException($"[OneJS] a bake needs an albedo for each of its {s.Indices.Length / 3} triangles, and has {s.Albedo.Length}");
             foreach (var i in s.Indices) if (i < 0 || i >= s.Positions.Length) throw new ArgumentException($"[OneJS] a bake's index {i} is past its {s.Positions.Length} positions");
             if (s.AtlasWidth < 1 || s.AtlasHeight < 1) throw new ArgumentException($"[OneJS] a bake's atlas is {s.AtlasWidth} by {s.AtlasHeight}");
+            if (s.Pages < 1) throw new ArgumentException($"[OneJS] a bake's atlas has {s.Pages} pages");
+            foreach (var uv in s.Uvs) if (!(uv.x >= -1e-3f && uv.x <= s.Pages + 1e-3f)) throw new ArgumentException($"[OneJS] a bake's uv {uv.x} is past its {s.Pages} pages");
             if (o.Samples < 1 || o.SamplesPerPass < 1 || o.ProbeRays < 1 || o.Bounces < 0) throw new ArgumentException("[OneJS] a bake's samples, rays and bounces must be positive");
             if (s.GridCounts.x * s.GridCounts.y * s.GridCounts.z > 0 && !(s.GridSpacing > 0)) throw new ArgumentException("[OneJS] a probe grid needs a spacing above 0");
         }

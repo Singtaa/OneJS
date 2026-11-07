@@ -19,8 +19,9 @@ namespace OneJS.Models {
     /// (LightMesh), unwraps them, hands the result back (SetLightUnwrap), and then names each
     /// static actor's and copy's rectangle of the atlas and the probe grid (BeginBake). The bridge
     /// gathers the world's triangles and their albedo into a LightBaker and steps it (StepBake).
-    /// The lightmap is the global `_OjLightmap`, each baked actor reads its rectangle from
-    /// `_ActorLightmapST`, and every other actor takes the light at its middle from the probes.
+    /// The lightmap is the global `_OjLightmap`, a texture array of up to 4 pages. Each baked actor
+    /// reads its rectangle from `_ActorLightmapST`, its page in the offset's whole part, once its
+    /// page has a draft, and every other actor takes the light at its middle from the probes.
     /// </summary>
     public static partial class ModelBridge {
         static readonly int ActorLightmapId = Shader.PropertyToID("_ActorLightmapST");
@@ -33,15 +34,20 @@ namespace OneJS.Models {
         static LightBaker _baker;
         // A bake BeginBake accepted that waits on its textures' means before its baker can start.
         static WaitingBake _waiting;
-        // The finished bake's light file, and the lightmap's read it waits on.
-        static TextureRead _fileRead;
+        // The finished bake's light file.
         static string _file;
         // Whether this bake's failed lightmap read has warned: LightFile reads again on each call, and says so once.
         static bool _fileReadWarned;
-        // The lightmap ModelLit reads now: the bake's draft, then its final. Null until the draft.
+        // The lightmap ModelLit reads now, a slice a page: the bake's, drafts then finals, or a file's. Null until the first draft.
         static Texture _lightmap;
-        // A lightmap read from a light file (LoadLight), which the bridge owns; a bake's are the baker's.
-        static Texture2D _loaded;
+        // How many of its pages, from the first, have light: an actor on a page past them is lit by the probes.
+        static int _pagesLit;
+        // A lightmap read from a light file (LoadLight), which the bridge owns; a bake's is the baker's.
+        static Texture2DArray _loaded;
+        // What _OjLightmap holds while there is no lightmap: ModelLit declares an array, and a 2D texture there is an error on some backends.
+        static Texture2DArray _noLight;
+        // The finished bake's pages' reads, which LightFile waits on.
+        static TextureRead[] _fileReads;
         // The probes' 27 floats each, as LightBaker.ProbeSH lays them out, and their grid. Null until read.
         static float[] _probes;
         static Vector3 _gridOrigin;
@@ -52,7 +58,20 @@ namespace OneJS.Models {
 
         static bool BuiltInPipeline => GraphicsSettings.currentRenderPipeline == null;
 
-        static bool Lightmapped(Actor a) => _lightmap != null && a.atlas.x > 0;
+        static bool Lightmapped(Actor a) => _lightmap != null && a.atlas.x > 0 && PageOf(a.atlas) < _pagesLit;
+
+        // A rectangle's page: its offset's whole part. Within a page the offset is under 1.
+        static int PageOf(Vector4 st) => (int)Math.Floor(st.z);
+
+        static Texture NoLight {
+            get {
+                if (_noLight != null) return _noLight;
+                _noLight = new Texture2DArray(1, 1, 1, TextureFormat.RGBA32, false, true) { name = "OneJS No Light", hideFlags = HideFlags.HideAndDontSave };
+                _noLight.SetPixels(new[] { Color.clear }, 0);
+                _noLight.Apply(false, true);
+                return _noLight;
+            }
+        }
 
         /// <summary>A model's renderers that draw a mesh, in the order every copy of it has them.</summary>
         static List<(MeshFilter filter, MeshRenderer renderer)> Parts(GameObject root) {
@@ -264,14 +283,15 @@ namespace OneJS.Models {
 
         /// <summary>
         /// Starts baking the scene's light, replacing any bake before it. Each static actor is five
-        /// floats in `actors` (its id, then its rectangle of the atlas as a uv scale and offset) and
-        /// each scattered copy six in `copies` (the scatter's id, the copy's index, its rectangle);
-        /// their models must have been given an unwrap. `grid` is the probe grid's origin, spacing
+        /// floats in `actors` (its id, then its rectangle of the atlas as a uv scale and offset, its
+        /// page added to the offset's x) and each scattered copy six in `copies` (the scatter's id,
+        /// the copy's index, its rectangle); their models must have been given an unwrap. The atlas
+        /// is `pages` pages of `width` by `height`. `grid` is the probe grid's origin, spacing
         /// and three counts. The bake bounces the ambient probe's two hemispheres (what SetAmbient
         /// writes and ModelLit's SampleSH reads) and the sun, and keeps the sun's first hit live.
         /// "" when it started, or why it could not.
         /// </summary>
-        public static string BeginBake(float[] actors, float[] copies, float[] grid, int width, int height, float detail, int samples) {
+        public static string BeginBake(float[] actors, float[] copies, float[] grid, int width, int height, int pages, float detail, int samples) {
             ClearLight();
             if (actors == null || actors.Length % ActorStride != 0) return "five floats a static actor: its id and its rectangle";
             if (copies == null || copies.Length % CopyStride != 0) return "six floats a copy: its scatter, its index and its rectangle";
@@ -279,14 +299,14 @@ namespace OneJS.Models {
             if (!LightBaker.Supported(out var why)) return $"this GPU cannot bake light: {why}";
 
             var scene = new SceneBuilder();
-            var problem = Place(actors, copies, scene);
+            var problem = Place(actors, copies, pages, scene);
             if (problem != "") {
                 ClearLight();
                 return problem;
             }
             if (scene.Empty) return "there is nothing static to bake";
 
-            var bake = scene.Build(width, height);
+            var bake = scene.Build(width, height, pages);
             var settings = new BakeSettings { Samples = Math.Max(1, samples), Detail = detail };
             bake.GridOrigin = new Vector3(grid[0], grid[1], grid[2]);
             bake.GridSpacing = grid[3];
@@ -342,11 +362,13 @@ namespace OneJS.Models {
         /// Gives each static actor and copy its rectangle of the atlas, as BeginBake and LoadLight
         /// read them, and hands its triangles to `scene` when there is one. "" or why not.
         /// </summary>
-        static string Place(float[] actors, float[] copies, SceneBuilder scene) {
+        static string Place(float[] actors, float[] copies, int pages, SceneBuilder scene) {
+            if (pages < 1) return $"an atlas has a page at least, not {pages}";
             for (int i = 0; i < actors.Length; i += ActorStride) {
                 if (!_actors.TryGetValue((int)actors[i], out var a)) return $"there is no actor {(int)actors[i]}";
                 if (!_models.TryGetValue(a.model, out var m) || m.lit == null) return $"actor {(int)actors[i]}'s model has no unwrap";
                 var st = new Vector4(actors[i + 1], actors[i + 2], actors[i + 3], actors[i + 4]);
+                if (PageOf(st) < 0 || PageOf(st) >= pages) return $"actor {(int)actors[i]} is on page {PageOf(st)} of {pages}";
                 if (scene != null) {
                     foreach (var (filter, renderer) in Parts(a.go)) scene.Add(filter.sharedMesh, filter.transform.localToWorldMatrix, renderer.sharedMaterials, st);
                 }
@@ -358,6 +380,7 @@ namespace OneJS.Models {
                 var copy = (int)copies[i + 1];
                 if (copy < 0 || copy >= s.data.Length / ScatterStride) return $"scatter {(int)copies[i]} has no copy {copy}";
                 var st = new Vector4(copies[i + 2], copies[i + 3], copies[i + 4], copies[i + 5]);
+                if (PageOf(st) < 0 || PageOf(st) >= pages) return $"scatter {(int)copies[i]}'s copy {copy} is on page {PageOf(st)} of {pages}";
                 if (scene != null) {
                     var matrix = CopyMatrix(s.data, copy);
                     foreach (var part in s.parts) scene.Add(part.filter.sharedMesh, matrix * part.local, part.materials, st);
@@ -369,24 +392,32 @@ namespace OneJS.Models {
         }
 
         /// <summary>
-        /// The finished bake as a light file (Lighting/LightFile.cs), base64: the lightmap and the
-        /// probes, which onejs-play saves with its record. "" while nothing has finished baking.
+        /// The finished bake as a light file (Lighting/LightFile.cs), base64: the lightmap's pages and
+        /// the probes, which onejs-play saves with its record. "" while nothing has finished baking.
         /// </summary>
         public static string LightFile() {
             if (_baker == null || !_baker.Done || _baker.Lightmap == null) return "";
             if (_file != null) return _file;
             var map = _baker.Lightmap;
-            // On WebGPU the lightmap's read lands a frame or more after it starts, and until then this is "".
-            _fileRead ??= TextureRead.Start(map);
-            if (!_fileRead.Done) return "";
-            var read = _fileRead;
-            _fileRead = null;
-            if (read.Error != null) {
-                if (!_fileReadWarned) Debug.LogWarning($"[OneJS] The bake's lightmap could not be read back, and is read again until it is: {read.Error}.");
-                _fileReadWarned = true;
-                return "";
+            var pages = _baker.Pages;
+            // On WebGPU each page's read lands a frame or more after it starts, and until then this is "".
+            if (_fileReads == null) {
+                _fileReads = new TextureRead[pages];
+                for (var p = 0; p < pages; p++) _fileReads[p] = TextureRead.Start(map, p);
             }
-            _file = Convert.ToBase64String(LightFileFormat.Encode(read.Colors(), map.width, map.height, _baker.ProbeSH));
+            foreach (var r in _fileReads) if (!r.Done) return "";
+            var reads = _fileReads;
+            _fileReads = null;
+            var light = new Color[map.width * map.height * pages];
+            for (var p = 0; p < pages; p++) {
+                if (reads[p].Error != null) {
+                    if (!_fileReadWarned) Debug.LogWarning($"[OneJS] The bake's lightmap could not be read back, and is read again until it is: {reads[p].Error}.");
+                    _fileReadWarned = true;
+                    return "";
+                }
+                reads[p].Colors().CopyTo(light, p * map.width * map.height);
+            }
+            _file = Convert.ToBase64String(LightFileFormat.Encode(light, map.width, map.height, pages, _baker.ProbeSH));
             return _file;
         }
 
@@ -422,7 +453,7 @@ namespace OneJS.Models {
         /// the rest are as BeginBake takes them, for the scene the file was baked for. Replaces any
         /// bake before it. "" when the light is showing, or why not, and then nothing is lit by it.
         /// </summary>
-        public static string LoadLight(string file, float[] actors, float[] copies, float[] grid, int width, int height) {
+        public static string LoadLight(string file, float[] actors, float[] copies, float[] grid, int width, int height, int pages) {
             ClearLight();
             if (actors == null || actors.Length % ActorStride != 0) return "five floats a static actor: its id and its rectangle";
             if (copies == null || copies.Length % CopyStride != 0) return "six floats a copy: its scatter, its index and its rectangle";
@@ -434,8 +465,8 @@ namespace OneJS.Models {
                 return "the light file is not base64";
             }
             var counts = new Vector3Int((int)grid[4], (int)grid[5], (int)grid[6]);
-            var problem = LightFileFormat.Decode(png, width, height, counts.x * counts.y * counts.z, out var light, out var probes);
-            if (problem == "") problem = Place(actors, copies, null);
+            var problem = LightFileFormat.Decode(png, width, height, pages, counts.x * counts.y * counts.z, out var light, out var probes);
+            if (problem == "") problem = Place(actors, copies, pages, null);
             if (problem != "") {
                 if (light != null) Kill(light);
                 ClearLight();
@@ -449,7 +480,7 @@ namespace OneJS.Models {
                 _probes = probes;
                 Probing(true);
             }
-            ShowLightmap(light);
+            ShowLightmap(light, pages);
             UpdateProbes();
             return "";
         }
@@ -467,7 +498,7 @@ namespace OneJS.Models {
         /// <summary>
         /// Does `tiles` tiles of the bake (LightBaker.TilePaths paths each; a path is one ray from a
         /// texel or a probe, with its bounces), at least one, and shows what is ready: the probes,
-        /// then the draft lightmap, then the final.
+        /// then each page's draft lightmap, then its final.
         /// Returns the bake's progress, 1 once done (the probes read back too), or -1 when nothing is
         /// baking. 0 while the bake waits on its textures' means.
         /// </summary>
@@ -495,7 +526,7 @@ namespace OneJS.Models {
                 Probing(true);
                 UpdateProbes();
             }
-            if (_baker.Lightmap != null && _lightmap != _baker.Lightmap) ShowLightmap(_baker.Lightmap);
+            if (_baker.Lightmap != null && (_lightmap != _baker.Lightmap || _pagesLit != _baker.PagesLit)) ShowLightmap(_baker.Lightmap, _baker.PagesLit);
             return done ? 1 : Mathf.Min(_baker.Progress, 0.999f);
         }
 
@@ -505,6 +536,9 @@ namespace OneJS.Models {
         /// lightmap, 4 finishing. The frame budget starts over when it changes.
         /// </summary>
         public static int BakePhase() => _baker == null ? (int)global::OneJS.Lighting.BakePhase.None : (int)_baker.Phase;
+
+        /// <summary>The page the bake's lightmap is on, from 0. The frame budget starts over when it changes, as at a phase.</summary>
+        public static int BakePage() => _baker == null ? 0 : _baker.Page;
 
         /// <summary>Whether a bake has been started and not finished.</summary>
         public static bool Baking => _waiting != null || (_baker != null && !_baker.Done);
@@ -520,20 +554,30 @@ namespace OneJS.Models {
         internal static Vector4 ScatterAtlas(int scatter, int copy) =>
             _scatters.TryGetValue(scatter, out var s) && s.atlas != null && copy >= 0 && copy < s.atlas.Length ? s.atlas[copy] : Vector4.zero;
 
-        static void ShowLightmap(Texture lightmap) {
-            var first = _lightmap == null;
+        // Shows `lightmap` with its first `pagesLit` pages lit: the actors and chunks on pages that were not lit before draw from it now.
+        static void ShowLightmap(Texture lightmap, int pagesLit) {
+            var before = _lightmap == null ? 0 : _pagesLit;
             _lightmap = lightmap;
+            _pagesLit = pagesLit;
             Shader.SetGlobalTexture(LightmapId, lightmap);
-            if (!first) return;
-            foreach (var a in _actors.Values) if (a.atlas.x > 0) Apply(a);
+            if (pagesLit == before) return;
+            foreach (var a in _actors.Values) {
+                if (a.atlas.x > 0 && PageOf(a.atlas) >= before && PageOf(a.atlas) < pagesLit) Apply(a);
+            }
             foreach (var s in _scatters.Values) if (s.atlas != null) LightChunks(s);
         }
 
-        // Each chunk's copies' rectangles, as the per-instance values its draw reads.
+        // Each chunk's copies' rectangles, as the per-instance values its draw reads, once every page they are on is lit.
         static void LightChunks(Scattered s) {
             foreach (var chunk in s.chunks) {
+                if (chunk.light != null) continue;
                 var st = new Vector4[chunk.copies.Length];
-                for (int k = 0; k < st.Length; k++) st[k] = s.atlas[chunk.copies[k]];
+                var lit = true;
+                for (int k = 0; k < st.Length; k++) {
+                    st[k] = s.atlas[chunk.copies[k]];
+                    if (st[k].x > 0 && PageOf(st[k]) >= _pagesLit) lit = false;
+                }
+                if (!lit) continue;
                 chunk.light = new MaterialPropertyBlock();
                 chunk.light.SetVectorArray(ActorLightmapId, st);
                 if (BuiltInPipeline) chunk.light.CopySHCoefficientArraysFrom(new SphericalHarmonicsL2[st.Length]);
@@ -546,16 +590,17 @@ namespace OneJS.Models {
             _baker = null;
             _waiting?.scene.Dispose();
             _waiting = null;
-            _fileRead = null;
+            _fileReads = null;
             _file = null;
             _fileReadWarned = false;
             if (_loaded != null) Kill(_loaded);
             _loaded = null;
             var had = _lightmap != null || _probes != null;
             _lightmap = null;
+            _pagesLit = 0;
             _probes = null;
             Probing(false);
-            Shader.SetGlobalTexture(LightmapId, Texture2D.blackTexture);
+            Shader.SetGlobalTexture(LightmapId, NoLight);
             foreach (var a in _actors.Values) {
                 var touched = a.atlas != Vector4.zero || a.probed;
                 a.atlas = Vector4.zero;
@@ -770,9 +815,9 @@ namespace OneJS.Models {
             }
 
             /// <summary>The scene, its albedo left for FillAlbedo.</summary>
-            public BakeScene Build(int width, int height) => new BakeScene {
+            public BakeScene Build(int width, int height, int pages) => new BakeScene {
                 Positions = _positions.ToArray(), Normals = _normals.ToArray(), Uvs = _uvs.ToArray(),
-                Indices = _indices.ToArray(), Albedo = new Color[_surface.Count], AtlasWidth = width, AtlasHeight = height,
+                Indices = _indices.ToArray(), Albedo = new Color[_surface.Count], AtlasWidth = width, AtlasHeight = height, Pages = pages,
             };
         }
     }

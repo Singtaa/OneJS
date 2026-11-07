@@ -102,11 +102,18 @@ Shader "OneJS/ModelLit" {
         #endif
 
         // The scene's baked light (ModelBridge.Light.cs): light arriving at a static surface, sky and
-        // bounce without the sun's first hit, in the units SampleSH gives. An actor with a rectangle
-        // of it (_ActorLightmapST's scale above 0) reads it at its TEXCOORD1 in place of the probe.
-        // A branch on a per-actor value rather than a keyword, since one material draws baked and
-        // moving actors alike, and a run-time keyword would be stripped from a build.
-        TEXTURE2D(_OjLightmap); SAMPLER(sampler_OjLightmap);
+        // bounce without the sun's first hit, in the units SampleSH gives, a slice a page. An actor
+        // with a rectangle of it (_ActorLightmapST's scale above 0) reads it at its TEXCOORD1 in
+        // place of the probe, on the page in the offset's whole part. A branch on a per-actor value
+        // rather than a keyword, since one material draws baked and moving actors alike, and a
+        // run-time keyword would be stripped from a build.
+        TEXTURE2D_ARRAY(_OjLightmap); SAMPLER(sampler_OjLightmap);
+
+        // A rectangle's uv on its page, and the page: the offset's whole part, which no uv within a page reaches.
+        float3 LightmapUV(float2 uv, float4 st) {
+            float page = floor(st.z);
+            return float3(uv * st.xy + float2(st.z - page, st.w), page);
+        }
 
         // The material's dissolve or the actor's, whichever is further gone.
         float Dissolved() {
@@ -129,6 +136,8 @@ Shader "OneJS/ModelLit" {
 
             HLSLPROGRAM
             #pragma target 3.0
+            // The baked light's pages are a texture array.
+            #pragma require 2darray
             #pragma vertex Vert
             #pragma fragment Frag
 
@@ -171,7 +180,7 @@ Shader "OneJS/ModelLit" {
                 half4 tangentWS : TEXCOORD3;
                 float3 positionOS : TEXCOORD4;
                 half4 fogAndVertexLight : TEXCOORD5;
-                float2 lightmapUV : TEXCOORD7;
+                float3 lightmapUV : TEXCOORD7;
                 #ifdef _VERTEX_COLOR
                     half4 color : TEXCOORD6;
                 #endif
@@ -189,8 +198,7 @@ Shader "OneJS/ModelLit" {
                 o.normalWS = n.normalWS;
                 o.tangentWS = half4(n.tangentWS, v.tangentOS.w * GetOddNegativeScale());
                 o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
-                float4 lightmapST = MODEL_ACTOR_LIGHTMAP_ST;
-                o.lightmapUV = v.lightmapUV * lightmapST.xy + lightmapST.zw;
+                o.lightmapUV = LightmapUV(v.lightmapUV, MODEL_ACTOR_LIGHTMAP_ST);
                 o.positionOS = v.positionOS.xyz;
                 #ifdef _VERTEX_COLOR
                     o.color = v.color;
@@ -246,7 +254,7 @@ Shader "OneJS/ModelLit" {
                     d.vertexLighting = i.fogAndVertexLight.yzw;
                 #endif
                 d.bakedGI = MODEL_ACTOR_LIGHTMAP_ST.x > 0
-                    ? SAMPLE_TEXTURE2D(_OjLightmap, sampler_OjLightmap, i.lightmapUV).rgb
+                    ? SAMPLE_TEXTURE2D_ARRAY(_OjLightmap, sampler_OjLightmap, i.lightmapUV.xy, i.lightmapUV.z).rgb
                     : SampleSH(d.normalWS);
                 d.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(i.positionCS);
                 d.shadowMask = half4(1, 1, 1, 1);
@@ -423,6 +431,7 @@ Shader "OneJS/ModelLit" {
         CGPROGRAM
         #pragma surface Surf Standard fullforwardshadows addshadow keepalpha vertex:Vert
         #pragma target 3.0
+        #pragma require 2darray
         #pragma multi_compile_local _ _VERTEX_COLOR
         #include "ModelDissolve.hlsl"
 
@@ -451,12 +460,13 @@ Shader "OneJS/ModelLit" {
         UNITY_INSTANCING_BUFFER_START(ModelActorLight)
             UNITY_DEFINE_INSTANCED_PROP(float4, _ActorLightmapST)
         UNITY_INSTANCING_BUFFER_END(ModelActorLight)
-        sampler2D _OjLightmap;
+        UNITY_DECLARE_TEX2DARRAY(_OjLightmap);
 
         struct Input {
             float2 uv_BaseMap;
             float3 positionOS;
-            float2 lightmapUV;
+            // The uv on its page, and the page (see the URP SubShader's LightmapUV).
+            float3 lightmapUV;
             // Filled from the mesh's COLOR by the surface shader; read only under _VERTEX_COLOR.
             float4 color : COLOR;
         };
@@ -465,7 +475,8 @@ Shader "OneJS/ModelLit" {
             UNITY_INITIALIZE_OUTPUT(Input, o);
             o.positionOS = v.vertex.xyz;
             float4 lightmapST = UNITY_ACCESS_INSTANCED_PROP(ModelActorLight, _ActorLightmapST);
-            o.lightmapUV = v.texcoord1.xy * lightmapST.xy + lightmapST.zw;
+            float page = floor(lightmapST.z);
+            o.lightmapUV = float3(v.texcoord1.xy * lightmapST.xy + float2(lightmapST.z - page, lightmapST.w), page);
         }
 
         void Surf(Input i, inout SurfaceOutputStandard o) {
@@ -490,7 +501,7 @@ Shader "OneJS/ModelLit" {
             o.Occlusion = lerp(1.0, tex2D(_OcclusionMap, uv).r, _OcclusionStrength);
             o.Emission = emission;
             if (UNITY_ACCESS_INSTANCED_PROP(ModelActorLight, _ActorLightmapST).x > 0) {
-                o.Emission += o.Albedo * (1.0 - o.Metallic) * o.Occlusion * tex2D(_OjLightmap, i.lightmapUV).rgb;
+                o.Emission += o.Albedo * (1.0 - o.Metallic) * o.Occlusion * UNITY_SAMPLE_TEX2DARRAY(_OjLightmap, i.lightmapUV).rgb;
             }
         }
         ENDCG

@@ -11,14 +11,15 @@ measurements are `PlaySite/docs/lightmapping.md` in the container repo.
 | `Bvh.cs` | The triangle hierarchy the trace walks, built on the CPU |
 | `ProbeSolve.cs` | The probe pass's sums as `SphericalHarmonicsL2` coefficients, and probes inside solids filled from their neighbours |
 | `TextureRead.cs` | A float or half-float render texture read back to the CPU: `AsyncGPUReadback` where the GPU has it, landing a frame or more later, and `ReadPixels` where it does not, landing at once. Both browser backends have it |
-| `LightFile.cs` | A finished bake as one PNG and back: the lightmap as 8-bit RGBM over a range of 8, and under it the probes, each float as its four bytes in one pixel, so they read back exactly |
+| `LightFile.cs` | A finished bake as one PNG and back: the lightmap's pages as 8-bit RGBM over a range of 8, the first at the top, and under the last the probes, each float as its four bytes in one pixel, so they read back exactly. A one-page file is laid out as files were before pages |
 | `Resources/OneJS/LightBake.shader` | The passes: G-buffer, lightmap trace, probe trace, resolve, dilation, denoise |
 
 ## What it bakes
 
-The static triangles arrive in world space, already laid out in one atlas (the
-unwrap is onejs-play's `src/light/unwrap.ts`). Each triangle receives light and
-blocks and bounces it. The bake is:
+The static triangles arrive in world space, already laid out in an atlas of up
+to 4 pages, each page's uvs offset by its number in u (the unwrap and the
+packing are onejs-play's `src/light/unwrap.ts` and `atlas.ts`). Each triangle
+receives light and blocks and bounces it, whatever page it is on. The bake is:
 
 - **the sky and the ground** of the ambient, as two hemispheres of constant
   radiance. That is exactly the light `ModelBridge.HemisphereProbe` gives an
@@ -39,12 +40,15 @@ neighbours' mean, filled in from outside a ring at a time.
 
 ## How it runs
 
-Fragment passes, not compute, so WebGL 2 runs them. The G-buffer is drawn once;
-the probes are traced first, so moving things are lit within a few frames; then
-the lightmap, a tile at a time, as a running mean blended into a half-float
-target (no ping-pong, so a tile writes only its own texels). A draft is finished
-at `DraftSamples` and the final at `Samples`, each by resolve, four steps of
-dilation and an edge-aware denoise of the whole map. `Step(paths)` does about
+Fragment passes, not compute, so WebGL 2 runs them. The world's triangles and
+hierarchy are built once and the probes traced first, so moving things are lit
+within a few frames; then the lightmap, a page at a time: the page's G-buffer
+(a submesh a page), then its tiles as a running mean blended into a half-float
+target (no ping-pong, so a tile writes only its own texels). A page's draft is
+finished at `DraftSamples` and its final at `Samples`, each by resolve, four
+steps of dilation and an edge-aware denoise of the page, into its slice of the
+lightmap, a half-float texture array. `PagesLit` counts the pages with light,
+and `Page` the one being baked, whose first frame lays its G-buffer. `Step(paths)` does about
 that many paths, at least one draw; `RunToEnd` bakes everything, waiting on the
 GPU between submissions so none grows long enough to trip a watchdog. A bake is
 `Done` once its lightmap is finished and its probes are read back, which on
@@ -56,9 +60,10 @@ at a hundred metres), half-float ones, four targets at once and float textures.
 `LightBaker.Supported` says which is missing; a game without them keeps its flat
 ambient.
 
-Memory while baking: 72 bytes a texel (positions and normals in float, the sum,
-two work targets, the draft and the final in half), 19 MB at 512 by 512. The
-draft and the final stay; the rest is freed at the end.
+Memory while baking: 56 bytes a texel of the page being baked (positions and
+normals in float, the sum and two work targets in half), 15 MB at 512 by 512,
+reused by each page, and 8 bytes a texel of each page in the lightmap, 2 MB a
+page. The lightmap stays; the rest is freed at the end.
 
 ## Who calls it
 

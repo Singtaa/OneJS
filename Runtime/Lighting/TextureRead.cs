@@ -61,12 +61,15 @@ namespace OneJS.Lighting {
         }
 
         /// <summary>Starts reading `rt`, which must be ARGBFloat or ARGBHalf, after everything drawn into it so far.</summary>
-        public static TextureRead Start(RenderTexture rt) => new TextureRead(rt, 0, 0, rt.width, rt.height);
+        public static TextureRead Start(RenderTexture rt) => new TextureRead(rt, 0, 0, rt.width, rt.height, 0);
 
-        /// <summary>Starts reading the `width` by `height` block of `rt` at (x, y).</summary>
-        public static TextureRead Start(RenderTexture rt, int x, int y, int width, int height) => new TextureRead(rt, x, y, width, height);
+        /// <summary>Starts reading the `width` by `height` block of `rt` at (x, y), of its slice `slice` when it is an array.</summary>
+        public static TextureRead Start(RenderTexture rt, int x, int y, int width, int height, int slice = 0) => new TextureRead(rt, x, y, width, height, slice);
 
-        TextureRead(RenderTexture rt, int x, int y, int width, int height) {
+        /// <summary>Starts reading slice `slice` of the texture array `rt`, whole.</summary>
+        public static TextureRead Start(RenderTexture rt, int slice) => new TextureRead(rt, 0, 0, rt.width, rt.height, slice);
+
+        TextureRead(RenderTexture rt, int x, int y, int width, int height, int slice) {
             if (rt == null) throw new ArgumentNullException(nameof(rt));
             if (rt.format != RenderTextureFormat.ARGBFloat && rt.format != RenderTextureFormat.ARGBHalf) {
                 throw new ArgumentException($"[OneJS] a texture read takes an ARGBFloat or ARGBHalf target, and {rt.name} is {rt.format}");
@@ -77,11 +80,11 @@ namespace OneJS.Lighting {
             if (Fail) {
                 _error = "a test failed the read";
             } else if (Async) {
-                _request = AsyncGPUReadback.Request(rt, 0, x, width, y, height, 0, 1);
+                _request = AsyncGPUReadback.Request(rt, 0, x, width, y, height, slice, 1);
                 _pending = true;
                 Poll();
             } else {
-                _texels = ReadPixels(rt, x, y, width, height, _half);
+                _texels = ReadPixels(rt, x, y, width, height, slice, _half);
             }
         }
 
@@ -130,11 +133,12 @@ namespace OneJS.Lighting {
             }
         }
 
-        static float[] ReadPixels(RenderTexture rt, int x, int y, int width, int height, bool half) {
+        static float[] ReadPixels(RenderTexture rt, int x, int y, int width, int height, int slice, bool half) {
             var tex = new Texture2D(width, height, half ? TextureFormat.RGBAHalf : TextureFormat.RGBAFloat, false, true);
             var previous = RenderTexture.active;
             try {
-                RenderTexture.active = rt;
+                if (rt.dimension == TextureDimension.Tex2DArray) Graphics.SetRenderTarget(rt, 0, CubemapFace.Unknown, slice);
+                else RenderTexture.active = rt;
                 tex.ReadPixels(new Rect(x, y, width, height), 0, 0, false);
                 if (!half) return tex.GetPixelData<float>(0).ToArray();
                 var colors = tex.GetPixels();
