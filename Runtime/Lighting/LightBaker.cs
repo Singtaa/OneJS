@@ -5,18 +5,19 @@ using UnityEngine.Rendering;
 namespace OneJS.Lighting {
     /// <summary>
     /// What a bake lights: the static triangles, in world space, already laid out in the atlas's
-    /// pages. Every triangle both receives light and blocks or bounces it, whichever page it is on.
+    /// sheet (LightSheet). Every triangle both receives light and blocks or bounces it, whichever
+    /// page it is on.
     /// </summary>
     public sealed class BakeScene {
         public Vector3[] Positions;
         /// <summary>Per vertex, world space: what the G-buffer interpolates.</summary>
         public Vector3[] Normals;
-        /// <summary>Per vertex, the atlas uv, 0 to 1 a side, its page added to u: page 2's run from 2 to 3.</summary>
+        /// <summary>Per vertex, the uv on the sheet, in pages (LightSheet): 0 to 1 a side on one page.</summary>
         public Vector2[] Uvs;
         public int[] Indices;
         /// <summary>Per triangle, linear: what a bounce off it is tinted by.</summary>
         public Color[] Albedo;
-        /// <summary>Each page's size, and how many pages.</summary>
+        /// <summary>Each page's size, and how many pages: 1, 2 or 4 (LightSheet).</summary>
         public int AtlasWidth;
         public int AtlasHeight;
         public int Pages = 1;
@@ -68,6 +69,12 @@ namespace OneJS.Lighting {
     /// page at a time, each page shown as a draft at DraftSamples and finished at Samples. The world
     /// is built once for every page, and one page's working textures are held at a time. Step does
     /// at most about the paths it is given, in tiles, so a game can bake beside its frame.
+    ///
+    /// A page of a sheet of several bakes an apron round itself, as many texels as dilation and the
+    /// denoiser reach, and seeds each texel's paths by where it is on the sheet and which sweep it
+    /// is in. So the texels two pages share come out the same on both, and the seam between them
+    /// is not seen. One page has no apron and keeps the seeds it had before pages: its bake is the
+    /// same to the bit.
     /// </summary>
     public sealed class LightBaker : IDisposable {
         public const string ShaderPath = "OneJS/LightBake";
@@ -90,14 +97,18 @@ namespace OneJS.Lighting {
             SrcId = Shader.PropertyToID("_Src"), RadiusId = Shader.PropertyToID("_Radius"), SigmaPId = Shader.PropertyToID("_SigmaP"),
             GridOriginId = Shader.PropertyToID("_GridOrigin"), GridSpacingId = Shader.PropertyToID("_GridSpacing"),
             GridCountsId = Shader.PropertyToID("_GridCounts"), ProbesWideId = Shader.PropertyToID("_ProbesWide"), RaysId = Shader.PropertyToID("_Rays"),
-            RayBaseId = Shader.PropertyToID("_RayBase"), RayTotalId = Shader.PropertyToID("_RayTotal");
+            RayBaseId = Shader.PropertyToID("_RayBase"), RayTotalId = Shader.PropertyToID("_RayTotal"),
+            WindowId = Shader.PropertyToID("_Window"), OriginXId = Shader.PropertyToID("_OriginX"), OriginYId = Shader.PropertyToID("_OriginY"),
+            FromId = Shader.PropertyToID("_From");
         static readonly int[] PrevIds = { Shader.PropertyToID("_Prev0"), Shader.PropertyToID("_Prev1"), Shader.PropertyToID("_Prev2"), Shader.PropertyToID("_Prev3") };
 
         readonly BakeSettings _settings;
         readonly Material _material;
         readonly Texture2D _tris, _nodes;
         readonly Mesh _gbufferMesh;
-        readonly int _width, _height, _pages;
+        readonly LightSheet _sheet;
+        // Each page's size, and its working textures', its apron each side added.
+        readonly int _width, _height, _pages, _apron, _workWidth, _workHeight;
         RenderTexture _gPos, _gNormal, _accum, _work0, _work1;
         // Every page, a slice each, once the first has its draft.
         RenderTexture _lightmap;
@@ -142,6 +153,10 @@ namespace OneJS.Lighting {
             _width = scene.AtlasWidth;
             _height = scene.AtlasHeight;
             _pages = scene.Pages;
+            _sheet = new LightSheet(_width, _height, _pages);
+            _apron = _pages == 1 ? 0 : DilateSteps + _settings.DenoiseRadius;
+            _workWidth = _width + 2 * _apron;
+            _workHeight = _height + 2 * _apron;
             _material = new Material(Resources.Load<Shader>(ShaderPath)) { hideFlags = HideFlags.HideAndDontSave };
 
             var (nodes, order) = Bvh.Build(scene.Positions, scene.Indices);
@@ -186,8 +201,8 @@ namespace OneJS.Lighting {
             }
 
             var tile = Math.Max(8, _settings.TileSize);
-            _tilesX = (_width + tile - 1) / tile;
-            _tilesY = (_height + tile - 1) / tile;
+            _tilesX = (_workWidth + tile - 1) / tile;
+            _tilesY = (_workHeight + tile - 1) / tile;
         }
 
         public int Width => _width;
@@ -310,13 +325,17 @@ namespace OneJS.Lighting {
         }
 
         // Lays page `page`'s triangles into the G-buffer and clears its sum: the page's first frame.
+        // Every triangle is drawn, moved so the page and its apron fill the target, which clips the rest.
         void StartPage(CommandBuffer cmd, int page) {
             _page = page;
             _tile = 0;
             Samples = 0;
+            var corner = _sheet.Origin(page) - new Vector2Int(_apron, _apron);
+            var block = new MaterialPropertyBlock();
+            block.SetVector(WindowId, new Vector4(_width / (float)_workWidth, _height / (float)_workHeight, -corner.x / (float)_workWidth, -corner.y / (float)_workHeight));
             cmd.SetRenderTarget(new RenderTargetIdentifier[] { _gPos, _gNormal }, _gPos.depthBuffer);
             cmd.ClearRenderTarget(false, true, Color.clear);
-            cmd.DrawMesh(_gbufferMesh, Matrix4x4.identity, _material, page, PassGBuffer);
+            cmd.DrawMesh(_gbufferMesh, Matrix4x4.identity, _material, 0, PassGBuffer, block);
             cmd.SetRenderTarget(_accum);
             cmd.ClearRenderTarget(false, true, Color.clear);
         }
@@ -326,12 +345,19 @@ namespace OneJS.Lighting {
             if (_tile == 0) _sweepSamples = Samples + _settings.SamplesPerPass;
             var tx = _tile % _tilesX;
             var ty = _tile / _tilesX;
-            var rect = new Rect(tx * tile, ty * tile, Math.Min(tile, _width - tx * tile), Math.Min(tile, _height - ty * tile));
+            var rect = new Rect(tx * tile, ty * tile, Math.Min(tile, _workWidth - tx * tile), Math.Min(tile, _workHeight - ty * tile));
             var block = new MaterialPropertyBlock();
             block.SetInteger(SamplesId, _settings.SamplesPerPass);
             // The running mean: a texel with n samples takes k more at k / (n + k).
             block.SetFloat(WeightId, _settings.SamplesPerPass / (float)_sweepSamples);
-            cmd.SetGlobalInteger(PassId, (int)_pass++);
+            // A texel's paths are seeded by its place on the sheet (its apron's corner added, so never
+            // below 0) and the pass: on one page its count, as before pages; on a sheet the sweep, the
+            // same for a texel on whichever page bakes it.
+            var origin = _sheet.Origin(_page);
+            block.SetInteger(OriginXId, origin.x);
+            block.SetInteger(OriginYId, origin.y);
+            cmd.SetGlobalInteger(PassId, (int)(_apron == 0 ? _pass : (uint)(_sweepSamples / _settings.SamplesPerPass)));
+            _pass++;
             cmd.SetRenderTarget(_accum);
             cmd.EnableScissorRect(rect);
             cmd.DrawProcedural(Matrix4x4.identity, _material, PassTrace, MeshTopology.Triangles, 3, 1, block);
@@ -369,6 +395,8 @@ namespace OneJS.Lighting {
             block.SetTexture(SrcId, from);
             block.SetInteger(RadiusId, _settings.DenoiseRadius);
             block.SetFloat(SigmaPId, _settings.DenoiseTexels / Mathf.Max(0.01f, _settings.Detail));
+            // The page's own texels, inside its apron.
+            block.SetInteger(FromId, _apron);
             cmd.SetRenderTarget(_lightmap, 0, CubemapFace.Unknown, _page);
             cmd.DrawProcedural(Matrix4x4.identity, _material, PassDenoise, MeshTopology.Triangles, 3, 1, block);
         }
@@ -446,7 +474,8 @@ namespace OneJS.Lighting {
             Kill(rt);
         }
 
-        RenderTexture Target(RenderTextureFormat format, string name) => Target(_width, _height, format, name);
+        // A working texture: the page and its apron.
+        RenderTexture Target(RenderTextureFormat format, string name) => Target(_workWidth, _workHeight, format, name);
 
         static RenderTexture Target(int w, int h, RenderTextureFormat format, string name) {
             var rt = new RenderTexture(w, h, 0, format, RenderTextureReadWrite.Linear) {
@@ -508,15 +537,9 @@ namespace OneJS.Lighting {
             d[o] = v.x; d[o + 1] = v.y; d[o + 2] = v.z;
         }
 
-        /// <summary>The page a triangle is on: its uv's whole part, read at its middle so a corner on the page's far edge counts as on it.</summary>
-        static int PageOf(BakeScene s, int triangle) {
-            var u = (s.Uvs[s.Indices[triangle * 3]].x + s.Uvs[s.Indices[triangle * 3 + 1]].x + s.Uvs[s.Indices[triangle * 3 + 2]].x) / 3f;
-            return Mathf.Clamp(Mathf.FloorToInt(u), 0, s.Pages - 1);
-        }
-
         /// <summary>
-        /// The static triangles with a corner each, so each carries its own centre to the G-buffer, a
-        /// submesh a page, each at its page's uv (the page taken off u).
+        /// The static triangles with a corner each, so each carries its own centre to the G-buffer, at
+        /// their uvs on the sheet: each page draws them all, moved to it.
         /// </summary>
         static Mesh GBufferMesh(BakeScene s) {
             var n = s.Indices.Length;
@@ -524,18 +547,16 @@ namespace OneJS.Lighting {
             var nrm = new Vector3[n];
             var uv = new Vector2[n];
             var centre = new Vector3[n];
-            var onPage = new System.Collections.Generic.List<int>[s.Pages];
-            for (var p = 0; p < s.Pages; p++) onPage[p] = new System.Collections.Generic.List<int>();
+            var order = new int[n];
             for (var k = 0; k < n; k += 3) {
                 var c = (s.Positions[s.Indices[k]] + s.Positions[s.Indices[k + 1]] + s.Positions[s.Indices[k + 2]]) / 3f;
-                var page = PageOf(s, k / 3);
                 for (var j = 0; j < 3; j++) {
                     var v = s.Indices[k + j];
                     pos[k + j] = s.Positions[v];
                     nrm[k + j] = s.Normals[v];
-                    uv[k + j] = s.Uvs[v] - new Vector2(page, 0);
+                    uv[k + j] = s.Uvs[v];
                     centre[k + j] = c;
-                    onPage[page].Add(k + j);
+                    order[k + j] = k + j;
                 }
             }
             var mesh = new Mesh { name = "OneJS Bake G-buffer", indexFormat = n > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16, hideFlags = HideFlags.HideAndDontSave };
@@ -543,8 +564,7 @@ namespace OneJS.Lighting {
             mesh.SetNormals(nrm);
             mesh.SetUVs(0, uv);
             mesh.SetUVs(1, centre);
-            mesh.subMeshCount = s.Pages;
-            for (var p = 0; p < s.Pages; p++) mesh.SetTriangles(onPage[p], p, false);
+            mesh.SetTriangles(order, 0, false);
             // Placed by uv, not by position, so Unity must never cull it by its bounds.
             mesh.bounds = new Bounds(Vector3.zero, Vector3.one * 1e6f);
             return mesh;
@@ -559,8 +579,9 @@ namespace OneJS.Lighting {
             if (s.Albedo.Length != s.Indices.Length / 3) throw new ArgumentException($"[OneJS] a bake needs an albedo for each of its {s.Indices.Length / 3} triangles, and has {s.Albedo.Length}");
             foreach (var i in s.Indices) if (i < 0 || i >= s.Positions.Length) throw new ArgumentException($"[OneJS] a bake's index {i} is past its {s.Positions.Length} positions");
             if (s.AtlasWidth < 1 || s.AtlasHeight < 1) throw new ArgumentException($"[OneJS] a bake's atlas is {s.AtlasWidth} by {s.AtlasHeight}");
-            if (s.Pages < 1) throw new ArgumentException($"[OneJS] a bake's atlas has {s.Pages} pages");
-            foreach (var uv in s.Uvs) if (!(uv.x >= -1e-3f && uv.x <= s.Pages + 1e-3f)) throw new ArgumentException($"[OneJS] a bake's uv {uv.x} is past its {s.Pages} pages");
+            var sheet = new LightSheet(s.AtlasWidth, s.AtlasHeight, s.Pages);
+            foreach (var uv in s.Uvs) if (!sheet.Holds(uv)) throw new ArgumentException($"[OneJS] a bake's uv {uv} is past its {s.Pages} pages");
+            if (o.DenoiseRadius < 0) throw new ArgumentException($"[OneJS] a bake's denoise radius is 0 or more, not {o.DenoiseRadius}");
             if (o.Samples < 1 || o.SamplesPerPass < 1 || o.ProbeRays < 1) throw new ArgumentException("[OneJS] a bake's samples and rays must be positive");
             if (o.Samples > MaxSamples) throw new ArgumentException($"[OneJS] a bake's samples are 1 to {MaxSamples}, not {o.Samples}");
             if (o.Bounces < 0 || o.Bounces > MaxBounces) throw new ArgumentException($"[OneJS] a bake's bounces are 0 to {MaxBounces}, not {o.Bounces}");

@@ -64,19 +64,29 @@ namespace OneJS.Tests.Models {
         static string Unwrap(int model, uint[] indices) =>
             ModelBridge.SetLightUnwrap(model, new uint[] { 0, 1, 2, 3 }, new float[] { 0, 0, 1, 0, 1, 1, 0, 1 }, indices);
 
-        // The floor's rectangle on page `floorPage` of `pages`: the page rides in the offset's whole part.
-        static Vector4 FloorOn(int floorPage) => FloorST + new Vector4(0, 0, floorPage, 0);
+        // The floor's rectangle on page 0, or on page 1, the sheet's second column: moved by where that column starts, so its uv on page 1 is FloorST's.
+        static Vector4 FloorOn(int floorPage) => floorPage == 0 ? FloorST : FloorST + new Vector4(0, 0, (AtlasWidth - LightSheet.Seam) / (float)AtlasWidth, 0);
 
-        float[] Actors(int floorPage = 0) {
-            var floor = FloorOn(floorPage);
-            return new[] { _floorActor, floor.x, floor.y, floor.z, floor.w, _roofActor, RoofST.x, RoofST.y, RoofST.z, RoofST.w };
-        }
+        float[] Actors(int floorPage = 0) => Actors(FloorOn(floorPage), RoofST);
+
+        float[] Actors(Vector4 floor, Vector4 roof) => new[] { _floorActor, floor.x, floor.y, floor.z, floor.w, _roofActor, roof.x, roof.y, roof.z, roof.w };
 
         string Bake(int pages = 1, int floorPage = 0, int bounces = 2, float occlusion = 0, int samples = 32) {
             Assert.That(Unwrap(_floor, Up), Is.Empty);
             Assert.That(Unwrap(_roof, Down), Is.Empty);
             return ModelBridge.BeginBake(Actors(floorPage), Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight, pages, 8, samples, bounces, occlusion);
         }
+
+        string Bake(int pages, int width, int height, Vector4 floor, Vector4 roof, int samples = 32) {
+            Assert.That(Unwrap(_floor, Up), Is.Empty);
+            Assert.That(Unwrap(_roof, Down), Is.Empty);
+            return ModelBridge.BeginBake(Actors(floor, roof), Array.Empty<float>(), Grid, width, height, pages, 8, samples, 2, 0);
+        }
+
+        // On a sheet of 4 pages of 64 by 32 (126 by 62 texels), the floor across both seams and the roof on page 0's corner.
+        static readonly Vector4 FloorAcross = new(0.95f, 1.3f, 0.5f, 0.3f), RoofInTheCorner = new(0.45f, 0.25f, 0.025f, 0.025f);
+        // The same texels on one page as big as the sheet.
+        static Vector4 OnOnePage(Vector4 st) => Vector4.Scale(st, new Vector4(64f / 126, 32f / 62, 64f / 126, 32f / 62));
 
         // Steps the bake to its end, waiting between steps for what it reads back, as frames would.
         static void RunBake() {
@@ -202,9 +212,10 @@ namespace OneJS.Tests.Models {
 
         [Test]
         public void BeginBake_RefusesARectangleOnAPageTheAtlasHasNot() {
-            Assert.That(Bake(pages: 1, floorPage: 1), Does.Contain("on page 1 of 1"));
+            Assert.That(Bake(pages: 1, floorPage: 1), Does.Contain("past its 1 pages"));
             Assert.That(ModelBridge.Baking, Is.False);
-            Assert.That(Bake(pages: 0), Does.Contain("a page at least"));
+            Assert.That(Bake(pages: 0), Does.Contain("1, 2 or 4 pages"));
+            Assert.That(Bake(pages: 3), Does.Contain("1, 2 or 4 pages"));
         }
 
         [UnityTest]
@@ -219,6 +230,51 @@ namespace OneJS.Tests.Models {
             var two = Render();
             // Read from page 0, where its rectangle holds nothing, the floor would be black.
             Assert.That(two.g, Is.EqualTo(one.g).Within(one.g * 0.15f), $"the floor on page 1 draws as it did on page 0: {two} against {one}");
+        }
+
+        [Test]
+        public void Bake_OnFourPages_LightsAFloorAcrossTheSeamsOnceTheLastPageItReadsHasLight() {
+            Assert.That(Bake(4, AtlasWidth, AtlasHeight, FloorAcross, RoofInTheCorner), Is.Empty);
+            var pages = new List<int>();
+            var roofFirst = false;
+            var litOn = -1;
+            for (var i = 0; i < 100000; i++) {
+                var done = ModelBridge.StepBake(1) >= 1;
+                if (pages.Count == 0 || pages[pages.Count - 1] != ModelBridge.BakePage()) pages.Add(ModelBridge.BakePage());
+                if (AtlasOf(_roofActor) == RoofInTheCorner && AtlasOf(_floorActor) == Vector4.zero) {
+                    roofFirst = true;
+                    ModelBridge.SetDissolve(_floorActor, 0);
+                    Assert.That(AtlasOf(_floorActor), Is.EqualTo(Vector4.zero), "the floor waits for every page it reads");
+                }
+                if (litOn < 0 && AtlasOf(_floorActor) != Vector4.zero) litOn = ModelBridge.BakePage();
+                if (done) break;
+                AsyncGPUReadback.WaitAllRequests();
+            }
+            Assert.That(pages, Is.EqualTo(new[] { 0, 1, 2, 3 }));
+            Assert.That(roofFirst, Is.True, "the roof, on page 0 alone, had light while the floor waited");
+            Assert.That(litOn, Is.EqualTo(3), "the floor took its light with the last page's draft");
+            Assert.That(AtlasOf(_floorActor), Is.EqualTo(FloorAcross));
+        }
+
+        [UnityTest]
+        public IEnumerator ModelLit_DrawsAFloorAcrossBothSeamsAsOnePageOfTheSameTexels() {
+            Assert.That(Bake(1, 126, 62, OnOnePage(FloorAcross), OnOnePage(RoofInTheCorner), 128), Is.Empty);
+            RunBake();
+            yield return null;
+            var one = RenderGrid();
+            Assert.That(Bake(4, AtlasWidth, AtlasHeight, FloorAcross, RoofInTheCorner, 128), Is.Empty);
+            RunBake();
+            yield return null;
+            var four = RenderGrid();
+            var bright = 0f;
+            var dark = float.MaxValue;
+            for (var i = 0; i < one.Length; i++) {
+                Assert.That(four[i].g, Is.EqualTo(one[i].g).Within(0.01f + one[i].g * 0.15f), $"pixel {i}: {four[i]} on four pages against {one[i]} on one");
+                if (one[i].g > 0.01f) dark = Mathf.Min(dark, one[i].g);
+                bright = Mathf.Max(bright, one[i].g);
+            }
+            // The floor is seen both under the roof and out from under it, so a page read wrong anywhere shows.
+            Assert.That(dark, Is.LessThan(bright * 0.6f), $"the view holds light and shade: {dark} to {bright}");
         }
 
         [Test]
@@ -534,6 +590,23 @@ namespace OneJS.Tests.Models {
         }
 
         /// <summary>The middle of what the scene's camera sees: the floor under the roof's edge, looking in from the side.</summary>
+        // The view at 7 by 7 points over it.
+        static Color[] RenderGrid() {
+            var camera = ModelBridge.SceneCamera;
+            var target = new RenderTexture(64, 64, 24, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
+            try {
+                camera.targetTexture = target;
+                camera.Render();
+                var colors = new List<Color>();
+                for (var y = 4; y < 64; y += 9) for (var x = 4; x < 64; x += 9) colors.Add(Read(target, x, y));
+                return colors.ToArray();
+            } finally {
+                camera.targetTexture = null;
+                target.Release();
+                Object.DestroyImmediate(target);
+            }
+        }
+
         static Color Render() {
             var camera = ModelBridge.SceneCamera;
             var target = new RenderTexture(64, 64, 24, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);

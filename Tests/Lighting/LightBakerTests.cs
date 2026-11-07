@@ -49,9 +49,9 @@ namespace OneJS.Tests.Lighting {
                 return this;
             }
 
-            public BakeScene Build(int atlas = 64, int pages = 1) => new BakeScene {
+            public BakeScene Build(int atlas = 64, int pages = 1, int height = 0) => new BakeScene {
                 Positions = Positions.ToArray(), Normals = Normals.ToArray(), Uvs = Uvs.ToArray(), Indices = Indices.ToArray(), Albedo = Albedo.ToArray(),
-                AtlasWidth = atlas, AtlasHeight = atlas, Pages = pages, Sky = Sky, Ground = Ground,
+                AtlasWidth = atlas, AtlasHeight = height > 0 ? height : atlas, Pages = pages, Sky = Sky, Ground = Ground,
             };
         }
 
@@ -60,11 +60,12 @@ namespace OneJS.Tests.Lighting {
         static Vector2 FloorUv(float x, float z) => new Vector2(FloorRect.xMin + x / 4 * FloorRect.width, FloorRect.yMin + z / 4 * FloorRect.height);
         static Vector2 WallUv(float x, float y) => new Vector2(WallRect.xMin + x / 4 * WallRect.width, WallRect.yMin + y / 3 * WallRect.height);
 
-        static SceneBuilder Floor(Color albedo) => new SceneBuilder().Quad(Vector3.zero, new Vector3(4, 0, 0), new Vector3(0, 0, 4), Vector3.up, FloorRect, albedo);
-        static SceneBuilder FloorAndWall(Color floor, Color wall, int wallPage = 0) {
-            var rect = WallRect;
-            rect.x += wallPage;
-            return Floor(floor).Quad(Vector3.zero, new Vector3(4, 0, 0), new Vector3(0, 3, 0), Vector3.forward, rect, wall);
+        static SceneBuilder Floor(Color albedo, Rect? at = null) => new SceneBuilder().Quad(Vector3.zero, new Vector3(4, 0, 0), new Vector3(0, 0, 4), Vector3.up, at ?? FloorRect, albedo);
+        // The wall, on the second column of a sheet of 64 texel pages when `secondColumn`: moved by where that column starts, so its uv on page 1 is WallUv.
+        static SceneBuilder FloorAndWall(Color floor, Color wall, bool secondColumn = false, Rect? floorAt = null, Rect? wallAt = null) {
+            var rect = wallAt ?? WallRect;
+            if (secondColumn) rect.x += (64f - LightSheet.Seam) / 64f;
+            return Floor(floor, floorAt).Quad(Vector3.zero, new Vector3(4, 0, 0), new Vector3(0, 3, 0), Vector3.forward, rect, wall);
         }
 
         static BakeSettings Quick(int samples = 64) => new BakeSettings { Samples = samples, DraftSamples = samples, ProbeRays = 1024, Detail = 16 };
@@ -85,6 +86,29 @@ namespace OneJS.Tests.Lighting {
                 mat.SetTexture("_Lightmap", lightmap);
                 mat.SetVector("_At", uv);
                 mat.SetFloat("_Slice", page);
+                var cmd = new CommandBuffer();
+                cmd.SetRenderTarget(target);
+                cmd.DrawProcedural(Matrix4x4.identity, mat, 0, MeshTopology.Triangles, 3);
+                Graphics.ExecuteCommandBuffer(cmd);
+                cmd.Release();
+                return Read(target)[0];
+            } finally {
+                target.Release();
+                UnityEngine.Object.DestroyImmediate(target);
+                UnityEngine.Object.DestroyImmediate(mat);
+            }
+        }
+
+        /// <summary>What ModelLit reads from the lightmap at `uv` on the sheet, the page and its uv picked as ModelLit picks them.</summary>
+        static Color SampleSheet(RenderTexture lightmap, LightSheet sheet, Vector2 uv) {
+            var shader = Shader.Find("Hidden/OneJS/Tests/LightmapSample");
+            var mat = new Material(shader);
+            var target = new RenderTexture(1, 1, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+            try {
+                mat.SetTexture("_Lightmap", lightmap);
+                mat.SetVector("_At", uv);
+                mat.SetFloat("_Slice", -1);
+                mat.SetVector("_OjLightmapSeams", sheet.Seams);
                 var cmd = new CommandBuffer();
                 cmd.SetRenderTarget(target);
                 cmd.DrawProcedural(Matrix4x4.identity, mat, 0, MeshTopology.Triangles, 3);
@@ -305,7 +329,7 @@ namespace OneJS.Tests.Lighting {
             var settings = Quick();
             settings.TileSize = 32;
             using var one = Bake(FloorAndWall(Color.gray, new Color(0.8f, 0.1f, 0.1f)).Build(), settings);
-            using var two = new LightBaker(FloorAndWall(Color.gray, new Color(0.8f, 0.1f, 0.1f), wallPage: 1).Build(pages: 2), settings);
+            using var two = new LightBaker(FloorAndWall(Color.gray, new Color(0.8f, 0.1f, 0.1f), secondColumn: true).Build(pages: 2), settings);
             Assert.AreEqual(2, two.Pages);
             // A page at a time, in order, the first lit before the second is begun.
             var seen = new List<(int page, int lit)>();
@@ -324,6 +348,72 @@ namespace OneJS.Tests.Lighting {
             Assert.Greater(foot.r, foot.g * 1.05f, $"the wall's red reaches the floor across pages ({foot})");
             // And the wall's rectangle on page 0 holds nothing.
             Assert.AreEqual(0f, Read(two.Lightmap, 0)[(int)(WallUv(2, 1.5f).y * 64) * 64 + (int)(WallUv(2, 1.5f).x * 64)].a, "nothing of the wall on the floor's page");
+        }
+
+        // A 4 m floor from 0.3 to 1.6 pages each way, so both seams of a sheet of 4 pages of 64 texels, at 63 texels,
+        // run through it at 2.1 m; its wall on the left, across the row seam; and a 1 m quad up out of the way whose
+        // left edge is 3.5 texels past the column seam, below the floor's rows, so the texels both pages hold there
+        // take their light from it by dilation alone.
+        static readonly Rect FloorAcross = new Rect(0.3f, 0.3f, 1.3f, 1.3f), WallLeft = new Rect(0.02f, 0.3f, 0.25f, 1.3f),
+            PastTheSeam = new Rect(66.5f / 64, 0.05f, 0.3f, 0.2f);
+
+        static SceneBuilder AcrossTheSeams(Func<Rect, Rect> place) => FloorAndWall(Color.gray, new Color(0.8f, 0.1f, 0.1f), floorAt: place(FloorAcross), wallAt: place(WallLeft))
+            .Quad(new Vector3(6, 3, 6), new Vector3(1, 0, 0), new Vector3(0, 0, 1), Vector3.up, place(PastTheSeam), Color.gray);
+
+        [Test]
+        public void AFloorAcrossTheSeams_IsTheSameOnEveryPageThatHoldsIt_AndAsOnePageOfTheSameTexels() {
+            // Few samples, so each texel's own noise is large and two pages that traced it differently would show it.
+            var settings = Quick(16);
+            var sheet = new LightSheet(64, 64, 4);
+            using var four = Bake(AcrossTheSeams(r => r).Build(64, 4), settings);
+            Assert.AreEqual(4, four.Lightmap.volumeDepth);
+            Assert.AreEqual(64, four.Lightmap.width);
+            // The same scene on one page as big as the sheet: the same texels, traced with one page's seeds.
+            var side = sheet.Width;
+            using var one = Bake(AcrossTheSeams(r => new Rect(r.x * 64 / side, r.y * 64 / side, r.width * 64 / side, r.height * 64 / side)).Build(side), settings);
+
+            // Every texel two pages hold, read raw from each: alike, light and coverage, gutters too, to within two
+            // steps of a half float, as each page lays the G-buffer through its own window and a last bit can round
+            // apart. Traced differently, a texel at 16 samples is several percent apart.
+            var pages = new Color[4][];
+            for (var p = 0; p < 4; p++) pages[p] = Read(four.Lightmap, p);
+            var shared = 0;
+            for (var p = 0; p < 4; p++) for (var q = p + 1; q < 4; q++) {
+                var a = sheet.Origin(p);
+                var b = sheet.Origin(q);
+                for (var y = 0; y < 64; y++) for (var x = 0; x < 64; x++) {
+                    // Page p's texel (x, y) is the sheet's a + (x, y); page q holds it at a + (x, y) - b, if it holds it.
+                    int qx = a.x + x - b.x, qy = a.y + y - b.y;
+                    if (qx < 0 || qy < 0 || qx >= 64 || qy >= 64) continue;
+                    Color c = pages[p][y * 64 + x], d = pages[q][qy * 64 + qx];
+                    if (c.a > 0) shared++;
+                    for (var k = 0; k < 4; k++) Assert.AreEqual(c[k], d[k], Mathf.Max(1e-4f, Mathf.Abs(c[k]) * 2e-3f), $"the sheet's texel {a.x + x}, {a.y + y} on page {p}, {c}, and on page {q}, {d}");
+                }
+            }
+            Assert.Greater(shared, 2 * 2 * 80, "the floor's texels both sides of each seam");
+
+            // Read as ModelLit reads it, the floor is lit as on one page of the same texels, but for noise: near the
+            // wall on pages 0 and 1, far from it on pages 2 and 3, so a page read for another shows.
+            Vector2 OnFloor(float x, float z) => new Vector2(FloorAcross.xMin + x / 4 * FloorAcross.width, FloorAcross.yMin + z / 4 * FloorAcross.height);
+            var seen = new HashSet<int>();
+            foreach (var x in new[] { 0.3f, 1.2f, 2.0f, 2.2f, 3.0f, 3.7f }) {
+                foreach (var z in new[] { 0.15f, 0.4f, 2.0f, 2.2f, 3.6f }) {
+                    var at = OnFloor(x, z);
+                    seen.Add(sheet.PageAt(at));
+                    Near(Sample(one.Lightmap, at * 64 / side), SampleSheet(four.Lightmap, sheet, at), 0.12f, $"the floor at {x}, {z}");
+                }
+            }
+            Assert.AreEqual(4, seen.Count, "every page read");
+            // Either side of each split, a quarter texel off, as ModelLit moves from one page to the next.
+            var texel = 1f / 64;
+            for (var z = 0.1f; z < 4; z += 0.3f) {
+                var v = OnFloor(0, z).y;
+                Near(SampleSheet(four.Lightmap, sheet, new Vector2(sheet.Seams.x - texel / 4, v)), SampleSheet(four.Lightmap, sheet, new Vector2(sheet.Seams.x + texel / 4, v)), 0.03f, $"either side of the column split, z {z}");
+            }
+            // The wall's red, on pages 0 and 2, reaches the floor's foot on page 1.
+            var foot = SampleSheet(four.Lightmap, sheet, OnFloor(3.5f, 0.2f));
+            Assert.AreEqual(1, sheet.PageAt(OnFloor(3.5f, 0.2f)));
+            Assert.Greater(foot.r, foot.g * 1.05f, $"the wall's red on the floor's foot past the seam ({foot})");
         }
 
         static LightBaker ProbedBaker() {
@@ -379,8 +469,62 @@ namespace OneJS.Tests.Lighting {
             scene = Floor(Color.gray).Build();
             scene.Indices = new[] { 0, 1 };
             Assert.Throws<ArgumentException>(() => new LightBaker(scene));
-            // The wall on a second page of an atlas of one.
-            Assert.Throws<ArgumentException>(() => new LightBaker(FloorAndWall(Color.gray, Color.gray, wallPage: 1).Build()));
+            // The wall on a second column of an atlas of one page.
+            Assert.Throws<ArgumentException>(() => new LightBaker(FloorAndWall(Color.gray, Color.gray, secondColumn: true).Build()));
+            // A sheet is 1, 2 or 4 pages.
+            Assert.Throws<ArgumentException>(() => new LightBaker(FloorAndWall(Color.gray, Color.gray, secondColumn: true).Build(pages: 3)));
+        }
+    }
+
+    public class LightSheetTests {
+        [Test]
+        public void OnePage_IsTheAtlasAsBeforePages() {
+            var one = new LightSheet(100, 50, 1);
+            Assert.AreEqual((1, 1, 100, 50), (one.Columns, one.Rows, one.Width, one.Height));
+            Assert.AreEqual(Vector2.one, one.Extent);
+            Assert.AreEqual(0, one.PageAt(Vector2.one));
+            Assert.AreEqual(0, one.LastPage(new Vector4(1, 1, 0, 0)));
+            Assert.Greater(one.Seams.x, 1000f, "no uv on one page reaches a second column");
+            Assert.Greater(one.Seams.y, 1000f);
+        }
+
+        [Test]
+        public void FourPages_ShareTwoTexelsAtEachSeam_AndASampleEitherSideOfTheSplitIsWhollyOnOnePage() {
+            var four = new LightSheet(64, 32, 4);
+            Assert.AreEqual((2, 2, 126, 62), (four.Columns, four.Rows, four.Width, four.Height));
+            Assert.AreEqual(new[] { new Vector2Int(0, 0), new Vector2Int(62, 0), new Vector2Int(0, 30), new Vector2Int(62, 30) },
+                new[] { four.Origin(0), four.Origin(1), four.Origin(2), four.Origin(3) });
+            Assert.AreEqual(new Vector4(63f / 64, 31f / 32, 62f / 64, 30f / 32), four.Seams);
+            // A bilinear read reads the two texels whose centres are round it: at the split, in sheet texels
+            // 63, those are 62 and 63, the two both pages hold (page 0 to 63, page 1 from 62).
+            var split = four.Seams.x * 64;
+            Assert.AreEqual(62, Mathf.FloorToInt(split - 0.5f));
+            Assert.AreEqual(four.Origin(1).x, Mathf.FloorToInt(split - 0.5f), "the first texel read at the split is page 1's first");
+            Assert.AreEqual(63, Mathf.FloorToInt(split - 0.5f) + 1, "and the second is page 0's last");
+            Assert.AreEqual(0, four.PageAt(new Vector2(0.98f, 0.5f)));
+            Assert.AreEqual(1, four.PageAt(new Vector2(0.99f, 0.5f)));
+            Assert.AreEqual(2, four.PageAt(new Vector2(0.5f, 0.97f)));
+            Assert.AreEqual(3, four.PageAt(new Vector2(1.5f, 1.5f)));
+            // A rectangle reads last from the page of its far corner.
+            Assert.AreEqual(0, four.LastPage(new Vector4(0.5f, 0.5f, 0.1f, 0.1f)));
+            Assert.AreEqual(1, four.LastPage(new Vector4(1f, 0.5f, 0.1f, 0.1f)));
+            Assert.AreEqual(3, four.LastPage(new Vector4(1f, 1f, 0.5f, 0.5f)));
+            Assert.IsTrue(four.Holds(new Vector4(1, 1, 0.9f, 0.9f)));
+            Assert.IsFalse(four.Holds(new Vector4(1, 1, 1f, 0.5f)), "past the sheet's 126 / 64");
+        }
+
+        [Test]
+        public void TwoPages_SitSideBySide() {
+            var two = new LightSheet(64, 64, 2);
+            Assert.AreEqual((2, 1, 126, 64), (two.Columns, two.Rows, two.Width, two.Height));
+            Assert.AreEqual(0, two.PageAt(new Vector2(0.5f, 0.999f)), "no second row");
+        }
+
+        [Test]
+        public void IsOne_Two_OrFourPages() {
+            Assert.Throws<ArgumentException>(() => new LightSheet(64, 64, 3));
+            Assert.Throws<ArgumentException>(() => new LightSheet(64, 64, 0));
+            Assert.Throws<ArgumentException>(() => new LightSheet(2, 64, 2), "a page no wider than the seam");
         }
     }
 

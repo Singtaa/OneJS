@@ -8,6 +8,7 @@ measurements are `PlaySite/docs/lightmapping.md` in the container repo.
 | File | Contents |
 |---|---|
 | `LightBaker.cs` | `BakeScene` (what is baked), `BakeSettings`, and `LightBaker`, which bakes it a slice at a time |
+| `LightSheet.cs` | The one atlas a bake's pages are cut from: where each page sits, where ModelLit moves to the next (`_OjLightmapSeams`), and the last page a rectangle reads |
 | `Bvh.cs` | The triangle hierarchy the trace walks, built on the CPU |
 | `ProbeSolve.cs` | The probe pass's sums as `SphericalHarmonicsL2` coefficients, and probes inside solids filled from their neighbours |
 | `TextureRead.cs` | A float or half-float render texture read back to the CPU: `AsyncGPUReadback` where the GPU has it, landing a frame or more later, and `ReadPixels` where it does not, landing at once. Both browser backends have it |
@@ -16,10 +17,15 @@ measurements are `PlaySite/docs/lightmapping.md` in the container repo.
 
 ## What it bakes
 
-The static triangles arrive in world space, already laid out in an atlas of up
-to 4 pages, each page's uvs offset by its number in u (the unwrap and the
-packing are onejs-play's `src/light/unwrap.ts` and `atlas.ts`). Each triangle
-receives light and blocks and bounces it, whatever page it is on. The bake is:
+The static triangles arrive in world space, already laid out in an atlas (the
+unwrap and the packing are onejs-play's `src/light/unwrap.ts` and `atlas.ts`):
+one page, or a sheet of 2 side by side or 4 two by two (`LightSheet`). A
+sheet's second column or row starts 2 texels before the first ends, so the
+texels either side of the split are on both pages, and a bilinear read on either
+side of it finds all it needs on one. A rectangle may cross the split, so one
+actor can use every page. Uvs are in pages: the first runs 0 to 1, so one page's
+are what they were before pages. Each triangle receives light and blocks and
+bounces it, whatever page it is on. The bake is:
 
 - **the sky and the ground** of the ambient, as two hemispheres of constant
   radiance. That is exactly the light `ModelBridge.HemisphereProbe` gives an
@@ -43,12 +49,17 @@ neighbours' mean, filled in from outside a ring at a time.
 Fragment passes, not compute, so WebGL 2 runs them. The world's triangles and
 hierarchy are built once and the probes traced first, so moving things are lit
 within a few frames; then the lightmap, a page at a time: the page's G-buffer
-(a submesh a page), then its tiles as a running mean blended into a half-float
+(every triangle, moved so the page fills the target, which clips the rest), then its tiles as a running mean blended into a half-float
 target (no ping-pong, so a tile writes only its own texels). A page's draft is
 finished at `DraftSamples` and its final at `Samples`, each by resolve, four
 steps of dilation and an edge-aware denoise of the page, into its slice of the
 lightmap, a half-float texture array. `PagesLit` counts the pages with light,
-and `Page` the one being baked, whose first frame lays its G-buffer. `Step(paths)` does about
+and `Page` the one being baked, whose first frame lays its G-buffer.
+On a sheet each page bakes an apron round itself, as many texels as dilation
+and the denoiser reach (7), and seeds each texel's paths by its place on the
+sheet and its sweep, so the texels two pages share come out the same on both
+(`AFloorAcrossTheSeam_...` reads them alike to the bit). One page has no apron
+and keeps the seeds it had before pages, so its bake is unchanged to the bit. `Step(paths)` does about
 that many paths, at least one draw; `RunToEnd` bakes everything, waiting on the
 GPU between submissions so none grows long enough to trip a watchdog. A bake is
 `Done` once its lightmap is finished and its probes are read back, which on
@@ -67,9 +78,9 @@ at a hundred metres), half-float ones, four targets at once and float textures.
 `LightBaker.Supported` says which is missing; a game without them keeps its flat
 ambient.
 
-Memory while baking: 56 bytes a texel of the page being baked (positions and
-normals in float, the sum and two work targets in half), 15 MB at 512 by 512,
-reused by each page, and 8 bytes a texel of each page in the lightmap, 2 MB a
+Memory while baking: 56 bytes a texel of the page being baked and its apron
+(positions and normals in float, the sum and two work targets in half), 15 MB
+at 512 by 512 and 16 MB with the apron, reused by each page, and 8 bytes a texel of each page in the lightmap, 2 MB a
 page. The lightmap stays; the rest is freed at the end.
 
 ## Who calls it

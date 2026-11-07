@@ -187,6 +187,8 @@ Shader "Hidden/OneJS/LightBake" {
             CGPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            // The page being baked, with its apron, as a scale and offset of the sheet's uv: (1, 1, 0, 0) on one page.
+            float4 _Window;
 
             struct In { float3 pos : POSITION; float3 normal : NORMAL; float2 uv : TEXCOORD0; float3 centre : TEXCOORD1; };
             struct V2F { float4 clip : SV_POSITION; float3 pos : TEXCOORD0; float3 normal : TEXCOORD1; float3 centre : TEXCOORD2; };
@@ -194,7 +196,7 @@ Shader "Hidden/OneJS/LightBake" {
 
             V2F vert(In v) {
                 V2F o;
-                float2 p = v.uv * 2 - 1;
+                float2 p = (v.uv * _Window.xy + _Window.zw) * 2 - 1;
                 // Placed so a texture read at uv finds this texel, on every platform.
                 #if UNITY_UV_STARTS_AT_TOP
                 p.y = -p.y;
@@ -231,13 +233,16 @@ Shader "Hidden/OneJS/LightBake" {
             Texture2D<float4> _GNormal;
             int _Samples;
             float _Weight;
+            // The page's first texel on the sheet: a texel's place there, plus the apron, is its own plus this. 0 on one page.
+            int _OriginX;
+            int _OriginY;
 
             float4 frag(Full i) : SV_Target {
                 int2 c = int2(i.pos.xy);
                 float4 P = _GPos.Load(int3(c, 0));
                 if (P.w == 0) return 0;
                 float3 n = _GNormal.Load(int3(c, 0)).xyz;
-                seedFor((uint)c.x, (uint)c.y);
+                seedFor((uint)(c.x + _OriginX), (uint)(c.y + _OriginY));
                 float3 sum = 0;
                 float inside, first, near = 0;
                 for (int s = 0; s < _Samples; s++) {
@@ -376,8 +381,10 @@ Shader "Hidden/OneJS/LightBake" {
             Texture2D<float4> _GNormal;
             int _Radius;
             float _SigmaP;
+            // Where the page's texels start in the working textures: past the apron.
+            int _From;
             float4 frag(Full i) : SV_Target {
-                int2 c = int2(i.pos.xy);
+                int2 c = int2(i.pos.xy) + _From;
                 float4 P = _GPos.Load(int3(c, 0));
                 float4 v = _Src.Load(int3(c, 0));
                 if (P.w == 0 || _Radius == 0) return v;

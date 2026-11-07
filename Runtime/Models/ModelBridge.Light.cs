@@ -19,13 +19,15 @@ namespace OneJS.Models {
     /// (LightMesh), unwraps them, hands the result back (SetLightUnwrap), and then names each
     /// static actor's and copy's rectangle of the atlas and the probe grid (BeginBake). The bridge
     /// gathers the world's triangles and their albedo into a LightBaker and steps it (StepBake).
-    /// The lightmap is the global `_OjLightmap`, a texture array of up to 4 pages. Each baked actor
-    /// reads its rectangle from `_ActorLightmapST`, its page in the offset's whole part, once its
-    /// page has a draft, and every other actor takes the light at its middle from the probes.
+    /// The lightmap is the global `_OjLightmap`, a texture array of up to 4 pages cut from one
+    /// sheet (Lighting/LightSheet.cs, `_OjLightmapSeams`). Each baked actor reads its rectangle of
+    /// the sheet from `_ActorLightmapST` once the last page it touches has a draft, and every other
+    /// actor takes the light at its middle from the probes.
     /// </summary>
     public static partial class ModelBridge {
         static readonly int ActorLightmapId = Shader.PropertyToID("_ActorLightmapST");
         static readonly int LightmapId = Shader.PropertyToID("_OjLightmap");
+        static readonly int LightmapSeamsId = Shader.PropertyToID("_OjLightmapSeams");
         static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
         static readonly int MetallicId = Shader.PropertyToID("_Metallic");
         static readonly int MetallicMapId = Shader.PropertyToID("_MetallicRoughnessMap");
@@ -40,8 +42,10 @@ namespace OneJS.Models {
         static bool _fileReadWarned;
         // The lightmap ModelLit reads now, a slice a page: the bake's, drafts then finals, or a file's. Null until the first draft.
         static Texture _lightmap;
-        // How many of its pages, from the first, have light: an actor on a page past them is lit by the probes.
+        // How many of its pages, from the first, have light: an actor reading a page past them is lit by the probes.
         static int _pagesLit;
+        // The pages' sheet: which page a rectangle reads last.
+        static LightSheet _sheet = new LightSheet(1, 1, 1);
         // A lightmap read from a light file (LoadLight), which the bridge owns; a bake's is the baker's.
         static Texture2DArray _loaded;
         // What _OjLightmap holds while there is no lightmap: ModelLit declares an array, and a 2D texture there is an error on some backends.
@@ -58,10 +62,7 @@ namespace OneJS.Models {
 
         static bool BuiltInPipeline => GraphicsSettings.currentRenderPipeline == null;
 
-        static bool Lightmapped(Actor a) => _lightmap != null && a.atlas.x > 0 && PageOf(a.atlas) < _pagesLit;
-
-        // A rectangle's page: its offset's whole part. Within a page the offset is under 1.
-        static int PageOf(Vector4 st) => (int)Math.Floor(st.z);
+        static bool Lightmapped(Actor a) => _lightmap != null && a.atlas.x > 0 && _sheet.LastPage(a.atlas) < _pagesLit;
 
         static Texture NoLight {
             get {
@@ -283,10 +284,10 @@ namespace OneJS.Models {
 
         /// <summary>
         /// Starts baking the scene's light, replacing any bake before it. Each static actor is five
-        /// floats in `actors` (its id, then its rectangle of the atlas as a uv scale and offset, its
-        /// page added to the offset's x) and each scattered copy six in `copies` (the scatter's id,
+        /// floats in `actors` (its id, then its rectangle of the atlas's sheet as a uv scale and
+        /// offset, in pages: LightSheet) and each scattered copy six in `copies` (the scatter's id,
         /// the copy's index, its rectangle); their models must have been given an unwrap. The atlas
-        /// is `pages` pages of `width` by `height`. `grid` is the probe grid's origin, spacing
+        /// is `pages` pages of `width` by `height`, 1, 2 or 4. `grid` is the probe grid's origin, spacing
         /// and three counts. The bake bounces the ambient probe's two hemispheres (what SetAmbient
         /// writes and ModelLit's SampleSH reads) and the sun, and keeps the sun's first hit live:
         /// `samples` paths a texel, of up to `bounces` hits, with `occlusion` (BakeSettings).
@@ -300,7 +301,7 @@ namespace OneJS.Models {
             if (!LightBaker.Supported(out var why)) return $"this GPU cannot bake light: {why}";
 
             var scene = new SceneBuilder();
-            var problem = Place(actors, copies, pages, scene);
+            var problem = Place(actors, copies, width, height, pages, scene);
             if (problem != "") {
                 ClearLight();
                 return problem;
@@ -363,13 +364,17 @@ namespace OneJS.Models {
         /// Gives each static actor and copy its rectangle of the atlas, as BeginBake and LoadLight
         /// read them, and hands its triangles to `scene` when there is one. "" or why not.
         /// </summary>
-        static string Place(float[] actors, float[] copies, int pages, SceneBuilder scene) {
-            if (pages < 1) return $"an atlas has a page at least, not {pages}";
+        static string Place(float[] actors, float[] copies, int width, int height, int pages, SceneBuilder scene) {
+            try {
+                _sheet = new LightSheet(width, height, pages);
+            } catch (ArgumentException e) {
+                return e.Message;
+            }
             for (int i = 0; i < actors.Length; i += ActorStride) {
                 if (!_actors.TryGetValue((int)actors[i], out var a)) return $"there is no actor {(int)actors[i]}";
                 if (!_models.TryGetValue(a.model, out var m) || m.lit == null) return $"actor {(int)actors[i]}'s model has no unwrap";
                 var st = new Vector4(actors[i + 1], actors[i + 2], actors[i + 3], actors[i + 4]);
-                if (PageOf(st) < 0 || PageOf(st) >= pages) return $"actor {(int)actors[i]} is on page {PageOf(st)} of {pages}";
+                if (!_sheet.Holds(st)) return $"actor {(int)actors[i]}'s rectangle {st} is past its {pages} pages";
                 if (scene != null) {
                     foreach (var (filter, renderer) in Parts(a.go)) scene.Add(filter.sharedMesh, filter.transform.localToWorldMatrix, renderer.sharedMaterials, st);
                 }
@@ -381,7 +386,7 @@ namespace OneJS.Models {
                 var copy = (int)copies[i + 1];
                 if (copy < 0 || copy >= s.data.Length / ScatterStride) return $"scatter {(int)copies[i]} has no copy {copy}";
                 var st = new Vector4(copies[i + 2], copies[i + 3], copies[i + 4], copies[i + 5]);
-                if (PageOf(st) < 0 || PageOf(st) >= pages) return $"scatter {(int)copies[i]}'s copy {copy} is on page {PageOf(st)} of {pages}";
+                if (!_sheet.Holds(st)) return $"scatter {(int)copies[i]}'s copy {copy}'s rectangle {st} is past its {pages} pages";
                 if (scene != null) {
                     var matrix = CopyMatrix(s.data, copy);
                     foreach (var part in s.parts) scene.Add(part.filter.sharedMesh, matrix * part.local, part.materials, st);
@@ -467,7 +472,7 @@ namespace OneJS.Models {
             }
             var counts = new Vector3Int((int)grid[4], (int)grid[5], (int)grid[6]);
             var problem = LightFileFormat.Decode(png, width, height, pages, counts.x * counts.y * counts.z, out var light, out var probes);
-            if (problem == "") problem = Place(actors, copies, pages, null);
+            if (problem == "") problem = Place(actors, copies, width, height, pages, null);
             if (problem != "") {
                 if (light != null) Kill(light);
                 ClearLight();
@@ -555,20 +560,21 @@ namespace OneJS.Models {
         internal static Vector4 ScatterAtlas(int scatter, int copy) =>
             _scatters.TryGetValue(scatter, out var s) && s.atlas != null && copy >= 0 && copy < s.atlas.Length ? s.atlas[copy] : Vector4.zero;
 
-        // Shows `lightmap` with its first `pagesLit` pages lit: the actors and chunks on pages that were not lit before draw from it now.
+        // Shows `lightmap` with its first `pagesLit` pages lit: the actors and chunks whose last page was not lit before draw from it now.
         static void ShowLightmap(Texture lightmap, int pagesLit) {
             var before = _lightmap == null ? 0 : _pagesLit;
             _lightmap = lightmap;
             _pagesLit = pagesLit;
             Shader.SetGlobalTexture(LightmapId, lightmap);
+            Shader.SetGlobalVector(LightmapSeamsId, _sheet.Seams);
             if (pagesLit == before) return;
             foreach (var a in _actors.Values) {
-                if (a.atlas.x > 0 && PageOf(a.atlas) >= before && PageOf(a.atlas) < pagesLit) Apply(a);
+                if (a.atlas.x > 0 && _sheet.LastPage(a.atlas) >= before && _sheet.LastPage(a.atlas) < pagesLit) Apply(a);
             }
             foreach (var s in _scatters.Values) if (s.atlas != null) LightChunks(s);
         }
 
-        // Each chunk's copies' rectangles, as the per-instance values its draw reads, once every page they are on is lit.
+        // Each chunk's copies' rectangles, as the per-instance values its draw reads, once every page they read is lit.
         static void LightChunks(Scattered s) {
             foreach (var chunk in s.chunks) {
                 if (chunk.light != null) continue;
@@ -576,7 +582,7 @@ namespace OneJS.Models {
                 var lit = true;
                 for (int k = 0; k < st.Length; k++) {
                     st[k] = s.atlas[chunk.copies[k]];
-                    if (st[k].x > 0 && PageOf(st[k]) >= _pagesLit) lit = false;
+                    if (st[k].x > 0 && _sheet.LastPage(st[k]) >= _pagesLit) lit = false;
                 }
                 if (!lit) continue;
                 chunk.light = new MaterialPropertyBlock();
@@ -599,9 +605,11 @@ namespace OneJS.Models {
             var had = _lightmap != null || _probes != null;
             _lightmap = null;
             _pagesLit = 0;
+            _sheet = new LightSheet(1, 1, 1);
             _probes = null;
             Probing(false);
             Shader.SetGlobalTexture(LightmapId, NoLight);
+            Shader.SetGlobalVector(LightmapSeamsId, _sheet.Seams);
             foreach (var a in _actors.Values) {
                 var touched = a.atlas != Vector4.zero || a.probed;
                 a.atlas = Vector4.zero;
