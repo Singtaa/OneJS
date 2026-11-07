@@ -45,7 +45,10 @@ namespace OneJS.Lighting {
         public int DraftSamples = 64;
         /// <summary>Rays a probe.</summary>
         public int ProbeRays = 1024;
+        /// <summary>Hits a path bounces off before it stops: 0 is the sky and the sun's first hit alone.</summary>
         public int Bounces = 2;
+        /// <summary>Extra darkening in corners and where things touch, within a metre, 0 to 1. Validated, and not yet traced.</summary>
+        public float Occlusion = 0;
         /// <summary>Paths a texel in one pass over one tile.</summary>
         public int SamplesPerPass = 4;
         /// <summary>A tile's side in texels: the most one draw traces, so no submission trips a GPU watchdog.</summary>
@@ -74,6 +77,8 @@ namespace OneJS.Lighting {
         /// <summary>A probe whose rays meet the back of a face more often than this is inside a solid and is left out.</summary>
         public const float InsideShare = 0.5f;
         const int DilateSteps = 4;
+        /// <summary>The most bounces and samples a bake takes: past them a number is a mistake, and the time it asks for is minutes.</summary>
+        public const int MaxBounces = 8, MaxSamples = 4096;
 
         static readonly int TrisId = Shader.PropertyToID("_Tris"), NodesId = Shader.PropertyToID("_Nodes"),
             DataWidthId = Shader.PropertyToID("_DataWidth"), NodeCountId = Shader.PropertyToID("_NodeCount"),
@@ -555,7 +560,10 @@ namespace OneJS.Lighting {
             if (s.AtlasWidth < 1 || s.AtlasHeight < 1) throw new ArgumentException($"[OneJS] a bake's atlas is {s.AtlasWidth} by {s.AtlasHeight}");
             if (s.Pages < 1) throw new ArgumentException($"[OneJS] a bake's atlas has {s.Pages} pages");
             foreach (var uv in s.Uvs) if (!(uv.x >= -1e-3f && uv.x <= s.Pages + 1e-3f)) throw new ArgumentException($"[OneJS] a bake's uv {uv.x} is past its {s.Pages} pages");
-            if (o.Samples < 1 || o.SamplesPerPass < 1 || o.ProbeRays < 1 || o.Bounces < 0) throw new ArgumentException("[OneJS] a bake's samples, rays and bounces must be positive");
+            if (o.Samples < 1 || o.SamplesPerPass < 1 || o.ProbeRays < 1) throw new ArgumentException("[OneJS] a bake's samples and rays must be positive");
+            if (o.Samples > MaxSamples) throw new ArgumentException($"[OneJS] a bake's samples are 1 to {MaxSamples}, not {o.Samples}");
+            if (o.Bounces < 0 || o.Bounces > MaxBounces) throw new ArgumentException($"[OneJS] a bake's bounces are 0 to {MaxBounces}, not {o.Bounces}");
+            if (!(o.Occlusion >= 0 && o.Occlusion <= 1)) throw new ArgumentException($"[OneJS] a bake's occlusion is 0 to 1, not {o.Occlusion}");
             if (s.GridCounts.x * s.GridCounts.y * s.GridCounts.z > 0 && !(s.GridSpacing > 0)) throw new ArgumentException("[OneJS] a probe grid needs a spacing above 0");
         }
     }

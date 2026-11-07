@@ -72,10 +72,10 @@ namespace OneJS.Tests.Models {
             return new[] { _floorActor, floor.x, floor.y, floor.z, floor.w, _roofActor, RoofST.x, RoofST.y, RoofST.z, RoofST.w };
         }
 
-        string Bake(int pages = 1, int floorPage = 0) {
+        string Bake(int pages = 1, int floorPage = 0, int bounces = 2, float occlusion = 0, int samples = 32) {
             Assert.That(Unwrap(_floor, Up), Is.Empty);
             Assert.That(Unwrap(_roof, Down), Is.Empty);
-            return ModelBridge.BeginBake(Actors(floorPage), Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight, pages, 8, 32);
+            return ModelBridge.BeginBake(Actors(floorPage), Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight, pages, 8, samples, bounces, occlusion);
         }
 
         // Steps the bake to its end, waiting between steps for what it reads back, as frames would.
@@ -312,12 +312,12 @@ namespace OneJS.Tests.Models {
             Assert.That(Unwrap(_roof, Down), Is.Empty);
             var actors = new[] { _floorActor, FloorST.x, FloorST.y, FloorST.z, FloorST.w };
             var copies = new[] { scatter, 1, RoofST.x, RoofST.y, RoofST.z, RoofST.w };
-            Assert.That(ModelBridge.BeginBake(actors, copies, Grid, AtlasWidth, AtlasHeight, 1, 8, 16), Is.Empty);
+            Assert.That(ModelBridge.BeginBake(actors, copies, Grid, AtlasWidth, AtlasHeight, 1, 8, 16, 2, 0), Is.Empty);
             RunBake();
             Assert.That(ModelBridge.ScatterAtlas(scatter, 1), Is.EqualTo(RoofST));
             Assert.That(ModelBridge.ScatterDrawsBaked(scatter), Is.True, "its chunks draw with the rectangles");
             Assert.That(ModelBridge.ScatterAtlas(scatter, 0), Is.EqualTo(Vector4.zero), "a copy not named is not baked");
-            Assert.That(ModelBridge.BeginBake(actors, new float[] { scatter, 7, 1, 1, 0, 0 }, Grid, AtlasWidth, AtlasHeight, 1, 8, 16), Does.Contain("no copy 7"));
+            Assert.That(ModelBridge.BeginBake(actors, new float[] { scatter, 7, 1, 1, 0, 0 }, Grid, AtlasWidth, AtlasHeight, 1, 8, 16, 2, 0), Does.Contain("no copy 7"));
         }
 
         // Read back async, as both browser backends do, and by ReadPixels, as a GPU without async readback does.
@@ -388,6 +388,37 @@ namespace OneJS.Tests.Models {
             Assert.That(ModelBridge.LoadLight("not base64!", actors, Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight, 1), Does.Contain("base64"));
             Assert.That(ModelBridge.LoadLight(file, new float[] { 999, 1, 1, 0, 0 }, Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight, 1), Does.Contain("no actor 999"));
             Assert.That(ModelBridge.BakedLightmap, Is.Null);
+        }
+
+        // Under the roof, the floor's light is the sky past its edges and what the roof and floor bounce between them.
+        [Test]
+        public void Bake_BouncesAsManyTimesAsAsked() {
+            Color Lit(int bounces) {
+                try {
+                    Assert.That(Bake(bounces: bounces), Is.Empty);
+                    RunBake();
+                    return Sample(Floor(0, 0));
+                } finally {
+                    ModelBridge.ClearLight();
+                }
+            }
+            var none = Lit(0);
+            var two = Lit(2);
+            var four = Lit(4);
+            Assert.That(none.g, Is.LessThan(two.g * 0.9f), $"bounces 0 leaves the floor only the sky past the roof: {none} against {two}");
+            Assert.That(two.g, Is.LessThan(four.g), $"each bounce adds light: {two} against {four}");
+        }
+
+        [Test]
+        public void BeginBake_RefusesBouncesSamplesAndOcclusionPastTheirRange() {
+            Assert.That(Bake(bounces: LightBaker.MaxBounces + 1), Does.Contain("bounces are 0 to 8, not 9"));
+            Assert.That(Bake(bounces: -1), Does.Contain("bounces are 0 to 8, not -1"));
+            Assert.That(Bake(samples: LightBaker.MaxSamples + 1), Does.Contain("samples are 1 to 4096, not 4097"));
+            Assert.That(Bake(samples: 0), Does.Contain("samples and rays must be positive"));
+            Assert.That(Bake(occlusion: 1.5f), Does.Contain("occlusion is 0 to 1, not 1.5"));
+            Assert.That(Bake(occlusion: float.NaN), Does.Contain("occlusion is 0 to 1"));
+            Assert.That(ModelBridge.BakePhase(), Is.EqualTo(0));
+            Assert.That(Bake(bounces: 8, occlusion: 1, samples: 4096), Is.Empty);
         }
 
         // The roof's underside bounces the floor's light back down by its base map's mean colour, read back as each backend does.

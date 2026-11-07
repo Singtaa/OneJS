@@ -288,10 +288,11 @@ namespace OneJS.Models {
         /// the copy's index, its rectangle); their models must have been given an unwrap. The atlas
         /// is `pages` pages of `width` by `height`. `grid` is the probe grid's origin, spacing
         /// and three counts. The bake bounces the ambient probe's two hemispheres (what SetAmbient
-        /// writes and ModelLit's SampleSH reads) and the sun, and keeps the sun's first hit live.
+        /// writes and ModelLit's SampleSH reads) and the sun, and keeps the sun's first hit live:
+        /// `samples` paths a texel, of up to `bounces` hits, with `occlusion` (BakeSettings).
         /// "" when it started, or why it could not.
         /// </summary>
-        public static string BeginBake(float[] actors, float[] copies, float[] grid, int width, int height, int pages, float detail, int samples) {
+        public static string BeginBake(float[] actors, float[] copies, float[] grid, int width, int height, int pages, float detail, int samples, int bounces, float occlusion) {
             ClearLight();
             if (actors == null || actors.Length % ActorStride != 0) return "five floats a static actor: its id and its rectangle";
             if (copies == null || copies.Length % CopyStride != 0) return "six floats a copy: its scatter, its index and its rectangle";
@@ -307,7 +308,7 @@ namespace OneJS.Models {
             if (scene.Empty) return "there is nothing static to bake";
 
             var bake = scene.Build(width, height, pages);
-            var settings = new BakeSettings { Samples = Math.Max(1, samples), Detail = detail };
+            var settings = new BakeSettings { Samples = samples, Bounces = bounces, Occlusion = occlusion, Detail = detail };
             bake.GridOrigin = new Vector3(grid[0], grid[1], grid[2]);
             bake.GridSpacing = grid[3];
             bake.GridCounts = new Vector3Int((int)grid[4], (int)grid[5], (int)grid[6]);

@@ -55,6 +55,11 @@ GPU between submissions so none grows long enough to trip a watchdog. A bake is
 WebGPU lands a frame or more after the last probe pass: until then `Step` keeps
 tracing the lightmap, and once that is finished it only looks for the read.
 
+`BakeSettings` takes a bake's `Samples` (1 to `MaxSamples`, 4096), `Bounces`
+(0 to `MaxBounces`, 8: a path's hits before it stops, 0 being the sky and the
+sun's first hit alone) and `Occlusion` (0 to 1, checked but not yet traced);
+`Validate` refuses anything past them.
+
 A GPU needs float render targets (positions in half floats are centimetres off
 at a hundred metres), half-float ones, four targets at once and float textures.
 `LightBaker.Supported` says which is missing; a game without them keeps its flat
