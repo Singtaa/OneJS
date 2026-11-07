@@ -47,9 +47,12 @@ Shader "Hidden/OneJS/LightBake" {
         // bake is black. A float holds every index to 2^24 exactly.
         static float hit;
 
-        void testTriangles(float3 o, float3 d, int from, int count, bool any) {
-            for (int i = from; i < from + count; i++) {
-                float3 v0 = tri(i * 5).xyz, e1 = tri(i * 5 + 1).xyz, e2 = tri(i * 5 + 2).xyz;
+        // The triangles' indices are floats too: as an int, HLSLcc moves the counter through a float by its
+        // bits, where triangle 5 is a denormal a GPU may flush to 0.
+        void testTriangles(float3 o, float3 d, float from, float count, bool any) {
+            for (float i = from; i < from + count; i++) {
+                int k = (int)i * 5;
+                float3 v0 = tri(k).xyz, e1 = tri(k + 1).xyz, e2 = tri(k + 2).xyz;
                 float3 p = cross(d, e2);
                 float det = dot(e1, p);
                 if (abs(det) < 1e-12) continue;
@@ -63,7 +66,7 @@ Shader "Hidden/OneJS/LightBake" {
                 float t = dot(e2, q) * inv;
                 if (t > 1e-4 && t < best) {
                     best = t;
-                    hit = (float)i;
+                    hit = i;
                     if (any) return;
                 }
             }
@@ -85,7 +88,7 @@ Shader "Hidden/OneJS/LightBake" {
                 float near = max(max(tn.x, tn.y), tn.z), far = min(min(tf.x, tf.y), tf.z);
                 if (far >= max(near, 0.0) && near < best) {
                     if (b.w > 0) {
-                        testTriangles(o, d, (int)a.w, (int)b.w, any);
+                        testTriangles(o, d, a.w, b.w, any);
                         if (any && hit >= 0) break;
                     } else if (sp < 32) {
                         // The left child follows its parent; the right one waits on the stack.
@@ -339,7 +342,10 @@ Shader "Hidden/OneJS/LightBake" {
             Texture2D<float4> _GPos;
             float4 frag(Full i) : SV_Target {
                 int2 c = int2(i.pos.xy);
-                return _GPos.Load(int3(c, 0)).w > 0 ? float4(_Src.Load(int3(c, 0)).rgb, 1) : 0;
+                // A product rather than a choice: HLSLcc moves a chosen texel through an int register and
+                // back by its bits, the shape ShaderWebGL2NaNTests refuses. The accumulator is finite.
+                float covered = _GPos.Load(int3(c, 0)).w > 0 ? 1.0 : 0.0;
+                return float4(_Src.Load(int3(c, 0)).rgb, 1) * covered;
             }
             ENDCG
         }
