@@ -48,6 +48,7 @@ namespace OneJS.Tests.Models {
             ModelBridge.DisposeAll();
             TextureRead.UseReadPixels = false;
             TextureRead.Hold = false;
+            TextureRead.Fail = false;
         }
 
         /// <summary>A matte grey mesh model: ModelLit defaults to metal, which scatters no light to bake or to show.</summary>
@@ -232,6 +233,23 @@ namespace OneJS.Tests.Models {
             var litAgain = Sample(Floor(3.5f, 3.5f));
             Assert.That(shadedAgain.g, Is.EqualTo(shaded.g).Within(0.02f + shaded.g * 0.02f), $"the shaded floor: {shadedAgain} against {shaded}");
             Assert.That(litAgain.g, Is.EqualTo(lit.g).Within(0.02f + lit.g * 0.02f), $"the open floor: {litAgain} against {lit}");
+        }
+
+        // A light file is asked for each frame until it reads back, so a read that keeps failing would warn each frame.
+        [TestCase(false)]
+        [TestCase(true)]
+        public void LightFile_WarnsOnceABakeWhenItsReadFails(bool readPixels) {
+            TextureRead.UseReadPixels = readPixels;
+            for (var bake = 0; bake < 2; bake++) {
+                Assert.That(Bake(), Is.Empty);
+                RunBake();
+                TextureRead.Fail = true;
+                LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("lightmap could not be read back"));
+                for (var call = 0; call < 3; call++) Assert.That(ModelBridge.LightFile(), Is.Empty, $"bake {bake}, call {call}");
+                LogAssert.NoUnexpectedReceived();
+                TextureRead.Fail = false;
+                Assert.That(File(), Is.Not.Empty, "a read that works after one that failed gives the file");
+            }
         }
 
         [Test]

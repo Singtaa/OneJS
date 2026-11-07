@@ -20,6 +20,9 @@ namespace OneJS.Lighting {
         /// <summary>For tests: an async read does not land while this holds, as on a GPU slower than the test.</summary>
         internal static bool Hold;
 
+        /// <summary>For tests: a read started while this holds fails, as one the GPU drops does.</summary>
+        internal static bool Fail;
+
         /// <summary>Whether a read started now lands later rather than at once.</summary>
         public static bool Async => !UseReadPixels && SystemInfo.supportsAsyncGPUReadback;
 
@@ -71,7 +74,9 @@ namespace OneJS.Lighting {
             _width = width;
             _height = height;
             _half = rt.format == RenderTextureFormat.ARGBHalf;
-            if (Async) {
+            if (Fail) {
+                _error = "a test failed the read";
+            } else if (Async) {
                 _request = AsyncGPUReadback.Request(rt, 0, x, width, y, height, 0, 1);
                 _pending = true;
                 Poll();

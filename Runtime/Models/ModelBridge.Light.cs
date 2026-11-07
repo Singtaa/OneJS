@@ -36,6 +36,8 @@ namespace OneJS.Models {
         // The finished bake's light file, and the lightmap's read it waits on.
         static TextureRead _fileRead;
         static string _file;
+        // Whether this bake's failed lightmap read has warned: LightFile reads again on each call, and says so once.
+        static bool _fileReadWarned;
         // The lightmap ModelLit reads now: the bake's draft, then its final. Null until the draft.
         static Texture _lightmap;
         // A lightmap read from a light file (LoadLight), which the bridge owns; a bake's are the baker's.
@@ -380,7 +382,8 @@ namespace OneJS.Models {
             var read = _fileRead;
             _fileRead = null;
             if (read.Error != null) {
-                Debug.LogWarning($"[OneJS] The bake's lightmap could not be read back, and is read again: {read.Error}.");
+                if (!_fileReadWarned) Debug.LogWarning($"[OneJS] The bake's lightmap could not be read back, and is read again until it is: {read.Error}.");
+                _fileReadWarned = true;
                 return "";
             }
             _file = Convert.ToBase64String(LightFileFormat.Encode(read.Colors(), map.width, map.height, _baker.ProbeSH));
@@ -537,6 +540,7 @@ namespace OneJS.Models {
             _waiting = null;
             _fileRead = null;
             _file = null;
+            _fileReadWarned = false;
             if (_loaded != null) Kill(_loaded);
             _loaded = null;
             var had = _lightmap != null || _probes != null;
