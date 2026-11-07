@@ -499,6 +499,13 @@ namespace OneJS.Models {
             return done ? 1 : Mathf.Min(_baker.Progress, 0.999f);
         }
 
+        /// <summary>
+        /// What the bake's steps do now, as LightBaker.Phase's number: 0 none (or waiting on its
+        /// textures' means), 1 the probes, 2 the lightmap while the probes' read is in flight, 3 the
+        /// lightmap, 4 finishing. The frame budget starts over when it changes.
+        /// </summary>
+        public static int BakePhase() => _baker == null ? (int)global::OneJS.Lighting.BakePhase.None : (int)_baker.Phase;
+
         /// <summary>Whether a bake has been started and not finished.</summary>
         public static bool Baking => _waiting != null || (_baker != null && !_baker.Done);
 

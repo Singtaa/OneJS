@@ -34,6 +34,9 @@ namespace OneJS.Lighting {
         public float SunAngle = 0.0093f;
     }
 
+    /// <summary>What a bake's step traces: see LightBaker.Phase.</summary>
+    public enum BakePhase { None, Probes, LightmapProbesReading, Lightmap, Finishing }
+
     public sealed class BakeSettings {
         /// <summary>Paths a texel at the end, and at the draft that is shown first.</summary>
         public int Samples = 256;
@@ -191,6 +194,15 @@ namespace OneJS.Lighting {
         public bool DraftReady => _draft != null;
         /// <summary>True once the lightmap is finished and the probes are read back, which can land a frame or more after it.</summary>
         public bool Done => _mapDone && ProbesReady;
+        /// <summary>
+        /// What a Step does now: the probes' rays, then the lightmap's tiles while the probes' read is in
+        /// flight, then once it has landed, then nothing while it lands. A path of each costs the GPU
+        /// differently, and the frame a phase changes in costs more than either, so a frame budget
+        /// starts over at each.
+        /// </summary>
+        public BakePhase Phase => _mapDone ? BakePhase.Finishing
+            : _probeCount > 0 && _probeRaysDone < _settings.ProbeRays ? BakePhase.Probes
+            : ProbesReady ? BakePhase.Lightmap : BakePhase.LightmapProbesReading;
 
         /// <summary>The newest finished lightmap: the draft, then the final. Null before the draft. RGB light, A 1 where a texel has light.</summary>
         public RenderTexture Lightmap => _final != null ? _final : _draft;

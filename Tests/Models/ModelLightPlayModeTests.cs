@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using NUnit.Framework;
 using OneJS.Lighting;
 using OneJS.Models;
@@ -183,6 +184,26 @@ namespace OneJS.Tests.Models {
             var block = new MaterialPropertyBlock();
             RendererOf(actor).GetPropertyBlock(block);
             return block.GetVector("unity_SHAg");
+        }
+
+        [Test]
+        public void BakePhase_GoesFromTheProbesToTheLightmapAsTheyLandToFinishing_InStepsOfOneTile() {
+            Assert.That(ModelBridge.BakePhase(), Is.EqualTo(0), "nothing baking");
+            Assert.That(Bake(), Is.Empty);
+            var seen = new List<int>();
+            void Note() {
+                var phase = ModelBridge.BakePhase();
+                // 0 while the bake waits on its textures' means, before the baker exists.
+                if (phase != 0 && (seen.Count == 0 || seen[seen.Count - 1] != phase)) seen.Add(phase);
+            }
+            for (var i = 0; i < 100000 && ModelBridge.StepBake(1) < 1; i++) {
+                Note();
+                AsyncGPUReadback.WaitAllRequests();
+            }
+            Note();
+            Assert.That(seen, Is.EqualTo(new[] { 1, 2, 3, 4 }));
+            ModelBridge.ClearLight();
+            Assert.That(ModelBridge.BakePhase(), Is.EqualTo(0));
         }
 
         [Test]
