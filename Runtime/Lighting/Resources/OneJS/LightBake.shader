@@ -41,6 +41,12 @@ Shader "Hidden/OneJS/LightBake" {
         // How near, in metres, geometry has to be for _Occlusion to darken the light it sends: fixed, not an option.
         static const float OCCLUSION_REACH = 1.0;
 
+        // The working textures' size. Dilation and the denoiser read a texel's neighbours, and a read past the edge
+        // is undefined: WebGL 2 gives 0, which reads as uncovered, but WebGPU may give any texel of the texture, which
+        // a one-page bake, with no apron round it, used to blend into the texels on its border.
+        int _WorkWidth, _WorkHeight;
+        bool inside(int2 k) { return k.x >= 0 && k.y >= 0 && k.x < _WorkWidth && k.y < _WorkHeight; }
+
         float4 tri(int k) { return _Tris.Load(int3(k % _DataWidth, k / _DataWidth, 0)); }
         float4 node(int k) { return _Nodes.Load(int3(k % _DataWidth, k / _DataWidth, 0)); }
 
@@ -345,6 +351,7 @@ Shader "Hidden/OneJS/LightBake" {
                 float4 s = 0;
                 for (int y = -1; y <= 1; y++)
                     for (int x = -1; x <= 1; x++) {
+                        if (!inside(c + int2(x, y))) continue;
                         float4 w = _Src.Load(int3(c + int2(x, y), 0));
                         if (w.w > 0) s += float4(w.rgb, 1);
                     }
@@ -393,6 +400,7 @@ Shader "Hidden/OneJS/LightBake" {
                 float ws = 0;
                 for (int y = -_Radius; y <= _Radius; y++)
                     for (int x = -_Radius; x <= _Radius; x++) {
+                        if (!inside(c + int2(x, y))) continue;
                         int3 k = int3(c + int2(x, y), 0);
                         float4 Q = _GPos.Load(k);
                         if (Q.w == 0) continue;

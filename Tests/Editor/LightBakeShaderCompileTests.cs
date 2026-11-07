@@ -22,6 +22,26 @@ namespace OneJS.Tests.Editor {
             (ShaderCompilerPlatform.Metal, BuildTarget.iOS),
         };
 
+        /// <summary>
+        /// Every read of a texel's neighbour, in dilation and the denoiser, is skipped past the working
+        /// textures' edge. A read there is undefined: WebGL 2 gives 0, which reads as uncovered, and no bake in
+        /// the editor has shown it, but WebGPU gave a one-page bake's border texels another texel's light.
+        /// </summary>
+        [Test]
+        public void EveryNeighbourReadIsBoundsChecked() {
+            var path = AssetDatabase.GetAssetPath(Resources.Load<Shader>(LightBaker.ShaderPath));
+            var lines = System.IO.File.ReadAllLines(path).Select(l => l.Trim()).ToArray();
+            const string neighbour = "c + int2(x, y)";
+            var reads = 0;
+            for (var i = 0; i < lines.Length; i++) {
+                if (!lines[i].Contains(neighbour) || lines[i].StartsWith("if (!inside(")) continue;
+                reads++;
+                Assert.AreEqual($"if (!inside({neighbour})) continue;", lines[i - 1], $"line {i + 1}, {lines[i]}, reads a neighbour without checking it is inside");
+            }
+            Assert.AreEqual(2, reads, "dilation's read and the denoiser's");
+            Assert.Contains("bool inside(int2 k) { return k.x >= 0 && k.y >= 0 && k.x < _WorkWidth && k.y < _WorkHeight; }", lines, "inside() is the working textures' bounds");
+        }
+
         [Test]
         public void EveryPassCompilesForWebGLWebGPUVulkanD3DAndMetal() {
             var shader = Resources.Load<Shader>(LightBaker.ShaderPath);

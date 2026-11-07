@@ -99,7 +99,7 @@ namespace OneJS.Lighting {
             GridCountsId = Shader.PropertyToID("_GridCounts"), ProbesWideId = Shader.PropertyToID("_ProbesWide"), RaysId = Shader.PropertyToID("_Rays"),
             RayBaseId = Shader.PropertyToID("_RayBase"), RayTotalId = Shader.PropertyToID("_RayTotal"),
             WindowId = Shader.PropertyToID("_Window"), OriginXId = Shader.PropertyToID("_OriginX"), OriginYId = Shader.PropertyToID("_OriginY"),
-            FromId = Shader.PropertyToID("_From");
+            FromId = Shader.PropertyToID("_From"), WorkWidthId = Shader.PropertyToID("_WorkWidth"), WorkHeightId = Shader.PropertyToID("_WorkHeight");
         static readonly int[] PrevIds = { Shader.PropertyToID("_Prev0"), Shader.PropertyToID("_Prev1"), Shader.PropertyToID("_Prev2"), Shader.PropertyToID("_Prev3") };
 
         readonly BakeSettings _settings;
@@ -165,6 +165,8 @@ namespace OneJS.Lighting {
             _material.SetTexture(TrisId, _tris);
             _material.SetTexture(NodesId, _nodes);
             _material.SetInteger(DataWidthId, DataWidth);
+            _material.SetInteger(WorkWidthId, _workWidth);
+            _material.SetInteger(WorkHeightId, _workHeight);
             _material.SetInteger(NodeCountId, nodes.Length / 8);
             _material.SetVector(SkyId, (Vector4)scene.Sky);
             _material.SetVector(GroundId, (Vector4)scene.Ground);
