@@ -409,6 +409,24 @@ namespace OneJS.Tests.Models {
             Assert.That(two.g, Is.LessThan(four.g), $"each bounce adds light: {two} against {four}");
         }
 
+        // The roof is half a metre over the floor's middle: inside occlusion's reach. The floor's corner is not.
+        [Test]
+        public void Bake_DarkensUnderTheRoofWithOcclusion_AndNotTheOpenFloor() {
+            Color[] Lit(float occlusion) {
+                try {
+                    Assert.That(Bake(occlusion: occlusion), Is.Empty);
+                    RunBake();
+                    return new[] { Sample(Floor(0, 0)), Sample(Floor(3.5f, 3.5f)) };
+                } finally {
+                    ModelBridge.ClearLight();
+                }
+            }
+            var none = Lit(0);
+            var full = Lit(1);
+            Assert.That(full[0].g, Is.LessThan(none[0].g * 0.8f), $"under the roof: {full[0]} against {none[0]}");
+            Assert.That(full[1].g, Is.EqualTo(none[1].g).Within(1e-4f), $"the open corner: {full[1]} against {none[1]}");
+        }
+
         [Test]
         public void BeginBake_RefusesBouncesSamplesAndOcclusionPastTheirRange() {
             Assert.That(Bake(bounces: LightBaker.MaxBounces + 1), Does.Contain("bounces are 0 to 8, not 9"));

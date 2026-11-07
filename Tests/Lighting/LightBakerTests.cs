@@ -227,6 +227,49 @@ namespace OneJS.Tests.Lighting {
         }
 
         [Test]
+        public void OcclusionDarkensTheFloorWithinAMetreOfTheWall_TheMoreTheNearer_AndNothingPastIt() {
+            Color[] At(float occlusion) {
+                var settings = Quick();
+                settings.Occlusion = occlusion;
+                using var baker = Bake(FloorAndWall(Color.gray, Color.gray).Build(), settings);
+                return new[] { Sample(baker.Lightmap, FloorUv(2, 0.2f)), Sample(baker.Lightmap, FloorUv(2, 0.6f)), Sample(baker.Lightmap, FloorUv(2, 2.5f)) };
+            }
+            var none = At(0);
+            var half = At(0.5f);
+            var full = At(1);
+            Assert.Less(full[0].g, none[0].g * 0.85f, $"at the wall's foot, full occlusion darkens: {full[0]} against {none[0]}");
+            Assert.Less(full[0].g, half[0].g, $"and more than half does: {full[0]} against {half[0]}");
+            Assert.Less(half[0].g, none[0].g, $"and half some: {half[0]} against {none[0]}");
+            Assert.Greater(full[1].g / none[1].g, full[0].g / none[0].g, $"less 0.6 m from the wall than 0.2 m: {full[1]}, {full[0]}");
+            Near(none[2], full[2], 1e-4f, "2.5 m from the wall, past the reach, untouched", 1e-5f);
+        }
+
+        // A black roof 3 m square, half a metre over the floor, and no bounces: a path that meets the roof brings
+        // nothing, one that misses it the sky. The floor's middle is 1.5 m from the roof's edges, past the 0.87 m
+        // at which a path's first hit leaves the reach (0.5 m up over cos 60°), so every path within the reach
+        // meets the roof at 0.5 / cos θ, and the cosine-weighted mean nearness, the integral of
+        // (1 - 0.5 / c) 2c dc from 0.5 to 1, is 0.25. A pass darkens its paths' mean light by their mean
+        // nearness, and a near path is already black, so of a pass's N by N pairs only the N (N - 1) of two
+        // paths count: occlusion o keeps 1 - o 0.25 (N - 1) / N of the light, with N its paths a pass.
+        [Test]
+        public void Occlusion_KeepsOneLessTheMeanNearnessOfThePaths() {
+            var settings = Quick(256);
+            float n = settings.SamplesPerPass;
+            Color Middle(float occlusion) {
+                var scene = Floor(Color.white).Quad(new Vector3(0.5f, 0.5f, 0.5f), new Vector3(3, 0, 0), new Vector3(0, 0, 3), Vector3.down, WallRect, Color.black).Build();
+                scene.Sky = scene.Ground = Color.white;
+                settings.Bounces = 0;
+                settings.Occlusion = occlusion;
+                using var baker = Bake(scene, settings);
+                return Sample(baker.Lightmap, FloorUv(2, 2));
+            }
+            var none = Middle(0);
+            Assert.Greater(none.g, 0.02f, $"the sky reaches under the roof's edges: {none}");
+            Near(none * (1 - 0.25f * (n - 1) / n), Middle(1), 0.03f, "full occlusion");
+            Near(none * (1 - 0.5f * 0.25f * (n - 1) / n), Middle(0.5f), 0.02f, "half");
+        }
+
+        [Test]
         public void TheSameSceneBakesTheSameLight() {
             using var first = Bake(FloorAndWall(Color.gray, Color.red).Build(), Quick(16));
             using var second = Bake(FloorAndWall(Color.gray, Color.red).Build(), Quick(16));

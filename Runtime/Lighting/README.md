@@ -57,7 +57,9 @@ tracing the lightmap, and once that is finished it only looks for the read.
 
 `BakeSettings` takes a bake's `Samples` (1 to `MaxSamples`, 4096), `Bounces`
 (0 to `MaxBounces`, 8: a path's hits before it stops, 0 being the sky and the
-sun's first hit alone) and `Occlusion` (0 to 1, checked but not yet traced);
+sun's first hit alone) and `Occlusion` (0 to 1: a lightmap texel's light times one less `Occlusion`
+times how near, within a metre, its paths' first hits are, which is ambient
+occlusion from the paths already traced, so no ray is added; probes take none);
 `Validate` refuses anything past them.
 
 A GPU needs float render targets (positions in half floats are centimetres off

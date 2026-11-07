@@ -47,7 +47,7 @@ namespace OneJS.Lighting {
         public int ProbeRays = 1024;
         /// <summary>Hits a path bounces off before it stops: 0 is the sky and the sun's first hit alone.</summary>
         public int Bounces = 2;
-        /// <summary>Extra darkening in corners and where things touch, within a metre, 0 to 1. Validated, and not yet traced.</summary>
+        /// <summary>Extra darkening in corners and where things touch, 0 to 1: a lightmap texel's light times one less this times how near, within a metre, its paths' first hits are. Probes take none.</summary>
         public float Occlusion = 0;
         /// <summary>Paths a texel in one pass over one tile.</summary>
         public int SamplesPerPass = 4;
@@ -84,7 +84,7 @@ namespace OneJS.Lighting {
             DataWidthId = Shader.PropertyToID("_DataWidth"), NodeCountId = Shader.PropertyToID("_NodeCount"),
             SkyId = Shader.PropertyToID("_Sky"), GroundId = Shader.PropertyToID("_Ground"),
             SunDirId = Shader.PropertyToID("_SunDir"), SunColorId = Shader.PropertyToID("_SunColor"), SunAngleId = Shader.PropertyToID("_SunAngle"),
-            BouncesId = Shader.PropertyToID("_Bounces"), PassId = Shader.PropertyToID("_Pass"),
+            BouncesId = Shader.PropertyToID("_Bounces"), OcclusionId = Shader.PropertyToID("_Occlusion"), PassId = Shader.PropertyToID("_Pass"),
             GPosId = Shader.PropertyToID("_GPos"), GNormalId = Shader.PropertyToID("_GNormal"),
             SamplesId = Shader.PropertyToID("_Samples"), WeightId = Shader.PropertyToID("_Weight"),
             SrcId = Shader.PropertyToID("_Src"), RadiusId = Shader.PropertyToID("_Radius"), SigmaPId = Shader.PropertyToID("_SigmaP"),
@@ -157,6 +157,7 @@ namespace OneJS.Lighting {
             _material.SetVector(SunColorId, (Vector4)scene.Sun);
             _material.SetFloat(SunAngleId, scene.SunAngle);
             _material.SetInteger(BouncesId, _settings.Bounces);
+            _material.SetFloat(OcclusionId, _settings.Occlusion);
 
             _gPos = Target(RenderTextureFormat.ARGBFloat, "OneJS Bake Positions");
             _gNormal = Target(RenderTextureFormat.ARGBFloat, "OneJS Bake Normals");

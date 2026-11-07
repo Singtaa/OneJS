@@ -31,11 +31,15 @@ Shader "Hidden/OneJS/LightBake" {
         float3 _SunColor;
         float _SunAngle;
         int _Bounces;
+        // Extra darkening, 0 to 1, of a lightmap texel by how much geometry is within OCCLUSION_REACH of it.
+        float _Occlusion;
         uint _Pass;
 
         static const float PI = 3.14159265;
         // How far a ray starts off the surface it leaves, in metres.
         static const float LIFT = 2e-3;
+        // How near, in metres, geometry has to be for _Occlusion to darken the light it sends: fixed, not an option.
+        static const float OCCLUSION_REACH = 1.0;
 
         float4 tri(int k) { return _Tris.Load(int3(k % _DataWidth, k / _DataWidth, 0)); }
         float4 node(int k) { return _Nodes.Load(int3(k % _DataWidth, k / _DataWidth, 0)); }
@@ -141,9 +145,11 @@ Shader "Hidden/OneJS/LightBake" {
 
         // The light arriving at pos along d, from paths of up to _Bounces hits. A path that meets the back of
         // a face sets `inside` to 1: the point is in a solid. A float for the reason `hit` is one: as a bool,
-        // FXC keeps it as an all-ones mask, a NaN pattern in HLSLcc's GLSL.
-        float3 incoming(float3 pos, float3 d, out float inside) {
+        // FXC keeps it as an all-ones mask, a NaN pattern in HLSLcc's GLSL. `first` is how far the path went
+        // before its first hit, or -1 when it met nothing.
+        float3 incoming(float3 pos, float3 d, out float inside, out float first) {
             inside = 0;
+            first = -1;
             float3 throughput = 1, light = 0;
             for (int b = 0; b <= _Bounces; b++) {
                 float t = trace(pos, d, false);
@@ -151,6 +157,7 @@ Shader "Hidden/OneJS/LightBake" {
                     light += throughput * environment(d);
                     break;
                 }
+                if (b == 0) first = t;
                 int k = (int)hit;
                 float3 hn = tri(k * 5 + 3).xyz;
                 if (dot(hn, d) > 0) {
@@ -232,9 +239,16 @@ Shader "Hidden/OneJS/LightBake" {
                 float3 n = _GNormal.Load(int3(c, 0)).xyz;
                 seedFor((uint)c.x, (uint)c.y);
                 float3 sum = 0;
-                float inside;
-                for (int s = 0; s < _Samples; s++) sum += incoming(P.xyz + n * LIFT, cosine(n), inside);
-                return float4(sum / _Samples * _Weight, _Weight);
+                float inside, first, near = 0;
+                for (int s = 0; s < _Samples; s++) {
+                    sum += incoming(P.xyz + n * LIFT, cosine(n), inside, first);
+                    near += first >= 0 ? saturate(1.0 - first / OCCLUSION_REACH) : 0.0;
+                }
+                // Occlusion: the texel's light, from every direction, darkened by how near its paths' first hits
+                // are, as ambient occlusion is, so corners and contact darken and open ground keeps its light. The
+                // same paths say how near, so no ray is added; the running mean over passes smooths the estimate.
+                float keep = 1.0 - _Occlusion * near / _Samples;
+                return float4(sum / _Samples * keep * _Weight, _Weight);
             }
             ENDCG
         }
@@ -285,8 +299,9 @@ Shader "Hidden/OneJS/LightBake" {
                     float i = (float)(_RayBase + r) + 0.5;
                     float height = 1.0 - 2.0 * i / (float)_RayTotal, ring = sqrt(max(0.0, 1.0 - height * height)), phi = i * 2.39996323;
                     float3 d = float3(ring * cos(phi), ring * sin(phi), height);
-                    float inside;
-                    float3 L = incoming(at, d, inside);
+                    // Probes light what moves, which takes no occlusion: `first` goes unused.
+                    float inside, first;
+                    float3 L = incoming(at, d, inside, first);
                     back += inside;
                     // The real spherical harmonics, bands 0 to 2, in Unity's order.
                     float x = d.x, y = d.y, z = d.z;
