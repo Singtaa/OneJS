@@ -564,6 +564,7 @@ namespace OneJS.Models {
         static void Probing(bool on) {
             if (on == _probing) return;
             _probing = on;
+            _probedFrame = -1;
             if (on) {
                 RenderPipelineManager.beginContextRendering += ProbesFor;
                 Camera.onPreCull += ProbesFor;
@@ -573,8 +574,19 @@ namespace OneJS.Models {
             }
         }
 
-        static void ProbesFor(ScriptableRenderContext _, List<Camera> __) => UpdateProbes();
-        static void ProbesFor(Camera _) => UpdateProbes();
+        static void ProbesFor(ScriptableRenderContext _, List<Camera> __) => ProbesOnce();
+        static void ProbesFor(Camera _) => ProbesOnce();
+
+        // The frame the render callbacks last updated the probes in. They fire once a camera
+        // (onPreCull) or a render request (beginContextRendering), and scene.texture adds a
+        // camera, so a frame would otherwise blend every moved actor's probes once per camera.
+        static int _probedFrame = -1;
+
+        static void ProbesOnce() {
+            if (Time.frameCount == _probedFrame) return;
+            _probedFrame = Time.frameCount;
+            UpdateProbes();
+        }
 
         /// <summary>
         /// Every actor not drawn from the lightmap takes the light at its middle from the eight

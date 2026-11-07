@@ -160,6 +160,31 @@ namespace OneJS.Tests.Models {
             Assert.That(after.g, Is.LessThan(before.g * 0.7f), $"under the roof, drawn from the lightmap, the floor is darker than under the flat ambient: {after} against {before}");
         }
 
+        [UnityTest]
+        public IEnumerator Probes_BlendOnceAFrameHoweverManyCamerasRender() {
+            Assert.That(Bake(), Is.Empty);
+            RunBake();
+            yield return null;
+            // The frame's first camera blends the moved crate's probes; a second in the same frame does not.
+            ModelBridge.Move(_crateActor, 0, 0.2f, 0.5f);
+            Render();
+            var under = ProbeOf(_crateActor);
+            ModelBridge.Move(_crateActor, 3.5f, 0.2f, 3.5f);
+            Render();
+            Assert.That(ProbeOf(_crateActor), Is.EqualTo(under), "a second camera in the frame blends no probes again");
+            yield return null;
+            Render();
+            var open = ProbeOf(_crateActor);
+            Assert.That(open.w, Is.GreaterThan(under.w), $"the next frame blends the crate's probes where it now stands, in the open: {open} against {under}");
+        }
+
+        // The green band 0 and 1 terms ModelLit reads from an actor's property block.
+        static Vector4 ProbeOf(int actor) {
+            var block = new MaterialPropertyBlock();
+            RendererOf(actor).GetPropertyBlock(block);
+            return block.GetVector("unity_SHAg");
+        }
+
         [Test]
         public void ClearLight_GivesEveryActorTheAmbientBack() {
             Assert.That(Bake(), Is.Empty);
