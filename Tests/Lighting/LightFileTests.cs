@@ -27,8 +27,14 @@ namespace OneJS.Tests.Lighting {
             return probes;
         }
 
-        [Test]
-        public void Encode_ThenDecode_GivesTheProbesExactlyAndTheLightToItsRounding() {
+        [TearDown]
+        public void ReadAsTheGpuDoes() => TextureRead.UseReadPixels = false;
+
+        // Read back async, as both browser backends do, and by ReadPixels, as a GPU without async readback does.
+        [TestCase(false)]
+        [TestCase(true)]
+        public void Encode_ThenDecode_GivesTheProbesExactlyAndTheLightToItsRounding(bool readPixels) {
+            TextureRead.UseReadPixels = readPixels;
             var light = Light();
             var probes = Probes(3);
             var png = LightFile.Encode(light, Width, Height, probes);
@@ -44,7 +50,7 @@ namespace OneJS.Tests.Lighting {
                 Color[] back;
                 try {
                     Graphics.Blit(tex, rt);
-                    back = LightFile.Read(rt);
+                    back = TextureRead.Start(rt).Wait().Colors();
                 } finally {
                     rt.Release();
                     Object.DestroyImmediate(rt);

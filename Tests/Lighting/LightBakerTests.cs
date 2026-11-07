@@ -109,6 +109,12 @@ namespace OneJS.Tests.Lighting {
             for (var c = 0; c < 3; c++) Assert.AreEqual(expected[c], actual[c], Mathf.Max(absolute, Mathf.Abs(expected[c]) * relative), $"{what}, channel {c}: expected {expected}, got {actual}");
         }
 
+        [TearDown]
+        public void ReadAsTheGpuDoes() {
+            TextureRead.UseReadPixels = false;
+            TextureRead.Hold = false;
+        }
+
         [SetUp]
         public void RequireGpu() {
             if (!LightBaker.Supported(out var why)) Assert.Ignore($"this GPU cannot bake: {why}");
@@ -239,7 +245,8 @@ namespace OneJS.Tests.Lighting {
             using var baker = new LightBaker(scene, new BakeSettings { Samples = 16, DraftSamples = 8, ProbeRays = 64, TileSize = 32 });
             var progress = 0f;
             var order = new List<string>();
-            for (var steps = 0; !baker.Step(1); steps++) {
+            // Waiting on what it reads back after each step, as a frame between steps would.
+            for (var steps = 0; !baker.Step(1); steps++, AsyncGPUReadback.WaitAllRequests()) {
                 Assert.Less(steps, 10_000, "a bake that never ends");
                 Assert.GreaterOrEqual(baker.Progress, progress, "progress only grows");
                 progress = baker.Progress;
@@ -251,6 +258,51 @@ namespace OneJS.Tests.Lighting {
             Assert.AreEqual(1f, baker.Progress);
             Assert.AreNotSame(baker.Draft, baker.Lightmap, "the final replaces the draft");
             Assert.AreEqual(16, baker.Samples);
+        }
+
+        static LightBaker ProbedBaker() {
+            var scene = FloorAndWall(Color.gray, Color.gray).Build();
+            scene.GridOrigin = new Vector3(0.5f, 1, 0.5f);
+            scene.GridCounts = new Vector3Int(3, 2, 3);
+            return new LightBaker(scene, new BakeSettings { Samples = 4, DraftSamples = 4, ProbeRays = 64 });
+        }
+
+        [Test]
+        public void ABakeIsDoneOnlyOnceItsProbesAreReadBack() {
+            if (!TextureRead.Async) Assert.Ignore("this GPU has no async readback, so its probes are read at once");
+            using var baker = ProbedBaker();
+            TextureRead.Hold = true;
+            try {
+                // One step makes every draw, and the probes' read is still on its way.
+                Assert.IsFalse(baker.Step(long.MaxValue), "done before its probes were read");
+                Assert.IsFalse(baker.Step(long.MaxValue), "a finished lightmap waits on the probes");
+                Assert.IsNull(baker.ProbeSH);
+                Assert.IsTrue(baker.DraftReady);
+                Assert.Less(baker.Progress, 1f);
+            } finally {
+                TextureRead.Hold = false;
+            }
+            AsyncGPUReadback.WaitAllRequests();
+            Assert.IsTrue(baker.Step(1));
+            Assert.IsNotNull(baker.ProbeSH);
+            Assert.AreEqual(1f, baker.Progress);
+        }
+
+        [Test]
+        public void ProbesReadByReadPixelsAreTheSameAndReadAtOnce() {
+            float[] async;
+            using (var baker = ProbedBaker()) {
+                baker.RunToEnd();
+                async = baker.ProbeSH;
+            }
+            TextureRead.UseReadPixels = true;
+            try {
+                using var baker = ProbedBaker();
+                Assert.IsTrue(baker.Step(long.MaxValue), "ReadPixels lands when it is made");
+                CollectionAssert.AreEqual(async, baker.ProbeSH);
+            } finally {
+                TextureRead.UseReadPixels = false;
+            }
         }
 
         [Test]

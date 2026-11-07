@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using NUnit.Framework;
+using OneJS.Lighting;
 using OneJS.Models;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -43,7 +44,11 @@ namespace OneJS.Tests.Models {
         }
 
         [TearDown]
-        public void Clean() => ModelBridge.DisposeAll();
+        public void Clean() {
+            ModelBridge.DisposeAll();
+            TextureRead.UseReadPixels = false;
+            TextureRead.Hold = false;
+        }
 
         /// <summary>A matte grey mesh model: ModelLit defaults to metal, which scatters no light to bake or to show.</summary>
         static int Mesh(Vector3[] corners, uint[] indices) {
@@ -64,9 +69,24 @@ namespace OneJS.Tests.Models {
             return ModelBridge.BeginBake(actors, Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight, 8, 32);
         }
 
+        // Steps the bake to its end, waiting between steps for what it reads back, as frames would.
         static void RunBake() {
-            for (var i = 0; i < 100000; i++) if (ModelBridge.StepBake(2_000_000) >= 1) return;
+            for (var i = 0; i < 100000; i++) {
+                if (ModelBridge.StepBake(2_000_000) >= 1) return;
+                AsyncGPUReadback.WaitAllRequests();
+            }
             Assert.Fail("the bake never finished");
+        }
+
+        // The finished bake's light file, once its read lands.
+        static string File() {
+            for (var i = 0; i < 10; i++) {
+                var file = ModelBridge.LightFile();
+                if (file != "") return file;
+                AsyncGPUReadback.WaitAllRequests();
+            }
+            Assert.Fail("the light file never read back");
+            return null;
         }
 
         static Renderer RendererOf(int actor) => ModelBridge.ActorObject(actor).GetComponentInChildren<Renderer>();
@@ -175,14 +195,25 @@ namespace OneJS.Tests.Models {
             Assert.That(ModelBridge.BeginBake(actors, new float[] { scatter, 7, 1, 1, 0, 0 }, Grid, AtlasWidth, AtlasHeight, 8, 16), Does.Contain("no copy 7"));
         }
 
-        [Test]
-        public void LightFile_LoadsBackAsTheLightItWasBakedAs() {
+        // Read back async, as both browser backends do, and by ReadPixels, as a GPU without async readback does.
+        [TestCase(false)]
+        [TestCase(true)]
+        public void LightFile_LoadsBackAsTheLightItWasBakedAs(bool readPixels) {
+            TextureRead.UseReadPixels = readPixels;
             Assert.That(ModelBridge.LightFile(), Is.Empty, "nothing has baked yet");
             Assert.That(Bake(), Is.Empty);
             Assert.That(ModelBridge.LightFile(), Is.Empty, "the bake has not finished");
             RunBake();
-            var file = ModelBridge.LightFile();
-            Assert.That(file, Is.Not.Empty);
+            TextureRead.Hold = true;
+            if (TextureRead.Async) {
+                Assert.That(ModelBridge.LightFile(), Is.Empty, "the lightmap's read has not landed");
+                Assert.That(ModelBridge.LightFile(), Is.Empty, "nor has it a frame later");
+            } else {
+                Assert.That(ModelBridge.LightFile(), Is.Not.Empty, "ReadPixels lands when it is made");
+            }
+            TextureRead.Hold = false;
+            var file = File();
+            Assert.That(ModelBridge.LightFile(), Is.EqualTo(file), "the file is read once");
             var shaded = Sample(Floor(0, 0));
             var lit = Sample(Floor(3.5f, 3.5f));
             var under = ModelBridge.BlendProbes(new Vector3(0, 0.25f, 0));
@@ -207,7 +238,7 @@ namespace OneJS.Tests.Models {
         public void LoadLight_RefusesAFileThatDoesNotFitAndLightsNothing() {
             Assert.That(Bake(), Is.Empty);
             RunBake();
-            var file = ModelBridge.LightFile();
+            var file = File();
             var actors = new[] { _floorActor, FloorST.x, FloorST.y, FloorST.z, FloorST.w };
             Assert.That(ModelBridge.LoadLight(file, actors, Array.Empty<float>(), Grid, AtlasWidth * 2, AtlasHeight), Does.Contain("needs"));
             Assert.That(ModelBridge.BakedLightmap, Is.Null);
@@ -215,6 +246,49 @@ namespace OneJS.Tests.Models {
             Assert.That(ModelBridge.LoadLight("not base64!", actors, Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight), Does.Contain("base64"));
             Assert.That(ModelBridge.LoadLight(file, new float[] { 999, 1, 1, 0, 0 }, Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight), Does.Contain("no actor 999"));
             Assert.That(ModelBridge.BakedLightmap, Is.Null);
+        }
+
+        // The roof's underside bounces the floor's light back down by its base map's mean colour, read back as each backend does.
+        [TestCase(false)]
+        [TestCase(true)]
+        public void Bake_BouncesLightByATexturedSurfacesMeanColour(bool readPixels) {
+            TextureRead.UseReadPixels = readPixels;
+            Color ShadedUnder(Color map) {
+                var tex = new Texture2D(4, 4, TextureFormat.RGBA32, false, true);
+                var pixels = new Color[16];
+                for (var i = 0; i < 16; i++) pixels[i] = map;
+                tex.SetPixels(pixels);
+                tex.Apply();
+                try {
+                    ModelBridge.MaterialOf(_roof).SetTexture("_BaseMap", tex);
+                    Assert.That(Bake(), Is.Empty);
+                    RunBake();
+                    return Sample(Floor(0, 0));
+                } finally {
+                    ModelBridge.ClearLight();
+                    ModelBridge.MaterialOf(_roof).SetTexture("_BaseMap", null);
+                    Object.DestroyImmediate(tex);
+                }
+            }
+            var white = ShadedUnder(Color.white);
+            var black = ShadedUnder(Color.black);
+            Assert.That(black.g, Is.LessThan(white.g * 0.9f), $"a black roof bounces less onto the floor under it: {black} against {white}");
+        }
+
+        [Test]
+        public void StepBake_WaitsForATexturesMeanBeforeItBakes() {
+            if (!TextureRead.Async) Assert.Ignore("this GPU has no async readback, so a mean is read at once");
+            ModelBridge.MaterialOf(_roof).SetTexture("_BaseMap", Texture2D.whiteTexture);
+            TextureRead.Hold = true;
+            Assert.That(Bake(), Is.Empty);
+            Assert.That(ModelBridge.Baking, Is.True);
+            Assert.That(ModelBridge.StepBake(2_000_000), Is.EqualTo(0f), "no baker before the mean");
+            Assert.That(ModelBridge.StepBake(2_000_000), Is.EqualTo(0f));
+            Assert.That(ModelBridge.BakedLightmap, Is.Null);
+            TextureRead.Hold = false;
+            RunBake();
+            Assert.That(ModelBridge.BakedLightmap, Is.Not.Null);
+            Assert.That(ModelBridge.Baking, Is.False);
         }
 
         [Test]

@@ -31,6 +31,11 @@ namespace OneJS.Models {
         const int ActorStride = 5, CopyStride = 6, GridFloats = 7;
 
         static LightBaker _baker;
+        // A bake BeginBake accepted that waits on its textures' means before its baker can start.
+        static WaitingBake _waiting;
+        // The finished bake's light file, and the lightmap's read it waits on.
+        static TextureRead _fileRead;
+        static string _file;
         // The lightmap ModelLit reads now: the bake's draft, then its final. Null until the draft.
         static Texture _lightmap;
         // A lightmap read from a light file (LoadLight), which the bridge owns; a bake's are the baker's.
@@ -280,6 +285,7 @@ namespace OneJS.Models {
             if (scene.Empty) return "there is nothing static to bake";
 
             var bake = scene.Build(width, height);
+            var settings = new BakeSettings { Samples = Math.Max(1, samples), Detail = detail };
             bake.GridOrigin = new Vector3(grid[0], grid[1], grid[2]);
             bake.GridSpacing = grid[3];
             bake.GridCounts = new Vector3Int((int)grid[4], (int)grid[5], (int)grid[6]);
@@ -293,14 +299,40 @@ namespace OneJS.Models {
                 bake.Sun = sun.color.linear * sun.intensity;
             }
             try {
-                _baker = new LightBaker(bake, new BakeSettings { Samples = Math.Max(1, samples), Detail = detail });
-            } catch (Exception e) {
+                LightBaker.Validate(bake, settings);
+            } catch (ArgumentException e) {
                 ClearLight();
                 return e.Message;
             }
             _gridOrigin = bake.GridOrigin;
             _gridSpacing = bake.GridSpacing;
             _gridCounts = bake.GridCounts;
+            // The albedo waits on each texture's mean, which on WebGPU is read back a frame or more later.
+            scene.ReadMeans();
+            _waiting = new WaitingBake { scene = scene, bake = bake, settings = settings };
+            problem = StartWaiting();
+            if (problem != "") ClearLight();
+            return problem;
+        }
+
+        sealed class WaitingBake {
+            public SceneBuilder scene;
+            public BakeScene bake;
+            public BakeSettings settings;
+        }
+
+        // Starts the waiting bake's baker once its means have landed: "" when it started or still waits, or why it could not.
+        static string StartWaiting() {
+            if (_waiting == null || !_waiting.scene.MeansReady) return "";
+            var w = _waiting;
+            _waiting = null;
+            w.scene.FillAlbedo(w.bake.Albedo);
+            w.scene.Dispose();
+            try {
+                _baker = new LightBaker(w.bake, w.settings);
+            } catch (Exception e) {
+                return e.Message;
+            }
             return "";
         }
 
@@ -340,9 +372,19 @@ namespace OneJS.Models {
         /// </summary>
         public static string LightFile() {
             if (_baker == null || !_baker.Done || _baker.Lightmap == null) return "";
+            if (_file != null) return _file;
             var map = _baker.Lightmap;
-            var png = LightFileFormat.Encode(LightFileFormat.Read(map), map.width, map.height, _baker.ProbeSH);
-            return Convert.ToBase64String(png);
+            // On WebGPU the lightmap's read lands a frame or more after it starts, and until then this is "".
+            _fileRead ??= TextureRead.Start(map);
+            if (!_fileRead.Done) return "";
+            var read = _fileRead;
+            _fileRead = null;
+            if (read.Error != null) {
+                Debug.LogWarning($"[OneJS] The bake's lightmap could not be read back, and is read again: {read.Error}.");
+                return "";
+            }
+            _file = Convert.ToBase64String(LightFileFormat.Encode(read.Colors(), map.width, map.height, _baker.ProbeSH));
+            return _file;
         }
 
         /// <summary>
@@ -422,11 +464,28 @@ namespace OneJS.Models {
         /// <summary>
         /// Does about `paths` paths of the bake (a path is one ray from a texel or a probe, with its
         /// bounces) and shows what is ready: the probes, then the draft lightmap, then the final.
-        /// Returns the bake's progress, 1 once done, or -1 when nothing is baking.
+        /// Returns the bake's progress, 1 once done (the probes read back too), or -1 when nothing is
+        /// baking. 0 while the bake waits on its textures' means.
         /// </summary>
         public static float StepBake(double paths) {
+            if (_waiting != null) {
+                if (!_waiting.scene.MeansReady) return 0;
+                var problem = StartWaiting();
+                if (problem != "") {
+                    Debug.LogError($"[OneJS] The bake could not start: {problem}");
+                    ClearLight();
+                    return -1;
+                }
+            }
             if (_baker == null) return -1;
-            var done = _baker.Step((long)Math.Max(1, paths));
+            bool done;
+            try {
+                done = _baker.Step((long)Math.Max(1, paths));
+            } catch (InvalidOperationException e) {
+                OneJSLog.Exception("[OneJS] The bake stopped", e);
+                ClearLight();
+                return -1;
+            }
             if (_probes == null && _baker.ProbesReady && _baker.ProbeCount > 0) {
                 _probes = _baker.ProbeSH;
                 Probing(true);
@@ -437,7 +496,7 @@ namespace OneJS.Models {
         }
 
         /// <summary>Whether a bake has been started and not finished.</summary>
-        public static bool Baking => _baker != null && !_baker.Done;
+        public static bool Baking => _waiting != null || (_baker != null && !_baker.Done);
 
         /// <summary>The lightmap ModelLit reads now, or null.</summary>
         internal static Texture BakedLightmap => _lightmap;
@@ -474,6 +533,10 @@ namespace OneJS.Models {
         public static void ClearLight() {
             _baker?.Dispose();
             _baker = null;
+            _waiting?.scene.Dispose();
+            _waiting = null;
+            _fileRead = null;
+            _file = null;
             if (_loaded != null) Kill(_loaded);
             _loaded = null;
             var had = _lightmap != null || _probes != null;
@@ -562,8 +625,13 @@ namespace OneJS.Models {
             readonly List<Vector3> _normals = new();
             readonly List<Vector2> _uvs = new();
             readonly List<int> _indices = new();
-            readonly List<Color> _albedo = new();
-            readonly Dictionary<Texture, Color> _means = new();
+            // Per triangle: which of _materials it is drawn with, and its vertex colours' mean (white without).
+            readonly List<int> _surface = new();
+            readonly List<Color> _tint = new();
+            readonly List<Material> _materials = new();
+            readonly Dictionary<Material, int> _materialIndex = new();
+            // Each texture's mean, read back from a 16 by 16 copy drawn through its mips.
+            readonly Dictionary<Texture, (RenderTexture rt, TextureRead read)> _means = new();
             readonly List<Vector2> _layout = new();
 
             public bool Empty => _indices.Count == 0;
@@ -583,18 +651,66 @@ namespace OneJS.Models {
                 }
                 for (int sub = 0; sub < mesh.subMeshCount; sub++) {
                     var material = sub < materials.Length ? materials[sub] : null;
-                    var surface = Albedo(material);
+                    var surface = SurfaceOf(material);
                     var vertexColors = material != null && material.IsKeywordEnabled("_VERTEX_COLOR") && colors.Length == vertices.Length;
                     var tris = mesh.GetTriangles(sub);
                     for (int k = 0; k < tris.Length; k += 3) {
                         _indices.Add(at + tris[k]);
                         _indices.Add(at + tris[k + 1]);
                         _indices.Add(at + tris[k + 2]);
-                        var c = surface;
-                        if (vertexColors) c *= (colors[tris[k]] + colors[tris[k + 1]] + colors[tris[k + 2]]) / 3f;
-                        _albedo.Add(c);
+                        _surface.Add(surface);
+                        _tint.Add(vertexColors ? (colors[tris[k]] + colors[tris[k + 1]] + colors[tris[k + 2]]) / 3f : Color.white);
                     }
                 }
+            }
+
+            int SurfaceOf(Material material) {
+                // A null material is a surface too, the gray Albedo gives it, kept under index -1.
+                if (material == null) return -1;
+                if (_materialIndex.TryGetValue(material, out var i)) return i;
+                _materialIndex[material] = _materials.Count;
+                _materials.Add(material);
+                return _materials.Count - 1;
+            }
+
+            /// <summary>Starts reading back the mean of every texture the albedo needs: base maps, and metallic maps where a material is metal.</summary>
+            public void ReadMeans() {
+                foreach (var material in _materials) {
+                    if (material.HasProperty(BaseMapId)) StartMean(material.GetTexture(BaseMapId));
+                    if (material.HasProperty(MetallicId)) StartMean(material.GetTexture(MetallicMapId));
+                }
+            }
+
+            void StartMean(Texture texture) {
+                if (texture == null || _means.ContainsKey(texture)) return;
+                var rt = RenderTexture.GetTemporary(16, 16, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
+                Graphics.Blit(texture, rt);
+                _means[texture] = (rt, TextureRead.Start(rt));
+            }
+
+            /// <summary>Whether every mean ReadMeans started has landed.</summary>
+            public bool MeansReady {
+                get {
+                    foreach (var (_, read) in _means.Values) if (!read.Done) return false;
+                    return true;
+                }
+            }
+
+            /// <summary>Each triangle's albedo, once MeansReady: its material's, times its vertex colours' mean.</summary>
+            public void FillAlbedo(Color[] albedo) {
+                var surfaces = new Color[_materials.Count];
+                for (int i = 0; i < surfaces.Length; i++) surfaces[i] = Albedo(_materials[i]);
+                for (int t = 0; t < albedo.Length; t++) {
+                    var c = (_surface[t] < 0 ? Albedo(null) : surfaces[_surface[t]]) * _tint[t];
+                    c.a = 1;
+                    albedo[t] = c;
+                }
+            }
+
+            /// <summary>Gives back the means' render textures.</summary>
+            public void Dispose() {
+                foreach (var (rt, _) in _means.Values) RenderTexture.ReleaseTemporary(rt);
+                _means.Clear();
             }
 
             /// <summary>
@@ -616,28 +732,23 @@ namespace OneJS.Models {
                 return c;
             }
 
-            // A texture's mean colour, linear: drawn into 16 by 16 through its mips, read back and averaged.
+            // A texture's mean colour, linear, from its read (ReadMeans). White when the read failed, so the material's colour stands alone.
             Color Mean(Texture texture) {
-                if (_means.TryGetValue(texture, out var mean)) return mean;
-                var rt = RenderTexture.GetTemporary(16, 16, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
-                var previous = RenderTexture.active;
-                Graphics.Blit(texture, rt);
-                var read = new Texture2D(16, 16, TextureFormat.RGBAHalf, false, true);
-                RenderTexture.active = rt;
-                read.ReadPixels(new Rect(0, 0, 16, 16), 0, 0, false);
-                RenderTexture.active = previous;
-                RenderTexture.ReleaseTemporary(rt);
+                if (!_means.TryGetValue(texture, out var mean)) return Color.white;
+                var colors = mean.read.Colors();
+                if (colors == null) {
+                    Debug.LogWarning($"[OneJS] The bake could not read {texture.name}'s mean colour back ({mean.read.Error}), and bounces its material's colour alone.");
+                    return Color.white;
+                }
                 var sum = Color.clear;
-                foreach (var p in read.GetPixels()) sum += p;
-                Kill(read);
-                mean = sum / 256f;
-                _means[texture] = mean;
-                return mean;
+                foreach (var p in colors) sum += p;
+                return sum / colors.Length;
             }
 
+            /// <summary>The scene, its albedo left for FillAlbedo.</summary>
             public BakeScene Build(int width, int height) => new BakeScene {
                 Positions = _positions.ToArray(), Normals = _normals.ToArray(), Uvs = _uvs.ToArray(),
-                Indices = _indices.ToArray(), Albedo = _albedo.ToArray(), AtlasWidth = width, AtlasHeight = height,
+                Indices = _indices.ToArray(), Albedo = new Color[_surface.Count], AtlasWidth = width, AtlasHeight = height,
             };
         }
     }

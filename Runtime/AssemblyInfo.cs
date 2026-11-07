@@ -9,6 +9,8 @@ using System.Runtime.CompilerServices;
 
 // The tests drive JsHost, the context and lifecycle JSRunner and JSPad share, directly.
 [assembly: InternalsVisibleTo("OneJS.Tests")]
+// and the model tests read the bake back by ReadPixels too (TextureRead.UseReadPixels).
+[assembly: InternalsVisibleTo("OneJS.Tests.Models")]
 
 // Editor code and its tests log caught exceptions through OneJSLog.
 [assembly: InternalsVisibleTo("OneJS.Editor")]

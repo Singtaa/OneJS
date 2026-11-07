@@ -105,19 +105,5 @@ namespace OneJS.Lighting {
                 Object.DestroyImmediate(tex);
             }
         }
-
-        /// <summary>A render texture's texels as linear colours, row 0 at the bottom.</summary>
-        public static Color[] Read(RenderTexture rt) {
-            var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBAHalf, false, true);
-            var previous = RenderTexture.active;
-            try {
-                RenderTexture.active = rt;
-                tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0, false);
-                return tex.GetPixels();
-            } finally {
-                RenderTexture.active = previous;
-                Object.DestroyImmediate(tex);
-            }
-        }
     }
 }

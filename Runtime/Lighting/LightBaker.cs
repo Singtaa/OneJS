@@ -94,6 +94,8 @@ namespace OneJS.Lighting {
         readonly Vector3Int _gridCounts;
         RenderTexture[] _probeA, _probeB;
         int _probeRaysDone;
+        // The probe targets' four reads, between the last probe pass and their landing.
+        TextureRead[] _probeReads;
         float[] _probeSH;
         Color _sky, _ground;
 
@@ -102,7 +104,7 @@ namespace OneJS.Lighting {
         /// <summary>Samples every texel has after the current sweep over the tiles completes, and before it.</summary>
         int _sweepSamples;
         uint _pass;
-        bool _disposed;
+        bool _mapDone, _disposed;
 
         /// <summary>Whether this GPU can bake, and why not when it cannot.</summary>
         public static bool Supported(out string reason) {
@@ -185,7 +187,8 @@ namespace OneJS.Lighting {
         public bool ProbesReady => _probeSH != null || _probeCount == 0;
         /// <summary>True once the lightmap has its draft, then once it is finished.</summary>
         public bool DraftReady => _draft != null;
-        public bool Done { get; private set; }
+        /// <summary>True once the lightmap is finished and the probes are read back, which can land a frame or more after it.</summary>
+        public bool Done => _mapDone && ProbesReady;
 
         /// <summary>The newest finished lightmap: the draft, then the final. Null before the draft. RGB light, A 1 where a texel has light.</summary>
         public RenderTexture Lightmap => _final != null ? _final : _draft;
@@ -198,13 +201,14 @@ namespace OneJS.Lighting {
         /// </summary>
         public float[] ProbeSH => _probeSH;
 
-        /// <summary>0 to 1: the probes are the first tenth, the lightmap the rest.</summary>
+        /// <summary>0 to 1, 1 only once done: the probes are the first tenth, the lightmap the rest.</summary>
         public float Progress {
             get {
                 if (Done) return 1;
                 var probes = _probeCount == 0 ? 1f : Mathf.Min(1f, _probeRaysDone / (float)_settings.ProbeRays);
                 var map = Mathf.Min(1f, (Samples + SweepFraction() * _settings.SamplesPerPass) / _settings.Samples);
-                return _probeCount == 0 ? map : 0.1f * probes + 0.9f * map;
+                // Below 1 while the probes' read is on its way.
+                return Mathf.Min(0.999f, _probeCount == 0 ? map : 0.1f * probes + 0.9f * map);
             }
         }
 
@@ -212,14 +216,16 @@ namespace OneJS.Lighting {
 
         /// <summary>
         /// Does about `paths` paths of work, at least one draw, and returns whether the bake is done.
-        /// A path is one ray from a texel or a probe, with its bounces.
+        /// A path is one ray from a texel or a probe, with its bounces. Once the lightmap is finished
+        /// it draws nothing more and only looks for the probes' read.
         /// </summary>
         public bool Step(long paths) {
             if (_disposed) throw new ObjectDisposedException(nameof(LightBaker));
+            LandProbes();
             if (Done) return true;
             using var cmd = new CommandBuffer { name = "OneJS Bake" };
             long spent = 0;
-            while (!Done && (spent == 0 || spent < paths)) {
+            while (!_mapDone && (spent == 0 || spent < paths)) {
                 if (_probeCount > 0 && _probeRaysDone < _settings.ProbeRays) {
                     var perRay = (long)_probeCount * 2;
                     var rays = (int)Math.Clamp((paths - spent) / Math.Max(1, perRay), 1, 64);
@@ -239,12 +245,13 @@ namespace OneJS.Lighting {
                     if (_draft == null && Samples >= Math.Min(_settings.DraftSamples, _settings.Samples)) _draft = Finish(cmd, "OneJS Lightmap Draft");
                     if (Samples >= _settings.Samples) {
                         _final = Finish(cmd, "OneJS Lightmap");
-                        Done = true;
+                        _mapDone = true;
                     }
                 }
             }
             Flush(cmd);
-            if (Done) ReleaseWork();
+            if (_mapDone && _accum != null) ReleaseWork();
+            LandProbes();
             return Done;
         }
 
@@ -312,38 +319,36 @@ namespace OneJS.Lighting {
             return result;
         }
 
+        // Starts reading the probe sums back; LandProbes solves them once all four have landed.
         void ReadProbes() {
-            var w = _probesWide * 2;
-            var h = _probesHigh;
+            _probeReads = new TextureRead[4];
+            for (var i = 0; i < 4; i++) _probeReads[i] = TextureRead.Start(_probeA[i]);
+            LandProbes();
+        }
+
+        void LandProbes() {
+            if (_probeReads == null) return;
+            foreach (var read in _probeReads) if (!read.Done) return;
             var sums = new float[4][];
-            var tex = new Texture2D(w, h, TextureFormat.RGBAFloat, false, true);
-            var previous = RenderTexture.active;
-            try {
-                for (var i = 0; i < 4; i++) {
-                    RenderTexture.active = _probeA[i];
-                    tex.ReadPixels(new Rect(0, 0, w, h), 0, 0, false);
-                    sums[i] = tex.GetPixelData<float>(0).ToArray();
-                }
-            } finally {
-                RenderTexture.active = previous;
-                Kill(tex);
+            for (var i = 0; i < 4; i++) {
+                if (_probeReads[i].Error != null) throw new InvalidOperationException($"[OneJS] The bake's probes could not be read: {_probeReads[i].Error}.");
+                sums[i] = _probeReads[i].Texels;
             }
-            _probeSH = ProbeSolve.FromSums(sums, w, _probeCount, _probeRaysDone, _gridCounts, _sky, _ground);
+            _probeReads = null;
+            _probeSH = ProbeSolve.FromSums(sums, _probesWide * 2, _probeCount, _probeRaysDone, _gridCounts, _sky, _ground);
             foreach (var t in _probeA) Release(t);
             foreach (var t in _probeB) Release(t);
             _probeA = _probeB = null;
         }
 
-        /// <summary>Waits for the GPU to finish what has been submitted, by reading a texel back.</summary>
+        /// <summary>
+        /// Waits for the GPU to finish what has been submitted, by reading a texel back, and for the
+        /// probes' read. For the editor and tests (RunToEnd): a browser cannot wait on its GPU.
+        /// </summary>
         public void Sync() {
+            if (_probeReads != null) foreach (var read in _probeReads) read.Wait();
             var target = _accum != null ? _accum : Lightmap;
-            if (target == null) return;
-            var tex = new Texture2D(1, 1, TextureFormat.RGBAHalf, false, true);
-            var previous = RenderTexture.active;
-            RenderTexture.active = target;
-            tex.ReadPixels(new Rect(0, 0, 1, 1), 0, 0, false);
-            RenderTexture.active = previous;
-            Kill(tex);
+            if (target != null) TextureRead.Start(target, 0, 0, 1, 1).Wait();
         }
 
         static void Flush(CommandBuffer cmd) {
@@ -480,7 +485,8 @@ namespace OneJS.Lighting {
             return mesh;
         }
 
-        static void Validate(BakeScene s, BakeSettings o) {
+        /// <summary>Throws ArgumentException naming what is wrong with a scene or its settings, as the constructor does.</summary>
+        public static void Validate(BakeScene s, BakeSettings o) {
             if (s == null) throw new ArgumentNullException(nameof(s));
             if (s.Positions == null || s.Normals == null || s.Uvs == null || s.Indices == null || s.Albedo == null) throw new ArgumentException("[OneJS] a bake needs positions, normals, uvs, indices and albedo");
             if (s.Indices.Length == 0 || s.Indices.Length % 3 != 0) throw new ArgumentException($"[OneJS] a bake needs whole triangles, and has {s.Indices.Length} indices");

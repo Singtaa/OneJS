@@ -10,6 +10,7 @@ measurements are `PlaySite/docs/lightmapping.md` in the container repo.
 | `LightBaker.cs` | `BakeScene` (what is baked), `BakeSettings`, and `LightBaker`, which bakes it a slice at a time |
 | `Bvh.cs` | The triangle hierarchy the trace walks, built on the CPU |
 | `ProbeSolve.cs` | The probe pass's sums as `SphericalHarmonicsL2` coefficients, and probes inside solids filled from their neighbours |
+| `TextureRead.cs` | A float or half-float render texture read back to the CPU: `AsyncGPUReadback` where the GPU has it, landing a frame or more later, and `ReadPixels` where it does not, landing at once. Both browser backends have it |
 | `LightFile.cs` | A finished bake as one PNG and back: the lightmap as 8-bit RGBM over a range of 8, and under it the probes, each float as its four bytes in one pixel, so they read back exactly |
 | `Resources/OneJS/LightBake.shader` | The passes: G-buffer, lightmap trace, probe trace, resolve, dilation, denoise |
 
@@ -45,7 +46,10 @@ target (no ping-pong, so a tile writes only its own texels). A draft is finished
 at `DraftSamples` and the final at `Samples`, each by resolve, four steps of
 dilation and an edge-aware denoise of the whole map. `Step(paths)` does about
 that many paths, at least one draw; `RunToEnd` bakes everything, waiting on the
-GPU between submissions so none grows long enough to trip a watchdog.
+GPU between submissions so none grows long enough to trip a watchdog. A bake is
+`Done` once its lightmap is finished and its probes are read back, which on
+WebGPU lands a frame or more after the last probe pass: until then `Step` keeps
+tracing the lightmap, and once that is finished it only looks for the read.
 
 A GPU needs float render targets (positions in half floats are centimetres off
 at a hundred metres), half-float ones, four targets at once and float textures.
@@ -66,6 +70,23 @@ light reaches a player without a bake on their device. The baker disposes its te
 `DestroyImmediate` in the editor's edit mode, since a bake runs in the edit-mode preview too.
 
 ## Traps
+
+- **WebGPU cannot `ReadPixels`.** Unity 6's `Texture2D.ReadPixels` there logs
+  "Texture Readback is not supported by WebGPU" and reads black, so every read
+  of the bake goes through `TextureRead`, which uses `AsyncGPUReadback` wherever
+  `SystemInfo.supportsAsyncGPUReadback` holds. Its reads land later, so nothing
+  that reads back can answer in the call that started it: the probes, the light
+  file and a texture's albedo mean all wait. WebGL 2 reports async readback
+  too, served by Unity through a pixel pack buffer, so both browser backends
+  take that path. `TextureRead.UseReadPixels` and `Hold` let a test take the
+  `ReadPixels` path, and hold a read as a slow GPU would.
+- **No int sentinel through a float on WebGL 2.** FXC keeps ints in typeless
+  registers, and HLSLcc's GLSL moves them through floats by their bits. The
+  trace's "no hit" of -1 is a NaN pattern there, which the GPU rewrote, so every
+  ray counted as a hit and the bake was black while WebGPU's was lit. The hit,
+  the node index and the traversal stack are float values for that reason;
+  `LightBakeShaderCompileTests` fails on a NaN-pattern constant in any pass's
+  WebGL 2 GLSL.
 
 - **xatlas centres a chart's border texels on its edges.** A floor texel at the
   foot of a wall then sits on the wall's plane and its rays cross the wall at

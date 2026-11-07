@@ -41,7 +41,11 @@ Shader "Hidden/OneJS/LightBake" {
         float4 node(int k) { return _Nodes.Load(int3(k % _DataWidth, k / _DataWidth, 0)); }
 
         static float best;
-        static int hit;
+        // The triangle hit, or -1, and below the nodes and the stack, all held as float values. As ints, FXC
+        // keeps them in typeless registers and HLSLcc's GLSL (WebGL 2) moves them through floats by their
+        // bits, where a -1 is a NaN pattern the GPU may rewrite: every ray then counts as a hit, and the
+        // bake is black. A float holds every index to 2^24 exactly.
+        static float hit;
 
         void testTriangles(float3 o, float3 d, int from, int count, bool any) {
             for (int i = from; i < from + count; i++) {
@@ -59,7 +63,7 @@ Shader "Hidden/OneJS/LightBake" {
                 float t = dot(e2, q) * inv;
                 if (t > 1e-4 && t < best) {
                     best = t;
-                    hit = i;
+                    hit = (float)i;
                     if (any) return;
                 }
             }
@@ -71,11 +75,11 @@ Shader "Hidden/OneJS/LightBake" {
             hit = -1;
             if (_NodeCount == 0) return -1;
             float3 inv = 1.0 / (abs(d) < 1e-12 ? (d < 0 ? -1e-12 : 1e-12) : d);
-            int stack[32];
+            float stack[32];
             int sp = 0;
-            int n = 0;
+            float n = 0;
             [loop] for (int guard = 0; guard < 8192; guard++) {
-                float4 a = node(n * 2), b = node(n * 2 + 1);
+                float4 a = node((int)n * 2), b = node((int)n * 2 + 1);
                 float3 t0 = (a.xyz - o) * inv, t1 = (b.xyz - o) * inv;
                 float3 tn = min(t0, t1), tf = max(t0, t1);
                 float near = max(max(tn.x, tn.y), tn.z), far = min(min(tf.x, tf.y), tf.z);
@@ -85,7 +89,7 @@ Shader "Hidden/OneJS/LightBake" {
                         if (any && hit >= 0) break;
                     } else if (sp < 32) {
                         // The left child follows its parent; the right one waits on the stack.
-                        stack[sp++] = (int)a.w;
+                        stack[sp++] = a.w;
                         n = n + 1;
                         continue;
                     }
@@ -143,7 +147,7 @@ Shader "Hidden/OneJS/LightBake" {
                     light += throughput * environment(d);
                     break;
                 }
-                int k = hit;
+                int k = (int)hit;
                 float3 hn = tri(k * 5 + 3).xyz;
                 if (dot(hn, d) > 0) {
                     if (b == 0) inside = true;
