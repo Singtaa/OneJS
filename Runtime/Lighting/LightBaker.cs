@@ -179,6 +179,8 @@ namespace OneJS.Lighting {
         }
 
         public int Width => _width;
+        /// <summary>The paths one tile traces: the least a Step traces once the probes are done.</summary>
+        public long TilePaths => (long)Math.Max(8, _settings.TileSize) * Math.Max(8, _settings.TileSize) * _settings.SamplesPerPass;
         public int Height => _height;
         public int ProbeCount => _probeCount;
         /// <summary>Samples a texel the lightmap has so far.</summary>

@@ -465,12 +465,13 @@ namespace OneJS.Models {
         }
 
         /// <summary>
-        /// Does about `paths` paths of the bake (a path is one ray from a texel or a probe, with its
-        /// bounces) and shows what is ready: the probes, then the draft lightmap, then the final.
+        /// Does `tiles` tiles of the bake (LightBaker.TilePaths paths each; a path is one ray from a
+        /// texel or a probe, with its bounces), at least one, and shows what is ready: the probes,
+        /// then the draft lightmap, then the final.
         /// Returns the bake's progress, 1 once done (the probes read back too), or -1 when nothing is
         /// baking. 0 while the bake waits on its textures' means.
         /// </summary>
-        public static float StepBake(double paths) {
+        public static float StepBake(double tiles) {
             if (_waiting != null) {
                 if (!_waiting.scene.MeansReady) return 0;
                 var problem = StartWaiting();
@@ -483,7 +484,7 @@ namespace OneJS.Models {
             if (_baker == null) return -1;
             bool done;
             try {
-                done = _baker.Step((long)Math.Max(1, paths));
+                done = _baker.Step((long)Math.Max(1, Math.Round(tiles)) * _baker.TilePaths);
             } catch (InvalidOperationException e) {
                 OneJSLog.Exception("[OneJS] The bake stopped", e);
                 ClearLight();

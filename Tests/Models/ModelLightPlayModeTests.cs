@@ -73,7 +73,7 @@ namespace OneJS.Tests.Models {
         // Steps the bake to its end, waiting between steps for what it reads back, as frames would.
         static void RunBake() {
             for (var i = 0; i < 100000; i++) {
-                if (ModelBridge.StepBake(2_000_000) >= 1) return;
+                if (ModelBridge.StepBake(128) >= 1) return;
                 AsyncGPUReadback.WaitAllRequests();
             }
             Assert.Fail("the bake never finished");
@@ -325,8 +325,8 @@ namespace OneJS.Tests.Models {
             TextureRead.Hold = true;
             Assert.That(Bake(), Is.Empty);
             Assert.That(ModelBridge.Baking, Is.True);
-            Assert.That(ModelBridge.StepBake(2_000_000), Is.EqualTo(0f), "no baker before the mean");
-            Assert.That(ModelBridge.StepBake(2_000_000), Is.EqualTo(0f));
+            Assert.That(ModelBridge.StepBake(128), Is.EqualTo(0f), "no baker before the mean");
+            Assert.That(ModelBridge.StepBake(128), Is.EqualTo(0f));
             Assert.That(ModelBridge.BakedLightmap, Is.Null);
             TextureRead.Hold = false;
             RunBake();
