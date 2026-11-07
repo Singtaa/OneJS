@@ -84,9 +84,10 @@ light reaches a player without a bake on their device. The baker disposes its te
   registers, and HLSLcc's GLSL moves them through floats by their bits. The
   trace's "no hit" of -1 is a NaN pattern there, which the GPU rewrote, so every
   ray counted as a hit and the bake was black while WebGPU's was lit. The hit,
-  the node index and the traversal stack are float values for that reason;
-  `LightBakeShaderCompileTests` fails on a NaN-pattern constant in any pass's
-  WebGL 2 GLSL.
+  the node index, the traversal stack and `incoming`'s `inside` (a bool is an
+  all-ones mask) are float values for that reason. `ShaderWebGL2NaNTests`
+  (`Tests/Editor`) fails on a NaN pattern in any variant's WebGL 2 GLSL, for
+  every shader in the package.
 
 - **xatlas centres a chart's border texels on its edges.** A floor texel at the
   foot of a wall then sits on the wall's plane and its rays cross the wall at

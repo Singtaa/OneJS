@@ -137,9 +137,10 @@ Shader "Hidden/OneJS/LightBake" {
         }
 
         // The light arriving at pos along d, from paths of up to _Bounces hits. A path that meets the back of
-        // a face sets `inside`: the point is in a solid.
-        float3 incoming(float3 pos, float3 d, out bool inside) {
-            inside = false;
+        // a face sets `inside` to 1: the point is in a solid. A float for the reason `hit` is one: as a bool,
+        // FXC keeps it as an all-ones mask, a NaN pattern in HLSLcc's GLSL.
+        float3 incoming(float3 pos, float3 d, out float inside) {
+            inside = 0;
             float3 throughput = 1, light = 0;
             for (int b = 0; b <= _Bounces; b++) {
                 float t = trace(pos, d, false);
@@ -150,7 +151,7 @@ Shader "Hidden/OneJS/LightBake" {
                 int k = (int)hit;
                 float3 hn = tri(k * 5 + 3).xyz;
                 if (dot(hn, d) > 0) {
-                    if (b == 0) inside = true;
+                    if (b == 0) inside = 1;
                     hn = -hn;
                 }
                 throughput *= tri(k * 5 + 4).xyz;
@@ -228,7 +229,7 @@ Shader "Hidden/OneJS/LightBake" {
                 float3 n = _GNormal.Load(int3(c, 0)).xyz;
                 seedFor((uint)c.x, (uint)c.y);
                 float3 sum = 0;
-                bool inside;
+                float inside;
                 for (int s = 0; s < _Samples; s++) sum += incoming(P.xyz + n * LIFT, cosine(n), inside);
                 return float4(sum / _Samples * _Weight, _Weight);
             }
@@ -281,9 +282,9 @@ Shader "Hidden/OneJS/LightBake" {
                     float i = (float)(_RayBase + r) + 0.5;
                     float height = 1.0 - 2.0 * i / (float)_RayTotal, ring = sqrt(max(0.0, 1.0 - height * height)), phi = i * 2.39996323;
                     float3 d = float3(ring * cos(phi), ring * sin(phi), height);
-                    bool inside;
+                    float inside;
                     float3 L = incoming(at, d, inside);
-                    back += inside ? 1 : 0;
+                    back += inside;
                     // The real spherical harmonics, bands 0 to 2, in Unity's order.
                     float x = d.x, y = d.y, z = d.z;
                     float Y[9] = {
