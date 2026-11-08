@@ -14,9 +14,11 @@ half4 SplatWeights(half4 weights) {
 // How much of a triplanar layer each projection gives at a surface facing `normalWS`: from the
 // side (x), from above (y) and from the front (z). Sharpened by the fourth power, so a face
 // takes its nearest plane and blends only near 45 degrees; a plane under 0.01 is dropped
-// and the rest renormalised, so the shader skips its read (ModelLitForward.hlsl).
-half3 SplatPlanes(float3 normalWS) {
-    half3 w = (half3)abs(normalize(normalWS));
+// and the rest renormalised. In float: at half precision FXC kept step's compare as an all-ones
+// mask in a half register, which reaches WebGL 2 as a float holding a NaN's bits that a GPU may
+// rewrite (ShaderWebGL2NaNTests).
+float3 SplatPlanes(float3 normalWS) {
+    float3 w = abs(normalize(normalWS));
     w *= w;
     w *= w;
     w /= dot(w, 1);

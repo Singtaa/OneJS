@@ -19,17 +19,16 @@
 #ifdef MODEL_SPLAT
 // One splat layer: at the uvs, or with `perMetre` above 0 projected along each world axis at that
 // many repeats a metre and blended by `planes` (SplatPlanes). The choice is a material value, so
-// every pixel of a draw takes the same branch. The projections' gradients are taken before the
-// per-pixel branches that skip a plane, so a skipped neighbour leaves the mip choice alone.
-half4 SplatLayer(TEXTURE2D_PARAM(layer, layerSampler), float2 uv, float perMetre, float3 positionWS, half3 planes) {
+// every pixel of a draw takes the same branch. All three projections are read, a plane SplatPlanes
+// dropped at weight 0: a per-pixel branch that skipped its read compiled, for WebGL 2, to a compare
+// mask in a float register, a NaN's bits a GPU may rewrite (ShaderWebGL2NaNTests).
+half4 SplatLayer(TEXTURE2D_PARAM(layer, layerSampler), float2 uv, float perMetre, float3 positionWS, float3 planes) {
     if (perMetre <= 0) return SAMPLE_TEXTURE2D(layer, layerSampler, uv);
     float3 p = positionWS * perMetre;
     float3 dx = ddx(p), dy = ddy(p);
-    half4 c = 0;
-    if (planes.x > 0) c += SAMPLE_TEXTURE2D_GRAD(layer, layerSampler, p.zy, dx.zy, dy.zy) * planes.x;
-    if (planes.y > 0) c += SAMPLE_TEXTURE2D_GRAD(layer, layerSampler, p.xz, dx.xz, dy.xz) * planes.y;
-    if (planes.z > 0) c += SAMPLE_TEXTURE2D_GRAD(layer, layerSampler, p.xy, dx.xy, dy.xy) * planes.z;
-    return c;
+    return SAMPLE_TEXTURE2D_GRAD(layer, layerSampler, p.zy, dx.zy, dy.zy) * planes.x
+        + SAMPLE_TEXTURE2D_GRAD(layer, layerSampler, p.xz, dx.xz, dy.xz) * planes.y
+        + SAMPLE_TEXTURE2D_GRAD(layer, layerSampler, p.xy, dx.xy, dy.xy) * planes.z;
 }
 #endif
 
@@ -95,7 +94,7 @@ Varyings Vert(Attributes v) {
 half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     UNITY_SETUP_INSTANCE_ID(i);
     #ifdef MODEL_SPLAT
-        half3 planes = SplatPlanes(i.normalWS);
+        float3 planes = SplatPlanes(i.normalWS);
         half3 mixed = SplatMix(
             SplatLayer(TEXTURE2D_ARGS(_SplatLayer0, sampler_SplatLayer0), i.uv, _SplatTriplanar.x, i.positionWS, planes),
             SplatLayer(TEXTURE2D_ARGS(_SplatLayer1, sampler_SplatLayer1), i.uv, _SplatTriplanar.y, i.positionWS, planes),

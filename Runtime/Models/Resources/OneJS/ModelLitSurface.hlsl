@@ -77,22 +77,20 @@ void Vert(inout appdata_full v, out Input o) {
 
 #ifdef MODEL_SPLAT
 // One splat layer, at the uvs or projected along each world axis: ModelLitForward.hlsl's SplatLayer.
-half4 SplatLayer(sampler2D layer, float2 uv, float perMetre, float3 positionWS, half3 planes) {
+half4 SplatLayer(sampler2D layer, float2 uv, float perMetre, float3 positionWS, float3 planes) {
     if (perMetre <= 0) return tex2D(layer, uv);
     float3 p = positionWS * perMetre;
     float3 dx = ddx(p), dy = ddy(p);
-    half4 c = 0;
-    if (planes.x > 0) c += tex2Dgrad(layer, p.zy, dx.zy, dy.zy) * planes.x;
-    if (planes.y > 0) c += tex2Dgrad(layer, p.xz, dx.xz, dy.xz) * planes.y;
-    if (planes.z > 0) c += tex2Dgrad(layer, p.xy, dx.xy, dy.xy) * planes.z;
-    return c;
+    return tex2Dgrad(layer, p.zy, dx.zy, dy.zy) * planes.x
+        + tex2Dgrad(layer, p.xz, dx.xz, dy.xz) * planes.y
+        + tex2Dgrad(layer, p.xy, dx.xy, dy.xy) * planes.z;
 }
 #endif
 
 void Surf(Input i, inout SurfaceOutputStandard o) {
     float2 uv = i.uv_BaseMap;
     #ifdef MODEL_SPLAT
-        half3 planes = SplatPlanes(i.worldNormal);
+        float3 planes = SplatPlanes(i.worldNormal);
         half4 base = half4(SplatMix(
             SplatLayer(_SplatLayer0, uv, _SplatTriplanar.x, i.worldPos, planes),
             SplatLayer(_SplatLayer1, uv, _SplatTriplanar.y, i.worldPos, planes),
