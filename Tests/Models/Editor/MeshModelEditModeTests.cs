@@ -256,6 +256,38 @@ namespace OneJS.Tests.Models {
             }
         }
 
+        // ModelLit's _Metallic defaults to 1, glTF's metallic factor, which a glTF material sets for
+        // itself. A mesh made from arrays kept it and drew as rough metal, which takes no diffuse
+        // light: a white square in full sun came out at 0.55 grey, and at 1 as a non-metal.
+        [Test]
+        public void Lit_TakesDiffuseLight_AsARoughNonMetal() {
+            var target = new RenderTexture(32, 32, 24);
+            var camera = new GameObject("Test Camera").AddComponent<Camera>();
+            var read = new Texture2D(32, 32, TextureFormat.RGBA32, false);
+            try {
+                int model = Made(Square, TwoTriangles);
+                ModelBridge.Spawn(model, 0, 0, 0, 0, 1, false, false);
+                // Shining along +z, straight onto the square's face toward the camera.
+                ModelBridge.SetSun(true, 0, 0, 1, 1, 1, 1, 1, false);
+                camera.transform.position = new Vector3(0, 0, -2);
+                camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.backgroundColor = Color.magenta;
+                camera.targetTexture = target;
+                camera.Render();
+                var was = RenderTexture.active;
+                RenderTexture.active = target;
+                read.ReadPixels(new Rect(0, 0, 32, 32), 0, 0);
+                RenderTexture.active = was;
+                var centre = read.GetPixel(16, 16);
+                Assert.That(centre, Is.Not.EqualTo(Color.magenta), "drew the background, not the square");
+                Assert.That(Mathf.Min(centre.r, centre.g, centre.b), Is.GreaterThan(0.8f), $"lit white drew {centre}");
+            } finally {
+                Object.DestroyImmediate(camera.gameObject);
+                Object.DestroyImmediate(read);
+                target.Release();
+            }
+        }
+
         // What onejs-play sends: a Float32Array becomes the Vector3[] the method takes, each kind of
         // index array its own element type, and a stream left out a null.
         [Test]
