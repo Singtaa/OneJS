@@ -24,6 +24,7 @@
 - ModelBridge tiles a texture on a mesh model
 - ModelBridge paints a mesh model from up to four tiling layers by weights a vertex, on GroundLit
 - A splat layer can be projected from the sides, repeating every so many metres
+- Timers due together run one at a time, as in a browser: an await in one resumes before the next runs, and a frame runs at most 4 ms of them
 
 # [2026-11-05] v3.9.18
 
