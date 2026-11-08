@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -112,6 +113,70 @@ namespace OneJS.Tests.Editor {
             }, NaNLines(glsl).ToArray());
         }
 
+        static readonly Regex Block = new Regex(@"\b(SubShader|PackageRequirements)\s*\{|[{}]");
+        static readonly Regex Requirement = new Regex(@"""([^""]+)""\s*(:)?");
+
+        /// <summary>
+        /// The packages each SubShader of a shader's source names in its PackageRequirements, in order. Unity
+        /// drops a SubShader whose package the project lacks, and a shader that loses every one keeps a
+        /// placeholder pass with no program to compile. Only package names at SubShader level are read: a
+        /// version range, or a block inside a Pass, is refused rather than guessed at.
+        /// </summary>
+        static List<string[]> SubshaderRequirements(string source) {
+            var code = Regex.Replace(source, @"/\*.*?\*/|//[^\n]*", "", RegexOptions.Singleline);
+            var subshaders = new List<string[]>();
+            var depth = 0;
+            for (var m = Block.Match(code); m.Success; m = Block.Match(code, m.Index + m.Length)) {
+                if (m.Value == "}") { depth--; continue; }
+                if (m.Groups[1].Value == "PackageRequirements") {
+                    if (depth != 2 || subshaders.Count == 0)
+                        throw new NotSupportedException("a PackageRequirements block outside a SubShader's top level");
+                    var start = m.Index + m.Length;
+                    var end = code.IndexOf('}', start);
+                    var names = Requirement.Matches(code.Substring(start, end - start)).Cast<Match>().ToArray();
+                    if (names.Any(n => n.Groups[2].Success))
+                        throw new NotSupportedException("a versioned PackageRequirement: " + string.Join(", ", names.Select(n => n.Groups[1].Value)));
+                    subshaders[subshaders.Count - 1] = names.Select(n => n.Groups[1].Value).ToArray();
+                    m = Block.Match(code, end); // the block's own "}", which closes nothing counted
+                    continue;
+                }
+                if (m.Groups[1].Value == "SubShader" && depth == 1) subshaders.Add(new string[0]);
+                depth++;
+            }
+            return subshaders;
+        }
+
+        static bool Installed(string package) => UnityEditor.PackageManager.PackageInfo.FindForPackageName(package) != null;
+
+        [Test]
+        public void TheRequirementsReaderNamesEachSubshadersPackages() {
+            var source = string.Join("\n",
+                "Shader \"Test/Gated\" {",
+                "    Properties { _MainTex (\"Tex\", 2D) = \"white\" {} }",
+                "    // SubShader { PackageRequirements { \"com.commented.out\" } }",
+                "    SubShader {",
+                "        PackageRequirements {",
+                "            \"com.example.absent\"",
+                "            \"com.unity.test-framework\"",
+                "        }",
+                "        Pass { HLSLPROGRAM",
+                "        float4 frag() : SV_Target { if (true) { return 1; } return 0; }",
+                "        ENDHLSL }",
+                "    }",
+                "    SubShader { Pass { } }",
+                "}");
+            var got = SubshaderRequirements(source);
+            Assert.AreEqual(2, got.Count);
+            Assert.AreEqual(new[] { "com.example.absent", "com.unity.test-framework" }, got[0]);
+            Assert.IsEmpty(got[1]);
+            Assert.IsFalse(Installed("com.example.absent"));
+            Assert.IsTrue(Installed("com.unity.test-framework"));
+            Assert.Throws<NotSupportedException>(() => SubshaderRequirements(
+                "Shader \"T\" { SubShader { PackageRequirements { \"com.unity.test-framework\": \"1.0\" } Pass { } } }"));
+            Assert.Throws<NotSupportedException>(() => SubshaderRequirements(
+                "Shader \"T\" { SubShader { Pass { PackageRequirements { \"com.unity.test-framework\" } } } }"));
+        }
+
         [Test]
         public void NoShaderInThePackageHoldsANaNOrAComputedIntInAFloatForWebGL2() {
             var root = PackageRoot();
@@ -124,10 +189,23 @@ namespace OneJS.Tests.Editor {
 
             var found = new List<string>();
             var intBits = new List<string>();
+            var unmet = new List<string>();
             var variants = 0;
             foreach (var path in shaders) {
                 var shader = AssetDatabase.LoadAssetAtPath<Shader>(path);
                 var data = ShaderUtil.GetShaderData(shader);
+                // ModelLit and Sky need glTFast, and ModelLit's URP SubShader URP too. A project without them, such as
+                // the CI host built from package.json alone, drops those SubShaders, and a shader that loses all of
+                // them has no program for WebGL 2 or any platform: CompileVariant answers "Snippet not found". It
+                // ships nothing there either, so there is nothing to scan. Where the packages are, it is walked.
+                var requirements = SubshaderRequirements(File.ReadAllText(Path.GetFullPath(path)));
+                Assert.That(requirements, Is.Not.Empty, $"{path}: no SubShader found in its source");
+                var kept = requirements.Count(r => r.All(Installed));
+                if (kept == 0) {
+                    unmet.Add($"{path} needs {string.Join(" or ", requirements.Select(r => string.Join(" + ", r.Where(p => !Installed(p)))).Distinct())}");
+                    continue;
+                }
+                Assert.AreEqual(kept, data.SubshaderCount, $"{path}: the SubShaders its PackageRequirements leave in this project");
                 for (var si = 0; si < data.SubshaderCount; si++) {
                     var sub = data.GetSubshader(si);
                     for (var pi = 0; pi < sub.PassCount; pi++) {
@@ -153,6 +231,7 @@ namespace OneJS.Tests.Editor {
                 }
             }
             foreach (var line in intBits) TestContext.Out.WriteLine("int bits: " + line);
+            foreach (var line in unmet) TestContext.Out.WriteLine("not compiled, every SubShader needs a package this project lacks: " + line);
             Assert.IsEmpty(found, $"{found.Count} NaN patterns in {variants} variants of {shaders.Length} shaders:\n" + string.Join("\n", found.Take(20)));
             Assert.IsEmpty(intBits, $"{intBits.Count} computed ints in a float's bits in {variants} variants of {shaders.Length} shaders:\n" + string.Join("\n", intBits.Take(20)));
             TestContext.Out.WriteLine($"{variants} variants of {shaders.Length} shaders under {root}, no NaN pattern and no computed int in a float");
