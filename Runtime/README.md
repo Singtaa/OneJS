@@ -41,6 +41,7 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `AssetLoader.cs` | Async resource loading (loadResourceAsync) wrapping Resources.LoadAsync |
 | `SourceMapParser.cs` | Parses source maps for error stack trace translation; `Load` resolves sources to paths from the project root, which the Console can open |
 | `VirtualClock.cs` | Deterministic stand-in for engine realtime; lets an offline renderer frame-step the UI (see below) |
+| `TimerDrain.cs` | The host's half of the timer drain on QuickJS: runs the calling context's pending jobs between due timers, and says whether the frame budget applies (see Scheduling) |
 | `TickClock.cs` | The dt shader effects, particles and 2D physics tick by, read from `VirtualClock` (see below) |
 | `Pack.cs` | Pack asset for packaged UI modules (namespace/slug identity, optional content version). Keeps the script GUID `UICartridge.cs` had, so assets made as UICartridge load as Pack |
 | `PackTypeGenerator.cs` | Generates TypeScript declarations for pack types (`__pack`, plus `__cart` marked deprecated) |
@@ -1127,6 +1128,18 @@ Every drain pass is bounded: callbacks scheduled during a pass run on the next
 pass (a `setTimeout(fn, 0)` chain cannot spin one tick forever), and an
 interval fires at most once per pass, re-basing after a stall instead of
 burst-firing its backlog. Guarded by `Tests/QuickJSSchedulerTests.cs`.
+
+Timers due in one frame run one at a time, as a browser runs each timer as a
+task of its own: the microtasks one callback queues (its awaits resuming) run
+before the next callback starts, and a frame callback's run before the first
+timer. On QuickJS the drain asks `TimerDrain.RunPendingJobs` for them between
+callbacks, still inside the tick, which is the outermost call; on WebGL each
+due timer runs in a task of its own, posted through a `MessageChannel`. Timer
+callbacks get `__TIMER_BUDGET_MS` (4 ms) of a frame: past it the rest stay
+registered and run next frame in due order, and at least one runs each frame.
+Frame callbacks and immediates are not budgeted, and neither is anything while
+`VirtualClock` is active. Running every due timer back to back, as the drain
+once did, made an await beside an 8 ms callback take 8 ms.
 
 ### Fast Path
 Pre-registered handlers for hot paths (Time.deltaTime, transform.position):

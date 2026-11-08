@@ -1531,10 +1531,19 @@ if (typeof globalThis.__teardownTimers === "function") {
 let __currentTime = (typeof globalThis.performance !== "undefined" &&
     typeof globalThis.performance.now === "function") ? globalThis.performance.now() : 0;
 
+// A wall clock for the timer budget. Taken before the polyfill below, whose
+// performance.now() is the frame's timestamp and stands still within a pass,
+// as is a polyfill an earlier bootstrap generation left.
+const __wallNow = (typeof globalThis.performance !== "undefined" &&
+    typeof globalThis.performance.now === "function" && !globalThis.performance.__oneJsFrameClock)
+    ? () => globalThis.performance.now()
+    : () => Date.now();
+
 // Only polyfill performance.now if it doesn't exist (QuickJS)
 // In WebGL, the browser already has performance.now() and we shouldn't override it
 if (typeof globalThis.performance === "undefined") {
     globalThis.performance = {
+        __oneJsFrameClock: true,
         now() { return __currentTime; }
     };
 }
@@ -1608,12 +1617,13 @@ globalThis.clearInterval = function(id) {
 // - A timeout registered from inside a timeout callback runs next pass, so a
 //   zero-delay self-rescheduler (setTimeout(fn, 0) from inside a callback)
 //   cannot spin one pass forever. One asymmetry: a setTimeout issued from a
-//   RAF callback lands in this pass's timeout snapshot (taken after the RAF
-//   drain) and runs this pass; still bounded, since the timeout drain itself
-//   cannot grow.
+//   RAF callback lands in this pass's timer queue (built after the RAF
+//   drain) and runs this pass; still bounded, since the queue cannot grow.
 // - Intervals fire at most once per pass, keeping phase while keeping up and
 //   re-basing when behind, so a long stall (background tab) cannot burst-fire
 //   the whole backlog in one pass.
+// The RAF callbacks run here; the timers due run after, through
+// __runTimerPass (native) or __hopTimers (WebGL).
 function __drainScheduledCallbacks(timestamp) {
     // Immediates rescheduled during the last pass
     __drainImmediates();
@@ -1632,40 +1642,115 @@ function __drainScheduledCallbacks(timestamp) {
         }
     }
 
-    // Timeouts (membership re-checked: an earlier callback may have cleared a
-    // later entry during this pass)
-    const dueTimeouts = [];
-    for (const entry of __timeouts) {
-        if (timestamp >= entry[1].due) dueTimeouts.push(entry);
-    }
-    dueTimeouts.sort((a, b) => a[1].due - b[1].due || a[0] - b[0]);
-    for (const [id, t] of dueTimeouts) {
-        if (!__timeouts.has(id)) continue;
-        __timeouts.delete(id);
-        try {
-            t.callback(...t.args);
-        } catch (e) {
-            console.error("Timeout callback error:", e);
-        }
-    }
+    __beginTimerPass(timestamp);
+}
 
-    // Intervals
-    const intervalSnapshot = Array.from(__intervals.entries());
-    for (const [id, t] of intervalSnapshot) {
-        if (timestamp < t.next || !__intervals.has(id)) continue;
-        t.next += t.interval;
-        if (timestamp >= t.next) t.next = timestamp + t.interval;
+// Timers due together run one at a time, as a browser runs each timer as a
+// task of its own: the microtasks one callback queues (its awaits resuming)
+// run before the next callback starts. Past __TIMER_BUDGET_MS of timer
+// callbacks in one frame, the rest stay registered and run next frame, in due
+// order; at least one runs each frame, so none starves. RAF callbacks and
+// immediates are not budgeted: RAF callbacks are the frame, and React's
+// scheduler, which runs on immediates, slices its own work.
+const __TIMER_BUDGET_MS = 4;
+
+// The pass in progress: the due timers in run order (timeouts by due time,
+// then intervals), how far it has got, and the wall time its budget ends,
+// set when its first callback starts.
+let __timerPass = null;
+
+function __beginTimerPass(timestamp) {
+    const due = [];
+    for (const entry of __timeouts) {
+        if (timestamp >= entry[1].due) due.push(entry);
+    }
+    due.sort((a, b) => a[1].due - b[1].due || a[0] - b[0]);
+    const queue = due.map((entry) => ({ interval: false, id: entry[0] }));
+    for (const [id, t] of __intervals) {
+        if (timestamp >= t.next) queue.push({ interval: true, id });
+    }
+    __timerPass = queue.length > 0 ? { queue, at: 0, timestamp, ran: 0, deadline: 0, budgeted: true } : null;
+}
+
+// Runs the pass's next timer that is still registered (an earlier callback
+// may have cleared it). False once the pass is done or its budget is spent;
+// a timer it did not reach stays registered for the next pass.
+function __runNextTimer(pass) {
+    while (pass.at < pass.queue.length) {
+        if (pass.ran > 0 && pass.budgeted && __wallNow() >= pass.deadline) return false;
+        const { interval, id } = pass.queue[pass.at++];
+        const t = interval ? __intervals.get(id) : __timeouts.get(id);
+        if (t === undefined) continue;
+        if (interval) {
+            if (pass.timestamp < t.next) continue;
+            t.next += t.interval;
+            if (pass.timestamp >= t.next) t.next = pass.timestamp + t.interval;
+        } else {
+            __timeouts.delete(id);
+        }
+        if (pass.ran++ === 0) {
+            pass.deadline = __wallNow() + __TIMER_BUDGET_MS;
+            pass.budgeted = __timerBudgetApplies();
+        }
         try {
             t.callback(...t.args);
         } catch (e) {
-            console.error("Interval callback error:", e);
+            console.error(interval ? "Interval callback error:" : "Timeout callback error:", e);
         }
+        return true;
+    }
+    return false;
+}
+
+function __timerPassLeft(pass) {
+    return pass.at < pass.queue.length;
+}
+
+// The host's half on QuickJS, which can run a context's pending jobs only
+// from C#: OneJS.TimerDrain. Looked up on first use; absent on a host that
+// predates it, where the timers run back to back as they used to.
+let __timerHost;
+function __getTimerHost() {
+    if (__timerHost === undefined) {
+        __timerHost = null;
+        try {
+            if (typeof CS !== "undefined" && CS.OneJS && CS.OneJS.TimerDrain) __timerHost = CS.OneJS.TimerDrain;
+        } catch (e) {
+            __timerHost = null;
+        }
+    }
+    return __timerHost;
+}
+
+function __runPendingJobs() {
+    const host = __getTimerHost();
+    if (host) host.RunPendingJobs();
+}
+
+// An offline render (VirtualClock) runs every due timer in its frame, so a
+// recording does not depend on how fast the machine made it.
+function __timerBudgetApplies() {
+    if (__nativeRequestAnimationFrame) return true;
+    const host = __getTimerHost();
+    return host ? host.Budgeted : true;
+}
+
+// Native: the whole pass inside __tick, with the pending jobs run before the
+// first timer (a RAF callback's awaits resume first, as in a browser) and
+// between timers. C# runs them once more after __tick returns.
+function __runTimerPass() {
+    const pass = __timerPass;
+    if (pass === null) return;
+    __runPendingJobs();
+    while (__timerPass === pass && __runNextTimer(pass)) {
+        if (__timerPassLeft(pass)) __runPendingJobs();
     }
 }
 
 globalThis.__tick = function(timestamp) {
     __currentTime = timestamp;
     __drainScheduledCallbacks(timestamp);
+    __runTimerPass();
 };
 
 // WebGL: Use browser's native RAF to drive tick instead of Unity's Update
@@ -1682,9 +1767,40 @@ if (__nativeRequestAnimationFrame) {
         __currentTime = browserTimestamp;
 
         __drainScheduledCallbacks(browserTimestamp);
+        if (__timerPass !== null) {
+            if (__NativeMessageChannel) __hopTimers();
+            else __runTimerPass();
+        }
 
         // Schedule next tick (unless torn down mid-pass by qjs_destroy)
         if (__webglTickRunning) __nativeRequestAnimationFrame(__webglTick);
+    }
+
+    // Each due timer runs in a task of its own, posted through a
+    // MessageChannel (about 2 us a hop in Chrome), so the browser drains the
+    // microtasks between them. JavaScript cannot drain them itself. One hop
+    // is in flight at a time; a frame that starts while one is queued hands
+    // it the new pass, and a teardown leaves it nothing to run.
+    const __NativeMessageChannel = typeof globalThis.MessageChannel === "function" ? globalThis.MessageChannel : null;
+    let __hopPort = null;
+    let __hopQueued = false;
+
+    function __hopTimers() {
+        if (__hopQueued) return;
+        if (__hopPort === null) {
+            const channel = new __NativeMessageChannel();
+            channel.port1.onmessage = __onTimerHop;
+            __hopPort = channel.port2;
+        }
+        __hopQueued = true;
+        __hopPort.postMessage(0);
+    }
+
+    function __onTimerHop() {
+        __hopQueued = false;
+        const pass = __timerPass;
+        if (pass === null || !__webglTickRunning) return;
+        if (__runNextTimer(pass) && __timerPass === pass && __timerPassLeft(pass)) __hopTimers();
     }
 
     // Start the WebGL tick loop (called from C# in WebGL builds)
@@ -1713,6 +1829,7 @@ if (__nativeRequestAnimationFrame) {
         // restart (__startWebGLTick) must still stop the loop even though the
         // migration/restore below already happened.
         __webglTickRunning = false;
+        __timerPass = null;
         if (__timersToreDown) return;
         __timersToreDown = true;
         // Before the early return below, which the no-timers case takes: a
