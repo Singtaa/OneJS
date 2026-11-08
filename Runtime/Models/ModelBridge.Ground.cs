@@ -19,6 +19,7 @@ namespace OneJS.Models {
     public static partial class ModelBridge {
         static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
         static readonly int HeightBlendId = Shader.PropertyToID("_HeightBlend");
+        static readonly int SplatTriplanarId = Shader.PropertyToID("_SplatTriplanar");
         static readonly int[] SplatLayerIds = {
             Shader.PropertyToID("_SplatLayer0"), Shader.PropertyToID("_SplatLayer1"),
             Shader.PropertyToID("_SplatLayer2"), Shader.PropertyToID("_SplatLayer3"),
@@ -121,6 +122,31 @@ namespace OneJS.Models {
                 material.mainTexture = layers[0];
                 material.mainTextureScale = new Vector2(tileU, tileV);
             }
+            return "";
+        }
+
+        /// <summary>
+        /// Projects a splat's layers from the sides in world space, rather than reading them at the
+        /// mesh's uvs: each of `metres0` to `metres3` is how far one repeat of that layer's picture
+        /// spans, and 0 keeps that layer on the uvs and the splat's tiling. For ground too steep for
+        /// uvs laid flat, where they stretch a picture down a cliff: rock, say. Each projection is
+        /// a read, three at most for a layer, and a face takes only those it leans toward. Given
+        /// after SetMeshSplat, and again whenever it changes. "" when it took it, or what was wrong.
+        /// </summary>
+        public static string SetMeshSplatTriplanar(int model, float metres0, float metres1, float metres2, float metres3) {
+            if (!_models.TryGetValue(model, out var m) || m.built == null) return $"there is no mesh model {model}";
+            var b = m.built;
+            if (!b.splat) return "this model has no splat: give its layers first";
+            var metres = new[] { metres0, metres1, metres2, metres3 };
+            var perMetre = Vector4.zero;
+            for (int i = 0; i < SplatLayers; i++) {
+                var v = metres[i];
+                if (!(v >= 0) || float.IsInfinity(v)) return $"layer {i}'s triplanar is {v}: metres one repeat spans, above 0, or 0 for its uvs";
+                if (v > 0 && i >= b.layerCount) return $"layer {i} is triplanar, and this splat has {b.layerCount} layers";
+                perMetre[i] = v > 0 ? 1 / v : 0;
+            }
+            var material = b.material;
+            if (material.HasVector(SplatTriplanarId)) material.SetVector(SplatTriplanarId, perMetre);
             return "";
         }
 

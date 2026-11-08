@@ -11,6 +11,19 @@ half4 SplatWeights(half4 weights) {
     return sum > 1e-4 ? weights / sum : half4(1, 0, 0, 0);
 }
 
+// How much of a triplanar layer each projection gives at a surface facing `normalWS`: from the
+// side (x), from above (y) and from the front (z). Sharpened by the fourth power, so a face
+// takes its nearest plane and blends only near 45 degrees; a plane under 0.01 is dropped
+// and the rest renormalised, so the shader skips its read (ModelLitForward.hlsl).
+half3 SplatPlanes(float3 normalWS) {
+    half3 w = (half3)abs(normalize(normalWS));
+    w *= w;
+    w *= w;
+    w /= dot(w, 1);
+    w *= step(0.01, w);
+    return w / dot(w, 1);
+}
+
 // The four layers mixed. With `heightBlend` 0 the weights mix them as they are. Above 0, a layer
 // shows where its height (alpha) plus its weight comes within `heightBlend` of the highest, so
 // stones stand out of the grass round them and the edge between two layers follows their

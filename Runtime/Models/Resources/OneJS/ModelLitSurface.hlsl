@@ -21,6 +21,7 @@ sampler2D _BaseMap;
     sampler2D _SplatLayer2;
     sampler2D _SplatLayer3;
     half _HeightBlend;
+    float4 _SplatTriplanar;
 #else
     sampler2D _MetallicRoughnessMap;
     sampler2D _NormalMap;
@@ -58,6 +59,9 @@ struct Input {
     float4 color : COLOR;
     #ifdef MODEL_SPLAT
         float4 weights;
+        // For a triplanar layer. The splat writes no o.Normal, so worldNormal is the surface's own.
+        float3 worldPos;
+        float3 worldNormal;
     #endif
 };
 
@@ -71,10 +75,29 @@ void Vert(inout appdata_full v, out Input o) {
     #endif
 }
 
+#ifdef MODEL_SPLAT
+// One splat layer, at the uvs or projected along each world axis: ModelLitForward.hlsl's SplatLayer.
+half4 SplatLayer(sampler2D layer, float2 uv, float perMetre, float3 positionWS, half3 planes) {
+    if (perMetre <= 0) return tex2D(layer, uv);
+    float3 p = positionWS * perMetre;
+    float3 dx = ddx(p), dy = ddy(p);
+    half4 c = 0;
+    if (planes.x > 0) c += tex2Dgrad(layer, p.zy, dx.zy, dy.zy) * planes.x;
+    if (planes.y > 0) c += tex2Dgrad(layer, p.xz, dx.xz, dy.xz) * planes.y;
+    if (planes.z > 0) c += tex2Dgrad(layer, p.xy, dx.xy, dy.xy) * planes.z;
+    return c;
+}
+#endif
+
 void Surf(Input i, inout SurfaceOutputStandard o) {
     float2 uv = i.uv_BaseMap;
     #ifdef MODEL_SPLAT
-        half4 base = half4(SplatMix(tex2D(_SplatLayer0, uv), tex2D(_SplatLayer1, uv), tex2D(_SplatLayer2, uv), tex2D(_SplatLayer3, uv),
+        half3 planes = SplatPlanes(i.worldNormal);
+        half4 base = half4(SplatMix(
+            SplatLayer(_SplatLayer0, uv, _SplatTriplanar.x, i.worldPos, planes),
+            SplatLayer(_SplatLayer1, uv, _SplatTriplanar.y, i.worldPos, planes),
+            SplatLayer(_SplatLayer2, uv, _SplatTriplanar.z, i.worldPos, planes),
+            SplatLayer(_SplatLayer3, uv, _SplatTriplanar.w, i.worldPos, planes),
             i.weights, _HeightBlend), 1) * _BaseColor;
     #else
         half4 base = tex2D(_BaseMap, uv) * _BaseColor;

@@ -40,6 +40,9 @@ CBUFFER_START(UnityPerMaterial)
     half _Surface;
     #ifdef MODEL_SPLAT
         half _HeightBlend;
+        // Each layer's repeats a metre where it is projected from the sides in world space
+        // (`triplanar` in onejs-play), 0 where it is read at the mesh's uvs.
+        float4 _SplatTriplanar;
     #endif
 CBUFFER_END
 

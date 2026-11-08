@@ -207,6 +207,36 @@ namespace OneJS.Tests.Models {
             }
         }
 
+        // A layer projected from the sides still draws its picture, every projection of it, through
+        // the branch that skips planes a face does not lean toward. That it repeats at its metres on a
+        // steep face is onejs-play's cli/fixtures/triplanar, in a browser.
+        [Test]
+        public void Splat_Triplanar_SetsEachLayersRepeatsAMetre_AndDrawsItsPicture() {
+            var red = Picture(Color.red);
+            var blue = Picture(Color.blue);
+            try {
+                int model = WithUvs();
+                Assert.That(ModelBridge.SetMeshSplatTriplanar(model, 4, 0, 0, 0), Does.Contain("no splat"));
+                ModelBridge.SetMeshSplat(model, red, blue, null, null, 1, 1, 0);
+                Set(model, new float[] { 0, 1, 0, 1, 0, 1, 0, 1 });
+                Assert.That(ModelBridge.SetMeshSplatTriplanar(model, 0, 4, 0, 0), Is.Empty);
+                Assert.That(ModelBridge.MaterialOf(model).GetVector("_SplatTriplanar"), Is.EqualTo(new Vector4(0, 0.25f, 0, 0)));
+                var centre = Draw(model);
+                Assert.That(centre.b, Is.GreaterThan(0.9f), $"the triplanar blue layer, drew {centre}");
+                Assert.That(centre.r + centre.g, Is.LessThan(0.1f), $"the triplanar blue layer, drew {centre}");
+
+                Assert.That(ModelBridge.SetMeshSplatTriplanar(model, 0, 0, 4, 0), Does.Contain("has 2 layers"));
+                Assert.That(ModelBridge.SetMeshSplatTriplanar(model, -1, 0, 0, 0), Does.Contain("layer 0's triplanar is -1"));
+                Assert.That(ModelBridge.SetMeshSplatTriplanar(model, float.NaN, 0, 0, 0), Does.Contain("layer 0's triplanar is NaN"));
+                Assert.That(ModelBridge.MaterialOf(model).GetVector("_SplatTriplanar"), Is.EqualTo(new Vector4(0, 0.25f, 0, 0)), "a refusal changes nothing");
+                Assert.That(ModelBridge.SetMeshSplatTriplanar(model, 0, 0, 0, 0), Is.Empty);
+                Assert.That(ModelBridge.MaterialOf(model).GetVector("_SplatTriplanar"), Is.EqualTo(Vector4.zero), "and back to the uvs");
+            } finally {
+                Object.DestroyImmediate(red);
+                Object.DestroyImmediate(blue);
+            }
+        }
+
         // The bake's unwrap rebuilds the mesh with its light's uv in TEXCOORD1; a splat's weights
         // are in TEXCOORD2, and a rebuild that dropped them drew the first layer alone once baked.
         [Test]

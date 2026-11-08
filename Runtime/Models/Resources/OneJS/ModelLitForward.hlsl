@@ -16,6 +16,23 @@
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
+#ifdef MODEL_SPLAT
+// One splat layer: at the uvs, or with `perMetre` above 0 projected along each world axis at that
+// many repeats a metre and blended by `planes` (SplatPlanes). The choice is a material value, so
+// every pixel of a draw takes the same branch. The projections' gradients are taken before the
+// per-pixel branches that skip a plane, so a skipped neighbour leaves the mip choice alone.
+half4 SplatLayer(TEXTURE2D_PARAM(layer, layerSampler), float2 uv, float perMetre, float3 positionWS, half3 planes) {
+    if (perMetre <= 0) return SAMPLE_TEXTURE2D(layer, layerSampler, uv);
+    float3 p = positionWS * perMetre;
+    float3 dx = ddx(p), dy = ddy(p);
+    half4 c = 0;
+    if (planes.x > 0) c += SAMPLE_TEXTURE2D_GRAD(layer, layerSampler, p.zy, dx.zy, dy.zy) * planes.x;
+    if (planes.y > 0) c += SAMPLE_TEXTURE2D_GRAD(layer, layerSampler, p.xz, dx.xz, dy.xz) * planes.y;
+    if (planes.z > 0) c += SAMPLE_TEXTURE2D_GRAD(layer, layerSampler, p.xy, dx.xy, dy.xy) * planes.z;
+    return c;
+}
+#endif
+
 struct Attributes {
     float4 positionOS : POSITION;
     float3 normalOS : NORMAL;
@@ -78,11 +95,12 @@ Varyings Vert(Attributes v) {
 half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     UNITY_SETUP_INSTANCE_ID(i);
     #ifdef MODEL_SPLAT
+        half3 planes = SplatPlanes(i.normalWS);
         half3 mixed = SplatMix(
-            SAMPLE_TEXTURE2D(_SplatLayer0, sampler_SplatLayer0, i.uv),
-            SAMPLE_TEXTURE2D(_SplatLayer1, sampler_SplatLayer1, i.uv),
-            SAMPLE_TEXTURE2D(_SplatLayer2, sampler_SplatLayer2, i.uv),
-            SAMPLE_TEXTURE2D(_SplatLayer3, sampler_SplatLayer3, i.uv),
+            SplatLayer(TEXTURE2D_ARGS(_SplatLayer0, sampler_SplatLayer0), i.uv, _SplatTriplanar.x, i.positionWS, planes),
+            SplatLayer(TEXTURE2D_ARGS(_SplatLayer1, sampler_SplatLayer1), i.uv, _SplatTriplanar.y, i.positionWS, planes),
+            SplatLayer(TEXTURE2D_ARGS(_SplatLayer2, sampler_SplatLayer2), i.uv, _SplatTriplanar.z, i.positionWS, planes),
+            SplatLayer(TEXTURE2D_ARGS(_SplatLayer3, sampler_SplatLayer3), i.uv, _SplatTriplanar.w, i.positionWS, planes),
             i.weights, _HeightBlend);
         half4 base = half4(mixed, 1) * _BaseColor;
     #else
