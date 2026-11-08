@@ -33,6 +33,26 @@ namespace OneJS.ShaderFX {
             Graphics.Blit(source, into);
         }
 
+        /// <summary>
+        /// A finished read's texels as 8-bit stored values, RGBA, row 0 at the top, in base64:
+        /// one crossing for the whole picture, where reading <see cref="OneJS.Lighting.TextureRead.Texels"/>
+        /// from JS is one crossing a float, and ran a 512 picture out of memory.
+        /// </summary>
+        public static string StoredBytes(OneJS.Lighting.TextureRead read) {
+            var texels = read.Texels;
+            int w = read.Width, h = read.Height, row = w * 4;
+            var bytes = new byte[row * h];
+            for (int y = 0; y < h; y++) {
+                // Unity's row 0 is the bottom.
+                int from = (h - 1 - y) * row, to = y * row;
+                for (int i = 0; i < row; i++) {
+                    var v = Mathf.Floor(texels[from + i] * 255f + 0.5f);
+                    bytes[to + i] = (byte)(v < 0f ? 0f : v > 255f ? 255f : v);
+                }
+            }
+            return System.Convert.ToBase64String(bytes);
+        }
+
         /// <summary>Frees a kept texture.</summary>
         public static void Release(RenderTexture texture) {
             if (texture == null) return;
