@@ -219,11 +219,12 @@ namespace OneJS.Tests.Lighting {
 
         // A dim slow gradient lands on a few 8-bit steps: rounded to the nearest, a run of texels takes one and the
         // light shows rings; dithered, the run's texels mix the steps either side, and their mean is the light's.
+        // One flat light 0.44 of a step past a step is the run: rounded, every texel is the next step up.
         [Test]
         public void Encode_DithersASlowGradientRatherThanBandingIt() {
             const int wide = 64, high = 16;
             var light = new Color[wide * high];
-            for (var i = 0; i < light.Length; i++) light[i] = new Color(0.02f + i * 1e-6f, 0.02f, 0.02f, 1);
+            for (var i = 0; i < light.Length; i++) light[i] = new Color(0.02f, 0.02f, 0.02f, 1);
             Assert.That(LightFile.Decode(LightFile.Encode(light, wide, high, 1, Array.Empty<float>()), wide, high, 1, 0, out var tex, out _), Is.Empty);
             try {
                 var rt = new RenderTexture(wide, high, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
