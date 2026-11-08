@@ -12,7 +12,10 @@ measurements are `PlaySite/docs/lightmapping.md` in the container repo.
 | `Bvh.cs` | The triangle hierarchy the trace walks, built on the CPU |
 | `ProbeSolve.cs` | The probe pass's sums as `SphericalHarmonicsL2` coefficients, and probes inside solids filled from their neighbours |
 | `TextureRead.cs` | A float or half-float render texture read back to the CPU: `AsyncGPUReadback` where the GPU has it, landing a frame or more later, and `ReadPixels` where it does not, landing at once. Both browser backends have it |
-| `LightFile.cs` | A finished bake as one PNG and back: the lightmap's pages as 8-bit RGBM over a range of 8, the first at the top, and under the last the probes, each float as its four bytes in one pixel, so they read back exactly. A one-page file is laid out as files were before pages |
+| `BakeSession.cs` | One bake from start to file: it waits on its textures' means, runs its `LightBaker` a step at a time, says why when it fails (`Problem`), and reads the finished lightmap back into a light file. Everything it holds goes with `Dispose`, except a lightmap handed over with `TakeLightmap` |
+| `BakeSceneBuilder.cs` | The scene's static triangles in world space at their atlas uv, and each triangle's albedo, which waits on its textures' means: what a `BakeScene` is built from |
+| `ProbeField.cs` | A bake's probes and the grid they stand on, a spacing an axis, and the blend of the eight round a point that lights a moving actor |
+| `LightFile.cs` | A finished bake as one PNG and back: the lightmap's pages as 8-bit RGBM over a range of 8, dithered by half a step, the first at the top, and under the last the probes, eight pixels each (the largest coefficient's size as a float, then each coefficient as a byte against it). A file from before 1.4.1, its probes a float a pixel, still reads. A one-page file is laid out as files were before pages |
 | `Resources/OneJS/LightBake.shader` | The passes: G-buffer, lightmap trace, probe trace, resolve, dilation, denoise |
 
 ## What it bakes
@@ -63,7 +66,9 @@ and keeps the seeds it had before pages, so its bake is unchanged to the bit.
 Dilation and the denoiser skip a neighbour past the working textures' edge: a
 read there is undefined, and WebGPU gave a one-page bake's border texels
 another texel's light. `Step(paths)` does about
-that many paths, at least one draw; `RunToEnd` bakes everything, waiting on the
+that many paths, at least one draw, and the step that finishes the probes ends
+with them, since a count of paths fitted to probe rays is no measure of
+lightmap tiles (at 4 bounces it made a 117 ms frame); `RunToEnd` bakes everything, waiting on the
 GPU between submissions so none grows long enough to trip a watchdog. A bake is
 `Done` once its lightmap is finished and its probes are read back, which on
 WebGPU lands a frame or more after the last probe pass: until then `Step` keeps
@@ -89,8 +94,11 @@ page. The lightmap stays; the rest is freed at the end.
 ## Who calls it
 
 `ModelBridge.Light.cs` (in `Runtime/Models`) is the one caller in OneJS: it builds the `BakeScene`
-from the scene's static actors and scattered copies, steps the baker a frame at a time for
-onejs-play's `scene.bake`, and puts the result on the models. It also writes a finished bake as a
+from the scene's static actors and scattered copies, steps a `BakeSession` a frame at a time for
+onejs-play's `scene.bake`, and puts the result on the models. A bake laid out exactly as the light
+showing (every rectangle, the sheet and the grid: a rebake after a change of sun) keeps that light
+until the new one has every page, and its probes until the new ones land, so the scene never drops
+to its flat ambient in between. A failed bake answers `StepBake` with -2, and `BakeProblem` says why. It also writes a finished bake as a
 light file (`LightFile`) and shows one instead of baking (`LoadLight`), which is how a cart's saved
 light reaches a player without a bake on their device. The baker disposes its textures with
 `DestroyImmediate` in the editor's edit mode, since a bake runs in the edit-mode preview too.

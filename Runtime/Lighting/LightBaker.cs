@@ -22,9 +22,9 @@ namespace OneJS.Lighting {
         public int AtlasHeight;
         public int Pages = 1;
 
-        /// <summary>The probe grid: its first probe, the distance between probes, and how many on each axis. No probes when any count is 0.</summary>
+        /// <summary>The probe grid: its first probe, the distance between probes on each axis, and how many on each. No probes when any count is 0.</summary>
         public Vector3 GridOrigin;
-        public float GridSpacing = 1;
+        public Vector3 GridSpacing = Vector3.one;
         public Vector3Int GridCounts;
 
         /// <summary>Linear radiance from above the horizon and below it: the ambient probe's two hemispheres.</summary>
@@ -103,9 +103,9 @@ namespace OneJS.Lighting {
         static readonly int[] PrevIds = { Shader.PropertyToID("_Prev0"), Shader.PropertyToID("_Prev1"), Shader.PropertyToID("_Prev2"), Shader.PropertyToID("_Prev3") };
 
         readonly BakeSettings _settings;
-        readonly Material _material;
-        readonly Texture2D _tris, _nodes;
-        readonly Mesh _gbufferMesh;
+        Material _material;
+        Texture2D _tris, _nodes;
+        Mesh _gbufferMesh;
         readonly LightSheet _sheet;
         // Each page's size, and its working textures', its apron each side added.
         readonly int _width, _height, _pages, _apron, _workWidth, _workHeight;
@@ -130,6 +130,11 @@ namespace OneJS.Lighting {
         int _sweepSamples;
         uint _pass;
         bool _mapDone, _disposed;
+
+        // Kept for the bake, so a step allocates nothing: WebGL's collector stops the world.
+        readonly CommandBuffer _cmd = new() { name = "OneJS Bake" };
+        readonly MaterialPropertyBlock _probeBlock = new(), _pageBlock = new(), _tileBlock = new(), _finishBlock = new();
+        RenderTargetIdentifier[] _probeIdsA, _probeIdsB;
 
         /// <summary>Whether this GPU can bake, and why not when it cannot.</summary>
         public static bool Supported(out string reason) {
@@ -157,17 +162,36 @@ namespace OneJS.Lighting {
             _apron = _pages == 1 ? 0 : DilateSteps + _settings.DenoiseRadius;
             _workWidth = _width + 2 * _apron;
             _workHeight = _height + 2 * _apron;
-            _material = new Material(Resources.Load<Shader>(ShaderPath)) { hideFlags = HideFlags.HideAndDontSave };
+            _gridCounts = scene.GridCounts;
+            _probeCount = Math.Max(0, _gridCounts.x) * Math.Max(0, _gridCounts.y) * Math.Max(0, _gridCounts.z);
+            if (_probeCount > 0) {
+                _probesWide = Math.Min(_probeCount, DataWidth / 2);
+                _probesHigh = (_probeCount + _probesWide - 1) / _probesWide;
+            }
+            var tile = Math.Max(8, _settings.TileSize);
+            _tilesX = (_workWidth + tile - 1) / tile;
+            _tilesY = (_workHeight + tile - 1) / tile;
+            // What it made so far goes with a throw, since the caller never gets a baker to dispose.
+            try {
+                Build(scene);
+            } catch {
+                Dispose();
+                throw;
+            }
+        }
 
-            var (nodes, order) = Bvh.Build(scene.Positions, scene.Indices);
+        // The constructor's GPU half: the data textures, the targets, the G-buffer's first page and the probes' targets.
+        void Build(BakeScene scene) {
+            _material = new Material(Resources.Load<Shader>(ShaderPath)) { hideFlags = HideFlags.HideAndDontSave };
+            var (nodeData, order) = Bvh.Build(scene.Positions, scene.Indices);
             _tris = DataTexture(TriangleData(scene, order), "OneJS Bake Triangles");
-            _nodes = DataTexture(nodes, "OneJS Bake Nodes");
+            _nodes = DataTexture(nodeData, "OneJS Bake Nodes");
             _material.SetTexture(TrisId, _tris);
             _material.SetTexture(NodesId, _nodes);
             _material.SetInteger(DataWidthId, DataWidth);
             _material.SetInteger(WorkWidthId, _workWidth);
             _material.SetInteger(WorkHeightId, _workHeight);
-            _material.SetInteger(NodeCountId, nodes.Length / 8);
+            _material.SetInteger(NodeCountId, nodeData.Length / 8);
             _material.SetVector(SkyId, (Vector4)scene.Sky);
             _material.SetVector(GroundId, (Vector4)scene.Ground);
             _material.SetVector(SunDirId, scene.SunDirection.normalized);
@@ -182,29 +206,21 @@ namespace OneJS.Lighting {
             _gbufferMesh = GBufferMesh(scene);
             _material.SetTexture(GPosId, _gPos);
             _material.SetTexture(GNormalId, _gNormal);
-            using (var cmd = new CommandBuffer { name = "OneJS Bake G-buffer" }) {
-                StartPage(cmd, 0);
-                Graphics.ExecuteCommandBuffer(cmd);
-            }
+            StartPage(_cmd, 0);
+            Flush(_cmd);
 
-            _gridCounts = scene.GridCounts;
-            _probeCount = Math.Max(0, _gridCounts.x) * Math.Max(0, _gridCounts.y) * Math.Max(0, _gridCounts.z);
             if (_probeCount > 0) {
-                _probesWide = Math.Min(_probeCount, DataWidth / 2);
-                _probesHigh = (_probeCount + _probesWide - 1) / _probesWide;
                 _probeA = ProbeTargets("A");
                 _probeB = ProbeTargets("B");
+                _probeIdsA = Ids(_probeA);
+                _probeIdsB = Ids(_probeB);
                 _material.SetVector(GridOriginId, scene.GridOrigin);
-                _material.SetFloat(GridSpacingId, scene.GridSpacing);
+                _material.SetVector(GridSpacingId, scene.GridSpacing);
                 _material.SetVector(GridCountsId, new Vector4(_gridCounts.x, _gridCounts.y, _gridCounts.z, 0));
                 _material.SetInteger(ProbesWideId, _probesWide);
                 _sky = scene.Sky;
                 _ground = scene.Ground;
             }
-
-            var tile = Math.Max(8, _settings.TileSize);
-            _tilesX = (_workWidth + tile - 1) / tile;
-            _tilesY = (_workHeight + tile - 1) / tile;
         }
 
         public int Width => _width;
@@ -265,14 +281,17 @@ namespace OneJS.Lighting {
 
         /// <summary>
         /// Does about `paths` paths of work, at least one draw, and returns whether the bake is done.
-        /// A path is one ray from a texel or a probe, with its bounces. Once the lightmap is finished
-        /// it draws nothing more and only looks for the probes' read.
+        /// A path is one ray from a texel or a probe, with its bounces. The step that finishes the
+        /// probes ends there: a count of paths that fitted a frame of probe rays says nothing of
+        /// the lightmap's, whose paths bounce off surfaces, and spent on its tiles it took a 117 ms
+        /// frame at 4 bounces (review L2). Once the lightmap is finished it draws nothing more and
+        /// only looks for the probes' read.
         /// </summary>
         public bool Step(long paths) {
             if (_disposed) throw new ObjectDisposedException(nameof(LightBaker));
             LandProbes();
             if (Done) return true;
-            using var cmd = new CommandBuffer { name = "OneJS Bake" };
+            var cmd = _cmd;
             long spent = 0;
             while (!_mapDone && (spent == 0 || spent < paths)) {
                 if (_probeCount > 0 && _probeRaysDone < _settings.ProbeRays) {
@@ -284,6 +303,7 @@ namespace OneJS.Lighting {
                     if (_probeRaysDone >= _settings.ProbeRays) {
                         Flush(cmd);
                         ReadProbes();
+                        break;
                     }
                     continue;
                 }
@@ -314,15 +334,18 @@ namespace OneJS.Lighting {
         }
 
         void ProbePass(CommandBuffer cmd, int rays) {
-            var block = new MaterialPropertyBlock();
+            // A command buffer copies a block's values as it records each draw, so one block serves every draw.
+            var block = _probeBlock;
+            block.Clear();
             for (var i = 0; i < 4; i++) block.SetTexture(PrevIds[i], _probeA[i]);
             block.SetInteger(RaysId, rays);
             block.SetInteger(RayBaseId, _probeRaysDone);
             block.SetInteger(RayTotalId, _settings.ProbeRays);
             cmd.SetGlobalInteger(PassId, (int)_pass++);
-            cmd.SetRenderTarget(Ids(_probeB), _probeB[0].depthBuffer);
+            cmd.SetRenderTarget(_probeIdsB, _probeB[0].depthBuffer);
             cmd.DrawProcedural(Matrix4x4.identity, _material, PassProbes, MeshTopology.Triangles, 3, 1, block);
             (_probeA, _probeB) = (_probeB, _probeA);
+            (_probeIdsA, _probeIdsB) = (_probeIdsB, _probeIdsA);
             _probeRaysDone += rays;
         }
 
@@ -333,7 +356,8 @@ namespace OneJS.Lighting {
             _tile = 0;
             Samples = 0;
             var corner = _sheet.Origin(page) - new Vector2Int(_apron, _apron);
-            var block = new MaterialPropertyBlock();
+            var block = _pageBlock;
+            block.Clear();
             block.SetVector(WindowId, new Vector4(_width / (float)_workWidth, _height / (float)_workHeight, -corner.x / (float)_workWidth, -corner.y / (float)_workHeight));
             cmd.SetRenderTarget(new RenderTargetIdentifier[] { _gPos, _gNormal }, _gPos.depthBuffer);
             cmd.ClearRenderTarget(false, true, Color.clear);
@@ -348,7 +372,8 @@ namespace OneJS.Lighting {
             var tx = _tile % _tilesX;
             var ty = _tile / _tilesX;
             var rect = new Rect(tx * tile, ty * tile, Math.Min(tile, _workWidth - tx * tile), Math.Min(tile, _workHeight - ty * tile));
-            var block = new MaterialPropertyBlock();
+            var block = _tileBlock;
+            block.Clear();
             block.SetInteger(SamplesId, _settings.SamplesPerPass);
             // The running mean: a texel with n samples takes k more at k / (n + k).
             block.SetFloat(WeightId, _settings.SamplesPerPass / (float)_sweepSamples);
@@ -378,22 +403,27 @@ namespace OneJS.Lighting {
                     filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, useMipMap = false, autoGenerateMips = false,
                     hideFlags = HideFlags.HideAndDontSave,
                 };
-                _lightmap.Create();
+                if (!_lightmap.Create()) {
+                    Kill(_lightmap);
+                    _lightmap = null;
+                    throw new InvalidOperationException($"[OneJS] The bake could not make its {_width} by {_height} lightmap of {_pages} pages.");
+                }
             }
 
-            var block = new MaterialPropertyBlock();
+            var block = _finishBlock;
+            block.Clear();
             block.SetTexture(SrcId, _accum);
             cmd.SetRenderTarget(_work0);
             cmd.DrawProcedural(Matrix4x4.identity, _material, PassResolve, MeshTopology.Triangles, 3, 1, block);
             RenderTexture from = _work0, to = _work1;
             for (var i = 0; i < DilateSteps; i++) {
-                block = new MaterialPropertyBlock();
+                block.Clear();
                 block.SetTexture(SrcId, from);
                 cmd.SetRenderTarget(to);
                 cmd.DrawProcedural(Matrix4x4.identity, _material, PassDilate, MeshTopology.Triangles, 3, 1, block);
                 (from, to) = (to, from);
             }
-            block = new MaterialPropertyBlock();
+            block.Clear();
             block.SetTexture(SrcId, from);
             block.SetInteger(RadiusId, _settings.DenoiseRadius);
             block.SetFloat(SigmaPId, _settings.DenoiseTexels / Mathf.Max(0.01f, _settings.Detail));
@@ -449,9 +479,21 @@ namespace OneJS.Lighting {
             _gPos = _gNormal = _accum = _work0 = _work1 = null;
         }
 
+        /// <summary>
+        /// Hands the lightmap over to the caller, who releases it: this baker's Dispose leaves it, so
+        /// a light can stay showing after its bake goes. Null before the first draft. Taken, the
+        /// baker is done with: dispose it next.
+        /// </summary>
+        public RenderTexture TakeLightmap() {
+            var map = _lightmap;
+            _lightmap = null;
+            return map;
+        }
+
         public void Dispose() {
             if (_disposed) return;
             _disposed = true;
+            _cmd.Release();
             ReleaseWork();
             if (_probeA != null) foreach (var t in _probeA) Release(t);
             if (_probeB != null) foreach (var t in _probeB) Release(t);
@@ -484,7 +526,10 @@ namespace OneJS.Lighting {
                 name = name, filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp, useMipMap = false, autoGenerateMips = false,
                 hideFlags = HideFlags.HideAndDontSave,
             };
-            rt.Create();
+            if (!rt.Create()) {
+                Kill(rt);
+                throw new InvalidOperationException($"[OneJS] The bake could not make its {w} by {h} {format} target {name}.");
+            }
             return rt;
         }
 
@@ -588,7 +633,7 @@ namespace OneJS.Lighting {
             if (o.Samples > MaxSamples) throw new ArgumentException($"[OneJS] a bake's samples are 1 to {MaxSamples}, not {o.Samples}");
             if (o.Bounces < 0 || o.Bounces > MaxBounces) throw new ArgumentException($"[OneJS] a bake's bounces are 0 to {MaxBounces}, not {o.Bounces}");
             if (!(o.Occlusion >= 0 && o.Occlusion <= 1)) throw new ArgumentException($"[OneJS] a bake's occlusion is 0 to 1, not {o.Occlusion}");
-            if (s.GridCounts.x * s.GridCounts.y * s.GridCounts.z > 0 && !(s.GridSpacing > 0)) throw new ArgumentException("[OneJS] a probe grid needs a spacing above 0");
+            if (ProbeField.Problem(s.GridSpacing, s.GridCounts) is { } grid) throw new ArgumentException($"[OneJS] {grid}");
         }
     }
 }

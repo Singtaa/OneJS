@@ -9,20 +9,31 @@ namespace OneJS.Lighting {
     ///
     /// The image is the atlas's width wide. Its top rows, as a picture shows it, are the lightmap's
     /// pages as RGBM in 8 bits, the first at the top and each under the last: a texel's light is its
-    /// rgb times its alpha times <see cref="Range"/>. Under the last page are the probes, each of the
-    /// 27 floats a probe holds (<see cref="ProbeSolve.Floats"/>) written as its four little-endian
-    /// bytes into one pixel's r, g, b and a, the probes in grid order. So a one-page file is laid out
-    /// as files were before there were pages, a file is read back exactly as the baker wrote its
-    /// probes, and to within RGBM's rounding its light. onejs-play adds its record (the fingerprint
-    /// and the layout) as a text chunk, which this skips.
+    /// rgb times its alpha times <see cref="Range"/>. Each texel is rounded to its 8 bits with half a
+    /// step of fixed noise, so a slow gradient in dim light dithers rather than bands into rings
+    /// (review L5). Under the last page are the probes, in grid order, <see cref="ProbePixels"/>
+    /// pixels each: the largest of its 27 coefficients' sizes (<see cref="ProbeSolve.Floats"/>) as a
+    /// little-endian float, then each coefficient as a byte, 128 for 0 and 1 and 255 for minus and
+    /// plus that size, then a byte of 0 (review L4: a quarter of the 27 floats before, which were
+    /// most of a file). A blend of eight probes is off by under half a percent of a probe's
+    /// largest term. A file from before, its probes as 27 floats a probe, still reads: its height
+    /// says which. onejs-play adds its record (the fingerprint and the layout) as a text chunk,
+    /// which this skips.
     /// </summary>
     public static class LightFile {
         /// <summary>The brightest light a texel can hold: RGBM's multiplier at its full 255.</summary>
         public const float Range = 8;
 
+        /// <summary>Pixels a probe takes: its scale, its 27 bytes and one of 0.</summary>
+        public const int ProbePixels = 8;
+
         /// <summary>How many rows of the image the probes take, at `width` pixels a row.</summary>
-        public static int ProbeRows(int probeCount, int width) =>
-            width <= 0 ? 0 : (probeCount * ProbeSolve.Floats + width - 1) / width;
+        public static int ProbeRows(int probeCount, int width) => Rows(probeCount * ProbePixels, width);
+
+        // Files before ProbePixels held each coefficient as a float, a pixel each.
+        static int FloatProbeRows(int probeCount, int width) => Rows(probeCount * ProbeSolve.Floats, width);
+
+        static int Rows(int pixels, int width) => width <= 0 ? 0 : (pixels + width - 1) / width;
 
         /// <summary>
         /// The file for `pages` pages of a `width` by `height` lightmap and its probes: `light` holds
@@ -33,13 +44,22 @@ namespace OneJS.Lighting {
             if (light == null || light.Length != width * height * pages) throw new ArgumentException($"{pages} pages of a {width} by {height} lightmap are {width * height * pages} texels");
             probes ??= Array.Empty<float>();
             if (probes.Length % ProbeSolve.Floats != 0) throw new ArgumentException($"{ProbeSolve.Floats} floats a probe");
-            var rows = ProbeRows(probes.Length / ProbeSolve.Floats, width);
+            var count = probes.Length / ProbeSolve.Floats;
+            var rows = ProbeRows(count, width);
             // A texture's row 0 is the picture's bottom, so the probes go in first and sit under the light,
             // then the last page, and the first page last, at the top.
             var raw = new byte[width * (rows + height * pages) * 4];
-            Buffer.BlockCopy(probes, 0, raw, 0, probes.Length * 4);
-            if (!BitConverter.IsLittleEndian) {
-                for (var i = 0; i < probes.Length * 4; i += 4) Array.Reverse(raw, i, 4);
+            for (var p = 0; p < count; p++) {
+                var at0 = p * ProbePixels * 4;
+                var size = 0f;
+                for (var k = 0; k < ProbeSolve.Floats; k++) size = Mathf.Max(size, Mathf.Abs(probes[p * ProbeSolve.Floats + k]));
+                var bytes = BitConverter.GetBytes(size);
+                if (!BitConverter.IsLittleEndian) Array.Reverse(bytes);
+                Array.Copy(bytes, 0, raw, at0, 4);
+                for (var k = 0; k < ProbeSolve.Floats; k++) {
+                    var c = size > 0 ? probes[p * ProbeSolve.Floats + k] / size : 0;
+                    raw[at0 + 4 + k] = (byte)Mathf.Clamp(128 + Mathf.RoundToInt(c * 127), 1, 255);
+                }
             }
             var at = width * rows * 4;
             for (var page = pages - 1; page >= 0; page--) {
@@ -49,9 +69,10 @@ namespace OneJS.Lighting {
                     // The multiplier rounded up, so the rgb under it never passes 1.
                     var m = Mathf.Clamp(Mathf.CeilToInt(max / Range * 255), 1, 255);
                     var scale = 255 / (m / 255f * Range);
-                    raw[at++] = Byte(c.r * scale);
-                    raw[at++] = Byte(c.g * scale);
-                    raw[at++] = Byte(c.b * scale);
+                    var noise = Noise(i);
+                    raw[at++] = Byte(c.r * scale + noise);
+                    raw[at++] = Byte(c.g * scale + noise);
+                    raw[at++] = Byte(c.b * scale + noise);
                     raw[at++] = (byte)m;
                 }
             }
@@ -65,6 +86,19 @@ namespace OneJS.Lighting {
         }
 
         static byte Byte(float x) => (byte)Mathf.Clamp(Mathf.RoundToInt(x), 0, 255);
+
+        /// <summary>Texel `i`'s noise, -0.5 to 0.5 of a step: the same for every bake, so a scene bakes to the same file.</summary>
+        static float Noise(int i) {
+            unchecked {
+                var h = (uint)i * 0x9E3779B9u;
+                h ^= h >> 16;
+                h *= 0x85EBCA6Bu;
+                h ^= h >> 13;
+                h *= 0xC2B2AE35u;
+                h ^= h >> 16;
+                return (h >> 8) / 16777216f - 0.5f;
+            }
+        }
 
         /// <summary>
         /// Reads a file made for `pages` pages of a `width` by `height` atlas and `probeCount` probes:
@@ -80,25 +114,15 @@ namespace OneJS.Lighting {
             var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false, true);
             try {
                 if (!tex.LoadImage(png, false)) return "the light file is not a picture Unity can read";
+                var floats = tex.height != rows + height * pages && tex.height == FloatProbeRows(probeCount, width) + height * pages;
+                if (floats) rows = FloatProbeRows(probeCount, width);
                 if (tex.width != width || tex.height != rows + height * pages) {
                     var atlas = pages == 1 ? $"a {width} by {height} atlas" : $"{pages} pages of a {width} by {height} atlas";
                     return $"the light file is {tex.width} by {tex.height}, and {atlas} with {probeCount} probes needs {width} by {rows + height * pages}";
                 }
                 // Whatever format LoadImage chose (ARGB32 on some editors), GetPixels32 is r, g, b, a a pixel.
                 var raw = tex.GetPixels32();
-                probes = new float[probeCount * ProbeSolve.Floats];
-                var bytes = new byte[probes.Length * 4];
-                for (var i = 0; i < bytes.Length; i += 4) {
-                    var p = raw[i / 4];
-                    bytes[i] = p.r;
-                    bytes[i + 1] = p.g;
-                    bytes[i + 2] = p.b;
-                    bytes[i + 3] = p.a;
-                }
-                if (!BitConverter.IsLittleEndian) {
-                    for (var i = 0; i < bytes.Length; i += 4) Array.Reverse(bytes, i, 4);
-                }
-                Buffer.BlockCopy(bytes, 0, probes, 0, bytes.Length);
+                probes = floats ? FloatProbes(raw, probeCount) : ByteProbes(raw, probeCount);
 
                 light = new Texture2DArray(width, height, pages, TextureFormat.RGBAHalf, false, true) {
                     name = "OneJS Light File",
@@ -121,6 +145,42 @@ namespace OneJS.Lighting {
             } finally {
                 Object.DestroyImmediate(tex);
             }
+        }
+
+        static float[] ByteProbes(Color32[] raw, int count) {
+            var probes = new float[count * ProbeSolve.Floats];
+            var size = new byte[4];
+            for (var p = 0; p < count; p++) {
+                var px = p * ProbePixels;
+                var first = raw[px];
+                size[0] = first.r; size[1] = first.g; size[2] = first.b; size[3] = first.a;
+                if (!BitConverter.IsLittleEndian) Array.Reverse(size);
+                var scale = BitConverter.ToSingle(size, 0) / 127f;
+                for (var k = 0; k < ProbeSolve.Floats; k++) {
+                    var b = 4 + k;
+                    var pixel = raw[px + b / 4];
+                    var q = (b % 4) switch { 0 => pixel.r, 1 => pixel.g, 2 => pixel.b, _ => pixel.a };
+                    probes[p * ProbeSolve.Floats + k] = (q - 128) * scale;
+                }
+            }
+            return probes;
+        }
+
+        static float[] FloatProbes(Color32[] raw, int count) {
+            var probes = new float[count * ProbeSolve.Floats];
+            var bytes = new byte[probes.Length * 4];
+            for (var i = 0; i < bytes.Length; i += 4) {
+                var p = raw[i / 4];
+                bytes[i] = p.r;
+                bytes[i + 1] = p.g;
+                bytes[i + 2] = p.b;
+                bytes[i + 3] = p.a;
+            }
+            if (!BitConverter.IsLittleEndian) {
+                for (var i = 0; i < bytes.Length; i += 4) Array.Reverse(bytes, i, 4);
+            }
+            Buffer.BlockCopy(bytes, 0, probes, 0, bytes.Length);
+            return probes;
         }
     }
 }

@@ -28,33 +28,28 @@ namespace OneJS.Models {
         static readonly int ActorLightmapId = Shader.PropertyToID("_ActorLightmapST");
         static readonly int LightmapId = Shader.PropertyToID("_OjLightmap");
         static readonly int LightmapSeamsId = Shader.PropertyToID("_OjLightmapSeams");
-        static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
-        static readonly int MetallicMapId = Shader.PropertyToID("_MetallicRoughnessMap");
         const int ActorStride = 5, CopyStride = 6, GridFloats = 7;
 
-        static LightBaker _baker;
-        // A bake BeginBake accepted that waits on its textures' means before its baker can start.
-        static WaitingBake _waiting;
-        // The finished bake's light file.
-        static string _file;
-        // Whether this bake's failed lightmap read has warned: LightFile reads again on each call, and says so once.
-        static bool _fileReadWarned;
-        // The lightmap ModelLit reads now, a slice a page: the bake's, drafts then finals, or a file's. Null until the first draft.
+        // The bake under way, from its wait on its textures' means to its light file, or null.
+        static BakeSession _session;
+        // Why the last bake failed on the bridge, for BakeProblem: kept past the ClearLight that follows the failure.
+        static string _bakeProblem;
+        // The lightmap ModelLit reads now, a slice a page: the bake's, drafts then finals, or one the bridge owns. Null until the first draft.
         static Texture _lightmap;
+        // The bridge's own lightmap, released with the light: a file's (LoadLight), or one kept from a bake a same-layout rebake replaced.
+        static Texture _owned;
+        // While true, the light showing is kept from before the bake under way, which shows its own once every page has light.
+        static bool _keeping;
         // How many of its pages, from the first, have light: an actor reading a page past them is lit by the probes.
         static int _pagesLit;
-        // The pages' sheet: which page a rectangle reads last.
+        // The pages' sheet, as BeginBake or LoadLight was given it: which page a rectangle reads last.
         static LightSheet _sheet = new LightSheet(1, 1, 1);
-        // A lightmap read from a light file (LoadLight), which the bridge owns; a bake's is the baker's.
-        static Texture2DArray _loaded;
+        static (int width, int height, int pages) _sheetSize;
         // What _OjLightmap holds while there is no lightmap: ModelLit declares an array, and a 2D texture there is an error on some backends.
         static Texture2DArray _noLight;
-        // The finished bake's pages' reads, which LightFile waits on.
-        static TextureRead[] _fileReads;
-        // The probes' 27 floats each, as LightBaker.ProbeSH lays them out, and their grid. Null until read.
-        static float[] _probes;
-        static Vector3 _gridOrigin;
-        static float _gridSpacing;
+        // The probes showing, or null, and the grid the bake under way or the file showing stands its probes on.
+        static ProbeField _probes;
+        static Vector3 _gridOrigin, _gridSpacing;
         static Vector3Int _gridCounts;
         static bool _probing;
         static readonly SphericalHarmonicsL2[] _oneProbe = new SphericalHarmonicsL2[1];
@@ -286,32 +281,40 @@ namespace OneJS.Models {
         /// floats in `actors` (its id, then its rectangle of the atlas's sheet as a uv scale and
         /// offset, in pages: LightSheet) and each scattered copy six in `copies` (the scatter's id,
         /// the copy's index, its rectangle); their models must have been given an unwrap. The atlas
-        /// is `pages` pages of `width` by `height`, 1, 2 or 4. `grid` is the probe grid's origin, spacing
-        /// and three counts. The bake bounces the ambient probe's two hemispheres (what SetAmbient
-        /// writes and ModelLit's SampleSH reads) and the sun, and keeps the sun's first hit live:
-        /// `samples` paths a texel, of up to `bounces` hits, with `occlusion` (BakeSettings).
-        /// "" when it started, or why it could not.
+        /// is `pages` pages of `width` by `height`, 1, 2 or 4. `grid` is the probe grid: its origin,
+        /// its spacing and its three counts (seven floats), or its origin, a spacing an axis and its
+        /// counts (nine: ProbeGridFloats). The bake bounces the ambient probe's two hemispheres (what
+        /// SetAmbient writes and ModelLit's SampleSH reads) and the sun, and keeps the sun's first hit
+        /// live: `samples` paths a texel, of up to `bounces` hits, with `occlusion` (BakeSettings).
+        ///
+        /// When the light showing was laid out exactly as this bake is (every rectangle, the sheet
+        /// and the grid: what a rebake after a change of sun or ambient gives), it stays showing
+        /// until this bake has light on every page, and its probes until this bake's land, rather
+        /// than the scene dropping to its ambient for the seconds a draft takes (review L1). A bake
+        /// laid out otherwise clears it first, since its rectangles no longer belong to those surfaces.
+        /// "" when it started, or why it could not, and then nothing is lit by baked light.
         /// </summary>
         public static string BeginBake(float[] actors, float[] copies, float[] grid, int width, int height, int pages, float detail, int samples, int bounces, float occlusion) {
-            ClearLight();
-            if (actors == null || actors.Length % ActorStride != 0) return "five floats a static actor: its id and its rectangle";
-            if (copies == null || copies.Length % CopyStride != 0) return "six floats a copy: its scatter, its index and its rectangle";
-            if (grid == null || grid.Length != GridFloats) return "a probe grid is seven floats: origin, spacing and counts";
-            if (!LightBaker.Supported(out var why)) return $"this GPU cannot bake light: {why}";
+            _bakeProblem = null;
+            var problem = Shapes(actors, copies, grid, out var origin, out var spacing, out var counts);
+            if (problem == "" && Showing && SameLayout(actors, copies, origin, spacing, counts, width, height, pages)) KeepShowing();
+            else ClearLight();
+            if (problem != "") return Refuse(problem);
+            if (!LightBaker.Supported(out var why)) return Refuse($"this GPU cannot bake light: {why}");
 
-            var scene = new SceneBuilder();
-            var problem = Place(actors, copies, width, height, pages, scene);
+            var scene = new BakeSceneBuilder();
+            problem = Place(actors, copies, width, height, pages, scene);
+            if (problem == "" && scene.Empty) problem = "there is nothing static to bake";
             if (problem != "") {
-                ClearLight();
-                return problem;
+                scene.Dispose();
+                return Refuse(problem);
             }
-            if (scene.Empty) return "there is nothing static to bake";
 
             var bake = scene.Build(width, height, pages);
             var settings = new BakeSettings { Samples = samples, Bounces = bounces, Occlusion = occlusion, Detail = detail };
-            bake.GridOrigin = new Vector3(grid[0], grid[1], grid[2]);
-            bake.GridSpacing = grid[3];
-            bake.GridCounts = new Vector3Int((int)grid[4], (int)grid[5], (int)grid[6]);
+            bake.GridOrigin = origin;
+            bake.GridSpacing = spacing;
+            bake.GridCounts = counts;
             // The ambient probe holds a hemisphere pair as the mean and half the difference (HemisphereProbe).
             var probe = RenderSettings.ambientProbe;
             bake.Sky = new Color(probe[0, 0] + probe[0, 1], probe[1, 0] + probe[1, 1], probe[2, 0] + probe[2, 1], 1);
@@ -324,51 +327,98 @@ namespace OneJS.Models {
             try {
                 LightBaker.Validate(bake, settings);
             } catch (ArgumentException e) {
-                ClearLight();
-                return e.Message;
+                scene.Dispose();
+                return Refuse(e.Message);
             }
-            _gridOrigin = bake.GridOrigin;
-            _gridSpacing = bake.GridSpacing;
-            _gridCounts = bake.GridCounts;
+            _gridOrigin = origin;
+            _gridSpacing = spacing;
+            _gridCounts = counts;
             // The albedo waits on each texture's mean, which on WebGPU is read back a frame or more later.
-            scene.ReadMeans();
-            _waiting = new WaitingBake { scene = scene, bake = bake, settings = settings };
-            problem = StartWaiting();
-            if (problem != "") ClearLight();
+            _session = new BakeSession(scene, bake, settings);
+            if (!_session.TryStart() && _session.Problem != null) return Refuse(_session.Problem);
+            return "";
+        }
+
+        // Clears what a refused bake or file left, and says why.
+        static string Refuse(string problem) {
+            ClearLight();
             return problem;
         }
 
-        sealed class WaitingBake {
-            public SceneBuilder scene;
-            public BakeScene bake;
-            public BakeSettings settings;
+        /// <summary>The probe grids BeginBake and LoadLight take, at most: 7 floats (one spacing), or 9 (a spacing an axis) from this OneJS on.</summary>
+        public static int ProbeGridFloats() => 9;
+
+        // Whether the arrays are the lengths a bake's are, and the grid they give: "" or why not.
+        static string Shapes(float[] actors, float[] copies, float[] grid, out Vector3 origin, out Vector3 spacing, out Vector3Int counts) {
+            origin = spacing = Vector3.zero;
+            counts = Vector3Int.zero;
+            if (actors == null || actors.Length % ActorStride != 0) return "five floats a static actor: its id and its rectangle";
+            if (copies == null || copies.Length % CopyStride != 0) return "six floats a copy: its scatter, its index and its rectangle";
+            if (grid == null || (grid.Length != 7 && grid.Length != 9)) return "a probe grid is seven floats (origin, spacing and counts) or nine (origin, a spacing an axis and counts)";
+            origin = new Vector3(grid[0], grid[1], grid[2]);
+            var at = grid.Length == 7 ? 4 : 6;
+            spacing = grid.Length == 7 ? Vector3.one * grid[3] : new Vector3(grid[3], grid[4], grid[5]);
+            counts = new Vector3Int((int)grid[at], (int)grid[at + 1], (int)grid[at + 2]);
+            return ProbeField.Problem(spacing, counts) ?? "";
         }
 
-        // Starts the waiting bake's baker once its means have landed: "" when it started or still waits, or why it could not.
-        static string StartWaiting() {
-            if (_waiting == null || !_waiting.scene.MeansReady) return "";
-            var w = _waiting;
-            _waiting = null;
-            w.scene.FillAlbedo(w.bake.Albedo);
-            w.scene.Dispose();
-            try {
-                _baker = new LightBaker(w.bake, w.settings);
-            } catch (Exception e) {
-                return e.Message;
+        // Whether any baked light or probe light is showing.
+        static bool Showing => _lightmap != null || _probes != null;
+
+        /// <summary>Whether `actors` and `copies` are every rectangle showing now, on this sheet, with these probes' grid.</summary>
+        static bool SameLayout(float[] actors, float[] copies, Vector3 origin, Vector3 spacing, Vector3Int counts, int width, int height, int pages) {
+            if (_sheetSize != (width, height, pages) || origin != _gridOrigin || spacing != _gridSpacing || counts != _gridCounts) return false;
+            var showing = 0;
+            foreach (var a in _actors.Values) if (a.atlas != Vector4.zero) showing++;
+            if (showing != actors.Length / ActorStride) return false;
+            for (int i = 0; i < actors.Length; i += ActorStride) {
+                if (!_actors.TryGetValue((int)actors[i], out var a) || !SameRect(a.atlas, actors, i + 1)) return false;
             }
-            return "";
+            showing = 0;
+            foreach (var s in _scatters.Values) if (s.atlas != null) foreach (var st in s.atlas) if (st != Vector4.zero) showing++;
+            if (showing != copies.Length / CopyStride) return false;
+            for (int i = 0; i < copies.Length; i += CopyStride) {
+                if (!_scatters.TryGetValue((int)copies[i], out var s) || s.atlas == null) return false;
+                var copy = (int)copies[i + 1];
+                if (copy < 0 || copy >= s.atlas.Length || !SameRect(s.atlas[copy], copies, i + 2)) return false;
+            }
+            return true;
+        }
+
+        static bool SameRect(Vector4 st, float[] values, int at) =>
+            st.x == values[at] && st.y == values[at + 1] && st.z == values[at + 2] && st.w == values[at + 3];
+
+        // The light showing becomes the bridge's own, so it outlives the bake that made it, and stays until the next bake has its own.
+        static void KeepShowing() {
+            if (_session != null) {
+                var taken = _session.TakeLightmap();
+                if (taken != null && taken == _lightmap) {
+                    Free(_owned);
+                    _owned = taken;
+                } else Free(taken);
+                _session.Dispose();
+                _session = null;
+            }
+            _keeping = true;
+        }
+
+        static void Free(Texture texture) {
+            if (texture == null) return;
+            if (texture is RenderTexture rt) rt.Release();
+            Kill(texture);
         }
 
         /// <summary>
         /// Gives each static actor and copy its rectangle of the atlas, as BeginBake and LoadLight
         /// read them, and hands its triangles to `scene` when there is one. "" or why not.
         /// </summary>
-        static string Place(float[] actors, float[] copies, int width, int height, int pages, SceneBuilder scene) {
+        static string Place(float[] actors, float[] copies, int width, int height, int pages, BakeSceneBuilder scene) {
             try {
                 _sheet = new LightSheet(width, height, pages);
             } catch (ArgumentException e) {
                 return e.Message;
             }
+            _sheetSize = (width, height, pages);
             for (int i = 0; i < actors.Length; i += ActorStride) {
                 if (!_actors.TryGetValue((int)actors[i], out var a)) return $"there is no actor {(int)actors[i]}";
                 if (!_models.TryGetValue(a.model, out var m) || m.lit == null) return $"actor {(int)actors[i]}'s model has no unwrap";
@@ -400,31 +450,7 @@ namespace OneJS.Models {
         /// The finished bake as a light file (Lighting/LightFile.cs), base64: the lightmap's pages and
         /// the probes, which onejs-play saves with its record. "" while nothing has finished baking.
         /// </summary>
-        public static string LightFile() {
-            if (_baker == null || !_baker.Done || _baker.Lightmap == null) return "";
-            if (_file != null) return _file;
-            var map = _baker.Lightmap;
-            var pages = _baker.Pages;
-            // On WebGPU each page's read lands a frame or more after it starts, and until then this is "".
-            if (_fileReads == null) {
-                _fileReads = new TextureRead[pages];
-                for (var p = 0; p < pages; p++) _fileReads[p] = TextureRead.Start(map, p);
-            }
-            foreach (var r in _fileReads) if (!r.Done) return "";
-            var reads = _fileReads;
-            _fileReads = null;
-            var light = new Color[map.width * map.height * pages];
-            for (var p = 0; p < pages; p++) {
-                if (reads[p].Error != null) {
-                    if (!_fileReadWarned) Debug.LogWarning($"[OneJS] The bake's lightmap could not be read back, and is read again until it is: {reads[p].Error}.");
-                    _fileReadWarned = true;
-                    return "";
-                }
-                reads[p].Colors().CopyTo(light, p * map.width * map.height);
-            }
-            _file = Convert.ToBase64String(LightFileFormat.Encode(light, map.width, map.height, pages, _baker.ProbeSH));
-            return _file;
-        }
+        public static string LightFile() => _session?.File() ?? "";
 
         /// <summary>
         /// The SHA-256 of `bytes` as 64 lowercase hex digits: how onejs-play's light record names a
@@ -459,34 +485,28 @@ namespace OneJS.Models {
         /// bake before it. "" when the light is showing, or why not, and then nothing is lit by it.
         /// </summary>
         public static string LoadLight(string file, float[] actors, float[] copies, float[] grid, int width, int height, int pages) {
+            _bakeProblem = null;
             ClearLight();
-            if (actors == null || actors.Length % ActorStride != 0) return "five floats a static actor: its id and its rectangle";
-            if (copies == null || copies.Length % CopyStride != 0) return "six floats a copy: its scatter, its index and its rectangle";
-            if (grid == null || grid.Length != GridFloats) return "a probe grid is seven floats: origin, spacing and counts";
+            var problem = Shapes(actors, copies, grid, out var origin, out var spacing, out var counts);
+            if (problem != "") return Refuse(problem);
             byte[] png;
             try {
                 png = Convert.FromBase64String(file ?? "");
             } catch (FormatException) {
                 return "the light file is not base64";
             }
-            var counts = new Vector3Int((int)grid[4], (int)grid[5], (int)grid[6]);
-            var problem = LightFileFormat.Decode(png, width, height, pages, counts.x * counts.y * counts.z, out var light, out var probes);
+            problem = LightFileFormat.Decode(png, width, height, pages, counts.x * counts.y * counts.z, out var light, out var probes);
             if (problem == "") problem = Place(actors, copies, width, height, pages, null);
             if (problem != "") {
-                if (light != null) Kill(light);
-                ClearLight();
-                return problem;
+                Free(light);
+                return Refuse(problem);
             }
-            _loaded = light;
-            _gridOrigin = new Vector3(grid[0], grid[1], grid[2]);
-            _gridSpacing = grid[3];
+            _owned = light;
+            _gridOrigin = origin;
+            _gridSpacing = spacing;
             _gridCounts = counts;
-            if (probes.Length > 0) {
-                _probes = probes;
-                Probing(true);
-            }
+            if (probes.Length > 0) ShowProbes(new ProbeField(probes, origin, spacing, counts));
             ShowLightmap(light, pages);
-            UpdateProbes();
             return "";
         }
 
@@ -503,50 +523,54 @@ namespace OneJS.Models {
         /// <summary>
         /// Does `tiles` tiles of the bake (LightBaker.TilePaths paths each; a path is one ray from a
         /// texel or a probe, with its bounces), at least one, and shows what is ready: the probes,
-        /// then each page's draft lightmap, then its final.
-        /// Returns the bake's progress, 1 once done (the probes read back too), or -1 when nothing is
-        /// baking. 0 while the bake waits on its textures' means.
+        /// then each page's draft lightmap, then its final. A bake keeping the light it replaced
+        /// (BeginBake) shows its lightmap once every page has its draft.
+        /// Returns the bake's progress, 1 once done (the probes read back too), 0 while the bake
+        /// waits on its textures' means, -1 when nothing is baking, or -2 when the bake failed,
+        /// which BakeProblem says why; the light is cleared then, as by ClearLight.
         /// </summary>
         public static float StepBake(double tiles) {
-            if (_waiting != null) {
-                if (!_waiting.scene.MeansReady) return 0;
-                var problem = StartWaiting();
-                if (problem != "") {
-                    Debug.LogError($"[OneJS] The bake could not start: {problem}");
-                    ClearLight();
-                    return -1;
-                }
-            }
-            if (_baker == null) return -1;
-            bool done;
-            try {
-                done = _baker.Step((long)Math.Max(1, Math.Round(tiles)) * _baker.TilePaths);
-            } catch (InvalidOperationException e) {
-                OneJSLog.Exception("[OneJS] The bake stopped", e);
+            if (_session == null) return -1;
+            var p = _session.Step(tiles);
+            if (p == BakeSession.Failed) {
+                var problem = _session.Problem;
                 ClearLight();
-                return -1;
+                _bakeProblem = problem;
+                return -2;
             }
-            if (_probes == null && _baker.ProbesReady && _baker.ProbeCount > 0) {
-                _probes = _baker.ProbeSH;
-                Probing(true);
-                UpdateProbes();
+            var baker = _session.Baker;
+            if (baker == null) return p;
+            if (baker.ProbesReady && baker.ProbeCount > 0 && (_probes == null || _probes.Probes != baker.ProbeSH)) {
+                ShowProbes(new ProbeField(baker.ProbeSH, _gridOrigin, _gridSpacing, _gridCounts));
             }
-            if (_baker.Lightmap != null && (_lightmap != _baker.Lightmap || _pagesLit != _baker.PagesLit)) ShowLightmap(_baker.Lightmap, _baker.PagesLit);
-            return done ? 1 : Mathf.Min(_baker.Progress, 0.999f);
+            var ready = !_keeping || baker.PagesLit == baker.Pages;
+            if (baker.Lightmap != null && ready && (_lightmap != baker.Lightmap || _pagesLit != baker.PagesLit)) {
+                var kept = _keeping ? _owned : null;
+                if (_keeping) {
+                    _keeping = false;
+                    _owned = null;
+                }
+                ShowLightmap(baker.Lightmap, baker.PagesLit);
+                Free(kept);
+            }
+            return p;
         }
+
+        /// <summary>Why the last bake failed on the bridge, once StepBake answered -2; "" otherwise.</summary>
+        public static string BakeProblem() => _bakeProblem ?? "";
 
         /// <summary>
         /// What the bake's steps do now, as LightBaker.Phase's number: 0 none (or waiting on its
         /// textures' means), 1 the probes, 2 the lightmap while the probes' read is in flight, 3 the
         /// lightmap, 4 finishing. The frame budget starts over when it changes.
         /// </summary>
-        public static int BakePhase() => _baker == null ? (int)global::OneJS.Lighting.BakePhase.None : (int)_baker.Phase;
+        public static int BakePhase() => _session?.Baker == null ? (int)global::OneJS.Lighting.BakePhase.None : (int)_session.Baker.Phase;
 
         /// <summary>The page the bake's lightmap is on, from 0. The frame budget starts over when it changes, as at a phase.</summary>
-        public static int BakePage() => _baker == null ? 0 : _baker.Page;
+        public static int BakePage() => _session?.Baker?.Page ?? 0;
 
         /// <summary>Whether a bake has been started and not finished.</summary>
-        public static bool Baking => _waiting != null || (_baker != null && !_baker.Done);
+        public static bool Baking => _session != null && _session.Running;
 
         /// <summary>The lightmap ModelLit reads now, or null.</summary>
         internal static Texture BakedLightmap => _lightmap;
@@ -590,21 +614,26 @@ namespace OneJS.Models {
             }
         }
 
-        /// <summary>Forgets the baked light: every actor and copy draws with the scene's ambient again.</summary>
+        // Shows `probes`, and has every actor not drawn from the lightmap take its light from them afresh.
+        static void ShowProbes(ProbeField probes) {
+            _probes = probes;
+            Probing(true);
+            foreach (var a in _actors.Values) a.probed = false;
+            UpdateProbes();
+        }
+
+        /// <summary>Forgets the baked light, and stops a bake under way: every actor and copy draws with the scene's ambient again.</summary>
         public static void ClearLight() {
-            _baker?.Dispose();
-            _baker = null;
-            _waiting?.scene.Dispose();
-            _waiting = null;
-            _fileReads = null;
-            _file = null;
-            _fileReadWarned = false;
-            if (_loaded != null) Kill(_loaded);
-            _loaded = null;
-            var had = _lightmap != null || _probes != null;
+            _session?.Dispose();
+            _session = null;
+            _keeping = false;
+            Free(_owned);
+            _owned = null;
+            var had = Showing;
             _lightmap = null;
             _pagesLit = 0;
             _sheet = new LightSheet(1, 1, 1);
+            _sheetSize = default;
             _probes = null;
             Probing(false);
             Shader.SetGlobalTexture(LightmapId, NoLight);
@@ -660,7 +689,7 @@ namespace OneJS.Models {
                 if (a.go == null || Lightmapped(a) || !_models.TryGetValue(a.model, out var m)) continue;
                 var middle = a.go.transform.TransformPoint(m.bounds.center);
                 if (a.probed && (middle - a.probedAt).sqrMagnitude < 1e-6f) continue;
-                a.probe = BlendProbes(middle);
+                a.probe = _probes.Blend(middle);
                 a.probed = true;
                 a.probedAt = middle;
                 Apply(a);
@@ -668,165 +697,6 @@ namespace OneJS.Models {
         }
 
         /// <summary>The light at `at`, blended from the eight probes round it; outside the grid, the nearest edge's.</summary>
-        internal static SphericalHarmonicsL2 BlendProbes(Vector3 at) {
-            var sh = new SphericalHarmonicsL2();
-            if (_probes == null) return sh;
-            var cell = new int[3];
-            var frac = new float[3];
-            for (int k = 0; k < 3; k++) {
-                var n = _gridCounts[k];
-                var t = Mathf.Clamp((at[k] - _gridOrigin[k]) / _gridSpacing, 0, n - 1);
-                cell[k] = Math.Min((int)Math.Floor(t), Math.Max(0, n - 2));
-                frac[k] = n == 1 ? 0 : t - cell[k];
-            }
-            for (int corner = 0; corner < 8; corner++) {
-                float w = 1;
-                var index = new int[3];
-                for (int k = 0; k < 3; k++) {
-                    var up = (corner >> k) & 1;
-                    w *= up == 1 ? frac[k] : 1 - frac[k];
-                    index[k] = Math.Min(cell[k] + up, _gridCounts[k] - 1);
-                }
-                if (w == 0) continue;
-                var at0 = (index[0] + _gridCounts.x * (index[1] + _gridCounts.y * index[2])) * ProbeSolve.Floats;
-                for (int c = 0; c < 3; c++) {
-                    for (int i = 0; i < 9; i++) sh[c, i] += w * _probes[at0 + c * 9 + i];
-                }
-            }
-            return sh;
-        }
-
-        /// <summary>The scene's static triangles in world space, at their atlas uv, with each triangle's albedo.</summary>
-        sealed class SceneBuilder {
-            readonly List<Vector3> _positions = new();
-            readonly List<Vector3> _normals = new();
-            readonly List<Vector2> _uvs = new();
-            readonly List<int> _indices = new();
-            // Per triangle: which of _materials it is drawn with, and its vertex colours' mean (white without).
-            readonly List<int> _surface = new();
-            readonly List<Color> _tint = new();
-            readonly List<Material> _materials = new();
-            readonly Dictionary<Material, int> _materialIndex = new();
-            // Each texture's mean, read back from a 16 by 16 copy drawn through its mips.
-            readonly Dictionary<Texture, (RenderTexture rt, TextureRead read)> _means = new();
-            readonly List<Vector2> _layout = new();
-
-            public bool Empty => _indices.Count == 0;
-
-            public void Add(Mesh mesh, Matrix4x4 world, Material[] materials, Vector4 st) {
-                var normalMatrix = world.inverse.transpose;
-                var at = _positions.Count;
-                var normals = mesh.normals;
-                var colors = mesh.colors;
-                var vertices = mesh.vertices;
-                mesh.GetUVs(1, _layout);
-                for (int v = 0; v < vertices.Length; v++) {
-                    _positions.Add(world.MultiplyPoint3x4(vertices[v]));
-                    _normals.Add(normals.Length == vertices.Length ? normalMatrix.MultiplyVector(normals[v]).normalized : Vector3.up);
-                    var uv = v < _layout.Count ? _layout[v] : Vector2.zero;
-                    _uvs.Add(new Vector2(uv.x * st.x + st.z, uv.y * st.y + st.w));
-                }
-                for (int sub = 0; sub < mesh.subMeshCount; sub++) {
-                    var material = sub < materials.Length ? materials[sub] : null;
-                    var surface = SurfaceOf(material);
-                    var vertexColors = material != null && material.IsKeywordEnabled("_VERTEX_COLOR") && colors.Length == vertices.Length;
-                    var tris = mesh.GetTriangles(sub);
-                    for (int k = 0; k < tris.Length; k += 3) {
-                        _indices.Add(at + tris[k]);
-                        _indices.Add(at + tris[k + 1]);
-                        _indices.Add(at + tris[k + 2]);
-                        _surface.Add(surface);
-                        _tint.Add(vertexColors ? (colors[tris[k]] + colors[tris[k + 1]] + colors[tris[k + 2]]) / 3f : Color.white);
-                    }
-                }
-            }
-
-            int SurfaceOf(Material material) {
-                // A null material is a surface too, the gray Albedo gives it, kept under index -1.
-                if (material == null) return -1;
-                if (_materialIndex.TryGetValue(material, out var i)) return i;
-                _materialIndex[material] = _materials.Count;
-                _materials.Add(material);
-                return _materials.Count - 1;
-            }
-
-            /// <summary>Starts reading back the mean of every texture the albedo needs: base maps, and metallic maps where a material is metal.</summary>
-            public void ReadMeans() {
-                foreach (var material in _materials) {
-                    if (material.HasProperty(BaseMapId)) StartMean(material.GetTexture(BaseMapId));
-                    if (material.HasProperty(MetallicId)) StartMean(material.GetTexture(MetallicMapId));
-                }
-            }
-
-            void StartMean(Texture texture) {
-                if (texture == null || _means.ContainsKey(texture)) return;
-                var rt = RenderTexture.GetTemporary(16, 16, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
-                Graphics.Blit(texture, rt);
-                _means[texture] = (rt, TextureRead.Start(rt));
-            }
-
-            /// <summary>Whether every mean ReadMeans started has landed.</summary>
-            public bool MeansReady {
-                get {
-                    foreach (var (_, read) in _means.Values) if (!read.Done) return false;
-                    return true;
-                }
-            }
-
-            /// <summary>Each triangle's albedo, once MeansReady: its material's, times its vertex colours' mean.</summary>
-            public void FillAlbedo(Color[] albedo) {
-                var surfaces = new Color[_materials.Count];
-                for (int i = 0; i < surfaces.Length; i++) surfaces[i] = Albedo(_materials[i]);
-                for (int t = 0; t < albedo.Length; t++) {
-                    var c = (_surface[t] < 0 ? Albedo(null) : surfaces[_surface[t]]) * _tint[t];
-                    c.a = 1;
-                    albedo[t] = c;
-                }
-            }
-
-            /// <summary>Gives back the means' render textures.</summary>
-            public void Dispose() {
-                foreach (var (rt, _) in _means.Values) RenderTexture.ReleaseTemporary(rt);
-                _means.Clear();
-            }
-
-            /// <summary>
-            /// A material's diffuse colour, linear: its base colour times its base map's mean, less the
-            /// part that is metal (ModelLit's metallic is `_Metallic` times its map's blue), which
-            /// reflects rather than scatters and so bounces nothing a lightmap holds.
-            /// </summary>
-            Color Albedo(Material material) {
-                if (material == null) return Color.gray;
-                var c = material.HasProperty(BaseColorId) ? material.GetColor(BaseColorId) : material.color;
-                if (QualitySettings.activeColorSpace == ColorSpace.Linear) c = c.linear;
-                var map = material.HasProperty(BaseMapId) ? material.GetTexture(BaseMapId) : null;
-                if (map != null) c *= Mean(map);
-                if (material.HasProperty(MetallicId)) {
-                    var metal = material.GetTexture(MetallicMapId);
-                    c *= 1 - material.GetFloat(MetallicId) * (metal != null ? Mean(metal).b : 1);
-                }
-                c.a = 1;
-                return c;
-            }
-
-            // A texture's mean colour, linear, from its read (ReadMeans). White when the read failed, so the material's colour stands alone.
-            Color Mean(Texture texture) {
-                if (!_means.TryGetValue(texture, out var mean)) return Color.white;
-                var colors = mean.read.Colors();
-                if (colors == null) {
-                    Debug.LogWarning($"[OneJS] The bake could not read {texture.name}'s mean colour back ({mean.read.Error}), and bounces its material's colour alone.");
-                    return Color.white;
-                }
-                var sum = Color.clear;
-                foreach (var p in colors) sum += p;
-                return sum / colors.Length;
-            }
-
-            /// <summary>The scene, its albedo left for FillAlbedo.</summary>
-            public BakeScene Build(int width, int height, int pages) => new BakeScene {
-                Positions = _positions.ToArray(), Normals = _normals.ToArray(), Uvs = _uvs.ToArray(),
-                Indices = _indices.ToArray(), Albedo = new Color[_surface.Count], AtlasWidth = width, AtlasHeight = height, Pages = pages,
-            };
-        }
+        internal static SphericalHarmonicsL2 BlendProbes(Vector3 at) => _probes?.Blend(at) ?? new SphericalHarmonicsL2();
     }
 }

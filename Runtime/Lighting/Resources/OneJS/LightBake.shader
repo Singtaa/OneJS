@@ -277,7 +277,7 @@ Shader "Hidden/OneJS/LightBake" {
             Texture2D<float4> _Prev2;
             Texture2D<float4> _Prev3;
             float3 _GridOrigin;
-            float _GridSpacing;
+            float3 _GridSpacing;
             int3 _GridCounts;
             int _ProbesWide;
             int _Rays;

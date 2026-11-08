@@ -160,7 +160,7 @@ namespace OneJS.Tests.Lighting {
             // A scene of one tiny face far below: every ray from the grid meets the sky or the ground.
             var scene = new SceneBuilder().Quad(new Vector3(0, -1000, 0), new Vector3(0.01f, 0, 0), new Vector3(0, 0, 0.01f), Vector3.up, new Rect(0.1f, 0.1f, 0.5f, 0.5f), Color.gray).Build(16);
             scene.GridOrigin = Vector3.zero;
-            scene.GridSpacing = 1;
+            scene.GridSpacing = Vector3.one;
             scene.GridCounts = new Vector3Int(2, 1, 2);
             using var baker = Bake(scene, Quick(4));
             Assert.IsTrue(baker.ProbesReady);
@@ -213,7 +213,7 @@ namespace OneJS.Tests.Lighting {
         public void AProbeInsideASolidTakesItsNeighboursLight() {
             var scene = Floor(Color.gray).Box(new Vector3(2, 1, 2), 0.5f).Build();
             scene.GridOrigin = new Vector3(0, 1, 2);
-            scene.GridSpacing = 2;
+            scene.GridSpacing = Vector3.one * 2;
             scene.GridCounts = new Vector3Int(3, 1, 1);
             using var baker = Bake(scene, Quick(4));
             var sh = baker.ProbeSH;
@@ -423,13 +423,28 @@ namespace OneJS.Tests.Lighting {
             return new LightBaker(scene, new BakeSettings { Samples = 4, DraftSamples = 4, ProbeRays = 64 });
         }
 
+        // A budget of paths learned on probe rays, a frame's worth of them, is spent on lightmap tiles in the frame
+        // the probes end in, and at 4 bounces that was a 117 ms frame (review L2): the step ends with the probes instead.
+        [Test]
+        public void TheStepThatFinishesTheProbesEndsThere() {
+            using var baker = ProbedBaker();
+            Assert.AreEqual(BakePhase.Probes, baker.Phase);
+            Assert.IsFalse(baker.Step(long.MaxValue));
+            Assert.AreNotEqual(BakePhase.Probes, baker.Phase, "every probe ray traced");
+            Assert.AreEqual(0, baker.Samples, "and no lightmap tile");
+            Assert.IsFalse(baker.DraftReady);
+            Assert.IsNull(baker.Lightmap);
+            baker.Step(1);
+            Assert.Greater(baker.Progress, 0.1f, "the next step starts the lightmap: the probes are the first tenth");
+        }
+
         [Test]
         public void ABakeIsDoneOnlyOnceItsProbesAreReadBack() {
             if (!TextureRead.Async) Assert.Ignore("this GPU has no async readback, so its probes are read at once");
             using var baker = ProbedBaker();
             TextureRead.Hold = true;
             try {
-                // One step makes every draw, and the probes' read is still on its way.
+                // One step traces the probes, the next makes every other draw, and the probes' read is still on its way.
                 Assert.IsFalse(baker.Step(long.MaxValue), "done before its probes were read");
                 Assert.IsFalse(baker.Step(long.MaxValue), "a finished lightmap waits on the probes");
                 Assert.IsNull(baker.ProbeSH);
@@ -454,7 +469,9 @@ namespace OneJS.Tests.Lighting {
             TextureRead.UseReadPixels = true;
             try {
                 using var baker = ProbedBaker();
-                Assert.IsTrue(baker.Step(long.MaxValue), "ReadPixels lands when it is made");
+                Assert.IsFalse(baker.Step(long.MaxValue), "the step that traces the probes ends with them");
+                Assert.IsTrue(baker.ProbesReady, "ReadPixels lands when it is made");
+                Assert.IsTrue(baker.Step(long.MaxValue));
                 CollectionAssert.AreEqual(async, baker.ProbeSH);
             } finally {
                 TextureRead.UseReadPixels = false;

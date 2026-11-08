@@ -352,6 +352,115 @@ namespace OneJS.Tests.Models {
             Assert.That(ModelBridge.StepBake(1), Is.EqualTo(-1f));
         }
 
+        // A rebake after a change of sun or ambient lays the light out exactly as before. Cleared at BeginBake, the
+        // scene showed its flat ambient for the seconds a draft took, which a lesson reads as the bake breaking (review L1).
+        [Test]
+        public void Bake_AgainOnTheSameLayout_KeepsTheLightShowingUntilTheNewOneHasEveryPage() {
+            Assert.That(Bake(pages: 2, floorPage: 1), Is.Empty);
+            RunBake();
+            var old = ModelBridge.BakedLightmap;
+            Assert.That(old, Is.Not.Null);
+            var probe = ProbeOf(_crateActor);
+            ModelBridge.SetAmbient(0.5f, 0.5f, 0.5f, 0.05f, 0.05f, 0.05f, 1);
+
+            Assert.That(Bake(pages: 2, floorPage: 1), Is.Empty);
+            Assert.That(ModelBridge.BakedLightmap, Is.EqualTo(old), "the light showing stays");
+            Assert.That(AtlasOf(_floorActor), Is.EqualTo(FloorOn(1)), "and so does every rectangle");
+            Assert.That(RendererOf(_crateActor).lightProbeUsage, Is.EqualTo(LightProbeUsage.CustomProvided), "and the probes");
+            Assert.That(ModelBridge.Baking, Is.True);
+            var swapped = false;
+            for (var i = 0; i < 100000 && !swapped; i++) {
+                Assert.That(ModelBridge.StepBake(1), Is.GreaterThanOrEqualTo(0f));
+                AsyncGPUReadback.WaitAllRequests();
+                swapped = ModelBridge.BakedLightmap != old;
+                Assert.That(ModelBridge.BakedLightmap, Is.Not.Null, $"step {i}: never no light between the two");
+            }
+            Assert.That(swapped, Is.True, "the new light shows");
+            // One swap, once both pages have their draft: the floor on page 1 is lit at once, not black for page 0's draft.
+            Assert.That(Sample(Floor(3.5f, 3.5f), 1).g, Is.GreaterThan(0.01f), "the floor's page has light the moment it shows");
+            Assert.That(((RenderTexture)old).IsCreated(), Is.False, "the light it replaced is released");
+            RunBake();
+            Assert.That(ProbeOf(_crateActor), Is.Not.EqualTo(probe), "the new probes, under a darker ambient");
+        }
+
+        [Test]
+        public void Bake_AgainOnAnotherLayout_ClearsTheLightFirst() {
+            Assert.That(Bake(pages: 2, floorPage: 1), Is.Empty);
+            RunBake();
+            Assert.That(Bake(pages: 2, floorPage: 0), Is.Empty);
+            Assert.That(ModelBridge.BakedLightmap, Is.Null, "a rectangle moved: the old light is another layout's");
+            Assert.That(Bake(pages: 1), Is.Empty);
+            RunBake();
+            // Moving the roof leaves its rectangle, so this is the light's layout: what it changes is the light, which a rebake is for.
+            ModelBridge.Place(_roofActor, 0, 0.1f, 0, 0);
+            Assert.That(Bake(pages: 1), Is.Empty);
+            Assert.That(ModelBridge.BakedLightmap, Is.Not.Null, "kept");
+            ModelBridge.ClearLight();
+            Assert.That(ModelBridge.BakedLightmap, Is.Null, "ClearLight drops a kept light too");
+            Assert.That(ModelBridge.Baking, Is.False, "and stops the bake");
+        }
+
+        [Test]
+        public void StepBake_WhenTheBakeFails_AnswersMinus2_AndBakeProblemSaysWhy() {
+            Assert.That(Bake(), Is.Empty);
+            Assert.That(ModelBridge.BakeProblem(), Is.Empty);
+            // Stepped to the probes, then every read fails: the probes' read is the one a bake cannot do without.
+            for (var i = 0; i < 1000 && ModelBridge.BakePhase() == 0; i++) {
+                ModelBridge.StepBake(1);
+                AsyncGPUReadback.WaitAllRequests();
+            }
+            TextureRead.Fail = true;
+            var p = 0f;
+            for (var i = 0; i < 100000 && p >= 0 && p < 1; i++) {
+                p = ModelBridge.StepBake(1);
+                AsyncGPUReadback.WaitAllRequests();
+            }
+            Assert.That(p, Is.EqualTo(-2f), "failed, not stopped");
+            Assert.That(ModelBridge.BakeProblem(), Does.StartWith("the bake's probes could not be read"));
+            Assert.That(ModelBridge.BakedLightmap, Is.Null, "the light is cleared");
+            Assert.That(AtlasOf(_floorActor), Is.EqualTo(Vector4.zero));
+            Assert.That(ModelBridge.StepBake(1), Is.EqualTo(-1f), "after which nothing is baking");
+            Assert.That(ModelBridge.BakeProblem(), Is.Not.Empty, "and the reason stays until the next bake");
+            TextureRead.Fail = false;
+            Assert.That(Bake(), Is.Empty);
+            Assert.That(ModelBridge.BakeProblem(), Is.Empty);
+        }
+
+        [Test]
+        public void LoadLight_TakesAGridOfASpacingAnAxis_AndRefusesABadGrid() {
+            Assert.That(ModelBridge.ProbeGridFloats(), Is.EqualTo(9));
+            Assert.That(Bake(), Is.Empty);
+            RunBake();
+            var file = File();
+            var actors = Actors();
+            // The file's probes, a byte a coefficient, rather than the bake's own floats.
+            var at = BlendOn(file, actors, new Vector3(0.5f, 0.25f, 0.5f));
+            var nine = new float[] { Grid[0], Grid[1], Grid[2], Grid[3], Grid[3], Grid[3], Grid[4], Grid[5], Grid[6] };
+            Assert.That(ModelBridge.LoadLight(file, actors, Array.Empty<float>(), nine, AtlasWidth, AtlasHeight, 1), Is.Empty, "nine floats: the same grid, a spacing an axis");
+            Assert.That(ModelBridge.BlendProbes(new Vector3(0.5f, 0.25f, 0.5f)), Is.EqualTo(at));
+            // The same probes stood twice as far apart in y and z only: the point blends from other probes.
+            var stretched = new float[] { Grid[0], Grid[1], Grid[2], 1, 2, 2, Grid[4], Grid[5], Grid[6] };
+            Assert.That(ModelBridge.LoadLight(file, actors, Array.Empty<float>(), stretched, AtlasWidth, AtlasHeight, 1), Is.Empty);
+            // z = 3.5 is 3.75 spacings of 2 from the origin at -4, which on the test's grid of 1 is z = -0.25.
+            Assert.That(ModelBridge.BlendProbes(new Vector3(0.5f, 0.25f, 3.5f)), Is.EqualTo(BlendOn(file, actors, new Vector3(0.5f, 0.25f, -0.25f))), "z at half the scale");
+
+            var flat = (float[])Grid.Clone();
+            flat[3] = 0;
+            Assert.That(ModelBridge.LoadLight(file, actors, Array.Empty<float>(), flat, AtlasWidth, AtlasHeight, 1), Does.Contain("spacing above 0"));
+            Assert.That(ModelBridge.BakedLightmap, Is.Null);
+            Assert.That(ModelBridge.LoadLight(file, actors, Array.Empty<float>(), new float[8], AtlasWidth, AtlasHeight, 1), Does.Contain("seven floats"));
+            var backwards = (float[])Grid.Clone();
+            backwards[4] = -1;
+            Assert.That(ModelBridge.BeginBake(actors, Array.Empty<float>(), backwards, AtlasWidth, AtlasHeight, 1, 8, 32, 2, 0), Does.Contain("0 or more"));
+            Assert.That(ModelBridge.Baking, Is.False);
+        }
+
+        // The probes at `at` once `file` is loaded on the test's own grid.
+        static SphericalHarmonicsL2 BlendOn(string file, float[] actors, Vector3 at) {
+            Assert.That(ModelBridge.LoadLight(file, actors, Array.Empty<float>(), Grid, AtlasWidth, AtlasHeight, 1), Is.Empty);
+            return ModelBridge.BlendProbes(at);
+        }
+
         [Test]
         public void SetMesh_AfterAnUnwrap_DrawsTheModelUnbakedAgain() {
             Assert.That(Bake(), Is.Empty);
@@ -407,7 +516,9 @@ namespace OneJS.Tests.Models {
             Assert.That(AtlasOf(_floorActor), Is.EqualTo(FloorST));
             Assert.That(AtlasOf(_crateActor), Is.EqualTo(Vector4.zero));
             Assert.That(RendererOf(_crateActor).lightProbeUsage, Is.EqualTo(LightProbeUsage.CustomProvided), "a moving actor takes its probe light from the file");
-            Assert.That(ModelBridge.BlendProbes(new Vector3(0, 0.25f, 0)), Is.EqualTo(under), "the probes, exactly");
+            // The probes to a byte against each probe's largest term (LightFile), and so the blend to well under 1%.
+            var again = ModelBridge.BlendProbes(new Vector3(0, 0.25f, 0));
+            for (var c = 0; c < 3; c++) Assert.That(again[c, 0], Is.EqualTo(under[c, 0]).Within(Mathf.Abs(under[c, 0]) * 0.01f), $"the probes' band 0, channel {c}");
 
             var shadedAgain = Sample(Floor(0, 0));
             var litAgain = Sample(Floor(3.5f, 3.5f));
