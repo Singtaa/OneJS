@@ -1,0 +1,115 @@
+// ModelLit's and GroundLit's built-in pipeline SubShader: Unity's Standard lighting through a
+// surface shader, which brings its shadows (cast and received) and forward lights with it. The
+// shader file declares the surface pragma; this is its code. Under MODEL_SPLAT (GroundLit) the
+// albedo is the splat's layers mixed by the vertex's weights, as in ModelLitForward.hlsl.
+#ifndef ONEJS_MODEL_LIT_SURFACE_INCLUDED
+#define ONEJS_MODEL_LIT_SURFACE_INCLUDED
+
+#include "ModelDissolve.hlsl"
+#include "ModelLightmap.hlsl"
+#ifdef MODEL_SPLAT
+    #include "ModelSplat.hlsl"
+    #ifndef _VERTEX_COLOR
+        #define _VERTEX_COLOR 1
+    #endif
+#endif
+
+sampler2D _BaseMap;
+#ifdef MODEL_SPLAT
+    sampler2D _SplatLayer0;
+    sampler2D _SplatLayer1;
+    sampler2D _SplatLayer2;
+    sampler2D _SplatLayer3;
+    half _HeightBlend;
+#else
+    sampler2D _MetallicRoughnessMap;
+    sampler2D _NormalMap;
+    sampler2D _OcclusionMap;
+    sampler2D _EmissionMap;
+#endif
+half4 _BaseColor;
+half _Metallic;
+half _Roughness;
+half _NormalScale;
+half _OcclusionStrength;
+half4 _EmissionColor;
+half _Cutoff;
+half _AlphaClip;
+half _Unlit;
+half _Dissolve;
+half _DissolveScale;
+half4 _DissolveEdge;
+// The actor's own dissolve (see ModelLitURP.hlsl); the built-in pipeline reads receiving
+// shadows from the renderer.
+float _ActorDissolve;
+// The baked light (see ModelLitURP.hlsl). The surface shader adds the ambient probe itself,
+// so ModelBridge gives a baked actor a zero probe and its light arrives here as emission.
+UNITY_INSTANCING_BUFFER_START(ModelActorLight)
+    UNITY_DEFINE_INSTANCED_PROP(float4, _ActorLightmapST)
+UNITY_INSTANCING_BUFFER_END(ModelActorLight)
+UNITY_DECLARE_TEX2DARRAY(_OjLightmap);
+
+struct Input {
+    float2 uv_BaseMap;
+    float3 positionOS;
+    // The uv on the bake's sheet (ModelLightmap.hlsl).
+    float2 lightmapUV;
+    // Filled from the mesh's COLOR by the surface shader; read only under _VERTEX_COLOR.
+    float4 color : COLOR;
+    #ifdef MODEL_SPLAT
+        float4 weights;
+    #endif
+};
+
+void Vert(inout appdata_full v, out Input o) {
+    UNITY_INITIALIZE_OUTPUT(Input, o);
+    o.positionOS = v.vertex.xyz;
+    float4 lightmapST = UNITY_ACCESS_INSTANCED_PROP(ModelActorLight, _ActorLightmapST);
+    o.lightmapUV = ModelLightmapUV(v.texcoord1.xy, lightmapST);
+    #ifdef MODEL_SPLAT
+        o.weights = v.texcoord2;
+    #endif
+}
+
+void Surf(Input i, inout SurfaceOutputStandard o) {
+    float2 uv = i.uv_BaseMap;
+    #ifdef MODEL_SPLAT
+        half4 base = half4(SplatMix(tex2D(_SplatLayer0, uv), tex2D(_SplatLayer1, uv), tex2D(_SplatLayer2, uv), tex2D(_SplatLayer3, uv),
+            i.weights, _HeightBlend), 1) * _BaseColor;
+    #else
+        half4 base = tex2D(_BaseMap, uv) * _BaseColor;
+    #endif
+    #ifdef _VERTEX_COLOR
+        base *= i.color;
+    #endif
+    float cut = ModelClip(i.positionOS, base.a, _AlphaClip, _Cutoff, max(_Dissolve, _ActorDissolve), _DissolveScale);
+    #ifdef MODEL_SPLAT
+        half3 emission = ModelEdge(cut, _DissolveEdge.rgb);
+    #else
+        half3 emission = tex2D(_EmissionMap, uv).rgb * _EmissionColor.rgb + ModelEdge(cut, _DissolveEdge.rgb);
+    #endif
+    o.Alpha = base.a;
+    if (_Unlit > 0.5) {
+        o.Albedo = 0;
+        o.Emission = base.rgb + emission;
+        return;
+    }
+    o.Albedo = base.rgb;
+    #ifdef MODEL_SPLAT
+        o.Metallic = _Metallic;
+        o.Smoothness = 1.0 - _Roughness;
+        o.Occlusion = 1.0;
+    #else
+        half4 mr = tex2D(_MetallicRoughnessMap, uv);
+        o.Metallic = mr.b * _Metallic;
+        o.Smoothness = 1.0 - mr.g * _Roughness;
+        o.Normal = UnpackScaleNormal(tex2D(_NormalMap, uv), _NormalScale);
+        o.Occlusion = lerp(1.0, tex2D(_OcclusionMap, uv).r, _OcclusionStrength);
+    #endif
+    o.Emission = emission;
+    if (UNITY_ACCESS_INSTANCED_PROP(ModelActorLight, _ActorLightmapST).x > 0) {
+        o.Emission += o.Albedo * (1.0 - o.Metallic) * o.Occlusion * UNITY_SAMPLE_TEX2DARRAY(_OjLightmap, ModelLightmapPage(i.lightmapUV)).rgb;
+    }
+}
+
+#endif

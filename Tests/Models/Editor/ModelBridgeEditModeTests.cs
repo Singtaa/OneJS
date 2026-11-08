@@ -340,10 +340,11 @@ namespace OneJS.Tests.Models {
             AssertColor(got[2], (sky.linear + ground.linear) * 0.5f);
         }
 
-        [Test]
-        public void Shader_CompilesOnlyWhereGltfastIs() {
+        [TestCase("ModelLit.shader")]
+        [TestCase("GroundLit.shader")]
+        public void Shader_CompilesOnlyWhereGltfastIs(string file) {
             var source = File.ReadAllText(Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(Fixture()))),
-                "..", "Runtime", "Models", "Resources", "OneJS", "ModelLit.shader"));
+                "..", "Runtime", "Models", "Resources", "OneJS", file));
             int subShaders = source.Split("SubShader {").Length - 1;
             int gated = source.Split("\"com.unity.cloud.gltfast\"").Length - 1;
             Assert.That(subShaders, Is.GreaterThan(0));
@@ -388,9 +389,10 @@ namespace OneJS.Tests.Models {
             }
         }
 
-        [Test]
-        public void UrpSubShader_StaysSrpBatcherCompatible() {
-            var shader = Resources.Load<Shader>("OneJS/ModelLit");
+        [TestCase("OneJS/ModelLit")]
+        [TestCase("OneJS/GroundLit")]
+        public void UrpSubShader_StaysSrpBatcherCompatible(string name) {
+            var shader = Resources.Load<Shader>(name);
             var pipeline = new ShaderTagId("RenderPipeline");
             var urp = Enumerable.Range(0, shader.subshaderCount).Single(i => shader.FindSubshaderTagValue(i, pipeline) != ShaderTagId.none);
             var code = typeof(UnityEditor.ShaderUtil).GetMethod("GetSRPBatcherCompatibilityCode",
@@ -404,9 +406,10 @@ namespace OneJS.Tests.Models {
         }
 
         // URP compiled the built-in SubShader's 48 variants into every build and never drew one.
-        [Test]
-        public void ScriptablePipelineBuilds_LeaveOutTheBuiltInSubShader() {
-            var shader = Resources.Load<Shader>("OneJS/ModelLit");
+        [TestCase("OneJS/ModelLit")]
+        [TestCase("OneJS/GroundLit")]
+        public void ScriptablePipelineBuilds_LeaveOutTheBuiltInSubShader(string name) {
+            var shader = Resources.Load<Shader>(name);
             var pipeline = new ShaderTagId("RenderPipeline");
             var all = Enumerable.Range(0, shader.subshaderCount).ToArray();
             var builtIn = all.Single(i => shader.FindSubshaderTagValue(i, pipeline) == ShaderTagId.none);
@@ -414,7 +417,7 @@ namespace OneJS.Tests.Models {
             Assert.That(OneJS.Editor.ModelShaderStripper.Strips(shader, (uint)builtIn, scriptableOnly: true), Is.True);
             Assert.That(OneJS.Editor.ModelShaderStripper.Strips(shader, (uint)urp, scriptableOnly: true), Is.False);
             Assert.That(OneJS.Editor.ModelShaderStripper.Strips(shader, (uint)builtIn, scriptableOnly: false), Is.False, "a project that uses the built-in pipeline anywhere keeps it");
-            Assert.That(OneJS.Editor.ModelShaderStripper.Strips(Shader.Find("Hidden/InternalErrorShader"), 0, scriptableOnly: true), Is.False, "only ModelLit");
+            Assert.That(OneJS.Editor.ModelShaderStripper.Strips(Shader.Find("Hidden/InternalErrorShader"), 0, scriptableOnly: true), Is.False, "only ModelLit and GroundLit");
         }
 
         // FindObjectsByType skips DontSave objects, which is everything the bridge makes in edit mode.

@@ -185,7 +185,11 @@ namespace OneJS.Models {
             var colors = source.colors;
             var uv0 = new List<Vector2>();
             source.GetUVs(0, uv0);
+            // A splat's weights (ModelBridge.Ground.cs), four a vertex.
+            var uv2 = new List<Vector4>();
+            source.GetUVs(2, uv2);
             bool hasNormals = normals.Length == count, hasTangents = tangents.Length == count, hasColors = colors.Length == count, hasUv0 = uv0.Count == count;
+            bool hasUv2 = uv2.Count == count;
 
             var map = new Dictionary<uint, int>();
             var outPositions = new List<Vector3>();
@@ -194,6 +198,7 @@ namespace OneJS.Models {
             var outColors = new List<Color>();
             var outUv0 = new List<Vector2>();
             var outUv1 = new List<Vector2>();
+            var outUv2 = new List<Vector4>();
             var triangles = new int[source.subMeshCount][];
             for (int sub = 0; sub < source.subMeshCount; sub++) {
                 var n = (int)source.GetIndexCount(sub);
@@ -218,6 +223,7 @@ namespace OneJS.Models {
                         if (hasTangents) outTangents.Add(tangents[v]);
                         if (hasColors) outColors.Add(colors[v]);
                         if (hasUv0) outUv0.Add(uv0[v]);
+                        if (hasUv2) outUv2.Add(uv2[v]);
                         outUv1.Add(new Vector2(uv[o * 2], uv[o * 2 + 1]));
                     }
                     tris[k] = at;
@@ -233,6 +239,7 @@ namespace OneJS.Models {
             if (hasColors) mesh.SetColors(outColors);
             if (hasUv0) mesh.SetUVs(0, outUv0);
             mesh.SetUVs(1, outUv1);
+            if (hasUv2) mesh.SetUVs(2, outUv2);
             mesh.subMeshCount = triangles.Length;
             for (int sub = 0; sub < triangles.Length; sub++) mesh.SetTriangles(triangles[sub], sub, false);
             mesh.bounds = source.bounds;

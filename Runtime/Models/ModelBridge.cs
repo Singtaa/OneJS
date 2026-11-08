@@ -73,6 +73,23 @@ namespace OneJS.Models {
             public Color[] colors = Array.Empty<Color>();
             public Color baseColor;
             public bool seeThrough, written, dynamic, depthOnly;
+            // The ground copy its base map draws (ModelBridge.Ground.cs), shared with every model given the same picture.
+            public RenderTexture texture;
+            // A splat's layers' copies, and its weights, layerCount a vertex padded to four, which go
+            // in the colour stream beside the colours: a mesh has four streams, and a splat with
+            // uvs and colours would need a fifth.
+            public bool splat;
+            public int layerCount;
+            public RenderTexture[] layers;
+            public Vector4[] weights = Array.Empty<Vector4>();
+            public ColorWeights[] colorWeights = Array.Empty<ColorWeights>();
+        }
+
+        /// <summary>A splat's colour stream: its colour, then its weights in TEXCOORD2.</summary>
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        internal struct ColorWeights {
+            public Color color;
+            public Vector4 weights;
         }
 
         class Actor {
@@ -239,6 +256,10 @@ namespace OneJS.Models {
             if (m.template != null) Kill(m.template);
             m.import?.Dispose();
             if (m.built != null) {
+                ReleaseGroundCopy(m.built.texture);
+                m.built.texture = null;
+                if (m.built.layers != null) foreach (var layer in m.built.layers) ReleaseGroundCopy(layer);
+                m.built.layers = null;
                 if (m.built.mesh != null) Kill(m.built.mesh);
                 if (m.built.material != null) Kill(m.built.material);
             }
@@ -332,7 +353,15 @@ namespace OneJS.Models {
         /// Returns "" when it took them, and otherwise what was wrong, with nothing changed: the
         /// arrays come from a cart, and the reason is worth more to it than an exception's text.
         /// </summary>
-        public static string SetMesh(int model, Vector3[] positions, object indices, Vector3[] normals, float[] colors, Vector2[] uvs) {
+        public static string SetMesh(int model, Vector3[] positions, object indices, Vector3[] normals, float[] colors, Vector2[] uvs) =>
+            SetMesh(model, positions, indices, normals, colors, uvs, null);
+
+        /// <summary>
+        /// SetMesh for a model painted by a splat (SetMeshSplat): `weights` are one a layer a vertex,
+        /// which come with every set that changes the number of vertices, and otherwise may be left
+        /// out and stay. A model without a splat takes none.
+        /// </summary>
+        public static string SetMesh(int model, Vector3[] positions, object indices, Vector3[] normals, float[] colors, Vector2[] uvs, float[] weights) {
             if (!_models.TryGetValue(model, out var m) || m.built == null) return $"there is no mesh model {model}";
             var b = m.built;
             if (positions == null) return "positions are required";
@@ -346,6 +375,11 @@ namespace OneJS.Models {
             if (colors == null && b.givesColors && resized) return "colors are required whenever the number of vertices changes";
             int colorWidth = colors == null ? 0 : colors.Length == count * 4 ? 4 : colors.Length == count * 3 ? 3 : -1;
             if (colorWidth < 0) return $"colors has {colors.Length} numbers, which is neither 3 nor 4 a vertex for {count} vertices";
+            if (weights != null && !b.splat) return "this model has no splat, so it takes no weights";
+            if (weights == null && b.splat && resized) return "weights are required whenever the number of vertices changes";
+            if (weights != null && weights.Length != count * b.layerCount) {
+                return $"weights has {weights.Length} numbers, and a splat of {b.layerCount} layers takes {b.layerCount} a vertex: {count * b.layerCount} for {count} vertices";
+            }
 
             int indexCount;
             if (indices == null) {
@@ -405,9 +439,26 @@ namespace OneJS.Models {
                     if (c.a < 1) seeThrough = true;
                     b.colors[v] = linear ? c.linear : c;
                 }
-                b.mesh.SetVertexBufferData(b.colors, 0, 0, count, b.colorStream, quiet);
+                if (!b.splat) b.mesh.SetVertexBufferData(b.colors, 0, 0, count, b.colorStream, quiet);
             } else if (b.givesColors) {
                 for (int v = 0; v < count && !seeThrough; v++) seeThrough = b.colors[v].a < 1;
+            } else if (b.splat && resized) {
+                // A splat made without colours draws them white, since GroundLit always reads them.
+                if (b.colors.Length < b.vertexCapacity) b.colors = new Color[b.vertexCapacity];
+                for (int v = 0; v < count; v++) b.colors[v] = Color.white;
+            }
+            if (weights != null) {
+                if (b.weights.Length < b.vertexCapacity) b.weights = new Vector4[b.vertexCapacity];
+                for (int v = 0, f = 0; v < count; v++, f += b.layerCount) {
+                    var w = Vector4.zero;
+                    for (int k = 0; k < b.layerCount; k++) w[k] = weights[f + k];
+                    b.weights[v] = w;
+                }
+            }
+            if (b.splat && (colors != null || weights != null || resized)) {
+                if (b.colorWeights.Length < b.vertexCapacity) b.colorWeights = new ColorWeights[b.vertexCapacity];
+                for (int v = 0; v < count; v++) b.colorWeights[v] = new ColorWeights { color = b.colors[v], weights = b.weights[v] };
+                b.mesh.SetVertexBufferData(b.colorWeights, 0, 0, count, b.colorStream, quiet);
             }
 
             var bounds = Measure(positions, count);

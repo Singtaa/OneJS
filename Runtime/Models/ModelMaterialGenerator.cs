@@ -22,6 +22,7 @@ namespace OneJS.Models {
     /// </summary>
     public class ModelMaterialGenerator : IMaterialGenerator {
         static Shader _shader;
+        static Shader _groundShader;
         static Material _default;
 
         static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
@@ -46,6 +47,17 @@ namespace OneJS.Models {
 
         IMaterialGenerator _fallback;
         ICodeLogger _logger;
+
+        /// <summary>
+        /// GroundLit, ModelLit's pass code painting a mesh model from tiling layers by weights a
+        /// vertex (ModelBridge.Ground.cs), or null where it has no SubShader for this pipeline.
+        /// </summary>
+        public static Shader GroundShader {
+            get {
+                if (_groundShader == null) _groundShader = Resources.Load<Shader>("OneJS/GroundLit");
+                return _groundShader != null && _groundShader.isSupported ? _groundShader : null;
+            }
+        }
 
         /// <summary>The shader, or null where it has no SubShader for this pipeline.</summary>
         public static Shader ModelShader {

@@ -12,6 +12,11 @@ namespace OneJS.Lighting {
         static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
         static readonly int MetallicId = Shader.PropertyToID("_Metallic");
         static readonly int MetallicMapId = Shader.PropertyToID("_MetallicRoughnessMap");
+        // GroundLit's layers (ModelBridge.Ground.cs), mixed by the weights in TEXCOORD2.
+        static readonly int[] SplatLayerIds = {
+            Shader.PropertyToID("_SplatLayer0"), Shader.PropertyToID("_SplatLayer1"),
+            Shader.PropertyToID("_SplatLayer2"), Shader.PropertyToID("_SplatLayer3"),
+        };
 
         readonly List<Vector3> _positions = new();
         readonly List<Vector3> _normals = new();
@@ -20,6 +25,9 @@ namespace OneJS.Lighting {
         // Per triangle: which of _materials it is drawn with, and its vertex colours' mean (white without).
         readonly List<int> _surface = new();
         readonly List<Color> _tint = new();
+        // Per triangle of a splat: its vertices' weights' mean, normalised as GroundLit normalises them.
+        readonly List<Vector4> _mix = new();
+        readonly List<Vector4> _weights = new();
         readonly List<Material> _materials = new();
         readonly Dictionary<Material, int> _materialIndex = new();
         // Each texture's mean, read back from a 16 by 16 copy drawn through its mips.
@@ -36,6 +44,7 @@ namespace OneJS.Lighting {
             var colors = mesh.colors;
             var vertices = mesh.vertices;
             mesh.GetUVs(1, _layout);
+            mesh.GetUVs(2, _weights);
             for (int v = 0; v < vertices.Length; v++) {
                 _positions.Add(world.MultiplyPoint3x4(vertices[v]));
                 _normals.Add(normals.Length == vertices.Length ? normalMatrix.MultiplyVector(normals[v]).normalized : Vector3.up);
@@ -45,7 +54,9 @@ namespace OneJS.Lighting {
             for (int sub = 0; sub < mesh.subMeshCount; sub++) {
                 var material = sub < materials.Length ? materials[sub] : null;
                 var surface = SurfaceOf(material);
-                var vertexColors = material != null && material.IsKeywordEnabled("_VERTEX_COLOR") && colors.Length == vertices.Length;
+                bool splat = Splat(material) && _weights.Count == vertices.Length;
+                // GroundLit always reads its colours, which ModelBridge fills white when a cart gives none.
+                var vertexColors = material != null && (material.IsKeywordEnabled("_VERTEX_COLOR") || splat) && colors.Length == vertices.Length;
                 var tris = mesh.GetTriangles(sub);
                 for (int k = 0; k < tris.Length; k += 3) {
                     _indices.Add(at + tris[k]);
@@ -53,6 +64,7 @@ namespace OneJS.Lighting {
                     _indices.Add(at + tris[k + 2]);
                     _surface.Add(surface);
                     _tint.Add(vertexColors ? (colors[tris[k]] + colors[tris[k + 1]] + colors[tris[k + 2]]) / 3f : Color.white);
+                    _mix.Add(splat ? Normalised(_weights[tris[k]] + _weights[tris[k + 1]] + _weights[tris[k + 2]]) : Vector4.zero);
                 }
             }
         }
@@ -71,6 +83,7 @@ namespace OneJS.Lighting {
             foreach (var material in _materials) {
                 if (material.HasTexture(BaseMapId)) StartMean(material.GetTexture(BaseMapId));
                 if (material.HasFloat(MetallicId) && material.HasTexture(MetallicMapId)) StartMean(material.GetTexture(MetallicMapId));
+                if (Splat(material)) foreach (var id in SplatLayerIds) StartMean(material.GetTexture(id));
             }
         }
 
@@ -89,15 +102,38 @@ namespace OneJS.Lighting {
             }
         }
 
-        /// <summary>Each triangle's albedo, once MeansReady: its material's, times its vertex colours' mean.</summary>
+        /// <summary>Each triangle's albedo, once MeansReady: its material's, times its vertex colours' mean, and a splat's layers mixed by its weights.</summary>
         public void FillAlbedo(Color[] albedo) {
             var surfaces = new Color[_materials.Count];
             for (int i = 0; i < surfaces.Length; i++) surfaces[i] = Albedo(_materials[i]);
             for (int t = 0; t < albedo.Length; t++) {
-                var c = (_surface[t] < 0 ? Albedo(null) : surfaces[_surface[t]]) * _tint[t];
+                var surface = _surface[t];
+                var c = (surface < 0 ? Albedo(null) : surfaces[surface]) * _tint[t];
+                if (surface >= 0 && Splat(_materials[surface])) c *= Mix(_materials[surface], _mix[t]);
                 c.a = 1;
                 albedo[t] = c;
             }
+        }
+
+        static bool Splat(Material material) => material != null && material.HasTexture(SplatLayerIds[0]);
+
+        static Vector4 Normalised(Vector4 w) {
+            w = Vector4.Max(w, Vector4.zero);
+            float sum = w.x + w.y + w.z + w.w;
+            return sum > 1e-4f ? w / sum : new Vector4(1, 0, 0, 0);
+        }
+
+        // A splat's layers' means, mixed by a triangle's weights: what its ground bounces. Its
+        // height blend moves the edges between layers and not how much of each there is, so it is
+        // left out. A layer with no texture is white, as GroundLit samples it.
+        Color Mix(Material material, Vector4 w) {
+            var c = Color.clear;
+            for (int i = 0; i < SplatLayerIds.Length; i++) {
+                var layer = material.GetTexture(SplatLayerIds[i]);
+                c += (layer != null ? Mean(layer) : Color.white) * w[i];
+            }
+            c.a = 1;
+            return c;
         }
 
         /// <summary>Gives back the means' render textures.</summary>

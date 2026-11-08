@@ -7,7 +7,7 @@ using UnityEngine.Rendering;
 
 namespace OneJS.Tests.Models {
     /// <summary>
-    /// ModelLit compiles, plain and instanced, for every graphics API a cart's models draw on. The
+    /// ModelLit and GroundLit compile, plain and instanced, for every graphics API a cart's models draw on. The
     /// play-mode tests draw it on this machine's API alone, and the Play container is WebGL 2 and
     /// WebGPU, where a pass that fails would surface only in a browser, as models that never draw.
     /// The per-actor values (dissolve, shadows, the baked light's rectangle) live in the instancing
@@ -22,10 +22,12 @@ namespace OneJS.Tests.Models {
             (ShaderCompilerPlatform.Metal, BuildTarget.iOS),
         };
 
-        [Test]
-        public void EveryPassCompilesPlainAndInstancedForWebGLWebGPUVulkanD3DAndMetal() {
-            var shader = Resources.Load<Shader>("OneJS/ModelLit");
-            Assert.IsNotNull(shader, "OneJS/ModelLit");
+        // GroundLit is ModelLit's pass code with MODEL_SPLAT defined, so both are compiled.
+        [TestCase("OneJS/ModelLit")]
+        [TestCase("OneJS/GroundLit")]
+        public void EveryPassCompilesPlainAndInstancedForWebGLWebGPUVulkanD3DAndMetal(string name) {
+            var shader = Resources.Load<Shader>(name);
+            Assert.IsNotNull(shader, name);
             var data = ShaderUtil.GetShaderData(shader);
             var compiled = 0;
             for (var s = 0; s < data.SubshaderCount; s++) {
