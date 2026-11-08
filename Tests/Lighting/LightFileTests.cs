@@ -8,7 +8,7 @@ namespace OneJS.Tests.Lighting {
     /// <summary>
     /// The light file (Runtime/Lighting/LightFile.cs): a lightmap's pages and its probes into one PNG and
     /// back, the probes to a byte against their own size and the light to within RGBM's rounding, a one-page file laid out as files were before pages, a file whose probes are floats
-    /// (from before 1.4.1) still read exactly, and a file for another atlas refused.
+    /// (from before 1.5.0) still read exactly, and a file for another atlas refused.
     /// </summary>
     public class LightFileTests {
         const int Width = 8, Height = 4;
