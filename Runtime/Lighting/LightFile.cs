@@ -9,9 +9,10 @@ namespace OneJS.Lighting {
     ///
     /// The image is the atlas's width wide. Its top rows, as a picture shows it, are the lightmap's
     /// pages as RGBM in 8 bits, the first at the top and each under the last: a texel's light is its
-    /// rgb times its alpha times <see cref="Range"/>. Each texel is rounded to its 8 bits with half a
-    /// step of fixed noise, so a slow gradient in dim light dithers rather than bands into rings
-    /// (review L5). Under the last page are the probes, in grid order, <see cref="ProbePixels"/>
+    /// rgb times its alpha times <see cref="Range"/>, rounded to the nearest step. Not dithered: a
+    /// texel's brightest channel takes at least 128 of its 256 steps wherever the light is above a
+    /// 255th of the range, so a step is under 1% of the light, and noise of half a step made Crate
+    /// Yard's pages 34% larger (review L5). Under the last page are the probes, in grid order, <see cref="ProbePixels"/>
     /// pixels each: the largest of its 27 coefficients' sizes (<see cref="ProbeSolve.Floats"/>) as a
     /// little-endian float, then each coefficient as a byte, 128 for 0 and 1 and 255 for minus and
     /// plus that size, then a byte of 0 (review L4: a quarter of the 27 floats before, which were
@@ -69,10 +70,9 @@ namespace OneJS.Lighting {
                     // The multiplier rounded up, so the rgb under it never passes 1.
                     var m = Mathf.Clamp(Mathf.CeilToInt(max / Range * 255), 1, 255);
                     var scale = 255 / (m / 255f * Range);
-                    var noise = Noise(i);
-                    raw[at++] = Byte(c.r * scale + noise);
-                    raw[at++] = Byte(c.g * scale + noise);
-                    raw[at++] = Byte(c.b * scale + noise);
+                    raw[at++] = Byte(c.r * scale);
+                    raw[at++] = Byte(c.g * scale);
+                    raw[at++] = Byte(c.b * scale);
                     raw[at++] = (byte)m;
                 }
             }
@@ -86,19 +86,6 @@ namespace OneJS.Lighting {
         }
 
         static byte Byte(float x) => (byte)Mathf.Clamp(Mathf.RoundToInt(x), 0, 255);
-
-        /// <summary>Texel `i`'s noise, -0.5 to 0.5 of a step: the same for every bake, so a scene bakes to the same file.</summary>
-        static float Noise(int i) {
-            unchecked {
-                var h = (uint)i * 0x9E3779B9u;
-                h ^= h >> 16;
-                h *= 0x85EBCA6Bu;
-                h ^= h >> 13;
-                h *= 0xC2B2AE35u;
-                h ^= h >> 16;
-                return (h >> 8) / 16777216f - 0.5f;
-            }
-        }
 
         /// <summary>
         /// Reads a file made for `pages` pages of a `width` by `height` atlas and `probeCount` probes:

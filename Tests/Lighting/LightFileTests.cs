@@ -7,8 +7,7 @@ using Object = UnityEngine.Object;
 namespace OneJS.Tests.Lighting {
     /// <summary>
     /// The light file (Runtime/Lighting/LightFile.cs): a lightmap's pages and its probes into one PNG and
-    /// back, the probes to a byte against their own size and the light to within RGBM's dithered
-    /// rounding, a one-page file laid out as files were before pages, a file whose probes are floats
+    /// back, the probes to a byte against their own size and the light to within RGBM's rounding, a one-page file laid out as files were before pages, a file whose probes are floats
     /// (from before 1.4.1) still read exactly, and a file for another atlas refused.
     /// </summary>
     public class LightFileTests {
@@ -56,9 +55,8 @@ namespace OneJS.Tests.Lighting {
                     if (i == 6) continue;
                     var want = light[i];
                     var max = Mathf.Max(want.r, Mathf.Max(want.g, want.b));
-                    // RGBM rounds each channel to a 255th of the texel's multiplier, which is a 255th of the range at
-                    // least, and the dither's half step can carry the rounding to the next one.
-                    var step = 1.01f * Mathf.Max(max, LightFile.Range / 255) / 255 + 2e-3f * max;
+                    // RGBM rounds each channel to a 255th of the texel's multiplier, which is a 255th of the range at least.
+                    var step = Mathf.Max(max, LightFile.Range / 255) / 255 + 2e-3f * max;
                     Assert.That(back[i].r, Is.EqualTo(want.r).Within(step), $"texel {i} red");
                     Assert.That(back[i].g, Is.EqualTo(want.g).Within(step), $"texel {i} green");
                     Assert.That(back[i].b, Is.EqualTo(want.b).Within(step), $"texel {i} blue");
@@ -212,38 +210,6 @@ namespace OneJS.Tests.Lighting {
                 Assert.That(read, Is.EqualTo(probes), "every probe float, bit for bit");
                 var back = Slice(tex, 1);
                 for (var i = 0; i < back.Length; i++) Assert.That(back[i].g, Is.EqualTo(light[Width * Height + i].g).Within(0.04f), $"page 1 texel {i}");
-            } finally {
-                Object.DestroyImmediate(tex);
-            }
-        }
-
-        // A dim slow gradient lands on a few 8-bit steps: rounded to the nearest, a run of texels takes one and the
-        // light shows rings; dithered, the run's texels mix the steps either side, and their mean is the light's.
-        // One flat light 0.44 of a step past a step is the run: rounded, every texel is the next step up.
-        [Test]
-        public void Encode_DithersASlowGradientRatherThanBandingIt() {
-            const int wide = 64, high = 16;
-            var light = new Color[wide * high];
-            for (var i = 0; i < light.Length; i++) light[i] = new Color(0.02f, 0.02f, 0.02f, 1);
-            Assert.That(LightFile.Decode(LightFile.Encode(light, wide, high, 1, Array.Empty<float>()), wide, high, 1, 0, out var tex, out _), Is.Empty);
-            try {
-                var rt = new RenderTexture(wide, high, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
-                rt.Create();
-                Graphics.CopyTexture(tex, 0, 0, rt, 0, 0);
-                var back = TextureRead.Start(rt).Wait().Colors();
-                rt.Release();
-                Object.DestroyImmediate(rt);
-                var levels = new System.Collections.Generic.HashSet<float>();
-                float sum = 0, want = 0;
-                for (var i = 0; i < back.Length; i++) {
-                    levels.Add(back[i].r);
-                    sum += back[i].r;
-                    want += light[i].r;
-                }
-                Assert.That(levels.Count, Is.GreaterThanOrEqualTo(2), "a gradient under a step dithers over the steps either side");
-                // The step here: the multiplier for 0.02 is 1, so a step is Range / 255 / 255.
-                var step = LightFile.Range / 255 / 255;
-                Assert.That(sum / back.Length, Is.EqualTo(want / back.Length).Within(step * 0.1f), "and its mean is the light's, to a tenth of a step");
             } finally {
                 Object.DestroyImmediate(tex);
             }
