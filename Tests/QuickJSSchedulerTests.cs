@@ -104,6 +104,24 @@ namespace OneJS.Tests {
         }
 
         [Test]
+        public void Timeout_AwaitResumesBeforeNextDueCallback() {
+            // A browser runs each timer as its own task and drains microtasks
+            // after it, so an await in one due callback resumes before the
+            // next due callback starts. The drain runs every due callback
+            // first, so a cart timing an await counts its neighbours' work
+            // (PrimoEden's gap 10: 8.0 ms beside an 8 ms callback).
+            _ctx.Eval(@"
+                globalThis.__order = [];
+                setTimeout(async function() { __order.push('a'); await null; __order.push('a resumed'); }, 1);
+                setTimeout(function() { __order.push('b'); }, 1);
+            ");
+            _ctx.Eval("__tick(100)");
+            _ctx.ExecutePendingJobs();
+            Assert.AreEqual("a,a resumed,b", _ctx.Eval("__order.join(',')"),
+                "an await in a due timeout resumed only after the next due timeout ran");
+        }
+
+        [Test]
         public void Interval_StalledPass_FiresOnceAndRebases() {
             _ctx.Eval(@"
                 globalThis.__c = 0;
