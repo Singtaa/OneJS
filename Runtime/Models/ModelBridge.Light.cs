@@ -29,7 +29,6 @@ namespace OneJS.Models {
         static readonly int LightmapId = Shader.PropertyToID("_OjLightmap");
         static readonly int LightmapSeamsId = Shader.PropertyToID("_OjLightmapSeams");
         static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
-        static readonly int MetallicId = Shader.PropertyToID("_Metallic");
         static readonly int MetallicMapId = Shader.PropertyToID("_MetallicRoughnessMap");
         const int ActorStride = 5, CopyStride = 6, GridFloats = 7;
 
