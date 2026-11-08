@@ -21,6 +21,8 @@
 - ModelBridge saves a finished bake as a light file and shows a saved one without baking
 - Baked light reads back on WebGPU
 - Baked light is no longer black on WebGL 2
+- ModelBridge tiles a texture on a mesh model
+- ModelBridge paints a mesh model from up to four tiling layers by weights a vertex, on GroundLit
 
 # [2026-11-05] v3.9.18
 
