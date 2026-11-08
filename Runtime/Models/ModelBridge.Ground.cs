@@ -220,6 +220,17 @@ namespace OneJS.Models {
             Kill(texture);
         }
 
+        /// <summary>
+        /// Copies a picture again into the ground copy every mesh model given it reads, after
+        /// its pixels changed: a procedural texture handed to a mesh before it finished drawing.
+        /// False when no mesh holds a copy of it, which is not an error.
+        /// </summary>
+        public static bool RefreshGroundCopy(Texture source) {
+            if (source == null || !_groundCopies.TryGetValue(source, out var copy) || copy.texture == null) return false;
+            Graphics.Blit(source, copy.texture);
+            return true;
+        }
+
         /// <summary>How many pictures the bridge holds a ground copy of.</summary>
         internal static int GroundCopyCount => _groundCopies.Count;
 
