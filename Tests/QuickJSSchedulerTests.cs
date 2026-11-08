@@ -121,6 +121,122 @@ namespace OneJS.Tests {
                 "an await in a due timeout resumed only after the next due timeout ran");
         }
 
+        const string Busy = "globalThis.__busy = function(ms) { var end = Date.now() + ms; while (Date.now() < end) {} };";
+
+        [Test]
+        public void Raf_AwaitResumesBeforeDueTimeouts() {
+            // In a browser a frame callback's awaits resume in the checkpoint
+            // after it, before any timer task.
+            _ctx.Eval(@"
+                globalThis.__order = [];
+                requestAnimationFrame(async function() { __order.push('frame'); await null; __order.push('frame resumed'); });
+                setTimeout(function() { __order.push('timeout'); }, 1);
+            ");
+            _ctx.Eval("__tick(100)");
+            _ctx.ExecutePendingJobs();
+            Assert.AreEqual("frame,frame resumed,timeout", _ctx.Eval("__order.join(',')"));
+        }
+
+        [Test]
+        public void TimerBudget_CarriesTheRestToTheNextPass_InDueOrder() {
+            // A 6 ms callback spends the 4 ms budget: what is left of the pass,
+            // a timeout and an interval, runs next pass, in due order.
+            _ctx.Eval(Busy + @"
+                globalThis.__order = [];
+                setTimeout(function() { __order.push('slow'); __busy(6); }, 1);
+                setTimeout(function() { __order.push('b'); }, 2);
+                setTimeout(function() { __order.push('c'); }, 3);
+                setInterval(function() { __order.push('i'); }, 50);
+            ");
+            _ctx.Eval("__tick(100)");
+            Assert.AreEqual("slow", _ctx.Eval("__order.join(',')"), "the pass ran on past its budget");
+            _ctx.Eval("__tick(116)");
+            Assert.AreEqual("slow,b,c,i", _ctx.Eval("__order.join(',')"), "the timers left over did not run next pass in due order");
+            _ctx.Eval("__tick(132)");
+            Assert.AreEqual("slow,b,c,i", _ctx.Eval("__order.join(',')"), "a carried-over timer ran twice");
+        }
+
+        [Test]
+        public void TimerBudget_RunsAtLeastOneEachPass() {
+            // Each callback alone is over the budget: one runs each pass, so a
+            // frame never runs none and every timer gets its turn.
+            _ctx.Eval(Busy + @"
+                globalThis.__order = [];
+                setTimeout(function() { __order.push('a'); __busy(6); }, 1);
+                setTimeout(function() { __order.push('b'); __busy(6); }, 1);
+                setTimeout(function() { __order.push('c'); __busy(6); }, 1);
+            ");
+            _ctx.Eval("__tick(100)");
+            Assert.AreEqual("a", _ctx.Eval("__order.join(',')"));
+            _ctx.Eval("__tick(116)");
+            Assert.AreEqual("a,b", _ctx.Eval("__order.join(',')"));
+            _ctx.Eval("__tick(132)");
+            Assert.AreEqual("a,b,c", _ctx.Eval("__order.join(',')"));
+        }
+
+        [Test]
+        public void TimerBudget_Off_WhileTheClockIsVirtual() {
+            // An offline render runs every due timer in its frame, so what it
+            // records does not depend on how fast the machine made it.
+            _ctx.Eval(Busy + @"
+                globalThis.__order = [];
+                setTimeout(function() { __order.push('a'); __busy(6); }, 1);
+                setTimeout(function() { __order.push('b'); __busy(6); }, 1);
+            ");
+            VirtualClock.Begin();
+            try {
+                _ctx.Eval("__tick(100)");
+            } finally {
+                VirtualClock.End();
+            }
+            Assert.AreEqual("a,b", _ctx.Eval("__order.join(',')"));
+        }
+
+        [Test]
+        public void WebGLTimers_RunOneAHop_AndATeardownLeavesThePendingHopNothing() {
+            // WebGL: each due timer runs in a task of its own through a
+            // MessageChannel, so the browser drains the microtasks between
+            // them. A teardown with a hop still queued migrates the timers it
+            // had not reached, and the hop then runs none of them.
+            _ctx.Eval(@"
+                globalThis.__hops = [];
+                globalThis.MessageChannel = function() {
+                    var port1 = { onmessage: null };
+                    this.port1 = port1;
+                    this.port2 = { postMessage: function() { __hops.push(port1); } };
+                };
+                globalThis.__deliverHop = function() { var port = __hops.shift(); if (port) port.onmessage({}); return String(!!port); };
+            ");
+            ReEvalWithSentinels();
+            _ctx.Eval(@"
+                __startWebGLTick();
+                globalThis.__order = [];
+                setTimeout(async function() { __order.push('a'); await null; __order.push('a resumed'); }, 1);
+                setTimeout(function() { __order.push('b'); }, 1);
+                setTimeout(function() { __order.push('c'); }, 1);
+                globalThis.__tickRafId = parseInt(__fakeLog[0].split(':')[1], 10);
+                __fakeLog.length = 0;
+                __fakeTimers[__tickRafId](2000);
+            ");
+            Assert.AreEqual("", _ctx.Eval("__order.join(',')"), "a timer ran inside the frame instead of in a task of its own");
+            Assert.AreEqual("true", _ctx.Eval("__deliverHop()"));
+            _ctx.ExecutePendingJobs(); // the browser's checkpoint after the task
+            Assert.AreEqual("a,a resumed", _ctx.Eval("__order.join(',')"), "a hop ran more than one timer, or none");
+            Assert.AreEqual("true", _ctx.Eval("__deliverHop()"));
+            Assert.AreEqual("a,a resumed,b", _ctx.Eval("__order.join(',')"));
+            _ctx.Eval("__fakeLog.length = 0; __teardownTimers();");
+            Assert.AreEqual("true", _ctx.Eval("__deliverHop()"), "no hop was queued for the third timer");
+            Assert.AreEqual("a,a resumed,b", _ctx.Eval("__order.join(',')"), "the pending hop ran a timer after the teardown");
+            Assert.AreEqual("false", _ctx.Eval("__deliverHop()"), "the hop after the teardown queued another");
+            _ctx.Eval(@"
+                var mig = __fakeLog.filter(function(e) { return e.indexOf('setTimeout:') === 0; });
+                globalThis.__migrated = mig.length;
+                __fakeTimers[parseInt(mig[0].split(':')[1], 10)]();
+            ");
+            Assert.AreEqual("1", _ctx.Eval("String(__migrated)"), "the timer the hop had not reached was not migrated once");
+            Assert.AreEqual("a,a resumed,b,c", _ctx.Eval("__order.join(',')"), "the migrated timer did not run");
+        }
+
         [Test]
         public void Interval_StalledPass_FiresOnceAndRebases() {
             _ctx.Eval(@"
