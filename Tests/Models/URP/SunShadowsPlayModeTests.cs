@@ -15,6 +15,14 @@ namespace OneJS.Tests.Models {
         UniversalRenderPipelineAsset _asset;
         (float distance, int cascades, int resolution) _before;
 
+        [Test]
+        public void ThePipelinesAssembly_IsAlwaysLinked_SinceNothingReferencesIt() {
+            var pipeline = ModelBridge.SunShadowPipeline;
+            Assert.That(pipeline, Is.Not.Null, "URP's assembly did not join ModelBridge on load");
+            Assert.That(pipeline.GetType().Assembly.IsDefined(typeof(UnityEngine.Scripting.AlwaysLinkAssemblyAttribute), false), Is.True,
+                "a player build's linker drops an assembly nothing references, with its load hook, so the sun's shadow settings are refused in the player");
+        }
+
         [SetUp]
         public void Begin() {
             _asset = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
