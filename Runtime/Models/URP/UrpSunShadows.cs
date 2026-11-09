@@ -1,6 +1,12 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+using UnityEngine.Scripting;
+
+// Nothing references this assembly: it joins ModelBridge from its own load hook. A player build's
+// linker skips an assembly nothing references, load hooks and all, so without this the sun's
+// shadow settings were refused in a WebGL player as if the project had no URP.
+[assembly: AlwaysLinkAssembly]
 
 namespace OneJS.Models {
     /// <summary>
