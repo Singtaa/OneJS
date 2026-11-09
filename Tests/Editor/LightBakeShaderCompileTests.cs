@@ -5,6 +5,8 @@ using UnityEditor;
 using UnityEditor.Rendering;
 using UnityEngine;
 using UnityEngine.Rendering;
+// Unity 6000.6 adds UnityEditor.Rendering.LightBaker; this file means OneJS's.
+using LightBaker = OneJS.Lighting.LightBaker;
 
 namespace OneJS.Tests.Editor {
     /// <summary>
