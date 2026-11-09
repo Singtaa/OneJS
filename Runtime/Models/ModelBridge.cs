@@ -88,8 +88,6 @@ namespace OneJS.Models {
             public RenderTexture[] layers;
             public Vector4[] weights = Array.Empty<Vector4>();
             public ColorWeights[] colorWeights = Array.Empty<ColorWeights>();
-            // Its grid of shade (ModelBridge.Shade.cs), its own; null for none.
-            public Texture2D shade;
         }
 
         /// <summary>A splat's colour stream: its colour, then its weights in TEXCOORD2.</summary>
@@ -267,7 +265,6 @@ namespace OneJS.Models {
                 m.built.texture = null;
                 if (m.built.layers != null) foreach (var layer in m.built.layers) ReleaseGroundCopy(layer);
                 m.built.layers = null;
-                ReleaseShade(m.built);
                 if (m.built.mesh != null) Kill(m.built.mesh);
                 if (m.built.material != null) Kill(m.built.material);
             }

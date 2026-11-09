@@ -12,8 +12,6 @@
 #include "ModelRange.hlsl"
 
 TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
-// A mesh model's grid of shade, read by ModelLighting.hlsl; black, so none, on every other model.
-TEXTURE2D(_ShadeMap); SAMPLER(sampler_ShadeMap);
 #ifdef MODEL_SPLAT
     TEXTURE2D(_SplatLayer0); SAMPLER(sampler_SplatLayer0);
     TEXTURE2D(_SplatLayer1); SAMPLER(sampler_SplatLayer1);
@@ -48,8 +46,6 @@ CBUFFER_START(UnityPerMaterial)
     // 1 lights a double-sided face's back with its normal as given (a mesh model's `twoSided`, for
     // foliage cards whose normals bend out from a crown), 0 flips it, as a glTF file's back faces are.
     half _KeepBackNormal;
-    // The shade grid's 1 / size in xy, which places its samples on the grid's corners.
-    float4 _ShadeMap_TexelSize;
     #ifdef MODEL_SPLAT
         half _HeightBlend;
         // Each layer's repeats a metre where it is projected from the sides in world space

@@ -45,8 +45,6 @@ Shader "OneJS/ModelLit" {
         // A mesh model's sway (ModelWind.hlsl) and two-sided lighting: see ModelLitURP.hlsl.
         [HideInInspector] _Sway ("Sway", Float) = 0
         [HideInInspector] _KeepBackNormal ("Keep Back Normal", Float) = 0
-        // A mesh model's grid of shade (ModelBridge.Shade.cs, ModelLighting.hlsl): black is none.
-        [NoScaleOffset] _ShadeMap ("Shade", 2D) = "black" {}
     }
 
     SubShader {
