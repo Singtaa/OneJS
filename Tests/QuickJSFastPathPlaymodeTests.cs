@@ -436,6 +436,12 @@ namespace OneJS.Tests {
         /// 2026: 0 B per call for each case here; with the fast path switched off
         /// at the dispatch, 114 (get), 238 (set) and 418 (new Vector2).
         ///
+        /// Each loop is measured three times and the least kept, since the counter
+        /// takes in whatever else the frame allocated: a stray 1180 bytes in one
+        /// frame failed CI on 9 Nov 2026 (run 42560189418) where every earlier run
+        /// read 314 with and without the calls. A per-call allocation is in every
+        /// frame, and a thousand calls at a byte each still fail.
+        ///
         /// Before this they called GC.Collect and read GC.GetTotalMemory, which
         /// measures what is still alive, so they read near zero for any path
         /// (audit H5). GC.GetAllocatedBytesForCurrentThread reads 0 on Unity's
@@ -451,9 +457,11 @@ namespace OneJS.Tests {
             _ctx.Eval(empty);
             yield return null;
 
-            long withCalls = 0, withoutCalls = 0;
-            yield return AllocatedInFrame(loop, b => withCalls = b);
-            yield return AllocatedInFrame(empty, b => withoutCalls = b);
+            long withCalls = long.MaxValue, withoutCalls = long.MaxValue;
+            for (int i = 0; i < 3; i++) {
+                yield return AllocatedInFrame(loop, b => withCalls = Math.Min(withCalls, b));
+                yield return AllocatedInFrame(empty, b => withoutCalls = Math.Min(withoutCalls, b));
+            }
             double perCall = (withCalls - withoutCalls) / (double)calls;
             Debug.Log($"[FastPathAlloc] {call}: {perCall:0.##} bytes per call ({withCalls} with the calls, {withoutCalls} without)");
             Assert.Less(withCalls - withoutCalls, calls, $"{call} allocates {perCall:0.##} bytes per call through the fast path");
