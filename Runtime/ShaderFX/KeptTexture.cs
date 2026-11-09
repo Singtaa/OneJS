@@ -35,7 +35,8 @@ namespace OneJS.ShaderFX {
 
         /// <summary>
         /// A finished read's texels as 8-bit stored values, RGBA, row 0 at the top, in base64:
-        /// one crossing for the whole picture, where reading <see cref="OneJS.Lighting.TextureRead.Texels"/>
+        /// one crossing for the whole picture (a kept texture's own bytes too, which <see cref="Upload"/>
+        /// takes back), where reading <see cref="OneJS.Lighting.TextureRead.Texels"/>
         /// from JS is one crossing a float, and ran a 512 picture out of memory.
         /// </summary>
         public static string StoredBytes(OneJS.Lighting.TextureRead read) {
@@ -69,6 +70,43 @@ namespace OneJS.ShaderFX {
                 for (int i = 0; i < bytes.Length; i += 4) System.Array.Reverse(bytes, i, 4);
             }
             return System.Convert.ToBase64String(bytes);
+        }
+
+        /// <summary>
+        /// Puts bytes <see cref="StoredBytes"/> read from a kept texture the same size back into
+        /// `into`, as stored: 8-bit sRGB RGBA, row 0 at the top, in base64. How onejs-play's tex
+        /// hands back a picture it kept across loads without drawing it. False, and `into`
+        /// untouched, when the bytes are not `into`'s size.
+        /// </summary>
+        public static bool Upload(string base64, RenderTexture into) {
+            if (into == null || string.IsNullOrEmpty(base64)) return false;
+            byte[] bytes;
+            try {
+                bytes = System.Convert.FromBase64String(base64);
+            } catch (System.FormatException) {
+                return false;
+            }
+            int w = into.width, h = into.height, row = w * 4;
+            if (bytes.Length != row * h) return false;
+            var flipped = new byte[bytes.Length];
+            // Unity's row 0 is the bottom.
+            for (int y = 0; y < h; y++) System.Buffer.BlockCopy(bytes, y * row, flipped, (h - 1 - y) * row, row);
+            var staging = new Texture2D(w, h, TextureFormat.RGBA32, false, !into.sRGB);
+            try {
+                staging.LoadRawTextureData(flipped);
+                staging.Apply(false, false);
+                // A copy moves the bytes unchanged; a blit decodes and encodes sRGB on the way, which
+                // returns the same bytes where the GPU's conversion is exact, and is the fallback.
+                if ((SystemInfo.copyTextureSupport & UnityEngine.Rendering.CopyTextureSupport.TextureToRT) != 0) {
+                    Graphics.CopyTexture(staging, into);
+                } else {
+                    Graphics.Blit(staging, into);
+                }
+            } finally {
+                if (Application.isPlaying) Object.Destroy(staging);
+                else Object.DestroyImmediate(staging);
+            }
+            return true;
         }
 
         /// <summary>Frees a kept texture.</summary>

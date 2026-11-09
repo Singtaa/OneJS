@@ -5,8 +5,9 @@ using Object = UnityEngine.Object;
 
 namespace OneJS.Lighting {
     /// <summary>
-    /// A float or half-float render texture's texels read back to the CPU, as four floats a texel,
-    /// red, green, blue and alpha, row 0 at the bottom as Unity reads a texture.
+    /// A float, half-float or 8-bit render texture's texels read back to the CPU, as four floats a
+    /// texel, red, green, blue and alpha, row 0 at the bottom as Unity reads a texture. An 8-bit
+    /// texel reads as its stored byte over 255, gamma encoded if the texture is sRGB.
     ///
     /// Where the GPU has <see cref="AsyncGPUReadback"/> the read lands a frame or more later, polled
     /// through <see cref="Done"/>: WebGPU has it, and its `Texture2D.ReadPixels` logs "Texture
@@ -27,7 +28,7 @@ namespace OneJS.Lighting {
         public static bool Async => !UseReadPixels && SystemInfo.supportsAsyncGPUReadback;
 
         readonly int _width, _height;
-        readonly bool _half;
+        readonly bool _half, _bytes;
         AsyncGPUReadbackRequest _request;
         bool _pending;
         float[] _texels;
@@ -60,7 +61,7 @@ namespace OneJS.Lighting {
             }
         }
 
-        /// <summary>Starts reading `rt`, which must be ARGBFloat or ARGBHalf, after everything drawn into it so far.</summary>
+        /// <summary>Starts reading `rt`, which must be ARGBFloat, ARGBHalf or ARGB32, after everything drawn into it so far.</summary>
         public static TextureRead Start(RenderTexture rt) => new TextureRead(rt, 0, 0, rt.width, rt.height, 0);
 
         /// <summary>Starts reading the `width` by `height` block of `rt` at (x, y), of its slice `slice` when it is an array.</summary>
@@ -71,20 +72,24 @@ namespace OneJS.Lighting {
 
         TextureRead(RenderTexture rt, int x, int y, int width, int height, int slice) {
             if (rt == null) throw new ArgumentNullException(nameof(rt));
-            if (rt.format != RenderTextureFormat.ARGBFloat && rt.format != RenderTextureFormat.ARGBHalf) {
-                throw new ArgumentException($"[OneJS] a texture read takes an ARGBFloat or ARGBHalf target, and {rt.name} is {rt.format}");
+            if (rt.format != RenderTextureFormat.ARGBFloat && rt.format != RenderTextureFormat.ARGBHalf && rt.format != RenderTextureFormat.ARGB32) {
+                throw new ArgumentException($"[OneJS] a texture read takes an ARGBFloat, ARGBHalf or ARGB32 target, and {rt.name} is {rt.format}");
             }
             _width = width;
             _height = height;
             _half = rt.format == RenderTextureFormat.ARGBHalf;
+            _bytes = rt.format == RenderTextureFormat.ARGB32;
             if (Fail) {
                 _error = "a test failed the read";
             } else if (Async) {
-                _request = AsyncGPUReadback.Request(rt, 0, x, width, y, height, slice, 1);
+                // An 8-bit target is asked for as RGBA bytes, whatever channel order the GPU holds it in.
+                _request = _bytes
+                    ? AsyncGPUReadback.Request(rt, 0, x, width, y, height, slice, 1, TextureFormat.RGBA32)
+                    : AsyncGPUReadback.Request(rt, 0, x, width, y, height, slice, 1);
                 _pending = true;
                 Poll();
             } else {
-                _texels = ReadPixels(rt, x, y, width, height, slice, _half);
+                _texels = ReadPixels(rt, x, y, width, height, slice, _half, _bytes);
             }
         }
 
@@ -114,7 +119,14 @@ namespace OneJS.Lighting {
                 return;
             }
             var count = _width * _height * 4;
-            if (_half) {
+            if (_bytes) {
+                var bytes = _request.GetData<byte>();
+                if (bytes.Length < count) {
+                    _error = $"the GPU read back {bytes.Length} bytes, not {count}";
+                    return;
+                }
+                _texels = Unorm(bytes, count);
+            } else if (_half) {
                 var halves = _request.GetData<ushort>();
                 if (halves.Length < count) {
                     _error = $"the GPU read back {halves.Length} halves, not {count}";
@@ -133,13 +145,23 @@ namespace OneJS.Lighting {
             }
         }
 
-        static float[] ReadPixels(RenderTexture rt, int x, int y, int width, int height, int slice, bool half) {
-            var tex = new Texture2D(width, height, half ? TextureFormat.RGBAHalf : TextureFormat.RGBAFloat, false, true);
+        static float[] Unorm(Unity.Collections.NativeArray<byte> bytes, int count) {
+            var texels = new float[count];
+            for (var i = 0; i < count; i++) texels[i] = bytes[i] / 255f;
+            return texels;
+        }
+
+        static float[] ReadPixels(RenderTexture rt, int x, int y, int width, int height, int slice, bool half, bool bytes) {
+            // An 8-bit target is copied into a texture of its own colour space, so the bytes come across as stored.
+            var tex = bytes
+                ? new Texture2D(width, height, TextureFormat.RGBA32, false, !rt.sRGB)
+                : new Texture2D(width, height, half ? TextureFormat.RGBAHalf : TextureFormat.RGBAFloat, false, true);
             var previous = RenderTexture.active;
             try {
                 if (rt.dimension == TextureDimension.Tex2DArray) Graphics.SetRenderTarget(rt, 0, CubemapFace.Unknown, slice);
                 else RenderTexture.active = rt;
                 tex.ReadPixels(new Rect(x, y, width, height), 0, 0, false);
+                if (bytes) return Unorm(tex.GetPixelData<byte>(0), width * height * 4);
                 if (!half) return tex.GetPixelData<float>(0).ToArray();
                 var colors = tex.GetPixels();
                 var texels = new float[colors.Length * 4];
