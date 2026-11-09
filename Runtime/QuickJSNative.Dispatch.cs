@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using AOT;
 using UnityEngine;
@@ -40,6 +41,8 @@ namespace OneJS {
         internal static int NativeAbiVersion { get; private set; }
 
         static QuickJSNative() {
+            AppDomain.CurrentDomain.AssemblyLoad += (_, _) => Interlocked.Increment(ref _assembliesLoaded);
+
             _logCallbackHandle = GCHandle.Alloc(_logCallback);
             _invokeCallbackHandle = GCHandle.Alloc(_invokeCallback);
             _releaseCallbackHandle = GCHandle.Alloc(_releaseHandleCallback);

@@ -120,5 +120,41 @@ namespace OneJS.Tests {
             Assert.AreEqual("probe", result);
             yield return null;
         }
+
+        /// <summary>
+        /// The bootstrap asks whether OneJS.Models.ModelBridge.Destroy is a type
+        /// before calling Destroy through the class. Under a type JS has already
+        /// reached, the only type that path could be is a nested one, so the
+        /// miss is the owner's answer: no assembly is searched. In a WebGL
+        /// player each search cost about 2 ms, once for every method name.
+        /// </summary>
+        [Test]
+        public void FailedLookup_UnderAKnownType_SearchesNoAssembly() {
+            Assert.AreEqual(typeof(QuickJSNative), QuickJSNative.ResolveType("OneJS.QuickJSNative"));
+            int before = QuickJSNative.AssemblySearches;
+            Assert.IsNull(QuickJSNative.ResolveType("OneJS.QuickJSNative.NotANestedType_UnderOwner"));
+            Assert.AreEqual(before, QuickJSNative.AssemblySearches, "a miss under a known type asks the owner, not every assembly");
+        }
+
+        /// <summary>A name with no known owner searches the assemblies the first time, and never again.</summary>
+        [Test]
+        public void FailedLookup_SearchesAssembliesOnce() {
+            const string name = "Nope.NoSuchNamespace.NotAType_Once";
+            int before = QuickJSNative.AssemblySearches;
+            Assert.IsNull(QuickJSNative.ResolveType(name));
+            int first = QuickJSNative.AssemblySearches - before;
+            Assert.Greater(first, 0, "the first miss searches");
+            Assert.IsNull(QuickJSNative.ResolveType(name));
+            Assert.AreEqual(before + first, QuickJSNative.AssemblySearches, "the second miss is remembered");
+        }
+
+        /// <summary>A real nested type under a known owner still resolves, by its dotted path, without a search.</summary>
+        [Test]
+        public void NestedType_UnderAKnownType_ResolvesFromItsOwner() {
+            Assert.AreEqual(typeof(ScrollView), QuickJSNative.ResolveType("UnityEngine.UIElements.ScrollView"));
+            int before = QuickJSNative.AssemblySearches;
+            Assert.AreEqual(typeof(ScrollView.NestedInteractionKind), QuickJSNative.ResolveType("UnityEngine.UIElements.ScrollView.NestedInteractionKind"));
+            Assert.AreEqual(before, QuickJSNative.AssemblySearches);
+        }
     }
 }

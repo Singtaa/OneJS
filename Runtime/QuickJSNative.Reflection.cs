@@ -3,11 +3,22 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace OneJS {
     public static partial class QuickJSNative {
         // Type and Member Caches
         static readonly Dictionary<string, Type> _typeCache = new();
+        // Names that resolved to nothing. The bootstrap asks whether a path is a
+        // type before calling a static method through it (ModelBridge.Destroy),
+        // so every method name misses once, and an uncached miss searched every
+        // assembly again each time. Forgotten when an assembly loads, since a
+        // type that was missing may then exist: the static constructor counts
+        // loads, which can happen on any thread, and the next lookup clears.
+        static readonly HashSet<string> _typeMisses = new();
+        static int _assembliesLoaded, _assembliesSeen;
+        /// <summary>How many times a lookup has searched every loaded assembly. For tests.</summary>
+        internal static int AssemblySearches { get; private set; }
         static readonly ConcurrentDictionary<(Type, string, bool, int), MethodInfo> _methodCache = new();
         static readonly ConcurrentDictionary<(Type, string, bool), PropertyInfo> _propertyCache = new();
         static readonly ConcurrentDictionary<(Type, string, bool), FieldInfo> _fieldCache = new();
@@ -27,11 +38,29 @@ namespace OneJS {
             PublicNonPublic | (isStatic ? BindingFlags.Static : BindingFlags.Instance);
 
         // Type Resolution
-        static Type ResolveType(string fullName) {
+        internal static Type ResolveType(string fullName) {
             if (string.IsNullOrEmpty(fullName)) return null;
             if (_typeCache.TryGetValue(fullName, out var cached)) return cached;
+            int loaded = Volatile.Read(ref _assembliesLoaded);
+            if (loaded != _assembliesSeen) {
+                _assembliesSeen = loaded;
+                _typeMisses.Clear();
+            }
+            if (_typeMisses.Contains(fullName)) return null;
 
-            var type = LookupType(fullName);
+            Type type = null, owner = null;
+            int last = fullName.LastIndexOf('.');
+            if (last > 0 && _typeCache.TryGetValue(fullName.Substring(0, last), out owner)) {
+                // The path up to the last dot is a type JS has already reached.
+                // Namespaces never nest inside types, so the whole path can only
+                // be a type nested in it, which the owner answers without a
+                // search: ModelBridge.Destroy, a method, costs a dictionary read
+                // where it cost a walk of every assembly per spelling (about
+                // 2 ms in a WebGL player).
+                type = owner.GetNestedType(fullName.Substring(last + 1), PublicNonPublic);
+            } else {
+                type = LookupType(fullName);
+            }
 
             // A nested type's CLR name joins it to its owner with '+', but JS
             // reaches it by the same dotted path it uses for everything else:
@@ -39,7 +68,7 @@ namespace OneJS {
             // with the last dot as '+', then the last two (a nested type inside
             // a nested type), and so on. Namespaces never nest inside types, so
             // walking from the right covers every real name.
-            if (type == null) {
+            if (type == null && owner == null) {
                 for (int dot = fullName.LastIndexOf('.'); dot > 0 && type == null; dot = fullName.LastIndexOf('.', dot - 1)) {
                     type = LookupType(fullName.Substring(0, dot) + fullName.Substring(dot).Replace('.', '+'));
                 }
@@ -52,6 +81,7 @@ namespace OneJS {
             }
 
             if (type != null) _typeCache[fullName] = type;
+            else _typeMisses.Add(fullName);
             return type;
         }
 
@@ -73,6 +103,7 @@ namespace OneJS {
         static Type LookupType(string fullName) {
             var type = Type.GetType(fullName);
             if (type != null) return type;
+            AssemblySearches++;
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies()) {
                 try {
                     type = asm.GetType(fullName);
@@ -618,6 +649,7 @@ namespace OneJS {
         static void CacheType(string typeName, Type type) {
             if (string.IsNullOrEmpty(typeName) || type == null) return;
             _typeCache[typeName] = type;
+            _typeMisses.Remove(typeName);
         }
     }
 }
