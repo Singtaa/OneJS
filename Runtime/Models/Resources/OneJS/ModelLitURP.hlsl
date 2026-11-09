@@ -51,6 +51,9 @@ CBUFFER_START(UnityPerMaterial)
         // Each layer's repeats a metre where it is projected from the sides in world space
         // (`triplanar` in onejs-play), 0 where it is read at the mesh's uvs.
         float4 _SplatTriplanar;
+        // x: 1 over the metres past which the layers read coarser mips (`fadeDistance`), 0 for
+        // none; y: how far the ground's brightness varies across the world (`variation`).
+        float4 _SplatFar;
     #endif
 CBUFFER_END
 

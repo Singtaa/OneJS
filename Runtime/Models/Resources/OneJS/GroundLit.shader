@@ -19,6 +19,7 @@ Shader "OneJS/GroundLit" {
         _SplatLayer3 ("Layer 3 (RGB) Height (A)", 2D) = "white" {}
         _HeightBlend ("Height Blend", Range(0, 1)) = 0
         _SplatTriplanar ("Triplanar (repeats a metre, 0 reads the uvs)", Vector) = (0, 0, 0, 0)
+        _SplatFar ("Far (1 over the fade distance, variation)", Vector) = (0, 0, 0, 0)
         _Metallic ("Metallic", Range(0, 1)) = 0
         _Roughness ("Roughness", Range(0, 1)) = 1
         _Cutoff ("Alpha Cutoff", Range(0, 1)) = 0.5

@@ -261,6 +261,176 @@ namespace OneJS.Tests.Models {
             }
         }
 
+        // A ground 2 km square in the XZ plane, facing up, its uvs once across it.
+        static int Ground(Texture layer, float tiling) {
+            int model = ModelBridge.CreateMesh(true, false, true, 1, 1, 1, 1);
+            var corners = new Vector3[] { new(-1000, 0, -1000), new(-1000, 0, 1000), new(1000, 0, 1000), new(1000, 0, -1000) };
+            var up = Enumerable.Repeat(Vector3.up, 4).ToArray();
+            Assert.That(ModelBridge.SetMeshSplat(model, layer, null, null, null, tiling, tiling, 0), Is.Empty);
+            Assert.That(ModelBridge.SetMesh(model, corners, TwoTriangles, up, null, Corners, new float[] { 1, 1, 1, 1 }), Is.Empty);
+            return model;
+        }
+
+        // A dark blot on white, 64 square: a motif whose mip still has contrast at the size a repeat
+        // shrinks to on a far slope, as PrimoEden's rock does (8 m a repeat, about 20 px at 300 m).
+        static Texture2D Blot() {
+            var t = new Texture2D(64, 64, TextureFormat.RGBA32, false) { hideFlags = HideFlags.DontSave };
+            var pixels = new Color[64 * 64];
+            for (int y = 0; y < 64; y++)
+                for (int x = 0; x < 64; x++)
+                    pixels[y * 64 + x] = (new Vector2(x - 31.5f, y - 31.5f).magnitude < 20) ? new Color(0.1f, 0.1f, 0.1f, 1) : Color.white;
+            t.SetPixels(pixels);
+            t.Apply();
+            return t;
+        }
+
+        // The model drawn unlit at 512 square by a camera `height` metres up at `position`, pitched
+        // by `pitch` degrees: for each row whose middle meets the ground between `near` and `far`
+        // metres off, how much its pixels vary across the middle half, as their standard deviation
+        // over their mean. Its mean over those rows, and how many rows it took.
+        static (float contrast, int rows) Contrast(int model, Vector3 position, float pitch, float near, float far) {
+            var target = new RenderTexture(512, 512, 24);
+            var camera = new GameObject("Test Camera").AddComponent<Camera>();
+            var read = new Texture2D(512, 512, TextureFormat.RGBA32, false);
+            int actor = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, false, false);
+            try {
+                ModelBridge.MaterialOf(model).SetFloat("_Unlit", 1);
+                camera.transform.SetPositionAndRotation(position, Quaternion.Euler(pitch, 0, 0));
+                camera.fieldOfView = 60;
+                camera.farClipPlane = 3000;
+                camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.backgroundColor = Color.magenta;
+                camera.targetTexture = target;
+                camera.Render();
+                var was = RenderTexture.active;
+                RenderTexture.active = target;
+                read.ReadPixels(new Rect(0, 0, 512, 512), 0, 0);
+                RenderTexture.active = was;
+                float sum = 0;
+                int rows = 0;
+                for (int y = 0; y < 512; y++) {
+                    var ray = camera.ScreenPointToRay(new Vector3(256, y + 0.5f, 0));
+                    if (ray.direction.y >= 0) continue;
+                    float d = -ray.origin.y / ray.direction.y;
+                    if (d < near || d > far) continue;
+                    var row = Enumerable.Range(128, 256).Select(x => read.GetPixel(x, y).grayscale).ToArray();
+                    float mean = row.Average();
+                    float sd = Mathf.Sqrt(row.Select(v => (v - mean) * (v - mean)).Average());
+                    sum += sd / mean;
+                    rows++;
+                }
+                return (rows > 0 ? sum / rows : float.NaN, rows);
+            } finally {
+                ModelBridge.Destroy(actor);
+                Object.DestroyImmediate(camera.gameObject);
+                Object.DestroyImmediate(read);
+                target.Release();
+            }
+        }
+
+        // PrimoEden's cliffs at 100 to 300 m showed its 8 m rock in a grid: each repeat's blots, a
+        // few pixels across, still had their contrast at the mip they read. Past the fade distance a
+        // layer reads coarser mips until a repeat is its mean colour, at the uvs and projected alike,
+        // and the ground near the camera keeps its detail. The control at fadeDistance 0 is the
+        // lattice this measures, so a fade that drew nothing different could not pass.
+        [TestCase(false)]
+        [TestCase(true)]
+        public void Splat_Far_FadesTheLatticeOfAFarRepeat_AndKeepsTheNearDetail(bool triplanar) {
+            var blot = Blot();
+            try {
+                int model = Ground(blot, 250);
+                if (triplanar) Assert.That(ModelBridge.SetMeshSplatTriplanar(model, 8, 0, 0, 0), Is.Empty);
+                var eye = new Vector3(0, 12, -900);
+                Assert.That(ModelBridge.SetMeshSplatFar(model, 0, 0), Is.Empty);
+                var (farBefore, farRows) = Contrast(model, eye, 3, 150, 300);
+                var (nearBefore, nearRows) = Contrast(model, eye, 3, 15, 30);
+                Assert.That(farRows, Is.GreaterThan(10), "rows between 150 and 300 m");
+                Assert.That(nearRows, Is.GreaterThan(10), "rows between 15 and 30 m");
+                Assert.That(farBefore, Is.GreaterThan(0.1f), "the control: a repeat at 150 to 300 m still shows its blots");
+
+                Assert.That(ModelBridge.SetMeshSplatFar(model, 60, 0), Is.Empty);
+                var (farAfter, _) = Contrast(model, eye, 3, 150, 300);
+                var (nearAfter, _) = Contrast(model, eye, 3, 15, 30);
+                TestContext.Out.WriteLine($"150 to 300 m: {farBefore:0.000} to {farAfter:0.000}; 15 to 30 m: {nearBefore:0.000} to {nearAfter:0.000}");
+                Assert.That(farAfter, Is.LessThan(0.04f), $"faded past 60 m, from {farBefore:0.000}");
+                Assert.That(nearAfter, Is.GreaterThan(nearBefore * 0.8f), $"the near ground keeps its detail: {nearBefore:0.000} without the fade");
+            } finally {
+                Object.DestroyImmediate(blot);
+            }
+        }
+
+        // Variation brightens and darkens the ground in patches across the world, by up to its
+        // amount either way, and an even picture stays even without it.
+        [Test]
+        public void Splat_Variation_VariesTheGroundsBrightness_ByUpToItsAmount() {
+            var grey = Picture(new Color(0.5f, 0.5f, 0.5f, 1));
+            try {
+                int model = Ground(grey, 1);
+                Assert.That(ModelBridge.SetMeshSplatFar(model, 0, 0), Is.Empty);
+                var even = Sample(model);
+                float mean = even.Average();
+                Assert.That(even.Max() - even.Min(), Is.LessThan(0.01f), "without variation an even picture draws even");
+
+                Assert.That(ModelBridge.SetMeshSplatFar(model, 0, 0.15f), Is.Empty);
+                var varied = Sample(model);
+                TestContext.Out.WriteLine($"even {mean:0.000}; varied {varied.Min():0.000} to {varied.Max():0.000}");
+                Assert.That((varied.Max() - varied.Min()) / mean, Is.GreaterThan(0.08f), $"varied between {varied.Min():0.000} and {varied.Max():0.000}");
+                Assert.That(varied.Min(), Is.GreaterThan(mean * 0.8f), "by no more than its amount, darker");
+                Assert.That(varied.Max(), Is.LessThan(mean * 1.2f), "by no more than its amount, brighter");
+            } finally {
+                Object.DestroyImmediate(grey);
+            }
+        }
+
+        // The model drawn unlit from 400 m straight above at 64 square: every pixel's grey.
+        static float[] Sample(int model) {
+            var target = new RenderTexture(64, 64, 24);
+            var camera = new GameObject("Test Camera").AddComponent<Camera>();
+            var read = new Texture2D(64, 64, TextureFormat.RGBA32, false);
+            int actor = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, false, false);
+            try {
+                ModelBridge.MaterialOf(model).SetFloat("_Unlit", 1);
+                camera.transform.SetPositionAndRotation(new Vector3(0, 400, 0), Quaternion.Euler(90, 0, 0));
+                camera.farClipPlane = 1000;
+                camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.backgroundColor = Color.magenta;
+                camera.targetTexture = target;
+                camera.Render();
+                var was = RenderTexture.active;
+                RenderTexture.active = target;
+                read.ReadPixels(new Rect(0, 0, 64, 64), 0, 0);
+                RenderTexture.active = was;
+                return read.GetPixels().Select(c => c.grayscale).ToArray();
+            } finally {
+                ModelBridge.Destroy(actor);
+                Object.DestroyImmediate(camera.gameObject);
+                Object.DestroyImmediate(read);
+                target.Release();
+            }
+        }
+
+        [Test]
+        public void Splat_Far_RefusesWhatItCannotDraw_SayingWhy_AndChangesNothing() {
+            var red = Picture(Color.red);
+            try {
+                int model = WithUvs();
+                Assert.That(ModelBridge.SetMeshSplatFar(model, 60, 0.15f), Does.Contain("no splat"));
+                ModelBridge.SetMeshSplat(model, red, null, null, null, 1, 1, 0);
+                Assert.That(ModelBridge.SetMeshSplatFar(model, 50, 0.25f), Is.Empty);
+                Assert.That(ModelBridge.MaterialOf(model).GetVector("_SplatFar"), Is.EqualTo(new Vector4(0.02f, 0.25f, 0, 0)));
+                Assert.That(ModelBridge.SetMeshSplatFar(model, -1, 0), Does.Contain("fadeDistance is -1"));
+                Assert.That(ModelBridge.SetMeshSplatFar(model, float.PositiveInfinity, 0), Does.Contain("fadeDistance is"));
+                Assert.That(ModelBridge.SetMeshSplatFar(model, 60, 1.5f), Does.Contain("variation is 1.5"));
+                Assert.That(ModelBridge.SetMeshSplatFar(model, 60, float.NaN), Does.Contain("variation is NaN"));
+                Assert.That(ModelBridge.MaterialOf(model).GetVector("_SplatFar"), Is.EqualTo(new Vector4(0.02f, 0.25f, 0, 0)), "a refusal changes nothing");
+                Assert.That(ModelBridge.SetMeshSplatFar(model, 0, 0), Is.Empty);
+                Assert.That(ModelBridge.MaterialOf(model).GetVector("_SplatFar"), Is.EqualTo(Vector4.zero), "and back to none");
+                Assert.That(ModelBridge.SetMeshSplatFar(12345, 60, 0), Does.Contain("no mesh model 12345"));
+            } finally {
+                Object.DestroyImmediate(red);
+            }
+        }
+
         // An actor of the model, unlit, drawn at 32 by 32 from straight in front: the colour at its centre.
         static Color Draw(int model) {
             var target = new RenderTexture(32, 32, 24);

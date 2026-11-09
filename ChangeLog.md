@@ -13,6 +13,7 @@
 - ModelBridge draws the scene into a texture a program reads
 - ModelBridge draws a gradient sky with a sun disc and stars
 - ModelBridge draws a mesh model as depth alone
+- A splat ground blurs its far repeats to their mean colour and varies its brightness across the world (`SetMeshSplatFar`)
 - InputBridge says which pointer the last press came from
 - SLProgramBridge counts the page programs still compiling
 - A property two interfaces declare reads the get-only one, whatever order the assembly lists them in

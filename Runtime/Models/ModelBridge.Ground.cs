@@ -20,6 +20,7 @@ namespace OneJS.Models {
         static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
         static readonly int HeightBlendId = Shader.PropertyToID("_HeightBlend");
         static readonly int SplatTriplanarId = Shader.PropertyToID("_SplatTriplanar");
+        static readonly int SplatFarId = Shader.PropertyToID("_SplatFar");
         static readonly int[] SplatLayerIds = {
             Shader.PropertyToID("_SplatLayer0"), Shader.PropertyToID("_SplatLayer1"),
             Shader.PropertyToID("_SplatLayer2"), Shader.PropertyToID("_SplatLayer3"),
@@ -147,6 +148,26 @@ namespace OneJS.Models {
             }
             var material = b.material;
             if (material.HasVector(SplatTriplanarId)) material.SetVector(SplatTriplanarId, perMetre);
+            return "";
+        }
+
+        /// <summary>
+        /// How a splat looks far off. Past `fadeDistance` metres from the camera its layers read
+        /// coarser mips, two more each time the distance doubles, so a repeat far enough off draws
+        /// its picture's mean colour rather than its motif in a grid across a far slope; 0 reads
+        /// every layer at its own mip however far. `variation`, 0 to 1, varies the ground's
+        /// brightness across the world by up to that much either way, in patches about 40 m and
+        /// 160 m across; 0 keeps it even. Neither costs a texture read. Given after SetMeshSplat,
+        /// and again whenever it changes. "" when it took it, or what was wrong.
+        /// </summary>
+        public static string SetMeshSplatFar(int model, float fadeDistance, float variation) {
+            if (!_models.TryGetValue(model, out var m) || m.built == null) return $"there is no mesh model {model}";
+            var b = m.built;
+            if (!b.splat) return "this model has no splat: give its layers first";
+            if (!(fadeDistance >= 0) || float.IsInfinity(fadeDistance)) return $"fadeDistance is {fadeDistance}: metres from the camera, above 0, or 0 for no fade";
+            if (!(variation >= 0 && variation <= 1)) return $"variation is {variation}: from 0 to 1";
+            var material = b.material;
+            if (material.HasVector(SplatFarId)) material.SetVector(SplatFarId, new Vector4(fadeDistance > 0 ? 1 / fadeDistance : 0, variation, 0, 0));
             return "";
         }
 

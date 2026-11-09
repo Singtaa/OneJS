@@ -21,11 +21,13 @@
 // many repeats a metre and blended by `planes` (SplatPlanes). The choice is a material value, so
 // every pixel of a draw takes the same branch. All three projections are read, a plane SplatPlanes
 // dropped at weight 0: a per-pixel branch that skipped its read compiled, for WebGL 2, to a compare
-// mask in a float register, a NaN's bits a GPU may rewrite (ShaderWebGL2NaNTests).
-half4 SplatLayer(TEXTURE2D_PARAM(layer, layerSampler), float2 uv, float perMetre, float3 positionWS, float3 planes) {
-    if (perMetre <= 0) return SAMPLE_TEXTURE2D(layer, layerSampler, uv);
+// mask in a float register, a NaN's bits a GPU may rewrite (ShaderWebGL2NaNTests). `farScale`
+// (SplatFarScale) reads it coarser with distance: a bias of its log2 at the uvs, which keeps the
+// hardware's own derivatives, and a factor on the gradients a projection already passes.
+half4 SplatLayer(TEXTURE2D_PARAM(layer, layerSampler), float2 uv, float perMetre, float3 positionWS, float3 planes, float farScale) {
+    if (perMetre <= 0) return SAMPLE_TEXTURE2D_BIAS(layer, layerSampler, uv, log2(farScale));
     float3 p = positionWS * perMetre;
-    float3 dx = ddx(p), dy = ddy(p);
+    float3 dx = ddx(p) * farScale, dy = ddy(p) * farScale;
     return SAMPLE_TEXTURE2D_GRAD(layer, layerSampler, p.zy, dx.zy, dy.zy) * planes.x
         + SAMPLE_TEXTURE2D_GRAD(layer, layerSampler, p.xz, dx.xz, dy.xz) * planes.y
         + SAMPLE_TEXTURE2D_GRAD(layer, layerSampler, p.xy, dx.xy, dy.xy) * planes.z;
@@ -100,12 +102,16 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     ModelRangeClip(i.lightmapUVRange.zw, i.positionCS.xy);
     #ifdef MODEL_SPLAT
         float3 planes = SplatPlanes(i.normalWS);
+        float farScale = SplatFarScale(i.positionWS, _WorldSpaceCameraPos, _SplatFar.x);
         half3 mixed = SplatMix(
-            SplatLayer(TEXTURE2D_ARGS(_SplatLayer0, sampler_SplatLayer0), i.uv, _SplatTriplanar.x, i.positionWS, planes),
-            SplatLayer(TEXTURE2D_ARGS(_SplatLayer1, sampler_SplatLayer1), i.uv, _SplatTriplanar.y, i.positionWS, planes),
-            SplatLayer(TEXTURE2D_ARGS(_SplatLayer2, sampler_SplatLayer2), i.uv, _SplatTriplanar.z, i.positionWS, planes),
-            SplatLayer(TEXTURE2D_ARGS(_SplatLayer3, sampler_SplatLayer3), i.uv, _SplatTriplanar.w, i.positionWS, planes),
+            SplatLayer(TEXTURE2D_ARGS(_SplatLayer0, sampler_SplatLayer0), i.uv, _SplatTriplanar.x, i.positionWS, planes, farScale),
+            SplatLayer(TEXTURE2D_ARGS(_SplatLayer1, sampler_SplatLayer1), i.uv, _SplatTriplanar.y, i.positionWS, planes, farScale),
+            SplatLayer(TEXTURE2D_ARGS(_SplatLayer2, sampler_SplatLayer2), i.uv, _SplatTriplanar.z, i.positionWS, planes, farScale),
+            SplatLayer(TEXTURE2D_ARGS(_SplatLayer3, sampler_SplatLayer3), i.uv, _SplatTriplanar.w, i.positionWS, planes, farScale),
             i.weights, _HeightBlend);
+        // A material value, so every pixel of a draw takes the same branch, and a ground without
+        // variation pays nothing for the noise.
+        if (_SplatFar.y > 0) mixed *= SplatVariation(i.positionWS, _SplatFar.y);
         half4 base = half4(mixed, 1) * _BaseColor;
     #else
         half4 base = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv) * _BaseColor;
