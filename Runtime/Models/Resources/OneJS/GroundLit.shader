@@ -74,6 +74,8 @@ Shader "OneJS/GroundLit" {
             #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
             #pragma multi_compile_fog
             #pragma multi_compile_instancing
+            // Each instance's renderer values, for MODEL_ACTOR_SHADOWLESS (ModelLitURP.hlsl).
+            #pragma instancing_options renderinglayer
             #include "ModelLitForward.hlsl"
             ENDHLSL
         }

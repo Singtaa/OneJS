@@ -37,7 +37,8 @@ namespace OneJS.Models {
         const string RootName = "OneJS Models";
         // ModelLit's per-actor values, apart from the material's own _Dissolve and _ReceiveShadows.
         static readonly int ActorDissolveId = Shader.PropertyToID("_ActorDissolve");
-        static readonly int ActorShadowlessId = Shader.PropertyToID("_ActorShadowless");
+        // Bit 0 of a renderer's user value (Renderer.SetShaderUserValue): it keeps no shadow on itself.
+        const uint ShadowlessBit = 1u;
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         static readonly int MetallicId = Shader.PropertyToID("_Metallic");
         static readonly int ColorMaskId = Shader.PropertyToID("_ColorMask");
@@ -963,8 +964,10 @@ namespace OneJS.Models {
         /// <summary>
         /// An actor's dissolve, shadows and baked light, onto its renderers. A renderer with a
         /// property block falls out of URP's SRP Batcher and draws alone, in every shadow cascade
-        /// too, so only an actor that needs one gets one: dissolving, keeping no shadow on itself,
-        /// or lit by a bake. ModelLit reads all of them per instance, so those actors still draw
+        /// too, so only an actor that needs one gets one: dissolving, or lit by a bake. Keeping no
+        /// shadow on itself is the renderer's user value instead, which the SRP Batcher carries in
+        /// its per-draw data, so a ground that keeps none still batches (primoeden-three measured
+        /// 107 frames over 33 ms in 3,000 with it in a block, 44 without). ModelLit reads all of them per instance, so those actors still draw
         /// together where their material instances. The probe light is Unity's own per-renderer
         /// SH (LightProbeUsage.CustomProvided), which ModelLit's SampleSH already reads.
         /// </summary>
@@ -973,7 +976,8 @@ namespace OneJS.Models {
             bool probed = !mapped && a.probed;
             // The built-in pipeline adds the ambient probe itself, so a lightmapped actor's is zero there.
             bool customSH = probed || (mapped && BuiltInPipeline);
-            if (a.dissolve <= 0 && a.receive && !mapped && !probed) {
+            foreach (var r in a.renderers) SetUserValue(r, a.receive ? 0u : ShadowlessBit);
+            if (a.dissolve <= 0 && !mapped && !probed) {
                 foreach (var r in a.renderers) {
                     r.SetPropertyBlock(null);
                     r.lightProbeUsage = LightProbeUsage.BlendProbes;
@@ -983,7 +987,6 @@ namespace OneJS.Models {
             a.block ??= new MaterialPropertyBlock();
             a.block.Clear();
             a.block.SetFloat(ActorDissolveId, a.dissolve);
-            a.block.SetFloat(ActorShadowlessId, a.receive ? 0 : 1);
             if (mapped) a.block.SetVector(ActorLightmapId, a.atlas);
             if (customSH) {
                 _oneProbe[0] = probed ? a.probe : default;
@@ -993,6 +996,12 @@ namespace OneJS.Models {
                 r.lightProbeUsage = customSH ? LightProbeUsage.CustomProvided : LightProbeUsage.BlendProbes;
                 r.SetPropertyBlock(a.block);
             }
+        }
+
+        // A renderer's user value, which Unity has on MeshRenderer and SkinnedMeshRenderer alone.
+        static void SetUserValue(Renderer r, uint value) {
+            if (r is MeshRenderer mesh) mesh.SetShaderUserValue(value);
+            else if (r is SkinnedMeshRenderer skinned) skinned.SetShaderUserValue(value);
         }
 
         static Vector2 PanelSize(VisualElement element) => element?.panel?.visualTree.layout.size ?? Vector2.zero;

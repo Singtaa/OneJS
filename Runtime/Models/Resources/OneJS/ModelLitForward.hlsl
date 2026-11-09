@@ -157,7 +157,7 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     d.viewDirectionWS = GetWorldSpaceNormalizeViewDir(i.positionWS);
     #if defined(MAIN_LIGHT_CALCULATE_SHADOWS)
         // A shadow coordinate past the far plane reads as unshadowed, on either depth convention.
-        bool receives = _ReceiveShadows > 0.5 && MODEL_ACTOR_SHADOWLESS < 0.5;
+        bool receives = _ReceiveShadows > 0.5 && MODEL_ACTOR_SHADOWLESS == 0;
         d.shadowCoord = receives ? TransformWorldToShadowCoord(i.positionWS) : float4(0, 0, UNITY_RAW_FAR_CLIP_VALUE, 0);
     #endif
     #ifdef _ADDITIONAL_LIGHTS_VERTEX

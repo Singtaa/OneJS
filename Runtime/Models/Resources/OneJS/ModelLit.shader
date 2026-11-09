@@ -84,6 +84,8 @@ Shader "OneJS/ModelLit" {
             #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
             #pragma multi_compile_fog
             #pragma multi_compile_instancing
+            // Each instance's renderer values, for MODEL_ACTOR_SHADOWLESS (ModelLitURP.hlsl).
+            #pragma instancing_options renderinglayer
             // A mesh model's own colours (ModelBridge.CreateMesh). A glTF material never enables it, so a
             // file's model reads no COLOR and draws as it did. multi_compile, since the material that
             // enables it is made at run time, after a build's stripping has decided.

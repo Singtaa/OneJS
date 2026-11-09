@@ -28,6 +28,7 @@
 - A scatter draws within a range of the camera, dithered across its edges
 - A mesh model can be cut out by its alpha, drawn two sided, and swayed by a scene wind
 - ModelBridge sets how far, how soft and how sharp the sun's shadows are, on URP
+- An actor that receives no shadows stays in URP's SRP Batcher
 - Timers due together run one at a time, as in a browser: an await in one resumes before the next runs, and a frame runs at most 4 ms of them
 
 # [2026-11-05] v3.9.18
