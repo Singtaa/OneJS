@@ -32,6 +32,19 @@ void ModelRangeClip(float2 range, float2 pixel) {
     clip(range.x - (1.0 - n));
 }
 
+// 1 for a copy with pixels left to draw, 0 for one its range drops whole (a shadow pass's
+// `ModelRangeShadowKeep` at its hard edge). A vertex is collapsed onto its copy's origin by it, so a
+// dropped copy's triangles have no area and cost nothing past its vertices: a chunk is culled whole
+// only when all of it is out of range, and a near and a far scatter mostly share their chunks.
+// Arithmetic rather than a compare, so no mask reaches WebGL 2 in a float.
+float ModelRangeKeep(float2 range) {
+    return saturate(min(range.x, range.y) * 1e6);
+}
+
+float ModelRangeShadowKeep(float2 range) {
+    return saturate((min(range.x, range.y) - 0.5) * 1e6 + 1.0);
+}
+
 // A shadow pass's cut: whole inside the edges, nothing outside.
 void ModelRangeShadowClip(float2 range) {
     clip(min(range.x, range.y) - 0.5);

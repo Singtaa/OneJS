@@ -72,14 +72,15 @@ Varyings Vert(Attributes v) {
     Varyings o = (Varyings)0;
     UNITY_SETUP_INSTANCE_ID(v);
     UNITY_TRANSFER_INSTANCE_ID(v, o);
-    float3 positionWS = SwayedWorld(v.positionOS.xyz, v.sway);
+    float2 range = CopyRange();
+    float3 positionWS = KeptInRange(SwayedWorld(v.positionOS.xyz, v.sway), ModelRangeKeep(range));
     VertexNormalInputs n = GetVertexNormalInputs(v.normalOS, v.tangentOS);
     o.positionCS = TransformWorldToHClip(positionWS);
     o.positionWS = positionWS;
     o.normalWS = n.normalWS;
     o.tangentWS = half4(n.tangentWS, v.tangentOS.w * GetOddNegativeScale());
     o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
-    o.lightmapUVRange = float4(ModelLightmapUV(v.lightmapUV, MODEL_ACTOR_LIGHTMAP_ST), CopyRange());
+    o.lightmapUVRange = float4(ModelLightmapUV(v.lightmapUV, MODEL_ACTOR_LIGHTMAP_ST), range);
     o.positionOS = v.positionOS.xyz;
     #ifdef _VERTEX_COLOR
         o.color = v.color;

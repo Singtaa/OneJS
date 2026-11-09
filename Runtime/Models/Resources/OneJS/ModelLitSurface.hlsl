@@ -85,6 +85,12 @@ void Vert(inout appdata_full v, out Input o) {
         float3 positionWS = mul(unity_ObjectToWorld, float4(v.vertex.xyz, 1)).xyz;
         v.vertex.xyz = mul(unity_WorldToObject, float4(ModelSwayed(positionWS, unity_ObjectToWorld, v.texcoord3.x), 1)).xyz;
     }
+    // A copy its range drops whole collapses onto its origin (ModelRangeKeep), after the sway.
+    #ifdef UNITY_PASS_SHADOWCASTER
+        v.vertex.xyz *= ModelRangeShadowKeep(o.lightmapUVRange.zw);
+    #else
+        v.vertex.xyz *= ModelRangeKeep(o.lightmapUVRange.zw);
+    #endif
     #ifdef MODEL_SPLAT
         o.weights = v.texcoord2;
     #endif

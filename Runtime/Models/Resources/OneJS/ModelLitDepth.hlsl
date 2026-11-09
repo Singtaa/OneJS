@@ -43,7 +43,13 @@ Varyings Vert(Attributes v) {
     Varyings o = (Varyings)0;
     UNITY_SETUP_INSTANCE_ID(v);
     UNITY_TRANSFER_INSTANCE_ID(v, o);
-    float3 positionWS = SwayedWorld(v.positionOS.xyz, v.sway);
+    float2 range = CopyRange();
+    #if defined(MODEL_PASS_SHADOW_CASTER)
+        float keep = ModelRangeShadowKeep(range);
+    #else
+        float keep = ModelRangeKeep(range);
+    #endif
+    float3 positionWS = KeptInRange(SwayedWorld(v.positionOS.xyz, v.sway), keep);
     #if defined(MODEL_PASS_SHADOW_CASTER)
         float3 normalWS = TransformObjectToWorldNormal(v.normalOS);
         #if _CASTING_PUNCTUAL_LIGHT_SHADOW
@@ -58,7 +64,7 @@ Varyings Vert(Attributes v) {
     #if defined(MODEL_PASS_DEPTH_NORMALS)
         o.normalWS = TransformObjectToWorldNormal(v.normalOS);
     #endif
-    o.uvRange = float4(TRANSFORM_TEX(v.uv, _BaseMap), CopyRange());
+    o.uvRange = float4(TRANSFORM_TEX(v.uv, _BaseMap), range);
     o.positionOS = v.positionOS.xyz;
     #ifdef _VERTEX_COLOR
         o.alpha = v.color.a;

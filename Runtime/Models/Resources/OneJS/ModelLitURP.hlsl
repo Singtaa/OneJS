@@ -101,6 +101,13 @@ float2 CopyRange() {
     return ModelRange(float3(m._m03, m._m13, m._m23));
 }
 
+// A vertex at `positionWS`, or its copy's origin when `keep` (ModelRangeKeep) is 0. After the
+// sway, which would otherwise spread a collapsed triangle out again.
+float3 KeptInRange(float3 positionWS, float keep) {
+    float4x4 m = GetObjectToWorldMatrix();
+    return lerp(float3(m._m03, m._m13, m._m23), positionWS, keep);
+}
+
 // The scene's baked light (ModelBridge.Light.cs): light arriving at a static surface, sky and
 // bounce without the sun's first hit, in the units SampleSH gives, a slice a page. An actor
 // with a rectangle of it (_ActorLightmapST's scale above 0) reads it at its TEXCOORD1 in
