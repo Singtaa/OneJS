@@ -1,0 +1,32 @@
+{
+    "name": "OneJS.Runtime.Models.URP",
+    "rootNamespace": "OneJS.Models",
+    "references": [
+        "OneJS.Runtime.Models",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "ONEJS_GLTFAST",
+        "ONEJS_URP"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.cloud.gltfast",
+            "expression": "6.0.0",
+            "define": "ONEJS_GLTFAST"
+        },
+        {
+            "name": "com.unity.render-pipelines.universal",
+            "expression": "17.0.0",
+            "define": "ONEJS_URP"
+        }
+    ],
+    "noEngineReferences": false
+}
