@@ -169,6 +169,7 @@ namespace OneJS.Models {
             b.material = new Material(shader) { name = "ground", enableInstancing = true };
             b.material.SetColor(BaseColorId, b.baseColor);
             if (!Playing) b.material.hideFlags = HideFlags.DontSave;
+            ApplyLook(b);
             foreach (var r in m.template.GetComponentsInChildren<MeshRenderer>(true)) r.sharedMaterial = b.material;
             foreach (var a in _actors.Values) {
                 if (a.model != model) continue;

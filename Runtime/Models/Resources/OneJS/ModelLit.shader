@@ -42,6 +42,9 @@ Shader "OneJS/ModelLit" {
         // 15 writes every channel; 0 writes depth alone, as a shadow fan or an occluder wants, without blending a
         // colour nobody sees (Gunyard, Tachi 5f9c606d).
         [HideInInspector] _ColorMask ("Color Mask", Float) = 15
+        // A mesh model's sway (ModelWind.hlsl) and two-sided lighting: see ModelLitURP.hlsl.
+        [HideInInspector] _Sway ("Sway", Float) = 0
+        [HideInInspector] _KeepBackNormal ("Keep Back Normal", Float) = 0
     }
 
     SubShader {
@@ -103,6 +106,7 @@ Shader "OneJS/ModelLit" {
             #pragma fragment Frag
             #pragma multi_compile_instancing
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+            #pragma multi_compile_local _ _VERTEX_COLOR
             #define MODEL_PASS_SHADOW_CASTER
             #include "ModelLitDepth.hlsl"
             ENDHLSL
@@ -120,6 +124,8 @@ Shader "OneJS/ModelLit" {
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_instancing
+            // A mesh model's colours, whose alpha clips its depth as it clips its colour (ModelLitDepth.hlsl).
+            #pragma multi_compile_local _ _VERTEX_COLOR
             #define MODEL_PASS_DEPTH_ONLY
             #include "ModelLitDepth.hlsl"
             ENDHLSL
@@ -136,6 +142,8 @@ Shader "OneJS/ModelLit" {
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_instancing
+            // A mesh model's colours, whose alpha clips its depth as it clips its colour (ModelLitDepth.hlsl).
+            #pragma multi_compile_local _ _VERTEX_COLOR
             #define MODEL_PASS_DEPTH_NORMALS
             #include "ModelLitDepth.hlsl"
             ENDHLSL

@@ -44,6 +44,8 @@ struct Attributes {
     #ifdef MODEL_SPLAT
         float4 weights : TEXCOORD2;
     #endif
+    // How far the vertex may sway, read only where the model sways (_Sway).
+    float sway : TEXCOORD3;
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
@@ -55,7 +57,8 @@ struct Varyings {
     half4 tangentWS : TEXCOORD3;
     float3 positionOS : TEXCOORD4;
     half4 fogAndVertexLight : TEXCOORD5;
-    float2 lightmapUV : TEXCOORD7;
+    // The uv on the bake's sheet in xy, and the copy's draw range (CopyRange) in zw.
+    float4 lightmapUVRange : TEXCOORD7;
     #ifdef _VERTEX_COLOR
         half4 color : TEXCOORD6;
     #endif
@@ -69,14 +72,14 @@ Varyings Vert(Attributes v) {
     Varyings o = (Varyings)0;
     UNITY_SETUP_INSTANCE_ID(v);
     UNITY_TRANSFER_INSTANCE_ID(v, o);
-    VertexPositionInputs p = GetVertexPositionInputs(v.positionOS.xyz);
+    float3 positionWS = SwayedWorld(v.positionOS.xyz, v.sway);
     VertexNormalInputs n = GetVertexNormalInputs(v.normalOS, v.tangentOS);
-    o.positionCS = p.positionCS;
-    o.positionWS = p.positionWS;
+    o.positionCS = TransformWorldToHClip(positionWS);
+    o.positionWS = positionWS;
     o.normalWS = n.normalWS;
     o.tangentWS = half4(n.tangentWS, v.tangentOS.w * GetOddNegativeScale());
     o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
-    o.lightmapUV = ModelLightmapUV(v.lightmapUV, MODEL_ACTOR_LIGHTMAP_ST);
+    o.lightmapUVRange = float4(ModelLightmapUV(v.lightmapUV, MODEL_ACTOR_LIGHTMAP_ST), CopyRange());
     o.positionOS = v.positionOS.xyz;
     #ifdef _VERTEX_COLOR
         o.color = v.color;
@@ -84,15 +87,16 @@ Varyings Vert(Attributes v) {
     #ifdef MODEL_SPLAT
         o.weights = v.weights;
     #endif
-    o.fogAndVertexLight.x = ComputeFogFactor(p.positionCS.z);
+    o.fogAndVertexLight.x = ComputeFogFactor(o.positionCS.z);
     #ifdef _ADDITIONAL_LIGHTS_VERTEX
-        o.fogAndVertexLight.yzw = VertexLighting(p.positionWS, n.normalWS);
+        o.fogAndVertexLight.yzw = VertexLighting(positionWS, n.normalWS);
     #endif
     return o;
 }
 
 half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     UNITY_SETUP_INSTANCE_ID(i);
+    ModelRangeClip(i.lightmapUVRange.zw, i.positionCS.xy);
     #ifdef MODEL_SPLAT
         float3 planes = SplatPlanes(i.normalWS);
         half3 mixed = SplatMix(
@@ -108,6 +112,7 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     #ifdef _VERTEX_COLOR
         base *= i.color;
     #endif
+    base.rgb = Tinted(base.rgb);
     float cut = ModelClip(i.positionOS, base.a, _AlphaClip, _Cutoff, Dissolved(), _DissolveScale);
     #ifdef MODEL_SPLAT
         half3 emission = ModelEdge(cut, _DissolveEdge.rgb);
@@ -129,8 +134,9 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     s.albedo = base.rgb;
     s.alpha = base.a;
     s.emission = emission;
-    // A double-sided material's back faces light as the side the viewer sees.
-    half3 normalWS = i.normalWS * IS_FRONT_VFACE(face, 1.0, -1.0);
+    // A double-sided material's back faces light as the side the viewer sees, or as the front
+    // where the normals were bent for it (_KeepBackNormal).
+    half3 normalWS = i.normalWS * IS_FRONT_VFACE(face, 1.0, 2.0 * _KeepBackNormal - 1.0);
     #ifdef MODEL_SPLAT
         s.metallic = _Metallic;
         s.smoothness = 1.0 - _Roughness;
@@ -157,7 +163,7 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
         d.vertexLighting = i.fogAndVertexLight.yzw;
     #endif
     d.bakedGI = MODEL_ACTOR_LIGHTMAP_ST.x > 0
-        ? BakedLight(i.lightmapUV)
+        ? BakedLight(i.lightmapUVRange.xy)
         : SampleSH(d.normalWS);
     d.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(i.positionCS);
     d.shadowMask = half4(1, 1, 1, 1);

@@ -73,6 +73,11 @@ namespace OneJS.Models {
             public Color[] colors = Array.Empty<Color>();
             public Color baseColor;
             public bool seeThrough, written, dynamic, depthOnly;
+            // Its look (ModelBridge.Look.cs): the alpha it cuts below (-1 for none), both sides, and a sway a vertex.
+            public float cutout = -1;
+            public bool twoSided, sways;
+            public float[] sway = Array.Empty<float>();
+            public PositionSway[] positionSway = Array.Empty<PositionSway>();
             // The ground copy its base map draws (ModelBridge.Ground.cs), shared with every model given the same picture.
             public RenderTexture texture;
             // A splat's layers' copies, and its weights, layerCount a vertex padded to four, which go
@@ -361,7 +366,15 @@ namespace OneJS.Models {
         /// which come with every set that changes the number of vertices, and otherwise may be left
         /// out and stay. A model without a splat takes none.
         /// </summary>
-        public static string SetMesh(int model, Vector3[] positions, object indices, Vector3[] normals, float[] colors, Vector2[] uvs, float[] weights) {
+        public static string SetMesh(int model, Vector3[] positions, object indices, Vector3[] normals, float[] colors, Vector2[] uvs, float[] weights) =>
+            SetMesh(model, positions, indices, normals, colors, uvs, weights, null);
+
+        /// <summary>
+        /// SetMesh for a model that sways (SetMeshSway): `sway` is one a vertex, and comes with every
+        /// set that changes the number of vertices, and otherwise may be left out and stay. `weights`
+        /// is null for a model without a splat. A model that does not sway takes none.
+        /// </summary>
+        public static string SetMesh(int model, Vector3[] positions, object indices, Vector3[] normals, float[] colors, Vector2[] uvs, float[] weights, float[] sway) {
             if (!_models.TryGetValue(model, out var m) || m.built == null) return $"there is no mesh model {model}";
             var b = m.built;
             if (positions == null) return "positions are required";
@@ -380,6 +393,9 @@ namespace OneJS.Models {
             if (weights != null && weights.Length != count * b.layerCount) {
                 return $"weights has {weights.Length} numbers, and a splat of {b.layerCount} layers takes {b.layerCount} a vertex: {count * b.layerCount} for {count} vertices";
             }
+            if (sway != null && !b.sways) return "this model was made without sway, so it takes none";
+            if (sway == null && b.sways && resized) return "sway is required whenever the number of vertices changes";
+            if (sway != null && sway.Length != count) return $"there are {sway.Length} sways for {count} positions";
 
             int indexCount;
             if (indices == null) {
@@ -425,7 +441,17 @@ namespace OneJS.Models {
                 }
             }
 
-            b.mesh.SetVertexBufferData(positions, 0, 0, count, 0, quiet);
+            if (b.sways) {
+                if (sway != null) {
+                    if (b.sway.Length < b.vertexCapacity) Array.Resize(ref b.sway, b.vertexCapacity);
+                    Array.Copy(sway, b.sway, count);
+                }
+                if (b.positionSway.Length < b.vertexCapacity) b.positionSway = new PositionSway[b.vertexCapacity];
+                for (int v = 0; v < count; v++) b.positionSway[v] = new PositionSway { position = positions[v], sway = b.sway[v] };
+                b.mesh.SetVertexBufferData(b.positionSway, 0, 0, count, 0, quiet);
+            } else {
+                b.mesh.SetVertexBufferData(positions, 0, 0, count, 0, quiet);
+            }
             if (normals != null) b.mesh.SetVertexBufferData(normals, 0, 0, count, 1, quiet);
             if (uvs != null) b.mesh.SetVertexBufferData(uvs, 0, 0, count, b.uvStream, quiet);
             bool seeThrough = b.baseColor.a < 1;
@@ -468,7 +494,7 @@ namespace OneJS.Models {
             b.vertexCount = count;
             b.indexCount = indexCount;
             b.written = true;
-            if (seeThrough != b.seeThrough && !b.depthOnly && ModelMaterialGenerator.ModelShader != null) {
+            if (seeThrough != b.seeThrough && !b.depthOnly && b.cutout < 0 && ModelMaterialGenerator.ModelShader != null) {
                 ModelMaterialGenerator.SetSeeThrough(b.material, seeThrough);
                 b.seeThrough = seeThrough;
             }
@@ -877,6 +903,7 @@ namespace OneJS.Models {
             // The camera goes with the root below, so there is no screen to give it back to.
             StopSceneTexture(restoreCamera: false);
             StopSky();
+            StopWind();
             foreach (var a in _actors.Values) if (a.go != null) Kill(a.go);
             _actors.Clear();
             foreach (var m in _models.Values) Free(m);
