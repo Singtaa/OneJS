@@ -125,7 +125,7 @@ namespace OneJS.Models {
             public bool fog;
             public FogMode fogMode;
             public Color fogColor;
-            public float fogStart, fogEnd;
+            public float fogStart, fogEnd, fogDensity, fogHeightBase, fogThickness;
             public Light sun;
 
             public static Lighting Capture() => new Lighting {
@@ -133,7 +133,9 @@ namespace OneJS.Models {
                 ambient = RenderSettings.ambientLight, sky = RenderSettings.ambientSkyColor,
                 equator = RenderSettings.ambientEquatorColor, ground = RenderSettings.ambientGroundColor,
                 fog = RenderSettings.fog, fogMode = RenderSettings.fogMode, fogColor = RenderSettings.fogColor,
-                fogStart = RenderSettings.fogStartDistance, fogEnd = RenderSettings.fogEndDistance, sun = RenderSettings.sun,
+                fogStart = RenderSettings.fogStartDistance, fogEnd = RenderSettings.fogEndDistance,
+                fogDensity = RenderSettings.fogDensity, fogHeightBase = ModelFog.HeightBase, fogThickness = ModelFog.HeightThickness,
+                sun = RenderSettings.sun,
             };
 
             public void Restore() {
@@ -148,6 +150,9 @@ namespace OneJS.Models {
                 RenderSettings.fogColor = fogColor;
                 RenderSettings.fogStartDistance = fogStart;
                 RenderSettings.fogEndDistance = fogEnd;
+                RenderSettings.fogDensity = fogDensity;
+                ModelFog.HeightBase = fogHeightBase;
+                ModelFog.HeightThickness = fogThickness;
                 RenderSettings.sun = sun;
             }
         }
@@ -833,7 +838,10 @@ namespace OneJS.Models {
             RenderSettings.ambientProbe = HemisphereProbe(sky, ground, intensity);
         }
 
-        /// <summary>Linear fog from `near` to `far` in an sRGB colour, or none. Play mode only.</summary>
+        /// <summary>
+        /// Linear fog from `near` to `far` in an sRGB colour, or none. Play mode only. SetFogLaw
+        /// after it gives another law, or height.
+        /// </summary>
         public static void SetFog(bool enabled, float r, float g, float b, float near, float far) {
             if (!Playing) return;
             Save();
@@ -843,6 +851,35 @@ namespace OneJS.Models {
             RenderSettings.fogColor = new Color(r, g, b, 1);
             RenderSettings.fogStartDistance = near;
             RenderSettings.fogEndDistance = far;
+            ModelFog.HeightThickness = 0;
+        }
+
+        /// <summary>
+        /// The law of the fog SetFog turned on: "linear", its ramp from `near` to `far`; "exp" or
+        /// "exp2", `density` a metre along each pixel's ray from `near`, squared in exp2. With
+        /// <paramref name="thickness"/> above 0, exp and exp2 are height fog: `density` at
+        /// <paramref name="heightBase"/> metres up, falling by e every `thickness` metres above.
+        /// Play mode only, as SetFog is. Returns why it cannot, or "", and changes nothing on a refusal.
+        /// </summary>
+        public static string SetFogLaw(string mode, float density, float heightBase, float thickness) {
+            var law = mode switch {
+                "linear" => FogMode.Linear,
+                "exp" => FogMode.Exponential,
+                "exp2" => FogMode.ExponentialSquared,
+                _ => (FogMode)0,
+            };
+            if (law == 0) return $"mode is \"{mode}\": \"linear\", \"exp\" or \"exp2\"";
+            if (!(density >= 0) || float.IsInfinity(density)) return $"density is {density}: per metre, 0 or above";
+            if (!(thickness >= 0) || float.IsInfinity(thickness)) return $"height thickness is {thickness}: metres, above 0, or 0 for no height";
+            if (float.IsNaN(heightBase) || float.IsInfinity(heightBase)) return $"height base is {heightBase}: metres";
+            if (thickness > 0 && law == FogMode.Linear) return "height fog needs mode \"exp\" or \"exp2\": a linear ramp has no density to thin with height";
+            if (!Playing) return "";
+            Save();
+            RenderSettings.fogMode = law;
+            RenderSettings.fogDensity = density;
+            ModelFog.HeightBase = heightBase;
+            ModelFog.HeightThickness = thickness;
+            return "";
         }
 
         /// <summary>A point light at (x, y, z) in an sRGB colour, reaching `range` units. Returns its handle.</summary>

@@ -14,6 +14,8 @@
 - ModelBridge draws a gradient sky with a sun disc and stars
 - ModelBridge draws a mesh model as depth alone
 - A splat ground blurs its far repeats to their mean colour and varies its brightness across the world (`SetMeshSplatFar`)
+- Models and the sky fog without Unity's fog keywords, in linear, exp and exp2 alike
+- ModelBridge draws height fog, thick in valleys and thin over ridges and up the sky (`SetFogLaw`)
 - InputBridge says which pointer the last press came from
 - SLProgramBridge counts the page programs still compiling
 - A property two interfaces declare reads the get-only one, whatever order the assembly lists them in

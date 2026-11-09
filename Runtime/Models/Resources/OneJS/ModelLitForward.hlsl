@@ -15,6 +15,7 @@
 #define _ENVIRONMENTREFLECTIONS_OFF 1
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+#include "OneJSFog.hlsl"
 
 #ifdef MODEL_SPLAT
 // One splat layer: at the uvs, or with `perMetre` above 0 projected along each world axis at that
@@ -58,7 +59,7 @@ struct Varyings {
     half3 normalWS : TEXCOORD2;
     half4 tangentWS : TEXCOORD3;
     float3 positionOS : TEXCOORD4;
-    half4 fogAndVertexLight : TEXCOORD5;
+    half3 vertexLight : TEXCOORD5;
     // The uv on the bake's sheet in xy, and the copy's draw range (CopyRange) in zw.
     float4 lightmapUVRange : TEXCOORD7;
     #ifdef _VERTEX_COLOR
@@ -90,9 +91,8 @@ Varyings Vert(Attributes v) {
     #ifdef MODEL_SPLAT
         o.weights = v.weights;
     #endif
-    o.fogAndVertexLight.x = ComputeFogFactor(o.positionCS.z);
     #ifdef _ADDITIONAL_LIGHTS_VERTEX
-        o.fogAndVertexLight.yzw = VertexLighting(positionWS, n.normalWS);
+        o.vertexLight = VertexLighting(positionWS, n.normalWS);
     #endif
     return o;
 }
@@ -130,10 +130,11 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
 
     InputData d = (InputData)0;
     d.positionWS = i.positionWS;
-    d.fogCoord = InitializeInputDataFog(float4(i.positionWS, 1.0), i.fogAndVertexLight.x);
+    // OneJS's own fog (OneJSFog.hlsl), per pixel.
+    half fog = OneJSFogAmount(i.positionWS, _WorldSpaceCameraPos, -TransformWorldToView(i.positionWS).z, _ProjectionParams.y);
 
     if (_Unlit > 0.5) {
-        half3 flat = MixFog(base.rgb + emission, d.fogCoord);
+        half3 flat = lerp(base.rgb + emission, (half3)_OneJSFogColor.rgb, fog);
         return half4(flat, OutputAlpha(base.a, IsSurfaceTypeTransparent(_Surface)));
     }
 
@@ -167,7 +168,7 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
         d.shadowCoord = receives ? TransformWorldToShadowCoord(i.positionWS) : float4(0, 0, UNITY_RAW_FAR_CLIP_VALUE, 0);
     #endif
     #ifdef _ADDITIONAL_LIGHTS_VERTEX
-        d.vertexLighting = i.fogAndVertexLight.yzw;
+        d.vertexLighting = i.vertexLight;
     #endif
     d.bakedGI = MODEL_ACTOR_LIGHTMAP_ST.x > 0
         ? BakedLight(i.lightmapUVRange.xy)
@@ -176,7 +177,7 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     d.shadowMask = half4(1, 1, 1, 1);
 
     half4 color = UniversalFragmentPBR(d, s);
-    color.rgb = MixFog(color.rgb, d.fogCoord);
+    color.rgb = lerp(color.rgb, (half3)_OneJSFogColor.rgb, fog);
     color.a = OutputAlpha(color.a, IsSurfaceTypeTransparent(_Surface));
     return color;
 }

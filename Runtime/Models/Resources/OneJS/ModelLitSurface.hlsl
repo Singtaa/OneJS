@@ -1,7 +1,9 @@
 // ModelLit's and GroundLit's built-in pipeline SubShader: Unity's Standard lighting through a
 // surface shader, which brings its shadows (cast and received) and forward lights with it. The
 // shader file declares the surface pragma; this is its code. Under MODEL_SPLAT (GroundLit) the
-// albedo is the splat's layers mixed by the vertex's weights, as in ModelLitForward.hlsl.
+// albedo is the splat's layers mixed by the vertex's weights, as in ModelLitForward.hlsl. Fogged by
+// OneJS's own fog (OneJSFog.hlsl) in its final colour, as URP's pass is, so the surface pragma
+// says nofog.
 #ifndef ONEJS_MODEL_LIT_SURFACE_INCLUDED
 #define ONEJS_MODEL_LIT_SURFACE_INCLUDED
 
@@ -9,6 +11,7 @@
 #include "ModelLightmap.hlsl"
 #include "ModelWind.hlsl"
 #include "ModelRange.hlsl"
+#include "OneJSFog.hlsl"
 #ifdef MODEL_SPLAT
     #include "ModelSplat.hlsl"
     #ifndef _VERTEX_COLOR
@@ -165,6 +168,17 @@ void Surf(Input i, inout SurfaceOutputStandard o) {
     if (UNITY_ACCESS_INSTANCED_PROP(ModelActorLight, _ActorLightmapST).x > 0) {
         o.Emission += o.Albedo * (1.0 - o.Metallic) * o.Occlusion * UNITY_SAMPLE_TEX2DARRAY(_OjLightmap, ModelLightmapPage(i.lightmapUVRange.xy)).rgb;
     }
+}
+
+// The fog, over the lit colour. A forward light's pass adds its light into fog that hides it
+// as much, so it fades to black instead, as Unity's own fog does.
+void Fogged(Input i, SurfaceOutputStandard o, inout fixed4 color) {
+    float fog = OneJSFogAmount(i.worldPos, _WorldSpaceCameraPos, -UnityWorldToViewPos(i.worldPos).z, _ProjectionParams.y);
+    #ifdef UNITY_PASS_FORWARDADD
+        color.rgb *= 1 - fog;
+    #else
+        color.rgb = lerp(color.rgb, _OneJSFogColor.rgb, fog);
+    #endif
 }
 
 #endif

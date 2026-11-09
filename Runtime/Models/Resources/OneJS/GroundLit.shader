@@ -73,7 +73,6 @@ Shader "OneJS/GroundLit" {
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
             #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
-            #pragma multi_compile_fog
             #pragma multi_compile_instancing
             // Each instance's renderer values, for MODEL_ACTOR_SHADOWLESS (ModelLitURP.hlsl).
             #pragma instancing_options renderinglayer
@@ -146,7 +145,7 @@ Shader "OneJS/GroundLit" {
         Cull [_Cull]
 
         CGPROGRAM
-        #pragma surface Surf Standard fullforwardshadows addshadow keepalpha vertex:Vert
+        #pragma surface Surf Standard fullforwardshadows addshadow keepalpha vertex:Vert finalcolor:Fogged nofog
         #pragma target 3.5
         #pragma require 2darray
         #define MODEL_SPLAT 1

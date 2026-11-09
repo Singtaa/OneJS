@@ -17,7 +17,6 @@ namespace OneJS.Models {
         static readonly int SunDirId = Shader.PropertyToID("_SunDir");
         static readonly int SunShapeId = Shader.PropertyToID("_SunShape");
         static readonly int StarsId = Shader.PropertyToID("_Stars");
-        static readonly int FogColorId = Shader.PropertyToID("_FogColor");
 
         /// <summary>
         /// A sky behind the scene (onejs-play's `scene.sky`), or with <paramref name="on"/> false
@@ -25,7 +24,8 @@ namespace OneJS.Models {
         /// and glow in degrees across and out from its centre (0 draws none), where the scene's
         /// sun shines from and in its colour; stars from 0 to 1. Drawn as the skybox of the
         /// scene's camera alone, so the open scene's skybox and lighting stay as they are, and
-        /// while the scene has fog the horizon fades into the fog's colour.
+        /// while the scene has fog the horizon fades into the fog's colour: with height fog, the
+        /// haze along each ray, thinning as it climbs (ModelFog).
         /// </summary>
         public static void SetSky(bool on, float topR, float topG, float topB, float horizonR, float horizonG, float horizonB,
                                   float bottomR, float bottomG, float bottomB, float sunSize, float sunGlow, float stars) {
@@ -91,7 +91,8 @@ namespace OneJS.Models {
             if (camera == _camera) UpdateSky();
         }
 
-        // The sun and the fog as they are this frame, so a sun the cart moves takes its disc along.
+        // The sun as it is this frame, so a sun the cart moves takes its disc along. The fog is
+        // ModelFog's globals, which it sets each frame for every model and the sky alike.
         static void UpdateSky() {
             if (_sky == null) return;
             var sun = Lit(_sun) ?? Lit(RenderSettings.sun) ?? Lit(_sceneSun);
@@ -102,8 +103,6 @@ namespace OneJS.Models {
             } else {
                 _sky.SetVector(SunDirId, new Vector4(0, 1, 0, 0));
             }
-            var fog = RenderSettings.fogColor;
-            _sky.SetColor(FogColorId, new Color(fog.r, fog.g, fog.b, RenderSettings.fog ? 1 : 0));
         }
 
         static Light Lit(Light light) => light != null && light.isActiveAndEnabled && light.type == LightType.Directional ? light : null;

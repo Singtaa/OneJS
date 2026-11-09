@@ -3,10 +3,11 @@
 // lighting are never touched.
 //
 // A gradient from the horizon up to the top colour and down to the bottom colour, a sun disc and
-// glow where the scene's sun shines from, in its colour, a field of stars, and, while the scene has
-// fog, a band at the horizon that fades into the fog's colour so the ground and the sky meet.
-// The bridge sets the sun and the fog before the camera renders each frame, from the light and
-// RenderSettings, so moving the sun moves the disc.
+// glow where the scene's sun shines from, in its colour, a field of stars, and the scene's fog
+// (OneJSFog.hlsl), so the ground and the sky meet: with height fog the haze along each ray to
+// infinity, thinning as the ray climbs, and with any other fog a band at the horizon. The bridge
+// sets the sun before the camera renders each frame, from the light, so moving the sun moves the
+// disc; ModelFog sets the fog's globals each frame.
 //
 // No keywords, so a build cannot strip a variant the sky needs. Written against UnityCG, which
 // both URP and the built-in pipeline draw a skybox with, as Unity's own skybox shaders do.
@@ -21,8 +22,6 @@ Shader "OneJS/Sky" {
         // x: the disc's radius, y: the glow's, both in radians. 0 draws none.
         _SunShape ("Sun Shape", Vector) = (0.0175, 0.21, 0, 0)
         _Stars ("Stars", Range(0, 1)) = 0
-        // rgb: the fog's colour. a: 1 while the scene has fog.
-        _FogColor ("Fog Color", Color) = (0, 0, 0, 0)
     }
     SubShader {
         // The models assembly needs glTFast, so without it this compiles to nothing, as ModelLit does.
@@ -38,8 +37,9 @@ Shader "OneJS/Sky" {
             #pragma vertex vert
             #pragma fragment frag
             #include "UnityCG.cginc"
+            #include "OneJSFog.hlsl"
 
-            half4 _Top, _Horizon, _Bottom, _SunColor, _FogColor;
+            half4 _Top, _Horizon, _Bottom, _SunColor;
             float4 _SunDir, _SunShape;
             half _Stars;
 
@@ -99,10 +99,7 @@ Shader "OneJS/Sky" {
                     col = lerp(col, _SunColor.rgb, saturate(max(disc, glow)));
                 }
 
-                if (_FogColor.a > 0) {
-                    half fog = 1.0 - smoothstep(0.0, 0.25, abs(y));
-                    col = lerp(col, _FogColor.rgb, fog);
-                }
+                col = lerp(col, (half3)_OneJSFogColor.rgb, (half)OneJSFogSky(d, _WorldSpaceCameraPos));
                 return half4(col, 1);
             }
             ENDCG
