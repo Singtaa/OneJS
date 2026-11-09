@@ -15,7 +15,6 @@
 #define _ENVIRONMENTREFLECTIONS_OFF 1
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-#include "ModelLighting.hlsl"
 
 #ifdef MODEL_SPLAT
 // One splat layer: at the uvs, or with `perMetre` above 0 projected along each world axis at that
@@ -52,8 +51,7 @@ struct Attributes {
 
 struct Varyings {
     float4 positionCS : SV_POSITION;
-    // The uv tiled by the base map's scale in xy, and as the mesh gave it in zw, which the shade is read at.
-    float4 uv : TEXCOORD0;
+    float2 uv : TEXCOORD0;
     float3 positionWS : TEXCOORD1;
     half3 normalWS : TEXCOORD2;
     half4 tangentWS : TEXCOORD3;
@@ -81,7 +79,7 @@ Varyings Vert(Attributes v) {
     o.positionWS = positionWS;
     o.normalWS = n.normalWS;
     o.tangentWS = half4(n.tangentWS, v.tangentOS.w * GetOddNegativeScale());
-    o.uv = float4(TRANSFORM_TEX(v.uv, _BaseMap), v.uv);
+    o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
     o.lightmapUVRange = float4(ModelLightmapUV(v.lightmapUV, MODEL_ACTOR_LIGHTMAP_ST), range);
     o.positionOS = v.positionOS.xyz;
     #ifdef _VERTEX_COLOR
@@ -103,14 +101,14 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     #ifdef MODEL_SPLAT
         float3 planes = SplatPlanes(i.normalWS);
         half3 mixed = SplatMix(
-            SplatLayer(TEXTURE2D_ARGS(_SplatLayer0, sampler_SplatLayer0), i.uv.xy, _SplatTriplanar.x, i.positionWS, planes),
-            SplatLayer(TEXTURE2D_ARGS(_SplatLayer1, sampler_SplatLayer1), i.uv.xy, _SplatTriplanar.y, i.positionWS, planes),
-            SplatLayer(TEXTURE2D_ARGS(_SplatLayer2, sampler_SplatLayer2), i.uv.xy, _SplatTriplanar.z, i.positionWS, planes),
-            SplatLayer(TEXTURE2D_ARGS(_SplatLayer3, sampler_SplatLayer3), i.uv.xy, _SplatTriplanar.w, i.positionWS, planes),
+            SplatLayer(TEXTURE2D_ARGS(_SplatLayer0, sampler_SplatLayer0), i.uv, _SplatTriplanar.x, i.positionWS, planes),
+            SplatLayer(TEXTURE2D_ARGS(_SplatLayer1, sampler_SplatLayer1), i.uv, _SplatTriplanar.y, i.positionWS, planes),
+            SplatLayer(TEXTURE2D_ARGS(_SplatLayer2, sampler_SplatLayer2), i.uv, _SplatTriplanar.z, i.positionWS, planes),
+            SplatLayer(TEXTURE2D_ARGS(_SplatLayer3, sampler_SplatLayer3), i.uv, _SplatTriplanar.w, i.positionWS, planes),
             i.weights, _HeightBlend);
         half4 base = half4(mixed, 1) * _BaseColor;
     #else
-        half4 base = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv.xy) * _BaseColor;
+        half4 base = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv) * _BaseColor;
     #endif
     #ifdef _VERTEX_COLOR
         base *= i.color;
@@ -120,7 +118,7 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     #ifdef MODEL_SPLAT
         half3 emission = ModelEdge(cut, _DissolveEdge.rgb);
     #else
-        half3 emission = SAMPLE_TEXTURE2D(_EmissionMap, sampler_EmissionMap, i.uv.xy).rgb * _EmissionColor.rgb
+        half3 emission = SAMPLE_TEXTURE2D(_EmissionMap, sampler_EmissionMap, i.uv).rgb * _EmissionColor.rgb
             + ModelEdge(cut, _DissolveEdge.rgb);
     #endif
 
@@ -147,19 +145,19 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
         s.normalTS = half3(0, 0, 1);
         d.normalWS = NormalizeNormalPerPixel(normalWS);
     #else
-        half4 mr = SAMPLE_TEXTURE2D(_MetallicRoughnessMap, sampler_MetallicRoughnessMap, i.uv.xy);
+        half4 mr = SAMPLE_TEXTURE2D(_MetallicRoughnessMap, sampler_MetallicRoughnessMap, i.uv);
         s.metallic = mr.b * _Metallic;
         // glTF roughness is perceptual roughness, which is what URP's smoothness inverts.
         s.smoothness = 1.0 - mr.g * _Roughness;
-        s.normalTS = UnpackNormalScale(SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap, i.uv.xy), _NormalScale);
-        s.occlusion = lerp(1.0, SAMPLE_TEXTURE2D(_OcclusionMap, sampler_OcclusionMap, i.uv.xy).r, _OcclusionStrength);
+        s.normalTS = UnpackNormalScale(SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap, i.uv), _NormalScale);
+        s.occlusion = lerp(1.0, SAMPLE_TEXTURE2D(_OcclusionMap, sampler_OcclusionMap, i.uv).r, _OcclusionStrength);
         float3 bitangent = i.tangentWS.w * cross(normalWS, i.tangentWS.xyz);
         d.normalWS = NormalizeNormalPerPixel(TransformTangentToWorld(s.normalTS, half3x3(i.tangentWS.xyz, bitangent, normalWS)));
     #endif
     d.viewDirectionWS = GetWorldSpaceNormalizeViewDir(i.positionWS);
     #if defined(MAIN_LIGHT_CALCULATE_SHADOWS)
         // A shadow coordinate past the far plane reads as unshadowed, on either depth convention.
-        bool receives = _ReceiveShadows > 0.5 && MODEL_ACTOR_SHADOWLESS < 0.5;
+        bool receives = _ReceiveShadows > 0.5 && MODEL_ACTOR_SHADOWLESS == 0;
         d.shadowCoord = receives ? TransformWorldToShadowCoord(i.positionWS) : float4(0, 0, UNITY_RAW_FAR_CLIP_VALUE, 0);
     #endif
     #ifdef _ADDITIONAL_LIGHTS_VERTEX
@@ -171,7 +169,7 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     d.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(i.positionCS);
     d.shadowMask = half4(1, 1, 1, 1);
 
-    half4 color = ModelFragmentPBR(d, s, SunlitByShade(i.uv.zw));
+    half4 color = UniversalFragmentPBR(d, s);
     color.rgb = MixFog(color.rgb, d.fogCoord);
     color.a = OutputAlpha(color.a, IsSurfaceTypeTransparent(_Surface));
     return color;

@@ -112,7 +112,7 @@ namespace OneJS.Tests.Models {
 
             ModelBridge.SetDissolve(fading, 0.4f);
             Assert.That(Of(plain).Any(r => r.HasPropertyBlock()), Is.False, "a plain actor");
-            Assert.That(Of(shadowless).All(r => r.HasPropertyBlock()), Is.True, "an actor that keeps no shadow on itself");
+            Assert.That(Of(shadowless).Any(r => r.HasPropertyBlock()), Is.False, "an actor that keeps no shadow on itself: its renderer's user value, so it stays in the SRP Batcher");
             foreach (var r in Of(fading)) {
                 var block = new MaterialPropertyBlock();
                 r.GetPropertyBlock(block);
@@ -424,13 +424,14 @@ namespace OneJS.Tests.Models {
         static T[] InScene<T>() where T : Component =>
             Resources.FindObjectsOfTypeAll<T>().Where(c => c.gameObject.scene == SceneManager.GetActiveScene()).ToArray();
 
-        // What ModelLit reads: an actor with no property block receives shadows.
-        static float ReceiveShadows(Renderer r) {
-            if (!r.HasPropertyBlock()) return 1f;
-            var block = new MaterialPropertyBlock();
-            r.GetPropertyBlock(block);
-            return 1f - block.GetFloat("_ActorShadowless");
-        }
+        // What ModelLit reads in URP: bit 0 of the renderer's user value, set when it keeps no shadow on itself.
+        static float ReceiveShadows(Renderer r) => (UserValue(r) & 1u) == 0 ? 1f : 0f;
+
+        static uint UserValue(Renderer r) => r switch {
+            MeshRenderer m => m.GetShaderUserValue(),
+            SkinnedMeshRenderer s => s.GetShaderUserValue(),
+            _ => 0u,
+        };
 
         static void AssertColor(Color got, Color want) {
             Assert.That(got.r, Is.EqualTo(want.r).Within(2e-3), "r");

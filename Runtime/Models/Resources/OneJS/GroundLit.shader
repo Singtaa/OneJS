@@ -37,8 +37,6 @@ Shader "OneJS/GroundLit" {
         // A mesh model's sway (ModelWind.hlsl) and two-sided lighting: see ModelLitURP.hlsl.
         [HideInInspector] _Sway ("Sway", Float) = 0
         [HideInInspector] _KeepBackNormal ("Keep Back Normal", Float) = 0
-        // A mesh model's grid of shade (ModelBridge.Shade.cs, ModelLighting.hlsl): black is none.
-        [NoScaleOffset] _ShadeMap ("Shade", 2D) = "black" {}
     }
 
     SubShader {
@@ -76,6 +74,8 @@ Shader "OneJS/GroundLit" {
             #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
             #pragma multi_compile_fog
             #pragma multi_compile_instancing
+            // Each instance's renderer values, for MODEL_ACTOR_SHADOWLESS (ModelLitURP.hlsl).
+            #pragma instancing_options renderinglayer
             #include "ModelLitForward.hlsl"
             ENDHLSL
         }

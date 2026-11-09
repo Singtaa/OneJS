@@ -12,8 +12,6 @@
 #include "ModelRange.hlsl"
 
 TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
-// A mesh model's grid of shade, read by ModelLighting.hlsl; black, so none, on every other model.
-TEXTURE2D(_ShadeMap); SAMPLER(sampler_ShadeMap);
 #ifdef MODEL_SPLAT
     TEXTURE2D(_SplatLayer0); SAMPLER(sampler_SplatLayer0);
     TEXTURE2D(_SplatLayer1); SAMPLER(sampler_SplatLayer1);
@@ -48,8 +46,6 @@ CBUFFER_START(UnityPerMaterial)
     // 1 lights a double-sided face's back with its normal as given (a mesh model's `twoSided`, for
     // foliage cards whose normals bend out from a crown), 0 flips it, as a glTF file's back faces are.
     half _KeepBackNormal;
-    // The shade grid's 1 / size in xy, which places its samples on the grid's corners.
-    float4 _ShadeMap_TexelSize;
     #ifdef MODEL_SPLAT
         half _HeightBlend;
         // Each layer's repeats a metre where it is projected from the sides in world space
@@ -65,24 +61,26 @@ CBUFFER_END
 #if defined(UNITY_INSTANCING_ENABLED)
     UNITY_INSTANCING_BUFFER_START(ModelActor)
         UNITY_DEFINE_INSTANCED_PROP(float, _ActorDissolve)
-        UNITY_DEFINE_INSTANCED_PROP(float, _ActorShadowless)
         UNITY_DEFINE_INSTANCED_PROP(float4, _ActorLightmapST)
         UNITY_DEFINE_INSTANCED_PROP(float4, _ActorTint)
     UNITY_INSTANCING_BUFFER_END(ModelActor)
     #define MODEL_ACTOR_DISSOLVE UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorDissolve)
-    #define MODEL_ACTOR_SHADOWLESS UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorShadowless)
     #define MODEL_ACTOR_LIGHTMAP_ST UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorLightmapST)
     #define MODEL_ACTOR_TINT UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorTint)
 #else
     float _ActorDissolve;
-    float _ActorShadowless;
     float4 _ActorLightmapST;
     float4 _ActorTint;
     #define MODEL_ACTOR_DISSOLVE _ActorDissolve
-    #define MODEL_ACTOR_SHADOWLESS _ActorShadowless
     #define MODEL_ACTOR_LIGHTMAP_ST _ActorLightmapST
     #define MODEL_ACTOR_TINT _ActorTint
 #endif
+
+// Whether an actor keeps no shadow on itself: bit 0 of its renderer's user value
+// (ModelBridge.Apply), in UnityPerDraw where the SRP Batcher draws it and in the instanced
+// draw's arrays (`instancing_options renderinglayer` in the forward pass) where it instances.
+// Unlike a property block, it keeps the actor in the SRP Batcher. A scattered copy reads 0.
+#define MODEL_ACTOR_SHADOWLESS (unity_RendererUserValue & 1u)
 
 // A scattered copy's tint (linear, its alpha 1), multiplied into its colour; unset, it reads 0 and
 // changes nothing.

@@ -88,7 +88,6 @@ namespace OneJS.Models {
         static void ApplyLook(BuiltMesh b) {
             var material = b.material;
             if (material == null || ModelMaterialGenerator.ModelShader == null) return;
-            ApplyShade(b);
             if (b.cutout >= 0) {
                 if (b.seeThrough) {
                     ModelMaterialGenerator.SetSeeThrough(material, false);
