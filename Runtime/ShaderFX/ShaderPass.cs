@@ -11,8 +11,8 @@ namespace OneJS.ShaderFX {
     /// anything that reads it, so a reader sees this frame's picture; it takes
     /// the size of the picture it ends up in, times its scale, unless given
     /// one; and it keeps its picture raw,
-    /// 16 bits a channel in linear colour, so values over 1 survive to the next
-    /// pass. Nothing reading it means nothing drawn.
+    /// 16 bits a channel in linear colour (32 when <see cref="Bits"/> says), so
+    /// values over 1 survive to the next pass. Nothing reading it means nothing drawn.
     ///
     /// Inside a <see cref="ShaderEffectElement"/>, it is what the element shows:
     /// the element sizes it from its layout and gives it a target UI Toolkit
@@ -74,7 +74,9 @@ namespace OneJS.ShaderFX {
         float _step;               // the seconds from the frame before to this one
         float _unstepped;          // time moved since the last frame drawn, which the next one steps by
         bool _cleared = true;      // the next frame is frame 0
+        int _bits = 16;            // a channel's bits in the target and the previous frame: 16 or 32
         static bool s_WarnedRawFormat;
+        static bool s_WarnedFloatFormat;
 
         // Passes. What this reads, by the program's texture
         // slot, and what reads this, for its size. Never a cycle: SetProgramPass
@@ -131,8 +133,8 @@ namespace OneJS.ShaderFX {
 
         /// <summary>
         /// A new target to draw into. A pass's is raw, like the previous frame:
-        /// 16 bits a channel, linear, so what the next pass reads is what this
-        /// program wrote, values over 1 included.
+        /// <see cref="Bits"/> a channel, linear, so what the next pass reads is
+        /// what this program wrote, values over 1 included.
         /// </summary>
         protected virtual RenderTexture CreateTarget(int w, int h) =>
             CreateRaw(w, h, $"OneJS_ShaderPass_{w}x{h}");
@@ -422,6 +424,24 @@ namespace OneJS.ShaderFX {
             if (tex != null) _textures[name] = tex;
         }
 
+        /// <summary>
+        /// Bits a channel a pass and its previous frame are kept at: 16, half
+        /// floats, the default; or 32, floats, for a value a half cannot hold,
+        /// such as a height that is stretched or lit. A 32-bit target is not
+        /// filtered, since many WebGL2 and WebGPU devices cannot filter floats,
+        /// so a program reads it texel by texel. Anything else is 16. A change
+        /// is a new target, cleared as a new size is.
+        /// </summary>
+        public int Bits {
+            get => _bits;
+            set {
+                int bits = value == 32 ? 32 : 16;
+                if (bits == _bits) return;
+                _bits = bits;
+                ReleaseTarget();
+            }
+        }
+
         /// <summary>Render resolution. Pass 0,0 to follow the layout, or for a pass, what reads it.</summary>
         public void SetResolution(int w, int h) {
             _resW = w;
@@ -664,11 +684,19 @@ namespace OneJS.ShaderFX {
         }
 
         /// <summary>
-        /// A raw texture: 16 bits a channel, linear, bilinear and clamped, as a
-        /// program's previous frame and a pass are kept.
+        /// A raw texture, as a program's previous frame and a pass are kept:
+        /// linear and clamped, at <see cref="Bits"/> a channel, bilinear at 16
+        /// and point at 32.
         /// </summary>
         RenderTexture CreateRaw(int w, int h, string name) {
-            var format = RenderTextureFormat.ARGBHalf;
+            var format = _bits == 32 ? RenderTextureFormat.ARGBFloat : RenderTextureFormat.ARGBHalf;
+            if (format == RenderTextureFormat.ARGBFloat && !SystemInfo.SupportsRenderTextureFormat(format)) {
+                format = RenderTextureFormat.ARGBHalf;
+                if (!s_WarnedFloatFormat) {
+                    s_WarnedFloatFormat = true;
+                    Debug.LogWarning($"[OneJS sl] this device cannot render 32 bit float targets, so {Describe()} keeps 16 bits a channel.");
+                }
+            }
             if (!SystemInfo.SupportsRenderTextureFormat(format)) {
                 // Every desktop and WebGPU device renders half floats, and a
                 // WebGL2 one needs EXT_color_buffer_float. Without it a slow fade
@@ -684,7 +712,7 @@ namespace OneJS.ShaderFX {
                 name = name,
                 hideFlags = HideFlags.HideAndDontSave,
                 wrapMode = TextureWrapMode.Clamp,
-                filterMode = FilterMode.Bilinear,
+                filterMode = format == RenderTextureFormat.ARGBFloat ? FilterMode.Point : FilterMode.Bilinear,
                 // Read texel for texel, by the program and by the display
                 // copy, so never anisotropic. The default 1 becomes 9 under
                 // Quality Settings' Forced On, and a renderer whose

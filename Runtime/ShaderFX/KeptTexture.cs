@@ -53,6 +53,24 @@ namespace OneJS.ShaderFX {
             return System.Convert.ToBase64String(bytes);
         }
 
+        /// <summary>
+        /// A finished read's texels as stored, unrounded: RGBA float32, little-endian,
+        /// row 0 at the top, in base64. For a 32-bit picture, which 8 bits would round.
+        /// </summary>
+        public static string StoredFloats(OneJS.Lighting.TextureRead read) {
+            var texels = read.Texels;
+            int w = read.Width, h = read.Height, row = w * 4;
+            var bytes = new byte[row * h * 4];
+            for (int y = 0; y < h; y++) {
+                // Unity's row 0 is the bottom.
+                System.Buffer.BlockCopy(texels, (h - 1 - y) * row * 4, bytes, y * row * 4, row * 4);
+            }
+            if (!System.BitConverter.IsLittleEndian) {
+                for (int i = 0; i < bytes.Length; i += 4) System.Array.Reverse(bytes, i, 4);
+            }
+            return System.Convert.ToBase64String(bytes);
+        }
+
         /// <summary>Frees a kept texture.</summary>
         public static void Release(RenderTexture texture) {
             if (texture == null) return;

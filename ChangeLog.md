@@ -9,6 +9,7 @@
 - ModelBridge scatters copies of a model as instanced chunks
 - A shader effect draws at a `PixelRatio`, pixels per layout point
 - A picture sized by its layout can pass 2048 a side, up to the GPU's limit, and keeps its shape
+- A pass can keep 32 bits a channel (`Bits`), and a kept read hands back floats
 - ModelBridge draws the scene into a texture a program reads
 - ModelBridge draws a gradient sky with a sun disc and stars
 - ModelBridge draws a mesh model as depth alone
