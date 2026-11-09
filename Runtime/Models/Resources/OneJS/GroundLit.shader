@@ -34,6 +34,9 @@ Shader "OneJS/GroundLit" {
         [HideInInspector] _DstBlend ("Dst Blend", Float) = 0
         [HideInInspector] _ZWrite ("ZWrite", Float) = 1
         [HideInInspector] _ColorMask ("Color Mask", Float) = 15
+        // A mesh model's sway (ModelWind.hlsl) and two-sided lighting: see ModelLitURP.hlsl.
+        [HideInInspector] _Sway ("Sway", Float) = 0
+        [HideInInspector] _KeepBackNormal ("Keep Back Normal", Float) = 0
     }
 
     SubShader {

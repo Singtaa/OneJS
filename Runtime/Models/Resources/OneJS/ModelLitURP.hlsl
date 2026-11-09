@@ -8,6 +8,8 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 #include "ModelDissolve.hlsl"
 #include "ModelLightmap.hlsl"
+#include "ModelWind.hlsl"
+#include "ModelRange.hlsl"
 
 TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
 #ifdef MODEL_SPLAT
@@ -38,6 +40,12 @@ CBUFFER_START(UnityPerMaterial)
     half4 _DissolveEdge;
     half _ReceiveShadows;
     half _Surface;
+    // 1 where a mesh model's vertices carry how far each may sway (TEXCOORD3), 0 elsewhere, so a
+    // model without them never reads a stream it does not have.
+    half _Sway;
+    // 1 lights a double-sided face's back with its normal as given (a mesh model's `twoSided`, for
+    // foliage cards whose normals bend out from a crown), 0 flips it, as a glTF file's back faces are.
+    half _KeepBackNormal;
     #ifdef MODEL_SPLAT
         half _HeightBlend;
         // Each layer's repeats a metre where it is projected from the sides in world space
@@ -55,18 +63,50 @@ CBUFFER_END
         UNITY_DEFINE_INSTANCED_PROP(float, _ActorDissolve)
         UNITY_DEFINE_INSTANCED_PROP(float, _ActorShadowless)
         UNITY_DEFINE_INSTANCED_PROP(float4, _ActorLightmapST)
+        UNITY_DEFINE_INSTANCED_PROP(float4, _ActorTint)
     UNITY_INSTANCING_BUFFER_END(ModelActor)
     #define MODEL_ACTOR_DISSOLVE UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorDissolve)
     #define MODEL_ACTOR_SHADOWLESS UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorShadowless)
     #define MODEL_ACTOR_LIGHTMAP_ST UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorLightmapST)
+    #define MODEL_ACTOR_TINT UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorTint)
 #else
     float _ActorDissolve;
     float _ActorShadowless;
     float4 _ActorLightmapST;
+    float4 _ActorTint;
     #define MODEL_ACTOR_DISSOLVE _ActorDissolve
     #define MODEL_ACTOR_SHADOWLESS _ActorShadowless
     #define MODEL_ACTOR_LIGHTMAP_ST _ActorLightmapST
+    #define MODEL_ACTOR_TINT _ActorTint
 #endif
+
+// A scattered copy's tint (linear, its alpha 1), multiplied into its colour; unset, it reads 0 and
+// changes nothing.
+half3 Tinted(half3 color) {
+    float4 tint = MODEL_ACTOR_TINT;
+    return color * lerp(float3(1, 1, 1), tint.rgb, tint.a);
+}
+
+// Where a vertex lands in the world, swayed by the wind when its model sways. A branch on a
+// material value, so every vertex of a draw takes the same way.
+float3 SwayedWorld(float3 positionOS, float sway) {
+    float3 positionWS = TransformObjectToWorld(positionOS);
+    if (_Sway > 0.5) positionWS = ModelSwayed(positionWS, GetObjectToWorldMatrix(), sway);
+    return positionWS;
+}
+
+// The draw range of the copy being drawn (ModelRange.hlsl), from where its model stands.
+float2 CopyRange() {
+    float4x4 m = GetObjectToWorldMatrix();
+    return ModelRange(float3(m._m03, m._m13, m._m23));
+}
+
+// A vertex at `positionWS`, or its copy's origin when `keep` (ModelRangeKeep) is 0. After the
+// sway, which would otherwise spread a collapsed triangle out again.
+float3 KeptInRange(float3 positionWS, float keep) {
+    float4x4 m = GetObjectToWorldMatrix();
+    return lerp(float3(m._m03, m._m13, m._m23), positionWS, keep);
+}
 
 // The scene's baked light (ModelBridge.Light.cs): light arriving at a static surface, sky and
 // bounce without the sun's first hit, in the units SampleSH gives, a slice a page. An actor
@@ -86,8 +126,9 @@ float Dissolved() {
     return max(_Dissolve, MODEL_ACTOR_DISSOLVE);
 }
 
-float ClipAt(float3 positionOS, float2 uv) {
-    float alpha = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, uv).a * _BaseColor.a;
+// The lit pass's clip for a depth pass, by the base map's alpha times the colour's and `vertexAlpha`.
+float ClipAt(float3 positionOS, float2 uv, half vertexAlpha) {
+    float alpha = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, uv).a * _BaseColor.a * vertexAlpha;
     return ModelClip(positionOS, alpha, _AlphaClip, _Cutoff, Dissolved(), _DissolveScale);
 }
 

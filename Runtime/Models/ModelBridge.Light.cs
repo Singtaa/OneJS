@@ -188,8 +188,11 @@ namespace OneJS.Models {
             // A splat's weights (ModelBridge.Ground.cs), four a vertex.
             var uv2 = new List<Vector4>();
             source.GetUVs(2, uv2);
+            // A swaying mesh model's sway (ModelBridge.Look.cs), one a vertex.
+            var uv3 = new List<Vector2>();
+            source.GetUVs(3, uv3);
             bool hasNormals = normals.Length == count, hasTangents = tangents.Length == count, hasColors = colors.Length == count, hasUv0 = uv0.Count == count;
-            bool hasUv2 = uv2.Count == count;
+            bool hasUv2 = uv2.Count == count, hasUv3 = uv3.Count == count;
 
             var map = new Dictionary<uint, int>();
             var outPositions = new List<Vector3>();
@@ -199,6 +202,7 @@ namespace OneJS.Models {
             var outUv0 = new List<Vector2>();
             var outUv1 = new List<Vector2>();
             var outUv2 = new List<Vector4>();
+            var outUv3 = new List<Vector2>();
             var triangles = new int[source.subMeshCount][];
             for (int sub = 0; sub < source.subMeshCount; sub++) {
                 var n = (int)source.GetIndexCount(sub);
@@ -224,6 +228,7 @@ namespace OneJS.Models {
                         if (hasColors) outColors.Add(colors[v]);
                         if (hasUv0) outUv0.Add(uv0[v]);
                         if (hasUv2) outUv2.Add(uv2[v]);
+                        if (hasUv3) outUv3.Add(uv3[v]);
                         outUv1.Add(new Vector2(uv[o * 2], uv[o * 2 + 1]));
                     }
                     tris[k] = at;
@@ -240,6 +245,7 @@ namespace OneJS.Models {
             if (hasUv0) mesh.SetUVs(0, outUv0);
             mesh.SetUVs(1, outUv1);
             if (hasUv2) mesh.SetUVs(2, outUv2);
+            if (hasUv3) mesh.SetUVs(3, outUv3);
             mesh.subMeshCount = triangles.Length;
             for (int sub = 0; sub < triangles.Length; sub++) mesh.SetTriangles(triangles[sub], sub, false);
             mesh.bounds = source.bounds;
@@ -440,14 +446,16 @@ namespace OneJS.Models {
                 if (!_scatters.TryGetValue((int)copies[i], out var s)) return $"there is no scatter {(int)copies[i]}";
                 if (!_models.TryGetValue(s.model, out var m) || m.lit == null) return $"scatter {(int)copies[i]}'s model has no unwrap";
                 var copy = (int)copies[i + 1];
-                if (copy < 0 || copy >= s.data.Length / ScatterStride) return $"scatter {(int)copies[i]} has no copy {copy}";
+                if (copy < 0 || copy >= s.Count) return $"scatter {(int)copies[i]} has no copy {copy}";
                 var st = new Vector4(copies[i + 2], copies[i + 3], copies[i + 4], copies[i + 5]);
                 if (!_sheet.Holds(st)) return $"scatter {(int)copies[i]}'s copy {copy}'s rectangle {st} is past its {pages} pages";
                 if (scene != null) {
-                    var matrix = CopyMatrix(s.data, copy);
+                    // A copy's tint is left out: it is multiplied in as the copy draws, over its baked light, and
+                    // the light file's record does not carry it, so a bounce of it could go stale unseen.
+                    var matrix = CopyMatrix(s, copy);
                     foreach (var part in s.parts) scene.Add(part.filter.sharedMesh, matrix * part.local, part.materials, st);
                 }
-                s.atlas ??= new Vector4[s.data.Length / ScatterStride];
+                s.atlas ??= new Vector4[s.Count];
                 s.atlas[copy] = st;
             }
             return "";
@@ -617,6 +625,7 @@ namespace OneJS.Models {
                 if (!lit) continue;
                 chunk.light = new MaterialPropertyBlock();
                 chunk.light.SetVectorArray(ActorLightmapId, st);
+                Dress(s, chunk, chunk.light);
                 if (BuiltInPipeline) chunk.light.CopySHCoefficientArraysFrom(new SphericalHarmonicsL2[st.Length]);
             }
         }
