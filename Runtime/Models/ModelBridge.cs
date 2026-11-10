@@ -11,6 +11,8 @@ using Object = UnityEngine.Object;
 
 [assembly: InternalsVisibleTo("OneJS.Tests.Models")]
 [assembly: InternalsVisibleTo("OneJS.Tests.Models.Editor")]
+[assembly: InternalsVisibleTo("OneJS.Runtime.Models.URP")]
+[assembly: InternalsVisibleTo("OneJS.Tests.Models.URP")]
 
 namespace OneJS.Models {
     /// <summary>

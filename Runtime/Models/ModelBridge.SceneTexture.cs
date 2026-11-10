@@ -48,6 +48,13 @@ namespace OneJS.Models {
         }
 
         internal static int SceneReaders => _sceneReaders;
+
+        /// <summary>
+        /// The camera that only clears the screen while the scene draws into a texture, or null.
+        /// It draws nothing, so a pipeline's own assembly keeps it from doing more than clear
+        /// (UrpClearCamera).
+        /// </summary>
+        internal static Camera ClearCamera => _clear;
         internal static RenderTexture SceneTexture => _sceneTexture;
 
         static void StopSceneTexture(bool restoreCamera) {
