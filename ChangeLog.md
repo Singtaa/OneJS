@@ -20,7 +20,7 @@
 - Scattered copies upload a third of the instance data a draw
 - A scatter can stop casting or receiving shadows (`SetScatterShadows`) and be hidden without rebuilding (`SetScatterVisible`)
 - Glossy models reflect the sky once asked (`SetSkyReflect`)
-- A mesh model can let the sun wrap round it and show through it from behind, in a tint and at a power (`SetMeshLeafLight`)
+- A mesh model can let the sun wrap round it and show through it from behind, in a colour and a focus (`SetMeshLeafLight`)
 - A mesh model's faces can dither away as they turn edge on (`SetMeshEdgeFade`)
 - A mesh model can sway in layers: a bending trunk, swinging limbs and fluttering leaves, under gusts that cross the ground (`SetMeshSwayLayers`)
 - InputBridge says which pointer the last press came from
