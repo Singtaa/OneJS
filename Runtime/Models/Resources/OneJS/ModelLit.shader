@@ -83,6 +83,8 @@ Shader "OneJS/ModelLit" {
             #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
             #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
             #pragma multi_compile_instancing
+            // A scattered copy's arrays (ModelLitURP.hlsl); a build keeps it only instanced (ModelShaderStripper).
+            #pragma multi_compile_local _ _SCATTER
             // Each instance's renderer values, for MODEL_ACTOR_SHADOWLESS (ModelLitURP.hlsl).
             #pragma instancing_options renderinglayer
             // A mesh model's own colours (ModelBridge.CreateMesh). A glTF material never enables it, so a
@@ -106,6 +108,8 @@ Shader "OneJS/ModelLit" {
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_instancing
+            // A scattered copy's arrays (ModelLitURP.hlsl); a build keeps it only instanced (ModelShaderStripper).
+            #pragma multi_compile_local _ _SCATTER
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
             #pragma multi_compile_local _ _VERTEX_COLOR
             #define MODEL_PASS_SHADOW_CASTER
@@ -125,6 +129,8 @@ Shader "OneJS/ModelLit" {
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_instancing
+            // A scattered copy's arrays (ModelLitURP.hlsl); a build keeps it only instanced (ModelShaderStripper).
+            #pragma multi_compile_local _ _SCATTER
             // A mesh model's colours, whose alpha clips its depth as it clips its colour (ModelLitDepth.hlsl).
             #pragma multi_compile_local _ _VERTEX_COLOR
             #define MODEL_PASS_DEPTH_ONLY
@@ -143,6 +149,8 @@ Shader "OneJS/ModelLit" {
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_instancing
+            // A scattered copy's arrays (ModelLitURP.hlsl); a build keeps it only instanced (ModelShaderStripper).
+            #pragma multi_compile_local _ _SCATTER
             // A mesh model's colours, whose alpha clips its depth as it clips its colour (ModelLitDepth.hlsl).
             #pragma multi_compile_local _ _VERTEX_COLOR
             #define MODEL_PASS_DEPTH_NORMALS

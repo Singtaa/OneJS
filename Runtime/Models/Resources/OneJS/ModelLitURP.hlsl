@@ -5,6 +5,20 @@
 #ifndef ONEJS_MODEL_LIT_URP_INCLUDED
 #define ONEJS_MODEL_LIT_URP_INCLUDED
 
+// A scattered copy (_SCATTER, on the materials ModelBridge.Scatter draws with) leaves out of its
+// instanced draw every array it never reads, since Unity uploads each at its whole capacity on
+// every draw of every pass: the inverse matrix (a copy scales alike on every axis, so its normals
+// turn with its matrix), its own probe light (copies take the ambient, or their baked light), its
+// renderer's layer and user value (a copy always keeps its shadows) and its dissolve. These are the
+// defines `instancing_options assumeuniformscaling nolightprobe` and the lack of `renderinglayer`
+// give, made here because a pragma cannot depend on a keyword.
+#if defined(_SCATTER) && defined(INSTANCING_ON)
+    #define MODEL_SCATTERED 1
+    #define UNITY_ASSUME_UNIFORM_SCALING
+    #undef UNITY_INSTANCED_SH
+    #undef UNITY_INSTANCED_RENDERING_LAYER
+#endif
+
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 #include "ModelDissolve.hlsl"
 #include "ModelLightmap.hlsl"
@@ -63,11 +77,17 @@ CBUFFER_END
 // material instances, so the actors that do carry them still draw together.
 #if defined(UNITY_INSTANCING_ENABLED)
     UNITY_INSTANCING_BUFFER_START(ModelActor)
-        UNITY_DEFINE_INSTANCED_PROP(float, _ActorDissolve)
+        #ifndef MODEL_SCATTERED
+            UNITY_DEFINE_INSTANCED_PROP(float, _ActorDissolve)
+        #endif
         UNITY_DEFINE_INSTANCED_PROP(float4, _ActorLightmapST)
         UNITY_DEFINE_INSTANCED_PROP(float4, _ActorTint)
     UNITY_INSTANCING_BUFFER_END(ModelActor)
-    #define MODEL_ACTOR_DISSOLVE UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorDissolve)
+    #ifdef MODEL_SCATTERED
+        #define MODEL_ACTOR_DISSOLVE 0
+    #else
+        #define MODEL_ACTOR_DISSOLVE UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorDissolve)
+    #endif
     #define MODEL_ACTOR_LIGHTMAP_ST UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorLightmapST)
     #define MODEL_ACTOR_TINT UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorTint)
 #else
@@ -83,7 +103,12 @@ CBUFFER_END
 // (ModelBridge.Apply), in UnityPerDraw where the SRP Batcher draws it and in the instanced
 // draw's arrays (`instancing_options renderinglayer` in the forward pass) where it instances.
 // Unlike a property block, it keeps the actor in the SRP Batcher. A scattered copy reads 0.
-#define MODEL_ACTOR_SHADOWLESS (unity_RendererUserValue & 1u)
+// A scattered copy's is its scatter's (_ScatterShadowless, ModelRange.hlsl), whichever variant draws it.
+#ifdef MODEL_SCATTERED
+    #define MODEL_ACTOR_SHADOWLESS ((uint)_ScatterShadowless)
+#else
+    #define MODEL_ACTOR_SHADOWLESS ((unity_RendererUserValue & 1u) | (uint)_ScatterShadowless)
+#endif
 
 // A scattered copy's tint (linear, its alpha 1), multiplied into its colour; unset, it reads 0 and
 // changes nothing.

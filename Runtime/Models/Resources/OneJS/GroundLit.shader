@@ -74,6 +74,8 @@ Shader "OneJS/GroundLit" {
             #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
             #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
             #pragma multi_compile_instancing
+            // A scattered copy's arrays (ModelLitURP.hlsl); a build keeps it only instanced (ModelShaderStripper).
+            #pragma multi_compile_local _ _SCATTER
             // Each instance's renderer values, for MODEL_ACTOR_SHADOWLESS (ModelLitURP.hlsl).
             #pragma instancing_options renderinglayer
             #include "ModelLitForward.hlsl"
@@ -93,6 +95,8 @@ Shader "OneJS/GroundLit" {
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_instancing
+            // A scattered copy's arrays (ModelLitURP.hlsl); a build keeps it only instanced (ModelShaderStripper).
+            #pragma multi_compile_local _ _SCATTER
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
             #define MODEL_PASS_SHADOW_CASTER
             #include "ModelLitDepth.hlsl"
@@ -111,6 +115,8 @@ Shader "OneJS/GroundLit" {
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_instancing
+            // A scattered copy's arrays (ModelLitURP.hlsl); a build keeps it only instanced (ModelShaderStripper).
+            #pragma multi_compile_local _ _SCATTER
             #define MODEL_PASS_DEPTH_ONLY
             #include "ModelLitDepth.hlsl"
             ENDHLSL
@@ -127,6 +133,8 @@ Shader "OneJS/GroundLit" {
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_instancing
+            // A scattered copy's arrays (ModelLitURP.hlsl); a build keeps it only instanced (ModelShaderStripper).
+            #pragma multi_compile_local _ _SCATTER
             #define MODEL_PASS_DEPTH_NORMALS
             #include "ModelLitDepth.hlsl"
             ENDHLSL

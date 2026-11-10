@@ -96,5 +96,42 @@ namespace OneJS.Tests.Models {
                 Object.DestroyImmediate(slab);
             }
         }
+
+        [Test]
+        public void AScatterThatKeepsNoShadowOnItself_DrawsInTheSun_AndOneThatCastsNone_LeavesTheGroundLit() {
+            // The sun slants along +x, so a copy a metre up casts a metre over, on a ground that keeps its shadows.
+            ModelBridge.SetSun(true, 1, -1, 0.02f, 1, 1, 1, 1, true);
+            Sun().shadowStrength = 1;
+            int ground = Square(4.4f);
+            ModelBridge.Spawn(ground, 0, -0.01f, 0, 0, 1, false, true);
+            int caster = ModelBridge.Scatter(Square(0.8f), new float[] { -1, 1, 0, 0, 1 });
+            var picture = Render();
+            Assert.That(At(picture, 0, 0), Is.LessThan(0.6f * At(picture, 1.5f, 0)), $"a scattered copy casts: {At(picture, 0, 0)} against {At(picture, 1.5f, 0)} in the sun");
+            ModelBridge.SetScatterShadows(caster, false, true);
+            picture = Render();
+            Assert.That(At(picture, 0, 0), Is.EqualTo(At(picture, 1.5f, 0)).Within(0.02f * At(picture, 1.5f, 0)), "one that casts none leaves the ground lit");
+            ModelBridge.SetScatterShadows(caster, true, true);
+            Assert.That(At(Render(), 0, 0), Is.LessThan(0.6f * At(picture, 1.5f, 0)), "and casts again");
+
+            // The copy itself, under a slab: shaded, then lit once it keeps no shadow on itself.
+            ModelBridge.SetSun(true, 0.02f, -1, 0.02f, 1, 1, 1, 1, true);
+            ModelBridge.DestroyScatter(caster);
+            var slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            try {
+                slab.transform.position = new Vector3(0, 1, 0);
+                slab.transform.localScale = new Vector3(5, 0.1f, 1f);
+                slab.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.ShadowsOnly;
+                int square = Square(1.4f);
+                int shaded = ModelBridge.Scatter(square, new float[] { 1.45f, 0.01f, 0, 0, 1 });
+                picture = Render();
+                Assert.That(At(picture, 1.45f, 0), Is.LessThan(0.6f * At(picture, 1.45f, -0.6f)), $"under the slab, shaded: {At(picture, 1.45f, 0)} against {At(picture, 1.45f, -0.6f)}");
+                ModelBridge.SetScatterShadows(shaded, true, false);
+                picture = Render();
+                Assert.That(At(picture, 1.45f, 0), Is.EqualTo(At(picture, 1.45f, -0.6f)).Within(0.02f * At(picture, 1.45f, -0.6f)), "keeping none, lit as if the slab were not there");
+                Assert.That(At(picture, -1.45f, 0), Is.LessThan(0.6f * At(picture, -1.45f, -0.6f)), "the ground beside it keeps its own");
+            } finally {
+                Object.DestroyImmediate(slab);
+            }
+        }
     }
 }

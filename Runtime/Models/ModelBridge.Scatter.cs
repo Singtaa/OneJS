@@ -13,8 +13,11 @@ namespace OneJS.Models {
         static readonly int ActorTintId = Shader.PropertyToID("_ActorTint");
         static readonly int ScatterRangeId = Shader.PropertyToID("_ScatterRange");
         static readonly int EyeId = Shader.PropertyToID("_OjEye");
+        static readonly int ScatterShadowlessId = Shader.PropertyToID("_ScatterShadowless");
         // Where a range has no edge: past any camera, and still a float a shader takes whole.
         const float NoEdge = 1e30f;
+        // ModelLit's and GroundLit's variant for a copy (ModelLitURP.hlsl), on the scatter's own materials.
+        const string ScatterKeyword = "_SCATTER";
 
         /// <summary>One renderer of a model: what a scatter draws for it, and where it sits in the model.</summary>
         sealed class ScatterPart {
@@ -25,7 +28,27 @@ namespace OneJS.Models {
             public ShadowCastingMode cast;
             public bool receive;
             public int layer;
+            // Whether `local` scales alike on every axis, so the part's copies can draw with the variant.
+            public bool alike;
         }
+
+        /// <summary>
+        /// A model's material as its copies draw it: a copy of it with ModelLit's scatter variant on,
+        /// which leaves out of each instanced draw the arrays a copy never reads (its inverse matrix,
+        /// its own probe light, its renderer's layer and its dissolve; ModelLitURP.hlsl). Unity uploads
+        /// those arrays at their whole capacity on every draw of every pass, whatever its count, so
+        /// they were most of what a scatter cost a frame. Actors keep the model's own material, since
+        /// they need all four. The copy follows its model's material by its CRC, read once a camera.
+        /// </summary>
+        sealed class ScatterMaterial {
+            public Material copy;
+            public int crc;
+            public int seen;
+        }
+
+        static readonly Dictionary<Material, ScatterMaterial> _scatterMaterials = new();
+        // Counts the cameras drawn for, so each material's CRC is read once a camera.
+        static int _scatterDraws;
 
         /// <summary>Up to ScatterChunk copies near one another: one instanced draw a part and submesh.</summary>
         sealed class ScatterChunkData {
@@ -56,6 +79,11 @@ namespace OneJS.Models {
             public Bounds measuredWith;
             // By copy, its rectangle of the baked light's atlas (ModelBridge.Light.cs); null when not baked.
             public Vector4[] atlas;
+            // SetScatterShadows: whether the copies cast, as the model's renderers do, or never; and
+            // whether shadows fall on them.
+            public bool cast = true, receive = true;
+            // SetScatterVisible: false skips every draw of it, shadows included, until it is shown again.
+            public bool visible = true;
         }
 
         static readonly Dictionary<int, Scattered> _scatters = new();
@@ -100,6 +128,7 @@ namespace OneJS.Models {
                     // The template sits at the origin, so a renderer's world matrix is its place in the model.
                     local = filter.transform.localToWorldMatrix,
                     cast = renderer.shadowCastingMode, receive = renderer.receiveShadows, layer = renderer.gameObject.layer,
+                    alike = ScaledAlike(filter.transform.localToWorldMatrix),
                 });
             }
             if (parts.Count == 0) return 0;
@@ -110,11 +139,7 @@ namespace OneJS.Models {
             }
             scattered.chunks = Chunk(scattered);
             Measure(scattered, m.bounds);
-            foreach (var chunk in scattered.chunks) {
-                if (chunk.tints == null && scattered.range.w == 0) continue;
-                chunk.look = new MaterialPropertyBlock();
-                Dress(scattered, chunk, chunk.look);
-            }
+            foreach (var chunk in scattered.chunks) Redress(scattered, chunk);
             var id = ++_next;
             _scatters[id] = scattered;
             Draw(true);
@@ -124,6 +149,7 @@ namespace OneJS.Models {
         public static void DestroyScatter(int scatter) {
             if (!_scatters.Remove(scatter)) return;
             if (_scatters.Count == 0) Draw(false);
+            ForgetScatterMaterials();
         }
 
         public static int ScatterCount => _scatters.Count;
@@ -131,10 +157,44 @@ namespace OneJS.Models {
         /// <summary>Whether the per-camera draw is registered: only while a scatter exists.</summary>
         internal static bool ScatterDrawing => _drawing;
 
-        /// <summary>Adds what a scatter's chunk carries of its own, its copies' tints and the range, to `block`.</summary>
+        /// <summary>
+        /// Adds what a scatter's chunk carries of its own to `block`: its copies' tints, the range, and
+        /// whether shadows fall on them, the last only once a scatter has said they do not.
+        /// </summary>
         static void Dress(Scattered s, ScatterChunkData chunk, MaterialPropertyBlock block) {
             if (chunk.tints != null) block.SetVectorArray(ActorTintId, chunk.tints);
             if (s.range.w != 0) block.SetVector(ScatterRangeId, s.range);
+            if (!s.receive || block.HasFloat(ScatterShadowlessId)) block.SetFloat(ScatterShadowlessId, s.receive ? 0 : 1);
+        }
+
+        // Gives a chunk the look block it needs, before a bake: none for a scatter with no tint, range or shadowless.
+        static void Redress(Scattered s, ScatterChunkData chunk) {
+            if (chunk.look == null && chunk.tints == null && s.range.w == 0 && s.receive) return;
+            chunk.look ??= new MaterialPropertyBlock();
+            Dress(s, chunk, chunk.look);
+        }
+
+        /// <summary>
+        /// Whether a scatter's copies cast shadows and have shadows cast on them. Both on by default, as
+        /// a spawned actor's are; a copy that casts none draws in no shadow pass at all.
+        /// </summary>
+        public static void SetScatterShadows(int scatter, bool castShadows, bool receiveShadows) {
+            if (!_scatters.TryGetValue(scatter, out var s)) return;
+            s.cast = castShadows;
+            if (s.receive == receiveShadows) return;
+            s.receive = receiveShadows;
+            foreach (var chunk in s.chunks) {
+                Redress(s, chunk);
+                if (chunk.light != null) Dress(s, chunk, chunk.light);
+            }
+        }
+
+        /// <summary>
+        /// Shows or hides a scatter without rebuilding it: hidden, none of its copies is drawn, in any
+        /// pass, and none of its instance data is sent, until it is shown again.
+        /// </summary>
+        public static void SetScatterVisible(int scatter, bool visible) {
+            if (_scatters.TryGetValue(scatter, out var s)) s.visible = visible;
         }
 
         /// <summary>The block a scatter's chunk is drawn with: its light's once baked, else its look, else none.</summary>
@@ -157,6 +217,69 @@ namespace OneJS.Models {
         static void ClearScatters() {
             _scatters.Clear();
             Draw(false);
+            ForgetScatterMaterials();
+        }
+
+        /// <summary>Destroys the scatter materials no scatter draws with any more.</summary>
+        static void ForgetScatterMaterials() {
+            if (_scatterMaterials.Count == 0) return;
+            var used = new HashSet<Material>();
+            foreach (var s in _scatters.Values) foreach (var part in s.parts) foreach (var m in part.materials) if (m != null) used.Add(m);
+            var gone = new List<Material>();
+            foreach (var source in _scatterMaterials.Keys) if (source == null || !used.Contains(source)) gone.Add(source);
+            foreach (var source in gone) {
+                Kill(_scatterMaterials[source].copy);
+                _scatterMaterials.Remove(source);
+            }
+        }
+
+        /// <summary>
+        /// Whether a matrix scales alike on every axis, turned and mirrored or not: the variant draws a
+        /// copy's normals through its matrix rather than the inverse, which is the same only then.
+        /// </summary>
+        internal static bool ScaledAlike(Matrix4x4 m) {
+            Vector3 x = m.GetColumn(0), y = m.GetColumn(1), z = m.GetColumn(2);
+            float xx = x.sqrMagnitude, slack = 1e-4f * xx;
+            if (!(xx > 0)) return false;
+            return Math.Abs(y.sqrMagnitude - xx) <= slack && Math.Abs(z.sqrMagnitude - xx) <= slack
+                && Math.Abs(Vector3.Dot(x, y)) <= slack && Math.Abs(Vector3.Dot(x, z)) <= slack && Math.Abs(Vector3.Dot(y, z)) <= slack;
+        }
+
+        /// <summary>
+        /// The material a part's submesh draws with now: its scatter material, or the model's own where
+        /// the variant would draw it wrong. That is a part its node stretches, a scene with Unity's own
+        /// light probes (each copy's probe light is an array the variant leaves out), and the built-in
+        /// pipeline, whose surface shader has no variant.
+        /// </summary>
+        static Material DrawnWith(ScatterPart part, int sub, bool sceneProbes) {
+            var source = part.materials[sub];
+            if (source == null || !part.alike || sceneProbes || BuiltInPipeline) return source;
+            if (!_scatterMaterials.TryGetValue(source, out var held)) {
+                held = new ScatterMaterial {
+                    copy = new Material(source) { name = $"{source.name} (scatter)", hideFlags = HideFlags.DontSave },
+                    crc = source.ComputeCRC(), seen = _scatterDraws,
+                };
+                Fit(held.copy, source);
+                _scatterMaterials[source] = held;
+            } else if (held.seen != _scatterDraws) {
+                held.seen = _scatterDraws;
+                int crc = source.ComputeCRC();
+                if (crc != held.crc) {
+                    held.crc = crc;
+                    if (held.copy.shader != source.shader) held.copy.shader = source.shader;
+                    held.copy.CopyMatchingPropertiesFromMaterial(source);
+                    Fit(held.copy, source);
+                }
+            }
+            return held.copy;
+        }
+
+        // What the copy keeps of its own over the model's material: the variant, and instancing, which
+        // RenderMeshInstanced needs.
+        static void Fit(Material copy, Material source) {
+            copy.renderQueue = source.renderQueue;
+            copy.enableInstancing = true;
+            copy.EnableKeyword(ScatterKeyword);
         }
 
         /// <summary>
@@ -300,8 +423,11 @@ namespace OneJS.Models {
             var eye = camera.transform.position;
             // A shadow pass draws from the light, and a range still measures from this camera.
             Shader.SetGlobalVector(EyeId, eye);
+            _scatterDraws++;
+            var probes = LightmapSettings.lightProbes;
+            bool sceneProbes = probes != null && probes.count > 0;
             foreach (var s in _scatters.Values) {
-                if (!_models.TryGetValue(s.model, out var m)) continue;
+                if (!s.visible || !_models.TryGetValue(s.model, out var m)) continue;
                 if (m.bounds != s.measuredWith) Measure(s, m.bounds);
                 foreach (var chunk in s.chunks) {
                     if (s.range.w != 0 && OutOfRange(chunk.bounds, eye, s.range)) continue;
@@ -309,10 +435,11 @@ namespace OneJS.Models {
                         var part = s.parts[p];
                         var mesh = part.filter.sharedMesh;
                         for (int sub = 0; sub < mesh.subMeshCount && sub < part.materials.Length; sub++) {
-                            if (part.materials[sub] == null) continue;
-                            var rp = new RenderParams(part.materials[sub]) {
+                            var material = DrawnWith(part, sub, sceneProbes);
+                            if (material == null) continue;
+                            var rp = new RenderParams(material) {
                                 camera = camera, worldBounds = chunk.bounds, layer = part.layer,
-                                shadowCastingMode = part.cast, receiveShadows = part.receive,
+                                shadowCastingMode = s.cast ? part.cast : ShadowCastingMode.Off, receiveShadows = s.receive && part.receive,
                                 matProps = chunk.light ?? chunk.look,
                                 // The built-in pipeline adds the ambient probe itself; a baked copy's is zero (Apply).
                                 lightProbeUsage = chunk.light != null && BuiltInPipeline ? LightProbeUsage.CustomProvided : LightProbeUsage.BlendProbes,
@@ -332,6 +459,14 @@ namespace OneJS.Models {
             float near = Vector3.Distance(bounds.ClosestPoint(eye), eye);
             var far = Vector3.Max(eye - bounds.min, bounds.max - eye);
             return near > range.y + range.z || far.magnitude < range.x - range.z;
+        }
+
+        /// <summary>The material a scatter's part and submesh draws with now, brought up to date as a draw would.</summary>
+        internal static Material ScatterMaterialOf(int scatter, int part, int sub) {
+            if (!_scatters.TryGetValue(scatter, out var s)) return null;
+            _scatterDraws++;
+            var probes = LightmapSettings.lightProbes;
+            return DrawnWith(s.parts[part], sub, probes != null && probes.count > 0);
         }
 
         /// <summary>A scatter's range as its draw reads it (ModelRange.hlsl): w is 0 for one with none.</summary>

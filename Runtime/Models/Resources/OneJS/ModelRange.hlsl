@@ -14,6 +14,9 @@
 float4 _ScatterRange;
 // The camera a scatter is drawn for, which a shadow pass still measures from (ModelBridge.Scatter.cs).
 float4 _OjEye;
+// 1 for a scatter whose copies keep no shadow on themselves (`receiveShadows: false`), from its
+// draw; 0, unset, for everything else.
+float _ScatterShadowless;
 
 // How far a copy at `origin` is into its range, at the near edge (x) and the far (y): 1 inside,
 // 0 outside, and between across the fade.

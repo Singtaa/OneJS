@@ -216,6 +216,60 @@ namespace OneJS.Tests.Models {
             Assert.That(ModelBridge.ScatterRange(far).x, Is.LessThan(-1e29f), "no near edge");
         }
 
+        // A cart moving its batches by range and view hides one without making it again.
+        [Test]
+        public void AHiddenScatter_DrawsNothing_UntilShownAgain() {
+            int scatter = ModelBridge.Scatter(Square(), new float[] { 0, 0, 0, 0, 1 });
+            // Two metres of the view's eight, so 16 by 16 pixels.
+            Assert.That(Covered(Shot()), Is.EqualTo(256));
+            ModelBridge.SetScatterVisible(scatter, false);
+            Assert.That(Covered(Shot()), Is.Zero, "hidden");
+            ModelBridge.SetScatterVisible(scatter, true);
+            Assert.That(Covered(Shot()), Is.EqualTo(256), "shown");
+        }
+
+        // A copy draws with its own material, ModelLit's scatter variant (ScatterShaderTests), whose
+        // per-instance arrays are a third of an actor's; an actor of the same model keeps the model's.
+        [Test]
+        public void ACopy_DrawsWithTheScatterVariant_AndAnActorOfTheSameModelWithout() {
+            int model = Square();
+            int scatter = ModelBridge.Scatter(model, new float[] { 0, 0, 0, 0, 1 });
+            int actor = ModelBridge.Spawn(model, 5, 0, 0, 0, 1, false, false);
+            var drawn = ModelBridge.ScatterMaterialOf(scatter, 0, 0);
+            Assert.That(drawn, Is.Not.SameAs(ModelBridge.MaterialOf(model)));
+            Assert.That(drawn.IsKeywordEnabled("_SCATTER"), Is.True);
+            Assert.That(drawn.enableInstancing, Is.True);
+            Assert.That(ModelBridge.MaterialOf(model).IsKeywordEnabled("_SCATTER"), Is.False, "the actor's");
+            ModelBridge.Destroy(actor);
+        }
+
+        // The variant is a copy, so a change to the model's material after the scatter was made must reach it.
+        [Test]
+        public void AChangeToTheModelsMaterial_AfterScattering_ReachesTheCopies() {
+            int model = Square();
+            int scatter = ModelBridge.Scatter(model, new float[] { 0, 0, 0, 0, 1 });
+            Color32 before = Shot()[32 * 64 + 32];
+            Assert.That(before.r > 240 && before.g > 240 && before.b > 240, Is.True, $"white first: {before}");
+            var material = ModelBridge.MaterialOf(model);
+            material.SetColor("_BaseColor", Color.red);
+            Color32 after = Shot()[32 * 64 + 32];
+            Assert.That(after.r > 240 && after.g + after.b < 10, Is.True, $"then red: {after}");
+            material.EnableKeyword("_VERTEX_COLOR");
+            var drawn = ModelBridge.ScatterMaterialOf(scatter, 0, 0);
+            Assert.That(drawn.IsKeywordEnabled("_VERTEX_COLOR") && drawn.IsKeywordEnabled("_SCATTER"), Is.True, "the model's keywords and its own");
+        }
+
+        // A copy's normals skip the inverse matrix, which is right only where its whole matrix scales alike
+        // on every axis: a glTF part whose node stretches it draws with the model's own material.
+        [Test]
+        public void OnlyAMatrixScaledAlikeOnEveryAxis_DrawsWithTheVariant() {
+            Assert.That(ModelBridge.ScaledAlike(Matrix4x4.TRS(new Vector3(3, 1, 2), Quaternion.Euler(10, 70, -20), Vector3.one * 2.5f)), Is.True);
+            Assert.That(ModelBridge.ScaledAlike(Matrix4x4.Scale(Vector3.one * -0.4f)), Is.True, "mirrored alike");
+            Assert.That(ModelBridge.ScaledAlike(Matrix4x4.Scale(new Vector3(1, 2, 1))), Is.False);
+            var skewed = Matrix4x4.Rotate(Quaternion.Euler(0, 45, 0)) * Matrix4x4.Scale(new Vector3(1, 1, 1.2f)) * Matrix4x4.Rotate(Quaternion.Euler(30, 0, 0));
+            Assert.That(ModelBridge.ScaledAlike(skewed), Is.False, "a stretch between two turns");
+        }
+
         // PrimoEden's rocks: a mesh painted by a splat of two triplanar layers, scattered.
         [Test]
         public void ASplatMesh_DrawsThroughScatter_TintedPerCopy() {
