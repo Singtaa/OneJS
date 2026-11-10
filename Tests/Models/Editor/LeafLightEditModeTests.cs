@@ -251,7 +251,7 @@ namespace OneJS.Tests.Models {
             Assert.That(Leaf(model, float.NaN, 0), Does.Contain("wrap"));
             Assert.That(Leaf(-1, 0.5f, 0.5f), Does.Contain("no mesh model"));
             Assert.That(ModelBridge.SetMeshLeafLight(model, 0, 0.5f, 0.5f, 1, 1, 1), Does.Contain("backLightFocus"));
-            Assert.That(ModelBridge.SetMeshLeafLight(model, 0, 0.5f, 4, 1.2f, 1, 1), Does.Contain("color"));
+            Assert.That(ModelBridge.SetMeshLeafLight(model, 0, 0.5f, 4, 1.2f, 1, 1), Does.Contain("backLightColor"));
             Assert.That(ModelBridge.MaterialOf(model).GetVector("_LeafLight"), Is.EqualTo(new Vector4(0, 0, 4, 0)), "a refused value changes nothing");
         }
 
