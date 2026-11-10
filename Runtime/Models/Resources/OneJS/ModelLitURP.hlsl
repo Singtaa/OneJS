@@ -69,6 +69,11 @@ CBUFFER_START(UnityPerMaterial)
         // none; y: how far the ground's brightness varies across the world (`variation`).
         float4 _SplatFar;
     #endif
+    // A see-through mesh model's fade by the depth behind it (ModelSurface.hlsl): x is 1 over
+    // `soften`'s metres, y is 3 over `deepColor`'s metres, each 0 for none; and the deep colour,
+    // linear. At the end, after the splat's, so neither shader's earlier layout moves.
+    float4 _DepthFade;
+    half4 _DeepColor;
 CBUFFER_END
 
 // What one actor has of its own, set by ModelBridge only on an actor that needs it: a

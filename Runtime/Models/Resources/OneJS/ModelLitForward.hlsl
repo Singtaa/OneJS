@@ -16,6 +16,26 @@
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 #include "OneJSFog.hlsl"
+#ifndef MODEL_SPLAT
+    #include "ModelSurface.hlsl"
+
+// The camera's depth texture, as URP's DeclareDepthTexture.hlsl names it, without the loose
+// _CameraDepthTexture_TexelSize uniform it adds, which Vulkan's compiler refuses beside the SRP
+// Batcher's buffers. Read at the pixel's own coordinates: it is the size of the camera's target.
+TEXTURE2D_X_FLOAT(_CameraDepthTexture);
+
+// A see-through mesh's base colour faded by the opaque depth behind it (ModelSurface.hlsl): the
+// camera's depth texture, which ModelBridge asks for while a mesh with either option lives.
+half4 ModelDepthFade(half4 base, float3 positionWS, float4 positionCS) {
+    if (_DepthFade.x <= 0 && _DepthFade.y <= 0) return base;
+    float raw = LOAD_TEXTURE2D_X(_CameraDepthTexture, uint2(positionCS.xy)).r;
+    float ortho = unity_OrthoParams.w;
+    float sceneEye = ModelSceneEyeDepth(raw, _ZBufferParams, _ProjectionParams, ortho);
+    float pixelEye = -TransformWorldToView(positionWS).z;
+    float thickness = ModelThickness(sceneEye, pixelEye, length(positionWS - _WorldSpaceCameraPos), ortho);
+    return ModelDepthFadeBy(base, thickness, _DepthFade, _DeepColor);
+}
+#endif
 
 #ifdef MODEL_SPLAT
 // One splat layer: at the uvs, or with `perMetre` above 0 projected along each world axis at that
@@ -120,6 +140,9 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
         base *= i.color;
     #endif
     base.rgb = Tinted(base.rgb);
+    #ifndef MODEL_SPLAT
+        base = ModelDepthFade(base, i.positionWS, i.positionCS);
+    #endif
     float cut = ModelClip(i.positionOS, base.a, _AlphaClip, _Cutoff, Dissolved(), _DissolveScale);
     #ifdef MODEL_SPLAT
         half3 emission = ModelEdge(cut, _DissolveEdge.rgb);

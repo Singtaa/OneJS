@@ -79,6 +79,10 @@ namespace OneJS.Models {
             public bool twoSided, sways;
             // Its surface (ModelBridge.Material.cs): a rough non-metal unless given one.
             public float roughness = 1, metallic;
+            // Its fade by the depth behind it (ModelBridge.Material.cs): 1 over soften's metres and 3
+            // over the deep colour's, each 0 for none, and the deep colour in sRGB.
+            public Vector4 depthFade;
+            public Color deepColor;
             public float[] sway = Array.Empty<float>();
             public PositionSway[] positionSway = Array.Empty<PositionSway>();
             // The ground copy its base map draws (ModelBridge.Ground.cs), shared with every model given the same picture.
@@ -269,6 +273,7 @@ namespace OneJS.Models {
             if (m.template != null) Kill(m.template);
             m.import?.Dispose();
             if (m.built != null) {
+                WantDepth(m.built, false);
                 ReleaseGroundCopy(m.built.texture);
                 m.built.texture = null;
                 if (m.built.layers != null) foreach (var layer in m.built.layers) ReleaseGroundCopy(layer);
@@ -767,6 +772,7 @@ namespace OneJS.Models {
             _camera.clearFlags = CameraClearFlags.SolidColor;
             _camera.nearClipPlane = 0.1f;
             _camera.farClipPlane = 1000f;
+            ApplyDepth();
 
             if (!Playing) return;
             foreach (var c in others) {
@@ -952,6 +958,7 @@ namespace OneJS.Models {
             if (_root != null) Kill(_root.gameObject);
             _root = null;
             _sceneOwner = 0;
+            ForgetDepth();
             _camera = null;
             _sun = null;
             foreach (var b in _switchedOff) if (b != null) b.enabled = true;

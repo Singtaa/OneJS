@@ -45,6 +45,9 @@ Shader "OneJS/ModelLit" {
         // A mesh model's sway (ModelWind.hlsl) and two-sided lighting: see ModelLitURP.hlsl.
         [HideInInspector] _Sway ("Sway", Float) = 0
         [HideInInspector] _KeepBackNormal ("Keep Back Normal", Float) = 0
+        // A see-through mesh model's fade by the depth behind it and its deep colour: see ModelLitURP.hlsl.
+        [HideInInspector] _DepthFade ("Depth Fade", Vector) = (0, 0, 0, 0)
+        [HideInInspector] _DeepColor ("Deep Color", Color) = (0, 0, 0, 0)
     }
 
     SubShader {
