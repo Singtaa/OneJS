@@ -57,7 +57,8 @@ float3 ModelSwayedLayered(float3 positionWS, float3 normalWS, float4x4 objectToW
     float gust = 1.0 + _OjWind.w * (2.0 * ModelNoise(float3(field.x, 0.0, field.y)) - 1.0);
     float push = scale * _OjWind.z * gust;
     float limbTurns = floor(s.w);
-    float limbOwn = limbTurns * (6.2831853 / 256.0);
+    // Held to one turn, so 256 is 0 for the second harmonic too.
+    float limbOwn = fmod(limbTurns, 256.0) * (6.2831853 / 256.0);
     float leafOwn = (s.w - limbTurns) * 6.2831853;
     // The limb's swing, downwind with a little lift, and the leaf's flutter along its normal: the
     // same at every vertex of a limb, and of a card, but for how far each moves.
