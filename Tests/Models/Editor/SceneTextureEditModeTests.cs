@@ -3,6 +3,7 @@ using OneJS.Models;
 using OneJS.ShaderFX;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 
 namespace OneJS.Tests.Models {
     /// <summary>
@@ -28,7 +29,10 @@ namespace OneJS.Tests.Models {
             Assert.That(first, Is.Not.Null);
             Assert.That(camera.targetTexture, Is.SameAs(first));
             Assert.That(camera.enabled, Is.False, "rendered by hand, before the effects draw");
-            Assert.That(first.depth, Is.GreaterThanOrEqualTo(24), "a depth buffer, so the scene draws as it does on the screen (Metal gives 32 for 24)");
+            // URP's CoreUtils.GetDefaultDepthStencilFormat for this editor's targets, so the scene's lit
+            // pipelines are the ones a cart drawing to the screen compiles (WebGPU's depth32float-stencil8).
+            Assert.That(first.depthStencilFormat, Is.EqualTo(GraphicsFormat.D32_SFloat_S8_UInt), "the screen camera's depth and stencil");
+            Assert.That(first.graphicsFormat, Is.EqualTo(GraphicsFormat.R16G16B16A16_SFloat), "half floats, as the scene was drawn");
 
             var second = ModelBridge.AcquireSceneTexture();
             Assert.That(second, Is.SameAs(first), "readers share one");
