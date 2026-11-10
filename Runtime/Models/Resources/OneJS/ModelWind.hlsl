@@ -40,8 +40,10 @@ float3 ModelSwayed(float3 positionWS, float4x4 objectToWorld, float sway) {
 // - a gust is a field over the ground blowing downwind, sampled at each copy's foot, so a gust
 //   crosses a wood as a patch rather than as one swell along the wind;
 // - a limb swings at its own quicker beat and a leaf flutters along its normal at a quicker one
-//   still, each offset by the vertex's phase (in turns, so 0 and 1 are the same), so the cards of
-//   a branch move together and differ from the next branch's.
+//   still, a limb at its limb's phase and a leaf at its card's, so a branch's wood and the roots
+//   of its cards move as one, and each card flutters whole, apart from the next.
+// `s.w` holds both phases, in turns: the limb's in 256ths as its whole part, and the card's as
+// its fraction (onejs-play's SwayLayers packs them), so the stream stays four wide.
 float3 ModelSwayedLayered(float3 positionWS, float3 normalWS, float4x4 objectToWorld, float4 s) {
     float3 origin = float3(objectToWorld._m03, objectToWorld._m13, objectToWorld._m23);
     float scale = length(float3(objectToWorld._m01, objectToWorld._m11, objectToWorld._m21));
@@ -54,10 +56,13 @@ float3 ModelSwayedLayered(float3 positionWS, float3 normalWS, float4x4 objectToW
     float2 field = (origin.xz - wind * (t * 4.0)) / 30.0;
     float gust = 1.0 + _OjWind.w * (2.0 * ModelNoise(float3(field.x, 0.0, field.y)) - 1.0);
     float push = scale * _OjWind.z * gust;
-    float own = frac(s.w) * 6.2831853;
-    // The limb's swing, downwind with a little lift, and the leaf's flutter along its normal.
-    float limb = sin(t * 2.1 + phase + own) + 0.4 * sin(t * 3.7 + 1.3 * own);
-    float leaf = sin(t * 7.3 + own * 3.0 + dot(positionWS, float3(1.7, 2.3, 1.1)));
+    float limbTurns = floor(s.w);
+    float limbOwn = limbTurns * (6.2831853 / 256.0);
+    float leafOwn = (s.w - limbTurns) * 6.2831853;
+    // The limb's swing, downwind with a little lift, and the leaf's flutter along its normal: the
+    // same at every vertex of a limb, and of a card, but for how far each moves.
+    float limb = sin(t * 2.1 + phase + limbOwn) + 0.4 * sin(t * 3.7 + 1.3 * limbOwn);
+    float leaf = sin(t * 7.3 + phase + limbOwn + leafOwn) + 0.3 * sin(t * 11.9 + 2.0 * leafOwn);
     float3 moved = positionWS + (way + float3(0.0, 0.3, 0.0)) * (s.y * push * limb) + normalWS * (s.z * push * leaf);
     // The trunk's bend, as the plain sway's reach, then held to the vertex's distance from the foot.
     float swing = 0.7 * sin(t * 0.9 + phase) + 0.3 * sin(t * 2.3 + 1.7 * phase);

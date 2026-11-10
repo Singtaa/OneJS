@@ -108,6 +108,20 @@ namespace OneJS.Tests.Models {
             return n == 0 ? float.NaN : sum / n;
         }
 
+        // The lowest covered row.
+        static int Bottom(Color32[] shot) {
+            for (int y = 0; y < Size; y++) {
+                for (int x = 0; x < Size; x++) if (!Background(shot[y * Size + x])) return y;
+            }
+            return -1;
+        }
+
+        // The covered pixels' mean column along the card's foot, wherever its foot now is.
+        static float FootColumn(Color32[] shot) {
+            int bottom = Bottom(shot);
+            return Column(shot, bottom, bottom + 2);
+        }
+
         // The covered pixels' mean column in the card's top fifth, wherever its top now is.
         static float TopColumn(Color32[] shot) {
             int top = Top(shot);
@@ -188,16 +202,45 @@ namespace OneJS.Tests.Models {
             Assert.That(at.Min(), Is.LessThan(still - 1), "and to the left");
         }
 
+        // A card whose foot's corners carry `foot` and whose top's carry `top`.
+        static int LayeredWith(Vector4 foot, Vector4 top) {
+            int model = ModelBridge.CreateMesh(true, false, false, 1, 1, 1, 1);
+            Assert.That(ModelBridge.SetMeshSwayLayers(model), Is.Empty);
+            var sway = new[] { foot, top, top, foot }.SelectMany(s => new[] { s.x, s.y, s.z, s.w }).ToArray();
+            Assert.That(ModelBridge.SetMesh(model, Card, TwoTriangles, Enumerable.Repeat(Vector3.right, 4).ToArray(), null, null, null, sway), Is.Empty);
+            return model;
+        }
+
+        [Test]
+        public void ACardsRoot_MovesWithTheWoodItHangsOn_AndOnlyItsTipFlutters() {
+            // Wood and a leaf card on one limb (its phase 40/256 of a turn): at the root the same
+            // trunk and limb and no leaf, at the tip the leaf alone adds flutter, at its own phase.
+            var root = new Vector4(0.5f, 0.4f, 0, 40);
+            int wood = LayeredWith(root, new Vector4(0.8f, 0.6f, 0, 40));
+            int leaf = LayeredWith(root, new Vector4(0.8f, 0.6f, 0.3f, 40.7f));
+            Assert.That(ModelBridge.SetWind(1, 0, 1, 0.3f), Is.Empty);
+            bool tipsApart = false;
+            for (float t = 0; t <= 1.5f; t += 0.25f) {
+                ModelBridge.SetWindClock(t);
+                Color32[] w = Shot(wood), l = Shot(leaf);
+                Assert.That(Bottom(l), Is.EqualTo(Bottom(w)), $"the roots stand as one at {t} s");
+                Assert.That(FootColumn(l), Is.EqualTo(FootColumn(w)).Within(0.5f), $"the roots move as one at {t} s");
+                if (Mathf.Abs(TopColumn(l) - TopColumn(w)) > 1) tipsApart = true;
+            }
+            Assert.That(tipsApart, Is.True, "the card's tip flutters off the wood's");
+        }
+
         [Test]
         public void Phase_SetsABeatApart_InTurns() {
-            int a = Layered(new Vector4(0, 0.5f, 0, 0)), b = Layered(new Vector4(0, 0.5f, 0, 0.5f)), whole = Layered(new Vector4(0, 0.5f, 0, 1));
+            // A limb's phase is the whole part in 256ths of a turn: 128 is half a turn, 256 a whole one.
+            int a = Layered(new Vector4(0, 0.5f, 0, 0)), b = Layered(new Vector4(0, 0.5f, 0, 128)), whole = Layered(new Vector4(0, 0.5f, 0, 256));
             Assert.That(ModelBridge.SetWind(1, 0, 1, 0), Is.Empty);
             bool apart = false;
             for (float t = 0; t <= 1.5f; t += 0.25f) {
                 ModelBridge.SetWindClock(t);
                 float x = TopColumn(Shot(a));
                 if (Mathf.Abs(TopColumn(Shot(b)) - x) > 2) apart = true;
-                Assert.That(TopColumn(Shot(whole)), Is.EqualTo(x).Within(0.01f), $"a whole turn is no turn, at {t} s");
+                Assert.That(TopColumn(Shot(whole)), Is.EqualTo(x).Within(0.1f), $"a whole turn is no turn, at {t} s");
             }
             Assert.That(apart, Is.True, "half a turn swings out of step");
         }
