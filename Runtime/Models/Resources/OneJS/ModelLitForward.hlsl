@@ -16,6 +16,30 @@
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 #include "OneJSFog.hlsl"
+#include "OneJSSky.hlsl"
+
+// The scene's sky, set by ModelBridge.ReflectSky while a cart asks for it to be reflected:
+// _OjSkyReflect.x is 1 then and 0 otherwise. Globals, so no material or variant changes.
+float4 _OjSkyReflect;
+half4 _OjSkyTop, _OjSkyHorizon, _OjSkyBottom, _OjSkySunColor;
+float4 _OjSkySunDir, _OjSkySunShape;
+
+// What the sky adds to a lit surface over the ambient's flat average: URP's own environment term,
+// with the sky along the reflected ray in place of _GlossyEnvironmentColor, weighted as URP weights
+// it (EnvironmentBRDFSpecular) and darkened by the same occlusion. Diffuse, lights and shadows are
+// left as UniversalFragmentPBR worked them out, and the fog follows.
+half3 SkyReflection(InputData d, SurfaceData s) {
+    BRDFData brdf;
+    SurfaceData copy = s;
+    InitializeBRDFData(copy, brdf);
+    AmbientOcclusionFactor ao = CreateAmbientOcclusionFactor(d, s);
+    float3 r = reflect(-d.viewDirectionWS, d.normalWS);
+    half fresnel = Pow4(1.0 - saturate(dot(d.normalWS, d.viewDirectionWS)));
+    half3 sky = OneJSSkyReflected(r, brdf.perceptualRoughness, _OjSkyTop.rgb, _OjSkyHorizon.rgb, _OjSkyBottom.rgb,
+        _OjSkySunColor.rgb, _OjSkySunDir, _OjSkySunShape.y);
+    sky = lerp(sky, (half3)_OneJSFogColor.rgb, (half)OneJSFogSky(r, _WorldSpaceCameraPos));
+    return (sky - _GlossyEnvironmentColor.rgb) * EnvironmentBRDFSpecular(brdf, fresnel) * ao.indirectAmbientOcclusion;
+}
 #ifndef MODEL_SPLAT
     #include "ModelSurface.hlsl"
 
@@ -207,6 +231,8 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     d.shadowMask = half4(1, 1, 1, 1);
 
     half4 color = UniversalFragmentPBR(d, s);
+    // Every pixel of a frame takes the same way: off, color is what UniversalFragmentPBR gave.
+    if (_OjSkyReflect.x > 0.5) color.rgb += SkyReflection(d, s);
     color.rgb = lerp(color.rgb, (half3)_OneJSFogColor.rgb, fog);
     color.a = OutputAlpha(color.a, IsSurfaceTypeTransparent(_Surface));
     return color;

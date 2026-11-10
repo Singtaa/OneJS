@@ -18,6 +18,18 @@ namespace OneJS.Models {
         static readonly int SunShapeId = Shader.PropertyToID("_SunShape");
         static readonly int StarsId = Shader.PropertyToID("_Stars");
 
+        // The sky as ModelLit reflects it (OneJSSky.hlsl), globals, so no material and no keyword
+        // changes: _OjSkyReflect.x is 1 while a cart asks and a sky is up, else 0, today's look.
+        static bool _skyReflect;
+        static bool _saidReflectBuiltIn;
+        static readonly int SkyReflectId = Shader.PropertyToID("_OjSkyReflect");
+        static readonly int SkyTopId = Shader.PropertyToID("_OjSkyTop");
+        static readonly int SkyHorizonId = Shader.PropertyToID("_OjSkyHorizon");
+        static readonly int SkyBottomId = Shader.PropertyToID("_OjSkyBottom");
+        static readonly int SkySunColorId = Shader.PropertyToID("_OjSkySunColor");
+        static readonly int SkySunDirId = Shader.PropertyToID("_OjSkySunDir");
+        static readonly int SkySunShapeId = Shader.PropertyToID("_OjSkySunShape");
+
         /// <summary>
         /// A sky behind the scene (onejs-play's `scene.sky`), or with <paramref name="on"/> false
         /// the background colour again. Three sRGB colours, top, horizon and bottom; the sun's disc
@@ -58,6 +70,25 @@ namespace OneJS.Models {
             UpdateSky();
         }
 
+        /// <summary>
+        /// Whether glossy surfaces reflect the sky (onejs-play's `scene.sky({ reflect: true })`):
+        /// every ModelLit surface shows the sky's gradient, the sun's glow and the fog's haze along
+        /// its reflected ray, by its own roughness, in place of the ambient's flat average. Off, the
+        /// default, draws exactly as before. Only while a sky is up: a sky taken away takes it too.
+        /// URP only; the built-in pipeline keeps the flat look.
+        /// </summary>
+        public static void SetSkyReflect(bool on) {
+            if (on && BuiltInPipeline && !_saidReflectBuiltIn) {
+                _saidReflectBuiltIn = true;
+                Debug.LogWarning("[OneJS] Sky reflections draw in URP only, so glossy surfaces here keep reflecting the ambient's flat colour.");
+            }
+            _skyReflect = on;
+            UpdateSky();
+            if (_sky == null) Shader.SetGlobalVector(SkyReflectId, Vector4.zero);
+        }
+
+        internal static bool SkyReflects => _skyReflect;
+
         internal static Material SkyMaterial => _sky;
         internal static bool SkyHooked => _skyHooked;
 
@@ -70,6 +101,8 @@ namespace OneJS.Models {
             if (_sky != null) Kill(_sky);
             _sky = null;
             _sceneSun = null;
+            _skyReflect = false;
+            Shader.SetGlobalVector(SkyReflectId, Vector4.zero);
         }
 
         // Only while a sky is up, so a scene without one has no callback at all.
@@ -103,6 +136,23 @@ namespace OneJS.Models {
             } else {
                 _sky.SetVector(SunDirId, new Vector4(0, 1, 0, 0));
             }
+            ReflectSky();
+        }
+
+        // The sky's values again as globals, for ModelLit's reflection, while a cart asks.
+        static void ReflectSky() {
+            if (!_skyReflect) {
+                Shader.SetGlobalVector(SkyReflectId, Vector4.zero);
+                return;
+            }
+            // GetColor gives back the sRGB value SetColor took, and SetGlobalColor makes it linear.
+            Shader.SetGlobalColor(SkyTopId, _sky.GetColor(TopId));
+            Shader.SetGlobalColor(SkyHorizonId, _sky.GetColor(HorizonId));
+            Shader.SetGlobalColor(SkyBottomId, _sky.GetColor(BottomId));
+            Shader.SetGlobalColor(SkySunColorId, _sky.GetColor(SunColorId));
+            Shader.SetGlobalVector(SkySunDirId, _sky.GetVector(SunDirId));
+            Shader.SetGlobalVector(SkySunShapeId, _sky.GetVector(SunShapeId));
+            Shader.SetGlobalVector(SkyReflectId, new Vector4(1, 0, 0, 0));
         }
 
         static Light Lit(Light light) => light != null && light.isActiveAndEnabled && light.type == LightType.Directional ? light : null;

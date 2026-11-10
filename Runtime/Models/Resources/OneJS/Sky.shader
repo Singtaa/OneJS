@@ -38,6 +38,7 @@ Shader "OneJS/Sky" {
             #pragma fragment frag
             #include "UnityCG.cginc"
             #include "OneJSFog.hlsl"
+            #include "OneJSSky.hlsl"
 
             half4 _Top, _Horizon, _Bottom, _SunColor;
             float4 _SunDir, _SunShape;
@@ -83,19 +84,14 @@ Shader "OneJS/Sky" {
 
             half4 frag(v2f i) : SV_Target {
                 float3 d = normalize(i.dir);
-                float y = d.y;
-                // The square root keeps the horizon's colour to a band, as a real sky's haze is.
-                half3 col = y >= 0
-                    ? lerp(_Horizon.rgb, _Top.rgb, sqrt(saturate(y)))
-                    : lerp(_Horizon.rgb, _Bottom.rgb, sqrt(saturate(-y)));
+                half3 col = OneJSSkyGradient(d, _Top.rgb, _Horizon.rgb, _Bottom.rgb);
                 if (_Stars > 0) col += Stars(d);
 
                 if (_SunDir.w > 0) {
                     float angle = acos(clamp(dot(d, normalize(_SunDir.xyz)), -1.0, 1.0));
                     float r = _SunShape.x;
                     half disc = r > 0 ? 1.0 - smoothstep(r * 0.85, r, angle) : 0;
-                    float g = _SunShape.y;
-                    half glow = g > 0 ? pow(saturate(1.0 - angle / g), 3.0) * 0.5 : 0;
+                    half glow = OneJSSkyGlow(angle, _SunShape.y);
                     col = lerp(col, _SunColor.rgb, saturate(max(disc, glow)));
                 }
 
