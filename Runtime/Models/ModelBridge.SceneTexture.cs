@@ -1,5 +1,6 @@
 using OneJS.ShaderFX;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 
 namespace OneJS.Models {
     public static partial class ModelBridge {
@@ -22,7 +23,10 @@ namespace OneJS.Models {
             if (_sceneReaders++ > 0) return _sceneTexture;
             var size = ScreenPixels();
             var format = SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGBHalf) ? RenderTextureFormat.ARGBHalf : RenderTextureFormat.ARGB32;
-            _sceneTexture = new RenderTexture(size.x, size.y, 24, format, RenderTextureReadWrite.Linear) {
+            var desc = new RenderTextureDescriptor(size.x, size.y, format, 0) {
+                sRGB = false, depthStencilFormat = SceneTextureDepthFormat,
+            };
+            _sceneTexture = new RenderTexture(desc) {
                 name = "OneJS Scene", hideFlags = HideFlags.HideAndDontSave,
             };
             _sceneTexture.Create();
@@ -46,6 +50,16 @@ namespace OneJS.Models {
             if (_sceneReaders == 0 || --_sceneReaders > 0) return;
             StopSceneTexture(restoreCamera: true);
         }
+
+        // The depth URP gives a camera that draws to the screen (CoreUtils.GetDefaultDepthStencilFormat),
+        // so the scene's lit pipelines drawn into this texture are the ones a cart without it compiles.
+        // OneJS.Runtime references no render pipeline, hence the copy rather than the call.
+        internal static GraphicsFormat SceneTextureDepthFormat =>
+#if UNITY_SWITCH || UNITY_SWITCH2 || UNITY_EMBEDDED_LINUX || UNITY_QNX || UNITY_ANDROID
+            GraphicsFormat.D24_UNorm_S8_UInt;
+#else
+            GraphicsFormat.D32_SFloat_S8_UInt;
+#endif
 
         internal static int SceneReaders => _sceneReaders;
 
