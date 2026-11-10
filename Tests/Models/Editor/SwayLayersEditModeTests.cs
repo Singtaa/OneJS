@@ -21,6 +21,8 @@ namespace OneJS.Tests.Models {
         static readonly Dictionary<string, string> Before = new() {
             // OneJS leaf-light ef03b1c, before layered sway, Direct3D 12.
             ["NVIDIA GeForce RTX 3080"] = "ba287967c895e060c58190d3ec6ea433",
+            // OneJS leaf-light 4ce2f58, before layered sway, Metal.
+            ["Apple M4 Pro"] = "ba287967c895e060c58190d3ec6ea433",
         };
 
         [SetUp]
