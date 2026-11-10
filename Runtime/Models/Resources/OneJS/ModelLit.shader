@@ -51,7 +51,10 @@ Shader "OneJS/ModelLit" {
         // A mesh model's normal map flow and own frame: see ModelLitURP.hlsl.
         [HideInInspector] _NormalFlow ("Normal Flow", Vector) = (0, 0, 0, 0)
         // A mesh model's leaf light, wrap in x and translucency in y: see ModelLeafLight.hlsl.
-        [HideInInspector] _LeafLight ("Leaf Light", Vector) = (0, 0, 0, 0)
+        [HideInInspector] _LeafLight ("Leaf Light", Vector) = (0, 0, 4, 0)
+        [HideInInspector] _LeafTint ("Leaf Tint", Color) = (1, 1, 1, 1)
+        // A mesh model's fade where its faces turn edge on: see ModelEdgeFade.hlsl.
+        [HideInInspector] _LeafEdge ("Leaf Edge", Vector) = (0, 0, 0, 0)
     }
 
     SubShader {

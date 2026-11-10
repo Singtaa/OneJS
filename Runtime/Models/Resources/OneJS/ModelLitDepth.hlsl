@@ -79,6 +79,9 @@ void DepthClip(Varyings i) {
         ModelRangeShadowClip(i.uvRange.zw);
     #else
         ModelRangeClip(i.uvRange.zw, i.positionCS.xy);
+        #ifndef MODEL_SPLAT
+            ModelEdgeFadeClip(i.positionOS, i.positionCS.xy, _LeafEdge.xy);
+        #endif
     #endif
     #ifdef _VERTEX_COLOR
         half alpha = i.alpha;

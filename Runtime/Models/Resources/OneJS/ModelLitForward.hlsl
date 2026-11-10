@@ -157,6 +157,9 @@ Varyings Vert(Attributes v) {
 half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     UNITY_SETUP_INSTANCE_ID(i);
     ModelRangeClip(i.lightmapUVRange.zw, i.positionCS.xy);
+    #ifndef MODEL_SPLAT
+        ModelEdgeFadeClip(i.positionOS, i.positionCS.xy, _LeafEdge.xy);
+    #endif
     #ifdef MODEL_SPLAT
         float3 planes = SplatPlanes(i.normalWS);
         float farScale = SplatFarScale(i.positionWS, _WorldSpaceCameraPos, _SplatFar.x);
@@ -249,7 +252,7 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
         if (_OjSkyReflect.x > 0.5) color.rgb += SkyReflection(d, s);
         // A material value, so every pixel of a draw takes the same way: a mesh that asks for
         // neither adds nothing to what UniversalFragmentPBR gave.
-        if (_LeafLight.x > 0 || _LeafLight.y > 0) color.rgb += ModelLeafLight(d, s, (half2)_LeafLight.xy);
+        if (_LeafLight.x > 0 || _LeafLight.y > 0) color.rgb += ModelLeafLight(d, s, _LeafLight.xyz, _LeafTint.rgb);
     #endif
     color.rgb = lerp(color.rgb, (half3)_OneJSFogColor.rgb, fog);
     color.a = OutputAlpha(color.a, IsSurfaceTypeTransparent(_Surface));
