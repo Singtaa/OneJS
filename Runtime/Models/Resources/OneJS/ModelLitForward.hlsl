@@ -16,6 +16,11 @@
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 #include "OneJSFog.hlsl"
+
+// A splat ground (GroundLit) does not reflect the sky: near roughness 1 it reflected about 1%,
+// which cost GroundLit's forward variants 13 KB of the Play container. A cart wanting a glossy
+// ground (wet stone, ice) is the reason to bring it back.
+#ifndef MODEL_SPLAT
 #include "OneJSSky.hlsl"
 
 // The scene's sky, set by ModelBridge.ReflectSky while a cart asks for it to be reflected:
@@ -46,6 +51,7 @@ half3 SkyReflection(InputData d, SurfaceData s) {
     sky = lerp(sky, (half3)_OneJSFogColor.rgb, (half)OneJSFogSky(r, _WorldSpaceCameraPos));
     return (sky - _GlossyEnvironmentColor.rgb) * EnvironmentBRDFSpecular(brdf, fresnel) * ao.indirectAmbientOcclusion;
 }
+#endif
 #ifndef MODEL_SPLAT
     #include "ModelSurface.hlsl"
 
@@ -238,7 +244,9 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
 
     half4 color = UniversalFragmentPBR(d, s);
     // Every pixel of a frame takes the same way: off, color is what UniversalFragmentPBR gave.
-    if (_OjSkyReflect.x > 0.5) color.rgb += SkyReflection(d, s);
+    #ifndef MODEL_SPLAT
+        if (_OjSkyReflect.x > 0.5) color.rgb += SkyReflection(d, s);
+    #endif
     color.rgb = lerp(color.rgb, (half3)_OneJSFogColor.rgb, fog);
     color.a = OutputAlpha(color.a, IsSurfaceTypeTransparent(_Surface));
     return color;
