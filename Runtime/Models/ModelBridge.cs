@@ -79,6 +79,9 @@ namespace OneJS.Models {
             public bool twoSided, sways;
             // Its surface (ModelBridge.Material.cs): a rough non-metal unless given one.
             public float roughness = 1, metallic;
+            // Its leaf light (ModelBridge.Material.cs): how far the sun wraps round it (x) and how
+            // much shows through it from behind (y), each 0 for none.
+            public Vector2 leafLight;
             // Its fade by the depth behind it (ModelBridge.Material.cs): 1 over soften's metres and 3
             // over the deep colour's, each 0 for none, and the deep colour in sRGB.
             public Vector4 depthFade;

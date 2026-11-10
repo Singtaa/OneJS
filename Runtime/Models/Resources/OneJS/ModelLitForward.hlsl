@@ -42,6 +42,7 @@ half3 SkyReflection(InputData d, SurfaceData s) {
 }
 #ifndef MODEL_SPLAT
     #include "ModelSurface.hlsl"
+    #include "ModelLeafLight.hlsl"
 
 // The camera's depth texture, as URP's DeclareDepthTexture.hlsl names it, without the loose
 // _CameraDepthTexture_TexelSize uniform it adds, which Vulkan's compiler refuses beside the SRP
@@ -233,6 +234,11 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     half4 color = UniversalFragmentPBR(d, s);
     // Every pixel of a frame takes the same way: off, color is what UniversalFragmentPBR gave.
     if (_OjSkyReflect.x > 0.5) color.rgb += SkyReflection(d, s);
+    #ifndef MODEL_SPLAT
+        // A material value, so every pixel of a draw takes the same way: a mesh that asks for
+        // neither adds nothing to what UniversalFragmentPBR gave.
+        if (_LeafLight.x > 0 || _LeafLight.y > 0) color.rgb += ModelLeafLight(d, s, (half2)_LeafLight.xy);
+    #endif
     color.rgb = lerp(color.rgb, (half3)_OneJSFogColor.rgb, fog);
     color.a = OutputAlpha(color.a, IsSurfaceTypeTransparent(_Surface));
     return color;

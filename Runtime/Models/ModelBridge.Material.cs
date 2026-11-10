@@ -15,6 +15,7 @@ namespace OneJS.Models {
         static readonly int RoughnessId = Shader.PropertyToID("_Roughness");
         static readonly int DepthFadeId = Shader.PropertyToID("_DepthFade");
         static readonly int DeepColorId = Shader.PropertyToID("_DeepColor");
+        static readonly int LeafLightId = Shader.PropertyToID("_LeafLight");
         static readonly int NormalMapId = Shader.PropertyToID("_NormalMap");
         static readonly int NormalScaleId = Shader.PropertyToID("_NormalScale");
         static readonly int NormalFlowId = Shader.PropertyToID("_NormalFlow");
@@ -32,6 +33,24 @@ namespace OneJS.Models {
             if (!(metallic >= 0 && metallic <= 1)) return $"metallic is {metallic}, and runs from 0 to 1";
             m.built.roughness = roughness;
             m.built.metallic = metallic;
+            ApplySurface(m.built);
+            return "";
+        }
+
+        /// <summary>
+        /// A mesh model's leaf light, each 0 to 1 and 0 for none (ModelLeafLight.hlsl): `wrap` lets
+        /// the sun's light reach past the shadow line, as it does through a leaf or moss, and
+        /// `translucency` lets the sun show through from behind, tinted by the surface's colour, as
+        /// it does through a leaf held up to it. The sun only, URP only, and not with a splat, which
+        /// is lit by its vertex normals. Every actor and copy of the model changes with it. "" when
+        /// it took them, or what was wrong.
+        /// </summary>
+        public static string SetMeshLeafLight(int model, float wrap, float translucency) {
+            if (!Look(model, out var m, out var problem)) return problem;
+            if (!(wrap >= 0 && wrap <= 1)) return $"wrap is {wrap}, and runs from 0 to 1";
+            if (!(translucency >= 0 && translucency <= 1)) return $"translucency is {translucency}, and runs from 0 to 1";
+            if (m.built.splat) return "a splat is lit by its vertex normals, and takes no leaf light";
+            m.built.leafLight = new Vector2(wrap, translucency);
             ApplySurface(m.built);
             return "";
         }
@@ -187,6 +206,8 @@ namespace OneJS.Models {
             b.material.SetVector(DepthFadeId, b.depthFade);
             // SetColor takes the sRGB value and keeps it linear in a linear project, as _BaseColor.
             b.material.SetColor(DeepColorId, b.deepColor);
+            // A splat's GroundLit has no leaf light, and is refused it.
+            if (b.material.HasProperty(LeafLightId)) b.material.SetVector(LeafLightId, b.leafLight);
             // A mesh without a normal map keeps the flat `bump` picture and its frame as it was.
             if (b.normalMap == null) {
                 b.material.SetTexture(NormalMapId, null);
