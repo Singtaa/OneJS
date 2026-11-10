@@ -18,6 +18,8 @@ namespace OneJS.Tests.Models {
         // reflections), by the GPU that read them: the same code on another GPU may round differently.
         static readonly Dictionary<string, string> Before = new() {
             ["NVIDIA GeForce RTX 3080"] = "cd14a11db9479fd390fb4e0e57fddd79",
+            // OneJS reflections 8ba1606, Metal.
+            ["Apple M4 Pro"] = "e7392e528c42040c0db4d7a523c2b569",
         };
 
         [SetUp]
