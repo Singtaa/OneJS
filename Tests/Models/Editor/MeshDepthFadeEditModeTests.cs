@@ -53,6 +53,11 @@ namespace OneJS.Tests.Models {
             int scatter = scattered < 0 ? -1 : ModelBridge.Scatter(scattered, new float[] { 0, 0, 0, 0, 1 });
             try {
                 camera.targetTexture = target;
+                // Twice: on Direct3D 12 the editor's first render after ModelLit compiles afresh
+                // drew a faded sheet over white rather than over the floor and the clear (RTX 3080,
+                // Win 003, runs 10 to 18; async compilation off made no difference), and every render
+                // after it was right. A player's shaders are compiled at build, so it has no such frame.
+                camera.Render();
                 camera.Render();
                 var was = RenderTexture.active;
                 RenderTexture.active = target;
