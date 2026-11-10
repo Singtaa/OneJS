@@ -84,7 +84,7 @@ namespace OneJS.Models {
             return problem == null;
         }
 
-        /// <summary>A mesh model's cutout, sides and sway, onto its material: again whenever the material is replaced (BecomeSplat).</summary>
+        /// <summary>A mesh model's cutout, sides, sway and surface, onto its material: again whenever the material is replaced (BecomeSplat).</summary>
         static void ApplyLook(BuiltMesh b) {
             var material = b.material;
             if (material == null || ModelMaterialGenerator.ModelShader == null) return;
@@ -102,6 +102,7 @@ namespace OneJS.Models {
                 material.SetFloat(KeepBackNormalId, 1);
             }
             if (b.sways) material.SetFloat(SwayId, 1);
+            ApplySurface(b);
         }
 
         /// <summary>

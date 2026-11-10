@@ -77,6 +77,8 @@ namespace OneJS.Models {
             // Its look (ModelBridge.Look.cs): the alpha it cuts below (-1 for none), both sides, and a sway a vertex.
             public float cutout = -1;
             public bool twoSided, sways;
+            // Its surface (ModelBridge.Material.cs): a rough non-metal unless given one.
+            public float roughness = 1, metallic;
             public float[] sway = Array.Empty<float>();
             public PositionSway[] positionSway = Array.Empty<PositionSway>();
             // The ground copy its base map draws (ModelBridge.Ground.cs), shared with every model given the same picture.
