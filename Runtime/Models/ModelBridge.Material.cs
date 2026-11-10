@@ -16,6 +16,8 @@ namespace OneJS.Models {
         static readonly int DepthFadeId = Shader.PropertyToID("_DepthFade");
         static readonly int DeepColorId = Shader.PropertyToID("_DeepColor");
         static readonly int LeafLightId = Shader.PropertyToID("_LeafLight");
+        static readonly int LeafTintId = Shader.PropertyToID("_LeafTint");
+        static readonly int LeafEdgeId = Shader.PropertyToID("_LeafEdge");
         static readonly int NormalMapId = Shader.PropertyToID("_NormalMap");
         static readonly int NormalScaleId = Shader.PropertyToID("_NormalScale");
         static readonly int NormalFlowId = Shader.PropertyToID("_NormalFlow");
@@ -40,17 +42,39 @@ namespace OneJS.Models {
         /// <summary>
         /// A mesh model's leaf light, each 0 to 1 and 0 for none (ModelLeafLight.hlsl): `wrap` lets
         /// the sun's light reach past the shadow line, as it does through a leaf or moss, and
-        /// `translucency` lets the sun show through from behind, tinted by the surface's colour, as
-        /// it does through a leaf held up to it. The sun only, URP only, and not with a splat, which
-        /// is lit by its vertex normals. Every actor and copy of the model changes with it. "" when
-        /// it took them, or what was wrong.
+        /// `translucency` lets the sun show through from behind, toward the eye, as it does through
+        /// a leaf held up to it, tinted by the surface's colour and by `r, g, b` (sRGB) and gathered
+        /// round the sun's line by `power` (1 to 16; 4 is a broad glow, 8 a tight one). The sun
+        /// only, URP only, and not with a splat, which is lit by its vertex normals. Every actor
+        /// and copy of the model changes with it. "" when it took them, or what was wrong.
         /// </summary>
-        public static string SetMeshLeafLight(int model, float wrap, float translucency) {
+        public static string SetMeshLeafLight(int model, float wrap, float translucency, float power, float r, float g, float b) {
             if (!Look(model, out var m, out var problem)) return problem;
             if (!(wrap >= 0 && wrap <= 1)) return $"wrap is {wrap}, and runs from 0 to 1";
             if (!(translucency >= 0 && translucency <= 1)) return $"translucency is {translucency}, and runs from 0 to 1";
+            if (!(power >= 1 && power <= 16)) return $"the translucency's power is {power}, and runs from 1 to 16";
+            if (!(r >= 0 && r <= 1 && g >= 0 && g <= 1 && b >= 0 && b <= 1)) return $"the translucency's color is ({r}, {g}, {b}), and each runs from 0 to 1";
             if (m.built.splat) return "a splat is lit by its vertex normals, and takes no leaf light";
-            m.built.leafLight = new Vector2(wrap, translucency);
+            m.built.leafLight = new Vector3(wrap, translucency, power);
+            m.built.leafTint = new Color(r, g, b, 1);
+            ApplySurface(m.built);
+            return "";
+        }
+
+        /// <summary>
+        /// Dithers a mesh model's faces away as they turn edge on to the eye (ModelEdgeFade.hlsl):
+        /// whole while a face meets the eye more squarely than `end` (|N.V| of the triangle's own
+        /// face, 0 edge on and 1 face on), gone below `start`, dithered between. A crown of leaf
+        /// cards then shows no dark lines where cards turn side on. In the camera's passes, not the
+        /// shadow's. 0 and 0 take it off. Not with a splat; URP only. "" when it took it, or what
+        /// was wrong.
+        /// </summary>
+        public static string SetMeshEdgeFade(int model, float start, float end) {
+            if (!Look(model, out var m, out var problem)) return problem;
+            bool off = start == 0 && end == 0;
+            if (!off && !(start >= 0 && end > start && end <= 1)) return $"edgeFade is [{start}, {end}], and is [start, end] with 0 <= start < end <= 1";
+            if (m.built.splat) return "a splat is ground, and takes no edge fade";
+            m.built.edgeFade = new Vector2(start, end);
             ApplySurface(m.built);
             return "";
         }
@@ -207,7 +231,12 @@ namespace OneJS.Models {
             // SetColor takes the sRGB value and keeps it linear in a linear project, as _BaseColor.
             b.material.SetColor(DeepColorId, b.deepColor);
             // A splat's GroundLit has no leaf light, and is refused it.
-            if (b.material.HasProperty(LeafLightId)) b.material.SetVector(LeafLightId, b.leafLight);
+            if (b.material.HasProperty(LeafLightId)) {
+                b.material.SetVector(LeafLightId, b.leafLight);
+                // SetColor takes the sRGB value and keeps it linear in a linear project, as _BaseColor.
+                b.material.SetColor(LeafTintId, b.leafTint);
+                b.material.SetVector(LeafEdgeId, b.edgeFade);
+            }
             // A mesh without a normal map keeps the flat `bump` picture and its frame as it was.
             if (b.normalMap == null) {
                 b.material.SetTexture(NormalMapId, null);

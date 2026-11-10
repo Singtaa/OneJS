@@ -19,7 +19,8 @@
 - Scattered copies upload a third of the instance data a draw
 - A scatter can stop casting or receiving shadows (`SetScatterShadows`) and be hidden without rebuilding (`SetScatterVisible`)
 - Glossy models reflect the sky once asked (`SetSkyReflect`)
-- A mesh model can let the sun wrap round it and show through it from behind (`SetMeshLeafLight`)
+- A mesh model can let the sun wrap round it and show through it from behind, in a tint and at a power (`SetMeshLeafLight`)
+- A mesh model's faces can dither away as they turn edge on (`SetMeshEdgeFade`)
 - InputBridge says which pointer the last press came from
 - SLProgramBridge counts the page programs still compiling
 - A property two interfaces declare reads the get-only one, whatever order the assembly lists them in

@@ -9,7 +9,7 @@ namespace OneJS.Tests.Models {
     /// ModelBridge.SetMeshLeafLight: a mesh's `wrap` lets the sun reach past its shadow line, and
     /// its `translucency` lets the sun show through it from behind (ModelLeafLight.hlsl). Before
     /// them a leaf card turned from the sun took the ambient alone, so a crown's undersides went
-    /// dark. A flat square seen from straight above, with the ambient off, so what changes is the sun's work.
+    /// dark, and a card seen edge on drew as a dark line (SetMeshEdgeFade). A flat square seen from straight above, with the ambient off, so what changes is the sun's work.
     /// </summary>
     public class LeafLightEditModeTests {
         const int Size = 33;
@@ -68,6 +68,9 @@ namespace OneJS.Tests.Models {
             return model;
         }
 
+        // White, through light gathered at a power of 4.
+        static string Leaf(int model, float wrap, float translucency) => ModelBridge.SetMeshLeafLight(model, wrap, translucency, 4, 1, 1, 1);
+
         // The sun travelling along `direction`, white, without shadows.
         static void Sun(float x, float y, float z) => ModelBridge.SetSun(true, x, y, z, 1, 1, 1, 1, false);
 
@@ -91,20 +94,27 @@ namespace OneJS.Tests.Models {
             }
         }
 
-        // The middle pixel's brightness, linear.
-        static float Brightness(int model) {
+        // The middle pixel, linear.
+        static Color Middle(int model) {
             var read = Render(model);
             try {
-                var c = read.GetPixel(Size / 2, Size / 2);
-                return c.r + c.g + c.b;
+                return read.GetPixel(Size / 2, Size / 2);
             } finally {
                 Object.DestroyImmediate(read);
             }
         }
 
+        // The middle pixel's brightness, linear.
+        static float Brightness(int model) {
+            var c = Middle(model);
+            return c.r + c.g + c.b;
+        }
+
         [Test]
         public void AMeshTakesNoLeafLight_UntilItIsGivenSome() {
-            Assert.That(ModelBridge.MaterialOf(Square()).GetVector("_LeafLight"), Is.EqualTo(Vector4.zero));
+            var material = ModelBridge.MaterialOf(Square());
+            Assert.That(material.GetVector("_LeafLight"), Is.EqualTo(new Vector4(0, 0, 4, 0)), "no wrap, no translucency, its power at 4");
+            Assert.That(material.GetVector("_LeafEdge"), Is.EqualTo(Vector4.zero));
         }
 
         [Test]
@@ -113,8 +123,8 @@ namespace OneJS.Tests.Models {
             // diffuse light gives it nothing.
             Sun(0.98f, 0.2f, 0);
             int plain = Square(), wrapped = Square();
-            Assert.That(ModelBridge.SetMeshLeafLight(wrapped, 0.6f, 0), Is.Empty);
-            Assert.That(ModelBridge.MaterialOf(wrapped).GetVector("_LeafLight"), Is.EqualTo(new Vector4(0.6f, 0, 0, 0)));
+            Assert.That(Leaf(wrapped, 0.6f, 0), Is.Empty);
+            Assert.That(ModelBridge.MaterialOf(wrapped).GetVector("_LeafLight"), Is.EqualTo(new Vector4(0.6f, 0, 4, 0)));
             float without = Brightness(plain), with = Brightness(wrapped);
             // Without the sun's direct light only the scene's indirect light is left, the same for both.
             Assert.That(with, Is.GreaterThan(without + 0.1f), $"past its shadow line a wrapped square is lit: {with} against {without}");
@@ -125,7 +135,7 @@ namespace OneJS.Tests.Models {
             // On a face the sun stands straight over, wrapping adds nothing: (1 + w) / (1 + w).
             Sun(0, -1, 0);
             int plain = Square(), wrapped = Square();
-            Assert.That(ModelBridge.SetMeshLeafLight(wrapped, 0.6f, 0), Is.Empty);
+            Assert.That(Leaf(wrapped, 0.6f, 0), Is.Empty);
             float without = Brightness(plain), with = Brightness(wrapped);
             Assert.That(without, Is.GreaterThan(0.2f), "the square is not lit, so nothing here is measured");
             Assert.That(Mathf.Abs(with - without), Is.LessThan(0.02f * without), $"facing the sun: {with} against {without}");
@@ -136,7 +146,7 @@ namespace OneJS.Tests.Models {
             // The sun is below the square, shining up through it toward the camera.
             Sun(0.1f, 1, 0.05f);
             int plain = Square(), through = Square();
-            Assert.That(ModelBridge.SetMeshLeafLight(through, 0, 0.8f), Is.Empty);
+            Assert.That(Leaf(through, 0, 0.8f), Is.Empty);
             float without = Brightness(plain), with = Brightness(through);
             Assert.That(with, Is.GreaterThan(without + 0.3f), $"lit from behind, a translucent square glows: {with} against {without}");
         }
@@ -146,19 +156,101 @@ namespace OneJS.Tests.Models {
             // The sun behind the camera: nothing shines through toward it.
             Sun(0.05f, -1, 0.05f);
             int plain = Square(), through = Square();
-            Assert.That(ModelBridge.SetMeshLeafLight(through, 0, 0.8f), Is.Empty);
+            Assert.That(Leaf(through, 0, 0.8f), Is.Empty);
             float without = Brightness(plain), with = Brightness(through);
             Assert.That(Mathf.Abs(with - without), Is.LessThan(0.01f), $"from the sun's side: {with} against {without}");
         }
 
         [Test]
+        public void Translucency_TakesItsTint() {
+            Sun(0.1f, 1, 0.05f);
+            int plain = Square(), red = Square();
+            Assert.That(ModelBridge.SetMeshLeafLight(red, 0, 0.8f, 4, 1, 0, 0), Is.Empty);
+            Color a = Middle(plain), b = Middle(red);
+            Assert.That(b.r, Is.GreaterThan(a.r + 0.1f), $"red shows through: {b} against {a}");
+            Assert.That(Mathf.Abs(b.g - a.g) + Mathf.Abs(b.b - a.b), Is.LessThan(0.01f), $"and nothing else: {b} against {a}");
+        }
+
+        [Test]
+        public void APower_GathersTheGlowRoundTheSunsLine() {
+            // The sun below the square and 40 degrees off the camera's line: a broad glow reaches
+            // this far round, a tight one hardly.
+            Sun(0.64f, 0.77f, 0);
+            int broad = Square(), tight = Square();
+            Assert.That(ModelBridge.SetMeshLeafLight(broad, 0, 0.8f, 1, 1, 1, 1), Is.Empty);
+            Assert.That(ModelBridge.SetMeshLeafLight(tight, 0, 0.8f, 16, 1, 1, 1), Is.Empty);
+            float a = Brightness(broad), b = Brightness(tight);
+            Assert.That(a, Is.GreaterThan(b + 0.1f), $"power 1 {a} against power 16 {b}");
+        }
+
+        // A white square, drawn unlit, tipped `degrees` up from lying flat about the x axis.
+        static int Card(float degrees) {
+            int model = ModelBridge.CreateMesh(false, false, false, 1, 1, 1, 1);
+            float a = degrees * Mathf.Deg2Rad;
+            var along = new Vector3(0, Mathf.Sin(a), Mathf.Cos(a));
+            var positions = new[] { -Vector3.right - along, -Vector3.right + along, Vector3.right + along, Vector3.right - along };
+            Assert.That(ModelBridge.SetMesh(model, positions, new uint[] { 0, 1, 2, 0, 2, 3 }, null, null, null), Is.Empty);
+            Assert.That(ModelBridge.SetMeshTwoSided(model), Is.Empty);
+            ModelBridge.MaterialOf(model).SetFloat("_Unlit", 1);
+            return model;
+        }
+
+        // How many pixels of the frame the model covers, against a magenta clear.
+        static int Covered(int model) {
+            ModelBridge.SceneCamera.backgroundColor = Color.magenta;
+            var read = Render(model);
+            try {
+                int n = 0;
+                foreach (var c in read.GetPixels()) if (!(c.r > 0.98f && c.g < 0.02f && c.b > 0.98f)) n++;
+                return n;
+            } finally {
+                Object.DestroyImmediate(read);
+            }
+        }
+
+        [Test]
+        public void EdgeFade_DithersAwayACardSeenEdgeOn_AndKeepsOneSeenFaceOn() {
+            // Tipped 80 degrees, the card meets the eye at |N.V| = 0.17.
+            int edgeOn = Card(80), faded = Card(80);
+            Assert.That(ModelBridge.SetMeshEdgeFade(faded, 0.3f, 0.5f), Is.Empty);
+            int whole = Covered(edgeOn), left = Covered(faded);
+            Assert.That(whole, Is.GreaterThan(50), "the card covers nothing, so nothing here is measured");
+            Assert.That(left, Is.EqualTo(0), $"seen edge on it is gone: {left} of {whole} pixels left");
+            int faceOn = Card(0), kept = Card(0);
+            Assert.That(ModelBridge.SetMeshEdgeFade(kept, 0.3f, 0.5f), Is.Empty);
+            Assert.That(Covered(kept), Is.EqualTo(Covered(faceOn)), "seen face on it keeps every pixel");
+        }
+
+        [Test]
+        public void EdgeFade_DithersPartWayBetweenItsEnds() {
+            // |N.V| = cos 70 = 0.34, halfway between 0.24 and 0.44.
+            int card = Card(70), faded = Card(70);
+            Assert.That(ModelBridge.SetMeshEdgeFade(faded, 0.24f, 0.44f), Is.Empty);
+            int whole = Covered(card), left = Covered(faded);
+            Assert.That(left, Is.InRange(whole / 4, 3 * whole / 4), $"{left} of {whole} pixels left");
+        }
+
+        [Test]
+        public void EdgeFade_IsRefusedOutOfOrder_AndComesOffAtNoughtAndNought() {
+            int card = Card(80);
+            Assert.That(ModelBridge.SetMeshEdgeFade(card, 0.5f, 0.3f), Does.Contain("start < end"));
+            Assert.That(ModelBridge.SetMeshEdgeFade(card, 0.2f, 1.5f), Does.Contain("start < end"));
+            Assert.That(ModelBridge.SetMeshEdgeFade(card, 0.3f, 0.5f), Is.Empty);
+            Assert.That(ModelBridge.SetMeshEdgeFade(card, 0, 0), Is.Empty);
+            Assert.That(ModelBridge.MaterialOf(card).GetVector("_LeafEdge"), Is.EqualTo(Vector4.zero));
+            Assert.That(Covered(card), Is.GreaterThan(50), "off again, the card draws whole");
+        }
+
+        [Test]
         public void TheLeafLight_IsRefusedOutsideNoughtToOne_AndForAModelThatIsNotAMesh() {
             int model = Square();
-            Assert.That(ModelBridge.SetMeshLeafLight(model, -0.1f, 0), Does.Contain("wrap"));
-            Assert.That(ModelBridge.SetMeshLeafLight(model, 0, 1.5f), Does.Contain("translucency"));
-            Assert.That(ModelBridge.SetMeshLeafLight(model, float.NaN, 0), Does.Contain("wrap"));
-            Assert.That(ModelBridge.SetMeshLeafLight(-1, 0.5f, 0.5f), Does.Contain("no mesh model"));
-            Assert.That(ModelBridge.MaterialOf(model).GetVector("_LeafLight"), Is.EqualTo(Vector4.zero), "a refused value changes nothing");
+            Assert.That(Leaf(model, -0.1f, 0), Does.Contain("wrap"));
+            Assert.That(Leaf(model, 0, 1.5f), Does.Contain("translucency"));
+            Assert.That(Leaf(model, float.NaN, 0), Does.Contain("wrap"));
+            Assert.That(Leaf(-1, 0.5f, 0.5f), Does.Contain("no mesh model"));
+            Assert.That(ModelBridge.SetMeshLeafLight(model, 0, 0.5f, 0.5f, 1, 1, 1), Does.Contain("power"));
+            Assert.That(ModelBridge.SetMeshLeafLight(model, 0, 0.5f, 4, 1.2f, 1, 1), Does.Contain("color"));
+            Assert.That(ModelBridge.MaterialOf(model).GetVector("_LeafLight"), Is.EqualTo(new Vector4(0, 0, 4, 0)), "a refused value changes nothing");
         }
 
         [Test]
@@ -184,9 +276,9 @@ namespace OneJS.Tests.Models {
             ModelBridge.SetAmbient(0.3f, 0.4f, 0.6f, 0.2f, 0.15f, 0.1f, 1);
             int ball = Ball();
             var never = Render(ball);
-            Assert.That(ModelBridge.SetMeshLeafLight(ball, 0.5f, 0.5f), Is.Empty);
+            Assert.That(Leaf(ball, 0.5f, 0.5f), Is.Empty);
             var asked = Render(ball);
-            Assert.That(ModelBridge.SetMeshLeafLight(ball, 0, 0), Is.Empty);
+            Assert.That(Leaf(ball, 0, 0), Is.Empty);
             var again = Render(ball);
             try {
                 Assert.That(asked.GetRawTextureData(), Is.Not.EqualTo(never.GetRawTextureData()), "asking changed nothing, so nothing here is measured");

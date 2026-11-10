@@ -8,8 +8,9 @@
 //   place of max(0, N.L), as it does through a leaf, moss or skin. Added as the difference, so the
 //   lit side keeps what it had (the two meet at N.L = 1) and the side turned away gains.
 // - translucency: the sun showing through from behind, toward the eye, tinted by the surface's own
-//   colour: a leaf held up to the light. The view against the sun's direction bent a little by the
-//   normal, to the fourth power, so it glows only near the line of the sun.
+//   colour (its vertex colours too, so a crown's core darkened in them glows less) and by a tint: a
+//   leaf held up to the light. The view against the sun's direction bent a little by the normal, to
+//   a power, so it glows only near the line of the sun: 4 by default, tighter above.
 //
 // The sun only: point lights light a leaf as they light anything else. Its shadow and SSAO's
 // direct occlusion come from URP's GetMainLight, the same as the lit pass's own; the shadow is read
@@ -22,8 +23,9 @@
 #define MODEL_LEAF_THROUGH_BEND 0.3
 
 // What wrap (`leaf.x`) and translucency (`leaf.y`), each 0 to 1, add to a pixel lit by
-// UniversalFragmentPBR from `d` and `s`.
-half3 ModelLeafLight(InputData d, SurfaceData s, half2 leaf) {
+// UniversalFragmentPBR from `d` and `s`, the light through gathered to the power `leaf.z` and
+// tinted by `tint`.
+half3 ModelLeafLight(InputData d, SurfaceData s, float3 leaf, half3 tint) {
     BRDFData brdf;
     SurfaceData copy = s;
     InitializeBRDFData(copy, brdf);
@@ -34,8 +36,8 @@ half3 ModelLeafLight(InputData d, SurfaceData s, half2 leaf) {
     half wrapped = saturate((nl + leaf.x) / (1.0 + leaf.x));
     half3 added = brdf.diffuse * light * (wrapped - saturate(nl));
     half3 bent = normalize(sun.direction + d.normalWS * MODEL_LEAF_THROUGH_BEND);
-    half through = Pow4(saturate(dot(d.viewDirectionWS, -bent)));
-    return added + s.albedo * light * (through * leaf.y);
+    half through = pow(saturate(dot(d.viewDirectionWS, -bent)), leaf.z);
+    return added + s.albedo * tint * light * (through * leaf.y);
 }
 
 #endif

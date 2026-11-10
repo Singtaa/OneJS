@@ -24,6 +24,7 @@
 #include "ModelLightmap.hlsl"
 #include "ModelWind.hlsl"
 #include "ModelRange.hlsl"
+#include "ModelEdgeFade.hlsl"
 
 TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
 #ifdef MODEL_SPLAT
@@ -80,9 +81,15 @@ CBUFFER_START(UnityPerMaterial)
         // has no tangents; 0 everywhere else, which reads the map at the base map's uvs as before.
         float4 _NormalMap_ST;
         float4 _NormalFlow;
-        // A mesh model's leaf light (ModelLeafLight.hlsl): how far the sun wraps round it in x, and
-        // how much shows through it from behind in y; 0 and 0 everywhere else, which adds nothing.
+        // A mesh model's leaf light (ModelLeafLight.hlsl): how far the sun wraps round it in x, how
+        // much shows through it from behind in y, and how tightly that gathers round the sun's line
+        // in z; x and y 0 everywhere else, which adds nothing. The light through is tinted by
+        // _LeafTint (linear) and by the surface's own colour.
         float4 _LeafLight;
+        half4 _LeafTint;
+        // A mesh model's fade where its faces turn edge on (ModelEdgeFade.hlsl): where it starts and
+        // ends in x and y, 0 and 0 everywhere else, which discards nothing.
+        float4 _LeafEdge;
     #endif
 CBUFFER_END
 
