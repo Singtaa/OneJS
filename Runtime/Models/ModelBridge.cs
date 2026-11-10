@@ -97,6 +97,10 @@ namespace OneJS.Models {
             public float normalScale = 1;
             public float[] sway = Array.Empty<float>();
             public PositionSway[] positionSway = Array.Empty<PositionSway>();
+            // A layered sway (SetMeshSwayLayers): four numbers a vertex in `sway`, trunk, limb, leaf
+            // and phase, and its first stream of position and all four.
+            public bool swayLayers;
+            public PositionSwayLayers[] positionSwayLayers = Array.Empty<PositionSwayLayers>();
             // The ground copy its base map draws (ModelBridge.Ground.cs), shared with every model given the same picture.
             public RenderTexture texture;
             // A splat's layers' copies, and its weights, layerCount a vertex padded to four, which go
@@ -397,7 +401,8 @@ namespace OneJS.Models {
             SetMesh(model, positions, indices, normals, colors, uvs, weights, null);
 
         /// <summary>
-        /// SetMesh for a model that sways (SetMeshSway): `sway` is one a vertex, and comes with every
+        /// SetMesh for a model that sways (SetMeshSway): `sway` is one a vertex (four, trunk, limb,
+        /// leaf and phase, for a layered sway, SetMeshSwayLayers), and comes with every
         /// set that changes the number of vertices, and otherwise may be left out and stay. `weights`
         /// is null for a model without a splat. A model that does not sway takes none.
         /// </summary>
@@ -422,7 +427,12 @@ namespace OneJS.Models {
             }
             if (sway != null && !b.sways) return "this model was made without sway, so it takes none";
             if (sway == null && b.sways && resized) return "sway is required whenever the number of vertices changes";
-            if (sway != null && sway.Length != count) return $"there are {sway.Length} sways for {count} positions";
+            int swayWidth = b.swayLayers ? 4 : 1;
+            if (sway != null && sway.Length != count * swayWidth) {
+                return b.swayLayers
+                    ? $"sway has {sway.Length} numbers, and a layered sway takes 4 a vertex (trunk, limb, leaf, phase): {count * 4} for {count} positions"
+                    : $"there are {sway.Length} sways for {count} positions";
+            }
 
             int indexCount;
             if (indices == null) {
@@ -470,12 +480,21 @@ namespace OneJS.Models {
 
             if (b.sways) {
                 if (sway != null) {
-                    if (b.sway.Length < b.vertexCapacity) Array.Resize(ref b.sway, b.vertexCapacity);
-                    Array.Copy(sway, b.sway, count);
+                    if (b.sway.Length < b.vertexCapacity * swayWidth) Array.Resize(ref b.sway, b.vertexCapacity * swayWidth);
+                    Array.Copy(sway, b.sway, count * swayWidth);
                 }
-                if (b.positionSway.Length < b.vertexCapacity) b.positionSway = new PositionSway[b.vertexCapacity];
-                for (int v = 0; v < count; v++) b.positionSway[v] = new PositionSway { position = positions[v], sway = b.sway[v] };
-                b.mesh.SetVertexBufferData(b.positionSway, 0, 0, count, 0, quiet);
+                if (b.swayLayers) {
+                    if (b.positionSwayLayers.Length < b.vertexCapacity) b.positionSwayLayers = new PositionSwayLayers[b.vertexCapacity];
+                    for (int v = 0; v < count; v++) {
+                        int at = v * 4;
+                        b.positionSwayLayers[v] = new PositionSwayLayers { position = positions[v], sway = new Vector4(b.sway[at], b.sway[at + 1], b.sway[at + 2], b.sway[at + 3]) };
+                    }
+                    b.mesh.SetVertexBufferData(b.positionSwayLayers, 0, 0, count, 0, quiet);
+                } else {
+                    if (b.positionSway.Length < b.vertexCapacity) b.positionSway = new PositionSway[b.vertexCapacity];
+                    for (int v = 0; v < count; v++) b.positionSway[v] = new PositionSway { position = positions[v], sway = b.sway[v] };
+                    b.mesh.SetVertexBufferData(b.positionSway, 0, 0, count, 0, quiet);
+                }
             } else {
                 b.mesh.SetVertexBufferData(positions, 0, 0, count, 0, quiet);
             }

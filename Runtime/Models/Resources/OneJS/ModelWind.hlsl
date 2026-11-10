@@ -32,4 +32,39 @@ float3 ModelSwayed(float3 positionWS, float4x4 objectToWorld, float sway) {
     return positionWS + float3(wind.x, 0.0, wind.y) * reach;
 }
 
+// A layered sway (onejs-play's `scene.mesh({ sway: { trunk, limb, leaf, phase } })`,
+// ModelBridge.SetMeshSwayLayers), `s` a vertex's trunk, limb, leaf and phase. The wind the plain
+// sway has, and three things it lacks:
+// - the trunk bends rather than slides: a vertex keeps its distance from its copy's foot, so a
+//   tree leaning downwind sinks a little at its crown instead of stretching;
+// - a gust is a field over the ground blowing downwind, sampled at each copy's foot, so a gust
+//   crosses a wood as a patch rather than as one swell along the wind;
+// - a limb swings at its own quicker beat and a leaf flutters along its normal at a quicker one
+//   still, each offset by the vertex's phase (in turns, so 0 and 1 are the same), so the cards of
+//   a branch move together and differ from the next branch's.
+float3 ModelSwayedLayered(float3 positionWS, float3 normalWS, float4x4 objectToWorld, float4 s) {
+    float3 origin = float3(objectToWorld._m03, objectToWorld._m13, objectToWorld._m23);
+    float scale = length(float3(objectToWorld._m01, objectToWorld._m11, objectToWorld._m21));
+    float2 wind = _OjWind.xy;
+    float3 way = float3(wind.x, 0.0, wind.y);
+    float t = _OjWindClock.x;
+    float along = dot(origin.xz, wind);
+    float phase = along * 0.08 + ModelHash(origin * 0.13) * 6.2831853;
+    // The gust field: value noise 30 m across, carried downwind at 4 m a second.
+    float2 field = (origin.xz - wind * (t * 4.0)) / 30.0;
+    float gust = 1.0 + _OjWind.w * (2.0 * ModelNoise(float3(field.x, 0.0, field.y)) - 1.0);
+    float push = scale * _OjWind.z * gust;
+    float own = frac(s.w) * 6.2831853;
+    // The limb's swing, downwind with a little lift, and the leaf's flutter along its normal.
+    float limb = sin(t * 2.1 + phase + own) + 0.4 * sin(t * 3.7 + 1.3 * own);
+    float leaf = sin(t * 7.3 + own * 3.0 + dot(positionWS, float3(1.7, 2.3, 1.1)));
+    float3 moved = positionWS + (way + float3(0.0, 0.3, 0.0)) * (s.y * push * limb) + normalWS * (s.z * push * leaf);
+    // The trunk's bend, as the plain sway's reach, then held to the vertex's distance from the foot.
+    float swing = 0.7 * sin(t * 0.9 + phase) + 0.3 * sin(t * 2.3 + 1.7 * phase);
+    float3 rel = moved - origin;
+    float3 bent = rel + way * (s.x * push * (0.35 + 0.65 * swing));
+    float reach = length(rel);
+    return origin + (reach > 1e-5 ? bent * (reach / max(length(bent), 1e-5)) : bent);
+}
+
 #endif

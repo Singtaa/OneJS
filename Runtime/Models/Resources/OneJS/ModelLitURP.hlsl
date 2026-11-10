@@ -55,8 +55,9 @@ CBUFFER_START(UnityPerMaterial)
     half4 _DissolveEdge;
     half _ReceiveShadows;
     half _Surface;
-    // 1 where a mesh model's vertices carry how far each may sway (TEXCOORD3), 0 elsewhere, so a
-    // model without them never reads a stream it does not have.
+    // 1 where a mesh model's vertices carry how far each may sway (TEXCOORD3's x), 2 where they
+    // carry a layered sway (all four: trunk, limb, leaf, phase), 0 elsewhere, so a model without
+    // them never reads a stream it does not have.
     half _Sway;
     // 1 lights a double-sided face's back with its normal as given (a mesh model's `twoSided`, for
     // foliage cards whose normals bend out from a crown), 0 flips it, as a glTF file's back faces are.
@@ -141,9 +142,11 @@ half3 Tinted(half3 color) {
 
 // Where a vertex lands in the world, swayed by the wind when its model sways. A branch on a
 // material value, so every vertex of a draw takes the same way.
-float3 SwayedWorld(float3 positionOS, float sway) {
+// A plain sway's stream has one number a vertex, which a float4 input reads as (sway, 0, 0, 1).
+float3 SwayedWorld(float3 positionOS, float3 normalOS, float4 sway) {
     float3 positionWS = TransformObjectToWorld(positionOS);
-    if (_Sway > 0.5) positionWS = ModelSwayed(positionWS, GetObjectToWorldMatrix(), sway);
+    if (_Sway > 1.5) positionWS = ModelSwayedLayered(positionWS, TransformObjectToWorldNormal(normalOS), GetObjectToWorldMatrix(), sway);
+    else if (_Sway > 0.5) positionWS = ModelSwayed(positionWS, GetObjectToWorldMatrix(), sway.x);
     return positionWS;
 }
 

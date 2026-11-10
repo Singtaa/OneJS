@@ -104,8 +104,9 @@ struct Attributes {
     #ifdef MODEL_SPLAT
         float4 weights : TEXCOORD2;
     #endif
-    // How far the vertex may sway, read only where the model sways (_Sway).
-    float sway : TEXCOORD3;
+    // How far the vertex may sway, read only where the model sways (_Sway): x alone for a plain
+    // sway, trunk, limb, leaf and phase for a layered one.
+    float4 sway : TEXCOORD3;
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
@@ -133,7 +134,7 @@ Varyings Vert(Attributes v) {
     UNITY_SETUP_INSTANCE_ID(v);
     UNITY_TRANSFER_INSTANCE_ID(v, o);
     float2 range = CopyRange();
-    float3 positionWS = KeptInRange(SwayedWorld(v.positionOS.xyz, v.sway), ModelRangeKeep(range));
+    float3 positionWS = KeptInRange(SwayedWorld(v.positionOS.xyz, v.normalOS, v.sway), ModelRangeKeep(range));
     VertexNormalInputs n = GetVertexNormalInputs(v.normalOS, v.tangentOS);
     o.positionCS = TransformWorldToHClip(positionWS);
     o.positionWS = positionWS;

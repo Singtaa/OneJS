@@ -27,6 +27,13 @@ namespace OneJS.Models {
             public float sway;
         }
 
+        /// <summary>A layered sway's first stream: each vertex's position, then its trunk, limb, leaf and phase (TEXCOORD3).</summary>
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        internal struct PositionSwayLayers {
+            public Vector3 position;
+            public Vector4 sway;
+        }
+
         /// <summary>
         /// Cuts a mesh model's pixels away where its alpha (picture, colour and vertex colours
         /// multiplied) is below `cutout`, in its shadow and depth as in its colour. It draws opaque,
@@ -61,15 +68,30 @@ namespace OneJS.Models {
         /// 0 at a trunk's foot, more toward a crown's rim. Before the model's first vertices, since
         /// it adds a stream to them. "" when it took it, or what was wrong.
         /// </summary>
-        public static string SetMeshSway(int model) {
+        public static string SetMeshSway(int model) => GiveSway(model, false);
+
+        /// <summary>
+        /// Gives a mesh model a layered sway (ModelWind.hlsl's ModelSwayedLayered), four numbers a
+        /// vertex that every SetMesh then carries: how far the trunk bends it, how far a limb swings
+        /// it and a leaf flutters it along its normal, each in the model's own units at a wind
+        /// strength of 1, and its phase in turns, which sets a limb's and a leaf's beat apart from
+        /// its neighbours'. The trunk bends, keeping each vertex's distance from the copy's foot,
+        /// and a gust is a patch blowing across the ground. Before the model's first vertices, and
+        /// not on one already given a plain sway. "" when it took it, or what was wrong.
+        /// </summary>
+        public static string SetMeshSwayLayers(int model) => GiveSway(model, true);
+
+        static string GiveSway(int model, bool layers) {
             if (!Look(model, out var m, out var problem)) return problem;
             var b = m.built;
-            if (b.sways) return "";
+            if (b.sways && b.swayLayers == layers) return "";
+            if (b.sways) return layers ? "this model sways by one number a vertex, and takes no layers" : "this model sways in layers, four numbers a vertex";
             if (b.written) return "sway is given before the model's first vertices";
             b.sways = true;
+            b.swayLayers = layers;
             var layout = new List<VertexAttributeDescriptor>(b.layout) {
                 // Beside the position, in its stream: a mesh has four streams, and a splat with uvs and colours uses them all.
-                new(VertexAttribute.TexCoord3, VertexAttributeFormat.Float32, 1, 0),
+                new(VertexAttribute.TexCoord3, VertexAttributeFormat.Float32, layers ? 4 : 1, 0),
             };
             layout.Sort((x, y) => x.attribute.CompareTo(y.attribute));
             b.layout = layout.ToArray();
@@ -101,7 +123,7 @@ namespace OneJS.Models {
                 material.SetFloat(CullId, (float)CullMode.Off);
                 material.SetFloat(KeepBackNormalId, 1);
             }
-            if (b.sways) material.SetFloat(SwayId, 1);
+            if (b.sways) material.SetFloat(SwayId, b.swayLayers ? 2 : 1);
             ApplySurface(b);
         }
 

@@ -188,8 +188,10 @@ namespace OneJS.Models {
             // A splat's weights (ModelBridge.Ground.cs), four a vertex.
             var uv2 = new List<Vector4>();
             source.GetUVs(2, uv2);
-            // A swaying mesh model's sway (ModelBridge.Look.cs), one a vertex.
-            var uv3 = new List<Vector2>();
+            // A swaying mesh model's sway (ModelBridge.Look.cs), one a vertex, or four for a layered
+            // sway; read and written at the width it has, so a plain sway's stays one wide.
+            bool swayLayers = source.HasVertexAttribute(VertexAttribute.TexCoord3) && source.GetVertexAttributeDimension(VertexAttribute.TexCoord3) == 4;
+            var uv3 = new List<Vector4>();
             source.GetUVs(3, uv3);
             bool hasNormals = normals.Length == count, hasTangents = tangents.Length == count, hasColors = colors.Length == count, hasUv0 = uv0.Count == count;
             bool hasUv2 = uv2.Count == count, hasUv3 = uv3.Count == count;
@@ -202,7 +204,7 @@ namespace OneJS.Models {
             var outUv0 = new List<Vector2>();
             var outUv1 = new List<Vector2>();
             var outUv2 = new List<Vector4>();
-            var outUv3 = new List<Vector2>();
+            var outUv3 = new List<Vector4>();
             var triangles = new int[source.subMeshCount][];
             for (int sub = 0; sub < source.subMeshCount; sub++) {
                 var n = (int)source.GetIndexCount(sub);
@@ -245,7 +247,10 @@ namespace OneJS.Models {
             if (hasUv0) mesh.SetUVs(0, outUv0);
             mesh.SetUVs(1, outUv1);
             if (hasUv2) mesh.SetUVs(2, outUv2);
-            if (hasUv3) mesh.SetUVs(3, outUv3);
+            if (hasUv3) {
+                if (swayLayers) mesh.SetUVs(3, outUv3);
+                else mesh.SetUVs(3, outUv3.ConvertAll(s => new Vector2(s.x, s.y)));
+            }
             mesh.subMeshCount = triangles.Length;
             for (int sub = 0; sub < triangles.Length; sub++) mesh.SetTriangles(triangles[sub], sub, false);
             mesh.bounds = source.bounds;

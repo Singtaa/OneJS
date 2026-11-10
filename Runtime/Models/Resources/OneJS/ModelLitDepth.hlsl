@@ -14,11 +14,11 @@
 
 struct Attributes {
     float4 positionOS : POSITION;
-    #if !defined(MODEL_PASS_DEPTH_ONLY)
-        float3 normalOS : NORMAL;
-    #endif
+    // In every depth pass, DepthOnly too: a layered sway flutters a leaf along it, and each pass
+    // must move a vertex as the lit pass does.
+    float3 normalOS : NORMAL;
     float2 uv : TEXCOORD0;
-    float sway : TEXCOORD3;
+    float4 sway : TEXCOORD3;
     #ifdef _VERTEX_COLOR
         float4 color : COLOR;
     #endif
@@ -49,7 +49,7 @@ Varyings Vert(Attributes v) {
     #else
         float keep = ModelRangeKeep(range);
     #endif
-    float3 positionWS = KeptInRange(SwayedWorld(v.positionOS.xyz, v.sway), keep);
+    float3 positionWS = KeptInRange(SwayedWorld(v.positionOS.xyz, v.normalOS, v.sway), keep);
     #if defined(MODEL_PASS_SHADOW_CASTER)
         float3 normalWS = TransformObjectToWorldNormal(v.normalOS);
         #if _CASTING_PUNCTUAL_LIGHT_SHADOW

@@ -21,6 +21,7 @@
 - Glossy models reflect the sky once asked (`SetSkyReflect`)
 - A mesh model can let the sun wrap round it and show through it from behind, in a tint and at a power (`SetMeshLeafLight`)
 - A mesh model's faces can dither away as they turn edge on (`SetMeshEdgeFade`)
+- A mesh model can sway in layers: a bending trunk, swinging limbs and fluttering leaves, under gusts that cross the ground (`SetMeshSwayLayers`)
 - InputBridge says which pointer the last press came from
 - SLProgramBridge counts the page programs still compiling
 - A property two interfaces declare reads the get-only one, whatever order the assembly lists them in
