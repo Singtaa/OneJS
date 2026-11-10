@@ -248,7 +248,9 @@ namespace OneJS.Models {
         /// False when no mesh holds a copy of it, which is not an error.
         /// </summary>
         public static bool RefreshGroundCopy(Texture source) {
-            if (source == null || !_groundCopies.TryGetValue(source, out var copy) || copy.texture == null) return false;
+            if (source == null) return false;
+            bool refreshed = RefreshNormalCopy(source);
+            if (!_groundCopies.TryGetValue(source, out var copy) || copy.texture == null) return refreshed;
             Graphics.Blit(source, copy.texture);
             return true;
         }

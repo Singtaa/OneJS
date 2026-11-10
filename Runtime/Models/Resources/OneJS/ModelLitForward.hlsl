@@ -179,10 +179,17 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
         s.metallic = mr.b * _Metallic;
         // glTF roughness is perceptual roughness, which is what URP's smoothness inverts.
         s.smoothness = 1.0 - mr.g * _Roughness;
-        s.normalTS = UnpackNormalScale(SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap, i.uv), _NormalScale);
+        // A mesh model's own normal map (_NormalFlow.z) reads at its own repeats, sliding by the
+        // scene's clock, in a frame worked out per pixel; a glTF model's, at the base map's uvs in
+        // the frame its tangents give. One read either way.
+        bool ownFrame = _NormalFlow.z > 0.5;
+        float2 normalUV = ownFrame ? ModelNormalUV(i.uv, _BaseMap_ST, _NormalMap_ST, _NormalFlow.xy, _OjWindClock.x) : i.uv;
+        s.normalTS = UnpackNormalScale(SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap, normalUV), _NormalScale);
         s.occlusion = lerp(1.0, SAMPLE_TEXTURE2D(_OcclusionMap, sampler_OcclusionMap, i.uv).r, _OcclusionStrength);
         float3 bitangent = i.tangentWS.w * cross(normalWS, i.tangentWS.xyz);
-        d.normalWS = NormalizeNormalPerPixel(TransformTangentToWorld(s.normalTS, half3x3(i.tangentWS.xyz, bitangent, normalWS)));
+        half3x3 frame = half3x3(i.tangentWS.xyz, bitangent, normalWS);
+        if (ownFrame) frame = ModelCotangentFrame(normalWS, i.positionWS, normalUV);
+        d.normalWS = NormalizeNormalPerPixel(TransformTangentToWorld(s.normalTS, frame));
     #endif
     d.viewDirectionWS = GetWorldSpaceNormalizeViewDir(i.positionWS);
     #if defined(MAIN_LIGHT_CALCULATE_SHADOWS)

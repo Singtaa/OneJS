@@ -83,6 +83,11 @@ namespace OneJS.Models {
             // over the deep colour's, each 0 for none, and the deep colour in sRGB.
             public Vector4 depthFade;
             public Color deepColor;
+            // Its normal map (ModelBridge.Material.cs): the picture's linear copy, shared as ground
+            // copies are, its repeats a uv, how far it bends, and its flow in uvs a second.
+            public RenderTexture normalMap;
+            public Vector2 normalTiling = Vector2.one, normalFlow;
+            public float normalScale = 1;
             public float[] sway = Array.Empty<float>();
             public PositionSway[] positionSway = Array.Empty<PositionSway>();
             // The ground copy its base map draws (ModelBridge.Ground.cs), shared with every model given the same picture.
@@ -274,6 +279,8 @@ namespace OneJS.Models {
             m.import?.Dispose();
             if (m.built != null) {
                 WantDepth(m.built, false);
+                ReleaseNormalCopy(m.built.normalMap);
+                m.built.normalMap = null;
                 ReleaseGroundCopy(m.built.texture);
                 m.built.texture = null;
                 if (m.built.layers != null) foreach (var layer in m.built.layers) ReleaseGroundCopy(layer);

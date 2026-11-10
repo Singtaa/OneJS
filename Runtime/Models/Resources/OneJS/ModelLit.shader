@@ -48,6 +48,8 @@ Shader "OneJS/ModelLit" {
         // A see-through mesh model's fade by the depth behind it and its deep colour: see ModelLitURP.hlsl.
         [HideInInspector] _DepthFade ("Depth Fade", Vector) = (0, 0, 0, 0)
         [HideInInspector] _DeepColor ("Deep Color", Color) = (0, 0, 0, 0)
+        // A mesh model's normal map flow and own frame: see ModelLitURP.hlsl.
+        [HideInInspector] _NormalFlow ("Normal Flow", Vector) = (0, 0, 0, 0)
     }
 
     SubShader {

@@ -74,6 +74,13 @@ CBUFFER_START(UnityPerMaterial)
     // linear. At the end, after the splat's, so neither shader's earlier layout moves.
     float4 _DepthFade;
     half4 _DeepColor;
+    #ifndef MODEL_SPLAT
+        // A mesh model's normal map (ModelSurface.hlsl): its repeats a uv, and in _NormalFlow its
+        // flow in uvs a second (xy) and 1 in z where its frame is worked out per pixel, since a mesh
+        // has no tangents; 0 everywhere else, which reads the map at the base map's uvs as before.
+        float4 _NormalMap_ST;
+        float4 _NormalFlow;
+    #endif
 CBUFFER_END
 
 // What one actor has of its own, set by ModelBridge only on an actor that needs it: a

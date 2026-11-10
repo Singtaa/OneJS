@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 
 namespace OneJS.Models {
     /// <summary>
@@ -13,6 +15,12 @@ namespace OneJS.Models {
         static readonly int RoughnessId = Shader.PropertyToID("_Roughness");
         static readonly int DepthFadeId = Shader.PropertyToID("_DepthFade");
         static readonly int DeepColorId = Shader.PropertyToID("_DeepColor");
+        static readonly int NormalMapId = Shader.PropertyToID("_NormalMap");
+        static readonly int NormalScaleId = Shader.PropertyToID("_NormalScale");
+        static readonly int NormalFlowId = Shader.PropertyToID("_NormalFlow");
+        static readonly int EncodeId = Shader.PropertyToID("_Encode");
+        static readonly Dictionary<Texture, GroundCopy> _normalCopies = new(new ByReference());
+        static Material _normalCopier;
 
         /// <summary>
         /// A mesh model's roughness and metallic, each 0 to 1, as glTF has them. A mesh is made
@@ -80,6 +88,97 @@ namespace OneJS.Models {
             return "";
         }
 
+        /// <summary>
+        /// Bends a mesh model's lighting by a normal map read at its uvs: `picture` from tex or
+        /// loadTexture, read as the data it is rather than as colour, repeated `tileU` by `tileV`
+        /// times a uv of its own, bending `scale` times as far as it says (glTF's normal scale), and
+        /// sliding `flowU, flowV` uvs a second by the scene's clock, before its repeats. A mesh has no
+        /// tangents, so its frame is worked out per pixel from how its position and uvs change across
+        /// the screen. Null takes it off. Needs uvs, not with a splat, and URP only. Every actor and
+        /// copy of the model changes with it. "" when it took it, or what was wrong.
+        /// </summary>
+        public static string SetMeshNormalMap(int model, Texture picture, float tileU, float tileV, float scale, float flowU, float flowV) {
+            if (!Look(model, out var m, out var problem)) return problem;
+            var b = m.built;
+            // URP registers the depth hook, so it says the pipeline is URP (UrpCameraDepth.cs).
+            if (CameraDepthPipeline == null) return "this project's render pipeline is not URP, and OneJS draws a mesh's normal map on URP alone";
+            if (b.splat) return "a splat is lit by its vertex normals, and takes no normal map";
+            if (picture != null && !b.givesUvs) return "this model was made without uvs, which a normal map is read at: give uvs with its first vertices";
+            problem = Tiling(tileU, tileV) ?? (picture != null ? Pixels(picture, "the normal map") : null);
+            if (problem != null) return problem;
+            if (!Finite(scale)) return $"scale is {scale}, and is a number";
+            if (!Finite(flowU) || !Finite(flowV)) return $"flow is {flowU} by {flowV}, and is uvs a second";
+            var copy = picture == null ? null : TakeNormalCopy(picture);
+            ReleaseNormalCopy(b.normalMap);
+            b.normalMap = copy;
+            b.normalTiling = new Vector2(tileU, tileV);
+            b.normalScale = scale;
+            b.normalFlow = new Vector2(flowU, flowV);
+            ApplySurface(b);
+            return "";
+        }
+
+        static bool Finite(float v) => !float.IsNaN(v) && !float.IsInfinity(v);
+
+        /// <summary>
+        /// The bridge's linear copy of a normal map, with its mips, made the first time a mesh model
+        /// is given the picture and shared by every one given it after. The picture's bytes, unchanged:
+        /// an sRGB picture is decoded as it is sampled, so the copy encodes it back (NormalCopy.shader).
+        /// </summary>
+        static RenderTexture TakeNormalCopy(Texture source) {
+            if (!_normalCopies.TryGetValue(source, out var copy) || copy.texture == null) {
+                var rt = new RenderTexture(source.width, source.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear) {
+                    name = $"{source.name} (normal)",
+                    useMipMap = true,
+                    autoGenerateMips = true,
+                    wrapMode = TextureWrapMode.Repeat,
+                    filterMode = FilterMode.Trilinear,
+                    anisoLevel = 4,
+                };
+                if (!Playing) rt.hideFlags = HideFlags.DontSave;
+                rt.Create();
+                copy = new GroundCopy { texture = rt };
+                _normalCopies[source] = copy;
+                CopyNormals(source, rt);
+            }
+            copy.users++;
+            return copy.texture;
+        }
+
+        static void CopyNormals(Texture source, RenderTexture into) {
+            if (_normalCopier == null) {
+                _normalCopier = new Material(Resources.Load<Shader>("OneJS/NormalCopy")) { name = "normal copy", hideFlags = HideFlags.HideAndDontSave };
+            }
+            // Decoded as it is read only where the project is linear and the picture is sRGB.
+            bool srgb = source is RenderTexture r ? r.sRGB : GraphicsFormatUtility.IsSRGBFormat(source.graphicsFormat);
+            _normalCopier.SetFloat(EncodeId, srgb && QualitySettings.activeColorSpace == ColorSpace.Linear ? 1 : 0);
+            Graphics.Blit(source, into, _normalCopier);
+        }
+
+        static bool RefreshNormalCopy(Texture source) {
+            if (!_normalCopies.TryGetValue(source, out var copy) || copy.texture == null) return false;
+            CopyNormals(source, copy.texture);
+            return true;
+        }
+
+        static void ReleaseNormalCopy(RenderTexture texture) {
+            if (texture == null) return;
+            Texture source = null;
+            foreach (var pair in _normalCopies) {
+                if (pair.Value.texture != texture) continue;
+                if (--pair.Value.users > 0) return;
+                source = pair.Key;
+                break;
+            }
+            if (source is null) return;
+            _normalCopies.Remove(source);
+            texture.Release();
+            Kill(texture);
+        }
+
+        /// <summary>How many pictures the bridge holds a normal map copy of.</summary>
+        internal static int NormalCopyCount => _normalCopies.Count;
+
         /// <summary>A mesh model's roughness, metallic and depth fade, onto its material: again whenever the material is replaced (BecomeSplat).</summary>
         static void ApplySurface(BuiltMesh b) {
             if (b.material == null || ModelMaterialGenerator.ModelShader == null) return;
@@ -88,6 +187,17 @@ namespace OneJS.Models {
             b.material.SetVector(DepthFadeId, b.depthFade);
             // SetColor takes the sRGB value and keeps it linear in a linear project, as _BaseColor.
             b.material.SetColor(DeepColorId, b.deepColor);
+            // A mesh without a normal map keeps the flat `bump` picture and its frame as it was.
+            if (b.normalMap == null) {
+                b.material.SetTexture(NormalMapId, null);
+                b.material.SetVector(NormalFlowId, Vector4.zero);
+                return;
+            }
+            b.material.SetTexture(NormalMapId, b.normalMap);
+            b.material.SetTextureScale(NormalMapId, b.normalTiling);
+            b.material.SetFloat(NormalScaleId, b.normalScale);
+            // z says the frame is worked out per pixel (ModelSurface.hlsl), since a mesh has no tangents.
+            b.material.SetVector(NormalFlowId, new Vector4(b.normalFlow.x, b.normalFlow.y, 1, 0));
         }
     }
 }
