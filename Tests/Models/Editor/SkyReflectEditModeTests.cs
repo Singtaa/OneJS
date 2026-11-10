@@ -21,6 +21,8 @@ namespace OneJS.Tests.Models {
         // the GPU that read them: the same shader code on another GPU may round differently.
         static readonly Dictionary<string, string> Before = new() {
             ["Apple M4 Pro"] = "645968ba9d5dd01d537a078ff72d7de9",
+            // Direct3D12, read by OneJSv3Container Win 003 at a9643f1 and again at 3a025da and 0c8045b.
+            ["NVIDIA GeForce RTX 3080"] = "52aed2fd40a259303c5338b777b9f17a",
         };
 
         [SetUp]
@@ -155,6 +157,43 @@ namespace OneJS.Tests.Models {
             float moved = Mathf.Abs(dark.r - light.r) + Mathf.Abs(dark.g - light.g) + Mathf.Abs(dark.b - light.b);
             Assert.That(dark.r + dark.g + dark.b, Is.GreaterThan(0.05f), $"the floor is not lit, so nothing here is measured: {dark}");
             Assert.That(moved, Is.LessThan(0.004f), $"a rough floor took the colour below the horizon: {dark} under a black one, {light} under a white one");
+        }
+
+        // A splat ground (GroundLit) does not reflect the sky: a ground near roughness 1 reflected
+        // about 1% of it, which cost GroundLit's forward variants 13 KB of the container (Tachi
+        // 8c2e38d4). A glossy ground (wet stone, ice) is the reason to bring it back.
+        [Test]
+        public void ASplatGround_DrawsTheSameAskedOrNot() {
+            var layer = new Texture2D(4, 4, TextureFormat.RGBA32, false);
+            var white = new Color32[16];
+            for (int i = 0; i < 16; i++) white[i] = new Color32(200, 200, 200, 255);
+            layer.SetPixels32(white);
+            layer.Apply();
+            ModelBridge.SetSun(true, -0.4f, -0.6f, 0.7f, 1, 0.95f, 0.9f, 1.2f, false);
+            ModelBridge.SetCamera(0, 1.5f, -20, 0, 0, 20, 30);
+            int ground = ModelBridge.CreateMesh(true, false, true, 1, 1, 1, 1);
+            try {
+                Assert.That(ModelBridge.SetMeshSplat(ground, layer, null, null, null, 1, 1, 0), Is.Empty);
+                var p = new[] { new Vector3(-50, 0, -50), new Vector3(-50, 0, 50), new Vector3(50, 0, 50), new Vector3(50, 0, -50) };
+                var n = new[] { Vector3.up, Vector3.up, Vector3.up, Vector3.up };
+                var uv = new[] { new Vector2(0, 0), new Vector2(0, 1), new Vector2(1, 1), new Vector2(1, 0) };
+                Assert.That(ModelBridge.SetMesh(ground, p, new uint[] { 0, 1, 2, 0, 2, 3 }, n, null, uv, new float[] { 1, 1, 1, 1 }), Is.Empty);
+                var unasked = Render(ground);
+                ModelBridge.SetSkyReflect(true);
+                var asked = Render(ground);
+                try {
+                    float most = 0;
+                    var a = unasked.GetPixels();
+                    var b = asked.GetPixels();
+                    for (int i = 0; i < a.Length; i++) most = Mathf.Max(most, Mathf.Abs(a[i].r - b[i].r) + Mathf.Abs(a[i].g - b[i].g) + Mathf.Abs(a[i].b - b[i].b));
+                    Assert.That(asked.GetRawTextureData(), Is.EqualTo(unasked.GetRawTextureData()), $"the ground moved by up to {most} when asked");
+                } finally {
+                    Object.DestroyImmediate(unasked);
+                    Object.DestroyImmediate(asked);
+                }
+            } finally {
+                Object.DestroyImmediate(layer);
+            }
         }
 
         [Test]
