@@ -54,12 +54,13 @@ namespace OneJS.Tests.Models {
 
         static readonly Vector3 Flat = new(0, 0, 1), TowardSun = new Vector3(0.8f, 0, 0.6f), AwayFromSun = new Vector3(-0.8f, 0, 0.6f);
 
-        // The brightness, linear, at world x (z 0), with the model drawn as an actor at the origin.
-        static float Brightness(int model, float x = 0) {
+        // The brightness, linear, at world x (z 0), with the model drawn as an actor at the origin, or
+        // as a scattered copy there.
+        static float Brightness(int model, float x = 0, bool scattered = false) {
             var camera = ModelBridge.SceneCamera;
             var target = new RenderTexture(Size, Size, 24, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
             var read = new Texture2D(Size, Size, TextureFormat.RGBAHalf, false, true);
-            int actor = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, false, false);
+            int actor = scattered ? ModelBridge.Scatter(model, new float[] { 0, 0, 0, 0, 1 }) : ModelBridge.Spawn(model, 0, 0, 0, 0, 1, false, false);
             try {
                 camera.targetTexture = target;
                 camera.Render();
@@ -70,7 +71,7 @@ namespace OneJS.Tests.Models {
                 var c = read.GetPixel(Mathf.Clamp(Mathf.FloorToInt((x / 4 + 0.5f) * Size), 0, Size - 1), Size / 2);
                 return c.r + c.g + c.b;
             } finally {
-                ModelBridge.Destroy(actor);
+                if (scattered) ModelBridge.DestroyScatter(actor); else ModelBridge.Destroy(actor);
                 camera.targetTexture = null;
                 Object.DestroyImmediate(target);
                 Object.DestroyImmediate(read);
@@ -106,6 +107,26 @@ namespace OneJS.Tests.Models {
             } finally {
                 Object.DestroyImmediate(toward);
                 Object.DestroyImmediate(away);
+            }
+        }
+
+        // A scattered copy draws with ModelLit's scatter variant on a copy of the model's material
+        // (ModelBridge.Scatter.cs), which must carry the map, its frame and its flow.
+        [Test]
+        public void AScatteredCopy_BendsAndFlowsAsAnActorDoes() {
+            // As in Flow_SlidesItByTheScenesClock: after 2 s the right half, tilted away from the sun,
+            // has slid under x = -1. A copy reading the map where the base map is read, unslid in the
+            // frame of tangents, would show the left half, tilted toward it.
+            var halves = Normals(TowardSun, AwayFromSun);
+            try {
+                int plain = Square(), model = Square();
+                Assert.That(ModelBridge.SetMeshNormalMap(model, halves, 1, 1, 1, 0.25f, 0), Is.Empty);
+                ModelBridge.SetWindClock(2);
+                float flat = Brightness(plain, -1, true), actor = Brightness(model, -1), copy = Brightness(model, -1, true);
+                Assert.That(actor, Is.LessThan(0.85f * flat), $"the actor slid away from the sun {actor}, a flat copy {flat}");
+                Assert.That(copy, Is.EqualTo(actor).Within(0.03f * actor), $"a copy {copy} against an actor {actor}");
+            } finally {
+                Object.DestroyImmediate(halves);
             }
         }
 

@@ -40,13 +40,17 @@ namespace OneJS.Tests.Models {
 
         static readonly Color Water = new(1, 1, 1, 0.5f);
 
-        // The middle pixel, linear, with each model drawn as an actor at the origin.
-        static Color Middle(params int[] models) {
+        // The middle pixel, linear, with each model drawn as an actor at the origin, and `scattered`
+        // as a scattered copy there.
+        static Color Middle(params int[] models) => Middle(-1, models);
+
+        static Color Middle(int scattered, params int[] models) {
             var camera = ModelBridge.SceneCamera;
             var target = new RenderTexture(Size, Size, 24, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
             var read = new Texture2D(Size, Size, TextureFormat.RGBAHalf, false, true);
             var actors = new int[models.Length];
             for (int k = 0; k < models.Length; k++) actors[k] = ModelBridge.Spawn(models[k], 0, 0, 0, 0, 1, false, false);
+            int scatter = scattered < 0 ? -1 : ModelBridge.Scatter(scattered, new float[] { 0, 0, 0, 0, 1 });
             try {
                 camera.targetTexture = target;
                 camera.Render();
@@ -57,6 +61,7 @@ namespace OneJS.Tests.Models {
                 return read.GetPixel(Size / 2, Size / 2);
             } finally {
                 foreach (var a in actors) ModelBridge.Destroy(a);
+                if (scatter >= 0) ModelBridge.DestroyScatter(scatter);
                 camera.targetTexture = null;
                 Object.DestroyImmediate(target);
                 Object.DestroyImmediate(read);
@@ -78,6 +83,15 @@ namespace OneJS.Tests.Models {
             Assert.That(Middle(shallow, water).r, Is.EqualTo(0.125f).Within(0.01f), "a quarter metre deep");
             int deep = Sheet(-2, Color.black);
             Assert.That(Middle(deep, water).r, Is.EqualTo(0.5f).Within(0.01f), "past soften's metres the alpha is whole");
+        }
+
+        // A scattered copy draws with ModelLit's scatter variant on a copy of the model's material
+        // (ModelBridge.Scatter.cs), which must carry the fade.
+        [Test]
+        public void AScatteredCopy_FadesAsAnActorDoes() {
+            int shallow = Sheet(-0.25f, Color.black), water = Sheet(0, Water);
+            Assert.That(ModelBridge.SetMeshDepthFade(water, 1, 0, 0, 0, 0, 0), Is.Empty);
+            Assert.That(Middle(water, shallow).r, Is.EqualTo(0.125f).Within(0.01f), "a quarter metre deep, scattered");
         }
 
         [Test]
