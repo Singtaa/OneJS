@@ -11,6 +11,7 @@
 - A picture sized by its layout can pass 2048 a side, up to the GPU's limit, and keeps its shape
 - A pass can keep 32 bits a channel (`Bits`), and a kept read hands back floats
 - ModelBridge draws the scene into a texture a program reads
+- ModelBridge draws the scene's distances into a texture a program reads, on URP
 - ModelBridge draws a gradient sky with a sun disc and stars
 - ModelBridge draws a mesh model as depth alone
 - A splat ground blurs its far repeats to their mean colour and varies its brightness across the world (`SetMeshSplatFar`)

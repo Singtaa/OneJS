@@ -981,6 +981,7 @@ namespace OneJS.Models {
             ClearScatters();
             // The camera goes with the root below, so there is no screen to give it back to.
             StopSceneTexture(restoreCamera: false);
+            StopSceneDepth();
             StopSky();
             StopWind();
             foreach (var a in _actors.Values) if (a.go != null) Kill(a.go);
