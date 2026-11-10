@@ -80,6 +80,9 @@ CBUFFER_START(UnityPerMaterial)
         // has no tangents; 0 everywhere else, which reads the map at the base map's uvs as before.
         float4 _NormalMap_ST;
         float4 _NormalFlow;
+        // A mesh model's leaf light (ModelLeafLight.hlsl): how far the sun wraps round it in x, and
+        // how much shows through it from behind in y; 0 and 0 everywhere else, which adds nothing.
+        float4 _LeafLight;
     #endif
 CBUFFER_END
 

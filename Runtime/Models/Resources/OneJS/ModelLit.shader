@@ -50,6 +50,8 @@ Shader "OneJS/ModelLit" {
         [HideInInspector] _DeepColor ("Deep Color", Color) = (0, 0, 0, 0)
         // A mesh model's normal map flow and own frame: see ModelLitURP.hlsl.
         [HideInInspector] _NormalFlow ("Normal Flow", Vector) = (0, 0, 0, 0)
+        // A mesh model's leaf light, wrap in x and translucency in y: see ModelLeafLight.hlsl.
+        [HideInInspector] _LeafLight ("Leaf Light", Vector) = (0, 0, 0, 0)
     }
 
     SubShader {
