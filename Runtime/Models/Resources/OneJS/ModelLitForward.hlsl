@@ -33,7 +33,13 @@ half3 SkyReflection(InputData d, SurfaceData s) {
     SurfaceData copy = s;
     InitializeBRDFData(copy, brdf);
     AmbientOcclusionFactor ao = CreateAmbientOcclusionFactor(d, s);
-    float3 r = reflect(-d.viewDirectionWS, d.normalWS);
+    float3 mirror = reflect(-d.viewDirectionWS, d.normalWS);
+    // A rough surface's lobe leans from the mirror ray toward the normal (Frostbite's dominant
+    // direction), since the half of it under the surface is hidden: a rough lake at a grazing
+    // angle reflects the sky above it, not the colour below the horizon.
+    float a = brdf.roughness;
+    float lean = (1.0 - a) * (sqrt(1.0 - a) + a);
+    float3 r = normalize(lerp(d.normalWS, mirror, lean));
     half fresnel = Pow4(1.0 - saturate(dot(d.normalWS, d.viewDirectionWS)));
     half3 sky = OneJSSkyReflected(r, brdf.perceptualRoughness, _OjSkyTop.rgb, _OjSkyHorizon.rgb, _OjSkyBottom.rgb,
         _OjSkySunColor.rgb, _OjSkySunDir, _OjSkySunShape.y);

@@ -130,6 +130,33 @@ namespace OneJS.Tests.Models {
             }
         }
 
+        // A rough floor seen at a grazing angle, its middle pixel, under a sky whose colour below the
+        // horizon is `bottom`.
+        static Color RoughFloorAtGrazing(Color bottom) {
+            ModelBridge.SetSky(true, Top.r, Top.g, Top.b, Horizon.r, Horizon.g, Horizon.b, bottom.r, bottom.g, bottom.b, 0, 0, 0);
+            ModelBridge.SetSkyReflect(true);
+            ModelBridge.SetCamera(0, 1.5f, -20, 0, 0, 20, 30);
+            int floor = ModelBridge.CreateMesh(true, false, false, 0.3f, 0.3f, 0.3f, 1);
+            var p = new[] { new Vector3(-50, 0, -50), new Vector3(-50, 0, 50), new Vector3(50, 0, 50), new Vector3(50, 0, -50) };
+            var n = new[] { Vector3.up, Vector3.up, Vector3.up, Vector3.up };
+            Assert.That(ModelBridge.SetMesh(floor, p, new uint[] { 0, 1, 2, 0, 2, 3 }, n, null, null), Is.Empty);
+            var read = Render(floor);
+            try {
+                return read.GetPixel(Size / 2, Size / 2 - 8);
+            } finally {
+                Object.DestroyImmediate(read);
+            }
+        }
+
+        [Test]
+        public void ARoughFloorAtGrazing_ReflectsTheSkyAboveIt_NotTheColourBelowTheHorizon() {
+            var dark = RoughFloorAtGrazing(Color.black);
+            var light = RoughFloorAtGrazing(Color.white);
+            float moved = Mathf.Abs(dark.r - light.r) + Mathf.Abs(dark.g - light.g) + Mathf.Abs(dark.b - light.b);
+            Assert.That(dark.r + dark.g + dark.b, Is.GreaterThan(0.05f), $"the floor is not lit, so nothing here is measured: {dark}");
+            Assert.That(moved, Is.LessThan(0.004f), $"a rough floor took the colour below the horizon: {dark} under a black one, {light} under a white one");
+        }
+
         [Test]
         public void TurningItOffAgain_ReadsTheBytesOfNeverAsking() {
             int ball = Ball(0.06f, 0.4f);
