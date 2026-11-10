@@ -126,6 +126,8 @@ namespace OneJS.Models {
             public int model;
             public GameObject go;
             public Animation anim;
+            // The clip it was last told to play, whose time ModelBridge.Skin.cs runs while it is unseen.
+            public AnimationState clip;
             public Renderer[] renderers;
             // Made the first time this actor needs one (see Apply).
             public MaterialPropertyBlock block;
@@ -228,7 +230,9 @@ namespace OneJS.Models {
             // which edit mode refuses; the edit-mode preview loads in one go instead.
             var defer = Playing ? null : new UninterruptedDeferAgent();
             var import = new ModelImport(defer, new ModelMaterialGenerator());
-            var settings = new ImportSettings { AnimationMethod = AnimationMethod.Legacy };
+            // Mipmaps, which glTFast leaves off: without them a picture shimmers on anything far
+            // enough for a texel to be smaller than a pixel. A third more memory a picture.
+            var settings = new ImportSettings { AnimationMethod = AnimationMethod.Legacy, GenerateMipMaps = true };
             var generation = _generation;
             var loaded = await import.Load(url, settings);
             Abandoned(generation, import, null);
@@ -254,6 +258,7 @@ namespace OneJS.Models {
                 foreach (AnimationState state in anim) clips.Add(state.name);
                 anim.playAutomatically = false;
             }
+            PrepareSkins(template, anim);
 
             var id = ++_next;
             _models[id] = new Model {
@@ -721,8 +726,14 @@ namespace OneJS.Models {
             state.wrapMode = loop ? WrapMode.Loop : WrapMode.ClampForever;
             state.speed = a.speed;
             // A crossfade only progresses in Animation's own update, which edit mode never runs.
-            if (fade > 0 && Playing) a.anim.CrossFade(clip, fade);
+            // An actor's first clip is sampled here: its clips are not sampled while it is unseen
+            // (ModelBridge.Skin.cs), and one spawned this frame has not been seen yet, so it would
+            // be drawn once as its model stands before it took the clip's pose.
+            bool first = Playing && !a.anim.isPlaying;
+            if (fade > 0 && Playing && !first) a.anim.CrossFade(clip, fade);
             else a.anim.Play(clip);
+            if (first) a.anim.Sample();
+            Clock(a, state);
             return true;
         }
 
@@ -734,7 +745,9 @@ namespace OneJS.Models {
         }
 
         public static void Destroy(int actor) {
-            if (_actors.Remove(actor, out var a) && a.go != null) Kill(a.go);
+            if (!_actors.Remove(actor, out var a)) return;
+            Unclock(a);
+            if (a.go != null) Kill(a.go);
         }
 
         /// <summary>
@@ -988,6 +1001,7 @@ namespace OneJS.Models {
             StopWind();
             foreach (var a in _actors.Values) if (a.go != null) Kill(a.go);
             _actors.Clear();
+            StopClocks();
             foreach (var m in _models.Values) Free(m);
             _models.Clear();
             _lights.Clear();
