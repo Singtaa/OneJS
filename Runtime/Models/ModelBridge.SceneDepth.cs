@@ -68,10 +68,13 @@ namespace OneJS.Models {
         internal static int SceneDepthReaders => _sceneDepthReaders;
 
         // Half floats step 2 mm at 2 m and 2 m at 2,900 m, enough for fog and edges; full floats
-        // where a GPU cannot draw into halves.
+        // where a GPU cannot draw into halves. The first this GPU draws into is taken; a test
+        // narrows the list to reach the fallback.
+        internal static GraphicsFormat[] SceneDepthFormats = { GraphicsFormat.R16_SFloat, GraphicsFormat.R32_SFloat };
+
         static GraphicsFormat SceneDepthFormat {
             get {
-                foreach (var f in new[] { GraphicsFormat.R16_SFloat, GraphicsFormat.R32_SFloat })
+                foreach (var f in SceneDepthFormats)
                     if (SystemInfo.IsFormatSupported(f, GraphicsFormatUsage.Render)) return f;
                 return GraphicsFormat.None;
             }

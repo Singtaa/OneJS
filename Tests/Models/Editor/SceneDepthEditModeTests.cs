@@ -71,34 +71,89 @@ namespace OneJS.Tests.Models {
         // the radial distance, not the eye's z. The sky reads the camera's far distance.
         [Test]
         public void EachPixel_IsTheDistanceAlongItsRay_AndTheSkyIsTheFarDistance() {
-            int wall = ModelBridge.CreateMesh(false, false, false, 0.5f, 0.5f, 0.5f, 1);
-            var positions = new[] {
-                new Vector3(-100, -100, Wall), new Vector3(-100, 100, Wall), new Vector3(0, 100, Wall), new Vector3(0, -100, Wall),
-            };
-            Assert.That(ModelBridge.SetMesh(wall, positions, new uint[] { 0, 1, 2, 0, 2, 3 }, null, null, null), Is.Empty);
-            int actor = ModelBridge.Spawn(wall, 0, 0, 0, 0, 1, false, false);
+            var camera = ModelBridge.SceneCamera;
+            var metres = Read(SpawnWall());
+            float At(int x, int y) => metres[y * Size + x];
+            // The wall's edge runs down the middle column, so read just left of it.
+            int left = Size / 2 - 1;
+            Assert.That(At(left, Size / 2), Is.EqualTo(Expected(camera, left, Size / 2)).Within(0.02f), "near straight ahead, about 10 m");
+            int corner = 2;
+            float aside = Expected(camera, corner, corner);
+            Assert.That(aside, Is.GreaterThan(Wall * 1.2f), "the corner's ray is much longer than the eye's z");
+            Assert.That(At(corner, corner), Is.EqualTo(aside).Within(aside * 0.002f), "the distance along the corner pixel's ray");
+            Assert.That(At(Size - 3, Size / 2), Is.EqualTo(camera.farClipPlane).Within(1f), "the sky reads the far distance");
+        }
+
+        [Test]
+        public void TheTexture_IsSizedToWhatTheCameraDraws() {
             var camera = ModelBridge.SceneCamera;
             var depth = ModelBridge.AcquireSceneDepth();
             var target = new RenderTexture(Size, Size, 24, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
             try {
                 camera.targetTexture = target;
                 camera.Render();
-                Assert.That(depth.width, Is.EqualTo(Size), "sized to what the camera draws");
+                Assert.That(depth.width, Is.EqualTo(Size));
                 Assert.That(depth.height, Is.EqualTo(Size));
+            } finally {
+                camera.targetTexture = null;
+                Object.DestroyImmediate(target);
+                ModelBridge.ReleaseSceneDepth();
+            }
+        }
+
+        // Rays run parallel from an orthographic camera, so every pixel on a wall square to the view
+        // reads the distance from the camera's plane: 10 m, corner and middle alike.
+        [Test]
+        public void AnOrthographicCamera_ReadsTheDistanceFromItsPlane() {
+            var camera = ModelBridge.SceneCamera;
+            camera.orthographic = true;
+            camera.orthographicSize = 5;
+            var metres = Read(SpawnWall());
+            int left = Size / 2 - 1;
+            Assert.That(metres[(Size / 2) * Size + left], Is.EqualTo(Wall).Within(0.02f), "the middle");
+            Assert.That(metres[2 * Size + 2], Is.EqualTo(Wall).Within(0.02f), "a corner, no further than the middle");
+            Assert.That(metres[(Size / 2) * Size + Size - 3], Is.EqualTo(camera.farClipPlane).Within(1f), "the sky reads the far distance");
+        }
+
+        // Where a GPU cannot draw into half floats, the depth is full floats and reads the same.
+        [Test]
+        public void FullFloats_WhereHalvesCannotBeDrawn_ReadTheSame() {
+            var was = ModelBridge.SceneDepthFormats;
+            ModelBridge.SceneDepthFormats = new[] { GraphicsFormat.R32_SFloat };
+            try {
+                var actor = SpawnWall();
+                Assert.That(ModelBridge.AcquireSceneDepth().graphicsFormat, Is.EqualTo(GraphicsFormat.R32_SFloat));
+                ModelBridge.ReleaseSceneDepth();
+                var metres = Read(actor);
+                int left = Size / 2 - 1;
+                var camera = ModelBridge.SceneCamera;
+                Assert.That(metres[(Size / 2) * Size + left], Is.EqualTo(Expected(camera, left, Size / 2)).Within(0.002f));
+            } finally {
+                ModelBridge.SceneDepthFormats = was;
+            }
+        }
+
+        static int SpawnWall() {
+            int wall = ModelBridge.CreateMesh(false, false, false, 0.5f, 0.5f, 0.5f, 1);
+            var positions = new[] {
+                new Vector3(-100, -100, Wall), new Vector3(-100, 100, Wall), new Vector3(0, 100, Wall), new Vector3(0, -100, Wall),
+            };
+            Assert.That(ModelBridge.SetMesh(wall, positions, new uint[] { 0, 1, 2, 0, 2, 3 }, null, null, null), Is.Empty);
+            return ModelBridge.Spawn(wall, 0, 0, 0, 0, 1, false, false);
+        }
+
+        // One render of the scene camera into a Size square, and scene.depth read back as floats.
+        static float[] Read(int actor) {
+            var camera = ModelBridge.SceneCamera;
+            var depth = ModelBridge.AcquireSceneDepth();
+            var target = new RenderTexture(Size, Size, 24, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
+            try {
+                camera.targetTexture = target;
+                camera.Render();
                 var read = AsyncGPUReadback.Request(depth, 0, TextureFormat.RFloat);
                 read.WaitForCompletion();
                 Assert.That(read.hasError, Is.False);
-                var metres = read.GetData<float>();
-                float At(int x, int y) => metres[y * Size + x];
-
-                // The wall's edge runs down the middle column, so read just left of it.
-                int left = Size / 2 - 1;
-                Assert.That(At(left, Size / 2), Is.EqualTo(Expected(camera, left, Size / 2)).Within(0.02f), "near straight ahead, about 10 m");
-                int corner = 2;
-                float aside = Expected(camera, corner, corner);
-                Assert.That(aside, Is.GreaterThan(Wall * 1.2f), "the corner's ray is much longer than the eye's z");
-                Assert.That(At(corner, corner), Is.EqualTo(aside).Within(aside * 0.002f), "the distance along the corner pixel's ray");
-                Assert.That(At(Size - 3, Size / 2), Is.EqualTo(camera.farClipPlane).Within(1f), "the sky reads the far distance");
+                return read.GetData<float>().ToArray();
             } finally {
                 camera.targetTexture = null;
                 Object.DestroyImmediate(target);
@@ -107,10 +162,12 @@ namespace OneJS.Tests.Models {
             }
         }
 
-        // The distance to the wall along the ray through a pixel's centre.
+        // The distance to the wall along the ray through a pixel's centre, for a camera at the
+        // origin looking along z into the square it renders, whose aspect is 1.
         static float Expected(Camera camera, int x, int y) {
-            var ray = camera.ViewportPointToRay(new Vector3((x + 0.5f) / Size, (y + 0.5f) / Size, 0));
-            return (Wall - ray.origin.z) / ray.direction.z + Vector3.Distance(camera.transform.position, ray.origin);
+            float tan = Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad);
+            float ax = ((x + 0.5f) / Size * 2 - 1) * tan, ay = ((y + 0.5f) / Size * 2 - 1) * tan;
+            return Wall * Mathf.Sqrt(1 + ax * ax + ay * ay);
         }
     }
 }
