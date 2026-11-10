@@ -1,4 +1,4 @@
-// A mesh model's leaf light (onejs-play's `scene.mesh({ wrap, translucency })`,
+// A mesh model's leaf light (onejs-play's `scene.mesh({ wrap, backLight })`,
 // ModelBridge.SetMeshLeafLight), in ModelLit's lit pass in URP, after UniversalFragmentPBR and
 // before the fog. Two terms of the sun's light that a plain surface does not get, added to what
 // UniversalFragmentPBR worked out, so its lighting is not replaced and a mesh that asks for neither
@@ -7,10 +7,10 @@
 // - wrap: the sun's diffuse light reaches past the shadow line, max(0, (N.L + w) / (1 + w)) in
 //   place of max(0, N.L), as it does through a leaf, moss or skin. Added as the difference, so the
 //   lit side keeps what it had (the two meet at N.L = 1) and the side turned away gains.
-// - translucency: the sun showing through from behind, toward the eye, tinted by the surface's own
+// - backLight: the sun showing through from behind, toward the eye, tinted by the surface's own
 //   colour (its vertex colours too, so a crown's core darkened in them glows less) and by a tint: a
 //   leaf held up to the light. The view against the sun's direction bent a little by the normal, to
-//   a power, so it glows only near the line of the sun: 4 by default, tighter above.
+//   a power, its focus, so it glows only near the line of the sun: 4 by default, tighter above.
 //
 // The sun only: point lights light a leaf as they light anything else. Its shadow and SSAO's
 // direct occlusion come from URP's GetMainLight, the same as the lit pass's own; the shadow is read
@@ -22,8 +22,8 @@
 // only exactly behind it, more spreads it over the face.
 #define MODEL_LEAF_THROUGH_BEND 0.3
 
-// What wrap (`leaf.x`) and translucency (`leaf.y`), each 0 to 1, add to a pixel lit by
-// UniversalFragmentPBR from `d` and `s`, the light through gathered to the power `leaf.z` and
+// What wrap (`leaf.x`) and backLight (`leaf.y`), each 0 to 1, add to a pixel lit by
+// UniversalFragmentPBR from `d` and `s`, the light through gathered to the power `leaf.z` (backLightFocus) and
 // tinted by `tint`.
 half3 ModelLeafLight(InputData d, SurfaceData s, float3 leaf, half3 tint) {
     BRDFData brdf;

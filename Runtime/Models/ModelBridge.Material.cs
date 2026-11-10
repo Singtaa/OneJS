@@ -42,20 +42,20 @@ namespace OneJS.Models {
         /// <summary>
         /// A mesh model's leaf light, each 0 to 1 and 0 for none (ModelLeafLight.hlsl): `wrap` lets
         /// the sun's light reach past the shadow line, as it does through a leaf or moss, and
-        /// `translucency` lets the sun show through from behind, toward the eye, as it does through
+        /// `backLight` lets the sun show through from behind, toward the eye, as it does through
         /// a leaf held up to it, tinted by the surface's colour and by `r, g, b` (sRGB) and gathered
-        /// round the sun's line by `power` (1 to 16; 4 is a broad glow, 8 a tight one). The sun
+        /// round the sun's line by `focus` (1 to 16; 4 is a broad glow, 8 a tight one). The sun
         /// only, URP only, and not with a splat, which is lit by its vertex normals. Every actor
         /// and copy of the model changes with it. "" when it took them, or what was wrong.
         /// </summary>
-        public static string SetMeshLeafLight(int model, float wrap, float translucency, float power, float r, float g, float b) {
+        public static string SetMeshLeafLight(int model, float wrap, float backLight, float focus, float r, float g, float b) {
             if (!Look(model, out var m, out var problem)) return problem;
             if (!(wrap >= 0 && wrap <= 1)) return $"wrap is {wrap}, and runs from 0 to 1";
-            if (!(translucency >= 0 && translucency <= 1)) return $"translucency is {translucency}, and runs from 0 to 1";
-            if (!(power >= 1 && power <= 16)) return $"the translucency's power is {power}, and runs from 1 to 16";
-            if (!(r >= 0 && r <= 1 && g >= 0 && g <= 1 && b >= 0 && b <= 1)) return $"the translucency's color is ({r}, {g}, {b}), and each runs from 0 to 1";
+            if (!(backLight >= 0 && backLight <= 1)) return $"backLight is {backLight}, and runs from 0 to 1";
+            if (!(focus >= 1 && focus <= 16)) return $"backLightFocus is {focus}, and runs from 1 to 16";
+            if (!(r >= 0 && r <= 1 && g >= 0 && g <= 1 && b >= 0 && b <= 1)) return $"backLightColor is ({r}, {g}, {b}), and each runs from 0 to 1";
             if (m.built.splat) return "a splat is lit by its vertex normals, and takes no leaf light";
-            m.built.leafLight = new Vector3(wrap, translucency, power);
+            m.built.leafLight = new Vector3(wrap, backLight, focus);
             m.built.leafTint = new Color(r, g, b, 1);
             ApplySurface(m.built);
             return "";

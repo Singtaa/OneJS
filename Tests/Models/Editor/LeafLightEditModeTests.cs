@@ -7,7 +7,7 @@ using UnityEngine;
 namespace OneJS.Tests.Models {
     /// <summary>
     /// ModelBridge.SetMeshLeafLight: a mesh's `wrap` lets the sun reach past its shadow line, and
-    /// its `translucency` lets the sun show through it from behind (ModelLeafLight.hlsl). Before
+    /// its `backLight` lets the sun show through it from behind (ModelLeafLight.hlsl). Before
     /// them a leaf card turned from the sun took the ambient alone, so a crown's undersides went
     /// dark, and a card seen edge on drew as a dark line (SetMeshEdgeFade). A flat square seen from straight above, with the ambient off, so what changes is the sun's work.
     /// </summary>
@@ -68,8 +68,8 @@ namespace OneJS.Tests.Models {
             return model;
         }
 
-        // White, through light gathered at a power of 4.
-        static string Leaf(int model, float wrap, float translucency) => ModelBridge.SetMeshLeafLight(model, wrap, translucency, 4, 1, 1, 1);
+        // White, the back light at a focus of 4.
+        static string Leaf(int model, float wrap, float backLight) => ModelBridge.SetMeshLeafLight(model, wrap, backLight, 4, 1, 1, 1);
 
         // The sun travelling along `direction`, white, without shadows.
         static void Sun(float x, float y, float z) => ModelBridge.SetSun(true, x, y, z, 1, 1, 1, 1, false);
@@ -113,7 +113,7 @@ namespace OneJS.Tests.Models {
         [Test]
         public void AMeshTakesNoLeafLight_UntilItIsGivenSome() {
             var material = ModelBridge.MaterialOf(Square());
-            Assert.That(material.GetVector("_LeafLight"), Is.EqualTo(new Vector4(0, 0, 4, 0)), "no wrap, no translucency, its power at 4");
+            Assert.That(material.GetVector("_LeafLight"), Is.EqualTo(new Vector4(0, 0, 4, 0)), "no wrap, no back light, its focus at 4");
             Assert.That(material.GetVector("_LeafEdge"), Is.EqualTo(Vector4.zero));
         }
 
@@ -142,17 +142,17 @@ namespace OneJS.Tests.Models {
         }
 
         [Test]
-        public void Translucency_ShowsTheSunThroughAFaceLitFromBehind() {
+        public void BackLight_ShowsTheSunThroughAFaceLitFromBehind() {
             // The sun is below the square, shining up through it toward the camera.
             Sun(0.1f, 1, 0.05f);
             int plain = Square(), through = Square();
             Assert.That(Leaf(through, 0, 0.8f), Is.Empty);
             float without = Brightness(plain), with = Brightness(through);
-            Assert.That(with, Is.GreaterThan(without + 0.3f), $"lit from behind, a translucent square glows: {with} against {without}");
+            Assert.That(with, Is.GreaterThan(without + 0.3f), $"lit from behind, a back lit square glows: {with} against {without}");
         }
 
         [Test]
-        public void Translucency_AddsNothingSeenFromTheSunsSide() {
+        public void BackLight_AddsNothingSeenFromTheSunsSide() {
             // The sun behind the camera: nothing shines through toward it.
             Sun(0.05f, -1, 0.05f);
             int plain = Square(), through = Square();
@@ -162,7 +162,7 @@ namespace OneJS.Tests.Models {
         }
 
         [Test]
-        public void Translucency_TakesItsTint() {
+        public void BackLight_TakesItsColor() {
             Sun(0.1f, 1, 0.05f);
             int plain = Square(), red = Square();
             Assert.That(ModelBridge.SetMeshLeafLight(red, 0, 0.8f, 4, 1, 0, 0), Is.Empty);
@@ -172,7 +172,7 @@ namespace OneJS.Tests.Models {
         }
 
         [Test]
-        public void APower_GathersTheGlowRoundTheSunsLine() {
+        public void AFocus_GathersTheGlowRoundTheSunsLine() {
             // The sun below the square and 40 degrees off the camera's line: a broad glow reaches
             // this far round, a tight one hardly.
             Sun(0.64f, 0.77f, 0);
@@ -180,7 +180,7 @@ namespace OneJS.Tests.Models {
             Assert.That(ModelBridge.SetMeshLeafLight(broad, 0, 0.8f, 1, 1, 1, 1), Is.Empty);
             Assert.That(ModelBridge.SetMeshLeafLight(tight, 0, 0.8f, 16, 1, 1, 1), Is.Empty);
             float a = Brightness(broad), b = Brightness(tight);
-            Assert.That(a, Is.GreaterThan(b + 0.1f), $"power 1 {a} against power 16 {b}");
+            Assert.That(a, Is.GreaterThan(b + 0.1f), $"focus 1 {a} against focus 16 {b}");
         }
 
         // A white square, drawn unlit, tipped `degrees` up from lying flat about the x axis.
@@ -245,10 +245,10 @@ namespace OneJS.Tests.Models {
         public void TheLeafLight_IsRefusedOutsideNoughtToOne_AndForAModelThatIsNotAMesh() {
             int model = Square();
             Assert.That(Leaf(model, -0.1f, 0), Does.Contain("wrap"));
-            Assert.That(Leaf(model, 0, 1.5f), Does.Contain("translucency"));
+            Assert.That(Leaf(model, 0, 1.5f), Does.Contain("backLight"));
             Assert.That(Leaf(model, float.NaN, 0), Does.Contain("wrap"));
             Assert.That(Leaf(-1, 0.5f, 0.5f), Does.Contain("no mesh model"));
-            Assert.That(ModelBridge.SetMeshLeafLight(model, 0, 0.5f, 0.5f, 1, 1, 1), Does.Contain("power"));
+            Assert.That(ModelBridge.SetMeshLeafLight(model, 0, 0.5f, 0.5f, 1, 1, 1), Does.Contain("backLightFocus"));
             Assert.That(ModelBridge.SetMeshLeafLight(model, 0, 0.5f, 4, 1.2f, 1, 1), Does.Contain("color"));
             Assert.That(ModelBridge.MaterialOf(model).GetVector("_LeafLight"), Is.EqualTo(new Vector4(0, 0, 4, 0)), "a refused value changes nothing");
         }
