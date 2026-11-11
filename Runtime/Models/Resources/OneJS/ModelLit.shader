@@ -55,6 +55,9 @@ Shader "OneJS/ModelLit" {
         [HideInInspector] _LeafTint ("Leaf Tint", Color) = (1, 1, 1, 1)
         // A mesh model's fade where its faces turn edge on: see ModelEdgeFade.hlsl.
         [HideInInspector] _LeafEdge ("Leaf Edge", Vector) = (0, 0, 0, 0)
+        // A loaded model's colour mask, and 1 where it has one: see Painted in ModelLitURP.hlsl.
+        [HideInInspector] [NoScaleOffset] _PaintMask ("Paint Mask", 2D) = "black" {}
+        [HideInInspector] _Painted ("Painted", Float) = 0
     }
 
     SubShader {

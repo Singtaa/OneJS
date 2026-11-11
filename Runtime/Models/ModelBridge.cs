@@ -55,6 +55,8 @@ namespace OneJS.Models {
             // The template's meshes, part by part, as loaded, and the same rebuilt with the light's
             // uv in TEXCOORD1 once an unwrap has been given (ModelBridge.Light.cs). Null until then.
             public Mesh[] unlit, lit;
+            // A linear copy of its colour mask (ModelBridge.Colors.cs), null without one.
+            public RenderTexture paintMask;
         }
 
         /// <summary>
@@ -133,6 +135,10 @@ namespace OneJS.Models {
             public MaterialPropertyBlock block;
             public float dissolve;
             public bool receive = true;
+            // Its colours (ModelBridge.Colors.cs): the row of the colours texture it reads, 0 for none.
+            public int colorRow;
+            public Color tint = Color.white;
+            public Color[] colors;
             // Applied to every clip, including one played after it was set.
             public float speed = 1;
             // Its rectangle of the baked light's atlas, as a uv scale and offset; zero when it has none.
@@ -293,6 +299,7 @@ namespace OneJS.Models {
 
         static void Free(Model m) {
             FreeLit(m);
+            FreeColorMask(m);
             if (m.template != null) Kill(m.template);
             m.import?.Dispose();
             if (m.built != null) {
@@ -758,6 +765,7 @@ namespace OneJS.Models {
         public static void Destroy(int actor) {
             if (!_actors.Remove(actor, out var a)) return;
             Unclock(a);
+            FreeColorRow(a);
             if (a.go != null) Kill(a.go);
         }
 
@@ -1013,6 +1021,7 @@ namespace OneJS.Models {
             foreach (var a in _actors.Values) if (a.go != null) Kill(a.go);
             _actors.Clear();
             StopClocks();
+            StopColors();
             foreach (var m in _models.Values) Free(m);
             _models.Clear();
             _lights.Clear();
@@ -1083,7 +1092,7 @@ namespace OneJS.Models {
             bool probed = !mapped && a.probed;
             // The built-in pipeline adds the ambient probe itself, so a lightmapped actor's is zero there.
             bool customSH = probed || (mapped && BuiltInPipeline);
-            foreach (var r in a.renderers) SetUserValue(r, a.receive ? 0u : ShadowlessBit);
+            foreach (var r in a.renderers) SetUserValue(r, (a.receive ? 0u : ShadowlessBit) | ((uint)a.colorRow << 1));
             if (a.dissolve <= 0 && !mapped && !probed) {
                 foreach (var r in a.renderers) {
                     r.SetPropertyBlock(null);

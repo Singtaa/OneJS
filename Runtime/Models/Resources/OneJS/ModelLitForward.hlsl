@@ -180,7 +180,7 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     #ifdef _VERTEX_COLOR
         base *= i.color;
     #endif
-    base.rgb = Tinted(base.rgb);
+    base.rgb = Painted(Tinted(base.rgb), i.uv);
     #ifndef MODEL_SPLAT
         base = ModelDepthFade(base, i.positionWS, i.positionCS);
     #endif

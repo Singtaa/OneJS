@@ -91,6 +91,8 @@ CBUFFER_START(UnityPerMaterial)
         // A mesh model's fade where its faces turn edge on (ModelEdgeFade.hlsl): where it starts and
         // ends in x and y, 0 and 0 everywhere else, which discards nothing.
         float4 _LeafEdge;
+        // 1 where a loaded model has a colour mask (_PaintMask), 0 everywhere else, which never reads it.
+        half _Painted;
     #endif
 CBUFFER_END
 
@@ -132,6 +134,36 @@ CBUFFER_END
 #else
     #define MODEL_ACTOR_SHADOWLESS ((unity_RendererUserValue & 1u) | (uint)_ScatterShadowless)
 #endif
+
+// An actor's own colours (ModelBridge.Colors.cs): its row of _OjActorColors is its renderer's user
+// value above the shadow bit, 0 for an actor with none, which reads nothing. The row's first texel
+// is its tint, multiplied into the whole of it; the next four are multiplied in where the model's
+// mask says, red for the first to alpha for the fourth. The texture is sRGB, so a load is linear.
+// The row rides where the shadow bit does, so a coloured actor stays in the SRP Batcher.
+TEXTURE2D(_OjActorColors);
+#ifndef MODEL_SPLAT
+    TEXTURE2D(_PaintMask); SAMPLER(sampler_PaintMask);
+#endif
+
+half3 Painted(half3 color, float2 uv) {
+    #ifdef MODEL_SCATTERED
+        return color;
+    #else
+        uint row = unity_RendererUserValue >> 1;
+        if (row == 0u) return color;
+        color *= LOAD_TEXTURE2D(_OjActorColors, int2(0, row)).rgb;
+        #ifndef MODEL_SPLAT
+            if (_Painted > 0.5) {
+                half4 mask = SAMPLE_TEXTURE2D(_PaintMask, sampler_PaintMask, uv);
+                color *= lerp(half3(1, 1, 1), LOAD_TEXTURE2D(_OjActorColors, int2(1, row)).rgb, mask.r);
+                color *= lerp(half3(1, 1, 1), LOAD_TEXTURE2D(_OjActorColors, int2(2, row)).rgb, mask.g);
+                color *= lerp(half3(1, 1, 1), LOAD_TEXTURE2D(_OjActorColors, int2(3, row)).rgb, mask.b);
+                color *= lerp(half3(1, 1, 1), LOAD_TEXTURE2D(_OjActorColors, int2(4, row)).rgb, mask.a);
+            }
+        #endif
+        return color;
+    #endif
+}
 
 // A scattered copy's tint (linear, its alpha 1), multiplied into its colour; unset, it reads 0 and
 // changes nothing.
