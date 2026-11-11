@@ -1,7 +1,8 @@
 // The Models tests' reach fixture (reach.glb): two boxes on two joints, the upper on `arm`, with
 // two one-second clips. `Reach` carries the arm 4 units to the side, far outside the mesh as it
 // stands, and `Turn` turns it a quarter round. For the tests of a skinned model's fixed bounds
-// and of what an unseen actor's clips do. Ours, so it carries no licence. No packages needed:
+// and of what an unseen actor's clips do. It also writes reach-body.glb and reach-other.glb, the
+// body without clips and one with a joint renamed, for the test of clips taken from another model. Ours, so it carries no licence. No packages needed:
 //     node reach.mjs
 import fs from "node:fs"
 import path from "node:path"
@@ -70,10 +71,18 @@ const gltf = {
     bufferViews: views,
     buffers: [{ byteLength: length }],
 }
-let json = Buffer.from(JSON.stringify(gltf))
-json = Buffer.concat([json, Buffer.alloc((4 - json.length % 4) % 4, 0x20)])
 const bin = Buffer.concat(chunks)
 const head = (a, b, c) => { const h = Buffer.alloc(a === 0x46546c67 ? 12 : 8); h.writeUInt32LE(a, 0); h.writeUInt32LE(b, 4); if (c !== undefined) h.writeUInt32LE(c, 8); return h }
-fs.writeFileSync(path.join(import.meta.dirname, "reach.glb"), Buffer.concat([
-    head(0x46546c67, 2, 12 + 8 + json.length + 8 + bin.length), head(json.length, 0x4e4f534a), json, head(bin.length, 0x004e4942), bin,
-]))
+function write(file, document) {
+    let json = Buffer.from(JSON.stringify(document))
+    json = Buffer.concat([json, Buffer.alloc((4 - json.length % 4) % 4, 0x20)])
+    fs.writeFileSync(path.join(import.meta.dirname, file), Buffer.concat([
+        head(0x46546c67, 2, 12 + 8 + json.length + 8 + bin.length), head(json.length, 0x4e4f534a), json, head(bin.length, 0x004e4942), bin,
+    ]))
+}
+write("reach.glb", gltf)
+// The same body with no clips of its own, to take reach.glb's (ModelBridge.TakeClips), and one
+// whose upper joint has another name, which cannot.
+const { animations, ...body } = gltf
+write("reach-body.glb", body)
+write("reach-other.glb", { ...body, nodes: body.nodes.map((n) => n.name === "arm" ? { ...n, name: "limb" } : n) })

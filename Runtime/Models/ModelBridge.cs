@@ -55,6 +55,8 @@ namespace OneJS.Models {
             // The template's meshes, part by part, as loaded, and the same rebuilt with the light's
             // uv in TEXCOORD1 once an unwrap has been given (ModelBridge.Light.cs). Null until then.
             public Mesh[] unlit, lit;
+            // The model whose clips it plays (ModelBridge.TakeClips), 0 for its own.
+            public int clipsFrom;
             // A linear copy of its colour mask (ModelBridge.Colors.cs), null without one.
             public RenderTexture paintMask;
         }
@@ -292,6 +294,8 @@ namespace OneJS.Models {
             if (!_models.TryGetValue(model, out var m)) return true;
             foreach (var a in _actors.Values) if (a.model == model) return false;
             if (Scatters(model)) return false;
+            // Its clips are still another model's to play.
+            foreach (var other in _models.Values) if (other.clipsFrom == model) return false;
             _models.Remove(model);
             Free(m);
             return true;
