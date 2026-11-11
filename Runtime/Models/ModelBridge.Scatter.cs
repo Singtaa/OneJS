@@ -261,7 +261,7 @@ namespace OneJS.Models {
                 };
                 Fit(held.copy, source);
                 _scatterMaterials[source] = held;
-            } else if (held.seen != _scatterDraws) {
+            } else if (held.seen != _scatterDraws && !ArmNoCrc) {
                 held.seen = _scatterDraws;
                 int crc = source.ComputeCRC();
                 if (crc != held.crc) {
@@ -422,7 +422,7 @@ namespace OneJS.Models {
             if (camera.cameraType == CameraType.Preview || camera.cameraType == CameraType.Reflection) return;
             // A camera that sees no layer (the one that only clears the screen while the scene draws
             // into a texture) would cull every draw, after the work of handing them over.
-            if (camera.cullingMask == 0) return;
+            if (camera.cullingMask == 0 && !ArmOldClearDraws) return;
             var eye = camera.transform.position;
             // A shadow pass draws from the light, and a range still measures from this camera.
             Shader.SetGlobalVector(EyeId, eye);

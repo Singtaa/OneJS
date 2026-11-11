@@ -97,7 +97,7 @@ namespace OneJS.Models {
                 _sceneTexture.height = size.y;
                 _sceneTexture.Create();
             }
-            if (_clear != null) _clear.backgroundColor = _camera.backgroundColor;
+            if (_clear != null) { _clear.backgroundColor = _camera.backgroundColor; _clear.enabled = !ArmNoClearCamera; }
             _camera.Render();
         }
 
