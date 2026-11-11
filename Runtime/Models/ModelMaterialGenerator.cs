@@ -113,7 +113,7 @@ namespace OneJS.Models {
             if (Assign(material, EmissionMapId, gltfMaterial.EmissiveTexture, gltf) && emissive == Color.black) emissive = Color.white;
             material.SetColor(EmissionColorId, emissive.gamma);
 
-            if (gltfMaterial.Extensions?.KHR_materials_unlit != null) material.SetFloat(UnlitId, 1);
+            if (gltfMaterial.Extensions?.KHR_materials_unlit != null) SetUnlit(material);
             if (gltfMaterial.doubleSided) material.SetFloat(CullId, (float)CullMode.Off);
 
             switch (gltfMaterial.GetAlphaMode()) {
@@ -143,6 +143,22 @@ namespace OneJS.Models {
             material.SetFloat(ZWriteId, seeThrough ? 0 : 1);
             material.SetOverrideTag("RenderType", seeThrough ? "Transparent" : "Opaque");
             material.renderQueue = (int)(seeThrough ? RenderQueue.Transparent : RenderQueue.Geometry);
+        }
+
+        /// <summary>
+        /// A ModelLit material drawn in its own colours, with no sun, ambient, shadow or point light
+        /// on it: a glTF material with KHR_materials_unlit, and a mesh model made `unlit`.
+        /// </summary>
+        public static void SetUnlit(Material material) => material.SetFloat(UnlitId, 1);
+
+        /// <summary>
+        /// A ModelLit material added to what is behind it, by its alpha, as light is: drawn after the
+        /// opaques, writing no depth, and faded out by fog rather than toward its colour (the shader
+        /// reads `_DstBlend` for that). A mesh model made with `blend: "add"`.
+        /// </summary>
+        public static void SetAdditive(Material material) {
+            SetSeeThrough(material, true);
+            material.SetFloat(DstBlendId, (float)BlendMode.One);
         }
 
         public void SetLogger(ICodeLogger logger) {

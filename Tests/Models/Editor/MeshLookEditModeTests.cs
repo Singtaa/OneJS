@@ -8,7 +8,8 @@ using UnityEngine.Rendering;
 namespace OneJS.Tests.Models {
     /// <summary>
     /// A mesh model's look besides its colours and pictures (ModelBridge.Look.cs): cut out by its
-    /// alpha, drawn from both sides with its normals as given, and swayed by the scene's wind. What a
+    /// alpha, drawn from both sides with its normals as given, unlit, added to what is behind it,
+    /// and swayed by the scene's wind. What a
     /// leaf card needs, and before them a mesh model drew every texel opaque, one side only, still.
     /// </summary>
     public class MeshLookEditModeTests {
@@ -116,6 +117,76 @@ namespace OneJS.Tests.Models {
             } finally {
                 Object.DestroyImmediate(picture);
             }
+        }
+
+        [Test]
+        public void Unlit_SetsTheMaterialsUnlit_AndHoldsThroughAColour() {
+            int model = ModelBridge.CreateMesh(false, false, false, 1, 1, 1, 1);
+            Assert.That(ModelBridge.MaterialOf(model).GetFloat("_Unlit"), Is.EqualTo(0f));
+            Assert.That(ModelBridge.SetMeshUnlit(model), Is.Empty);
+            Assert.That(ModelBridge.SetMeshColor(model, 1, 0, 0, 0.5f), Is.Empty);
+            Assert.That(ModelBridge.MaterialOf(model).GetFloat("_Unlit"), Is.EqualTo(1f));
+            Assert.That(ModelBridge.SetMeshUnlit(12345), Does.Contain("no mesh model"));
+        }
+
+        [Test]
+        public void Additive_AddsItsColourToWhatIsBehind() {
+            int model = ModelBridge.CreateMesh(false, false, false, 0, 0.5f, 0, 1);
+            Assert.That(ModelBridge.SetMesh(model, Square, TwoTriangles, null, null, null), Is.Empty);
+            var over = Shot(model)[32 * 16 + 16];
+            Assert.That(over.r, Is.LessThan(5), $"opaque, it hides the magenta behind it: {over}");
+            Assert.That(ModelBridge.SetMeshAdditive(model), Is.Empty);
+            var added = Shot(model)[32 * 16 + 16];
+            Assert.That(added.r, Is.GreaterThan(250), $"added, the magenta stays: {added}");
+            Assert.That(added.b, Is.GreaterThan(250), $"added, the magenta stays: {added}");
+            Assert.That(added.g, Is.GreaterThan(40), $"and the green is added to it: {added}");
+        }
+
+        [Test]
+        public void Additive_DrawsAfterTheOpaques_WritesNoDepth_CastsNoShadow_AndStaysThroughAnAlpha() {
+            int model = ModelBridge.CreateMesh(false, false, false, 1, 1, 1, 1);
+            Assert.That(ModelBridge.SetMesh(model, Square, TwoTriangles, null, null, null), Is.Empty);
+            int before = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, false, false);
+            Assert.That(ModelBridge.SetMeshAdditive(model), Is.Empty);
+            int after = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, false, false);
+            void Check(string when) {
+                var material = ModelBridge.MaterialOf(model);
+                Assert.That(material.GetFloat("_SrcBlend"), Is.EqualTo((float)BlendMode.SrcAlpha), when);
+                Assert.That(material.GetFloat("_DstBlend"), Is.EqualTo((float)BlendMode.One), when);
+                Assert.That(material.GetFloat("_ZWrite"), Is.EqualTo(0f), when);
+                Assert.That(material.renderQueue, Is.EqualTo((int)RenderQueue.Transparent), when);
+            }
+            Check("made additive");
+            foreach (var actor in new[] { before, after }) {
+                foreach (var r in ModelBridge.ActorObject(actor).GetComponentsInChildren<Renderer>()) {
+                    Assert.That(r.shadowCastingMode, Is.EqualTo(ShadowCastingMode.Off), $"actor {actor}");
+                }
+            }
+            Assert.That(ModelBridge.SetMeshColor(model, 1, 1, 1, 0.5f), Is.Empty);
+            Check("an alpha below 1");
+            Assert.That(ModelBridge.SetMesh(model, Square, TwoTriangles, null, null, null), Is.Empty);
+            Assert.That(ModelBridge.SetMeshColor(model, 1, 1, 1, 1), Is.Empty);
+            Check("an alpha back at 1");
+        }
+
+        [Test]
+        public void Additive_RefusesWhatItCannotAdd() {
+            int cut = ModelBridge.CreateMesh(false, false, true, 1, 1, 1, 1);
+            Assert.That(ModelBridge.SetMeshCutout(cut, 0.5f), Is.Empty);
+            Assert.That(ModelBridge.SetMeshAdditive(cut), Does.Contain("cut out"));
+            int added = ModelBridge.CreateMesh(false, false, true, 1, 1, 1, 1);
+            Assert.That(ModelBridge.SetMeshAdditive(added), Is.Empty);
+            Assert.That(ModelBridge.SetMeshCutout(added, 0.5f), Does.Contain("nothing to cut out"));
+            var picture = HalfClear();
+            try {
+                Assert.That(ModelBridge.SetMeshSplat(added, picture, null, null, null, 1, 1, 0), Does.Contain("added to what is behind it"));
+            } finally {
+                Object.DestroyImmediate(picture);
+            }
+            int depth = ModelBridge.CreateMesh(false, false, false, 1, 1, 1, 1);
+            Assert.That(ModelBridge.SetDepthOnly(depth), Is.True);
+            Assert.That(ModelBridge.SetMeshAdditive(depth), Does.Contain("depth-only"));
+            Assert.That(ModelBridge.SetMeshUnlit(depth), Does.Contain("depth-only"));
         }
 
         [Test]

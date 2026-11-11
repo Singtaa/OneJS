@@ -94,6 +94,7 @@ namespace OneJS.Models {
             for (int i = count; i < SplatLayers; i++) if (given[i] != null) return $"layer {i} comes after an empty layer {count}: the layers come in order";
             if (!b.givesUvs) return "this model was made without uvs, which a splat's layers are read at: give uvs with its first vertices";
             if (b.depthOnly) return "this model draws depth alone, and no colour to paint";
+            if (b.additive) return "this model is added to what is behind it, which a splat's ground is not";
             if (b.texture != null) return "this model has a texture: a splat's layers replace it, so make the model with the splat alone";
             if (!b.splat && b.written) return "a splat is given before the model's first vertices, since it adds weights to them";
             if (b.splat && b.written && count != b.layerCount) return $"this splat has {b.layerCount} layers and its vertices {b.layerCount} weights each, so it keeps {b.layerCount}";

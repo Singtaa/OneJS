@@ -43,6 +43,8 @@ half4 _EmissionColor;
 half _Cutoff;
 half _AlphaClip;
 half _Unlit;
+// The blend's destination factor, 1 (One) for an additive mesh model (see ModelLitURP.hlsl).
+half _DstBlend;
 half _Dissolve;
 half _DissolveScale;
 half4 _DissolveEdge;
@@ -171,13 +173,13 @@ void Surf(Input i, inout SurfaceOutputStandard o) {
 }
 
 // The fog, over the lit colour. A forward light's pass adds its light into fog that hides it
-// as much, so it fades to black instead, as Unity's own fog does.
+// as much, so it fades to black instead, as Unity's own fog does, and so does an additive mesh.
 void Fogged(Input i, SurfaceOutputStandard o, inout fixed4 color) {
     float fog = OneJSFogAmount(i.worldPos, _WorldSpaceCameraPos, -UnityWorldToViewPos(i.worldPos).z, _ProjectionParams.y);
     #ifdef UNITY_PASS_FORWARDADD
         color.rgb *= 1 - fog;
     #else
-        color.rgb = lerp(color.rgb, _OneJSFogColor.rgb, fog);
+        color.rgb = _DstBlend == 1 ? color.rgb * (1 - fog) : lerp(color.rgb, _OneJSFogColor.rgb, fog);
     #endif
 }
 

@@ -45,6 +45,7 @@ namespace OneJS.Models {
             if (!(cutout >= 0 && cutout <= 1)) return $"cutout is {cutout}, and runs from 0 to 1";
             var b = m.built;
             if (b.splat) return "a splat has no alpha to cut out";
+            if (b.additive) return "an additive model is added to what is behind it, and has nothing to cut out";
             b.cutout = cutout;
             ApplyLook(b);
             return "";
@@ -59,6 +60,40 @@ namespace OneJS.Models {
             if (!Look(model, out var m, out var problem)) return problem;
             m.built.twoSided = true;
             ApplyLook(m.built);
+            return "";
+        }
+
+        /// <summary>
+        /// Draws a mesh model in its colour, picture and vertex colours alone, with no sun, ambient,
+        /// shadow or point light on it, as a glTF file's unlit material draws. Fog still falls on it.
+        /// "" when it took it, or what was wrong.
+        /// </summary>
+        public static string SetMeshUnlit(int model) {
+            if (!Look(model, out var m, out var problem)) return problem;
+            if (m.built.depthOnly) return "a depth-only mesh draws no colour to light";
+            m.built.unlit = true;
+            ApplyLook(m.built);
+            return "";
+        }
+
+        /// <summary>
+        /// Adds a mesh model to what is behind it, by its alpha, as light is: a spell's glow, a
+        /// spark, a beam. It draws after the opaques, writes no depth, casts no shadow, for its
+        /// actors now and later and for its scatters, and fog fades it out rather than toward its
+        /// colour. An alpha below 1 dims it rather than making it see-through, so it never flips to
+        /// the alpha blend. "" when it took it, or what was wrong.
+        /// </summary>
+        public static string SetMeshAdditive(int model) {
+            if (!Look(model, out var m, out var problem)) return problem;
+            var b = m.built;
+            if (b.depthOnly) return "a depth-only mesh draws no colour to add";
+            if (b.cutout >= 0) return "a cut out model draws opaque, and cannot also be added to what is behind it";
+            if (b.splat) return "a splat's ground cannot be added to what is behind it";
+            if (b.additive) return "";
+            b.additive = true;
+            ApplyLook(b);
+            foreach (var r in m.template.GetComponentsInChildren<Renderer>(true)) r.shadowCastingMode = ShadowCastingMode.Off;
+            foreach (var a in _actors.Values) if (a.model == model) Shadows(a, false, a.receive);
             return "";
         }
 
@@ -106,7 +141,7 @@ namespace OneJS.Models {
             return problem == null;
         }
 
-        /// <summary>A mesh model's cutout, sides, sway and surface, onto its material: again whenever the material is replaced (BecomeSplat).</summary>
+        /// <summary>A mesh model's cutout, sides, sway, light, blend and surface, onto its material: again whenever the material is replaced (BecomeSplat).</summary>
         static void ApplyLook(BuiltMesh b) {
             var material = b.material;
             if (material == null || ModelMaterialGenerator.ModelShader == null) return;
@@ -124,6 +159,11 @@ namespace OneJS.Models {
                 material.SetFloat(KeepBackNormalId, 1);
             }
             if (b.sways) material.SetFloat(SwayId, b.swayLayers ? 2 : 1);
+            if (b.unlit) ModelMaterialGenerator.SetUnlit(material);
+            if (b.additive) {
+                ModelMaterialGenerator.SetAdditive(material);
+                b.seeThrough = true;
+            }
             ApplySurface(b);
         }
 

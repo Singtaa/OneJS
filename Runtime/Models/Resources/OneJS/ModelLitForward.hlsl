@@ -196,9 +196,11 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     d.positionWS = i.positionWS;
     // OneJS's own fog (OneJSFog.hlsl), per pixel.
     half fog = OneJSFogAmount(i.positionWS, _WorldSpaceCameraPos, -TransformWorldToView(i.positionWS).z, _ProjectionParams.y);
+    // What fog turns a pixel toward: nothing, for one added to what is behind it (see _DstBlend).
+    half3 fogColor = _DstBlend == 1 ? (half3)0 : (half3)_OneJSFogColor.rgb;
 
     if (_Unlit > 0.5) {
-        half3 flat = lerp(base.rgb + emission, (half3)_OneJSFogColor.rgb, fog);
+        half3 flat = lerp(base.rgb + emission, fogColor, fog);
         return half4(flat, OutputAlpha(base.a, IsSurfaceTypeTransparent(_Surface)));
     }
 
@@ -255,7 +257,7 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
         // neither adds nothing to what UniversalFragmentPBR gave.
         if (_LeafLight.x > 0 || _LeafLight.y > 0) color.rgb += ModelLeafLight(d, s, _LeafLight.xyz, _LeafTint.rgb);
     #endif
-    color.rgb = lerp(color.rgb, (half3)_OneJSFogColor.rgb, fog);
+    color.rgb = lerp(color.rgb, fogColor, fog);
     color.a = OutputAlpha(color.a, IsSurfaceTypeTransparent(_Surface));
     return color;
 }

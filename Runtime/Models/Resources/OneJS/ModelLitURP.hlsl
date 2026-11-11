@@ -55,6 +55,9 @@ CBUFFER_START(UnityPerMaterial)
     half4 _DissolveEdge;
     half _ReceiveShadows;
     half _Surface;
+    // The blend's destination factor: 1 (One) for an additive mesh model, which fog fades out
+    // rather than toward the fog's colour, since adding the fog's colour would brighten the fog.
+    half _DstBlend;
     // 1 where a mesh model's vertices carry how far each may sway (TEXCOORD3's x), 2 where they
     // carry a layered sway (all four: trunk, limb, leaf, phase), 0 elsewhere, so a model without
     // them never reads a stream it does not have.
