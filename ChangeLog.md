@@ -1,6 +1,7 @@
 # Unreleased
 
 - A skinned model nobody sees is no longer deformed, uploaded or animated each frame
+- Loading a skinned model with clips costs its frame less
 - A loaded model's pictures have mipmaps
 - `ModelBridge.ScaleMany` scales many actors in one call
 - An actor takes a tint, and four colours through its model's mask
