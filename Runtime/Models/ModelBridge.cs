@@ -144,6 +144,10 @@ namespace OneJS.Models {
             public int colorRow;
             public Color tint = Color.white;
             public Color[] colors;
+            // Its own picture (ModelBridge.Picture.cs): the texture a cart gave, the bridge's copy of it, and the materials it wore before.
+            public Texture pictureSource;
+            public RenderTexture picture;
+            public Material[][] ownMaterials;
             // Applied to every clip, including one played after it was set.
             public float speed = 1;
             // Its rectangle of the baked light's atlas, as a uv scale and offset; zero when it has none.
@@ -778,6 +782,7 @@ namespace OneJS.Models {
             _actors.Remove(actor);
             Unclock(a);
             FreeColorRow(a);
+            Unpicture(a);
             if (a.go != null) Kill(a.go);
         }
 
@@ -1030,6 +1035,7 @@ namespace OneJS.Models {
             StopSceneDepth();
             StopSky();
             StopWind();
+            StopPictures();
             foreach (var a in _actors.Values) if (a.go != null) Kill(a.go);
             _actors.Clear();
             StopClocks();

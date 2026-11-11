@@ -7,6 +7,7 @@
 - A loaded model can play another's clips
 - An actor attaches to another actor's joint
 - An actor hides and shows its model's parts by name
+- An actor wears a picture of its own in place of its model's
 - Typed arrays cross to C# as their bytes, not as JSON
 - A Float32Array sets a Vector3[] (or Vector2, Vector4, Color, Quaternion) array, as in `mesh.vertices`
 - WebSocket binary sends and GPU buffer writes cross as bytes
