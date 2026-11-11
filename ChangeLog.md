@@ -14,6 +14,7 @@
 - A mesh model draws unlit, or added to what is behind it
 - An actor takes a flash, a colour added after its light
 - The scene camera rolls (`SetCameraRolled`)
+- A scene sets its ambient occlusion, or turns it off
 - Typed arrays cross to C# as their bytes, not as JSON
 - A Float32Array sets a Vector3[] (or Vector2, Vector4, Color, Quaternion) array, as in `mesh.vertices`
 - WebSocket binary sends and GPU buffer writes cross as bytes
