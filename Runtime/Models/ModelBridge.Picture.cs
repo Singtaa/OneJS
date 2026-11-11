@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 namespace OneJS.Models {
@@ -16,8 +17,13 @@ namespace OneJS.Models {
             public int users;
         }
 
-        // By the model's material and the picture's copy, each by instance id.
-        static readonly Dictionary<(int, int), Worn> _worn = new();
+        // By the model's material and the picture's copy, each by reference.
+        sealed class ByPair : IEqualityComparer<(Material, RenderTexture)> {
+            public bool Equals((Material, RenderTexture) a, (Material, RenderTexture) b) => ReferenceEquals(a.Item1, b.Item1) && ReferenceEquals(a.Item2, b.Item2);
+            public int GetHashCode((Material, RenderTexture) k) => RuntimeHelpers.GetHashCode(k.Item1) * 31 + RuntimeHelpers.GetHashCode(k.Item2);
+        }
+
+        static readonly Dictionary<(Material, RenderTexture), Worn> _worn = new(new ByPair());
 
         /// <summary>
         /// Draws `picture` on the actor in place of its model's own, or its model's own again with
@@ -58,7 +64,7 @@ namespace OneJS.Models {
         // The model's material with the picture as its base map, made once for every actor wearing it.
         static Material Wear(Material own, RenderTexture copy) {
             if (own == null || own.shader != ModelMaterialGenerator.ModelShader) return own;
-            var key = (own.GetInstanceID(), copy.GetInstanceID());
+            var key = (own, copy);
             if (!_worn.TryGetValue(key, out var worn) || worn.material == null) {
                 var material = new Material(own) { name = $"{own.name} ({copy.name})" };
                 if (!Playing) material.hideFlags = HideFlags.DontSave;
