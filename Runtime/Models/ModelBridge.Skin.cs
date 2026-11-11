@@ -64,8 +64,13 @@ namespace OneJS.Models {
             }
         }
 
+        // An actor is seen when any renderer under it is, which is Unity's rule for sampling its
+        // clips, and what is attached to its joints is under it.
         static bool Seen(Actor a) {
             foreach (var r in a.renderers) if (r != null && r.isVisible) return true;
+            if (a.attached != null) {
+                foreach (var id in a.attached) if (_actors.TryGetValue(id, out var child) && Seen(child)) return true;
+            }
             return false;
         }
 

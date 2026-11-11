@@ -137,6 +137,9 @@ namespace OneJS.Models {
             public MaterialPropertyBlock block;
             public float dissolve;
             public bool receive = true;
+            // The actor whose joint it is attached to (ModelBridge.Attach.cs), 0 for none, and the actors attached to it.
+            public int attachedTo;
+            public List<int> attached;
             // Its colours (ModelBridge.Colors.cs): the row of the colours texture it reads, 0 for none.
             public int colorRow;
             public Color tint = Color.white;
@@ -682,7 +685,7 @@ namespace OneJS.Models {
         /// <summary>Moves an actor and turns it about the up axis. Moving with Move keeps a pitch and a roll.</summary>
         public static void Place(int actor, float x, float y, float z, float yaw) {
             if (!_actors.TryGetValue(actor, out var a)) return;
-            a.go.transform.SetPositionAndRotation(new Vector3(x, y, z), Quaternion.Euler(0, yaw, 0));
+            a.go.transform.SetLocalPositionAndRotation(new Vector3(x, y, z), Quaternion.Euler(0, yaw, 0));
         }
 
         /// <summary>
@@ -695,7 +698,8 @@ namespace OneJS.Models {
             if (data == null) return;
             for (int i = 0; i + 7 < data.Length; i += 8) {
                 if (!_actors.TryGetValue((int)data[i], out var a)) continue;
-                a.go.transform.SetPositionAndRotation(
+                // From its parent: the scene's root, which never moves, or the joint it is attached to.
+                a.go.transform.SetLocalPositionAndRotation(
                     new Vector3(data[i + 1], data[i + 2], data[i + 3]),
                     new Quaternion(data[i + 4], data[i + 5], data[i + 6], data[i + 7]));
             }
@@ -714,12 +718,12 @@ namespace OneJS.Models {
 
         /// <summary>Moves an actor without turning it.</summary>
         public static void Move(int actor, float x, float y, float z) {
-            if (_actors.TryGetValue(actor, out var a)) a.go.transform.position = new Vector3(x, y, z);
+            if (_actors.TryGetValue(actor, out var a)) a.go.transform.localPosition = new Vector3(x, y, z);
         }
 
         /// <summary>Turns an actor, in degrees: yaw about the up axis, pitch about its right, roll about its forward.</summary>
         public static void SetRotation(int actor, float yaw, float pitch, float roll) {
-            if (_actors.TryGetValue(actor, out var a)) a.go.transform.rotation = Quaternion.Euler(pitch, yaw, roll);
+            if (_actors.TryGetValue(actor, out var a)) a.go.transform.localRotation = Quaternion.Euler(pitch, yaw, roll);
         }
 
         /// <summary>Scales an actor evenly; 1 is the model's own size.</summary>
@@ -767,7 +771,11 @@ namespace OneJS.Models {
         }
 
         public static void Destroy(int actor) {
-            if (!_actors.Remove(actor, out var a)) return;
+            if (!_actors.TryGetValue(actor, out var a)) return;
+            // What is attached to it goes with it, and it leaves what it was attached to.
+            if (a.attached != null) foreach (var child in a.attached.ToArray()) Destroy(child);
+            Unhang(actor, a);
+            _actors.Remove(actor);
             Unclock(a);
             FreeColorRow(a);
             if (a.go != null) Kill(a.go);

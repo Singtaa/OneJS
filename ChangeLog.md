@@ -5,6 +5,8 @@
 - `ModelBridge.ScaleMany` scales many actors in one call
 - An actor takes a tint, and four colours through its model's mask
 - A loaded model can play another's clips
+- An actor attaches to another actor's joint
+- An actor hides and shows its model's parts by name
 - Typed arrays cross to C# as their bytes, not as JSON
 - A Float32Array sets a Vector3[] (or Vector2, Vector4, Color, Quaternion) array, as in `mesh.vertices`
 - WebSocket binary sends and GPU buffer writes cross as bytes
