@@ -690,6 +690,17 @@ namespace OneJS.Models {
             }
         }
 
+        /// <summary>
+        /// Scales many actors in one call: two floats an actor, its id and its even scale.
+        /// An id that is not an actor is skipped.
+        /// </summary>
+        public static void ScaleMany(float[] data) {
+            if (data == null) return;
+            for (int i = 0; i + 1 < data.Length; i += 2) {
+                if (_actors.TryGetValue((int)data[i], out var a)) a.go.transform.localScale = Vector3.one * data[i + 1];
+            }
+        }
+
         /// <summary>Moves an actor without turning it.</summary>
         public static void Move(int actor, float x, float y, float z) {
             if (_actors.TryGetValue(actor, out var a)) a.go.transform.position = new Vector3(x, y, z);

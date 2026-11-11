@@ -171,6 +171,18 @@ namespace OneJS.Tests.Models {
         }
 
         [UnityTest]
+        public IEnumerator ScaleMany_ScalesEveryActorInOneCall() {
+            int model = 0;
+            yield return Load(m => model = m);
+            ModelBridge.BeginScene();
+            int a = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, true, true);
+            int b = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, true, true);
+            ModelBridge.ScaleMany(new[] { a, 2f, 999f, 9f, b, 0.5f });
+            Assert.That(ModelBridge.ActorObject(a).transform.localScale, Is.EqualTo(Vector3.one * 2));
+            Assert.That(ModelBridge.ActorObject(b).transform.localScale, Is.EqualTo(Vector3.one * 0.5f));
+        }
+
+        [UnityTest]
         public IEnumerator GltfX_IsMirroredIntoUnitysX() {
             // onejs-play builds mesh colliders from the same .glb in JavaScript and mirrors
             // glTF's x the way glTFast does. If glTFast ever stops, colliders stand on the
