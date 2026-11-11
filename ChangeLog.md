@@ -3,6 +3,7 @@
 - A skinned model nobody sees is no longer deformed, uploaded or animated each frame
 - A loaded model's pictures have mipmaps
 - `ModelBridge.ScaleMany` scales many actors in one call
+- An actor takes a tint, and four colours through its model's mask
 - Typed arrays cross to C# as their bytes, not as JSON
 - A Float32Array sets a Vector3[] (or Vector2, Vector4, Color, Quaternion) array, as in `mesh.vertices`
 - WebSocket binary sends and GPU buffer writes cross as bytes
