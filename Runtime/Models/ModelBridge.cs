@@ -144,9 +144,9 @@ namespace OneJS.Models {
             public int colorRow;
             public Color tint = Color.white;
             public Color[] colors;
-            // Its own picture (ModelBridge.Picture.cs): the texture a cart gave, the bridge's copy of it, and the materials it wore before.
-            public Texture pictureSource;
-            public RenderTexture picture;
+            // Its own texture (ModelBridge.Texture.cs): the one a cart gave, the bridge's copy of it, and the materials it wore before.
+            public Texture textureGiven;
+            public RenderTexture textureCopy;
             public Material[][] ownMaterials;
             // Applied to every clip, including one played after it was set.
             public float speed = 1;
@@ -782,7 +782,7 @@ namespace OneJS.Models {
             _actors.Remove(actor);
             Unclock(a);
             FreeColorRow(a);
-            Unpicture(a);
+            TakeOffTexture(a);
             if (a.go != null) Kill(a.go);
         }
 
@@ -1035,7 +1035,7 @@ namespace OneJS.Models {
             StopSceneDepth();
             StopSky();
             StopWind();
-            StopPictures();
+            StopTextures();
             foreach (var a in _actors.Values) if (a.go != null) Kill(a.go);
             _actors.Clear();
             StopClocks();

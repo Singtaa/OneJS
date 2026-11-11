@@ -4,12 +4,12 @@ using UnityEngine;
 
 namespace OneJS.Models {
     /// <summary>
-    /// An actor's own picture: a texture drawn on it in place of the one its file carries, such
-    /// as a look a cart composed at run time. The bridge keeps one mipmapped copy of a picture
-    /// however many actors wear it (TakeGroundCopy, which a texture refreshed later updates), and
-    /// one material for each of the model's materials and each picture, so actors that wear the
-    /// same picture share it. Materials of one shader still batch under the SRP Batcher; what a
-    /// picture costs is its memory and its material, not a property block on every draw.
+    /// An actor's own texture, drawn on it in place of the one its file carries, such as a look a
+    /// cart composed at run time. The bridge keeps one mipmapped copy of a texture however many
+    /// actors wear it (TakeGroundCopy, which a texture refreshed later updates), and one material
+    /// for each of the model's materials and each texture, so actors that wear the same texture
+    /// share it. Materials of one shader still batch under the SRP Batcher; what a texture costs
+    /// is its memory and its material, not a property block on every draw.
     /// </summary>
     public static partial class ModelBridge {
         class Worn {
@@ -17,7 +17,7 @@ namespace OneJS.Models {
             public int users;
         }
 
-        // By the model's material and the picture's copy, each by reference.
+        // By the model's material and the texture's copy, each by reference.
         sealed class ByPair : IEqualityComparer<(Material, RenderTexture)> {
             public bool Equals((Material, RenderTexture) a, (Material, RenderTexture) b) => ReferenceEquals(a.Item1, b.Item1) && ReferenceEquals(a.Item2, b.Item2);
             public int GetHashCode((Material, RenderTexture) k) => RuntimeHelpers.GetHashCode(k.Item1) * 31 + RuntimeHelpers.GetHashCode(k.Item2);
@@ -26,23 +26,23 @@ namespace OneJS.Models {
         static readonly Dictionary<(Material, RenderTexture), Worn> _worn = new(new ByPair());
 
         /// <summary>
-        /// Draws `picture` on the actor in place of its model's own, or its model's own again with
+        /// Draws `texture` on the actor in place of its model's own, or its model's own again with
         /// null. "" when set, or what was wrong.
         /// </summary>
-        public static string SetPicture(int actor, Texture picture) {
+        public static string SetTexture(int actor, Texture texture) {
             if (!_actors.TryGetValue(actor, out var a) || a.go == null) return "";
-            if (picture == a.pictureSource) return "";
+            if (texture == a.textureGiven) return "";
             if (_models.TryGetValue(a.model, out var m) && m.built != null) return "a mesh model takes its texture through scene.mesh, which every actor of it shares";
-            if (picture != null) {
-                if (ModelMaterialGenerator.ModelShader == null) return "this project draws models with glTFast's own materials, which take no picture of an actor's own";
-                var problem = Pixels(picture, "the texture");
+            if (texture != null) {
+                if (ModelMaterialGenerator.ModelShader == null) return "this project draws models with glTFast's own materials, which take no texture of an actor's own";
+                var problem = Pixels(texture, "the texture");
                 if (problem != null) return problem;
             }
-            Unpicture(a);
-            if (picture == null) return "";
-            var copy = TakeGroundCopy(picture);
-            a.pictureSource = picture;
-            a.picture = copy;
+            TakeOffTexture(a);
+            if (texture == null) return "";
+            var copy = TakeGroundCopy(texture);
+            a.textureGiven = texture;
+            a.textureCopy = copy;
             a.ownMaterials = new Material[a.renderers.Length][];
             for (int i = 0; i < a.renderers.Length; i++) {
                 var r = a.renderers[i];
@@ -55,13 +55,13 @@ namespace OneJS.Models {
             return "";
         }
 
-        /// <summary>The picture an actor wears, null for its model's own.</summary>
-        internal static Texture PictureOf(int actor) => _actors.TryGetValue(actor, out var a) ? a.picture : null;
+        /// <summary>The copy of the texture an actor wears, null for its model's own.</summary>
+        internal static Texture TextureOf(int actor) => _actors.TryGetValue(actor, out var a) ? a.textureCopy : null;
 
-        /// <summary>How many materials the bridge made for pictures actors wear.</summary>
+        /// <summary>How many materials the bridge made for textures actors wear.</summary>
         internal static int WornMaterialCount => _worn.Count;
 
-        // The model's material with the picture as its base map, made once for every actor wearing it.
+        // The model's material with the texture as its base map, made once for every actor wearing it.
         static Material Wear(Material own, RenderTexture copy) {
             if (own == null || own.shader != ModelMaterialGenerator.ModelShader) return own;
             var key = (own, copy);
@@ -76,9 +76,9 @@ namespace OneJS.Models {
             return worn.material;
         }
 
-        // Puts back the model's own materials and lets go of the picture: on SetPicture and Destroy.
-        static void Unpicture(Actor a) {
-            if (a.picture == null) return;
+        // Puts back the model's own materials and lets go of the texture: on SetTexture and Destroy.
+        static void TakeOffTexture(Actor a) {
+            if (a.textureCopy == null) return;
             for (int i = 0; i < a.renderers.Length; i++) {
                 var r = a.renderers[i];
                 if (r != null) {
@@ -86,9 +86,9 @@ namespace OneJS.Models {
                     r.sharedMaterials = a.ownMaterials[i];
                 }
             }
-            ReleaseGroundCopy(a.picture);
-            a.picture = null;
-            a.pictureSource = null;
+            ReleaseGroundCopy(a.textureCopy);
+            a.textureCopy = null;
+            a.textureGiven = null;
             a.ownMaterials = null;
         }
 
@@ -103,8 +103,8 @@ namespace OneJS.Models {
             }
         }
 
-        static void StopPictures() {
-            foreach (var a in _actors.Values) Unpicture(a);
+        static void StopTextures() {
+            foreach (var a in _actors.Values) TakeOffTexture(a);
             foreach (var worn in _worn.Values) if (worn.material != null) Kill(worn.material);
             _worn.Clear();
         }

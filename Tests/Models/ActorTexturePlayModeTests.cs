@@ -9,12 +9,12 @@ using UnityEngine.TestTools;
 
 namespace OneJS.Tests.Models {
     /// <summary>
-    /// An actor's own picture (ModelBridge.Picture.cs), as it is drawn: a picture replaces the
-    /// model's own on that actor alone, null gives it back, actors wearing one picture share one
+    /// An actor's own texture (ModelBridge.Texture.cs), as it is drawn: a texture replaces the
+    /// model's own on that actor alone, null gives it back, actors wearing one texture share one
     /// copy and one material, and nothing is left once the last of them lets go. Each reading is
     /// the mean colour of the pixels an actor covers, lit by a white ambient alone.
     /// </summary>
-    public class ActorPicturePlayModeTests {
+    public class ActorTexturePlayModeTests {
         static string Fixture([CallerFilePath] string here = "") =>
             Path.Combine(Path.GetDirectoryName(here), "Fixtures~", "reach.glb");
 
@@ -82,7 +82,7 @@ namespace OneJS.Tests.Models {
         }
 
         [UnityTest]
-        public IEnumerator APicture_ReplacesTheModelsOwn_AndNullGivesItBack() {
+        public IEnumerator ATexture_ReplacesTheModelsOwn_AndNullGivesItBack() {
             int model = 0;
             yield return Load(m => model = m);
             int actor = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, false, false);
@@ -90,40 +90,40 @@ namespace OneJS.Tests.Models {
             yield return Drawn(c => plain = c);
             Assert.That(plain.g, Is.GreaterThan(0.2f), "the fixture must have green to lose");
 
-            Assert.That(ModelBridge.SetPicture(actor, _red), Is.EqualTo(""));
-            Assert.That(ModelBridge.PictureOf(actor), Is.Not.Null);
+            Assert.That(ModelBridge.SetTexture(actor, _red), Is.EqualTo(""));
+            Assert.That(ModelBridge.TextureOf(actor), Is.Not.Null);
             yield return Drawn(c => red = c);
-            // What is left is the light its surface mirrors, which is no part of its picture.
-            Assert.That(red.g, Is.LessThan(plain.g * 0.3f), $"wearing a red picture, it still drew green: {red} against {plain}");
+            // What is left is the light its surface mirrors, which is no part of its texture.
+            Assert.That(red.g, Is.LessThan(plain.g * 0.3f), $"wearing a red texture, it still drew green: {red} against {plain}");
             Assert.That(red.b, Is.LessThan(plain.b * 0.3f));
 
-            Assert.That(ModelBridge.SetPicture(actor, null), Is.EqualTo(""));
-            Assert.That(ModelBridge.PictureOf(actor), Is.Null);
+            Assert.That(ModelBridge.SetTexture(actor, null), Is.EqualTo(""));
+            Assert.That(ModelBridge.TextureOf(actor), Is.Null);
             yield return Drawn(c => again = c);
-            Assert.That(again.g, Is.EqualTo(plain.g).Within(0.02f), "null draws the model's own picture again");
+            Assert.That(again.g, Is.EqualTo(plain.g).Within(0.02f), "null draws the model's own texture again");
         }
 
         [UnityTest]
-        public IEnumerator ActorsWearingOnePicture_ShareItsCopyAndMaterial_AndLeaveNothingBehind() {
+        public IEnumerator ActorsWearingOneTexture_ShareItsCopyAndMaterial_AndLeaveNothingBehind() {
             int model = 0;
             yield return Load(m => model = m);
             int copiesBefore = ModelBridge.GroundCopyCount;
             int a = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, true, true);
             int b = ModelBridge.Spawn(model, 2, 0, 0, 0, 1, true, true);
             int c = ModelBridge.Spawn(model, 4, 0, 0, 0, 1, true, true);
-            Assert.That(ModelBridge.SetPicture(a, _red), Is.EqualTo(""));
-            Assert.That(ModelBridge.SetPicture(b, _red), Is.EqualTo(""));
+            Assert.That(ModelBridge.SetTexture(a, _red), Is.EqualTo(""));
+            Assert.That(ModelBridge.SetTexture(b, _red), Is.EqualTo(""));
             int shared = ModelBridge.WornMaterialCount;
             Assert.That(shared, Is.GreaterThan(0));
-            Assert.That(ModelBridge.GroundCopyCount, Is.EqualTo(copiesBefore + 1), "one copy of a picture however many wear it");
+            Assert.That(ModelBridge.GroundCopyCount, Is.EqualTo(copiesBefore + 1), "one copy of a texture however many wear it");
             var ra = ModelBridge.ActorObject(a).GetComponentInChildren<Renderer>();
             var rb = ModelBridge.ActorObject(b).GetComponentInChildren<Renderer>();
             var rc = ModelBridge.ActorObject(c).GetComponentInChildren<Renderer>();
-            Assert.That(ra.sharedMaterial, Is.SameAs(rb.sharedMaterial), "two actors wearing one picture draw with one material");
+            Assert.That(ra.sharedMaterial, Is.SameAs(rb.sharedMaterial), "two actors wearing one texture draw with one material");
             Assert.That(ra.sharedMaterial, Is.Not.SameAs(rc.sharedMaterial), "an actor wearing none keeps its model's");
             Assert.That(ra.HasPropertyBlock(), Is.False, "a property block takes the actor out of the SRP Batcher");
 
-            Assert.That(ModelBridge.SetPicture(c, _blue), Is.EqualTo(""));
+            Assert.That(ModelBridge.SetTexture(c, _blue), Is.EqualTo(""));
             Assert.That(ModelBridge.WornMaterialCount, Is.EqualTo(shared * 2));
             Assert.That(ModelBridge.GroundCopyCount, Is.EqualTo(copiesBefore + 2));
 
