@@ -12,6 +12,8 @@
 - A scatter draws nothing for a camera that sees no layer
 - ModelBridge counts the last frame's draw and set-pass calls
 - A mesh model draws unlit, or added to what is behind it
+- An actor takes a flash, a colour added after its light
+- The scene camera rolls (`SetCameraRolled`)
 - Typed arrays cross to C# as their bytes, not as JSON
 - A Float32Array sets a Vector3[] (or Vector2, Vector4, Color, Quaternion) array, as in `mesh.vertices`
 - WebSocket binary sends and GPU buffer writes cross as bytes

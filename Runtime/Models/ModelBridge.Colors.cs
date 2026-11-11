@@ -5,11 +5,12 @@ using UnityEngine.Rendering;
 
 namespace OneJS.Models {
     /// <summary>
-    /// An actor's own colours: a tint the whole of it is multiplied by, and up to four colours
+    /// An actor's own colours: a tint the whole of it is multiplied by, up to four colours
     /// painted through its model's mask (a picture laid out as the model's, whose red, green,
-    /// blue and alpha say how much of colours 1 to 4 a texel takes).
+    /// blue and alpha say how much of colours 1 to 4 a texel takes), and a flash added after its
+    /// light.
     ///
-    /// Each coloured actor has a row of five texels (the tint, then the four colours) in one
+    /// Each coloured actor has a row of six texels (the tint, the four colours, the flash) in one
     /// small texture, and the row's number in its renderers' user value above the shadow bit
     /// (ModelBridge.Apply). ModelLit reads the row in its lit pass (ModelLitURP.hlsl, Painted).
     /// The user value rides in the SRP Batcher's per-draw data, so a thousand differently
@@ -18,7 +19,10 @@ namespace OneJS.Models {
     /// every other actor reads. URP only: the built-in pipeline draws an actor as its file has it.
     /// </summary>
     public static partial class ModelBridge {
-        const int ColorsWide = 5;
+        const int ColorsWide = 6;
+        // The colours painted through a mask, texels 1 to 4; the flash is the last.
+        const int MaskColors = 4;
+        const int FlashTexel = 5;
         // The user value keeps bit 0 for the shadow, so a row has 31 bits; a texture's height ends it far sooner.
         const int MostColorRows = 8192;
         static readonly int ActorColorsId = Shader.PropertyToID("_OjActorColors");
@@ -45,6 +49,18 @@ namespace OneJS.Models {
         }
 
         /// <summary>
+        /// The colour added to an actor after its light, as sRGB from 0 to 1: black, the default,
+        /// adds nothing, and white makes it as bright as it can be. A hit's flash for a frame or
+        /// two. Fog falls over it. "" when set, or what was wrong.
+        /// </summary>
+        public static string SetFlash(int actor, float r, float g, float b) {
+            if (!_actors.TryGetValue(actor, out var a)) return "";
+            if (!Finite(r) || !Finite(g) || !Finite(b)) return $"the flash is {r}, {g}, {b}, and is a colour";
+            a.flash = new Color(Mathf.Clamp01(r), Mathf.Clamp01(g), Mathf.Clamp01(b), 1);
+            return Recolor(a);
+        }
+
+        /// <summary>
         /// The colours painted through the actor's model's mask, three floats each as sRGB, up to
         /// four; one left out is white, which paints nothing. Null or empty clears them. "" when
         /// set, or what was wrong.
@@ -52,7 +68,7 @@ namespace OneJS.Models {
         public static string SetColors(int actor, float[] rgb) {
             if (!_actors.TryGetValue(actor, out var a)) return "";
             int n = rgb == null ? 0 : rgb.Length / 3;
-            if (rgb != null && (rgb.Length % 3 != 0 || n > ColorsWide - 1)) return $"colors are {rgb.Length} numbers, and are three each for up to {ColorsWide - 1} colours";
+            if (rgb != null && (rgb.Length % 3 != 0 || n > MaskColors)) return $"colors are {rgb.Length} numbers, and are three each for up to {MaskColors} colours";
             if (n > 0 && (!_models.TryGetValue(a.model, out var m) || m.paintMask == null)) return "this model was loaded without a colorMask, which says where each colour goes";
             if (n == 0) {
                 a.colors = null;
@@ -100,7 +116,7 @@ namespace OneJS.Models {
 
         // Gives the actor a row, or its row back when it is white all over, and writes its colours there.
         static string Recolor(Actor a) {
-            bool plain = a.colors == null && a.tint == Color.white;
+            bool plain = a.colors == null && a.tint == Color.white && a.flash == Color.black;
             if (!plain && BuiltInPipeline) {
                 if (!_saidColorsBuiltIn) {
                     _saidColorsBuiltIn = true;
@@ -127,7 +143,8 @@ namespace OneJS.Models {
             }
             int at = a.colorRow * ColorsWide;
             _colorRows[at] = a.tint;
-            for (int i = 1; i < ColorsWide; i++) _colorRows[at + i] = a.colors != null && i - 1 < a.colors.Length ? (Color32)a.colors[i - 1] : White;
+            for (int i = 1; i <= MaskColors; i++) _colorRows[at + i] = a.colors != null && i - 1 < a.colors.Length ? (Color32)a.colors[i - 1] : White;
+            _colorRows[at + FlashTexel] = a.flash;
             _colorsChanged = true;
             WatchColors(true);
             return "";

@@ -141,7 +141,8 @@ CBUFFER_END
 // An actor's own colours (ModelBridge.Colors.cs): its row of _OjActorColors is its renderer's user
 // value above the shadow bit, 0 for an actor with none, which reads nothing. The row's first texel
 // is its tint, multiplied into the whole of it; the next four are multiplied in where the model's
-// mask says, red for the first to alpha for the fourth. The texture is sRGB, so a load is linear.
+// mask says, red for the first to alpha for the fourth; the sixth is its flash, added after its
+// light (Flashed). The texture is sRGB, so a load is linear.
 // The row rides where the shadow bit does, so a coloured actor stays in the SRP Batcher.
 TEXTURE2D(_OjActorColors);
 #ifndef MODEL_SPLAT
@@ -165,6 +166,17 @@ half3 Painted(half3 color, float2 uv) {
             }
         #endif
         return color;
+    #endif
+}
+
+// An actor's flash, added to its colour after its light: texel 5 of its row, black for none.
+half3 Flashed() {
+    #ifdef MODEL_SCATTERED
+        return 0;
+    #else
+        uint row = unity_RendererUserValue >> 1;
+        if (row == 0u) return 0;
+        return LOAD_TEXTURE2D(_OjActorColors, int2(5, row)).rgb;
     #endif
 }
 

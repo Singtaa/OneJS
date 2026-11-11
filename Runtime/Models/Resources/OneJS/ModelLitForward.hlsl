@@ -191,6 +191,8 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
         half3 emission = SAMPLE_TEXTURE2D(_EmissionMap, sampler_EmissionMap, i.uv).rgb * _EmissionColor.rgb
             + ModelEdge(cut, _DissolveEdge.rgb);
     #endif
+    // An actor's flash rides with the emission, which both paths add after the light.
+    emission += Flashed();
 
     InputData d = (InputData)0;
     d.positionWS = i.positionWS;

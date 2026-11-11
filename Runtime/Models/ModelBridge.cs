@@ -146,6 +146,8 @@ namespace OneJS.Models {
             public int colorRow;
             public Color tint = Color.white;
             public Color[] colors;
+            // Added after its light, black for none: a body flashing bright when struck.
+            public Color flash = Color.black;
             // Its own texture (ModelBridge.Texture.cs): the one a cart gave, the bridge's copy of it, and the materials it wore before.
             public Texture textureGiven;
             public RenderTexture textureCopy;
@@ -866,10 +868,19 @@ namespace OneJS.Models {
             }
         }
 
-        public static void SetCamera(float x, float y, float z, float lookX, float lookY, float lookZ, float fov) {
+        public static void SetCamera(float x, float y, float z, float lookX, float lookY, float lookZ, float fov) =>
+            SetCameraRolled(x, y, z, lookX, lookY, lookZ, fov, 0);
+
+        /// <summary>
+        /// SetCamera turned `roll` degrees about the line it looks along after it looks at its
+        /// point: anticlockwise as seen from behind the camera, so the picture turns clockwise. A
+        /// shake's twist, or a banked flight.
+        /// </summary>
+        public static void SetCameraRolled(float x, float y, float z, float lookX, float lookY, float lookZ, float fov, float roll) {
             BeginScene();
             _camera.transform.position = new Vector3(x, y, z);
             _camera.transform.LookAt(new Vector3(lookX, lookY, lookZ));
+            if (roll != 0 && Finite(roll)) _camera.transform.Rotate(0, 0, roll, Space.Self);
             if (fov > 0) _camera.fieldOfView = fov;
         }
 

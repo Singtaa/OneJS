@@ -10,7 +10,8 @@ using UnityEngine.TestTools;
 namespace OneJS.Tests.Models {
     /// <summary>
     /// An actor's own colours (ModelBridge.Colors.cs), as they are drawn: a tint multiplies the
-    /// whole actor, a colour multiplies it where the model's mask says, an actor with neither
+    /// whole actor, a colour multiplies it where the model's mask says, a flash adds to it after
+    /// its light, an actor with none of them
     /// draws as it did, and a coloured actor carries no property block, so it stays in the SRP
     /// Batcher. Each reading is the mean colour of the pixels an actor covers, lit by a white
     /// ambient alone, against the same actor uncoloured.
@@ -101,6 +102,33 @@ namespace OneJS.Tests.Models {
             Assert.That(ModelBridge.ColorRow(actor), Is.EqualTo(0), "a white actor gives its row back");
             yield return Drawn(c => again = c);
             Assert.That(again.g, Is.EqualTo(plain.g).Within(0.02f));
+        }
+
+        [UnityTest]
+        public IEnumerator AFlash_AddsToTheLitActor_AndBlackGivesItBack() {
+            int model = 0;
+            yield return Load(m => model = m);
+            int actor = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, false, false);
+            Color plain = default, flashed = default, white = default, again = default;
+            yield return Drawn(c => plain = c);
+
+            Assert.That(ModelBridge.SetFlash(actor, 0, 0.5f, 0), Is.EqualTo(""));
+            Assert.That(ModelBridge.ColorRow(actor), Is.EqualTo(1));
+            yield return Drawn(c => flashed = c);
+            Assert.That(flashed.g, Is.GreaterThan(plain.g + 0.1f), $"flashed green, it drew no more green: {flashed} against {plain}");
+            Assert.That(flashed.r, Is.EqualTo(plain.r).Within(0.05f), "a green flash adds no red");
+            Assert.That(flashed.b, Is.EqualTo(plain.b).Within(0.05f), "a green flash adds no blue");
+
+            // Brighter than any tint can make it, which multiplies by at most white.
+            Assert.That(ModelBridge.SetFlash(actor, 1, 1, 1), Is.EqualTo(""));
+            yield return Drawn(c => white = c);
+            Assert.That(white.r + white.g + white.b, Is.GreaterThan(plain.r + plain.g + plain.b + 0.5f), $"flashed white it is {white} against {plain}");
+
+            Assert.That(ModelBridge.SetFlash(actor, 0, 0, 0), Is.EqualTo(""));
+            Assert.That(ModelBridge.ColorRow(actor), Is.EqualTo(0), "an actor with no flash, tint or colours gives its row back");
+            yield return Drawn(c => again = c);
+            Assert.That(again.g, Is.EqualTo(plain.g).Within(0.02f));
+            Assert.That(ModelBridge.SetFlash(actor, float.NaN, 0, 0), Does.Contain("is a colour"));
         }
 
         [UnityTest]
