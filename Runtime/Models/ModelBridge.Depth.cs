@@ -17,8 +17,8 @@ namespace OneJS.Models {
     /// mesh with `soften` or `deepColor` (ModelSurface.hlsl), and scene.depth. One switch for all of
     /// them, kept by who asked, so one letting go never turns it off under another, and what the
     /// camera had before the first asked is put back when the last lets go. The Play container
-    /// draws the depth every frame already (its URP asset asks for it, and SSAO's prepass writes
-    /// it), so there this changes nothing; a Unity project's own asset may not ask for it.
+    /// has the depth every frame already (its URP asset asks for it), so there this changes
+    /// nothing; a Unity project's own asset may not ask for it.
     /// </summary>
     public static partial class ModelBridge {
         /// <summary>Set by the pipeline's assembly when it loads; null where the pipeline is not URP.</summary>

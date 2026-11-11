@@ -9,8 +9,8 @@ namespace OneJS.Models {
     /// camera, after the opaques, that reads URP's depth texture and writes each pixel's distance
     /// along its ray in metres into the bridge's texture. Enqueued from the camera's own begin, so
     /// it needs no renderer feature in the project's renderer, and only while a program reads it.
-    /// The Play container already draws the depth each frame (SSAO's prepass), so the pass is
-    /// the only new work: one read and one write a pixel.
+    /// The Play container's URP asset asks for the depth texture every frame, so the pass is the
+    /// only new work: one read and one write a pixel.
     /// </summary>
     sealed class UrpSceneDepth : ISceneDepthPipeline {
         static readonly int DepthId = Shader.PropertyToID("_OjDepth");
