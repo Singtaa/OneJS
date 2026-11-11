@@ -24,8 +24,6 @@ namespace OneJS.Models {
         // two clips, which no clip's own samples hold.
         const float ReachMargin = 0.1f;
 
-        static readonly Vector3[] _corners = new Vector3[8];
-
         // The actors with a clip playing, and the frame their unseen clocks last ran in.
         static readonly HashSet<Actor> _clocked = new();
         static int _clockedFrame = -1;
@@ -81,12 +79,11 @@ namespace OneJS.Models {
         static void PrepareSkins(GameObject template, Animation anim) {
             var skins = template.GetComponentsInChildren<SkinnedMeshRenderer>(true);
             if (skins.Length == 0) return;
-            var parts = new Bounds?[skins.Length][];
-            var reach = new Bounds?[skins.Length];
-            for (int i = 0; i < skins.Length; i++) parts[i] = JointBounds(skins[i]);
+            var reach = new SkinReach[skins.Length];
+            for (int i = 0; i < skins.Length; i++) reach[i] = SkinReach.Of(skins[i]);
 
             void Grow() {
-                for (int i = 0; i < skins.Length; i++) Reach(skins[i], parts[i], ref reach[i]);
+                for (int i = 0; i < reach.Length; i++) reach[i]?.Grow();
             }
 
             Grow();
@@ -113,7 +110,7 @@ namespace OneJS.Models {
 
             for (int i = 0; i < skins.Length; i++) {
                 var skin = skins[i];
-                var b = reach[i] ?? (skin.sharedMesh != null ? skin.sharedMesh.bounds : new Bounds());
+                var b = reach[i] != null && reach[i].Measured(out var reached) ? reached : (skin.sharedMesh != null ? skin.sharedMesh.bounds : new Bounds());
                 b.Expand(b.size * (2 * ReachMargin) + Vector3.one * (2 * MorphReach(skin.sharedMesh)));
                 skin.localBounds = b;
                 skin.updateWhenOffscreen = false;
@@ -149,26 +146,60 @@ namespace OneJS.Models {
             return boxes;
         }
 
-        // Grows `reach` by where the joints carry their boxes now, in the space Unity keeps a
-        // skinned renderer's bounds in: its root bone's, or its own without one.
-        static void Reach(SkinnedMeshRenderer skin, Bounds?[] boxes, ref Bounds? reach) {
-            if (boxes == null) return;
-            var root = skin.rootBone != null ? skin.rootBone : skin.transform;
-            var toRoot = root.worldToLocalMatrix;
-            var bones = skin.bones;
-            for (int j = 0; j < boxes.Length; j++) {
-                if (!(boxes[j] is Bounds box) || bones[j] == null) continue;
-                var m = toRoot * bones[j].localToWorldMatrix;
-                Vector3 min = box.min, max = box.max;
-                for (int c = 0; c < 8; c++) {
-                    _corners[c] = m.MultiplyPoint3x4(new Vector3((c & 1) == 0 ? min.x : max.x, (c & 2) == 0 ? min.y : max.y, (c & 4) == 0 ? min.z : max.z));
+        // Where a skin's joints carry the vertices they hold, gathered over the poses its clips are
+        // sampled in. What does not change between poses is read once: the joints, the space the
+        // bounds are kept in (the root bone's, or the renderer's own without one), and each joint's
+        // box as its eight corners in that joint's space.
+        sealed class SkinReach {
+            Transform _root;
+            Transform[] _joints; // one per box
+            Vector3[] _corners;  // eight per box
+            Vector3 _min, _max;
+            bool _any;
+
+            public static SkinReach Of(SkinnedMeshRenderer skin) {
+                var boxes = JointBounds(skin);
+                if (boxes == null) return null;
+                var bones = skin.bones;
+                var joints = new List<Transform>();
+                var corners = new List<Vector3>();
+                for (int j = 0; j < boxes.Length; j++) {
+                    if (!(boxes[j] is Bounds box) || bones[j] == null) continue;
+                    joints.Add(bones[j]);
+                    Vector3 min = box.min, max = box.max;
+                    for (int c = 0; c < 8; c++) {
+                        corners.Add(new Vector3((c & 1) == 0 ? min.x : max.x, (c & 2) == 0 ? min.y : max.y, (c & 4) == 0 ? min.z : max.z));
+                    }
                 }
-                foreach (var corner in _corners) {
-                    if (reach is Bounds b) {
-                        b.Encapsulate(corner);
-                        reach = b;
-                    } else reach = new Bounds(corner, Vector3.zero);
+                return new SkinReach {
+                    _root = skin.rootBone != null ? skin.rootBone : skin.transform,
+                    _joints = joints.ToArray(), _corners = corners.ToArray(),
+                };
+            }
+
+            // Grows the reach by where the joints carry their boxes now.
+            public void Grow() {
+                var toRoot = _root.worldToLocalMatrix;
+                for (int j = 0, c = 0; j < _joints.Length; j++, c += 8) {
+                    var m = toRoot * _joints[j].localToWorldMatrix;
+                    for (int k = c; k < c + 8; k++) {
+                        var p = m.MultiplyPoint3x4(_corners[k]);
+                        if (_any) {
+                            _min = Vector3.Min(_min, p);
+                            _max = Vector3.Max(_max, p);
+                        } else {
+                            _min = _max = p;
+                            _any = true;
+                        }
+                    }
                 }
+            }
+
+            public bool Measured(out Bounds bounds) {
+                bounds = default;
+                if (!_any) return false;
+                bounds.SetMinMax(_min, _max);
+                return true;
             }
         }
 
