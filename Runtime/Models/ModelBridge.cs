@@ -1036,6 +1036,7 @@ namespace OneJS.Models {
             StopSky();
             StopWind();
             StopTextures();
+            StopDrawCounts();
             foreach (var a in _actors.Values) if (a.go != null) Kill(a.go);
             _actors.Clear();
             StopClocks();
