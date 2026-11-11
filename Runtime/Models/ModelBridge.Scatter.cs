@@ -420,6 +420,9 @@ namespace OneJS.Models {
         /// </summary>
         static void DrawFor(Camera camera) {
             if (camera.cameraType == CameraType.Preview || camera.cameraType == CameraType.Reflection) return;
+            // A camera that sees no layer (the one that only clears the screen while the scene draws
+            // into a texture) would cull every draw, after the work of handing them over.
+            if (camera.cullingMask == 0) return;
             var eye = camera.transform.position;
             // A shadow pass draws from the light, and a range still measures from this camera.
             Shader.SetGlobalVector(EyeId, eye);
