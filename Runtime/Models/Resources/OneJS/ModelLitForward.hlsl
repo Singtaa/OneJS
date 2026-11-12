@@ -175,7 +175,11 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
         if (_SplatFar.y > 0) mixed *= SplatVariation(i.positionWS, _SplatFar.y);
         half4 base = half4(mixed, 1) * _BaseColor;
     #else
-        half4 base = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv) * _BaseColor;
+        half4 picture = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv);
+        // A flipbook cross-fades into its next frame. A material value, so every pixel of a draw
+        // takes the same way, and a mesh without one reads one picture as before.
+        if (_Flipbook.x > 0.5) picture = lerp(picture, SAMPLE_TEXTURE2D(_FrameNext, sampler_BaseMap, i.uv), (half)_Flipbook.y);
+        half4 base = picture * _BaseColor;
     #endif
     #ifdef _VERTEX_COLOR
         base *= i.color;

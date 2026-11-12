@@ -103,6 +103,10 @@ namespace OneJS.Models {
             public RenderTexture normalMap;
             public Vector2 normalTiling = Vector2.one, normalFlow;
             public float normalScale = 1;
+            // Its flipbook (ModelBridge.Flipbook.cs): each frame's ground copy, null until given, and
+            // the seconds the loop takes; null and 0 for none.
+            public RenderTexture[] frames;
+            public float frameSeconds;
             public float[] sway = Array.Empty<float>();
             public PositionSway[] positionSway = Array.Empty<PositionSway>();
             // A layered sway (SetMeshSwayLayers): four numbers a vertex in `sway`, trunk, limb, leaf
@@ -319,6 +323,7 @@ namespace OneJS.Models {
             m.import?.Dispose();
             if (m.built != null) {
                 WantDepth(m.built, false);
+                StopFlipbook(m.built);
                 ReleaseNormalCopy(m.built.normalMap);
                 m.built.normalMap = null;
                 ReleaseGroundCopy(m.built.texture);

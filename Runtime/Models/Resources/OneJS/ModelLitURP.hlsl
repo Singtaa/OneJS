@@ -37,6 +37,8 @@ TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
     TEXTURE2D(_NormalMap); SAMPLER(sampler_NormalMap);
     TEXTURE2D(_OcclusionMap); SAMPLER(sampler_OcclusionMap);
     TEXTURE2D(_EmissionMap); SAMPLER(sampler_EmissionMap);
+    // A flipbook's next frame (ModelBridge.Flipbook.cs), read with the base map's sampler.
+    TEXTURE2D(_FrameNext);
 #endif
 
 CBUFFER_START(UnityPerMaterial)
@@ -96,6 +98,10 @@ CBUFFER_START(UnityPerMaterial)
         float4 _LeafEdge;
         // 1 where a loaded model has a colour mask (_PaintMask), 0 everywhere else, which never reads it.
         half _Painted;
+        // A mesh model's flipbook (ModelBridge.Flipbook.cs): x 1 where it plays, y how far the clock
+        // is from the frame in _BaseMap to the one in _FrameNext, 0 to 1. x 0 everywhere else, which
+        // never reads _FrameNext.
+        float4 _Flipbook;
     #endif
 CBUFFER_END
 

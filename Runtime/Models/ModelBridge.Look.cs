@@ -184,12 +184,17 @@ namespace OneJS.Models {
         }
 
         /// <summary>The scene's clock the wind sways by, in seconds: onejs-play's own, so a paused scene's trees stand still.</summary>
-        public static void SetWindClock(float seconds) => Shader.SetGlobalVector(WindClockId, new Vector4(seconds, 0, 0, 0));
+        public static void SetWindClock(float seconds) {
+            Shader.SetGlobalVector(WindClockId, new Vector4(seconds, 0, 0, 0));
+            // A flipbook plays by the same clock (ModelBridge.Flipbook.cs).
+            PlayFlipbooks(seconds);
+        }
 
         /// <summary>No wind, as before any scene: the scene's teardown.</summary>
         static void StopWind() {
             Shader.SetGlobalVector(WindId, Vector4.zero);
             Shader.SetGlobalVector(WindClockId, Vector4.zero);
+            _flipbookClock = 0;
         }
 
         /// <summary>The wind the shaders read (ModelWind.hlsl): direction x and z, strength, gust.</summary>

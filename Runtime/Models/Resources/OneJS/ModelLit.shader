@@ -58,6 +58,9 @@ Shader "OneJS/ModelLit" {
         // A loaded model's colour mask, and 1 where it has one: see Painted in ModelLitURP.hlsl.
         [HideInInspector] [NoScaleOffset] _PaintMask ("Paint Mask", 2D) = "black" {}
         [HideInInspector] _Painted ("Painted", Float) = 0
+        // A mesh model's flipbook, its next frame and how far into it: see ModelLitURP.hlsl.
+        [HideInInspector] _FrameNext ("Frame Next", 2D) = "white" {}
+        [HideInInspector] _Flipbook ("Flipbook", Vector) = (0, 0, 0, 0)
     }
 
     SubShader {

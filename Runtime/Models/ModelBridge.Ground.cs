@@ -57,6 +57,8 @@ namespace OneJS.Models {
             var problem = Tiling(tileU, tileV) ?? (texture != null ? Pixels(texture, "the texture") : null);
             if (problem != null) return problem;
 
+            // A texture given takes the place of a flipbook, as a flipbook takes a texture's.
+            StopFlipbook(b);
             var copy = texture == null ? null : TakeGroundCopy(texture);
             ReleaseGroundCopy(b.texture);
             b.texture = copy;
