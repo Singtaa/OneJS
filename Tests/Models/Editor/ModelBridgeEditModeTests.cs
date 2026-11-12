@@ -296,11 +296,61 @@ namespace OneJS.Tests.Models {
             Assert.That(InScene<Transform>(), Is.Empty);
         }
 
+        // A glTF COLOR_0 multiplies the base colour, as glTF means it: the part that has one draws
+        // through a copy of its material that reads vertex colours, and the part that shares the
+        // material without them keeps it as it was. The copy goes with the model.
+        [UnityTest]
+        public IEnumerator VertexColours_MultiplyTheBaseColour_OnThePartsThatHaveThem() {
+            var target = new RenderTexture(64, 32, 24);
+            var camera = new GameObject("Test Camera").AddComponent<Camera>();
+            var read = new Texture2D(64, 32, TextureFormat.RGBA32, false);
+            Material copy = null;
+            try {
+                int model = 0;
+                yield return Load(m => model = m, "painted.glb");
+                ModelBridge.BeginScene();
+                int actor = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, false, false);
+                var parts = ModelBridge.ActorObject(actor).GetComponentsInChildren<MeshRenderer>(true);
+                var painted = parts.First(r => r.name == "Painted");
+                var plain = parts.First(r => r.name == "Plain");
+                Assert.That(painted.GetComponent<MeshFilter>().sharedMesh.HasVertexAttribute(VertexAttribute.Color), Is.True, "COLOR_0 was loaded");
+                copy = painted.sharedMaterial;
+                Assert.That(copy.IsKeywordEnabled("_VERTEX_COLOR"), Is.True);
+                Assert.That(plain.sharedMaterial.IsKeywordEnabled("_VERTEX_COLOR"), Is.False, "the part without colours keeps the shared material");
+                Assert.That(plain.sharedMaterial, Is.Not.SameAs(copy));
+                // Unlit, so the pixel is the colour: red where the colours are, white where they are not.
+                foreach (var r in parts) r.sharedMaterial.SetFloat("_Unlit", 1);
+                camera.transform.position = new Vector3(0, 0, -2);
+                camera.transform.LookAt(Vector3.zero);
+                camera.orthographic = true;
+                camera.orthographicSize = 1;
+                camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.backgroundColor = Color.black;
+                camera.targetTexture = target;
+                camera.Render();
+                var was = RenderTexture.active;
+                RenderTexture.active = target;
+                read.ReadPixels(new Rect(0, 0, 64, 32), 0, 0);
+                RenderTexture.active = was;
+                // glTF's x is Unity's -x, so the painted quad, at glTF's x = -1, is on the right.
+                Color32 plainPixel = read.GetPixel(16, 16), paintedPixel = read.GetPixel(48, 16);
+                Assert.That(paintedPixel.r > 250 && paintedPixel.g < 5 && paintedPixel.b < 5, $"the painted quad draws red: {paintedPixel}");
+                Assert.That(plainPixel.r > 250 && plainPixel.g > 250 && plainPixel.b > 250, $"the plain quad draws white: {plainPixel}");
+                ModelBridge.Destroy(actor);
+                Assert.That(ModelBridge.Unload(model), Is.True);
+                Assert.That(copy == null, Is.True, "the copy is freed with the model");
+            } finally {
+                Object.DestroyImmediate(camera.gameObject);
+                Object.DestroyImmediate(read);
+                target.Release();
+            }
+        }
+
         // glTFast gives a skinned mesh with vertex colours four streams (colours and UVs apart, bones
         // in the fourth), and Unity warns "Skinned mesh attributes use wrong streams" as it builds
         // the mesh: an orange line in every cart's console on every Run. Unity skins from position,
-        // normal and tangent in stream 0, colours and UVs in 1, bones in 2. ModelLit reads no vertex
-        // colours, so they are not loaded, and the rest keeps its data.
+        // normal and tangent in stream 0, colours and UVs in 1, bones in 2. A skinned mesh's vertex
+        // colours are not loaded (ModelImport), and the rest keeps its data.
         [UnityTest]
         public IEnumerator SkinnedModels_UseTheStreamsUnitySkinsFrom() {
             var warned = new System.Collections.Generic.List<string>();

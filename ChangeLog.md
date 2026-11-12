@@ -14,6 +14,8 @@
 - A mesh model draws unlit, or added to what is behind it
 - A mesh model blends premultiplied, its alpha a dial from laid over to added
 - An actor takes a flash, a colour added after its light
+- An actor takes a light of its own, an ambient and one direction
+- A loaded model's vertex colours multiply its base colour, except on a skinned mesh
 - The scene camera rolls (`SetCameraRolled`)
 - A scene sets its ambient occlusion, or turns it off
 - A mesh model's texture plays as a flipbook

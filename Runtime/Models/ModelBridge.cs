@@ -57,6 +57,9 @@ namespace OneJS.Models {
             public Mesh[] unlit, lit;
             // The model whose clips it plays (ModelBridge.TakeClips), 0 for its own.
             public int clipsFrom;
+            // Copies of its materials that read vertex colours, for the parts whose meshes have them
+            // (VertexColored). Its own to free: glTFast's import frees only the materials it made.
+            public List<Material> colored;
             // A linear copy of its colour mask (ModelBridge.Colors.cs), null without one.
             public RenderTexture paintMask;
         }
@@ -167,6 +170,10 @@ namespace OneJS.Models {
             public SphericalHarmonicsL2 probe;
             public bool probed;
             public Vector3 probedAt;
+            // Its own light (ModelBridge.ActorLight.cs), in place of the ambient, the probes and the
+            // baked light, while `lit`.
+            public SphericalHarmonicsL2 light;
+            public bool lit;
         }
 
         /// <summary>The lighting a play-mode scene changed, to put back.</summary>
@@ -289,8 +296,40 @@ namespace OneJS.Models {
             var id = ++_next;
             _models[id] = new Model {
                 import = import, template = template, bounds = MeasureBounds(template), clips = clips.ToArray(),
+                colored = VertexColored(template),
             };
             return id;
+        }
+
+        /// <summary>
+        /// Gives each part whose mesh carries vertex colours (a glTF COLOR_0, which ModelImport keeps
+        /// on every mesh but a skinned one) a copy of its ModelLit materials with _VERTEX_COLOR on, so
+        /// the colours multiply its base colour as glTF means them, and a bake reads them into the
+        /// surface's colour (BakeSceneBuilder). One copy a material, shared by every part that has
+        /// colours; a part without them keeps the material as it was, which reads no COLOR. Null for
+        /// a model with none.
+        /// </summary>
+        static List<Material> VertexColored(GameObject template) {
+            if (ModelMaterialGenerator.ModelShader == null) return null;
+            Dictionary<Material, Material> copies = null;
+            foreach (var r in template.GetComponentsInChildren<MeshRenderer>(true)) {
+                var mesh = r.GetComponent<MeshFilter>()?.sharedMesh;
+                if (mesh == null || !mesh.HasVertexAttribute(VertexAttribute.Color)) continue;
+                var materials = r.sharedMaterials;
+                for (int i = 0; i < materials.Length; i++) {
+                    var source = materials[i];
+                    if (source == null || source.shader != ModelMaterialGenerator.ModelShader) continue;
+                    copies ??= new Dictionary<Material, Material>();
+                    if (!copies.TryGetValue(source, out var copy)) {
+                        copy = new Material(source) { name = source.name + " (vertex colours)" };
+                        copy.EnableKeyword("_VERTEX_COLOR");
+                        copies[source] = copy;
+                    }
+                    materials[i] = copy;
+                }
+                r.sharedMaterials = materials;
+            }
+            return copies == null ? null : new List<Material>(copies.Values);
         }
 
         // Pressing Play, or a hot reload, disposes the scene while a load may still be running; what
@@ -324,6 +363,8 @@ namespace OneJS.Models {
             FreeColorMask(m);
             if (m.template != null) Kill(m.template);
             m.import?.Dispose();
+            if (m.colored != null) foreach (var copy in m.colored) Kill(copy);
+            m.colored = null;
             if (m.built != null) {
                 WantDepth(m.built, false);
                 StopFlipbook(m.built);
@@ -1130,12 +1171,13 @@ namespace OneJS.Models {
         /// SH (LightProbeUsage.CustomProvided), which ModelLit's SampleSH already reads.
         /// </summary>
         static void Apply(Actor a) {
-            bool mapped = Lightmapped(a);
-            bool probed = !mapped && a.probed;
+            // An actor's own light takes the place of the baked light and the probes.
+            bool mapped = !a.lit && Lightmapped(a);
+            bool probed = !a.lit && !mapped && a.probed;
             // The built-in pipeline adds the ambient probe itself, so a lightmapped actor's is zero there.
-            bool customSH = probed || (mapped && BuiltInPipeline);
+            bool customSH = a.lit || probed || (mapped && BuiltInPipeline);
             foreach (var r in a.renderers) SetUserValue(r, (a.receive ? 0u : ShadowlessBit) | ((uint)a.colorRow << 1));
-            if (a.dissolve <= 0 && !mapped && !probed) {
+            if (a.dissolve <= 0 && !mapped && !customSH) {
                 foreach (var r in a.renderers) {
                     r.SetPropertyBlock(null);
                     r.lightProbeUsage = LightProbeUsage.BlendProbes;
@@ -1147,7 +1189,7 @@ namespace OneJS.Models {
             a.block.SetFloat(ActorDissolveId, a.dissolve);
             if (mapped) a.block.SetVector(ActorLightmapId, a.atlas);
             if (customSH) {
-                _oneProbe[0] = probed ? a.probe : default;
+                _oneProbe[0] = a.lit ? a.light : probed ? a.probe : default;
                 a.block.CopySHCoefficientArraysFrom(_oneProbe);
             }
             foreach (var r in a.renderers) {
