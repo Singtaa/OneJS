@@ -55,6 +55,24 @@ namespace OneJS.Models {
             return "";
         }
 
+        /// <summary>
+        /// The texture a loaded model's file carries: the base map of its first material that has
+        /// one, in the file's order, so a cart can compose a look over the model's own picture.
+        /// The model's own, not a copy: it goes when the model is unloaded. Null for a model with
+        /// no texture, a model made from arrays, or one that is gone.
+        /// </summary>
+        public static Texture ModelTexture(int model) {
+            if (!_models.TryGetValue(model, out var m) || m.template == null || m.built != null) return null;
+            foreach (var r in m.template.GetComponentsInChildren<Renderer>(true)) {
+                foreach (var material in r.sharedMaterials) {
+                    if (material == null) continue;
+                    var t = material.HasTexture(BaseMapId) ? material.GetTexture(BaseMapId) : material.mainTexture;
+                    if (t != null) return t;
+                }
+            }
+            return null;
+        }
+
         /// <summary>The copy of the texture an actor wears, null for its model's own.</summary>
         internal static Texture TextureOf(int actor) => _actors.TryGetValue(actor, out var a) ? a.textureCopy : null;
 
