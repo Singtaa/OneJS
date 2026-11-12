@@ -24,11 +24,12 @@ half4 _OjWaterlineColor;
 
 // A pixel's colour turned toward the waterline's below it, over a 3 cm edge so the line does not
 // shimmer. Arithmetic rather than a branch on the pixel's height: 0 above and with none.
-// An added mesh is left as it is, since turning what it adds toward a colour would brighten the water.
-half3 UnderWaterline(half3 color, float y) {
+// An added mesh is left as it is, since turning what it adds toward a colour would brighten the water,
+// and a premultiplied one turns as much as it covers (`cover`, its alpha; 1 for every other mesh).
+half3 UnderWaterline(half3 color, float y, half cover) {
     if (_DstBlend == 1) return color;
     half under = (half)(_OjWaterline.y * _OjWaterline.z * saturate((_OjWaterline.x - y) * 33.0));
-    return lerp(color, _OjWaterlineColor.rgb, under);
+    return color + under * cover * (_OjWaterlineColor.rgb - color);
 }
 
 // A splat ground (GroundLit) does not reflect the sky: near roughness 1 it reflected about 1%,
@@ -84,7 +85,7 @@ half4 ModelDepthFade(half4 base, float3 positionWS, float4 positionCS) {
     float sceneEye = ModelSceneEyeDepth(raw, _ZBufferParams, _ProjectionParams, ortho);
     float pixelEye = -TransformWorldToView(positionWS).z;
     float thickness = ModelThickness(sceneEye, pixelEye, length(positionWS - _WorldSpaceCameraPos), ortho);
-    return ModelDepthFadeBy(base, thickness, _DepthFade, _DeepColor);
+    return ModelDepthFadeBy(base, thickness, _DepthFade, _DeepColor, _Premultiplied > 0);
 }
 #endif
 
@@ -200,6 +201,9 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     #endif
     base.rgb = Painted(Tinted(base.rgb), i.uv);
     #ifndef MODEL_SPLAT
+        // A premultiplied mesh's colour is multiplied by its picture's alpha alone (or not at all, for a
+        // picture that comes multiplied), so its other alphas only say how much it covers.
+        if (_Premultiplied == 1) base.rgb *= picture.a;
         base = ModelDepthFade(base, i.positionWS, i.positionCS);
     #endif
     float cut = ModelClip(i.positionOS, base.a, _AlphaClip, _Cutoff, Dissolved(), _DissolveScale);
@@ -217,10 +221,12 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     // OneJS's own fog (OneJSFog.hlsl), per pixel.
     half fog = OneJSFogAmount(i.positionWS, _WorldSpaceCameraPos, -TransformWorldToView(i.positionWS).z, _ProjectionParams.y);
     // What fog turns a pixel toward: nothing, for one added to what is behind it (see _DstBlend).
-    half3 fogColor = _DstBlend == 1 ? (half3)0 : (half3)_OneJSFogColor.rgb;
+    // A premultiplied one's covers by its alpha and adds the rest, so it fogs as much as it covers.
+    half cover = _Premultiplied > 0 ? base.a : (half)1;
+    half3 fogColor = _DstBlend == 1 ? (half3)0 : (half3)_OneJSFogColor.rgb * cover;
 
     if (_Unlit > 0.5) {
-        half3 flat = lerp(UnderWaterline(base.rgb + emission, i.positionWS.y), fogColor, fog);
+        half3 flat = lerp(UnderWaterline(base.rgb + emission, i.positionWS.y, cover), fogColor, fog);
         return half4(flat, OutputAlpha(base.a, IsSurfaceTypeTransparent(_Surface)));
     }
 
@@ -277,7 +283,7 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
         // neither adds nothing to what UniversalFragmentPBR gave.
         if (_LeafLight.x > 0 || _LeafLight.y > 0) color.rgb += ModelLeafLight(d, s, _LeafLight.xyz, _LeafTint.rgb);
     #endif
-    color.rgb = lerp(UnderWaterline(color.rgb, i.positionWS.y), fogColor, fog);
+    color.rgb = lerp(UnderWaterline(color.rgb, i.positionWS.y, cover), fogColor, fog);
     color.a = OutputAlpha(color.a, IsSurfaceTypeTransparent(_Surface));
     return color;
 }

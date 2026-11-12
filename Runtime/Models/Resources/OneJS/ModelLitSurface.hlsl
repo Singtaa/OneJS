@@ -45,6 +45,8 @@ half _AlphaClip;
 half _Unlit;
 // The blend's destination factor, 1 (One) for an additive mesh model (see ModelLitURP.hlsl).
 half _DstBlend;
+// A premultiplied mesh model's picture, straight (1) or premultiplied (2), and 0 for none (see ModelLitURP.hlsl).
+half _Premultiplied;
 half _Dissolve;
 half _DissolveScale;
 half4 _DissolveEdge;
@@ -135,10 +137,14 @@ void Surf(Input i, inout SurfaceOutputStandard o) {
         if (_SplatFar.y > 0) mixed *= SplatVariation(i.worldPos, _SplatFar.y);
         half4 base = half4(mixed, 1) * _BaseColor;
     #else
-        half4 base = tex2D(_BaseMap, uv) * _BaseColor;
+        half4 picture = tex2D(_BaseMap, uv);
+        half4 base = picture * _BaseColor;
     #endif
     #ifdef _VERTEX_COLOR
         base *= i.color;
+    #endif
+    #ifndef MODEL_SPLAT
+        if (_Premultiplied == 1) base.rgb *= picture.a;
     #endif
     float4 tint = UNITY_ACCESS_INSTANCED_PROP(ModelActorLight, _ActorTint);
     base.rgb *= lerp(float3(1, 1, 1), tint.rgb, tint.a);
@@ -179,7 +185,9 @@ void Fogged(Input i, SurfaceOutputStandard o, inout fixed4 color) {
     #ifdef UNITY_PASS_FORWARDADD
         color.rgb *= 1 - fog;
     #else
-        color.rgb = _DstBlend == 1 ? color.rgb * (1 - fog) : lerp(color.rgb, _OneJSFogColor.rgb, fog);
+        // A premultiplied mesh fogs as much as it covers, so its added part fades out as an added mesh does.
+        half cover = _Premultiplied > 0 ? o.Alpha : 1;
+        color.rgb = _DstBlend == 1 ? color.rgb * (1 - fog) : lerp(color.rgb, _OneJSFogColor.rgb * cover, fog);
     #endif
 }
 

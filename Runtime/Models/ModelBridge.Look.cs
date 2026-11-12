@@ -45,7 +45,7 @@ namespace OneJS.Models {
             if (!(cutout >= 0 && cutout <= 1)) return $"cutout is {cutout}, and runs from 0 to 1";
             var b = m.built;
             if (b.splat) return "a splat has no alpha to cut out";
-            if (b.additive) return "an additive model is added to what is behind it, and has nothing to cut out";
+            if (b.Blended) return $"a model that blends {BlendName(b.blend)} draws after the opaques, and has nothing to cut out";
             b.cutout = cutout;
             ApplyLook(b);
             return "";
@@ -83,14 +83,32 @@ namespace OneJS.Models {
         /// colour. An alpha below 1 dims it rather than making it see-through, so it never flips to
         /// the alpha blend. "" when it took it, or what was wrong.
         /// </summary>
-        public static string SetMeshAdditive(int model) {
+        public static string SetMeshAdditive(int model) => Blend(model, MeshBlend.Add);
+
+        /// <summary>
+        /// Blends a mesh model premultiplied: its colour is added to what is behind it, and what is
+        /// behind is dimmed by its alpha (source One, destination OneMinusSrcAlpha). Its colour, its
+        /// vertex colours and its picture's colour are not multiplied by their alphas, except that a
+        /// straight picture's colour is multiplied by its own alpha; with `premultipliedTexture` the
+        /// picture is taken as already multiplied. So an alpha is a dial: 1 lays the mesh over what
+        /// is behind it, 0 adds it as light is, between is between, and black at any alpha draws
+        /// nothing. A heart that covers and a halo that glows draw in one mesh. Otherwise as the
+        /// additive blend: after the opaques, no depth written, no shadow cast, left out of a bake,
+        /// and fog fades the added part out while it fogs the covering part. "" when it took it, or
+        /// what was wrong.
+        /// </summary>
+        public static string SetMeshPremultiplied(int model, bool premultipliedTexture) =>
+            Blend(model, premultipliedTexture ? MeshBlend.PremultipliedTexture : MeshBlend.Premultiplied);
+
+        static string Blend(int model, MeshBlend blend) {
             if (!Look(model, out var m, out var problem)) return problem;
             var b = m.built;
-            if (b.depthOnly) return "a depth-only mesh draws no colour to add";
-            if (b.cutout >= 0) return "a cut out model draws opaque, and cannot also be added to what is behind it";
-            if (b.splat) return "a splat's ground cannot be added to what is behind it";
-            if (b.additive) return "";
-            b.additive = true;
+            if (b.depthOnly) return "a depth-only mesh draws no colour to blend";
+            if (b.cutout >= 0) return $"a cut out model draws opaque, and cannot also blend {BlendName(blend)}";
+            if (b.splat) return $"a splat's ground cannot blend {BlendName(blend)}";
+            if (b.blend == blend) return "";
+            if (b.Blended) return $"this model already blends {BlendName(b.blend)}";
+            b.blend = blend;
             ApplyLook(b);
             foreach (var r in m.template.GetComponentsInChildren<Renderer>(true)) r.shadowCastingMode = ShadowCastingMode.Off;
             foreach (var a in _actors.Values) if (a.model == model) Shadows(a, false, a.receive);
@@ -134,6 +152,14 @@ namespace OneJS.Models {
             return "";
         }
 
+        /// <summary>How a mesh model meets what is behind it, as onejs-play's `blend` names it.</summary>
+        internal static string BlendName(MeshBlend blend) => blend switch {
+            MeshBlend.Add => "\"add\"",
+            MeshBlend.Premultiplied => "\"premultiplied\"",
+            MeshBlend.PremultipliedTexture => "\"premultipliedTexture\"",
+            _ => "\"alpha\"",
+        };
+
         static bool Look(int model, out Model m, out string problem) {
             problem = null;
             if (!_models.TryGetValue(model, out m) || m.built == null) problem = $"there is no mesh model {model}";
@@ -160,8 +186,8 @@ namespace OneJS.Models {
             }
             if (b.sways) material.SetFloat(SwayId, b.swayLayers ? 2 : 1);
             if (b.unlit) ModelMaterialGenerator.SetUnlit(material);
-            if (b.additive) {
-                ModelMaterialGenerator.SetAdditive(material);
+            if (b.Blended) {
+                ModelMaterialGenerator.SetBlend(material, b.blend);
                 b.seeThrough = true;
             }
             ApplySurface(b);
@@ -200,4 +226,11 @@ namespace OneJS.Models {
         /// <summary>The wind the shaders read (ModelWind.hlsl): direction x and z, strength, gust.</summary>
         internal static Vector4 Wind => Shader.GetGlobalVector(WindId);
     }
+
+    /// <summary>
+    /// How a mesh model's colour meets what is behind it: by its alpha, which an alpha of 1 draws
+    /// opaque; added, as light is; or premultiplied, its alpha a dial from laid over (1) to added (0),
+    /// with a straight picture's colour multiplied by its alpha or a premultiplied one's taken as it is.
+    /// </summary>
+    public enum MeshBlend { Alpha, Add, Premultiplied, PremultipliedTexture }
 }

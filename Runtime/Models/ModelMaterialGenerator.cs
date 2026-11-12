@@ -44,6 +44,7 @@ namespace OneJS.Models {
         static readonly int SrcBlendId = Shader.PropertyToID("_SrcBlend");
         static readonly int DstBlendId = Shader.PropertyToID("_DstBlend");
         static readonly int ZWriteId = Shader.PropertyToID("_ZWrite");
+        static readonly int PremultipliedId = Shader.PropertyToID("_Premultiplied");
 
         IMaterialGenerator _fallback;
         ICodeLogger _logger;
@@ -152,13 +153,18 @@ namespace OneJS.Models {
         public static void SetUnlit(Material material) => material.SetFloat(UnlitId, 1);
 
         /// <summary>
-        /// A ModelLit material added to what is behind it, by its alpha, as light is: drawn after the
-        /// opaques, writing no depth, and faded out by fog rather than toward its colour (the shader
-        /// reads `_DstBlend` for that). A mesh model made with `blend: "add"`.
+        /// A ModelLit material drawn after the opaques, writing no depth, and blended `blend`. Added
+        /// (`blend: "add"`), by its alpha, as light is, and faded out by fog rather than toward its
+        /// colour (the shader reads `_DstBlend` for that). Premultiplied (`blend: "premultiplied"`
+        /// and `"premultipliedTexture"`), source One and destination OneMinusSrcAlpha, with
+        /// `_Premultiplied` 1 where the shader multiplies the picture's colour by its alpha and 2
+        /// where the picture comes multiplied already. Alpha leaves it as SetSeeThrough does.
         /// </summary>
-        public static void SetAdditive(Material material) {
-            SetSeeThrough(material, true);
-            material.SetFloat(DstBlendId, (float)BlendMode.One);
+        public static void SetBlend(Material material, MeshBlend blend) {
+            SetSeeThrough(material, blend != MeshBlend.Alpha);
+            material.SetFloat(PremultipliedId, blend == MeshBlend.Premultiplied ? 1 : blend == MeshBlend.PremultipliedTexture ? 2 : 0);
+            if (blend == MeshBlend.Add) material.SetFloat(DstBlendId, (float)BlendMode.One);
+            if (blend == MeshBlend.Premultiplied || blend == MeshBlend.PremultipliedTexture) material.SetFloat(SrcBlendId, (float)BlendMode.One);
         }
 
         public void SetLogger(ICodeLogger logger) {

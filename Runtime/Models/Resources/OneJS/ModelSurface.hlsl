@@ -32,9 +32,16 @@ float ModelThickness(float sceneEye, float pixelEye, float rayLength, float orth
 // none). The colour and alpha move toward `deep` (_DeepColor, linear) as 1 - exp(-3 t / metres),
 // 95% there at `metres`, and the alpha fades to nothing at the shore over `soften` metres. Before
 // the surface is lit, so the deep colour takes the hour's light as the rest of the mesh does.
-half4 ModelDepthFadeBy(half4 base, float thickness, float4 fade, half4 deep) {
+// A premultiplied base (`premultiplied` true) moves toward the deep colour multiplied by its alpha,
+// and fades at the shore in colour and alpha alike, so a softened edge fades rather than adds.
+half4 ModelDepthFadeBy(half4 base, float thickness, float4 fade, half4 deep, bool premultiplied) {
+    if (premultiplied) deep.rgb *= deep.a;
     if (fade.y > 0) base = lerp(base, deep, (half)(1.0 - exp(-thickness * fade.y)));
-    if (fade.x > 0) base.a *= (half)saturate(thickness * fade.x);
+    if (fade.x > 0) {
+        half shore = (half)saturate(thickness * fade.x);
+        if (premultiplied) base *= shore;
+        else base.a *= shore;
+    }
     return base;
 }
 

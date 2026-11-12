@@ -96,7 +96,7 @@ namespace OneJS.Models {
             built.material.SetColor(BaseColorId, built.baseColor);
             bool seeThrough = a < 1;
             if (built.givesColors) for (int v = 0; v < built.vertexCount && !seeThrough; v++) seeThrough = built.colors[v].a < 1;
-            if (seeThrough != built.seeThrough && !built.depthOnly && built.cutout < 0 && !built.additive) {
+            if (seeThrough != built.seeThrough && !built.depthOnly && built.cutout < 0 && !built.Blended) {
                 ModelMaterialGenerator.SetSeeThrough(built.material, seeThrough);
                 built.seeThrough = seeThrough;
             }
@@ -108,7 +108,7 @@ namespace OneJS.Models {
         /// from how many metres of it the pixel's ray crosses: its alpha fades to nothing over
         /// `soften` metres at a shore, and its colour and alpha move toward `r, g, b, a` (sRGB) as the
         /// thickness runs to `metres`, 95% of the way there. `soften` or `metres` 0 leaves that one
-        /// off. Only on a mesh whose colour has an alpha below 1, or an additive one, without a
+        /// off. Only on a mesh whose colour has an alpha below 1, or an added or premultiplied one, without a
         /// cutout, not depth-only: an opaque mesh is in the depth it would read. URP only. The camera's depth texture is
         /// asked for while the mesh lives. "" when it took it, or what was wrong.
         /// </summary>
@@ -123,7 +123,7 @@ namespace OneJS.Models {
             if (built.splat) return "a splat draws opaque, and there is nothing behind it to fade by";
             if (built.depthOnly) return "a depth-only mesh draws no colour to fade";
             if (built.cutout >= 0) return "a mesh with a cutout draws opaque, and there is nothing behind it to fade by";
-            if (!(built.baseColor.a < 1) && !built.additive) return "this mesh draws opaque (its colour's alpha is 1), and an opaque mesh is in the depth it would read: give its colour an alpha below 1";
+            if (!(built.baseColor.a < 1) && !built.Blended) return "this mesh draws opaque (its colour's alpha is 1), and an opaque mesh is in the depth it would read: give its colour an alpha below 1";
             built.depthFade = new Vector4(soften > 0 ? 1 / soften : 0, metres > 0 ? 3 / metres : 0, 0, 0);
             built.deepColor = new Color(r, g, b, a);
             ApplySurface(built);

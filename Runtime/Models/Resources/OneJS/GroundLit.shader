@@ -33,6 +33,8 @@ Shader "OneJS/GroundLit" {
         [HideInInspector] _Cull ("Cull", Float) = 2
         [HideInInspector] _SrcBlend ("Src Blend", Float) = 1
         [HideInInspector] _DstBlend ("Dst Blend", Float) = 0
+        // 1 for a premultiplied mesh model with a straight picture, 2 with a premultiplied one: see ModelLitURP.hlsl.
+        [HideInInspector] _Premultiplied ("Premultiplied", Float) = 0
         [HideInInspector] _ZWrite ("ZWrite", Float) = 1
         [HideInInspector] _ColorMask ("Color Mask", Float) = 15
         // A mesh model's sway (ModelWind.hlsl) and two-sided lighting: see ModelLitURP.hlsl.

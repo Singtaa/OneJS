@@ -8,8 +8,8 @@ using UnityEngine.Rendering;
 namespace OneJS.Tests.Models {
     /// <summary>
     /// A mesh model's look besides its colours and pictures (ModelBridge.Look.cs): cut out by its
-    /// alpha, drawn from both sides with its normals as given, unlit, added to what is behind it,
-    /// and swayed by the scene's wind. What a
+    /// alpha, drawn from both sides with its normals as given, unlit, added to what is behind it or
+    /// blended premultiplied, and swayed by the scene's wind. What a
     /// leaf card needs, and before them a mesh model drew every texel opaque, one side only, still.
     /// </summary>
     public class MeshLookEditModeTests {
@@ -179,7 +179,7 @@ namespace OneJS.Tests.Models {
             Assert.That(ModelBridge.SetMeshCutout(added, 0.5f), Does.Contain("nothing to cut out"));
             var picture = HalfClear();
             try {
-                Assert.That(ModelBridge.SetMeshSplat(added, picture, null, null, null, 1, 1, 0), Does.Contain("added to what is behind it"));
+                Assert.That(ModelBridge.SetMeshSplat(added, picture, null, null, null, 1, 1, 0), Does.Contain("blends \"add\""));
             } finally {
                 Object.DestroyImmediate(picture);
             }
@@ -187,6 +187,85 @@ namespace OneJS.Tests.Models {
             Assert.That(ModelBridge.SetDepthOnly(depth), Is.True);
             Assert.That(ModelBridge.SetMeshAdditive(depth), Does.Contain("depth-only"));
             Assert.That(ModelBridge.SetMeshUnlit(depth), Does.Contain("depth-only"));
+        }
+
+        [Test]
+        public void Premultiplied_AlphaIsADial_FromLaidOverToAdded() {
+            int model = ModelBridge.CreateMesh(false, false, false, 0, 0.5f, 0, 1);
+            Assert.That(ModelBridge.SetMesh(model, Square, TwoTriangles, null, null, null), Is.Empty);
+            Assert.That(ModelBridge.SetMeshPremultiplied(model, false), Is.Empty);
+            var over = Shot(model)[32 * 16 + 16];
+            Assert.That(over.r, Is.LessThan(5), $"at alpha 1 it is laid over the magenta: {over}");
+            Assert.That(over.g, Is.GreaterThan(40), $"in its own green: {over}");
+            Assert.That(ModelBridge.SetMeshColor(model, 0, 0.5f, 0, 0), Is.Empty);
+            var added = Shot(model)[32 * 16 + 16];
+            Assert.That(added.r, Is.GreaterThan(250), $"at alpha 0 the magenta stays: {added}");
+            Assert.That(added.b, Is.GreaterThan(250), $"at alpha 0 the magenta stays: {added}");
+            Assert.That(added.g, Is.EqualTo(over.g).Within(3), $"and the same green is added to it, not dimmed by the alpha: {added}");
+            Assert.That(ModelBridge.SetMeshColor(model, 0, 0.5f, 0, 0.5f), Is.Empty);
+            var half = Shot(model)[32 * 16 + 16];
+            Assert.That(half.r, Is.InRange(100, 220), $"at alpha 0.5 half the magenta stays: {half}");
+            Assert.That(ModelBridge.SetMeshColor(model, 0, 0, 0, 0), Is.Empty);
+            Assert.That(Covered(Shot(model)), Is.Zero, "black at alpha 0 draws nothing");
+        }
+
+        [Test]
+        public void Premultiplied_MultipliesAStraightPicture_AndTakesAPremultipliedOneAsItIs() {
+            var picture = HalfClear();
+            try {
+                // The picture's left half is white at alpha 0: nothing, straight; white light, premultiplied.
+                foreach (var premultipliedTexture in new[] { false, true }) {
+                    int model = ModelBridge.CreateMesh(false, false, true, 1, 1, 1, 1);
+                    Assert.That(ModelBridge.SetMesh(model, Square, TwoTriangles, null, null, Corners), Is.Empty);
+                    Assert.That(ModelBridge.SetMeshTexture(model, picture, 1, 1), Is.Empty);
+                    Assert.That(ModelBridge.SetMeshPremultiplied(model, premultipliedTexture), Is.Empty);
+                    Assert.That(ModelBridge.MaterialOf(model).GetFloat("_Premultiplied"), Is.EqualTo(premultipliedTexture ? 2f : 1f));
+                    var shot = Shot(model);
+                    var clear = shot[32 * 16 + 8];
+                    var white = shot[32 * 16 + 24];
+                    Assert.That(white.r > 250 && white.g > 250 && white.b > 250, $"premultipliedTexture {premultipliedTexture}: the opaque half covers in white: {white}");
+                    if (premultipliedTexture) Assert.That(clear.g, Is.GreaterThan(250), $"a premultiplied picture's clear white is added: {clear}");
+                    else Assert.That(Background(clear), $"a straight picture's clear white is multiplied away: {clear}");
+                }
+            } finally {
+                Object.DestroyImmediate(picture);
+            }
+        }
+
+        [Test]
+        public void Premultiplied_DrawsAfterTheOpaques_WritesNoDepth_CastsNoShadow_AndRefusesAnotherBlend() {
+            int model = ModelBridge.CreateMesh(false, false, false, 1, 1, 1, 1);
+            Assert.That(ModelBridge.SetMesh(model, Square, TwoTriangles, null, null, null), Is.Empty);
+            int before = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, false, false);
+            Assert.That(ModelBridge.SetMeshPremultiplied(model, false), Is.Empty);
+            Assert.That(ModelBridge.SetMeshPremultiplied(model, false), Is.Empty, "the same blend again is no change");
+            int after = ModelBridge.Spawn(model, 0, 0, 0, 0, 1, false, false);
+            void Check(string when) {
+                var material = ModelBridge.MaterialOf(model);
+                Assert.That(material.GetFloat("_SrcBlend"), Is.EqualTo((float)BlendMode.One), when);
+                Assert.That(material.GetFloat("_DstBlend"), Is.EqualTo((float)BlendMode.OneMinusSrcAlpha), when);
+                Assert.That(material.GetFloat("_ZWrite"), Is.EqualTo(0f), when);
+                Assert.That(material.GetFloat("_Premultiplied"), Is.EqualTo(1f), when);
+                Assert.That(material.renderQueue, Is.EqualTo((int)RenderQueue.Transparent), when);
+            }
+            Check("made premultiplied");
+            foreach (var actor in new[] { before, after }) {
+                foreach (var r in ModelBridge.ActorObject(actor).GetComponentsInChildren<Renderer>()) {
+                    Assert.That(r.shadowCastingMode, Is.EqualTo(ShadowCastingMode.Off), $"actor {actor}");
+                }
+            }
+            Assert.That(ModelBridge.SetMeshColor(model, 1, 1, 1, 0.5f), Is.Empty);
+            Assert.That(ModelBridge.SetMeshColor(model, 1, 1, 1, 1), Is.Empty);
+            Check("an alpha back at 1");
+            Assert.That(ModelBridge.SetMeshPremultiplied(model, true), Does.Contain("already blends \"premultiplied\""));
+            Assert.That(ModelBridge.SetMeshAdditive(model), Does.Contain("already blends"));
+            Assert.That(ModelBridge.SetMeshCutout(model, 0.5f), Does.Contain("nothing to cut out"));
+            int cut = ModelBridge.CreateMesh(false, false, true, 1, 1, 1, 1);
+            Assert.That(ModelBridge.SetMeshCutout(cut, 0.5f), Is.Empty);
+            Assert.That(ModelBridge.SetMeshPremultiplied(cut, true), Does.Contain("cut out"));
+            int depth = ModelBridge.CreateMesh(false, false, false, 1, 1, 1, 1);
+            Assert.That(ModelBridge.SetDepthOnly(depth), Is.True);
+            Assert.That(ModelBridge.SetMeshPremultiplied(depth, false), Does.Contain("depth-only"));
         }
 
         [Test]

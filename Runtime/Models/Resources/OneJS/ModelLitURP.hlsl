@@ -81,6 +81,12 @@ CBUFFER_START(UnityPerMaterial)
     // linear. At the end, after the splat's, so neither shader's earlier layout moves.
     float4 _DepthFade;
     half4 _DeepColor;
+    // A premultiplied mesh model (blend "premultiplied", source One and destination OneMinusSrcAlpha):
+    // 1 where its picture's colour is multiplied by the picture's alpha, 2 where the picture comes
+    // multiplied already, 0 everywhere else. Its colour's and vertex colours' alphas never touch its
+    // colour, so an alpha says how much it covers, from laid over (1) to added (0). After the depth
+    // fade's, so neither shader's earlier layout moves.
+    half _Premultiplied;
     #ifndef MODEL_SPLAT
         // A mesh model's normal map (ModelSurface.hlsl): its repeats a uv, and in _NormalFlow its
         // flow in uvs a second (xy) and 1 in z where its frame is worked out per pixel, since a mesh

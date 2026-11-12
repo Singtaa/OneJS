@@ -83,8 +83,11 @@ namespace OneJS.Models {
             // Its look (ModelBridge.Look.cs): the alpha it cuts below (-1 for none), both sides, and a sway a vertex.
             public float cutout = -1;
             public bool twoSided, sways;
-            // Drawn in its own colours with no light on it, and added to what is behind it (ModelBridge.Look.cs).
-            public bool unlit, additive;
+            // Drawn in its own colours with no light on it, and how it meets what is behind it (ModelBridge.Look.cs).
+            public bool unlit;
+            public MeshBlend blend;
+            // Added or premultiplied: drawn after the opaques with no depth and no shadow, whatever its alpha.
+            public bool Blended => blend != MeshBlend.Alpha;
             // Its surface (ModelBridge.Material.cs): a rough non-metal unless given one.
             public float roughness = 1, metallic;
             // Its leaf light (ModelBridge.Material.cs): how far the sun wraps round it (x), how much
@@ -574,7 +577,7 @@ namespace OneJS.Models {
             b.vertexCount = count;
             b.indexCount = indexCount;
             b.written = true;
-            if (seeThrough != b.seeThrough && !b.depthOnly && b.cutout < 0 && !b.additive && ModelMaterialGenerator.ModelShader != null) {
+            if (seeThrough != b.seeThrough && !b.depthOnly && b.cutout < 0 && !b.Blended && ModelMaterialGenerator.ModelShader != null) {
                 ModelMaterialGenerator.SetSeeThrough(b.material, seeThrough);
                 b.seeThrough = seeThrough;
             }
@@ -1106,8 +1109,8 @@ namespace OneJS.Models {
 
         static void Shadows(Actor a, bool cast, bool receive) {
             a.receive = receive;
-            // A depth-only model is never seen, so neither is its shadow, and light added to the scene casts none.
-            if (cast && _models.TryGetValue(a.model, out var m) && m.built != null && (m.built.depthOnly || m.built.additive)) cast = false;
+            // A depth-only model is never seen, so neither is its shadow, and a blended one (light added to the scene) casts none.
+            if (cast && _models.TryGetValue(a.model, out var m) && m.built != null && (m.built.depthOnly || m.built.Blended)) cast = false;
             foreach (var r in a.renderers) {
                 r.shadowCastingMode = cast ? ShadowCastingMode.On : ShadowCastingMode.Off;
                 // The built-in pipeline reads the renderer's flag; ModelLit in URP reads the actor's value.
