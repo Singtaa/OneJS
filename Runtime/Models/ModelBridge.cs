@@ -1060,6 +1060,7 @@ namespace OneJS.Models {
             StopClocks();
             StopColors();
             StopOcclusion();
+            StopWaterline();
             foreach (var m in _models.Values) Free(m);
             _models.Clear();
             _lights.Clear();

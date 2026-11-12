@@ -17,6 +17,20 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 #include "OneJSFog.hlsl"
 
+// The scene's waterline (ModelBridge.Waterline.cs): x the height in metres, y the strength, z 1 while
+// there is one, 0 otherwise; and its colour, linear. Globals, so no material or variant changes.
+float4 _OjWaterline;
+half4 _OjWaterlineColor;
+
+// A pixel's colour turned toward the waterline's below it, over a 3 cm edge so the line does not
+// shimmer. Arithmetic rather than a branch on the pixel's height: 0 above and with none.
+// An added mesh is left as it is, since turning what it adds toward a colour would brighten the water.
+half3 UnderWaterline(half3 color, float y) {
+    if (_DstBlend == 1) return color;
+    half under = (half)(_OjWaterline.y * _OjWaterline.z * saturate((_OjWaterline.x - y) * 33.0));
+    return lerp(color, _OjWaterlineColor.rgb, under);
+}
+
 // A splat ground (GroundLit) does not reflect the sky: near roughness 1 it reflected about 1%,
 // which cost GroundLit's forward variants 13 KB of the Play container. A cart wanting a glossy
 // ground (wet stone, ice) is the reason to bring it back.
@@ -206,7 +220,7 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     half3 fogColor = _DstBlend == 1 ? (half3)0 : (half3)_OneJSFogColor.rgb;
 
     if (_Unlit > 0.5) {
-        half3 flat = lerp(base.rgb + emission, fogColor, fog);
+        half3 flat = lerp(UnderWaterline(base.rgb + emission, i.positionWS.y), fogColor, fog);
         return half4(flat, OutputAlpha(base.a, IsSurfaceTypeTransparent(_Surface)));
     }
 
@@ -263,7 +277,7 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
         // neither adds nothing to what UniversalFragmentPBR gave.
         if (_LeafLight.x > 0 || _LeafLight.y > 0) color.rgb += ModelLeafLight(d, s, _LeafLight.xyz, _LeafTint.rgb);
     #endif
-    color.rgb = lerp(color.rgb, fogColor, fog);
+    color.rgb = lerp(UnderWaterline(color.rgb, i.positionWS.y), fogColor, fog);
     color.a = OutputAlpha(color.a, IsSurfaceTypeTransparent(_Surface));
     return color;
 }
