@@ -51,6 +51,19 @@ half3 SkyReflection(InputData d, SurfaceData s) {
     sky = lerp(sky, (half3)_OneJSFogColor.rgb, (half)OneJSFogSky(r, _WorldSpaceCameraPos));
     return (sky - _GlossyEnvironmentColor.rgb) * EnvironmentBRDFSpecular(brdf, fresnel) * ao.indirectAmbientOcclusion;
 }
+
+// What water reflects along `r`: the colour its cart gave (_WaterSky), else the scene's sky where it
+// is reflected, fogged as SkyReflection fogs it, else the ambient light from that way, which is the
+// ambient's sky colour above the horizon. Material and global values, so one way for every pixel.
+half3 WaterSky(float3 r) {
+    if (_Water.w > 0.5) return _WaterSky.rgb;
+    if (_OjSkyReflect.x > 0.5) {
+        half3 sky = OneJSSkyReflected(r, 0.1, _OjSkyTop.rgb, _OjSkyHorizon.rgb, _OjSkyBottom.rgb,
+            _OjSkySunColor.rgb, _OjSkySunDir, _OjSkySunShape.y);
+        return lerp(sky, (half3)_OneJSFogColor.rgb, (half)OneJSFogSky(r, _WorldSpaceCameraPos));
+    }
+    return SampleSH(r);
+}
 #endif
 #ifndef MODEL_SPLAT
     #include "ModelSurface.hlsl"
@@ -62,14 +75,16 @@ half3 SkyReflection(InputData d, SurfaceData s) {
 TEXTURE2D_X_FLOAT(_CameraDepthTexture);
 
 // A see-through mesh's base colour faded by the opaque depth behind it (ModelSurface.hlsl): the
-// camera's depth texture, which ModelBridge asks for while a mesh with either option lives.
-half4 ModelDepthFade(half4 base, float3 positionWS, float4 positionCS) {
-    if (_DepthFade.x <= 0 && _DepthFade.y <= 0) return base;
+// camera's depth texture, which ModelBridge asks for while a mesh with either option, or water's
+// foam, lives. `thickness` is how many metres of the mesh lie in front of the world, read only then.
+half4 ModelDepthFade(half4 base, float3 positionWS, float4 positionCS, out float thickness) {
+    thickness = 1e6;
+    if (_DepthFade.x <= 0 && _DepthFade.y <= 0 && _Water.y <= 0) return base;
     float raw = LOAD_TEXTURE2D_X(_CameraDepthTexture, uint2(positionCS.xy)).r;
     float ortho = unity_OrthoParams.w;
     float sceneEye = ModelSceneEyeDepth(raw, _ZBufferParams, _ProjectionParams, ortho);
     float pixelEye = -TransformWorldToView(positionWS).z;
-    float thickness = ModelThickness(sceneEye, pixelEye, length(positionWS - _WorldSpaceCameraPos), ortho);
+    thickness = ModelThickness(sceneEye, pixelEye, length(positionWS - _WorldSpaceCameraPos), ortho);
     return ModelDepthFadeBy(base, thickness, _DepthFade, _DeepColor);
 }
 #endif
@@ -182,7 +197,27 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     #endif
     base.rgb = Painted(Tinted(base.rgb), i.uv);
     #ifndef MODEL_SPLAT
-        base = ModelDepthFade(base, i.positionWS, i.positionCS);
+        // A mesh model's own normal map (_NormalFlow.z) reads at its own repeats, sliding by the
+        // scene's clock, in a frame worked out per pixel; a glTF model's, at the base map's uvs in
+        // the frame its tangents give. One read either way, and a second for water's finer layer.
+        // Before the fade, since water's foam is broken up by the ripples; not read at all by an
+        // unlit mesh that is not water, which shows no normal.
+        bool water = _Water.x > 0.5;
+        bool ownFrame = _NormalFlow.z > 0.5;
+        float2 normalUV = ownFrame ? ModelNormalUV(i.uv, _BaseMap_ST, _NormalMap_ST, _NormalFlow.xy, _OjWindClock.x) : i.uv;
+        half3 normalTS = half3(0, 0, 1);
+        if (_Unlit < 0.5 || water) {
+            normalTS = UnpackNormalScale(SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap, normalUV), _NormalScale);
+            if (water && ownFrame) {
+                float2 finer = ModelRipplesUV(i.uv, _BaseMap_ST, _NormalMap_ST, _NormalFlow.xy, _OjWindClock.x);
+                normalTS = ModelRipplesBlend(normalTS, UnpackNormalScale(SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap, finer), _NormalScale * 0.7));
+            }
+        }
+        float thickness;
+        base = ModelDepthFade(base, i.positionWS, i.positionCS, thickness);
+        // Water's foam, over the faded colour and alpha: 0 for a mesh without, which changes nothing.
+        half foam = _Water.y > 0 ? ModelFoam(thickness, _Water.y, normalTS.xy) : (half)0;
+        base = lerp(base, _WaterFoam, foam);
     #endif
     float cut = ModelClip(i.positionOS, base.a, _AlphaClip, _Cutoff, Dissolved(), _DissolveScale);
     #ifdef MODEL_SPLAT
@@ -201,18 +236,36 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     // What fog turns a pixel toward: nothing, for one added to what is behind it (see _DstBlend).
     half3 fogColor = _DstBlend == 1 ? (half3)0 : (half3)_OneJSFogColor.rgb;
 
+    // A double-sided material's back faces light as the side the viewer sees, or as the front
+    // where the normals were bent for it (_KeepBackNormal).
+    half3 normalWS = i.normalWS * IS_FRONT_VFACE(face, 1.0, 2.0 * _KeepBackNormal - 1.0);
+    #ifndef MODEL_SPLAT
+        float3 bitangent = i.tangentWS.w * cross(normalWS, i.tangentWS.xyz);
+        half3x3 frame = half3x3(i.tangentWS.xyz, bitangent, normalWS);
+        if (ownFrame) frame = ModelCotangentFrame(normalWS, i.positionWS, normalUV);
+        half3 bentWS = NormalizeNormalPerPixel(TransformTangentToWorld(normalTS, frame));
+        // Water's swell tilts the surface as it lifts it, per pixel, so even a mesh of two
+        // triangles shows the long waves in what it reflects.
+        if (_Water.z > 0) {
+            float2 slope;
+            ModelSwell(i.positionWS.xz, _Water.z, _OjWind.xy, _OjWindClock.x, slope);
+            bentWS = normalize(bentWS + half3(-slope.x, 0, -slope.y));
+        }
+        float3 viewWS = GetWorldSpaceNormalizeViewDir(i.positionWS);
+    #endif
+
     if (_Unlit > 0.5) {
-        half3 flat = lerp(base.rgb + emission, fogColor, fog);
-        return half4(flat, OutputAlpha(base.a, IsSurfaceTypeTransparent(_Surface)));
+        half4 flat = half4(base.rgb + emission, base.a);
+        #ifndef MODEL_SPLAT
+            if (water) flat = ModelWaterReflect(flat, bentWS, viewWS, WaterSky(reflect(-viewWS, bentWS)), foam, IsSurfaceTypeTransparent(_Surface));
+        #endif
+        return half4(lerp(flat.rgb, fogColor, fog), OutputAlpha(flat.a, IsSurfaceTypeTransparent(_Surface)));
     }
 
     SurfaceData s = (SurfaceData)0;
     s.albedo = base.rgb;
     s.alpha = base.a;
     s.emission = emission;
-    // A double-sided material's back faces light as the side the viewer sees, or as the front
-    // where the normals were bent for it (_KeepBackNormal).
-    half3 normalWS = i.normalWS * IS_FRONT_VFACE(face, 1.0, 2.0 * _KeepBackNormal - 1.0);
     #ifdef MODEL_SPLAT
         s.metallic = _Metallic;
         s.smoothness = 1.0 - _Roughness;
@@ -224,17 +277,9 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
         s.metallic = mr.b * _Metallic;
         // glTF roughness is perceptual roughness, which is what URP's smoothness inverts.
         s.smoothness = 1.0 - mr.g * _Roughness;
-        // A mesh model's own normal map (_NormalFlow.z) reads at its own repeats, sliding by the
-        // scene's clock, in a frame worked out per pixel; a glTF model's, at the base map's uvs in
-        // the frame its tangents give. One read either way.
-        bool ownFrame = _NormalFlow.z > 0.5;
-        float2 normalUV = ownFrame ? ModelNormalUV(i.uv, _BaseMap_ST, _NormalMap_ST, _NormalFlow.xy, _OjWindClock.x) : i.uv;
-        s.normalTS = UnpackNormalScale(SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap, normalUV), _NormalScale);
+        s.normalTS = normalTS;
         s.occlusion = lerp(1.0, SAMPLE_TEXTURE2D(_OcclusionMap, sampler_OcclusionMap, i.uv).r, _OcclusionStrength);
-        float3 bitangent = i.tangentWS.w * cross(normalWS, i.tangentWS.xyz);
-        half3x3 frame = half3x3(i.tangentWS.xyz, bitangent, normalWS);
-        if (ownFrame) frame = ModelCotangentFrame(normalWS, i.positionWS, normalUV);
-        d.normalWS = NormalizeNormalPerPixel(TransformTangentToWorld(s.normalTS, frame));
+        d.normalWS = bentWS;
     #endif
     d.viewDirectionWS = GetWorldSpaceNormalizeViewDir(i.positionWS);
     #if defined(MAIN_LIGHT_CALCULATE_SHADOWS)
@@ -254,10 +299,12 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     half4 color = UniversalFragmentPBR(d, s);
     // Every pixel of a frame takes the same way: off, color is what UniversalFragmentPBR gave.
     #ifndef MODEL_SPLAT
-        if (_OjSkyReflect.x > 0.5) color.rgb += SkyReflection(d, s);
+        // Water reflects the sky itself (WaterSky), so it takes no second reflection of it here.
+        if (_OjSkyReflect.x > 0.5 && !water) color.rgb += SkyReflection(d, s);
         // A material value, so every pixel of a draw takes the same way: a mesh that asks for
         // neither adds nothing to what UniversalFragmentPBR gave.
         if (_LeafLight.x > 0 || _LeafLight.y > 0) color.rgb += ModelLeafLight(d, s, _LeafLight.xyz, _LeafTint.rgb);
+        if (water) color = ModelWaterReflect(color, d.normalWS, viewWS, WaterSky(reflect(-viewWS, d.normalWS)), foam, IsSurfaceTypeTransparent(_Surface));
     #endif
     color.rgb = lerp(color.rgb, fogColor, fog);
     color.a = OutputAlpha(color.a, IsSurfaceTypeTransparent(_Surface));

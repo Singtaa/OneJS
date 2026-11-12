@@ -96,6 +96,13 @@ CBUFFER_START(UnityPerMaterial)
         float4 _LeafEdge;
         // 1 where a loaded model has a colour mask (_PaintMask), 0 everywhere else, which never reads it.
         half _Painted;
+        // A mesh model drawn as water (ModelSurface.hlsl): x 1 where it is, y 1 over its foam's
+        // metres (0 for none), z its swell's height in metres (ModelSwell), w 1 where it reflects
+        // _WaterSky rather than the scene's ambient along the reflected ray. All 0 everywhere
+        // else, which changes nothing. Its sky and its foam (alpha too) are linear.
+        float4 _Water;
+        half4 _WaterSky;
+        half4 _WaterFoam;
     #endif
 CBUFFER_END
 
@@ -187,13 +194,17 @@ half3 Tinted(half3 color) {
     return color * lerp(float3(1, 1, 1), tint.rgb, tint.a);
 }
 
-// Where a vertex lands in the world, swayed by the wind when its model sways. A branch on a
-// material value, so every vertex of a draw takes the same way.
+// Where a vertex lands in the world, swayed by the wind when its model sways, and lifted by the
+// swell when it is water. Branches on material values, so every vertex of a draw takes the same way.
 // A plain sway's stream has one number a vertex, which a float4 input reads as (sway, 0, 0, 1).
 float3 SwayedWorld(float3 positionOS, float3 normalOS, float4 sway) {
     float3 positionWS = TransformObjectToWorld(positionOS);
     if (_Sway > 1.5) positionWS = ModelSwayedLayered(positionWS, TransformObjectToWorldNormal(normalOS), GetObjectToWorldMatrix(), sway);
     else if (_Sway > 0.5) positionWS = ModelSwayed(positionWS, GetObjectToWorldMatrix(), sway.x);
+    #ifndef MODEL_SPLAT
+        float2 slope;
+        if (_Water.z > 0) positionWS.y += ModelSwell(positionWS.xz, _Water.z, _OjWind.xy, _OjWindClock.x, slope);
+    #endif
     return positionWS;
 }
 

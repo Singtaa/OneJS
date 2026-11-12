@@ -58,6 +58,10 @@ Shader "OneJS/ModelLit" {
         // A loaded model's colour mask, and 1 where it has one: see Painted in ModelLitURP.hlsl.
         [HideInInspector] [NoScaleOffset] _PaintMask ("Paint Mask", 2D) = "black" {}
         [HideInInspector] _Painted ("Painted", Float) = 0
+        // A mesh model drawn as water, its sky and its foam: see ModelLitURP.hlsl.
+        [HideInInspector] _Water ("Water", Vector) = (0, 0, 0, 0)
+        [HideInInspector] _WaterSky ("Water Sky", Color) = (0, 0, 0, 1)
+        [HideInInspector] _WaterFoam ("Water Foam", Color) = (1, 1, 1, 1)
     }
 
     SubShader {

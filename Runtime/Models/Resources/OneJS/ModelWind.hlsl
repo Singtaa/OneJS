@@ -73,4 +73,22 @@ float3 ModelSwayedLayered(float3 positionWS, float3 normalWS, float4x4 objectToW
     return origin + (reach > 1e-5 ? bent * (reach / max(length(bent), 1e-5)) : bent);
 }
 
+// A water mesh's swell (onejs-play's `water: { swell }`): two long waves rolling downwind, 7 and 2.9
+// metres from crest to crest, the shorter turned 35 degrees off the wind and 0.4 as high, each at
+// half the speed open water would carry it, so a pool heaves slowly rather than racing. `height` is
+// the longer wave's in metres. On the scene's clock, as the sway is, so a paused scene's water stands
+// still. Returns how far up the surface moves at `xz`, and in `slope` how steeply it rises along x
+// and z there, which the lit pass bends the normal by.
+float ModelSwell(float2 xz, float height, float2 wind, float seconds, out float2 slope) {
+    float2 d1 = dot(wind, wind) > 1e-6 ? normalize(wind) : float2(1.0, 0.0);
+    float2 d2 = float2(d1.x * 0.819 - d1.y * 0.574, d1.x * 0.574 + d1.y * 0.819);
+    const float k1 = 0.8976, k2 = 2.1666;        // 2 pi over 7 and over 2.9 metres
+    const float w1 = 1.4836, w2 = 2.3051;        // half of sqrt(9.81 k): deep water, slowed
+    float p1 = k1 * dot(d1, xz) - w1 * seconds;
+    float p2 = k2 * dot(d2, xz) - w2 * seconds + 1.7;
+    float a1 = height, a2 = 0.4 * height;
+    slope = d1 * (a1 * k1 * cos(p1)) + d2 * (a2 * k2 * cos(p2));
+    return a1 * sin(p1) + a2 * sin(p2);
+}
+
 #endif

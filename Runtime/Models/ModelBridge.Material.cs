@@ -230,6 +230,7 @@ namespace OneJS.Models {
             b.material.SetVector(DepthFadeId, b.depthFade);
             // SetColor takes the sRGB value and keeps it linear in a linear project, as _BaseColor.
             b.material.SetColor(DeepColorId, b.deepColor);
+            ApplyWater(b);
             // A splat's GroundLit has no leaf light, and is refused it.
             if (b.material.HasProperty(LeafLightId)) {
                 b.material.SetVector(LeafLightId, b.leafLight);

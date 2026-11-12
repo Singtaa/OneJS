@@ -103,6 +103,11 @@ namespace OneJS.Models {
             public RenderTexture normalMap;
             public Vector2 normalTiling = Vector2.one, normalFlow;
             public float normalScale = 1;
+            // Its water (ModelBridge.Water.cs): _Water's values, all 0 for none, its sky and foam in
+            // sRGB, and what asks for the depth texture for its foam, apart from its depth fade.
+            public Vector4 water;
+            public Color waterSky, waterFoam;
+            public readonly object waterDepth = new();
             public float[] sway = Array.Empty<float>();
             public PositionSway[] positionSway = Array.Empty<PositionSway>();
             // A layered sway (SetMeshSwayLayers): four numbers a vertex in `sway`, trunk, limb, leaf
@@ -319,6 +324,7 @@ namespace OneJS.Models {
             m.import?.Dispose();
             if (m.built != null) {
                 WantDepth(m.built, false);
+                WantDepth(m.built.waterDepth, false);
                 ReleaseNormalCopy(m.built.normalMap);
                 m.built.normalMap = null;
                 ReleaseGroundCopy(m.built.texture);
@@ -576,6 +582,7 @@ namespace OneJS.Models {
 
             // A click on an actor hits a box the size of its model.
             m.bounds = bounds;
+            if (b.water.z > 0) SwellBounds(m);
             foreach (var a in _actors.Values) {
                 if (a.model != model || !a.go.TryGetComponent<BoxCollider>(out var box)) continue;
                 box.center = bounds.center;

@@ -63,4 +63,38 @@ half3x3 ModelCotangentFrame(float3 normalWS, float3 positionWS, float2 uv) {
     return half3x3(t * s, b * s, normalWS);
 }
 
+// Water's second ripple layer (onejs-play's `water`): the same normal map read again 2.37 times as
+// finely, sliding across the first's flow at 1.3 times its speed, so the two never line up and the
+// surface never shows one picture's repeat. Arguments as ModelNormalUV's, `flow` the first's slide.
+float2 ModelRipplesUV(float2 baseUV, float4 baseST, float4 normalST, float2 flow, float seconds) {
+    float2 across = float2(flow.y, -flow.x) * 1.3;
+    float4 finer = float4(normalST.xy * 2.37, normalST.zw);
+    return ModelNormalUV(baseUV, baseST, finer, across, seconds) + 0.37;
+}
+
+// Two tangent-space normals as one (whiteout blending): each layer's slope adds, and neither
+// flattens the other.
+half3 ModelRipplesBlend(half3 a, half3 b) {
+    return normalize(half3(a.xy + b.xy, a.z * b.z));
+}
+
+// How much of water's foam shows where `thickness` metres of it lie in front of the world, with
+// `invMetres` 1 over the foam's metres: whole at the shore, gone by the foam's metres out, its edge
+// broken up by the ripples' slope (`ripple`, the tangent-space normal's xy) as painted foam is.
+half ModelFoam(float thickness, float invMetres, half2 ripple) {
+    float edge = 1.0 - thickness * invMetres + (ripple.x + ripple.y) * 0.6;
+    return (half)smoothstep(0.35, 0.55, edge);
+}
+
+// Water's colour once lit: `c` moved toward `sky`, what its surface reflects, by Schlick's fresnel
+// for water (2% face on, all of it edge on) along the normal its ripples and swell bent, and the
+// reflection kept out of its foam. A see-through surface's alpha rises with the reflection, which is
+// as solid as the sky it shows; the colour is divided back so the blend shows each in its share.
+half4 ModelWaterReflect(half4 c, half3 normalWS, float3 viewWS, half3 sky, half foam, bool seeThrough) {
+    half f = (half)(0.02 + 0.98 * pow(1.0 - saturate(dot(normalWS, viewWS)), 5.0)) * (1.0 - foam);
+    if (!seeThrough) return half4(lerp(c.rgb, sky, f), c.a);
+    half a = lerp(c.a, (half)1.0, f);
+    return half4((c.rgb * c.a * (1.0 - f) + sky * f) / max(a, (half)1e-3), a);
+}
+
 #endif
