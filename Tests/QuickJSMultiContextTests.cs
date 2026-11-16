@@ -5,6 +5,17 @@ using UnityEngine;
 using UnityEngine.TestTools;
 
 namespace OneJS.Tests {
+    /// <summary>A C# event two contexts subscribe to at once.</summary>
+    public class MultiContextEventSource {
+        public static MultiContextEventSource Instance;
+
+        public event System.Action Changed;
+
+        public int SubscriberCount => Changed?.GetInvocationList().Length ?? 0;
+
+        public void Raise() => Changed?.Invoke();
+    }
+
     /// <summary>
     /// Two live QuickJS contexts at once, which is what two JSRunners are.
     ///
@@ -377,6 +388,74 @@ namespace OneJS.Tests {
                 "B settled with the wrong value, so it picked up somebody else's completion on the way.");
             Assert.AreEqual(foreignCount, QuickJSNative.GetPendingTaskCount(),
                 "Context A's backlog did not survive B's passes intact.");
+        }
+
+        /// <summary>
+        /// Subscribes one JS handler from the given context to the shared C# event,
+        /// counting its calls in that context's own global.
+        /// </summary>
+        static void SubscribeCounter(QuickJSContext ctx) {
+            ctx.Eval(@"
+                globalThis.__source = CS.OneJS.Tests.MultiContextEventSource.Instance;
+                globalThis.__fired = 0;
+                globalThis.__handler = () => { globalThis.__fired++; };
+                __source.add_Changed(__handler);
+            ");
+        }
+
+        static int Fired(QuickJSContext ctx) => int.Parse(ctx.Eval("String(globalThis.__fired)"));
+
+        /// <summary>
+        /// Two runners subscribing to one C# event, each with its own handler: the
+        /// HUD-and-menu setup with a shared game-state event.
+        ///
+        /// Both handlers sit in the same callback slot of their own context. If the
+        /// delegate cache ever matched them up, B's subscription would invoke A's
+        /// handler: A's would run twice per raise and B's never, with no error.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator AnEventSubscribedFromTwoContextsReachesEachOwnHandler() {
+            MultiContextEventSource.Instance = new MultiContextEventSource();
+            try {
+                SubscribeCounter(_a);
+                SubscribeCounter(_b);
+                Assert.AreEqual(2, MultiContextEventSource.Instance.SubscriberCount);
+
+                MultiContextEventSource.Instance.Raise();
+
+                Assert.AreEqual(1, Fired(_b),
+                    "Context B's handler did not run: its add_ was handed the delegate made for context A's handler.");
+                Assert.AreEqual(1, Fired(_a), "Context A's handler ran once per subscription, not once per raise.");
+            } finally {
+                MultiContextEventSource.Instance = null;
+            }
+            yield return null;
+        }
+
+        /// <summary>
+        /// One runner going away must leave the other's subscriptions removable.
+        /// Disposing a context used to clear the whole delegate cache, so the
+        /// surviving context's remove_ built a fresh wrapper that matched nothing
+        /// and the handler stayed subscribed to a context that thought it had left.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator DisposingOneContextKeepsTheOthersRemoveWorking() {
+            MultiContextEventSource.Instance = new MultiContextEventSource();
+            try {
+                SubscribeCounter(_a);
+                SubscribeCounter(_b);
+
+                _a.Dispose();
+                _a = null;
+                // A's wrapper still sits in the event (nobody removed it); only B's removal is under test.
+                _b.Eval("__source.remove_Changed(__handler)");
+
+                Assert.AreEqual(1, MultiContextEventSource.Instance.SubscriberCount,
+                    "Context B's remove_ did not find the delegate its add_ got, so B stays subscribed.");
+            } finally {
+                MultiContextEventSource.Instance = null;
+            }
+            yield return null;
         }
 
         /// <summary>
