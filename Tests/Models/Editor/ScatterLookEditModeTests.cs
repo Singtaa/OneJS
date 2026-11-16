@@ -228,8 +228,9 @@ namespace OneJS.Tests.Models {
             Assert.That(Covered(Shot()), Is.EqualTo(256), "shown");
         }
 
-        // A copy draws with its own material, ModelLit's scatter variant (ScatterShaderTests), whose
-        // per-instance arrays are a third of an actor's; an actor of the same model keeps the model's.
+        // A copy draws with its own material, ModelLit's scatter variant (ScatterShaderTests), which
+        // reads its copies from its scatter's copy texture and so has no per-instance arrays, nor
+        // Unity's instancing; an actor of the same model keeps the model's.
         [Test]
         public void ACopy_DrawsWithTheScatterVariant_AndAnActorOfTheSameModelWithout() {
             int model = Square();
@@ -238,7 +239,7 @@ namespace OneJS.Tests.Models {
             var drawn = ModelBridge.ScatterMaterialOf(scatter, 0, 0);
             Assert.That(drawn, Is.Not.SameAs(ModelBridge.MaterialOf(model)));
             Assert.That(drawn.IsKeywordEnabled("_SCATTER"), Is.True);
-            Assert.That(drawn.enableInstancing, Is.True);
+            Assert.That(drawn.enableInstancing, Is.False);
             Assert.That(ModelBridge.MaterialOf(model).IsKeywordEnabled("_SCATTER"), Is.False, "the actor's");
             ModelBridge.Destroy(actor);
         }

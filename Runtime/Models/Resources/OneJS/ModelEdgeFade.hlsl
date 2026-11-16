@@ -15,7 +15,7 @@
 // place on the screen in pixels.
 void ModelEdgeFadeClip(float3 positionOS, float2 pixel, float2 edge) {
     if (edge.y <= 0) return;
-    float3 p = TransformObjectToWorld(positionOS);
+    float3 p = ModelObjectToWorld(positionOS);
     float3 face = normalize(cross(ddy(p), ddx(p)));
     float facing = abs(dot(face, GetWorldSpaceNormalizeViewDir(p)));
     float keep = saturate((facing - edge.x) / max(edge.y - edge.x, 1e-4));

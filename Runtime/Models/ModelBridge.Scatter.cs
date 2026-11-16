@@ -5,8 +5,13 @@ using UnityEngine.Rendering;
 
 namespace OneJS.Models {
     public static partial class ModelBridge {
-        // RenderMeshInstanced draws at most this many in one call on every graphics API.
+        // Copies a chunk: RenderMeshInstanced, which draws a part with the model's own material,
+        // draws at most this many in one call on every graphics API.
         internal const int ScatterChunk = 1023;
+        // A copy texture's width in texels, and a record's (ModelScatterCopy.hlsl has the same numbers).
+        internal const int CopyTextureWide = 1024, CopyTexels = 5;
+        static readonly int ScatterCopiesId = Shader.PropertyToID("_OjScatterCopies");
+        static readonly int ScatterBaseId = Shader.PropertyToID("_OjScatterBase");
         // x, y, z, yaw and scale; and the same turned three ways and tinted: x, y, z, yaw, pitch,
         // roll, scale, then r, g and b in sRGB.
         const int ScatterStride = 5, ScatterStrideFull = 10;
@@ -34,11 +39,11 @@ namespace OneJS.Models {
 
         /// <summary>
         /// A model's material as its copies draw it: a copy of it with ModelLit's scatter variant on,
-        /// which leaves out of each instanced draw the arrays a copy never reads (its inverse matrix,
-        /// its own probe light, its renderer's layer and its dissolve; ModelLitURP.hlsl). Unity uploads
-        /// those arrays at their whole capacity on every draw of every pass, whatever its count, so
-        /// they were most of what a scatter cost a frame. Actors keep the model's own material, since
-        /// they need all four. The copy follows its model's material by its CRC, read once a camera.
+        /// which reads each copy from its scatter's copy texture (ModelScatterCopy.hlsl) and is drawn
+        /// with RenderMeshPrimitives, so a frame hands the graphics card no copy's data at all. Unity's
+        /// instancing uploads its arrays at their whole capacity on every draw of every pass, whatever
+        /// its count: 12 KB a draw of at most 128 copies on WebGPU. The copy follows its model's
+        /// material by its CRC, read once a camera.
         /// </summary>
         sealed class ScatterMaterial {
             public Material copy;
@@ -53,8 +58,12 @@ namespace OneJS.Models {
         /// <summary>Up to ScatterChunk copies near one another: one instanced draw a part and submesh.</summary>
         sealed class ScatterChunkData {
             public int[] copies;
-            // Per part, each copy's matrix with the part's own placement in the model applied.
+            // Per part, each copy's matrix with the part's own placement in the model applied, for a
+            // part drawn with the model's own material (DrawnWith); made at its first such draw.
             public Matrix4x4[][] matrices;
+            // Per part, the block its copies are drawn with by the scatter variant: the copy texture,
+            // the part's first record in it, and what Dress adds.
+            public MaterialPropertyBlock[] blocks;
             public Bounds bounds;
             // Each copy's rectangle of the baked light's atlas, once a bake has a lightmap; null before.
             // It carries the copies' tints and the range too (Dress), and is drawn in place of `look`.
@@ -84,6 +93,9 @@ namespace OneJS.Models {
             public bool cast = true, receive = true;
             // SetScatterVisible: false skips every draw of it, shadows included, until it is shown again.
             public bool visible = true;
+            // Each copy as each part draws it, chunk by chunk (WriteCopies); null where the scatter
+            // variant never draws it: the built-in pipeline, or more copies than a texture holds.
+            public Texture2D copyTexture;
         }
 
         static readonly Dictionary<int, Scattered> _scatters = new();
@@ -139,6 +151,7 @@ namespace OneJS.Models {
             }
             scattered.chunks = Chunk(scattered);
             Measure(scattered, m.bounds);
+            WriteCopies(scattered);
             foreach (var chunk in scattered.chunks) Redress(scattered, chunk);
             var id = ++_next;
             _scatters[id] = scattered;
@@ -147,7 +160,9 @@ namespace OneJS.Models {
         }
 
         public static void DestroyScatter(int scatter) {
-            if (!_scatters.Remove(scatter)) return;
+            if (!_scatters.TryGetValue(scatter, out var s)) return;
+            _scatters.Remove(scatter);
+            if (s.copyTexture != null) Kill(s.copyTexture);
             if (_scatters.Count == 0) Draw(false);
             ForgetScatterMaterials();
         }
@@ -169,6 +184,12 @@ namespace OneJS.Models {
 
         // Gives a chunk the look block it needs, before a bake: none for a scatter with no tint, range or shadowless.
         static void Redress(Scattered s, ScatterChunkData chunk) {
+            if (chunk.blocks != null) {
+                foreach (var block in chunk.blocks) {
+                    if (s.range.w != 0) block.SetVector(ScatterRangeId, s.range);
+                    if (!s.receive || block.HasFloat(ScatterShadowlessId)) block.SetFloat(ScatterShadowlessId, s.receive ? 0 : 1);
+                }
+            }
             if (chunk.look == null && chunk.tints == null && s.range.w == 0 && s.receive) return;
             chunk.look ??= new MaterialPropertyBlock();
             Dress(s, chunk, chunk.look);
@@ -215,6 +236,7 @@ namespace OneJS.Models {
         }
 
         static void ClearScatters() {
+            foreach (var s in _scatters.Values) if (s.copyTexture != null) Kill(s.copyTexture);
             _scatters.Clear();
             Draw(false);
             ForgetScatterMaterials();
@@ -251,9 +273,9 @@ namespace OneJS.Models {
         /// light probes (each copy's probe light is an array the variant leaves out), and the built-in
         /// pipeline, whose surface shader has no variant.
         /// </summary>
-        static Material DrawnWith(ScatterPart part, int sub, bool sceneProbes) {
+        static Material DrawnWith(Scattered s, ScatterPart part, int sub, bool sceneProbes) {
             var source = part.materials[sub];
-            if (source == null || !part.alike || sceneProbes || BuiltInPipeline) return source;
+            if (source == null || !part.alike || sceneProbes || s.copyTexture == null) return source;
             if (!_scatterMaterials.TryGetValue(source, out var held)) {
                 held = new ScatterMaterial {
                     copy = new Material(source) { name = $"{source.name} (scatter)", hideFlags = HideFlags.DontSave },
@@ -274,11 +296,11 @@ namespace OneJS.Models {
             return held.copy;
         }
 
-        // What the copy keeps of its own over the model's material: the variant, and instancing, which
-        // RenderMeshInstanced needs.
+        // What the copy keeps of its own over the model's material: the variant, without Unity's
+        // instancing, whose variant of it is never drawn.
         static void Fit(Material copy, Material source) {
             copy.renderQueue = source.renderQueue;
-            copy.enableInstancing = true;
+            copy.enableInstancing = false;
             copy.EnableKeyword(ScatterKeyword);
         }
 
@@ -314,18 +336,63 @@ namespace OneJS.Models {
             for (int c = 0; c < chunks.Length; c++) {
                 int start = c * ScatterChunk, count = Math.Min(ScatterChunk, n - start);
                 var chunk = new ScatterChunkData { copies = new int[count], matrices = new Matrix4x4[parts.Length][] };
-                for (int p = 0; p < parts.Length; p++) chunk.matrices[p] = new Matrix4x4[count];
                 if (stride == ScatterStrideFull) chunk.tints = new Vector4[count];
                 for (int k = 0; k < count; k++) {
                     int i = order[start + k];
                     chunk.copies[k] = i;
-                    var copy = CopyMatrix(s, i);
-                    for (int p = 0; p < parts.Length; p++) chunk.matrices[p][k] = copy * parts[p].local;
                     if (chunk.tints != null) chunk.tints[k] = CopyTint(s, i, linear);
                 }
                 chunks[c] = chunk;
             }
             return chunks;
+        }
+
+        /// <summary>
+        /// Writes every copy as each part draws it into the scatter's copy texture, chunk by chunk and
+        /// part by part, so a draw's copies are one run of records from its block's base: the matrix's
+        /// three rows, the tint (alpha 0 for none) and the baked light's rectangle once its chunk is lit
+        /// (zero before). Once when the scatter is made, and again when its baked light changes.
+        /// </summary>
+        static void WriteCopies(Scattered s) {
+            if (BuiltInPipeline) return;
+            int records = 0;
+            foreach (var chunk in s.chunks) records += chunk.copies.Length * s.parts.Length;
+            int rows = Math.Max(1, (records * CopyTexels + CopyTextureWide - 1) / CopyTextureWide);
+            if (rows > SystemInfo.maxTextureSize) return;
+            if (s.copyTexture == null || s.copyTexture.height != rows) {
+                if (s.copyTexture != null) Kill(s.copyTexture);
+                s.copyTexture = new Texture2D(CopyTextureWide, rows, TextureFormat.RGBAFloat, false, true) {
+                    name = "OneJS scatter copies", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.DontSave,
+                };
+            }
+            var texels = s.copyTexture.GetPixelData<Vector4>(0);
+            int at = 0;
+            foreach (var chunk in s.chunks) {
+                chunk.blocks ??= new MaterialPropertyBlock[s.parts.Length];
+                for (int p = 0; p < s.parts.Length; p++) {
+                    var block = chunk.blocks[p] ??= new MaterialPropertyBlock();
+                    block.SetTexture(ScatterCopiesId, s.copyTexture);
+                    block.SetFloat(ScatterBaseId, at / CopyTexels);
+                    for (int k = 0; k < chunk.copies.Length; k++, at += CopyTexels) {
+                        int i = chunk.copies[k];
+                        var m = CopyMatrix(s, i) * s.parts[p].local;
+                        texels[at] = m.GetRow(0);
+                        texels[at + 1] = m.GetRow(1);
+                        texels[at + 2] = m.GetRow(2);
+                        texels[at + 3] = chunk.tints != null ? chunk.tints[k] : Vector4.zero;
+                        texels[at + 4] = chunk.light != null && s.atlas != null ? s.atlas[i] : Vector4.zero;
+                    }
+                }
+            }
+            s.copyTexture.Apply(false, false);
+        }
+
+        // A part's matrices for RenderMeshInstanced, made at its first draw with the model's own material.
+        static Matrix4x4[] Matrices(Scattered s, ScatterChunkData chunk, int p) {
+            if (chunk.matrices[p] != null) return chunk.matrices[p];
+            var matrices = new Matrix4x4[chunk.copies.Length];
+            for (int k = 0; k < matrices.Length; k++) matrices[k] = CopyMatrix(s, chunk.copies[k]) * s.parts[p].local;
+            return chunk.matrices[p] = matrices;
         }
 
         // The bits of a 16-bit number spread to every other place, for a Morton key.
@@ -438,8 +505,17 @@ namespace OneJS.Models {
                         var part = s.parts[p];
                         var mesh = part.filter.sharedMesh;
                         for (int sub = 0; sub < mesh.subMeshCount && sub < part.materials.Length; sub++) {
-                            var material = DrawnWith(part, sub, sceneProbes);
+                            var material = DrawnWith(s, part, sub, sceneProbes);
                             if (material == null) continue;
+                            if (material != part.materials[sub]) {
+                                // The scatter variant: every copy is already in the copy texture.
+                                Graphics.RenderMeshPrimitives(new RenderParams(material) {
+                                    camera = camera, worldBounds = chunk.bounds, layer = part.layer,
+                                    shadowCastingMode = s.cast ? part.cast : ShadowCastingMode.Off, receiveShadows = s.receive && part.receive,
+                                    matProps = chunk.blocks[p], lightProbeUsage = LightProbeUsage.BlendProbes,
+                                }, mesh, sub, chunk.copies.Length);
+                                continue;
+                            }
                             var rp = new RenderParams(material) {
                                 camera = camera, worldBounds = chunk.bounds, layer = part.layer,
                                 shadowCastingMode = s.cast ? part.cast : ShadowCastingMode.Off, receiveShadows = s.receive && part.receive,
@@ -447,7 +523,7 @@ namespace OneJS.Models {
                                 // The built-in pipeline adds the ambient probe itself; a baked copy's is zero (Apply).
                                 lightProbeUsage = chunk.light != null && BuiltInPipeline ? LightProbeUsage.CustomProvided : LightProbeUsage.BlendProbes,
                             };
-                            Graphics.RenderMeshInstanced(rp, mesh, sub, chunk.matrices[p], chunk.copies.Length);
+                            Graphics.RenderMeshInstanced(rp, mesh, sub, Matrices(s, chunk, p), chunk.copies.Length);
                         }
                     }
                 }
@@ -469,7 +545,7 @@ namespace OneJS.Models {
             if (!_scatters.TryGetValue(scatter, out var s)) return null;
             _scatterDraws++;
             var probes = LightmapSettings.lightProbes;
-            return DrawnWith(s.parts[part], sub, probes != null && probes.count > 0);
+            return DrawnWith(s, s.parts[part], sub, probes != null && probes.count > 0);
         }
 
         /// <summary>A scatter's range as its draw reads it (ModelRange.hlsl): w is 0 for one with none.</summary>

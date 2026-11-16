@@ -8,13 +8,12 @@ using UnityEngine.Rendering;
 
 namespace OneJS.Tests.Models {
     /// <summary>
-    /// What an instanced draw of ModelLit and GroundLit carries per instance, read from the compiled
-    /// variant's constant buffers. Unity uploads an instanced draw's arrays at their whole capacity
-    /// whatever its count, so every array a pass declares is paid on every draw of every pass. A
-    /// scattered copy (`_SCATTER`) carries its matrix, its tint and its baked light's rectangle and
-    /// nothing else: it scales uniformly, so its normals need no inverse; it takes the ambient, never
-    /// a probe of its own; it is never dissolved; and it always keeps its shadows. An actor drawn
-    /// instanced keeps all of them.
+    /// What a draw of ModelLit and GroundLit carries per instance, read from the compiled variant's
+    /// constant buffers. Unity uploads an instanced draw's arrays at their whole capacity whatever its
+    /// count, so every array a pass declares is paid on every draw of every pass. A scattered copy
+    /// (`_SCATTER`, without Unity's instancing) carries none at all: it reads its matrix, tint and baked
+    /// light's rectangle from its scatter's copy texture, from the draw's first record. An actor drawn
+    /// instanced keeps its arrays: its inverse matrix, its probe light, its layer and its dissolve.
     /// </summary>
     public class ScatterShaderTests {
         static readonly (ShaderCompilerPlatform platform, BuildTarget target)[] Targets = {
@@ -61,9 +60,10 @@ namespace OneJS.Tests.Models {
                 var pass = sub.GetPass(p);
                 foreach (var (platform, target) in Targets) {
                     var actor = Read(pass, new[] { "INSTANCING_ON" }, platform, target);
-                    var copy = Read(pass, new[] { "INSTANCING_ON", "_SCATTER" }, platform, target);
+                    var copy = Read(pass, new[] { "_SCATTER" }, platform, target);
                     TestContext.WriteLine($"{name} {pass.Name} {platform}: an actor's instancing buffers {actor.instanced} B, a copy's {copy.instanced} B");
-                    Assert.That(copy.names, Does.Contain("unity_ObjectToWorldArray"), $"{pass.Name} {platform}: a copy is instanced at all");
+                    Assert.That(copy.instanced, Is.Zero, $"{pass.Name} {platform}: a copy's draw has no per-instance arrays");
+                    Assert.That(copy.names, Does.Contain("_OjScatterBase"), $"{pass.Name} {platform}: a copy reads its records from the draw's first");
                     foreach (var never in NotForACopy) Assert.That(copy.names, Does.Not.Contain(never), $"{pass.Name} {platform}");
                     if (pass.Name == "ForwardLit") {
                         // The actor's: its normals through the inverse, its probe light, its shadows and its dissolve.

@@ -9,8 +9,8 @@ namespace OneJS.Editor {
     /// Leaves ModelLit's and GroundLit's built-in pipeline SubShaders out of builds that only ever render through a
     /// scriptable pipeline. Unity compiles every SubShader a shader has, whichever pipeline the
     /// project uses, so a URP build otherwise carries variants it can never draw. And leaves out the
-    /// scatter variant (`_SCATTER`) without instancing: a scattered copy is only ever drawn instanced,
-    /// so that half of it would never draw either. And the skin variant (`_OJ_SKIN`) with the scatter or
+    /// scatter variant (`_SCATTER`) with Unity's instancing: a scattered copy is drawn by
+    /// RenderMeshPrimitives from its scatter's copy texture, never instanced, so that half of it would never draw either. And the skin variant (`_OJ_SKIN`) with the scatter or
     /// with vertex colours: a skin on the graphics card is an actor's, never a copy's, and a skinned
     /// mesh keeps no vertex colours (ModelBridge.VertexColored).
     /// </summary>
@@ -38,8 +38,8 @@ namespace OneJS.Editor {
             }
         }
 
-        /// <summary>Whether a variant can ever draw: the scatter variant only instanced.</summary>
-        public static bool Keeps(bool scatter, bool instanced) => !scatter || instanced;
+        /// <summary>Whether a variant can ever draw: the scatter variant only without Unity's instancing.</summary>
+        public static bool Keeps(bool scatter, bool instanced) => !scatter || !instanced;
 
         /// <summary>Whether a variant can ever draw: the skin variant only without the scatter and vertex colours.</summary>
         public static bool KeepsSkin(bool skin, bool scatter, bool vertexColor) => !skin || (!scatter && !vertexColor);
