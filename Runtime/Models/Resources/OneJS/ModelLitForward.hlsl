@@ -71,6 +71,28 @@ half3 SkyReflection(InputData d, SurfaceData s) {
     #include "ModelSurface.hlsl"
     #include "ModelLeafLight.hlsl"
 
+// The scene's two shine pictures (ModelBridge.Shine.cs), held as their bytes, and in _OjShineOn
+// 1 for each mode that has one (x add, y multiply). Globals, so no material or variant changes.
+TEXTURE2D(_OjShineAdd); SAMPLER(sampler_OjShineAdd);
+TEXTURE2D(_OjShineMultiply);
+float4 _OjShineOn;
+
+// A lit colour shone on (ModelBridge.Shine.cs): each picture read where the surface's normal
+// points as the camera sees it, x right and y up mapped to 0 to 1, the matcap's lookup. `amount`
+// is how much of each texel shines (the picture's alpha on an opaque surface), times the actor's
+// share. Multiply takes the lit colour toward twice its picture, so mid grey leaves it as it is;
+// add puts its picture on at 1.4 times its bytes, as the reference game's weapons do. Read at
+// the top mip, since a view normal jumps across an edge and its derivatives with it.
+half3 Shone(half3 color, float3 normalWS, half amount) {
+    float3 n = mul((float3x3)UNITY_MATRIX_V, normalWS);
+    float2 at = saturate(n.xy * 0.5 + 0.5);
+    half multiply = (half)(_Shine.y * _OjShineOn.y) * amount;
+    half add = (half)(_Shine.x * _OjShineOn.x) * amount;
+    if (multiply > 0) color *= lerp((half3)1, 2 * SAMPLE_TEXTURE2D_LOD(_OjShineMultiply, sampler_OjShineAdd, at, 0).rgb, multiply);
+    if (add > 0) color += 1.4 * add * SAMPLE_TEXTURE2D_LOD(_OjShineAdd, sampler_OjShineAdd, at, 0).rgb;
+    return color;
+}
+
 // The camera's depth texture, as URP's DeclareDepthTexture.hlsl names it, without the loose
 // _CameraDepthTexture_TexelSize uniform it adds, which Vulkan's compiler refuses beside the SRP
 // Batcher's buffers. Read at the pixel's own coordinates: it is the size of the camera's target.
@@ -289,6 +311,14 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
         // A material value, so every pixel of a draw takes the same way: a mesh that asks for
         // neither adds nothing to what UniversalFragmentPBR gave.
         if (_LeafLight.x > 0 || _LeafLight.y > 0) color.rgb += ModelLeafLight(d, s, _LeafLight.xyz, _LeafTint.rgb);
+        // A material value, so every pixel of a draw takes the same way, and a model without
+        // shine reads neither picture. Its picture's alpha says where on an opaque surface,
+        // whose alpha is otherwise unused; a cut-out or see-through one's alpha is its cover,
+        // so all of it shines.
+        if (_Shine.x > 0 || _Shine.y > 0) {
+            half where = _Surface == 0 && _AlphaClip < 0.5 && _Premultiplied == 0 ? picture.a : (half)1;
+            color.rgb = Shone(color.rgb, d.normalWS, where * ActorShine());
+        }
     #endif
     color.rgb = lerp(UnderWaterline(color.rgb, i.positionWS.y, cover), fogColor, fog);
     color.a = OutputAlpha(color.a, IsSurfaceTypeTransparent(_Surface));

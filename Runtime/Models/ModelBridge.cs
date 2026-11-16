@@ -106,6 +106,8 @@ namespace OneJS.Models {
             public Vector3 leafLight = new(0, 0, 4);
             public Color leafTint = Color.white;
             public Vector2 edgeFade;
+            // Its shine (ModelBridge.Shine.cs): add's strength in x, multiply's in y, 0 and 0 for none.
+            public Vector4 shine;
             // Its fade by the depth behind it (ModelBridge.Material.cs): 1 over soften's metres and 3
             // over the deep colour's, each 0 for none, and the deep colour in sRGB.
             public Vector4 depthFade;
@@ -1126,6 +1128,7 @@ namespace OneJS.Models {
             StopClocks();
             StopGpuSkins();
             StopColors();
+            StopShine();
             StopOcclusion();
             StopWaterline();
             foreach (var m in _models.Values) Free(m);

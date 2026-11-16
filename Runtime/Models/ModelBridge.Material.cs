@@ -236,6 +236,7 @@ namespace OneJS.Models {
                 // SetColor takes the sRGB value and keeps it linear in a linear project, as _BaseColor.
                 b.material.SetColor(LeafTintId, b.leafTint);
                 b.material.SetVector(LeafEdgeId, b.edgeFade);
+                b.material.SetVector(ShineId, b.shine);
             }
             // A mesh without a normal map keeps the flat `bump` picture and its frame as it was.
             if (b.normalMap == null) {

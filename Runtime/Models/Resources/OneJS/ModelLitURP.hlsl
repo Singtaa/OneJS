@@ -109,6 +109,9 @@ CBUFFER_START(UnityPerMaterial)
         // is from the frame in _BaseMap to the one in _FrameNext, 0 to 1. x 0 everywhere else, which
         // never reads _FrameNext.
         float4 _Flipbook;
+        // A model's shine (ModelBridge.Shine.cs): add's strength in x, multiply's in y, 0 and 0
+        // everywhere else, which reads neither picture. Last, so no earlier layout moves.
+        float4 _Shine;
     #endif
 CBUFFER_END
 
@@ -192,6 +195,19 @@ half3 Flashed() {
         uint row = MODEL_COLOR_ROW;
         if (row == 0u) return 0;
         return LOAD_TEXTURE2D(_OjActorColors, int2(5, row)).rgb;
+    #endif
+}
+
+// How much of its model's shine an actor has: the alpha of its row's first texel, which its
+// tint leaves alone (Painted reads that texel's rgb), and all of it for an actor with no row
+// and for a scattered copy, which has none.
+half ActorShine() {
+    #ifdef MODEL_SCATTERED
+        return 1;
+    #else
+        uint row = MODEL_COLOR_ROW;
+        if (row == 0u) return 1;
+        return LOAD_TEXTURE2D(_OjActorColors, int2(0, row)).a;
     #endif
 }
 

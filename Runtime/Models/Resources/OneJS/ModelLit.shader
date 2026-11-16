@@ -63,6 +63,8 @@ Shader "OneJS/ModelLit" {
         // A mesh model's flipbook, its next frame and how far into it: see ModelLitURP.hlsl.
         [HideInInspector] _FrameNext ("Frame Next", 2D) = "white" {}
         [HideInInspector] _Flipbook ("Flipbook", Vector) = (0, 0, 0, 0)
+        // A model's shine (ModelBridge.Shine.cs): add's strength in x, multiply's in y.
+        [HideInInspector] _Shine ("Shine", Vector) = (0, 0, 0, 0)
     }
 
     SubShader {
