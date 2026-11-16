@@ -191,8 +191,11 @@ namespace OneJS.Models {
                     int crc = pair.Key.ComputeCRC();
                     if (crc == pair.Value.crc) continue;
                     pair.Value.crc = crc;
-                    pair.Value.copy.CopyPropertiesFromMaterial(pair.Key);
-                    pair.Value.copy.EnableKeyword(SkinKeyword);
+                    var copy = pair.Value.copy;
+                    if (copy.shader != pair.Key.shader) copy.shader = pair.Key.shader;
+                    copy.CopyMatchingPropertiesFromMaterial(pair.Key);
+                    copy.renderQueue = pair.Key.renderQueue;
+                    copy.EnableKeyword(SkinKeyword);
                 }
             }
         }
