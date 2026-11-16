@@ -25,6 +25,7 @@
 #include "ModelWind.hlsl"
 #include "ModelRange.hlsl"
 #include "ModelEdgeFade.hlsl"
+#include "ModelSkin.hlsl"
 
 TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
 #ifdef MODEL_SPLAT
@@ -155,7 +156,9 @@ CBUFFER_END
 // is its tint, multiplied into the whole of it; the next four are multiplied in where the model's
 // mask says, red for the first to alpha for the fourth; the sixth is its flash, added after its
 // light (Flashed). The texture is sRGB, so a load is linear.
-// The row rides where the shadow bit does, so a coloured actor stays in the SRP Batcher.
+// The row rides where the shadow bit does, so a coloured actor stays in the SRP Batcher, in 13 bits
+// (ModelBridge.MostColorRows); a skin's palette (ModelSkin.hlsl) rides above it.
+#define MODEL_COLOR_ROW ((unity_RendererUserValue >> 1) & 0x1FFFu)
 TEXTURE2D(_OjActorColors);
 #ifndef MODEL_SPLAT
     TEXTURE2D(_PaintMask); SAMPLER(sampler_PaintMask);
@@ -165,7 +168,7 @@ half3 Painted(half3 color, float2 uv) {
     #ifdef MODEL_SCATTERED
         return color;
     #else
-        uint row = unity_RendererUserValue >> 1;
+        uint row = MODEL_COLOR_ROW;
         if (row == 0u) return color;
         color *= LOAD_TEXTURE2D(_OjActorColors, int2(0, row)).rgb;
         #ifndef MODEL_SPLAT
@@ -186,7 +189,7 @@ half3 Flashed() {
     #ifdef MODEL_SCATTERED
         return 0;
     #else
-        uint row = unity_RendererUserValue >> 1;
+        uint row = MODEL_COLOR_ROW;
         if (row == 0u) return 0;
         return LOAD_TEXTURE2D(_OjActorColors, int2(5, row)).rgb;
     #endif

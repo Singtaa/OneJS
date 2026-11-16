@@ -122,6 +122,10 @@ struct Attributes {
     // How far the vertex may sway, read only where the model sways (_Sway): x alone for a plain
     // sway, trunk, limb, leaf and phase for a layered one.
     float4 sway : TEXCOORD3;
+    #ifdef _OJ_SKIN
+        float4 skinWeights : BLENDWEIGHTS;
+        uint4 skinJoints : BLENDINDICES;
+    #endif
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
@@ -148,6 +152,9 @@ Varyings Vert(Attributes v) {
     Varyings o = (Varyings)0;
     UNITY_SETUP_INSTANCE_ID(v);
     UNITY_TRANSFER_INSTANCE_ID(v, o);
+    #ifdef _OJ_SKIN
+        ModelSkinned(v.skinWeights, v.skinJoints, v.positionOS.xyz, v.normalOS, v.tangentOS.xyz);
+    #endif
     float2 range = CopyRange();
     float3 positionWS = KeptInRange(SwayedWorld(v.positionOS.xyz, v.normalOS, v.sway), ModelRangeKeep(range));
     VertexNormalInputs n = GetVertexNormalInputs(v.normalOS, v.tangentOS);

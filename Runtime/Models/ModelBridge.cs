@@ -62,6 +62,12 @@ namespace OneJS.Models {
             public List<Material> colored;
             // A linear copy of its colour mask (ModelBridge.Colors.cs), null without one.
             public RenderTexture paintMask;
+            // Each skinned renderer's reach in its own space (PrepareSkins), and whether its actors
+            // skin on the graphics card, asked at its first spawn, with the copies of its materials
+            // that do (ModelBridge.GpuSkin.cs).
+            public Bounds[] skinSpaces;
+            public bool? gpuSkinned;
+            public Dictionary<Material, SkinMaterial> skinMaterials;
         }
 
         /// <summary>
@@ -164,6 +170,11 @@ namespace OneJS.Models {
             public Material[][] ownMaterials;
             // Applied to every clip, including one played after it was set.
             public float speed = 1;
+            // Its renderers skinned on the graphics card, null for none, its clips' states, and
+            // the pose its palette was last written in (ModelBridge.GpuSkin.cs).
+            public GpuSkin[] gpuSkins;
+            public AnimationState[] states;
+            public float[] pose;
             // Its rectangle of the baked light's atlas, as a uv scale and offset; zero when it has none.
             public Vector4 atlas;
             // The light at its middle from the probe grid, and where its middle was when it was taken.
@@ -291,12 +302,12 @@ namespace OneJS.Models {
                 foreach (AnimationState state in anim) clips.Add(state.name);
                 anim.playAutomatically = false;
             }
-            PrepareSkins(template, anim);
+            var skinSpaces = PrepareSkins(template, anim);
 
             var id = ++_next;
             _models[id] = new Model {
                 import = import, template = template, bounds = MeasureBounds(template), clips = clips.ToArray(),
-                colored = VertexColored(template),
+                colored = VertexColored(template), skinSpaces = skinSpaces,
             };
             return id;
         }
@@ -365,6 +376,7 @@ namespace OneJS.Models {
             m.import?.Dispose();
             if (m.colored != null) foreach (var copy in m.colored) Kill(copy);
             m.colored = null;
+            FreeSkinMaterials(m);
             if (m.built != null) {
                 WantDepth(m.built, false);
                 StopFlipbook(m.built);
@@ -725,6 +737,8 @@ namespace OneJS.Models {
             box.center = m.bounds.center;
             box.size = m.bounds.size;
             Mark(go);
+            // While it is inactive, so its Animation is enabled with the renderers it will have.
+            var gpuSkins = SkinOnGpu(go, m);
             go.SetActive(true);
 
             var id = ++_next;
@@ -733,7 +747,9 @@ namespace OneJS.Models {
                 go = go,
                 anim = go.GetComponentInChildren<Animation>(true),
                 renderers = go.GetComponentsInChildren<Renderer>(true),
+                gpuSkins = gpuSkins,
             };
+            StartGpuSkins(actor);
             _actors[id] = actor;
             Shadows(actor, castShadows, receiveShadows);
             return id;
@@ -815,7 +831,12 @@ namespace OneJS.Models {
             bool first = Playing && !a.anim.isPlaying;
             if (fade > 0 && Playing && !first) a.anim.CrossFade(clip, fade);
             else a.anim.Play(clip);
-            if (first) a.anim.Sample();
+            if (first) {
+                a.anim.Sample();
+                // And a skin on the graphics card takes that pose now, since its palette is only
+                // written for an actor already seen (ModelBridge.GpuSkin.cs).
+                if (a.gpuSkins != null) WritePose(a);
+            }
             Clock(a, state);
             return true;
         }
@@ -834,6 +855,7 @@ namespace OneJS.Models {
             Unhang(actor, a);
             _actors.Remove(actor);
             Unclock(a);
+            FreeGpuSkins(a);
             FreeColorRow(a);
             TakeOffTexture(a);
             if (a.go != null) Kill(a.go);
@@ -1102,6 +1124,7 @@ namespace OneJS.Models {
             foreach (var a in _actors.Values) if (a.go != null) Kill(a.go);
             _actors.Clear();
             StopClocks();
+            StopGpuSkins();
             StopColors();
             StopOcclusion();
             StopWaterline();
@@ -1176,7 +1199,7 @@ namespace OneJS.Models {
             bool probed = !a.lit && !mapped && a.probed;
             // The built-in pipeline adds the ambient probe itself, so a lightmapped actor's is zero there.
             bool customSH = a.lit || probed || (mapped && BuiltInPipeline);
-            foreach (var r in a.renderers) SetUserValue(r, (a.receive ? 0u : ShadowlessBit) | ((uint)a.colorRow << 1));
+            foreach (var r in a.renderers) SetUserValue(r, (a.receive ? 0u : ShadowlessBit) | ((uint)a.colorRow << 1) | SkinBaseBits(a, r));
             if (a.dissolve <= 0 && !mapped && !customSH) {
                 foreach (var r in a.renderers) {
                     r.SetPropertyBlock(null);

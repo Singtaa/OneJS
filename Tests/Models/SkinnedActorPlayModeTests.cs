@@ -16,6 +16,13 @@ namespace OneJS.Tests.Models {
     /// box 4 units to the side (glTF's +x, which is Unity's -x), `Turn` turns it.
     /// </summary>
     public class SkinnedActorPlayModeTests {
+        // On the CPU: it holds a SkinnedMeshRenderer to its bounds, the way a skin is drawn where the graphics card cannot skin it (GpuSkinPlayModeTests has the other way).
+        [SetUp]
+        public void OnTheCpu() => ModelBridge.GpuSkinning = false;
+
+        [TearDown]
+        public void BackOnTheGpu() => ModelBridge.GpuSkinning = true;
+
         static string Fixture([CallerFilePath] string here = "") =>
             Path.Combine(Path.GetDirectoryName(here), "Fixtures~", "reach.glb");
 

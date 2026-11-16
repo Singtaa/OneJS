@@ -30,14 +30,7 @@ namespace OneJS.Models {
             for (int up = to; up != 0; up = _actors.TryGetValue(up, out var above) ? above.attachedTo : 0) {
                 if (up == actor) return "the actor it would be attached to is attached to it";
             }
-            Transform bone = null;
-            foreach (var r in b.renderers) {
-                if (r is not SkinnedMeshRenderer skin) continue;
-                foreach (var candidate in skin.bones) {
-                    if (candidate != null && candidate.name == joint) { bone = candidate; break; }
-                }
-                if (bone != null) break;
-            }
+            var bone = JointOf(b, joint);
             if (bone == null) return $"it has no joint named {joint}";
             Unhang(actor, a);
             a.attachedTo = to;
@@ -63,6 +56,20 @@ namespace OneJS.Models {
             var p = t.localPosition;
             var q = t.localRotation;
             return new[] { p.x, p.y, p.z, q.x, q.y, q.z, q.w, t.localScale.x };
+        }
+
+        // The joint of that name of the skins an actor was spawned with, on the CPU or the graphics card.
+        static Transform JointOf(Actor b, string joint) {
+            foreach (var r in b.renderers) {
+                if (r is not SkinnedMeshRenderer skin) continue;
+                foreach (var candidate in skin.bones) if (candidate != null && candidate.name == joint) return candidate;
+            }
+            if (b.gpuSkins != null) {
+                foreach (var s in b.gpuSkins) {
+                    foreach (var candidate in s.bones) if (candidate != null && candidate.name == joint) return candidate;
+                }
+            }
+            return null;
         }
 
         /// <summary>The actor an actor is attached to, 0 for none.</summary>

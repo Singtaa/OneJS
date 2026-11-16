@@ -135,7 +135,7 @@ namespace OneJS.Tests.Models {
             int tom = ModelBridge.Spawn(body, 0, 0, -60, 0, 1, false, false);
             int hat = ModelBridge.Spawn(body, 0, 0, 0, 0, 1, false, false);
             // Taken before the hat is under him, after which a search of his children finds the hat's too.
-            var tomSkin = ModelBridge.ActorObject(tom).GetComponentInChildren<SkinnedMeshRenderer>(true);
+            var tomSkin = ModelBridge.ActorObject(tom).GetComponentInChildren<Renderer>(true);
             Assert.That(ModelBridge.Attach(hat, tom, "arm", 0, 0, 70, 0, 0, 0, 1), Is.EqualTo(""));
             Assert.That(ModelBridge.Play(tom, "Turn", false, 0), Is.True);
             var go = ModelBridge.ActorObject(tom);
@@ -143,7 +143,7 @@ namespace OneJS.Tests.Models {
             var arm = ModelBridge.ActorObject(hat).transform.parent;
             for (int i = 0; i < 3; i++) { yield return null; ModelBridge.SceneCamera.Render(); }
             Assert.That(tomSkin.isVisible, Is.False, "the control: Tom himself is not seen");
-            Assert.That(ModelBridge.ActorObject(hat).GetComponentInChildren<SkinnedMeshRenderer>(true).isVisible, Is.True, "the control: the hat is");
+            Assert.That(ModelBridge.ActorObject(hat).GetComponentInChildren<Renderer>(true).isVisible, Is.True, "the control: the hat is");
 
             var turn = arm.localRotation;
             float time = anim["Turn"].time, clock = Time.time;

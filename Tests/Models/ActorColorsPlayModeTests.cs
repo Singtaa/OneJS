@@ -171,7 +171,8 @@ namespace OneJS.Tests.Models {
             foreach (var r in ModelBridge.ActorObject(a).GetComponentsInChildren<Renderer>(true)) {
                 Assert.That(r.HasPropertyBlock(), Is.False, "a property block takes the actor out of the SRP Batcher");
                 uint value = r is SkinnedMeshRenderer s ? s.GetShaderUserValue() : ((MeshRenderer)r).GetShaderUserValue();
-                Assert.That(value, Is.EqualTo(1u << 1 | 1u), "row 1 above the bit that says it keeps no shadow");
+                // Below where a skin on the graphics card keeps its joints' place.
+                Assert.That(value & ((1u << ModelBridge.SkinBaseShift) - 1), Is.EqualTo(1u << 1 | 1u), "row 1 above the bit that says it keeps no shadow");
             }
             ModelBridge.Destroy(a);
             int c = ModelBridge.Spawn(model, 4, 0, 0, 0, 1, true, true);
