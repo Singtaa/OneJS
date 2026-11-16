@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace OneJS.Models {
@@ -80,11 +81,26 @@ namespace OneJS.Models {
             if (ModelMaterialGenerator.ModelShader == null) return "this project draws models with glTFast's own materials, which have no shine";
             var problem = ShineOf(mode, strength, out var shine);
             if (problem != "") return problem;
+            var given = new HashSet<Material>();
             foreach (var r in m.template.GetComponentsInChildren<Renderer>(true)) {
                 foreach (var material in r.sharedMaterials) {
                     if (material == null || material.shader != ModelMaterialGenerator.ModelShader) continue;
                     material.SetVector(ShineId, shine);
+                    given.Add(material);
                 }
+            }
+            // Its skins' copies take it now, which FollowSkinMaterials would do a frame later, and
+            // so do the copies its actors wear with a texture of their own (ModelBridge.Texture.cs),
+            // made from either.
+            if (m.skinMaterials != null) {
+                foreach (var held in m.skinMaterials.Values) {
+                    if (held.copy == null) continue;
+                    held.copy.SetVector(ShineId, shine);
+                    given.Add(held.copy);
+                }
+            }
+            foreach (var pair in _worn) {
+                if (pair.Value.material != null && given.Contains(pair.Key.Item1)) pair.Value.material.SetVector(ShineId, shine);
             }
             return "";
         }
