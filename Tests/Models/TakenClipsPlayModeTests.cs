@@ -13,6 +13,13 @@ namespace OneJS.Tests.Models {
     /// without its clips, and reach-other.glb is the same body with its upper joint renamed.
     /// </summary>
     public class TakenClipsPlayModeTests {
+        // On the CPU: it reads the skinned renderer a taken clip moves.
+        [SetUp]
+        public void OnTheCpu() => ModelBridge.GpuSkinning = false;
+
+        [TearDown]
+        public void BackOnTheGpu() => ModelBridge.GpuSkinning = true;
+
         static string Fixture(string name, [CallerFilePath] string here = "") =>
             Path.Combine(Path.GetDirectoryName(here), "Fixtures~", name);
 

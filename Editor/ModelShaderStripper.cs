@@ -10,7 +10,9 @@ namespace OneJS.Editor {
     /// scriptable pipeline. Unity compiles every SubShader a shader has, whichever pipeline the
     /// project uses, so a URP build otherwise carries variants it can never draw. And leaves out the
     /// scatter variant (`_SCATTER`) without instancing: a scattered copy is only ever drawn instanced,
-    /// so that half of it would never draw either.
+    /// so that half of it would never draw either. And the skin variant (`_OJ_SKIN`) with the scatter or
+    /// with vertex colours: a skin on the graphics card is an actor's, never a copy's, and a skinned
+    /// mesh keeps no vertex colours (ModelBridge.VertexColored).
     /// </summary>
     public class ModelShaderStripper : IPreprocessShaders {
         static readonly string[] ShaderNames = { "OneJS/ModelLit", "OneJS/GroundLit" };
@@ -27,14 +29,20 @@ namespace OneJS.Editor {
                 return;
             }
             var scatter = new ShaderKeyword(shader, "_SCATTER");
+            var skin = new ShaderKeyword(shader, "_OJ_SKIN");
+            var colored = new ShaderKeyword(shader, "_VERTEX_COLOR");
             for (int i = data.Count - 1; i >= 0; i--) {
                 var set = data[i].shaderKeywordSet;
-                if (!Keeps(set.IsEnabled(scatter), set.IsEnabled(Instanced))) data.RemoveAt(i);
+                bool scattered = set.IsEnabled(scatter);
+                if (!Keeps(scattered, set.IsEnabled(Instanced)) || !KeepsSkin(set.IsEnabled(skin), scattered, set.IsEnabled(colored))) data.RemoveAt(i);
             }
         }
 
         /// <summary>Whether a variant can ever draw: the scatter variant only instanced.</summary>
         public static bool Keeps(bool scatter, bool instanced) => !scatter || instanced;
+
+        /// <summary>Whether a variant can ever draw: the skin variant only without the scatter and vertex colours.</summary>
+        public static bool KeepsSkin(bool skin, bool scatter, bool vertexColor) => !skin || (!scatter && !vertexColor);
 
         /// <summary>Whether a SubShader of `shader` is dead weight in a build.</summary>
         public static bool Strips(Shader shader, uint subshader, bool scriptableOnly) {

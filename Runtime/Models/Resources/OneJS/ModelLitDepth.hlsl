@@ -22,6 +22,10 @@ struct Attributes {
     #ifdef _VERTEX_COLOR
         float4 color : COLOR;
     #endif
+    #ifdef _OJ_SKIN
+        float4 skinWeights : BLENDWEIGHTS;
+        uint4 skinJoints : BLENDINDICES;
+    #endif
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
@@ -43,6 +47,10 @@ Varyings Vert(Attributes v) {
     Varyings o = (Varyings)0;
     UNITY_SETUP_INSTANCE_ID(v);
     UNITY_TRANSFER_INSTANCE_ID(v, o);
+    #ifdef _OJ_SKIN
+        float3 tangentOS = 0;
+        ModelSkinned(v.skinWeights, v.skinJoints, v.positionOS.xyz, v.normalOS, tangentOS);
+    #endif
     float2 range = CopyRange();
     #if defined(MODEL_PASS_SHADOW_CASTER)
         float keep = ModelRangeShadowKeep(range);

@@ -15,6 +15,13 @@ namespace OneJS.Tests.Models {
     /// here, as it was written, and run on a spawned copy of each skinned fixture.
     /// </summary>
     public class SkinReachPlayModeTests {
+        // On the CPU: it bakes the skinned renderer to measure its reach.
+        [SetUp]
+        public void OnTheCpu() => ModelBridge.GpuSkinning = false;
+
+        [TearDown]
+        public void BackOnTheGpu() => ModelBridge.GpuSkinning = true;
+
         // As in ModelBridge.Skin.cs.
         const float ReachRate = 30;
         const int ReachSamples = 240;

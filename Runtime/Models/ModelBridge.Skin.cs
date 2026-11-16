@@ -74,16 +74,26 @@ namespace OneJS.Models {
 
         /// <summary>
         /// Fixes the bounds of a template's skinned renderers to cover every clip's reach, and
-        /// stops them and its clips updating while unseen. Called once, when the model loads.
+        /// stops them and its clips updating while unseen. Called once, when the model loads, and
+        /// again when it takes another model's clips. Returns the same reach in each renderer's own
+        /// space, one a skinned renderer in GetComponentsInChildren's order, which a renderer
+        /// skinned on the graphics card is culled by (ModelBridge.GpuSkin.cs); null for none.
         /// </summary>
-        static void PrepareSkins(GameObject template, Animation anim) {
+        static Bounds[] PrepareSkins(GameObject template, Animation anim) {
             var skins = template.GetComponentsInChildren<SkinnedMeshRenderer>(true);
-            if (skins.Length == 0) return;
+            if (skins.Length == 0) return null;
             var reach = new SkinReach[skins.Length];
-            for (int i = 0; i < skins.Length; i++) reach[i] = SkinReach.Of(skins[i]);
+            var own = new SkinReach[skins.Length];
+            for (int i = 0; i < skins.Length; i++) {
+                reach[i] = SkinReach.Of(skins[i], skins[i].rootBone != null ? skins[i].rootBone : skins[i].transform);
+                own[i] = SkinReach.Of(skins[i], skins[i].transform);
+            }
 
             void Grow() {
-                for (int i = 0; i < reach.Length; i++) reach[i]?.Grow();
+                for (int i = 0; i < reach.Length; i++) {
+                    reach[i]?.Grow();
+                    own[i]?.Grow();
+                }
             }
 
             Grow();
@@ -108,13 +118,22 @@ namespace OneJS.Models {
                 anim.cullingType = AnimationCullingType.BasedOnRenderers;
             }
 
+            var spaces = new Bounds[skins.Length];
             for (int i = 0; i < skins.Length; i++) {
                 var skin = skins[i];
-                var b = reach[i] != null && reach[i].Measured(out var reached) ? reached : (skin.sharedMesh != null ? skin.sharedMesh.bounds : new Bounds());
-                b.Expand(b.size * (2 * ReachMargin) + Vector3.one * (2 * MorphReach(skin.sharedMesh)));
-                skin.localBounds = b;
+                float morph = MorphReach(skin.sharedMesh);
+                skin.localBounds = Reached(reach[i], skin, morph);
                 skin.updateWhenOffscreen = false;
+                spaces[i] = Reached(own[i], skin, morph);
             }
+            return spaces;
+        }
+
+        // A reach with its margin, or the mesh's own bounds where no joint carries a vertex.
+        static Bounds Reached(SkinReach reach, SkinnedMeshRenderer skin, float morph) {
+            var b = reach != null && reach.Measured(out var reached) ? reached : (skin.sharedMesh != null ? skin.sharedMesh.bounds : new Bounds());
+            b.Expand(b.size * (2 * ReachMargin) + Vector3.one * (2 * morph));
+            return b;
         }
 
         // The box round the vertices each joint carries, in that joint's own space, or null for a
@@ -148,8 +167,8 @@ namespace OneJS.Models {
 
         // Where a skin's joints carry the vertices they hold, gathered over the poses its clips are
         // sampled in. What does not change between poses is read once: the joints, the space the
-        // bounds are kept in (the root bone's, or the renderer's own without one), and each joint's
-        // box as its eight corners in that joint's space.
+        // bounds are kept in (the root bone's or the renderer's, as asked), and each joint's box as
+        // its eight corners in that joint's space.
         sealed class SkinReach {
             Transform _root;
             Transform[] _joints; // one per box
@@ -157,7 +176,7 @@ namespace OneJS.Models {
             Vector3 _min, _max;
             bool _any;
 
-            public static SkinReach Of(SkinnedMeshRenderer skin) {
+            public static SkinReach Of(SkinnedMeshRenderer skin, Transform space) {
                 var boxes = JointBounds(skin);
                 if (boxes == null) return null;
                 var bones = skin.bones;
@@ -172,7 +191,7 @@ namespace OneJS.Models {
                     }
                 }
                 return new SkinReach {
-                    _root = skin.rootBone != null ? skin.rootBone : skin.transform,
+                    _root = space,
                     _joints = joints.ToArray(), _corners = corners.ToArray(),
                 };
             }

@@ -103,6 +103,9 @@ Shader "OneJS/ModelLit" {
             #pragma multi_compile_instancing
             // A scattered copy's arrays (ModelLitURP.hlsl); a build keeps it only instanced (ModelShaderStripper).
             #pragma multi_compile_local _ _SCATTER
+            // An actor's skin on the graphics card (ModelSkin.hlsl); a build keeps it only without
+            // _SCATTER and _VERTEX_COLOR (ModelShaderStripper), which a skin never has.
+            #pragma multi_compile_local _ _OJ_SKIN
             // Each instance's renderer values, for MODEL_ACTOR_SHADOWLESS (ModelLitURP.hlsl).
             #pragma instancing_options renderinglayer
             // A mesh model's own colours (ModelBridge.CreateMesh). A glTF material never enables it, so a
@@ -128,8 +131,13 @@ Shader "OneJS/ModelLit" {
             #pragma multi_compile_instancing
             // A scattered copy's arrays (ModelLitURP.hlsl); a build keeps it only instanced (ModelShaderStripper).
             #pragma multi_compile_local _ _SCATTER
+            // An actor's skin on the graphics card (ModelSkin.hlsl); a build keeps it only without
+            // _SCATTER and _VERTEX_COLOR (ModelShaderStripper), which a skin never has.
+            #pragma multi_compile_local _ _OJ_SKIN
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
             #pragma multi_compile_local _ _VERTEX_COLOR
+            // Each instance's user value, which says where a skin's joints start (ModelSkin.hlsl).
+            #pragma instancing_options renderinglayer
             #define MODEL_PASS_SHADOW_CASTER
             #include "ModelLitDepth.hlsl"
             ENDHLSL
@@ -149,8 +157,13 @@ Shader "OneJS/ModelLit" {
             #pragma multi_compile_instancing
             // A scattered copy's arrays (ModelLitURP.hlsl); a build keeps it only instanced (ModelShaderStripper).
             #pragma multi_compile_local _ _SCATTER
+            // An actor's skin on the graphics card (ModelSkin.hlsl); a build keeps it only without
+            // _SCATTER and _VERTEX_COLOR (ModelShaderStripper), which a skin never has.
+            #pragma multi_compile_local _ _OJ_SKIN
             // A mesh model's colours, whose alpha clips its depth as it clips its colour (ModelLitDepth.hlsl).
             #pragma multi_compile_local _ _VERTEX_COLOR
+            // Each instance's user value, which says where a skin's joints start (ModelSkin.hlsl).
+            #pragma instancing_options renderinglayer
             #define MODEL_PASS_DEPTH_ONLY
             #include "ModelLitDepth.hlsl"
             ENDHLSL
@@ -169,8 +182,13 @@ Shader "OneJS/ModelLit" {
             #pragma multi_compile_instancing
             // A scattered copy's arrays (ModelLitURP.hlsl); a build keeps it only instanced (ModelShaderStripper).
             #pragma multi_compile_local _ _SCATTER
+            // An actor's skin on the graphics card (ModelSkin.hlsl); a build keeps it only without
+            // _SCATTER and _VERTEX_COLOR (ModelShaderStripper), which a skin never has.
+            #pragma multi_compile_local _ _OJ_SKIN
             // A mesh model's colours, whose alpha clips its depth as it clips its colour (ModelLitDepth.hlsl).
             #pragma multi_compile_local _ _VERTEX_COLOR
+            // Each instance's user value, which says where a skin's joints start (ModelSkin.hlsl).
+            #pragma instancing_options renderinglayer
             #define MODEL_PASS_DEPTH_NORMALS
             #include "ModelLitDepth.hlsl"
             ENDHLSL
