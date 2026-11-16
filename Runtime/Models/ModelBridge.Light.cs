@@ -291,6 +291,7 @@ namespace OneJS.Models {
                 if (s.model != model || s.atlas == null) continue;
                 s.atlas = null;
                 foreach (var chunk in s.chunks) chunk.light = null;
+                WriteCopies(s);
             }
         }
 
@@ -619,6 +620,7 @@ namespace OneJS.Models {
 
         // Each chunk's copies' rectangles, as the per-instance values its draw reads, once every page they read is lit.
         static void LightChunks(Scattered s) {
+            var changed = false;
             foreach (var chunk in s.chunks) {
                 if (chunk.light != null) continue;
                 var st = new Vector4[chunk.copies.Length];
@@ -632,7 +634,10 @@ namespace OneJS.Models {
                 chunk.light.SetVectorArray(ActorLightmapId, st);
                 Dress(s, chunk, chunk.light);
                 if (BuiltInPipeline) chunk.light.CopySHCoefficientArraysFrom(new SphericalHarmonicsL2[st.Length]);
+                changed = true;
             }
+            // The scatter variant reads each lit copy's rectangle from the copy texture.
+            if (changed) WriteCopies(s);
         }
 
         // Shows `probes`, and has every actor not drawn from the lightmap take its light from them afresh.
@@ -668,6 +673,7 @@ namespace OneJS.Models {
             foreach (var s in _scatters.Values) {
                 s.atlas = null;
                 foreach (var chunk in s.chunks) chunk.light = null;
+                WriteCopies(s);
             }
         }
 

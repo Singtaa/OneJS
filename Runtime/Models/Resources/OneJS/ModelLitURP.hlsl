@@ -5,21 +5,15 @@
 #ifndef ONEJS_MODEL_LIT_URP_INCLUDED
 #define ONEJS_MODEL_LIT_URP_INCLUDED
 
-// A scattered copy (_SCATTER, on the materials ModelBridge.Scatter draws with) leaves out of its
-// instanced draw every array it never reads, since Unity uploads each at its whole capacity on
-// every draw of every pass: the inverse matrix (a copy scales alike on every axis, so its normals
-// turn with its matrix), its own probe light (copies take the ambient, or their baked light), its
-// renderer's layer and user value (a copy always keeps its shadows) and its dissolve. These are the
-// defines `instancing_options assumeuniformscaling nolightprobe` and the lack of `renderinglayer`
-// give, made here because a pragma cannot depend on a keyword.
-#if defined(_SCATTER) && defined(INSTANCING_ON)
+// A scattered copy (_SCATTER, on the materials ModelBridge.Scatter draws with) is drawn without
+// Unity's instancing, reading its copy from its scatter's copy texture (ModelScatterCopy.hlsl). Its
+// variant with instancing is never drawn, and a build leaves it out (ModelShaderStripper).
+#if defined(_SCATTER) && !defined(INSTANCING_ON)
     #define MODEL_SCATTERED 1
-    #define UNITY_ASSUME_UNIFORM_SCALING
-    #undef UNITY_INSTANCED_SH
-    #undef UNITY_INSTANCED_RENDERING_LAYER
 #endif
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+#include "ModelScatterCopy.hlsl"
 #include "ModelDissolve.hlsl"
 #include "ModelLightmap.hlsl"
 #include "ModelWind.hlsl"
@@ -119,19 +113,18 @@ CBUFFER_END
 // renderer with a property block leaves URP's SRP Batcher, so every other actor has none,
 // and 0 (whole, and shadowed) is what an unset value reads. Per instance where the
 // material instances, so the actors that do carry them still draw together.
-#if defined(UNITY_INSTANCING_ENABLED)
+// A scattered copy's come from its copy texture, and it is never dissolved.
+#if defined(MODEL_SCATTERED)
+    #define MODEL_ACTOR_DISSOLVE 0
+    #define MODEL_ACTOR_LIGHTMAP_ST _OjCopyLightmapST
+    #define MODEL_ACTOR_TINT _OjCopyTint
+#elif defined(UNITY_INSTANCING_ENABLED)
     UNITY_INSTANCING_BUFFER_START(ModelActor)
-        #ifndef MODEL_SCATTERED
-            UNITY_DEFINE_INSTANCED_PROP(float, _ActorDissolve)
-        #endif
+        UNITY_DEFINE_INSTANCED_PROP(float, _ActorDissolve)
         UNITY_DEFINE_INSTANCED_PROP(float4, _ActorLightmapST)
         UNITY_DEFINE_INSTANCED_PROP(float4, _ActorTint)
     UNITY_INSTANCING_BUFFER_END(ModelActor)
-    #ifdef MODEL_SCATTERED
-        #define MODEL_ACTOR_DISSOLVE 0
-    #else
-        #define MODEL_ACTOR_DISSOLVE UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorDissolve)
-    #endif
+    #define MODEL_ACTOR_DISSOLVE UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorDissolve)
     #define MODEL_ACTOR_LIGHTMAP_ST UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorLightmapST)
     #define MODEL_ACTOR_TINT UNITY_ACCESS_INSTANCED_PROP(ModelActor, _ActorTint)
 #else
@@ -222,22 +215,22 @@ half3 Tinted(half3 color) {
 // material value, so every vertex of a draw takes the same way.
 // A plain sway's stream has one number a vertex, which a float4 input reads as (sway, 0, 0, 1).
 float3 SwayedWorld(float3 positionOS, float3 normalOS, float4 sway) {
-    float3 positionWS = TransformObjectToWorld(positionOS);
-    if (_Sway > 1.5) positionWS = ModelSwayedLayered(positionWS, TransformObjectToWorldNormal(normalOS), GetObjectToWorldMatrix(), sway);
-    else if (_Sway > 0.5) positionWS = ModelSwayed(positionWS, GetObjectToWorldMatrix(), sway.x);
+    float3 positionWS = ModelObjectToWorld(positionOS);
+    if (_Sway > 1.5) positionWS = ModelSwayedLayered(positionWS, ModelObjectToWorldNormal(normalOS), MODEL_OBJECT_TO_WORLD, sway);
+    else if (_Sway > 0.5) positionWS = ModelSwayed(positionWS, MODEL_OBJECT_TO_WORLD, sway.x);
     return positionWS;
 }
 
 // The draw range of the copy being drawn (ModelRange.hlsl), from where its model stands.
 float2 CopyRange() {
-    float4x4 m = GetObjectToWorldMatrix();
+    float4x4 m = MODEL_OBJECT_TO_WORLD;
     return ModelRange(float3(m._m03, m._m13, m._m23));
 }
 
 // A vertex at `positionWS`, or its copy's origin when `keep` (ModelRangeKeep) is 0. After the
 // sway, which would otherwise spread a collapsed triangle out again.
 float3 KeptInRange(float3 positionWS, float keep) {
-    float4x4 m = GetObjectToWorldMatrix();
+    float4x4 m = MODEL_OBJECT_TO_WORLD;
     return lerp(float3(m._m03, m._m13, m._m23), positionWS, keep);
 }
 

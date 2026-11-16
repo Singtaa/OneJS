@@ -27,6 +27,7 @@ struct Attributes {
         uint4 skinJoints : BLENDINDICES;
     #endif
     UNITY_VERTEX_INPUT_INSTANCE_ID
+    MODEL_COPY_INPUT
 };
 
 struct Varyings {
@@ -41,12 +42,14 @@ struct Varyings {
         half alpha : TEXCOORD3;
     #endif
     UNITY_VERTEX_INPUT_INSTANCE_ID
+    MODEL_COPY_VARYING
 };
 
 Varyings Vert(Attributes v) {
     Varyings o = (Varyings)0;
     UNITY_SETUP_INSTANCE_ID(v);
     UNITY_TRANSFER_INSTANCE_ID(v, o);
+    MODEL_COPY_SETUP_VERTEX(v, o)
     #ifdef _OJ_SKIN
         float3 tangentOS = 0;
         ModelSkinned(v.skinWeights, v.skinJoints, v.positionOS.xyz, v.normalOS, tangentOS);
@@ -59,7 +62,7 @@ Varyings Vert(Attributes v) {
     #endif
     float3 positionWS = KeptInRange(SwayedWorld(v.positionOS.xyz, v.normalOS, v.sway), keep);
     #if defined(MODEL_PASS_SHADOW_CASTER)
-        float3 normalWS = TransformObjectToWorldNormal(v.normalOS);
+        float3 normalWS = ModelObjectToWorldNormal(v.normalOS);
         #if _CASTING_PUNCTUAL_LIGHT_SHADOW
             float3 lightDirectionWS = normalize(_LightPosition - positionWS);
         #else
@@ -70,7 +73,7 @@ Varyings Vert(Attributes v) {
         o.positionCS = TransformWorldToHClip(positionWS);
     #endif
     #if defined(MODEL_PASS_DEPTH_NORMALS)
-        o.normalWS = TransformObjectToWorldNormal(v.normalOS);
+        o.normalWS = ModelObjectToWorldNormal(v.normalOS);
     #endif
     o.uvRange = float4(TRANSFORM_TEX(v.uv, _BaseMap), range);
     o.positionOS = v.positionOS.xyz;
@@ -102,18 +105,21 @@ void DepthClip(Varyings i) {
 #if defined(MODEL_PASS_SHADOW_CASTER)
     half4 Frag(Varyings i) : SV_Target {
         UNITY_SETUP_INSTANCE_ID(i);
+        MODEL_COPY_SETUP(i)
         DepthClip(i);
         return 0;
     }
 #elif defined(MODEL_PASS_DEPTH_ONLY)
     half Frag(Varyings i) : SV_Target {
         UNITY_SETUP_INSTANCE_ID(i);
+        MODEL_COPY_SETUP(i)
         DepthClip(i);
         return i.positionCS.z;
     }
 #else
     half4 Frag(Varyings i) : SV_Target {
         UNITY_SETUP_INSTANCE_ID(i);
+        MODEL_COPY_SETUP(i)
         DepthClip(i);
         return half4(NormalizeNormalPerPixel(i.normalWS), 0.0);
     }

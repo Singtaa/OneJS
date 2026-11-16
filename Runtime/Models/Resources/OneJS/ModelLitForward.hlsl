@@ -149,6 +149,7 @@ struct Attributes {
         uint4 skinJoints : BLENDINDICES;
     #endif
     UNITY_VERTEX_INPUT_INSTANCE_ID
+    MODEL_COPY_INPUT
 };
 
 struct Varyings {
@@ -168,22 +169,24 @@ struct Varyings {
         half4 weights : TEXCOORD8;
     #endif
     UNITY_VERTEX_INPUT_INSTANCE_ID
+    MODEL_COPY_VARYING
 };
 
 Varyings Vert(Attributes v) {
     Varyings o = (Varyings)0;
     UNITY_SETUP_INSTANCE_ID(v);
     UNITY_TRANSFER_INSTANCE_ID(v, o);
+    MODEL_COPY_SETUP_VERTEX(v, o)
     #ifdef _OJ_SKIN
         ModelSkinned(v.skinWeights, v.skinJoints, v.positionOS.xyz, v.normalOS, v.tangentOS.xyz);
     #endif
     float2 range = CopyRange();
     float3 positionWS = KeptInRange(SwayedWorld(v.positionOS.xyz, v.normalOS, v.sway), ModelRangeKeep(range));
-    VertexNormalInputs n = GetVertexNormalInputs(v.normalOS, v.tangentOS);
+    VertexNormalInputs n = ModelNormalInputs(v.normalOS, v.tangentOS);
     o.positionCS = TransformWorldToHClip(positionWS);
     o.positionWS = positionWS;
     o.normalWS = n.normalWS;
-    o.tangentWS = half4(n.tangentWS, v.tangentOS.w * GetOddNegativeScale());
+    o.tangentWS = half4(n.tangentWS, v.tangentOS.w * ModelOddNegativeScale());
     o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
     o.lightmapUVRange = float4(ModelLightmapUV(v.lightmapUV, MODEL_ACTOR_LIGHTMAP_ST), range);
     o.positionOS = v.positionOS.xyz;
@@ -201,6 +204,7 @@ Varyings Vert(Attributes v) {
 
 half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
     UNITY_SETUP_INSTANCE_ID(i);
+    MODEL_COPY_SETUP(i)
     ModelRangeClip(i.lightmapUVRange.zw, i.positionCS.xy);
     #ifndef MODEL_SPLAT
         ModelEdgeFadeClip(i.positionOS, i.positionCS.xy, _LeafEdge.xy);
