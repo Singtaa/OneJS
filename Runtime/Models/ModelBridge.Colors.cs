@@ -44,7 +44,8 @@ namespace OneJS.Models {
         public static string SetTint(int actor, float r, float g, float b) {
             if (!_actors.TryGetValue(actor, out var a)) return "";
             if (!Finite(r) || !Finite(g) || !Finite(b)) return $"the tint is {r}, {g}, {b}, and is a colour";
-            a.tint = new Color(r, g, b, 1);
+            // Its alpha is the actor's shine (ModelBridge.Shine.cs), kept.
+            a.tint = new Color(r, g, b, a.tint.a);
             return Recolor(a);
         }
 
