@@ -63,6 +63,7 @@ For WebGL details, see `../Plugins/WebGL/README.md`; for the native libraries, `
 | `Lighting/Bvh.cs`, `Lighting/ProbeSolve.cs` | The bake's triangle hierarchy, and its probe sums turned into Unity's ambient probe format with probes inside solids filled from outside |
 | `Lighting/LightFile.cs` | A finished bake (lightmap and probes) as one PNG, and back |
 | `Models/ModelBridge.cs` | 3D models for ojplay's `useScene`: `.glb` loads, models made from arrays, actors, sun, ambient, fog and point lights by handle (optional assembly, needs glTFast) |
+| `Models/ModelBridge.LoadBudget.cs` | `LoadBudget`: the milliseconds a frame loading models may take, shared by every load in flight; 0 keeps glTFast's own agent |
 | `Models/ModelBridge.Scatter.cs` | Copies of a model that never move, drawn in chunks from a copy texture with no GameObject |
 | `Models/ModelBridge.SceneTexture.cs` | The scene drawn into a shared texture a program reads, while anything reads it |
 | `Models/ModelBridge.SceneDepth.cs` | The scene's distances in metres, in a shared texture a program reads, drawn by the pipeline's `ISceneDepthPipeline` (URP: `Models/URP/UrpSceneDepth.cs`, shader `Models/Resources/OneJS/SceneDepth.shader`) |
