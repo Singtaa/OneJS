@@ -273,8 +273,9 @@ namespace OneJS.Models {
         /// </summary>
         public static async Task<int> Load(string url) {
             // glTFast's default agent spreads work over frames from a DontDestroyOnLoad object,
-            // which edit mode refuses; the edit-mode preview loads in one go instead.
-            var defer = Playing ? null : new UninterruptedDeferAgent();
+            // which edit mode refuses; the edit-mode preview loads in one go instead. Under a
+            // LoadBudget, the budget's agent (ModelBridge.LoadBudget.cs).
+            var defer = LoadAgent();
             var import = new ModelImport(defer, new ModelMaterialGenerator());
             // Mipmaps, which glTFast leaves off: without them a picture shimmers on anything far
             // enough for a texel to be smaller than a pixel. A third more memory a picture.
@@ -304,7 +305,17 @@ namespace OneJS.Models {
                 foreach (AnimationState state in anim) clips.Add(state.name);
                 anim.playAutomatically = false;
             }
-            var skinSpaces = PrepareSkins(template, anim);
+            Bounds[] skinSpaces;
+            if (defer is LoadBudgetAgent budgeted) {
+                var prep = new SkinPrep();
+                foreach (var _ in SkinSteps(template, anim, prep)) {
+                    await budgeted.BreakPoint();
+                    Abandoned(generation, import, template);
+                }
+                skinSpaces = prep.spaces;
+            } else {
+                skinSpaces = PrepareSkins(template, anim);
+            }
 
             var id = ++_next;
             _models[id] = new Model {
@@ -1114,6 +1125,7 @@ namespace OneJS.Models {
         /// </summary>
         public static void DisposeAll() {
             _generation++;
+            _loadBudget = 0;
             ClearLight();
             ClearScatters();
             // The camera goes with the root below, so there is no screen to give it back to.

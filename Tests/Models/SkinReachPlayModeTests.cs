@@ -63,6 +63,38 @@ namespace OneJS.Tests.Models {
             AssertMeasured(body, 2);
         }
 
+        // A budget spreads the import and the reach's samples over frames (ModelBridge.LoadBudget.cs),
+        // and the bounds come out as they do in one go.
+        [UnityTest]
+        public IEnumerator ALoadUnderABudget_TakesMoreFrames_AndGivesTheMeasuredBounds() {
+            int model = 0, whole = 0, budgeted = 0;
+            int start = Time.frameCount;
+            yield return Load("reach.glb", m => model = m);
+            whole = Time.frameCount - start;
+            ModelBridge.DisposeAll();
+
+            ModelBridge.LoadBudget = 0.01f;
+            start = Time.frameCount;
+            yield return Load("reach.glb", m => model = m);
+            budgeted = Time.frameCount - start;
+            TestContext.WriteLine($"reach.glb in {whole} frames, and in {budgeted} under a 0.01 ms budget");
+            Assert.That(budgeted, Is.GreaterThan(whole + 10), "a step a frame: the import's and each of the reach's samples");
+            Assert.That(ModelBridge.LoadBudget, Is.EqualTo(0.01f));
+            AssertMeasured(model, 2);
+            ModelBridge.DisposeAll();
+            Assert.That(ModelBridge.LoadBudget, Is.Zero, "a new scene starts with glTFast's own agent");
+        }
+
+        [Test]
+        public void ALoadBudget_IsZeroOrMoreMilliseconds() {
+            foreach (var bad in new[] { -1f, float.NaN, float.PositiveInfinity }) {
+                Assert.Throws<System.ArgumentException>(() => ModelBridge.LoadBudget = bad, $"{bad}");
+            }
+            ModelBridge.LoadBudget = 4;
+            Assert.That(ModelBridge.LoadBudget, Is.EqualTo(4f));
+            ModelBridge.LoadBudget = 0;
+        }
+
         static void AssertMeasured(int model, int clips) {
             var go = ModelBridge.ActorObject(ModelBridge.Spawn(model, 0, 0, 0, 0, 1, false, false));
             var skins = go.GetComponentsInChildren<SkinnedMeshRenderer>(true);
