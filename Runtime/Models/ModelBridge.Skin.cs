@@ -80,13 +80,30 @@ namespace OneJS.Models {
         /// skinned on the graphics card is culled by (ModelBridge.GpuSkin.cs); null for none.
         /// </summary>
         static Bounds[] PrepareSkins(GameObject template, Animation anim) {
+            var prep = new SkinPrep();
+            foreach (var _ in SkinSteps(template, anim, prep)) { }
+            return prep.spaces;
+        }
+
+        /// <summary>What <see cref="SkinSteps"/> comes to once it has run to its end.</summary>
+        sealed class SkinPrep {
+            public Bounds[] spaces;
+        }
+
+        /// <summary>
+        /// <see cref="PrepareSkins"/> in steps, so a load under a budget (ModelBridge.LoadBudget.cs)
+        /// can spread it over frames: a step a skin's joints, and a step a sample of a clip. The
+        /// template is posed between steps and put back at the end; it is inactive, so nothing shows.
+        /// </summary>
+        static IEnumerable<object> SkinSteps(GameObject template, Animation anim, SkinPrep prep) {
             var skins = template.GetComponentsInChildren<SkinnedMeshRenderer>(true);
-            if (skins.Length == 0) return null;
+            if (skins.Length == 0) yield break;
             var reach = new SkinReach[skins.Length];
             var own = new SkinReach[skins.Length];
             for (int i = 0; i < skins.Length; i++) {
                 reach[i] = SkinReach.Of(skins[i], skins[i].rootBone != null ? skins[i].rootBone : skins[i].transform);
                 own[i] = SkinReach.Of(skins[i], skins[i].transform);
+                yield return null;
             }
 
             void Grow() {
@@ -108,6 +125,7 @@ namespace OneJS.Models {
                     for (int k = 0; k <= steps; k++) {
                         clip.SampleAnimation(anim.gameObject, clip.length * k / steps);
                         Grow();
+                        yield return null;
                     }
                 }
                 for (int i = 0; i < transforms.Length; i++) {
@@ -126,7 +144,7 @@ namespace OneJS.Models {
                 skin.updateWhenOffscreen = false;
                 spaces[i] = Reached(own[i], skin, morph);
             }
-            return spaces;
+            prep.spaces = spaces;
         }
 
         // A reach with its margin, or the mesh's own bounds where no joint carries a vertex.
