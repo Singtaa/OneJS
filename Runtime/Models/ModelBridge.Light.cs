@@ -662,7 +662,8 @@ namespace OneJS.Models {
             _sheetSize = default;
             _probes = null;
             Probing(false);
-            Shader.SetGlobalTexture(LightmapId, NoLight);
+            // Without texture arrays (a player with no graphics device) nothing draws ModelLit, and making one throws.
+            if (SystemInfo.supports2DArrayTextures) Shader.SetGlobalTexture(LightmapId, NoLight);
             Shader.SetGlobalVector(LightmapSeamsId, _sheet.Seams);
             foreach (var a in _actors.Values) {
                 var touched = a.atlas != Vector4.zero || a.probed;
