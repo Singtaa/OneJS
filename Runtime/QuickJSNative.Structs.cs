@@ -1285,20 +1285,39 @@ namespace OneJS {
 
         // Delegate Wrapper Creation
 
-        // Cache: (callbackHandle, delegateType) → delegate, so add_/remove_ event pairs
-        // get the same delegate instance (without this, Delegate.Remove can't match the
+        // Cache: (context, callbackHandle, delegateType) → delegate, so add_/remove_ event
+        // pairs get the same delegate instance (without this, Delegate.Remove can't match the
         // delegate for unsubscription). The type is part of the key because a callback
         // slot number can be reused within a context after __unregisterCallback: a cache
         // hit on the bare handle could then hand back a wrapper of the wrong delegate type.
-        static readonly Dictionary<(int, Type), Delegate> _callbackDelegateCache = new();
+        // The context is part of the key so a disposing context can drop only its own
+        // wrappers (ClearDelegateCache(IntPtr)). Clearing the whole cache there broke every
+        // other live runner's add_/remove_ pairing. It also keeps the cache correct on its
+        // own terms rather than relying on handles being unique across contexts.
+        static readonly Dictionary<(IntPtr, int, Type), Delegate> _callbackDelegateCache = new();
 
-        /// <summary>Clear the delegate cache (call on context dispose or reset).</summary>
+        /// <summary>Clear the whole delegate cache (play-mode reset).</summary>
         internal static void ClearDelegateCache() => _callbackDelegateCache.Clear();
+
+        /// <summary>
+        /// Drop the wrappers made for one context (call on its dispose). Another live
+        /// context keeps its own, so its later remove_ still finds the delegate add_ got.
+        /// </summary>
+        internal static void ClearDelegateCache(IntPtr ctxPtr) {
+            if (ctxPtr == IntPtr.Zero || _callbackDelegateCache.Count == 0) return;
+            List<(IntPtr, int, Type)> stale = null;
+            foreach (var key in _callbackDelegateCache.Keys) {
+                if (key.Item1 != ctxPtr) continue;
+                (stale ??= new List<(IntPtr, int, Type)>()).Add(key);
+            }
+            if (stale == null) return;
+            foreach (var key in stale) _callbackDelegateCache.Remove(key);
+        }
 
         /// <summary>
         /// Creates a C# delegate that wraps a JS callback function.
         /// When the delegate is invoked, it calls the JS callback via qjs_invoke_callback.
-        /// Delegates are cached by (callback handle, delegate type) so that add_/remove_
+        /// Delegates are cached by (context, callback handle, delegate type) so that add_/remove_
         /// event pairs receive the same delegate instance, enabling proper Delegate.Remove matching.
         /// </summary>
         /// <param name="delegateType">The target delegate type (e.g., Action&lt;T&gt;, Func&lt;T&gt;)</param>
@@ -1307,15 +1326,16 @@ namespace OneJS {
         internal static Delegate CreateDelegateWrapper(Type delegateType, int callbackHandle) {
             if (delegateType == null || callbackHandle < 0) return null;
 
-            // Return cached delegate if available (ensures add_/remove_ get same instance)
-            if (_callbackDelegateCache.TryGetValue((callbackHandle, delegateType), out var cached)) return cached;
-
             // Capture the current context pointer for later invocation
             IntPtr ctxPtr = CurrentContextPtr;
             if (ctxPtr == IntPtr.Zero) {
                 Debug.LogWarning("[QuickJS] Cannot create delegate wrapper: no active context");
                 return null;
             }
+
+            // Return cached delegate if available (ensures add_/remove_ get same instance)
+            var cacheKey = (ctxPtr, callbackHandle, delegateType);
+            if (_callbackDelegateCache.TryGetValue(cacheKey, out var cached)) return cached;
 
             // Get the delegate's Invoke method to understand the signature
             var invokeMethod = delegateType.GetMethod("Invoke");
@@ -1334,7 +1354,7 @@ namespace OneJS {
                 result = CreateFuncWrapper(delegateType, ctxPtr, callbackHandle, parameters, returnType);
             }
 
-            if (result != null) _callbackDelegateCache[(callbackHandle, delegateType)] = result;
+            if (result != null) _callbackDelegateCache[cacheKey] = result;
             return result;
         }
 

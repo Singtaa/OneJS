@@ -174,7 +174,9 @@ namespace OneJS {
             if (_disposed) return;
             _disposed = true;
 
-            QuickJSNative.ClearDelegateCache();
+            // Only this context's wrappers: another live runner's cache must survive, or its
+            // next remove_ gets a fresh delegate and never unsubscribes.
+            QuickJSNative.ClearDelegateCache(_ptr);
 
             // Before the native context goes: give up this context's ownership id and drop
             // the queued completions it owns. Their promises die here, and an entry nobody
