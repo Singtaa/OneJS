@@ -1,4 +1,6 @@
-# Unreleased
+# [2026-11-17] v3.9.19
+
+Typed arrays cross to C# as their bytes, timers run one at a time as in a browser, and 3D scenes in ojplay gain baked light, scattering, a sky, height fog and per-actor looks. The native library changed, so restart the editor after updating.
 
 - A skinned model nobody sees is no longer deformed, uploaded or animated each frame
 - Loading a skinned model with clips costs its frame less
@@ -68,6 +70,7 @@
 - KeptTexture takes back the bytes it was read as (`Upload`)
 - A texture read takes an 8-bit target
 - Disposing one JSRunner no longer breaks another's event unsubscription
+- The scaffold pins ojplay 0.17.3, onejs-unity 0.11.3 and onejs-react 0.4.6
 
 # [2026-11-05] v3.9.18
 
