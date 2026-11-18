@@ -354,7 +354,8 @@ namespace OneJS.Models {
         /// (zero before). Once when the scatter is made, and again when its baked light changes.
         /// </summary>
         static void WriteCopies(Scattered s) {
-            if (BuiltInPipeline) return;
+            // Without the copy texture a chunk is drawn by RenderMeshInstanced (DrawnWith hands back the source).
+            if (BuiltInPipeline || !SystemInfo.SupportsTextureFormat(TextureFormat.RGBAFloat)) return;
             int records = 0;
             foreach (var chunk in s.chunks) records += chunk.copies.Length * s.parts.Length;
             int rows = Math.Max(1, (records * CopyTexels + CopyTextureWide - 1) / CopyTextureWide);
