@@ -21,7 +21,8 @@ namespace OneJS.Tests.Models {
         public void OnTheCpu() => ModelBridge.GpuSkinning = false;
 
         [TearDown]
-        public void BackOnTheGpu() => ModelBridge.GpuSkinning = true;
+        public void StillOnTheCpu() => ModelBridge.GpuSkinning = false;
+
 
         static string Fixture([CallerFilePath] string here = "") =>
             Path.Combine(Path.GetDirectoryName(here), "Fixtures~", "reach.glb");

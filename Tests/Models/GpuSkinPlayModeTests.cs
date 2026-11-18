@@ -29,10 +29,14 @@ namespace OneJS.Tests.Models {
 
         RenderTexture _screen;
 
+        // Off is the default (TheDefault_IsTheCpu), so every case here turns it on.
+        [SetUp]
+        public void OnTheGpu() => ModelBridge.GpuSkinning = true;
+
         [TearDown]
         public void Clean() {
             ModelBridge.DisposeAll();
-            ModelBridge.GpuSkinning = true;
+            ModelBridge.GpuSkinning = false;
             if (_screen != null) Object.Destroy(_screen);
             _screen = null;
         }

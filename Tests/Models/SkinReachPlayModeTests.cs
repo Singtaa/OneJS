@@ -20,7 +20,8 @@ namespace OneJS.Tests.Models {
         public void OnTheCpu() => ModelBridge.GpuSkinning = false;
 
         [TearDown]
-        public void BackOnTheGpu() => ModelBridge.GpuSkinning = true;
+        public void StillOnTheCpu() => ModelBridge.GpuSkinning = false;
+
 
         // As in ModelBridge.Skin.cs.
         const float ReachRate = 30;

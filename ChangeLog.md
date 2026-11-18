@@ -20,7 +20,7 @@
 - A scene sets its ambient occlusion, or turns it off
 - A mesh model's texture plays as a flipbook
 - The scene tints what lies below a waterline
-- An actor's skinned meshes are posed on the graphics card (`ModelBridge.GpuSkinning`)
+- `ModelBridge.GpuSkinning`, off by default, poses an actor's skinned meshes on the graphics card
 - A model shines from the scene's two pictures (`SetModelShine`)
 - Scattered copies draw from a texture written once, with no arrays sent each frame
 - `ModelBridge.LoadBudget` sets the milliseconds a frame that loading models may take

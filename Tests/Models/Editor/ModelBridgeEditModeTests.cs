@@ -248,6 +248,13 @@ namespace OneJS.Tests.Models {
             Assert.That(ModelBridge.SceneCamera.depth, Is.GreaterThan(camera.depth));
         }
 
+        // Skinning on the graphics card is opt-in: it changes how every skinned actor is drawn, and has
+        // been measured on the web player only. No edit mode test sets it, so this reads the default.
+        [Test]
+        public void GpuSkinning_IsOffUntilACallerTurnsItOn() {
+            Assert.That(ModelBridge.GpuSkinning, Is.False);
+        }
+
         [Test]
         public void EditMode_WithNoSceneLight_MakesItsOwnSunThatCastsSoftShadows() {
             ModelBridge.BeginScene();

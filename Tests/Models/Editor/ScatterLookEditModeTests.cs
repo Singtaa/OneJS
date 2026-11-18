@@ -244,6 +244,23 @@ namespace OneJS.Tests.Models {
             ModelBridge.Destroy(actor);
         }
 
+        // Without float textures there is no copy texture to read, so a copy draws as it did before
+        // it: the model's own material through RenderMeshInstanced. The first half is the control.
+        [Test]
+        public void WithoutFloatTextures_ACopyDrawsWithTheModelsMaterial() {
+            int model = Square();
+            int with = ModelBridge.Scatter(model, new float[] { 0, 0, 0, 0, 1 });
+            Assert.That(ModelBridge.ScatterMaterialOf(with, 0, 0), Is.Not.SameAs(ModelBridge.MaterialOf(model)), "the control");
+            ModelBridge.FloatTexturesForTests = false;
+            try {
+                int without = ModelBridge.Scatter(model, new float[] { 3, 0, 0, 0, 1 });
+                Assert.That(ModelBridge.ScatterMaterialOf(without, 0, 0), Is.SameAs(ModelBridge.MaterialOf(model)));
+                Assert.That(ModelBridge.MaterialOf(model).enableInstancing, Is.True);
+            } finally {
+                ModelBridge.FloatTexturesForTests = null;
+            }
+        }
+
         // The variant is a copy, so a change to the model's material after the scatter was made must reach it.
         [Test]
         public void AChangeToTheModelsMaterial_AfterScattering_ReachesTheCopies() {

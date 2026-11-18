@@ -40,11 +40,17 @@ namespace OneJS.Models {
         static readonly int SkinPaletteId = Shader.PropertyToID("_OjSkinPalette");
 
         /// <summary>
-        /// Whether actors spawned from now skin on the graphics card where they can. On by default;
-        /// off, every skin stays a SkinnedMeshRenderer, which is how a run measures the two apart.
-        /// Actors already spawned keep the way they were made with.
+        /// Whether actors spawned from now skin on the graphics card where they can. Off by default:
+        /// every skin stays a SkinnedMeshRenderer, as before, until a caller that has measured its
+        /// platform turns this on. Actors already spawned keep the way they were made with.
         /// </summary>
-        public static bool GpuSkinning { get; set; } = true;
+        public static bool GpuSkinning { get; set; }
+
+        // Null outside tests, which have no device without float textures to run on.
+        internal static bool? FloatTexturesForTests;
+
+        // The joint palette and a scatter's copy texture are both RGBAFloat.
+        static bool FloatTextures => FloatTexturesForTests ?? SystemInfo.SupportsTextureFormat(TextureFormat.RGBAFloat);
 
         /// <summary>How many actors' renderers are skinned on the graphics card now.</summary>
         public static int GpuSkinCount => _gpuSkinned.Count;
@@ -106,7 +112,7 @@ namespace OneJS.Models {
         }
 
         static bool GpuSkinsHere =>
-            GpuSkinning && Playing && !BuiltInPipeline && SystemInfo.SupportsTextureFormat(TextureFormat.RGBAFloat);
+            GpuSkinning && Playing && !BuiltInPipeline && FloatTextures;
 
         /// <summary>
         /// Makes a new actor's skinned renderers MeshRenderers that ModelLit skins, before it is
