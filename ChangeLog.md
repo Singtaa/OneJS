@@ -20,6 +20,10 @@
 - A scene sets its ambient occlusion, or turns it off
 - A mesh model's texture plays as a flipbook
 - The scene tints what lies below a waterline
+- An actor's skinned meshes are posed on the graphics card (`ModelBridge.GpuSkinning`)
+- A model shines from the scene's two pictures (`SetModelShine`)
+- Scattered copies draw from a texture written once, with no arrays sent each frame
+- `ModelBridge.LoadBudget` sets the milliseconds a frame that loading models may take
 - Typed arrays cross to C# as their bytes, not as JSON
 - A Float32Array sets a Vector3[] (or Vector2, Vector4, Color, Quaternion) array, as in `mesh.vertices`
 - WebSocket binary sends and GPU buffer writes cross as bytes
