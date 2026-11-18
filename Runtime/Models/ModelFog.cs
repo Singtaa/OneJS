@@ -36,7 +36,8 @@ namespace OneJS.Models {
             RenderPipelineManager.beginContextRendering += BeforeFrame;
             Camera.onPreCull -= BeforeCamera;
             Camera.onPreCull += BeforeCamera;
-            Apply();
+            // No Apply here: in a player this runs before any scene is loaded, where reading
+            // RenderSettings crashes it. Each frame applies before it draws.
         }
 
         static void BeforeFrame(ScriptableRenderContext _, System.Collections.Generic.List<Camera> __) => Apply();
