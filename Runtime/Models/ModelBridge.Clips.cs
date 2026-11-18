@@ -48,7 +48,7 @@ namespace OneJS.Models {
             foreach (AnimationState state in mine) names.Add(state.name);
             m.clips = names.ToArray();
             m.clipsFrom = from;
-            m.skinSpaces = PrepareSkins(m.template, mine);
+            m.skinSpaces = PrepareSkins(m.template, mine).spaces;
             return "";
         }
 

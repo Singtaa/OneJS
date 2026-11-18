@@ -76,18 +76,24 @@ namespace OneJS.Models {
         /// Fixes the bounds of a template's skinned renderers to cover every clip's reach, and
         /// stops them and its clips updating while unseen. Called once, when the model loads, and
         /// again when it takes another model's clips. Returns the same reach in each renderer's own
-        /// space, one a skinned renderer in GetComponentsInChildren's order, which a renderer
-        /// skinned on the graphics card is culled by (ModelBridge.GpuSkin.cs); null for none.
+        /// space, and where the skins are drawn as the model stands (<see cref="SkinPrep"/>).
         /// </summary>
-        static Bounds[] PrepareSkins(GameObject template, Animation anim) {
+        static SkinPrep PrepareSkins(GameObject template, Animation anim) {
             var prep = new SkinPrep();
             foreach (var _ in SkinSteps(template, anim, prep)) { }
-            return prep.spaces;
+            return prep;
         }
 
         /// <summary>What <see cref="SkinSteps"/> comes to once it has run to its end.</summary>
         sealed class SkinPrep {
+            /// <summary>
+            /// Each skin's reach in its own space, one a skinned renderer in GetComponentsInChildren's
+            /// order, which a renderer skinned on the graphics card is culled by
+            /// (ModelBridge.GpuSkin.cs); null for none.
+            /// </summary>
             public Bounds[] spaces;
+            /// <summary>Where the skins are drawn as the model stands, in world space (<see cref="DrawnBounds"/>); null for none.</summary>
+            public Bounds? drawn;
         }
 
         /// <summary>
@@ -103,6 +109,12 @@ namespace OneJS.Models {
             for (int i = 0; i < skins.Length; i++) {
                 reach[i] = SkinReach.Of(skins[i], skins[i].rootBone != null ? skins[i].rootBone : skins[i].transform);
                 own[i] = SkinReach.Of(skins[i], skins[i].transform);
+                // Now, as the model stands, before its clips move the joints.
+                var drawn = DrawnBounds(skins[i]);
+                if (prep.drawn is Bounds sofar) {
+                    sofar.Encapsulate(drawn);
+                    prep.drawn = sofar;
+                } else prep.drawn = drawn;
                 yield return null;
             }
 
@@ -145,6 +157,69 @@ namespace OneJS.Models {
                 spaces[i] = Reached(own[i], skin, morph);
             }
             prep.spaces = spaces;
+        }
+
+        /// <summary>
+        /// Where a skin is drawn as its model stands, in world space: each vertex through the joints
+        /// that carry it, as Unity skins it. The renderer's own transform takes no part in that, so
+        /// the mesh's bounds in the renderer's space are no measure of a skin. Blender writes a rig
+        /// scaled to size as a skin under an armature scaled to a third, its vertices already where
+        /// they are drawn, and the renderer's scale counted the armature's twice: PrimoEden's wolf,
+        /// drawn 0.91 m tall, measured 0.304 (18 Nov 2026). A mesh no joint carries is drawn where
+        /// its renderer is.
+        /// </summary>
+        static Bounds DrawnBounds(SkinnedMeshRenderer skin) {
+            var mesh = skin.sharedMesh;
+            if (mesh == null) return new Bounds(skin.transform.position, Vector3.zero);
+            var bones = skin.bones;
+            var poses = mesh.bindposes;
+            var weights = mesh.boneWeights;
+            var vertices = mesh.vertices;
+            if (bones == null || bones.Length == 0 || poses.Length < bones.Length || weights.Length != vertices.Length) {
+                return Transformed(mesh.bounds, skin.transform.localToWorldMatrix);
+            }
+            var skinning = new Matrix4x4[bones.Length];
+            var carries = new bool[bones.Length];
+            for (int j = 0; j < bones.Length; j++) {
+                if (bones[j] == null) continue;
+                skinning[j] = bones[j].localToWorldMatrix * poses[j];
+                carries[j] = true;
+            }
+            var bounds = new Bounds();
+            bool any = false;
+            for (int v = 0; v < vertices.Length; v++) {
+                var w = weights[v];
+                Vector3 sum = Vector3.zero;
+                float total = 0;
+                Carry(skinning, carries, w.boneIndex0, w.weight0, vertices[v], ref sum, ref total);
+                Carry(skinning, carries, w.boneIndex1, w.weight1, vertices[v], ref sum, ref total);
+                Carry(skinning, carries, w.boneIndex2, w.weight2, vertices[v], ref sum, ref total);
+                Carry(skinning, carries, w.boneIndex3, w.weight3, vertices[v], ref sum, ref total);
+                if (total <= 0) continue;
+                var p = sum / total;
+                if (any) bounds.Encapsulate(p);
+                else {
+                    bounds = new Bounds(p, Vector3.zero);
+                    any = true;
+                }
+            }
+            return any ? bounds : Transformed(mesh.bounds, skin.transform.localToWorldMatrix);
+        }
+
+        static void Carry(Matrix4x4[] skinning, bool[] carries, int bone, float weight, Vector3 vertex, ref Vector3 sum, ref float total) {
+            if (weight <= 0 || bone < 0 || bone >= carries.Length || !carries[bone]) return;
+            sum += weight * skinning[bone].MultiplyPoint3x4(vertex);
+            total += weight;
+        }
+
+        // A box through a matrix, as the box round its eight corners.
+        static Bounds Transformed(Bounds b, Matrix4x4 m) {
+            var result = new Bounds(m.MultiplyPoint3x4(b.center), Vector3.zero);
+            Vector3 min = b.min, max = b.max;
+            for (int c = 0; c < 8; c++) {
+                result.Encapsulate(m.MultiplyPoint3x4(new Vector3((c & 1) == 0 ? min.x : max.x, (c & 2) == 0 ? min.y : max.y, (c & 4) == 0 ? min.z : max.z)));
+            }
+            return result;
         }
 
         // A reach with its margin, or the mesh's own bounds where no joint carries a vertex.

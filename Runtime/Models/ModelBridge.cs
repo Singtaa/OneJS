@@ -305,22 +305,21 @@ namespace OneJS.Models {
                 foreach (AnimationState state in anim) clips.Add(state.name);
                 anim.playAutomatically = false;
             }
-            Bounds[] skinSpaces;
+            SkinPrep prep;
             if (defer is LoadBudgetAgent budgeted) {
-                var prep = new SkinPrep();
+                prep = new SkinPrep();
                 foreach (var _ in SkinSteps(template, anim, prep)) {
                     await budgeted.BreakPoint();
                     Abandoned(generation, import, template);
                 }
-                skinSpaces = prep.spaces;
             } else {
-                skinSpaces = PrepareSkins(template, anim);
+                prep = PrepareSkins(template, anim);
             }
 
             var id = ++_next;
             _models[id] = new Model {
-                import = import, template = template, bounds = MeasureBounds(template), clips = clips.ToArray(),
-                colored = VertexColored(template), skinSpaces = skinSpaces,
+                import = import, template = template, bounds = MeasureBounds(template, prep.drawn), clips = clips.ToArray(),
+                colored = VertexColored(template), skinSpaces = prep.spaces,
             };
             return id;
         }
@@ -1270,23 +1269,23 @@ namespace OneJS.Models {
             else Object.DestroyImmediate(o);
         }
 
-        static Bounds MeasureBounds(GameObject template) {
-            var renderers = template.GetComponentsInChildren<Renderer>(true);
-            if (renderers.Length == 0) return new Bounds(Vector3.zero, Vector3.one);
-            var b = renderers[0] is SkinnedMeshRenderer s0 ? WorldBounds(s0) : renderers[0].bounds;
-            for (var i = 1; i < renderers.Length; i++) {
-                b.Encapsulate(renderers[i] is SkinnedMeshRenderer s ? WorldBounds(s) : renderers[i].bounds);
+        /// <summary>
+        /// A model's bounds as it stands, which Model.height, the box a click hits and the point its
+        /// probes are read at all come from: its meshes where their renderers draw them, and its
+        /// skins where their joints draw them, measured as the skins are prepared (`skins`,
+        /// <see cref="DrawnBounds"/>). The template sits at the origin unrotated, so its world bounds
+        /// are its local ones.
+        /// </summary>
+        static Bounds MeasureBounds(GameObject template, Bounds? skins) {
+            var b = skins;
+            foreach (var r in template.GetComponentsInChildren<Renderer>(true)) {
+                if (r is SkinnedMeshRenderer) continue;
+                if (b is Bounds sofar) {
+                    sofar.Encapsulate(r.bounds);
+                    b = sofar;
+                } else b = r.bounds;
             }
-            // The template sits at the origin unrotated, so its world bounds are its local ones.
-            return b;
-        }
-
-        // An inactive skinned renderer reports empty bounds, so use the mesh's own, in the renderer's space.
-        static Bounds WorldBounds(SkinnedMeshRenderer s) {
-            var mesh = s.sharedMesh;
-            if (mesh == null) return new Bounds(s.transform.position, Vector3.zero);
-            var local = mesh.bounds;
-            return new Bounds(s.transform.TransformPoint(local.center), Vector3.Scale(local.size, s.transform.lossyScale));
+            return b ?? new Bounds(Vector3.zero, Vector3.one);
         }
     }
 }

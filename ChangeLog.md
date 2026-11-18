@@ -1,3 +1,7 @@
+# Unreleased
+
+- A skinned model's height and click box match it as drawn under a scaled armature
+
 # [2026-11-17] v3.9.19
 
 Typed arrays cross to C# as their bytes, timers run one at a time as in a browser, and 3D scenes in ojplay gain baked light, scattering, a sky, height fog and per-actor looks. The native library changed, so restart the editor after updating.

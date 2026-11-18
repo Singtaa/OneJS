@@ -197,6 +197,38 @@ namespace OneJS.Tests.Models {
             Assert.That(bounds.center.y, Is.EqualTo(1f).Within(1e-3));
         }
 
+        // Blender writes a rig scaled to size as a skin under an armature scaled to a third, its
+        // vertices already where they are drawn. PrimoEden's wolf, drawn 0.91 m tall, read
+        // Model.height 0.304 on runtime 1.10.1 (18 Nov 2026): the armature's scale counted twice,
+        // in the height and in the box a click hits. scaled-root.glb is such a file, its armature
+        // moved and turned as well.
+        [UnityTest]
+        public IEnumerator ASkinUnderAScaledArmature_IsMeasuredAsItIsDrawn() {
+            int model = 0;
+            yield return Load(m => model = m, "scaled-root.glb");
+            ModelBridge.BeginScene();
+            int actor = ModelBridge.Spawn(model, 2, 0, 3, 0, 1, true, true);
+            var go = ModelBridge.ActorObject(actor);
+
+            // Where Unity draws it: the skin baked as it stands, into world space.
+            var skin = go.GetComponentInChildren<SkinnedMeshRenderer>(true);
+            var baked = new Mesh();
+            skin.BakeMesh(baked, true);
+            var toWorld = skin.transform.localToWorldMatrix;
+            var vertices = baked.vertices;
+            var drawn = new Bounds(toWorld.MultiplyPoint3x4(vertices[0]), Vector3.zero);
+            foreach (var v in vertices) drawn.Encapsulate(toWorld.MultiplyPoint3x4(v));
+            Object.DestroyImmediate(baked);
+            // The box scaled-root.mjs stores: 0.4 wide, 0.9 tall and 1 long, from the ground up.
+            Assert.That(Vector3.Distance(drawn.center, new Vector3(2, 0.45f, 2.9f)), Is.LessThan(1e-3), $"drawn round {drawn.center}");
+            Assert.That(Vector3.Distance(drawn.size, new Vector3(0.4f, 0.9f, 1f)), Is.LessThan(1e-3), $"drawn {drawn.size} big");
+
+            Assert.That(ModelBridge.Height(model), Is.EqualTo(drawn.size.y).Within(1e-3), "Model.height");
+            var box = go.GetComponent<BoxCollider>();
+            Assert.That(Vector3.Distance(go.transform.TransformPoint(box.center), drawn.center), Is.LessThan(1e-3), $"the box a click hits stands round {go.transform.TransformPoint(box.center)}");
+            Assert.That(Vector3.Distance(box.size, drawn.size), Is.LessThan(1e-3), $"and is {box.size} big");
+        }
+
         [UnityTest]
         public IEnumerator Speed_ScalesAnActorsClipAndZeroFreezesIt() {
             int model = 0;
