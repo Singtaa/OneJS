@@ -88,6 +88,7 @@ EditMode (`Tests/Editor/`):
 | `EventIdContractTests.cs` | Event type ids agree between `QuickJSUIBridge.cs` and the bootstrap |
 | `StructSerializationTests.cs` | The JSON a data-only struct becomes in JS |
 | `BoundGenericStaticTests.cs` | Static properties, fields and consts of a constructed generic (`Box(Int32).Count`) read their values; its methods stay callable and cross once to be known |
+| `CsPathMissTests.cs` | A missing static member of a known type reads undefined, once per path; nested generics, a namespace under a same-named type (`CsPathMissFixtures.cs`), nested types and enums still resolve. Its explicit benchmark times hits, misses and the index build |
 | `StyleBridgeTests.cs` | One warning per unknown style key or unreadable filter; a null value clears the inline value |
 | `UssFilterTests.cs` | Without Unity's filter function table (a stripped build missing `link.xml`), inline filter names still resolve exactly as that table resolves them, with one warning |
 | `UssCompilerDiagnosticsTests.cs` | Diagnostics for typo'd USS properties, and the reflected property table |
