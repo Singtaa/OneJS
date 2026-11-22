@@ -1,6 +1,7 @@
 # Unreleased
 
 - A skinned model's height and click box match it as drawn under a scaled armature
+- On OneJS 3.9.18 or older, ojplay's 2D physics elements move one at a time instead of throwing
 
 # [2026-11-17] v3.9.19
 
