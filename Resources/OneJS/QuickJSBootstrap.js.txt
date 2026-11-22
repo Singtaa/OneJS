@@ -402,6 +402,19 @@ function __createBoundGenericType(genericDefName, typeArgs) {
                 return __wrapResultFromCs(null, raw);
             }
 
+            // A PascalCase name is read as the path proxy reads one (TryGetProp, 10):
+            // a static property, field or const gives its value, a method gives the
+            // function below and is remembered, so it crosses once.
+            const methods = __methodMembersOf(boundTypeName);
+            if (!methods.has(propName)) {
+                const raw = __cs.invoke(boundTypeName, propName, 10, 1, 0, []);
+                if (raw === "__oneJS_methodRef__") {
+                    methods.add(propName);
+                } else if (raw !== "__oneJS_notFound__") {
+                    return __wrapResultFromCs(null, raw);
+                }
+            }
+
             // Static method
             return function(...args) {
                 const raw = __cs.invoke(boundTypeName, propName, 1, 1, 0, __resolveArgs(args));
