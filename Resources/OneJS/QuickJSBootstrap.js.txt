@@ -417,6 +417,7 @@ function __createBoundGenericType(genericDefName, typeArgs) {
                     return __wrapResultFromCs(null, raw);
                 } else {
                     __pathLeadsOn.set(memberPath, false);
+                    __noteMissingStatic(boundTypeName, propName);
                     return undefined;
                 }
             }
@@ -847,6 +848,20 @@ const __methodMembers = new Map();
 // Neither answer changes while the context runs, so a repeated miss never crosses.
 const __pathLeadsOn = new Map();
 
+// Whether a miss is named in the console: in the editor and a development build
+// (Debug.isDebugBuild), asked on the first miss. A call of the undefined a miss
+// reads throws QuickJS's "not a function", which does not say what was missing,
+// and a static stripped from a player build is the case that needs the name.
+let __namesMisses;
+function __noteMissingStatic(typeName, member) {
+    if (__namesMisses === undefined) {
+        __namesMisses = __cs.invoke("UnityEngine.Debug", "isDebugBuild", 2, 1, 0, []) === true;
+    }
+    if (__namesMisses) {
+        console.warn("[OneJS] " + typeName + " has no static member " + member + ", so it reads undefined and calling it throws. In a player build, a member the editor has was stripped: keep it in link.xml.");
+    }
+}
+
 function __methodMembersOf(typeName) {
     let members = __methodMembers.get(typeName);
     if (members === undefined) {
@@ -1076,7 +1091,10 @@ function __newCsPathProxy(path, typeName) {
                             const answer = __cs.invoke(nextType, "", 11, 0, 0, []);
                             const leadsOn = answer === true || answer === 1;
                             __pathLeadsOn.set(nextType, leadsOn);
-                            if (!leadsOn) return undefined;
+                            if (!leadsOn) {
+                                __noteMissingStatic(typeName, propName);
+                                return undefined;
+                            }
                         }
                     }
                 }

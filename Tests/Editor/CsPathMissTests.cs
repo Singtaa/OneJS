@@ -1,6 +1,9 @@
 using System;
 using System.Linq;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
+using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace OneJS.Tests.PathMiss.Shared.Deep {
     /// <summary>Under a namespace named as a type in OneJS.Tests (CsPathMissFixtures.cs).</summary>
@@ -119,6 +122,18 @@ namespace OneJS.Tests.PathMiss {
             long before = QuickJSNative.InteropCallCount;
             Eval($"(() => {{ const G = {P}.Generic(CS.System.Int32); for (let i = 0; i < 10; i++) G.NoSuchRepeat }})()");
             Assert.AreEqual(1, QuickJSNative.InteropCallCount - before, "one crossing is making the generic type; the misses make none");
+        }
+
+        [Test]
+        public void AMiss_IsNamedOnceInTheConsole_InTheEditorAndDevelopmentBuilds() {
+            LogAssert.Expect(LogType.Warning, new Regex(@"\[OneJS\] OneJS\.Tests\.PathMiss\.Known has no static member NoSuchNoted, so it reads undefined"));
+            Eval($"typeof {P}.Known.NoSuchNoted");
+            Eval($"typeof {P}.Known.NoSuchNoted");
+            Eval($"(() => {{ try {{ {P}.Known.NoSuchNoted() }} catch (e) {{}} }})()");
+            LogAssert.Expect(LogType.Warning, new Regex(@"\[OneJS\] OneJS\.Tests\.PathMiss\.Generic`1\[.*\] has no static member NoSuchNoted"));
+            Eval($"typeof {P}.Generic(CS.System.Int32).NoSuchNoted");
+            Eval($"typeof {P}.Generic(CS.System.Int32).NoSuchNoted");
+            LogAssert.NoUnexpectedReceived();
         }
 
         [Test]
