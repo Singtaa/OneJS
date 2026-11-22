@@ -16,6 +16,9 @@ namespace OneJS.Tests {
         public void Raise() => Changed?.Invoke();
     }
 
+    /// <summary>A plain object a context creates and keeps, holding one handle each.</summary>
+    public class MultiContextHandleItem { }
+
     /// <summary>
     /// Two live QuickJS contexts at once, which is what two JSRunners are.
     ///
@@ -452,6 +455,63 @@ namespace OneJS.Tests {
 
                 Assert.AreEqual(1, MultiContextEventSource.Instance.SubscriberCount,
                     "Context B's remove_ did not find the delegate its add_ got, so B stays subscribed.");
+            } finally {
+                MultiContextEventSource.Instance = null;
+            }
+            yield return null;
+        }
+
+        /// <summary>
+        /// One runner going away must give back the C# handles its proxies hold.
+        /// A proxy's handle is released by a FinalizationRegistry job, which a
+        /// destroyed context never runs, and the handle table is shared by every
+        /// context. So with another runner live the dead context's handles stayed
+        /// in the table until the last runner went, growing it by one runner's
+        /// worth on every scene change of a persistent overlay plus per-scene runners.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator DisposingOneContextReleasesItsHandles() {
+            var before = QuickJSNative.GetHandleCount();
+
+            var c = new QuickJSContext();
+            try {
+                c.Eval(@"
+                    globalThis.__held = [];
+                    for (let i = 0; i < 50; i++) __held.push(new CS.OneJS.Tests.MultiContextHandleItem());
+                ");
+                Assert.GreaterOrEqual(QuickJSNative.GetHandleCount() - before, 50,
+                    "The third context's objects did not reach the handle table, so this test measures nothing.");
+            } finally {
+                c.Dispose();
+            }
+
+            Assert.AreEqual(before, QuickJSNative.GetHandleCount(),
+                "A disposed context left its handles in the shared table while other contexts stayed live.");
+            yield return null;
+        }
+
+        /// <summary>
+        /// One object both contexts hold shares one handle, counted once per
+        /// context. Disposing one context gives back only its count: the other's
+        /// proxy keeps working.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator AnObjectBothContextsHoldSurvivesOneDisposing() {
+            MultiContextEventSource.Instance = new MultiContextEventSource();
+            try {
+                const string hold = "globalThis.__source = CS.OneJS.Tests.MultiContextEventSource.Instance; 'ok'";
+                _a.Eval(hold);
+                _b.Eval(hold);
+                var handle = QuickJSNative.GetHandleForObject(MultiContextEventSource.Instance);
+                Assert.AreNotEqual(0, handle, "The shared object never reached the handle table.");
+
+                _a.Dispose();
+                _a = null;
+
+                Assert.AreSame(MultiContextEventSource.Instance, QuickJSNative.GetObjectByHandle(handle),
+                    "Disposing context A released the handle context B still holds.");
+                Assert.AreEqual("0", _b.Eval("String(__source.SubscriberCount)"),
+                    "Context B's proxy stopped working after context A was disposed.");
             } finally {
                 MultiContextEventSource.Instance = null;
             }
