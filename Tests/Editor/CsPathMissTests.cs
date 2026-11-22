@@ -113,6 +113,15 @@ namespace OneJS.Tests.PathMiss {
         }
 
         [Test]
+        public void AMissingStaticMember_OfAConstructedGeneric_ReadsUndefined() {
+            Assert.AreEqual("undefined", Eval($"typeof {P}.Generic(CS.System.Int32).NoSuchMember"));
+            Eval($"{P}.Generic(CS.System.Int32).NoSuchRepeat");
+            long before = QuickJSNative.InteropCallCount;
+            Eval($"(() => {{ const G = {P}.Generic(CS.System.Int32); for (let i = 0; i < 10; i++) G.NoSuchRepeat }})()");
+            Assert.AreEqual(1, QuickJSNative.InteropCallCount - before, "one crossing is making the generic type; the misses make none");
+        }
+
+        [Test]
         public void PresentMembers_ReadAsBefore() {
             Assert.AreEqual("1 2 3 null", Eval($"(() => {{ const K = {P}.Known; return `${{K.Field}} ${{K.Prop}} ${{K.Const}} ${{K.Nothing}}` }})()"));
             Assert.AreEqual("int string", Eval($"{P}.Known.Over(1) + ' ' + {P}.Known.Over('a')"));

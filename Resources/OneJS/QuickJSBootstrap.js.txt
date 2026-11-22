@@ -404,14 +404,20 @@ function __createBoundGenericType(genericDefName, typeArgs) {
 
             // A PascalCase name is read as the path proxy reads one (TryGetProp, 10):
             // a static property, field or const gives its value, a method gives the
-            // function below and is remembered, so it crosses once.
+            // function below and is remembered, so it crosses once, and a name that
+            // is neither reads undefined, once per name.
             const methods = __methodMembersOf(boundTypeName);
             if (!methods.has(propName)) {
+                const memberPath = boundTypeName + "." + propName;
+                if (__pathLeadsOn.get(memberPath) === false) return undefined;
                 const raw = __cs.invoke(boundTypeName, propName, 10, 1, 0, []);
                 if (raw === "__oneJS_methodRef__") {
                     methods.add(propName);
                 } else if (raw !== "__oneJS_notFound__") {
                     return __wrapResultFromCs(null, raw);
+                } else {
+                    __pathLeadsOn.set(memberPath, false);
+                    return undefined;
                 }
             }
 
@@ -837,6 +843,7 @@ const __methodMembers = new Map();
 // A path whose last name is no member of the known type before it, to what C#
 // said of the whole path: true when it still leads to a type (a namespace, or a
 // generic reached as Outer.Gen(T)), false when it ends there and reads undefined.
+// A constructed generic's missing statics are kept here too, always false.
 // Neither answer changes while the context runs, so a repeated miss never crosses.
 const __pathLeadsOn = new Map();
 
