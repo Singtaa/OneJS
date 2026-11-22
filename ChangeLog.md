@@ -1,6 +1,8 @@
 # Unreleased
 
 - A skinned model's height and click box match it as drawn under a scaled armature
+- A C# type's missing static member reads `undefined`, so calling one throws `TypeError: not a function` in place of `Method not found`
+- A development build names a missing static member once in the console
 - On OneJS 3.9.18 or older, ojplay's 2D physics elements move one at a time instead of throwing
 - A constructed generic type's static properties read as values, not methods
 

@@ -270,7 +270,8 @@ namespace OneJS {
             IsEnumType = 7,
             MakeGenericType = 8,
             RegisterExtensionType = 9,
-            TryGetProp = 10
+            TryGetProp = 10,
+            LeadsToType = 11
         }
 
         // Interop Structs

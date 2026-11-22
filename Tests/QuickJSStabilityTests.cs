@@ -442,8 +442,10 @@ namespace OneJS.Tests {
 
         [UnityTest]
         public IEnumerator ExceptionContext_MethodNotFound_ThrowsWithContext() {
-            // Try to call a non-existent method: should throw with error info. The
-            // bridge does not log it: the caller has the exception (#136).
+            // Try to call a non-existent method: should throw. The bridge does not
+            // log it: the caller has the exception (#136). A missing static member
+            // of a known type reads undefined (CsPathMissTests), so the call is
+            // JS's own TypeError rather than C#'s "Method not found".
             bool exceptionThrown = false;
             try {
                 _ctx.Eval("CS.UnityEngine.Debug.NonExistentMethod()");
@@ -451,7 +453,7 @@ namespace OneJS.Tests {
                 exceptionThrown = true;
                 // A JS error arrives as a JSException carrying the JS text
                 Assert.IsInstanceOf<OneJS.JSException>(ex);
-                StringAssert.Contains("not found", ex.Message);
+                StringAssert.Contains("not a function", ex.Message);
             }
 
             Assert.IsTrue(exceptionThrown, "Should have thrown an exception");

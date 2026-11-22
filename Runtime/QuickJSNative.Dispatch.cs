@@ -214,6 +214,15 @@ namespace OneJS {
                 string typeName = PtrToStringUtf8(reqPtr->typeName);
                 string memberName = PtrToStringUtf8(reqPtr->memberName);
 
+                // Asked only of a name TypeExists has said is no type, so it is not
+                // resolved again: a name that resolves to nothing is not cached, and
+                // looking it up walks every loaded assembly (about 1.4 ms on WebGL).
+                if (reqPtr->callKind == InteropInvokeCallKind.LeadsToType) {
+                    resPtr->returnValue.type = InteropType.Bool;
+                    resPtr->returnValue.b = IsTypePathPrefix(typeName) ? 1 : 0;
+                    return;
+                }
+
                 // Resolve type if not already resolved from handle
                 if (type == null) type = ResolveType(typeName);
 

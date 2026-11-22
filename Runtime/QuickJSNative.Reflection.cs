@@ -55,6 +55,74 @@ namespace OneJS {
             return type;
         }
 
+        static HashSet<string> _typePathPrefixes;
+        static int _typePathPrefixesAssemblyCount;
+
+        /// <summary>
+        /// Whether a dotted name that is no type still leads to one: a namespace,
+        /// or a generic type by its name without arity, as JS reaches
+        /// Outer+Gen`1 through CS.Outer.Gen(T). The CS path proxy asks before it
+        /// reads a missing member of a known type as undefined, since a namespace
+        /// can sit under a type of the same name in another assembly. A known
+        /// type's own nested generic is answered from that type alone; anything
+        /// else from a set built from every loaded type on the first such ask
+        /// (about 8 ms on a desktop WebGL page, 60 on a slow one), and again
+        /// when an assembly loads, so an app that never misses never builds it.
+        /// </summary>
+        static bool IsTypePathPrefix(string name) {
+            if (IsNestedGenericName(name)) return true;
+            var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+            if (_typePathPrefixes == null || _typePathPrefixesAssemblyCount != assemblies.Length) {
+                _typePathPrefixes = BuildTypePathPrefixes(assemblies);
+                _typePathPrefixesAssemblyCount = assemblies.Length;
+            }
+            return _typePathPrefixes.Contains(name);
+        }
+
+        static readonly System.Text.RegularExpressions.Regex _genericArity = new("`[0-9]+");
+
+        /// <summary>Whether Owner.Name names a generic type nested in the type Owner, as Gen`1 in Outer.</summary>
+        static bool IsNestedGenericName(string name) {
+            int dot = name.LastIndexOf('.');
+            if (dot <= 0) return false;
+            var owner = ResolveType(name.Substring(0, dot));
+            if (owner == null) return false;
+            var member = name.Substring(dot + 1);
+            foreach (var nested in owner.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic)) {
+                if (!nested.IsGenericTypeDefinition) continue;
+                var tick = nested.Name.IndexOf('`');
+                if (tick == member.Length && string.CompareOrdinal(nested.Name, 0, member, 0, tick) == 0) return true;
+            }
+            return false;
+        }
+
+        static HashSet<string> BuildTypePathPrefixes(Assembly[] assemblies) {
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var asm in assemblies) {
+                Type[] types;
+                try {
+                    types = asm.GetTypes();
+                } catch (ReflectionTypeLoadException e) {
+                    types = e.Types;
+                } catch {
+                    continue;
+                }
+                foreach (var t in types) {
+                    if (t == null) continue;
+                    // A namespace and each namespace it sits in. A prefix already
+                    // present had its own prefixes added with it.
+                    var ns = t.Namespace;
+                    if (ns != null && names.Add(ns)) {
+                        for (int dot = ns.LastIndexOf('.'); dot > 0 && names.Add(ns.Substring(0, dot)); dot = ns.LastIndexOf('.', dot - 1)) { }
+                    }
+                    if (t.IsGenericTypeDefinition && t.FullName != null) {
+                        names.Add(_genericArity.Replace(t.FullName, "").Replace('+', '.'));
+                    }
+                }
+            }
+            return names;
+        }
+
         static readonly HashSet<string> _warnedTypeRefs = new();
 
         /// <summary>

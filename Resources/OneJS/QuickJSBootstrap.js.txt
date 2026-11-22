@@ -404,14 +404,21 @@ function __createBoundGenericType(genericDefName, typeArgs) {
 
             // A PascalCase name is read as the path proxy reads one (TryGetProp, 10):
             // a static property, field or const gives its value, a method gives the
-            // function below and is remembered, so it crosses once.
+            // function below and is remembered, so it crosses once, and a name that
+            // is neither reads undefined, once per name.
             const methods = __methodMembersOf(boundTypeName);
             if (!methods.has(propName)) {
+                const memberPath = boundTypeName + "." + propName;
+                if (__pathLeadsOn.get(memberPath) === false) return undefined;
                 const raw = __cs.invoke(boundTypeName, propName, 10, 1, 0, []);
                 if (raw === "__oneJS_methodRef__") {
                     methods.add(propName);
                 } else if (raw !== "__oneJS_notFound__") {
                     return __wrapResultFromCs(null, raw);
+                } else {
+                    __pathLeadsOn.set(memberPath, false);
+                    __noteMissingStatic(boundTypeName, propName);
+                    return undefined;
                 }
             }
 
@@ -834,6 +841,26 @@ const __enumValueCache = new Map();
 // Type name to the members C# has reported as methods. A type's members do not
 // change while it runs, so a method call needs one crossing, not two.
 const __methodMembers = new Map();
+// A path whose last name is no member of the known type before it, to what C#
+// said of the whole path: true when it still leads to a type (a namespace, or a
+// generic reached as Outer.Gen(T)), false when it ends there and reads undefined.
+// A constructed generic's missing statics are kept here too, always false.
+// Neither answer changes while the context runs, so a repeated miss never crosses.
+const __pathLeadsOn = new Map();
+
+// Whether a miss is named in the console: in the editor and a development build
+// (Debug.isDebugBuild), asked on the first miss. A call of the undefined a miss
+// reads throws QuickJS's "not a function", which does not say what was missing,
+// and a static stripped from a player build is the case that needs the name.
+let __namesMisses;
+function __noteMissingStatic(typeName, member) {
+    if (__namesMisses === undefined) {
+        __namesMisses = __cs.invoke("UnityEngine.Debug", "isDebugBuild", 2, 1, 0, []) === true;
+    }
+    if (__namesMisses) {
+        console.warn("[OneJS] " + typeName + " has no static member " + member + ", so it reads undefined and calling it throws. In a player build, a member the editor has was stripped: keep it in link.xml.");
+    }
+}
 
 function __methodMembersOf(typeName) {
     let members = __methodMembers.get(typeName);
@@ -1045,15 +1072,30 @@ function __newCsPathProxy(path, typeName) {
             // Skip methods (__oneJS_methodRef__) so they keep the apply trap for calling.
             // Uses TryGetProp (10) instead of GetProp (2) to avoid error logging on miss;
             // a miss is "__oneJS_notFound__", so a static holding null reads as null.
+            // A miss reads undefined unless C# says the path still leads to a type
+            // (LeadsToType, 11), so `CS.T.Missing` fails a check the way a missing
+            // JS property does, instead of reading as a callable proxy.
             const methods = __methodMembersOf(typeName);
             if (!methods.has(propName) && __typeExists(typeName) && !__isEnumType(typeName)) {
                 const nextType = typeName + "." + propName;
                 if (!__typeExists(nextType)) {
-                    const raw = __cs.invoke(typeName, propName, 10, 1, 0, []);
-                    if (raw === "__oneJS_methodRef__") {
-                        methods.add(propName);
-                    } else if (raw !== "__oneJS_notFound__") {
-                        return __wrapResultFromCs(null, raw);
+                    const leads = __pathLeadsOn.get(nextType);
+                    if (leads === false) return undefined;
+                    if (leads === undefined) {
+                        const raw = __cs.invoke(typeName, propName, 10, 1, 0, []);
+                        if (raw === "__oneJS_methodRef__") {
+                            methods.add(propName);
+                        } else if (raw !== "__oneJS_notFound__") {
+                            return __wrapResultFromCs(null, raw);
+                        } else {
+                            const answer = __cs.invoke(nextType, "", 11, 0, 0, []);
+                            const leadsOn = answer === true || answer === 1;
+                            __pathLeadsOn.set(nextType, leadsOn);
+                            if (!leadsOn) {
+                                __noteMissingStatic(typeName, propName);
+                                return undefined;
+                            }
+                        }
                     }
                 }
             }
