@@ -235,6 +235,12 @@ namespace OneJS {
                     return;
                 }
 
+                if (reqPtr->callKind == InteropInvokeCallKind.LeadsToType) {
+                    resPtr->returnValue.type = InteropType.Bool;
+                    resPtr->returnValue.b = type != null || IsTypePathPrefix(typeName) ? 1 : 0;
+                    return;
+                }
+
                 // RegisterExtensionType: scan and cache extension methods from a static class
                 if (reqPtr->callKind == InteropInvokeCallKind.RegisterExtensionType) {
                     if (type == null) {

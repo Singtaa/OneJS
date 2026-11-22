@@ -55,6 +55,55 @@ namespace OneJS {
             return type;
         }
 
+        static HashSet<string> _typePathPrefixes;
+        static int _typePathPrefixesAssemblyCount;
+
+        /// <summary>
+        /// Whether a dotted name that is no type still leads to one: a namespace,
+        /// or a generic type by its name without arity, as JS reaches
+        /// Outer+Gen`1 through CS.Outer.Gen(T). The CS path proxy asks before it
+        /// reads a missing member of a known type as undefined, since a namespace
+        /// can sit under a type of the same name in another assembly. Built from
+        /// every loaded type on the first ask, and again when an assembly loads.
+        /// </summary>
+        static bool IsTypePathPrefix(string name) {
+            var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+            if (_typePathPrefixes == null || _typePathPrefixesAssemblyCount != assemblies.Length) {
+                _typePathPrefixes = BuildTypePathPrefixes(assemblies);
+                _typePathPrefixesAssemblyCount = assemblies.Length;
+            }
+            return _typePathPrefixes.Contains(name);
+        }
+
+        static readonly System.Text.RegularExpressions.Regex _genericArity = new("`[0-9]+");
+
+        static HashSet<string> BuildTypePathPrefixes(Assembly[] assemblies) {
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var asm in assemblies) {
+                Type[] types;
+                try {
+                    types = asm.GetTypes();
+                } catch (ReflectionTypeLoadException e) {
+                    types = e.Types;
+                } catch {
+                    continue;
+                }
+                foreach (var t in types) {
+                    if (t == null) continue;
+                    // A namespace and each namespace it sits in. A prefix already
+                    // present had its own prefixes added with it.
+                    var ns = t.Namespace;
+                    if (ns != null && names.Add(ns)) {
+                        for (int dot = ns.LastIndexOf('.'); dot > 0 && names.Add(ns.Substring(0, dot)); dot = ns.LastIndexOf('.', dot - 1)) { }
+                    }
+                    if (t.IsGenericTypeDefinition && t.FullName != null) {
+                        names.Add(_genericArity.Replace(t.FullName, "").Replace('+', '.'));
+                    }
+                }
+            }
+            return names;
+        }
+
         static readonly HashSet<string> _warnedTypeRefs = new();
 
         /// <summary>
