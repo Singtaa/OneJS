@@ -63,10 +63,14 @@ namespace OneJS {
         /// or a generic type by its name without arity, as JS reaches
         /// Outer+Gen`1 through CS.Outer.Gen(T). The CS path proxy asks before it
         /// reads a missing member of a known type as undefined, since a namespace
-        /// can sit under a type of the same name in another assembly. Built from
-        /// every loaded type on the first ask, and again when an assembly loads.
+        /// can sit under a type of the same name in another assembly. A known
+        /// type's own nested generic is answered from that type alone; anything
+        /// else from a set built from every loaded type on the first such ask
+        /// (about 8 ms on a desktop WebGL page, 60 on a slow one), and again
+        /// when an assembly loads, so an app that never misses never builds it.
         /// </summary>
         static bool IsTypePathPrefix(string name) {
+            if (IsNestedGenericName(name)) return true;
             var assemblies = AppDomain.CurrentDomain.GetAssemblies();
             if (_typePathPrefixes == null || _typePathPrefixesAssemblyCount != assemblies.Length) {
                 _typePathPrefixes = BuildTypePathPrefixes(assemblies);
@@ -76,6 +80,21 @@ namespace OneJS {
         }
 
         static readonly System.Text.RegularExpressions.Regex _genericArity = new("`[0-9]+");
+
+        /// <summary>Whether Owner.Name names a generic type nested in the type Owner, as Gen`1 in Outer.</summary>
+        static bool IsNestedGenericName(string name) {
+            int dot = name.LastIndexOf('.');
+            if (dot <= 0) return false;
+            var owner = ResolveType(name.Substring(0, dot));
+            if (owner == null) return false;
+            var member = name.Substring(dot + 1);
+            foreach (var nested in owner.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic)) {
+                if (!nested.IsGenericTypeDefinition) continue;
+                var tick = nested.Name.IndexOf('`');
+                if (tick == member.Length && string.CompareOrdinal(nested.Name, 0, member, 0, tick) == 0) return true;
+            }
+            return false;
+        }
 
         static HashSet<string> BuildTypePathPrefixes(Assembly[] assemblies) {
             var names = new HashSet<string>(StringComparer.Ordinal);

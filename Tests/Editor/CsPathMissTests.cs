@@ -92,6 +92,19 @@ namespace OneJS.Tests.PathMiss {
             Assert.AreEqual("Int32", Eval($"{P}.Outer.Gen(CS.System.Int32).Name()"));
         }
 
+        // The set of every namespace reads every loaded type, about 8 ms on a
+        // desktop WebGL page and 60 on a slow one, so a known type's own nested
+        // generic is answered from that type alone, and only a real miss builds it.
+        [Test]
+        public void ANestedGeneric_IsFoundWithoutReadingEveryType() {
+            var set = typeof(QuickJSNative).GetField("_typePathPrefixes", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            set.SetValue(null, null);
+            Assert.AreEqual("Int32", Eval($"{P}.Outer.Gen(CS.System.Int32).Name()"));
+            Assert.IsNull(set.GetValue(null), "the nested generic built the set of every namespace");
+            Assert.AreEqual("undefined", Eval($"typeof {P}.Outer.NoSuchMember"));
+            Assert.IsNotNull(set.GetValue(null), "a real miss did not ask the set, so this test measures nothing");
+        }
+
         [Test]
         public void ANamespaceUnderATypeOfTheSameName_StillLeadsToItsTypes() {
             Assert.AreEqual("shared", Eval($"{P}.Shared.Name"));
