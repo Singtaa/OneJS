@@ -10,7 +10,7 @@ namespace OneJS {
     public sealed class QuickJSContext : IDisposable {
         const string DefaultBootstrapResourcePath = "OneJS/QuickJSBootstrap.js";
         const int GCInterval = 100;     // Eval backstop: run GC at least every N evals
-        const int GCHandleDelta = 1024; // Run GC once live handles grow by this many since the last GC
+        const int GCHandleDelta = 1024; // Run GC once live handles grow by this many above the post-GC low
         static string _cachedBootstrap;
 
         IntPtr _ptr;
@@ -18,7 +18,7 @@ namespace OneJS {
         byte[] _buffer;
         bool _disposed;
         int _evalCount;
-        int _lastGCHandleCount;     // Live handle count right after the last GC (for delta-triggered GC)
+        int _gcBaselineHandleCount; // Lowest live handle count since the last GC (for delta-triggered GC)
         bool _bufferOverflowWarned; // Only warn once per context to avoid log spam
         System.Collections.Generic.Dictionary<(string, Type), Delegate> _jsFunctionCache;
 
@@ -157,17 +157,23 @@ namespace OneJS {
             if (HandleGrowthExceedsDelta()) RunGCInternal();
         }
 
-        // True when enough new handles have been created since the last GC to warrant
-        // draining finalizers. Handle count is monotonic between GCs, so the delta equals
-        // the number of handles created (transient + retained) since the previous GC.
+        // True when enough new handles have been created since the count last settled to
+        // warrant draining finalizers. A GC frees no handle by itself: QuickJS queues the
+        // FinalizationRegistry callbacks that release them as jobs, which run on the next
+        // ExecutePendingJobs. The count read right after the GC is therefore still the peak.
+        // Taking that as the baseline would put the next GC a full delta above the peak, and
+        // every cycle of steady churn would raise the peak by another delta. Following the
+        // count down as the jobs release handles measures growth from where it settled.
         bool HandleGrowthExceedsDelta() {
-            return QuickJSNative.GetHandleCount() - _lastGCHandleCount > GCHandleDelta;
+            int count = QuickJSNative.GetHandleCount();
+            if (count < _gcBaselineHandleCount) _gcBaselineHandleCount = count;
+            return count - _gcBaselineHandleCount > GCHandleDelta;
         }
 
-        // All GC paths route through here so _lastGCHandleCount stays in sync.
+        // All GC paths route through here so _gcBaselineHandleCount stays in sync.
         void RunGCInternal() {
             QuickJSNative.qjs_run_gc(_ptr);
-            _lastGCHandleCount = QuickJSNative.GetHandleCount();
+            _gcBaselineHandleCount = QuickJSNative.GetHandleCount();
         }
 
         public void Dispose() {

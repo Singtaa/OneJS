@@ -310,6 +310,48 @@ namespace OneJS.Tests {
             yield return null;
         }
 
+        // GC Trigger Tests
+
+        /// <summary>
+        /// Steady churn of short-lived handles, driven the way a runner's tick drives its
+        /// context (run JS, run pending jobs, MaybeRunGC), keeps the handle count within about
+        /// one GC delta of where it settles. A GC releases no handle by itself: QuickJS queues
+        /// the FinalizationRegistry callbacks as jobs, so the count read right after the GC is
+        /// still the peak. When that peak became the trigger's baseline, each cycle put the next
+        /// GC a full delta higher, and a UI writing a few hundred struct values per frame
+        /// crossed the 10,000 warning within a minute.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator GCTrigger_SteadyChurn_PeakStaysNearOneDelta() {
+            const int Frames = 300;
+            const int HandlesPerFrame = 200;
+            const int Bound = 3 * 1024; // one GC delta, a frame of overshoot, and slack
+
+            _ctx.Eval(@"
+                globalThis.__churn = function (n) {
+                    for (var i = 0; i < n; i++)
+                        new CS.UnityEngine.UIElements.Length(i, CS.UnityEngine.UIElements.LengthUnit.Pixel);
+                };
+            ");
+            _ctx.ExecutePendingJobs();
+            _ctx.RunGC();
+            _ctx.ExecutePendingJobs();
+            QuickJSNative.ResetHandleMonitoring();
+
+            for (int frame = 0; frame < Frames; frame++) {
+                _ctx.Eval($"__churn({HandlesPerFrame})");
+                _ctx.ExecutePendingJobs();
+                _ctx.MaybeRunGC();
+            }
+
+            int peak = QuickJSNative.GetPeakHandleCount();
+            Assert.Less(peak, Bound,
+                $"{Frames * HandlesPerFrame} short-lived handles over {Frames} ticks peaked at {peak} live handles. "
+                + "The delta-triggered GC must measure growth from where the count settles after the previous GC's "
+                + "releases, not from the pre-release peak.");
+            yield return null;
+        }
+
         // Task Queue Monitoring Tests
 
         [UnityTest]
