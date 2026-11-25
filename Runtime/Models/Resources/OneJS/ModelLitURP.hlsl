@@ -211,6 +211,21 @@ half3 Tinted(half3 color) {
     return color * lerp(float3(1, 1, 1), tint.rgb, tint.a);
 }
 
+// The ambient a scattered copy's lower part does not see (ModelBridge.SetScatterFill): its
+// occlusion of the indirect light only, so the sun on a clump's top keeps its colour while the
+// sky's fill fades toward its base, as the depth-normals occlusion inside the lighting did before
+// runtime 1.10 drew it after the opaques. By height above the copy's own origin, which a scatter
+// sets on the ground, so it needs no prepass and no bounds. _OjScatterFill: x how much of the fill
+// is gone at the base (0 to 1), y the reach in metres, z the curve's power; y at 0 is the default.
+float4 _OjScatterFill;
+#define MODEL_SCATTER_FILL_DEFAULT float4(1.0, 1.0, 1.0, 0)
+
+half ScatterFillOcclusion(float aboveBase) {
+    float4 f = _OjScatterFill.y > 0 ? _OjScatterFill : MODEL_SCATTER_FILL_DEFAULT;
+    half t = (half)saturate(aboveBase / f.y);
+    return (half)(1.0 - f.x * pow(1.0 - t, f.z));
+}
+
 // Where a vertex lands in the world, swayed by the wind when its model sways. A branch on a
 // material value, so every vertex of a draw takes the same way.
 // A plain sway's stream has one number a vertex, which a float4 input reads as (sway, 0, 0, 1).

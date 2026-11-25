@@ -41,6 +41,16 @@ namespace OneJS.Models {
             return "";
         }
 
+        static readonly int ScatterFillId = UnityEngine.Shader.PropertyToID("_OjScatterFill");
+
+        /// <summary>
+        /// Prototype: how much of the ambient fill a scattered copy's base loses (0 to 1), over how
+        /// many metres above its origin, and the curve's power. A reach of 0 puts the default back.
+        /// </summary>
+        public static void SetScatterFill(float atBase, float reach, float power) {
+            UnityEngine.Shader.SetGlobalVector(ScatterFillId, new UnityEngine.Vector4(atBase, reach, power, 0));
+        }
+
         static void StopOcclusion() {
             if (!_occlusionChanged) return;
             _occlusionChanged = false;

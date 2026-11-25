@@ -293,6 +293,9 @@ half4 Frag(Varyings i, FRONT_FACE_TYPE face : FRONT_FACE_SEMANTIC) : SV_Target {
         if (ownFrame) frame = ModelCotangentFrame(normalWS, i.positionWS, normalUV);
         d.normalWS = NormalizeNormalPerPixel(TransformTangentToWorld(s.normalTS, frame));
     #endif
+    #ifdef MODEL_SCATTERED
+        s.occlusion *= ScatterFillOcclusion(i.positionWS.y - MODEL_OBJECT_TO_WORLD._m13);
+    #endif
     d.viewDirectionWS = GetWorldSpaceNormalizeViewDir(i.positionWS);
     #if defined(MAIN_LIGHT_CALCULATE_SHADOWS)
         // A shadow coordinate past the far plane reads as unshadowed, on either depth convention.
