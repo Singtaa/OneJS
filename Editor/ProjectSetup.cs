@@ -157,10 +157,20 @@ namespace OneJS.Editor {
                 AssetDatabase.SaveAssets();
             }
 
+            if (failed.Count < runners.Count) Debug.Log(OpenSceneNote(scene.path));
+
             if (failed.Count > 0)
                 throw new InvalidOperationException($"[OneJS] Setup failed for {string.Join(", ", failed)} in {scene.path}; " +
                     "the warnings above say why.");
         }
+
+        /// <summary>
+        /// The line a headless setup ends with. The editor opens the scene it had open last,
+        /// which in a new project is Untitled, and Play there shows an empty Game view with
+        /// nothing in the Console to say why.
+        /// </summary>
+        internal static string OpenSceneNote(string scenePath) =>
+            $"[OneJS] In the editor, open {scenePath} before entering Play mode: the editor opens the scene it had open last, which may be another.";
 
         /// <summary>
         /// What Initialize Project does to one runner, short of npm: lists any missing default
