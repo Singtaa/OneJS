@@ -79,6 +79,40 @@ if (!globalThis.requestAnimationFrame && globalThis.console && !globalThis.conso
 // Track released handles to prevent double-free from FinalizationRegistry
 const __releasedHandles = new Set();
 
+// Handles this context holds a C# reference to: handle → number of registered
+// proxies not yet released. Each proxy put in __handleRegistry holds one
+// reference, and its release is a FinalizationRegistry job that a destroyed
+// context never runs. The handle table is shared by every context, so a context
+// that goes away while another stays live gives these back itself
+// (__releaseAllHandles, called from QuickJSContext.Dispose).
+const __heldHandles = new Map();
+
+function __holdHandle(handle) {
+    __heldHandles.set(handle, (__heldHandles.get(handle) || 0) + 1);
+}
+
+function __dropHandle(handle) {
+    const count = __heldHandles.get(handle);
+    if (count === undefined) return;
+    if (count <= 1) __heldHandles.delete(handle);
+    else __heldHandles.set(handle, count - 1);
+}
+
+/**
+ * Release every C# reference this context still holds. Called once, right
+ * before the context is destroyed. Returns how many references were released.
+ */
+function __releaseAllHandles() {
+    if (typeof __releaseHandle !== "function") return 0;
+    let released = 0;
+    for (const [handle, count] of __heldHandles) {
+        for (let i = 0; i < count; i++) __releaseHandle(handle);
+        released += count;
+    }
+    __heldHandles.clear();
+    return released;
+}
+
 // Proxy cache: handle → WeakRef<proxy>
 // Ensures the same C# object handle always returns the same JS proxy.
 // This prevents premature handle release when multiple code paths access the same object:
@@ -128,6 +162,7 @@ const __handleRegistry = new FinalizationRegistry((handle) => {
     }
     if (typeof __releaseHandle === "function") {
         __cleanupHandle(handle);
+        __dropHandle(handle);
         __releaseHandle(handle);
     }
 });
@@ -165,6 +200,7 @@ function releaseObject(obj) {
         if (!__releasedHandles.has(handle)) {
             __releasedHandles.add(handle);
             __cleanupHandle(handle);
+            __dropHandle(handle);
             __releaseHandle(handle);
         }
         obj.__csHandle = 0;
@@ -520,6 +556,7 @@ function __wrapObject(typeName, handle) {
 
     // Register for cleanup when proxy is GC'd
     __handleRegistry.register(proxy, handle);
+    __holdHandle(handle);
     return proxy;
 }
 
@@ -773,6 +810,9 @@ globalThis.__csHelpers = {
 // releaseObject is documented public API (callable bare from user code), so it
 // needs an explicit export now that top-level declarations are IIFE-scoped
 globalThis.releaseObject = releaseObject;
+
+// QuickJSContext.Dispose calls this by name before destroying the context
+globalThis.__releaseAllHandles = __releaseAllHandles;
 
 /**
  * Get System.Type from a type reference (path proxy or bound generic).

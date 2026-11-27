@@ -172,6 +172,12 @@ namespace OneJS {
 
         public void Dispose() {
             if (_disposed) return;
+
+            // Only this context's handles, while it can still run JS. The handle table is
+            // shared by every context, and a destroyed context never runs the
+            // FinalizationRegistry jobs that would release what its proxies hold, so with
+            // another runner live they stayed in the table for the rest of the session.
+            ReleaseHeldHandles();
             _disposed = true;
 
             // Only this context's wrappers: another live runner's cache must survive, or its
@@ -189,6 +195,19 @@ namespace OneJS {
             }
 
             GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        /// Give back every C# handle this context's proxies still hold (the bootstrap's
+        /// <c>__releaseAllHandles</c>). A context without the bootstrap holds none.
+        /// </summary>
+        void ReleaseHeldHandles() {
+            if (_ptr == IntPtr.Zero) return;
+            try {
+                Eval("globalThis.__releaseAllHandles && __releaseAllHandles()", "dispose.js");
+            } catch (Exception ex) {
+                Debug.LogWarning($"[QuickJSContext] Could not release this context's handles on dispose: {ex.Message}");
+            }
         }
 
         ~QuickJSContext() {

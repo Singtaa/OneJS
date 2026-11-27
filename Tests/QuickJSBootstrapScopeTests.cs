@@ -85,7 +85,7 @@ namespace OneJS.Tests {
                 "['__eventAPI','__csHelpers','$typeof','useExtensions','releaseObject','__dispatchEvent'," +
                 "'__tick','__onTeardown','__runTeardown','setImmediate','clearImmediate','loadStyleSheet'," +
                 "'Headers','Response','URL','URLSearchParams','btoa','atob','localStorage','sessionStorage'," +
-                "'queueMicrotask','fetch','WebSocket','__arrayBufferToBase64','__base64ToArrayBuffer']" +
+                "'queueMicrotask','fetch','WebSocket','__arrayBufferToBase64','__base64ToArrayBuffer','__releaseAllHandles']" +
                 ".filter(function(n) { return !(n in globalThis); }).join(',')");
             Assert.AreEqual("", missing,
                 "Expected globals missing after bootstrap eval - a needed export was lost");
