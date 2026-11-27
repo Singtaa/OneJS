@@ -1,5 +1,7 @@
 # Unreleased
 
+- A build error the editor's watcher prints reaches the Console
+- The editor's watcher keeps building after entering Play mode
 - A skinned model's height and click box match it as drawn under a scaled armature
 - A C# type's missing static member reads `undefined`, so calling one throws `TypeError: not a function` in place of `Method not found`
 - A development build names a missing static member once in the console
