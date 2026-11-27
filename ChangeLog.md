@@ -2,6 +2,7 @@
 
 - Build errors from the editor's watcher show in the Console; no earlier OneJS 3 release showed them
 - The editor's watcher keeps rebuilding after entering Play mode
+- A headless Initialize Project names the scene to open before Play mode
 - A skinned model's height and click box match it as drawn under a scaled armature
 - A C# type's missing static member reads `undefined`, so calling one throws `TypeError: not a function` in place of `Method not found`
 - A development build names a missing static member once in the console

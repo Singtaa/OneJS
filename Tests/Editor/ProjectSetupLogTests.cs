@@ -32,6 +32,16 @@ namespace OneJS.Tests.Editor {
             Assert.AreEqual(info, Application.GetStackTraceLogType(LogType.Log), "and info lines get theirs back");
         }
 
+        /// <summary>
+        /// A 26 Nov tester's editor opened on Untitled after a headless setup, and Play there
+        /// showed an empty Game view. The setup's last line names the scene to open.
+        /// </summary>
+        [Test]
+        public void TheLastLineNamesTheSceneToOpenBeforePlay() {
+            var note = ProjectSetup.OpenSceneNote("Assets/Scenes/SampleScene.unity");
+            StringAssert.Contains("open Assets/Scenes/SampleScene.unity before entering Play mode", note);
+        }
+
         [Test]
         public void PutsTracesBackWhenSetupThrows() {
             var info = Application.GetStackTraceLogType(LogType.Log);

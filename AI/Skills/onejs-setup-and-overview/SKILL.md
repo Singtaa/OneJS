@@ -5,14 +5,14 @@ metadata:
   asset: "OneJS"
   publisher: "DragonGround"
   asset-version: "3.9.19"
-  skill-version: "1.19.1"
+  skill-version: "1.19.2"
   unity: "6000.3+"
   render-pipelines: "Built-in, URP, HDRP"
   category: "tools/gui"
   asset-store-url: "https://assetstore.unity.com/packages/tools/gui/onejs-221317"
   documentation-url: "https://onejs.com/docs"
   support-url: "https://discord.gg/dwnYFte6SF"
-  last-verified: "2026-11-17"
+  last-verified: "2026-11-26"
 ---
 
 # Set Up a OneJS Project
@@ -240,7 +240,7 @@ For a program built by code rather than written by hand, `sl.program` records th
 
 **Steps.** Run `unity run <project> -- -nographics -executeMethod OneJS.Editor.ProjectSetup.Initialize`, or without Unity's CLI `<editor> -batchmode -nographics -quit -projectPath <project> -executeMethod OneJS.Editor.ProjectSetup.Initialize -logFile -`. Then run `npm install` and `npm run build` in the working directory it logs.
 
-**Expected result.** Exit code 0, the log line `[OneJS] App in <scene> is set up. Working directory: <path>`, and after the build the same layout the button produces, with `app.js.txt` written. A non-zero exit means a runner could not be set up; the warnings above it say why.
+**Expected result.** Exit code 0, the log line `[OneJS] App in <scene> is set up. Working directory: <path>`, and after the build the same layout the button produces, with `app.js.txt` written. A non-zero exit means a runner could not be set up; the warnings above it say why. The last line names the scene to open before entering Play mode: the editor reopens the scene it had last, which in a new project is Untitled, and Play there shows an empty Game view.
 
 ## Verification
 
