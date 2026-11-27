@@ -7,6 +7,7 @@
 - A development build names a missing static member once in the console
 - On OneJS 3.9.18 or older, ojplay's 2D physics elements move one at a time instead of throwing
 - A constructed generic type's static properties read as values, not methods
+- A Package Manager install no longer warns about `Unity/Proc/MeshGenerator.cs` on every compile
 
 # [2026-11-17] v3.9.19
 
