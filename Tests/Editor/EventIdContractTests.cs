@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
-using UnityEngine;
+using OneJS.Editor;
 
 namespace OneJS.Tests.Editor {
     /// <summary>
@@ -19,15 +19,13 @@ namespace OneJS.Tests.Editor {
         const string CsRel = "Runtime/QuickJSUIBridge.cs";
         const string JsRel = "Resources/OneJS/QuickJSBootstrap.js.txt";
 
+        // The package's one root lookup, so the guard runs in every install shape:
+        // a search of Assets alone found nothing when OneJS was a package.
         static string PackageRoot {
             get {
-                // This file is at <package>/Tests/Editor/, so the package root is
-                // two levels up. Derived rather than hardcoded so the guard
-                // survives the package being installed at a different path.
-                var here = Directory.GetFiles(Application.dataPath, "EventIdContractTests.cs",
-                    SearchOption.AllDirectories).FirstOrDefault();
-                Assert.IsNotNull(here, "Could not locate this test file to derive the package root.");
-                return Path.GetFullPath(Path.Combine(Path.GetDirectoryName(here), "..", ".."));
+                var root = OneJSPackage.Root();
+                Assert.IsNotNull(root, "Could not find the OneJS package root.");
+                return root;
             }
         }
 
