@@ -25,11 +25,16 @@ namespace OneJS.Editor {
     public static class NodeWatcherManager {
         const string PidPrefKeyPrefix = "OneJS.Watcher.Pid.";
         const string OutputPrefKeyPrefix = "OneJS.Watcher.Output.";
+        /// <summary>The npm arguments each watcher was started with, so one restarted after a reload runs what it ran: a root cart's is its own ojplay's build, not run watch.</summary>
+        const string ArgsPrefKeyPrefix = "OneJS.Watcher.Args.";
+        const string DefaultArguments = "run watch";
         /// <summary>The working directories this session's watchers run in, one per line. SessionState, so a domain reload keeps it and a new session starts empty.</summary>
         const string WatchedDirsKey = "OneJS.Watcher.Dirs";
 
         static readonly Dictionary<string, Process> _watchers = new();
+        /// <summary>Written by the watchers' reader threads, so every access holds _outputLock. EditorPrefs is main thread only: the buffers are saved there before a reload (OnBeforeReload).</summary>
         static readonly Dictionary<string, StringBuilder> _outputBuffers = new();
+        static readonly object _outputLock = new();
         static readonly HashSet<string> _starting = new();
         static readonly Dictionary<string, int> _outputPendingCount = new();  // Track pending output streams
 
@@ -59,11 +64,12 @@ namespace OneJS.Editor {
         internal static bool IsTracked(string workingDir) => WatchedDirs().Contains(workingDir);
 
         /// <summary>Takes a started watcher under management: the one place it is recorded for reattaching.</summary>
-        internal static void Track(string workingDir, Process process) {
+        internal static void Track(string workingDir, Process process, string npmArguments = DefaultArguments) {
             var key = GetKey(workingDir);
             _watchers[key] = process;
             // Save PID for reattachment after domain reload
             EditorPrefs.SetInt(PidPrefKeyPrefix + key, process.Id);
+            EditorPrefs.SetString(ArgsPrefKeyPrefix + key, npmArguments);
             var dirs = WatchedDirs();
             if (!dirs.Contains(workingDir)) {
                 dirs.Add(workingDir);
@@ -93,15 +99,19 @@ namespace OneJS.Editor {
         /// </summary>
         public static string GetOutput(string workingDir) {
             var key = GetKey(workingDir);
-            if (_outputBuffers.TryGetValue(key, out var buffer)) {
-                return buffer.ToString();
+            lock (_outputLock) {
+                if (_outputBuffers.TryGetValue(key, out var buffer)) return buffer.ToString();
             }
             // Try to restore from EditorPrefs (after domain reload)
             return EditorPrefs.GetString(OutputPrefKeyPrefix + key, "");
         }
 
         /// <summary>
-        /// Try to reattach to a watcher process that was running before domain reload.
+        /// Takes back a watcher that was running before a domain reload, by starting it again.
+        /// The reload dropped the editor's end of its stdout and stderr pipes, and nothing can
+        /// pick them up again: a process adopted by its pid alone writes into pipes nobody reads,
+        /// so its next line, a build error, never reached the Console and ended the watcher. A
+        /// fresh one has pipes the editor reads, and its first build writes nothing new.
         /// </summary>
         public static bool TryReattach(string workingDir) {
             var key = GetKey(workingDir);
@@ -130,23 +140,17 @@ namespace OneJS.Editor {
                     return false;
                 }
 
-                // Tracked again, also for a watcher an earlier session left running.
-                Track(workingDir, process);
-
-                // Re-register exit handler
-                process.EnableRaisingEvents = true;
-                process.Exited += (s, e) => {
-                    _watchers.Remove(key);
-                    ClearSavedState(key);
-                    OnWatcherStopped?.Invoke(workingDir);
-                };
-
-                // Restore output buffer
+                // Started again, also for a watcher an earlier session left running.
+                var npmArguments = EditorPrefs.GetString(ArgsPrefKeyPrefix + key, DefaultArguments);
                 var savedOutput = EditorPrefs.GetString(OutputPrefKeyPrefix + key, "");
-                _outputBuffers[key] = new StringBuilder(savedOutput);
-
-                OnWatcherStarted?.Invoke(workingDir);
-                return true;
+                try {
+                    OneJSProcessUtils.KillProcessTree(process);
+                    process.WaitForExit(2000);
+                } finally {
+                    process.Dispose();
+                }
+                ClearSavedState(key);
+                return Start(workingDir, npmArguments, savedOutput);
             } catch (ArgumentException) {
                 ClearSavedState(key);
                 return false;
@@ -169,12 +173,15 @@ namespace OneJS.Editor {
         /// is its own ojplay's Unity build.
         /// </summary>
         public static bool StartWatcher(string workingDir, string npmArguments) {
-            var key = GetKey(workingDir);
-
-            // Try reattaching first
+            // A watcher from before a reload is started again, with the arguments it had
             if (TryReattach(workingDir)) {
                 return true;
             }
+            return Start(workingDir, npmArguments, "");
+        }
+
+        static bool Start(string workingDir, string npmArguments, string earlierOutput) {
+            var key = GetKey(workingDir);
 
             if (IsRunning(workingDir) || _starting.Contains(key)) {
                 return false;
@@ -204,7 +211,7 @@ namespace OneJS.Editor {
                 var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
 
                 // Initialize output buffer and pending stream count (stdout + stderr)
-                _outputBuffers[key] = new StringBuilder();
+                lock (_outputLock) _outputBuffers[key] = new StringBuilder(earlierOutput);
                 _outputPendingCount[key] = 2;
 
                 process.OutputDataReceived += (s, e) => {
@@ -242,7 +249,7 @@ namespace OneJS.Editor {
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
 
-                Track(workingDir, process);
+                Track(workingDir, process, npmArguments);
 
                 OnWatcherStarted?.Invoke(workingDir);
 
@@ -299,7 +306,7 @@ namespace OneJS.Editor {
                 ClearSavedState(key);
             }
             _watchers.Clear();
-            _outputBuffers.Clear();
+            lock (_outputLock) _outputBuffers.Clear();
             _outputPendingCount.Clear();
         }
 
@@ -313,9 +320,10 @@ namespace OneJS.Editor {
         static void ClearSavedState(string key) {
             EditorPrefs.DeleteKey(PidPrefKeyPrefix + key);
             EditorPrefs.DeleteKey(OutputPrefKeyPrefix + key);
+            EditorPrefs.DeleteKey(ArgsPrefKeyPrefix + key);
             var dirs = WatchedDirs();
             if (dirs.RemoveAll(dir => GetKey(dir) == key) > 0) SessionState.SetString(WatchedDirsKey, string.Join("\n", dirs));
-            _outputBuffers.Remove(key);
+            lock (_outputLock) _outputBuffers.Remove(key);
             _outputPendingCount.Remove(key);
         }
 
@@ -333,30 +341,37 @@ namespace OneJS.Editor {
             }
         }
 
+        /// <summary>
+        /// Called on a reader thread. It touches no Unity API but the thread-safe Debug.Log: an
+        /// EditorPrefs write here threw on the first line, which ended the reading, so nothing a
+        /// watcher said after it ever reached the Console.
+        /// </summary>
         static void AppendOutput(string key, string line) {
-            if (!_outputBuffers.TryGetValue(key, out var buffer)) {
-                buffer = new StringBuilder();
-                _outputBuffers[key] = buffer;
-            }
+            lock (_outputLock) {
+                if (!_outputBuffers.TryGetValue(key, out var buffer)) {
+                    buffer = new StringBuilder();
+                    _outputBuffers[key] = buffer;
+                }
 
-            buffer.AppendLine(line);
+                buffer.AppendLine(line);
 
-            // Keep only last 50 lines
-            var lines = buffer.ToString().Split('\n');
-            if (lines.Length > 50) {
-                buffer.Clear();
-                for (int i = lines.Length - 50; i < lines.Length; i++) {
-                    buffer.AppendLine(lines[i]);
+                // Keep only last 50 lines
+                var lines = buffer.ToString().Split('\n');
+                if (lines.Length > 50) {
+                    buffer.Clear();
+                    for (int i = lines.Length - 50; i < lines.Length; i++) {
+                        buffer.AppendLine(lines[i]);
+                    }
                 }
             }
-
-            // Persist to EditorPrefs for domain reload survival
-            EditorPrefs.SetString(OutputPrefKeyPrefix + key, buffer.ToString());
         }
 
         static void OnBeforeReload() {
-            // Don't stop watchers on domain reload: they keep running
-            // We'll reattach via TryReattach after reload
+            // Watchers keep running through the reload; TryReattach starts each again after it.
+            // Their output is kept for the inspector, from the main thread EditorPrefs needs.
+            lock (_outputLock) {
+                foreach (var pair in _outputBuffers) EditorPrefs.SetString(OutputPrefKeyPrefix + pair.Key, pair.Value.ToString());
+            }
         }
 
         static void OnEditorQuitting() {

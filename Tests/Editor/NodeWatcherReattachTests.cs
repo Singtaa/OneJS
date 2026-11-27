@@ -7,11 +7,12 @@ using OneJS.Editor;
 
 namespace OneJS.Tests.Editor {
     /// <summary>
-    /// A watcher is reattached after a domain reload whether or not its runner asks for it
+    /// A watcher is taken back after a domain reload whether or not its runner asks for it
     /// (#143). One whose scene was closed when a reload happened used to be forgotten, missed
     /// by StopAll when the editor quit, and outlived the editor. A real node process stands in
-    /// for the watcher, and the reload is the manager's table of watchers being emptied, which
-    /// is what a reload does to it.
+    /// for the watcher from before the reload, and the reload is the manager's table of
+    /// watchers being emptied, which is what a reload does to it. Taking it back starts the
+    /// app's watch script again in its place (NodeWatcherRestartTests says why).
     /// </summary>
     [TestFixture]
     public class NodeWatcherReattachTests {
@@ -21,7 +22,8 @@ namespace OneJS.Tests.Editor {
         [SetUp]
         public void SetUp() {
             _dir = Path.Combine(Path.GetTempPath(), "OneJSWatcherReattach_" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(_dir);
+            Directory.CreateDirectory(Path.Combine(_dir, "node_modules"));
+            File.WriteAllText(Path.Combine(_dir, "package.json"), "{ \"scripts\": { \"watch\": \"node -e \\\"setInterval(() => {}, 1000)\\\"\" } }\n");
         }
 
         [TearDown]
@@ -55,12 +57,22 @@ namespace OneJS.Tests.Editor {
             }
         }
 
-        static void ForgetWatchers() {
-            var table = (System.Collections.IDictionary)typeof(NodeWatcherManager)
+        /// <summary>Whether the process with this id is gone; StopWatcher disposes its Process.</summary>
+        static bool Ended(int pid) {
+            try {
+                using var process = Process.GetProcessById(pid);
+                return process.WaitForExit(5000);
+            } catch (ArgumentException) {
+                return true;
+            }
+        }
+
+        static System.Collections.IDictionary Watchers() =>
+            (System.Collections.IDictionary)typeof(NodeWatcherManager)
                 .GetField("_watchers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
                 .GetValue(null);
-            table.Clear();
-        }
+
+        static void ForgetWatchers() => Watchers().Clear();
 
         [Test]
         public void AWatcherIsReattachedAfterAReloadWithoutItsRunnerAsking_SoStopAllReachesIt() {
@@ -73,11 +85,18 @@ namespace OneJS.Tests.Editor {
             Assert.IsFalse(NodeWatcherManager.IsRunning(_dir), "the reload forgot the watcher, as it does");
 
             NodeWatcherManager.ReattachAll();
-            Assert.IsTrue(NodeWatcherManager.IsRunning(_dir), "reattached with no runner asking");
+            Assert.IsTrue(NodeWatcherManager.IsRunning(_dir), "taken back with no runner asking");
+            Assert.IsTrue(_node.WaitForExit(5000), "the watcher from before the reload was stopped");
+            Process restarted = null;
+            foreach (Process p in Watchers().Values) restarted = p;
+            Assert.IsNotNull(restarted);
+            Assert.AreNotEqual(_node.Id, restarted.Id, "a fresh watcher runs in its place");
+
+            var pid = restarted.Id;
 
             NodeWatcherManager.StopWatcher(_dir);
-            Assert.IsTrue(_node.WaitForExit(5000), "stopping the reattached watcher ended its process");
-            Assert.IsFalse(NodeWatcherManager.IsTracked(_dir), "a stopped watcher is not reattached after the next reload");
+            Assert.IsTrue(Ended(pid), "stopping the watcher ended its process");
+            Assert.IsFalse(NodeWatcherManager.IsTracked(_dir), "a stopped watcher is not taken back after the next reload");
         }
     }
 }
